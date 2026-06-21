@@ -177,142 +177,84 @@ class DefaultCircuitBreakerEventHandler(CircuitBreakerEventHandler):
 
 class MonitoringCircuitBreakerEventHandler(CircuitBreakerEventHandler):
     """Event handler for monitoring systems with alerting capabilities"""
-    
-    def __init__(self, alert_callback: Optional[Callable] = None, 
+
+    def __init__(self, alert_callback: Optional[Callable] = None,
                  dashboard_callback: Optional[Callable] = None,
                  metrics_callback: Optional[Callable] = None):
         self.alert_callback = alert_callback
         self.dashboard_callback = dashboard_callback
         self.metrics_callback = metrics_callback
-    
+
+    async def _call_callback(self, label: str, callback: Optional[Callable], **kwargs):
+        """Invoke a monitoring callback, logging and swallowing any exception."""
+        if callback is None:
+            return
+        try:
+            await callback(**kwargs)
+        except Exception as e:
+            logger.error(f"Circuit breaker {label} callback failed for {kwargs.get('adapter_name', '?')}: {e}")
+
     async def on_circuit_open(self, adapter_name: str, stats: Dict[str, Any], reason: str = ""):
-        """Handle circuit open with monitoring integration"""
-        # Log the event
         logger.warning(f"Circuit breaker OPENED for adapter: {adapter_name} - {reason}")
-        
-        # Send alert if callback provided
-        if self.alert_callback:
-            try:
-                await self.alert_callback(
-                    event_type="circuit_open",
-                    adapter_name=adapter_name,
-                    stats=stats,
-                    reason=reason
-                )
-            except Exception as e:
-                logger.error(f"Failed to send alert for {adapter_name}: {e}")
-        
-        # Update dashboard if callback provided
-        if self.dashboard_callback:
-            try:
-                await self.dashboard_callback(
-                    event_type="circuit_open",
-                    adapter_name=adapter_name,
-                    stats=stats
-                )
-            except Exception as e:
-                logger.error(f"Failed to update dashboard for {adapter_name}: {e}")
-        
-        # Update metrics if callback provided
-        if self.metrics_callback:
-            try:
-                await self.metrics_callback(
-                    event_type="circuit_open",
-                    adapter_name=adapter_name,
-                    stats=stats
-                )
-            except Exception as e:
-                logger.error(f"Failed to update metrics for {adapter_name}: {e}")
-    
+        base = dict(event_type="circuit_open", adapter_name=adapter_name, stats=stats)
+        await self._call_callback("alert", self.alert_callback, **base, reason=reason)
+        await self._call_callback("dashboard", self.dashboard_callback, **base)
+        await self._call_callback("metrics", self.metrics_callback, **base)
+
     async def on_circuit_close(self, adapter_name: str, stats: Dict[str, Any]):
-        """Handle circuit close with monitoring integration"""
-        # Log the event
         logger.info(f"Circuit breaker CLOSED for adapter: {adapter_name}")
-        
-        # Update dashboard if callback provided
-        if self.dashboard_callback:
-            try:
-                await self.dashboard_callback(
-                    event_type="circuit_close",
-                    adapter_name=adapter_name,
-                    stats=stats
-                )
-            except Exception as e:
-                logger.error(f"Failed to update dashboard for {adapter_name}: {e}")
-        
-        # Update metrics if callback provided
-        if self.metrics_callback:
-            try:
-                await self.metrics_callback(
-                    event_type="circuit_close",
-                    adapter_name=adapter_name,
-                    stats=stats
-                )
-            except Exception as e:
-                logger.error(f"Failed to update metrics for {adapter_name}: {e}")
-    
+        base = dict(event_type="circuit_close", adapter_name=adapter_name, stats=stats)
+        await self._call_callback("dashboard", self.dashboard_callback, **base)
+        await self._call_callback("metrics", self.metrics_callback, **base)
+
     async def on_circuit_half_open(self, adapter_name: str, stats: Dict[str, Any]):
-        """Handle circuit half-open with monitoring integration"""
-        # Log the event
         logger.info(f"Circuit breaker HALF-OPEN for adapter: {adapter_name}")
-        
-        # Update dashboard if callback provided
-        if self.dashboard_callback:
-            try:
-                await self.dashboard_callback(
-                    event_type="circuit_half_open",
-                    adapter_name=adapter_name,
-                    stats=stats
-                )
-            except Exception as e:
-                logger.error(f"Failed to update dashboard for {adapter_name}: {e}")
-    
+        await self._call_callback("dashboard", self.dashboard_callback,
+                                  event_type="circuit_half_open", adapter_name=adapter_name, stats=stats)
+
     async def on_circuit_reset(self, adapter_name: str, stats: Dict[str, Any]):
-        """Handle circuit reset with monitoring integration"""
-        # Log the event
         logger.info(f"Circuit breaker RESET for adapter: {adapter_name}")
-        
-        # Update dashboard if callback provided
-        if self.dashboard_callback:
-            try:
-                await self.dashboard_callback(
-                    event_type="circuit_reset",
-                    adapter_name=adapter_name,
-                    stats=stats
-                )
-            except Exception as e:
-                logger.error(f"Failed to update dashboard for {adapter_name}: {e}")
+        await self._call_callback("dashboard", self.dashboard_callback,
+                                  event_type="circuit_reset", adapter_name=adapter_name, stats=stats)
     
 class SimpleCircuitBreaker:
     """Simplified circuit breaker for a single adapter"""
-    
-    def __init__(self, adapter_name: str, failure_threshold: int = 5, 
+
+    def __init__(self, adapter_name: str, failure_threshold: int = 5,
                  recovery_timeout: float = 60.0, success_threshold: int = 3,
                  max_recovery_timeout: float = 300.0, enable_exponential_backoff: bool = True,
                  cleanup_interval: float = 3600.0, retention_period: float = 86400.0,
                  max_history_size: int = 10000, max_transitions_size: int = 1000,
-                 event_handler: Optional[CircuitBreakerEventHandler] = None):
+                 event_handler: Optional[CircuitBreakerEventHandler] = None,
+                 max_half_open_calls: int = 1):
         self.adapter_name = adapter_name
         self.failure_threshold = failure_threshold
         self.base_recovery_timeout = recovery_timeout
         self.success_threshold = success_threshold
         self.max_recovery_timeout = max_recovery_timeout
         self.enable_exponential_backoff = enable_exponential_backoff
-        
+
         # Memory leak prevention settings
         self.cleanup_interval = cleanup_interval  # How often to run cleanup (default: 1 hour)
         self.retention_period = retention_period  # How long to keep data (default: 24 hours)
         self.max_history_size = max_history_size  # Max call history records (default: 10000)
         self.max_transitions_size = max_transitions_size  # Max state transitions (default: 1000)
         self._last_cleanup = time.time()
-        
+
         # Event handling
         self.event_handler = event_handler or DefaultCircuitBreakerEventHandler()
-        
+
         # Exponential backoff tracking
         self.recovery_attempts = 0
         self.current_recovery_timeout = recovery_timeout
-        
+
+        # Half-open probe gating
+        self.max_half_open_calls = max_half_open_calls
+        self._half_open_probes = 0
+
+        # Breaker-level reentrant lock protecting all state mutations
+        self._lock = threading.RLock()
+
         self.state = CircuitState.CLOSED
         self.stats = CircuitBreakerStats(
             max_history_size=max_history_size,
@@ -324,7 +266,7 @@ class SimpleCircuitBreaker:
         """Calculate recovery timeout with exponential backoff and jitter"""
         if not self.enable_exponential_backoff:
             return self.base_recovery_timeout
-        
+
         # Exponential backoff with jitter
         backoff = min(
             self.base_recovery_timeout * (2 ** self.recovery_attempts),
@@ -333,17 +275,65 @@ class SimpleCircuitBreaker:
         # Add jitter to prevent thundering herd (0-10% of backoff)
         jitter = random.uniform(0, backoff * 0.1)
         return backoff + jitter
-    
+
+    def _emit_event(self, coro_factory):
+        """Schedule an async event callback without raising if no loop is running.
+
+        Keeps monitoring side-effects isolated from state-transition logic.
+        """
+        if self.event_handler is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(coro_factory())
+            task.add_done_callback(self._log_event_task_result)
+        except RuntimeError:
+            # No running event loop (sync test, admin code, shutdown path) — skip silently.
+            logger.debug(
+                f"Circuit breaker event skipped for {self.adapter_name}: no running event loop"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Circuit breaker event dispatch failed for {self.adapter_name}: {e}"
+            )
+
+    def _log_event_task_result(self, task: asyncio.Task):
+        """Consume event task exceptions so monitoring failures are logged, not leaked."""
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            logger.debug(f"Circuit breaker event task cancelled for {self.adapter_name}")
+        except Exception as e:
+            logger.warning(f"Circuit breaker event handler failed for {self.adapter_name}: {e}")
+
     def is_open(self) -> bool:
-        """Check if circuit is open"""
-        if self.state == CircuitState.OPEN:
-            # Check if we should transition to half-open
-            if time.time() - self._state_changed_at >= self.current_recovery_timeout:
-                self._transition_to_half_open()
+        """Check if circuit is open. Does not consume a half-open probe slot."""
+        with self._lock:
+            if self.state == CircuitState.OPEN:
+                # Check if we should transition to half-open
+                if time.time() - self._state_changed_at >= self.current_recovery_timeout:
+                    self._transition_to_half_open()
+                    return False
+                return True
+            return False
+
+    def _claim_half_open_slot(self) -> bool:
+        """Try to reserve a half-open probe slot. Returns False to fast-fail when saturated."""
+        with self._lock:
+            if self.state == CircuitState.OPEN:
                 return False
+            if self.state == CircuitState.HALF_OPEN:
+                if self._half_open_probes >= self.max_half_open_calls:
+                    return False
+                self._half_open_probes += 1
             return True
-        return False
-    
+
+    def _release_half_open_slot(self):
+        """Release a claimed half-open probe slot without recording success or failure."""
+        with self._lock:
+            if self.state == CircuitState.HALF_OPEN:
+                self._half_open_probes = max(0, self._half_open_probes - 1)
+
     def can_execute(self) -> bool:
         """Check if the circuit allows execution (not open)"""
         return not self.is_open()
@@ -351,243 +341,216 @@ class SimpleCircuitBreaker:
     def record_success(self, *args, **kwargs):
         """Record a successful call (accepts optional args for compatibility)"""
         current_time = time.time()
-        
-        # Add to call history
         execution_time = kwargs.get('execution_time', 0.0)
-        self.stats.add_call_record(current_time, True, execution_time)
-        
-        # Update counters
-        self.stats.success_count += 1
-        self.stats.total_successes += 1
-        self.stats.total_calls += 1
-        self.stats.consecutive_successes += 1
-        self.stats.consecutive_failures = 0
-        self.stats.last_success_time = current_time
-        
-        # Check for cleanup
-        self._maybe_cleanup_old_stats()
-        
-        if self.state == CircuitState.HALF_OPEN:
-            if self.stats.consecutive_successes >= self.success_threshold:
-                self._close_circuit()
-        elif self.state == CircuitState.OPEN:
-            # If a success occurs in OPEN (shouldn't happen), transition to HALF_OPEN
-            self._transition_to_half_open()
-    
+
+        with self._lock:
+            # Add to call history while holding the breaker lock so reset cannot swap stats mid-update.
+            self.stats.add_call_record(current_time, True, execution_time)
+
+            # Update counters
+            self.stats.success_count += 1
+            self.stats.total_successes += 1
+            self.stats.total_calls += 1
+            self.stats.consecutive_successes += 1
+            self.stats.consecutive_failures = 0
+            self.stats.last_success_time = current_time
+
+            # Check for cleanup
+            self._maybe_cleanup_old_stats()
+
+            if self.state == CircuitState.HALF_OPEN:
+                self._half_open_probes = max(0, self._half_open_probes - 1)
+                if self.stats.consecutive_successes >= self.success_threshold:
+                    self._close_circuit()
+            elif self.state == CircuitState.OPEN:
+                # If a success occurs in OPEN (shouldn't happen), transition to HALF_OPEN
+                self._transition_to_half_open()
+
     def record_failure(self, *args, **kwargs):
         """Record a failed call (accepts optional args for compatibility)"""
         current_time = time.time()
-        
-        # Add to call history
         execution_time = kwargs.get('execution_time', 0.0)
-        self.stats.add_call_record(current_time, False, execution_time)
-        
-        # Update counters
-        self.stats.failure_count += 1
-        self.stats.total_failures += 1
-        self.stats.total_calls += 1
-        self.stats.consecutive_failures += 1
-        self.stats.consecutive_successes = 0
-        self.stats.last_failure_time = current_time
-        
-        # Check for cleanup
-        self._maybe_cleanup_old_stats()
-        
-        if self.state == CircuitState.CLOSED:
-            if self.stats.consecutive_failures >= self.failure_threshold:
+
+        with self._lock:
+            # Add to call history while holding the breaker lock so reset cannot swap stats mid-update.
+            self.stats.add_call_record(current_time, False, execution_time)
+
+            # Update counters
+            self.stats.failure_count += 1
+            self.stats.total_failures += 1
+            self.stats.total_calls += 1
+            self.stats.consecutive_failures += 1
+            self.stats.consecutive_successes = 0
+            self.stats.last_failure_time = current_time
+
+            # Check for cleanup
+            self._maybe_cleanup_old_stats()
+
+            if self.state == CircuitState.CLOSED:
+                if self.stats.consecutive_failures >= self.failure_threshold:
+                    self._open_circuit()
+            elif self.state == CircuitState.HALF_OPEN:
+                self._half_open_probes = max(0, self._half_open_probes - 1)
                 self._open_circuit()
-        elif self.state == CircuitState.HALF_OPEN:
-            self._open_circuit()
     
     def _open_circuit(self):
-        """Open the circuit"""
+        """Open the circuit. Must be called while holding self._lock."""
         current_time = time.time()
         old_state = self.state.value
-        
+
         self.state = CircuitState.OPEN
         self._state_changed_at = current_time
-        
+
         # Record state transition
         self.stats.add_state_transition(current_time, old_state, "open", "failure_threshold_reached")
-        
+
         # Increment recovery attempts for exponential backoff
         self.recovery_attempts += 1
         self.current_recovery_timeout = self._calculate_recovery_timeout()
-        
+
         logger.warning(f"Circuit breaker OPENED for adapter: {self.adapter_name} "
-                      f"(recovery_attempts={self.recovery_attempts}, "
-                      f"next_timeout={self.current_recovery_timeout:.1f}s)")
-        
-        # Trigger event handler
-        if self.event_handler:
-            asyncio.create_task(
-                self.event_handler.on_circuit_open(
-                    self.adapter_name, 
-                    self.get_status(), 
-                    "failure_threshold_reached"
-                )
-            )
-    
+                       f"(recovery_attempts={self.recovery_attempts}, "
+                       f"next_timeout={self.current_recovery_timeout:.1f}s)")
+
+        status = self.get_status()
+        self._emit_event(lambda: self.event_handler.on_circuit_open(
+            self.adapter_name, status, "failure_threshold_reached"
+        ))
+
     def _close_circuit(self):
-        """Close the circuit"""
+        """Close the circuit. Must be called while holding self._lock."""
         current_time = time.time()
         old_state = self.state.value
-        
+
         self.state = CircuitState.CLOSED
         self._state_changed_at = current_time
         self.stats.consecutive_failures = 0
         self.stats.consecutive_successes = 0
-        
+
         # Record state transition
         self.stats.add_state_transition(current_time, old_state, "closed", "success_threshold_reached")
-        
+
         # Reset exponential backoff when circuit closes successfully
         self.recovery_attempts = 0
         self.current_recovery_timeout = self.base_recovery_timeout
-        
+
         logger.info(f"Circuit breaker CLOSED for adapter: {self.adapter_name} "
-                   f"(recovery_attempts reset to 0)")
-        
-        # Trigger event handler
-        if self.event_handler:
-            asyncio.create_task(
-                self.event_handler.on_circuit_close(self.adapter_name, self.get_status())
-            )
-    
+                    f"(recovery_attempts reset to 0)")
+
+        status = self.get_status()
+        self._emit_event(lambda: self.event_handler.on_circuit_close(self.adapter_name, status))
+
     def _transition_to_half_open(self):
-        """Transition to half-open state"""
+        """Transition to half-open state. Must be called while holding self._lock."""
         current_time = time.time()
         old_state = self.state.value
-        
+
         self.state = CircuitState.HALF_OPEN
         self._state_changed_at = current_time
         self.stats.consecutive_successes = 0
-        
+        self._half_open_probes = 0  # reset probe counter on every OPEN→HALF_OPEN transition
+
         # Record state transition
         self.stats.add_state_transition(current_time, old_state, "half_open", "recovery_timeout_expired")
-        
+
         logger.info(f"Circuit breaker HALF-OPEN for adapter: {self.adapter_name}")
-        
-        # Trigger event handler
-        if self.event_handler:
-            asyncio.create_task(
-                self.event_handler.on_circuit_half_open(self.adapter_name, self.get_status())
-            )
+
+        status = self.get_status()
+        self._emit_event(lambda: self.event_handler.on_circuit_half_open(self.adapter_name, status))
     
     def get_status(self) -> Dict[str, Any]:
         """Get circuit breaker status (thread-safe)"""
-        success_rate = 0.0
-        if self.stats.total_calls > 0:
-            success_rate = self.stats.total_successes / self.stats.total_calls
-        
-        # Get history sizes in a thread-safe manner
-        history_sizes = self.stats.get_history_sizes()
-            
-        return {
-            "state": self.state.value,
-            "success_rate": success_rate,
-            "total_calls": self.stats.total_calls,
-            "consecutive_failures": self.stats.consecutive_failures,
-            "consecutive_successes": self.stats.consecutive_successes,
-            "last_failure_time": self.stats.last_failure_time,
-            "last_success_time": self.stats.last_success_time,
-            "memory_usage": {
-                "call_history_size": history_sizes['call_history_size'],
-                "state_transitions_size": history_sizes['state_transitions_size'],
-                "max_history_size": self.max_history_size,
-                "max_transitions_size": self.max_transitions_size,
-                "last_cleanup": self._last_cleanup,
-                "cleanup_interval": self.cleanup_interval,
-                "retention_period": self.retention_period
-            },
-            "exponential_backoff": {
-                "enabled": self.enable_exponential_backoff,
-                "recovery_attempts": self.recovery_attempts,
-                "current_timeout": self.current_recovery_timeout,
-                "base_timeout": self.base_recovery_timeout,
-                "max_timeout": self.max_recovery_timeout
+        with self._lock:
+            success_rate = 0.0
+            if self.stats.total_calls > 0:
+                success_rate = self.stats.total_successes / self.stats.total_calls
+
+            # Get history sizes in a thread-safe manner
+            history_sizes = self.stats.get_history_sizes()
+
+            return {
+                "state": self.state.value,
+                "success_rate": success_rate,
+                "total_calls": self.stats.total_calls,
+                "consecutive_failures": self.stats.consecutive_failures,
+                "consecutive_successes": self.stats.consecutive_successes,
+                "last_failure_time": self.stats.last_failure_time,
+                "last_success_time": self.stats.last_success_time,
+                "memory_usage": {
+                    "call_history_size": history_sizes['call_history_size'],
+                    "state_transitions_size": history_sizes['state_transitions_size'],
+                    "max_history_size": self.max_history_size,
+                    "max_transitions_size": self.max_transitions_size,
+                    "last_cleanup": self._last_cleanup,
+                    "cleanup_interval": self.cleanup_interval,
+                    "retention_period": self.retention_period
+                },
+                "exponential_backoff": {
+                    "enabled": self.enable_exponential_backoff,
+                    "recovery_attempts": self.recovery_attempts,
+                    "current_timeout": self.current_recovery_timeout,
+                    "base_timeout": self.base_recovery_timeout,
+                    "max_timeout": self.max_recovery_timeout
+                }
             }
-        }
     
+    def _run_cleanup(self) -> tuple:
+        """Prune records older than retention_period. Returns (removed_calls, removed_transitions).
+
+        Acquires self._lock (RLock) so it is safe to call both from within a locked section
+        (record_success/record_failure → _maybe_cleanup_old_stats) and externally (force_cleanup).
+        """
+        with self._lock:
+            current_time = time.time()
+            sizes_before = self.stats.get_history_sizes()
+            self.stats.cleanup_old_records(current_time - self.retention_period)
+            sizes_after = self.stats.get_history_sizes()
+            self._last_cleanup = current_time
+        return (
+            sizes_before['call_history_size'] - sizes_after['call_history_size'],
+            sizes_before['state_transitions_size'] - sizes_after['state_transitions_size'],
+        )
+
     def _maybe_cleanup_old_stats(self):
         """Periodically clean up old statistics to prevent memory leaks"""
-        current_time = time.time()
-        
-        # Check if it's time for cleanup
-        if current_time - self._last_cleanup > self.cleanup_interval:
-            cutoff_time = current_time - self.retention_period
-            
-            # Get counts before cleanup (thread-safe)
-            sizes_before = self.stats.get_history_sizes()
-            call_history_before = sizes_before['call_history_size']
-            transitions_before = sizes_before['state_transitions_size']
-            
-            # Perform cleanup (thread-safe)
-            self.stats.cleanup_old_records(cutoff_time)
-            
-            # Get counts after cleanup (thread-safe)
-            sizes_after = self.stats.get_history_sizes()
-            call_history_after = sizes_after['call_history_size']
-            transitions_after = sizes_after['state_transitions_size']
-            
-            # Update last cleanup time
-            self._last_cleanup = current_time
-            
-            # Log cleanup results if there was significant cleanup
-            if call_history_before > call_history_after or transitions_before > transitions_after:
-                logger.debug(f"Circuit breaker cleanup for {self.adapter_name}: "
-                           f"removed {call_history_before - call_history_after} call records, "
-                           f"{transitions_before - transitions_after} transition records")
-    
+        if time.time() - self._last_cleanup <= self.cleanup_interval:
+            return
+        removed_calls, removed_transitions = self._run_cleanup()
+        if removed_calls or removed_transitions:
+            logger.debug(f"Circuit breaker cleanup for {self.adapter_name}: "
+                         f"removed {removed_calls} call records, {removed_transitions} transition records")
+
     def force_cleanup(self):
         """Force immediate cleanup of old statistics"""
-        current_time = time.time()
-        cutoff_time = current_time - self.retention_period
-        
-        # Get counts before cleanup (thread-safe)
-        sizes_before = self.stats.get_history_sizes()
-        call_history_before = sizes_before['call_history_size']
-        transitions_before = sizes_before['state_transitions_size']
-        
-        # Perform cleanup (thread-safe)
-        self.stats.cleanup_old_records(cutoff_time)
-        
-        # Get counts after cleanup (thread-safe)
-        sizes_after = self.stats.get_history_sizes()
-        call_history_after = sizes_after['call_history_size']
-        transitions_after = sizes_after['state_transitions_size']
-        
-        # Update last cleanup time
-        self._last_cleanup = current_time
-        
+        removed_calls, removed_transitions = self._run_cleanup()
         logger.info(f"Circuit breaker forced cleanup for {self.adapter_name}: "
-                   f"removed {call_history_before - call_history_after} call records, "
-                   f"{transitions_before - transitions_after} transition records")
+                    f"removed {removed_calls} call records, {removed_transitions} transition records")
     
     def reset(self):
         """Reset the circuit breaker stats and state"""
-        self.state = CircuitState.CLOSED
-        self.stats = CircuitBreakerStats(
-            max_history_size=self.max_history_size,
-            max_transitions_size=self.max_transitions_size
-        )
-        self._state_changed_at = time.time()
-        
-        # Reset exponential backoff state
-        self.recovery_attempts = 0
-        self.current_recovery_timeout = self.base_recovery_timeout
-        
-        # Reset cleanup tracking
-        self._last_cleanup = time.time()
-        
-        logger.info(f"Circuit breaker RESET for adapter: {self.adapter_name} "
-                   f"(exponential backoff reset)")
-        
-        # Trigger event handler
-        if self.event_handler:
-            asyncio.create_task(
-                self.event_handler.on_circuit_reset(self.adapter_name, self.get_status())
+        with self._lock:
+            self.state = CircuitState.CLOSED
+            self.stats = CircuitBreakerStats(
+                max_history_size=self.max_history_size,
+                max_transitions_size=self.max_transitions_size
             )
+            self._state_changed_at = time.time()
+
+            # Reset exponential backoff state
+            self.recovery_attempts = 0
+            self.current_recovery_timeout = self.base_recovery_timeout
+
+            # Reset half-open probe counter
+            self._half_open_probes = 0
+
+            # Reset cleanup tracking
+            self._last_cleanup = time.time()
+
+            logger.info(f"Circuit breaker RESET for adapter: {self.adapter_name} "
+                        f"(exponential backoff reset)")
+
+            status = self.get_status()
+        self._emit_event(lambda: self.event_handler.on_circuit_reset(self.adapter_name, status))
 
 class ParallelAdapterExecutor:
     """
@@ -721,24 +684,26 @@ class ParallelAdapterExecutor:
             success_threshold = ft_config.get('success_threshold', self.success_threshold)
             max_recovery_timeout = ft_config.get('max_recovery_timeout', 300.0)
             enable_exponential_backoff = ft_config.get('enable_exponential_backoff', True)
-            
+            max_half_open_calls = ft_config.get('max_half_open_calls', 1)
+
             logger.debug(f"Creating circuit breaker for {adapter_name} with "
-                        f"failure_threshold={failure_threshold}, "
-                        f"recovery_timeout={recovery_timeout}, "
-                        f"success_threshold={success_threshold}, "
-                        f"max_recovery_timeout={max_recovery_timeout}, "
-                        f"exponential_backoff={enable_exponential_backoff}")
-            
+                         f"failure_threshold={failure_threshold}, "
+                         f"recovery_timeout={recovery_timeout}, "
+                         f"success_threshold={success_threshold}, "
+                         f"max_recovery_timeout={max_recovery_timeout}, "
+                         f"exponential_backoff={enable_exponential_backoff}, "
+                         f"max_half_open_calls={max_half_open_calls}")
+
             # Get memory leak prevention settings with fallback to global config
             cleanup_interval = ft_config.get('cleanup_interval', self.cleanup_interval)
             retention_period = ft_config.get('retention_period', self.retention_period)
             max_history_size = ft_config.get('max_history_size', self.max_history_size)
             max_transitions_size = ft_config.get('max_transitions_size', self.max_transitions_size)
-            
+
             # Get event handler configuration
             event_handler_config = ft_config.get('event_handler', {})
             event_handler = self._create_event_handler(event_handler_config)
-            
+
             self.circuit_breakers[adapter_name] = SimpleCircuitBreaker(
                 adapter_name,
                 failure_threshold,
@@ -750,7 +715,8 @@ class ParallelAdapterExecutor:
                 retention_period,
                 max_history_size,
                 max_transitions_size,
-                event_handler
+                event_handler,
+                max_half_open_calls,
             )
         return self.circuit_breakers[adapter_name]
     
@@ -892,7 +858,23 @@ class ParallelAdapterExecutor:
                 execution_time=0.0,
                 context=context
             )
-        
+
+        if not cb._claim_half_open_slot():
+            status = cb.get_status()
+            if status["state"] == CircuitState.OPEN.value:
+                message = f"Circuit is open for adapter {adapter_name}"
+            else:
+                message = f"Circuit is half-open and probe limit reached for adapter {adapter_name}"
+            logger.debug(f"{log_prefix} {message}")
+            return AdapterResult(
+                adapter_name=adapter_name,
+                success=False,
+                data=None,
+                error=Exception(message),
+                execution_time=0.0,
+                context=context
+            )
+
         # Get adapter-specific timeout
         ft_config = self._get_adapter_fault_tolerance_config(adapter_name)
         adapter_timeout = ft_config.get('operation_timeout', self.operation_timeout)
@@ -931,7 +913,8 @@ class ParallelAdapterExecutor:
         except asyncio.TimeoutError:
             execution_time = time.time() - start_time
             cb.record_failure(execution_time=execution_time)
-            cb.stats.timeout_calls += 1
+            with cb._lock:
+                cb.stats.timeout_calls += 1
             logger.warning(f"{log_prefix} Timeout for adapter {adapter_name} after {execution_time:.2f}s (timeout: {adapter_timeout}s)")
             
             return AdapterResult(
@@ -941,7 +924,10 @@ class ParallelAdapterExecutor:
                 execution_time=execution_time,
                 context=context
             )
-            
+        except asyncio.CancelledError:
+            cb._release_half_open_slot()
+            raise
+
         except Exception as e:
             execution_time = time.time() - start_time
             cb.record_failure(execution_time=execution_time)
@@ -1103,19 +1089,16 @@ class ParallelAdapterExecutor:
         return adapter_info
     
     def reset_circuit_breaker(self, adapter_name: str):
-        """Reset a specific circuit breaker"""
+        """Reset a specific circuit breaker, clearing all stats/history and emitting a reset event."""
         if adapter_name in self.circuit_breakers:
-            self.circuit_breakers[adapter_name]._close_circuit()
+            self.circuit_breakers[adapter_name].reset()
             logger.info(f"Reset circuit breaker for adapter: {adapter_name}")
     
     def force_cleanup_all_circuit_breakers(self):
         """Force cleanup of all circuit breakers"""
-        total_cleaned = 0
-        for adapter_name, cb in self.circuit_breakers.items():
+        for cb in self.circuit_breakers.values():
             cb.force_cleanup()
-            total_cleaned += 1
-        
-        logger.info(f"Forced cleanup of {total_cleaned} circuit breakers")
+        logger.info(f"Forced cleanup of {len(self.circuit_breakers)} circuit breakers")
     
     def get_memory_usage_summary(self) -> Dict[str, Any]:
         """Get memory usage summary for all circuit breakers (thread-safe)"""

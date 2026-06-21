@@ -1,267 +1,187 @@
 # Circuit Breaker Patterns in ORBIT
 
-This document provides detailed information about circuit breaker implementation patterns, state management, and best practices in ORBIT's fault tolerance system.
+This document describes ORBIT's circuit breaker implementation and outlines extension patterns that are not yet implemented. **Read the "Current ORBIT Implementation" section for anything you are deploying or operating. The "Extension Patterns" section contains design ideas for future contributors.**
 
-## Circuit Breaker Pattern Overview
+---
 
-The Circuit Breaker pattern prevents cascading failures in distributed systems by wrapping calls to external services and monitoring for failures. When failures reach a threshold, the circuit "opens" and subsequent calls fail fast without attempting the operation.
+## Current ORBIT Implementation
 
-## ORBIT's Circuit Breaker Implementation
+The circuit breaker lives in `server/services/parallel_adapter_executor.py`. All behavior described in this section reflects the running code.
 
 ### Core Components
 
-#### 1. CircuitState Enumeration
+#### CircuitState
 
 ```python
 class CircuitState(Enum):
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Circuit is open, failing fast
-    HALF_OPEN = "half_open" # Testing if service recovered
+    CLOSED = "closed"       # Normal operation — all calls pass through
+    OPEN = "open"           # Fast-failing — calls are rejected immediately
+    HALF_OPEN = "half_open" # Cautious probing — limited calls allowed through
 ```
 
-#### 2. CircuitBreakerStats
+#### CircuitBreakerStats
 
-Tracks operational metrics for decision making:
+Tracks operational metrics used for transition decisions and monitoring. Protected by an internal `threading.Lock`.
 
 ```python
 @dataclass
 class CircuitBreakerStats:
-    failure_count: int = 0           # Total failures in current window
-    success_count: int = 0           # Total successes in current window
-    timeout_calls: int = 0           # Calls that timed out
-    consecutive_failures: int = 0     # Consecutive failures (resets on success)
-    consecutive_successes: int = 0    # Consecutive successes (resets on failure)
-    total_calls: int = 0             # All-time call count
-    total_failures: int = 0          # All-time failure count
-    total_successes: int = 0         # All-time success count
+    failure_count: int = 0
+    success_count: int = 0
+    timeout_calls: int = 0
+    consecutive_failures: int = 0
+    consecutive_successes: int = 0
+    total_calls: int = 0
+    total_failures: int = 0
+    total_successes: int = 0
     last_failure_time: Optional[float] = None
     last_success_time: Optional[float] = None
+    # Time-series data (capped at max_history_size / max_transitions_size)
+    call_history: List[Dict[str, Any]] = ...
+    state_transitions: List[Dict[str, Any]] = ...
 ```
 
-#### 3. SimpleCircuitBreaker
+#### SimpleCircuitBreaker
 
 ```python
 class SimpleCircuitBreaker:
-    def __init__(self, adapter_name: str, failure_threshold: int = 5, 
-                 recovery_timeout: float = 60.0, success_threshold: int = 3):
-        self.adapter_name = adapter_name
-        self.failure_threshold = failure_threshold    # Failures to open circuit
-        self.recovery_timeout = recovery_timeout      # Time before half-open
-        self.success_threshold = success_threshold    # Successes to close circuit
-        
-        self.state = CircuitState.CLOSED
-        self.stats = CircuitBreakerStats()
-        self._state_changed_at = time.time()
+    def __init__(
+        self,
+        adapter_name: str,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 60.0,
+        success_threshold: int = 3,
+        max_recovery_timeout: float = 300.0,
+        enable_exponential_backoff: bool = True,
+        cleanup_interval: float = 3600.0,
+        retention_period: float = 86400.0,
+        max_history_size: int = 10000,
+        max_transitions_size: int = 1000,
+        event_handler: Optional[CircuitBreakerEventHandler] = None,
+        max_half_open_calls: int = 1,
+    ): ...
 ```
 
-## State Transition Logic
+Key instance state protected by `self._lock` (a `threading.RLock`):
+- `state` — current `CircuitState`
+- `recovery_attempts` / `current_recovery_timeout` — exponential backoff tracking
+- `_half_open_probes` — number of in-flight HALF_OPEN probes (gated by `max_half_open_calls`)
+- `stats` — `CircuitBreakerStats` instance
 
-### CLOSED → OPEN
+### State Transition Logic
 
-The circuit opens when consecutive failures exceed the threshold:
+#### CLOSED → OPEN
 
-```python
-def record_failure(self, error_type: str = "general"):
-    """Record a failed call and update circuit state"""
-    self.stats.failure_count += 1
-    self.stats.total_failures += 1
-    self.stats.total_calls += 1
-    self.stats.consecutive_failures += 1
-    self.stats.consecutive_successes = 0
-    self.stats.last_failure_time = time.time()
-    
-    # Check if circuit should open
-    if (self.state == CircuitState.CLOSED and 
-        self.stats.consecutive_failures >= self.failure_threshold):
-        self._open_circuit()
+The circuit opens when `consecutive_failures >= failure_threshold`. Recovery timeout is calculated using exponential backoff with jitter (up to `max_recovery_timeout`).
 
-def _open_circuit(self):
-    """Open the circuit breaker"""
-    self.state = CircuitState.OPEN
-    self._state_changed_at = time.time()
-    logger.warning(f"Circuit breaker OPENED for adapter: {self.adapter_name}")
+#### OPEN → HALF_OPEN
+
+`is_open()` checks `time.time() - _state_changed_at >= current_recovery_timeout`. When elapsed, it calls `_transition_to_half_open()` which resets `_half_open_probes = 0`.
+
+#### HALF_OPEN probe gating
+
+When a request enters `_execute_single_adapter()` while the circuit is HALF_OPEN, it calls `_claim_half_open_slot()`:
+- If `_half_open_probes < max_half_open_calls`, the probe is allowed and `_half_open_probes` is incremented.
+- If `_half_open_probes >= max_half_open_calls`, the call is fast-failed with *"Circuit is half-open and probe limit reached"*.
+- `_half_open_probes` is decremented in both `record_success()` and `record_failure()` when called from HALF_OPEN.
+
+#### HALF_OPEN → CLOSED
+
+After `consecutive_successes >= success_threshold` in HALF_OPEN, `_close_circuit()` is called. Backoff is reset to `base_recovery_timeout`.
+
+#### HALF_OPEN → OPEN
+
+A single failure in HALF_OPEN calls `_open_circuit()` again, incrementing `recovery_attempts` for the next backoff calculation.
+
+### Event Dispatch
+
+Transition methods (`_open_circuit`, `_close_circuit`, `_transition_to_half_open`, `reset`) fire async event callbacks through `_emit_event(coro_factory)`. This helper:
+1. Attempts `asyncio.get_running_loop().create_task(coro_factory())`.
+2. If no loop is running (sync test, admin code, shutdown path), logs a DEBUG message and returns — it never raises from the breaker state transition.
+3. Catches and logs any other dispatch error, again without affecting state.
+
+Available event handler types (configured per adapter via `event_handler.type`):
+- `default` — logs events to the ORBIT logger.
+- `monitoring` — logs plus calls up to three async callbacks: `alert_callback`, `dashboard_callback`, `metrics_callback`.
+- `custom` — loads a class from a dotted import path (restricted to trusted deployments; see monitoring config docs).
+
+### Reset Semantics
+
+`SimpleCircuitBreaker.reset()` (called by `ParallelAdapterExecutor.reset_circuit_breaker()`):
+- Sets state to CLOSED.
+- Replaces `stats` with a fresh `CircuitBreakerStats` (clears all history and counters).
+- Resets `recovery_attempts = 0` and `current_recovery_timeout = base_recovery_timeout`.
+- Resets `_half_open_probes = 0`.
+- Emits `on_circuit_reset` (not `on_circuit_close`).
+
+### Timeout Allocation
+
+`_execute_single_adapter()` splits `operation_timeout` into two fixed budgets:
+- **30%** for adapter lookup/initialization (`asyncio.wait_for(..., timeout=adapter_timeout * 0.3)`).
+- **70%** for query execution (`asyncio.wait_for(..., timeout=adapter_timeout * 0.7)`).
+
+A 30 s `operation_timeout` means the query must finish within 21 s. Set `operation_timeout` with this split in mind.
+
+### Execution Strategy
+
+`execute_adapters()` currently implements the `all` strategy: all available adapters (those whose circuits are not OPEN) run in parallel batches using `asyncio.gather`. The `execution.strategy` config key is read but has no effect on the current path — see Extension Patterns below.
+
+### Memory Management
+
+`CircuitBreakerStats` caps `call_history` at `max_history_size` (default 10 000) and `state_transitions` at `max_transitions_size` (default 1 000). Periodic cleanup removes records older than `retention_period` (default 24 h) on a `cleanup_interval` timer (default 1 h). `force_cleanup()` runs cleanup immediately.
+
+### Thread Safety
+
+`SimpleCircuitBreaker` uses a `threading.RLock` (`self._lock`) to serialize all state mutations, counter updates, and transition checks. `CircuitBreakerStats` has its own `threading.Lock` protecting `call_history` and `state_transitions`. Event dispatch (`_emit_event`) happens while the breaker lock is held but is non-blocking (`loop.create_task` schedules the coroutine without waiting for it).
+
+### Configuration Reference
+
+```yaml
+fault_tolerance:
+  circuit_breaker:
+    failure_threshold: 5          # Consecutive failures before OPEN
+    recovery_timeout: 60.0        # Base recovery wait (seconds); backoff multiplies this
+    success_threshold: 3          # Consecutive successes in HALF_OPEN before CLOSED
+    max_recovery_timeout: 300.0   # Backoff ceiling
+    enable_exponential_backoff: true
+    max_half_open_calls: 1        # Max concurrent HALF_OPEN probes per adapter
+    cleanup_interval: 3600.0      # How often to prune old records (seconds)
+    retention_period: 86400.0     # How long to keep records (seconds)
+    max_history_size: 10000       # Cap on call_history list length
+    max_transitions_size: 1000    # Cap on state_transitions list length
 ```
 
-### OPEN → HALF_OPEN
+All keys can be overridden per adapter under `adapters[n].fault_tolerance`.
 
-After the recovery timeout, the circuit automatically transitions to half-open:
+---
 
-```python
-def is_open(self) -> bool:
-    """Check if circuit is open"""
-    if self.state == CircuitState.OPEN:
-        # Check if we should transition to half-open
-        if time.time() - self._state_changed_at >= self.recovery_timeout:
-            self._transition_to_half_open()
-            return False
-        return True
-    return False
+## Extension Patterns (not yet implemented)
 
-def _transition_to_half_open(self):
-    """Transition from OPEN to HALF_OPEN state"""
-    self.state = CircuitState.HALF_OPEN
-    self._state_changed_at = time.time()
-    logger.info(f"Circuit breaker HALF_OPEN for adapter: {self.adapter_name}")
-```
-
-### HALF_OPEN → CLOSED/OPEN
-
-In half-open state, the circuit monitors calls to determine recovery:
-
-```python
-def record_success(self):
-    """Record a successful call"""
-    self.stats.success_count += 1
-    self.stats.total_successes += 1
-    self.stats.total_calls += 1
-    self.stats.consecutive_successes += 1
-    self.stats.consecutive_failures = 0
-    self.stats.last_success_time = time.time()
-    
-    if self.state == CircuitState.HALF_OPEN:
-        if self.stats.consecutive_successes >= self.success_threshold:
-            self._close_circuit()
-    elif self.state == CircuitState.OPEN:
-        # If success occurs in OPEN state, transition to HALF_OPEN
-        self._transition_to_half_open()
-
-def _close_circuit(self):
-    """Close the circuit breaker"""
-    self.state = CircuitState.CLOSED
-    self._state_changed_at = time.time()
-    logger.info(f"Circuit breaker CLOSED for adapter: {self.adapter_name}")
-```
-
-## Integration with Adapter Execution
-
-### Pre-execution Check
-
-Before executing an adapter, check if the circuit allows execution:
-
-```python
-async def _execute_single_adapter(self, adapter_name: str, query: str, **kwargs):
-    """Execute a single adapter with circuit breaker protection"""
-    cb = self._get_circuit_breaker(adapter_name)
-    
-    # Fast-fail if circuit is open
-    if cb.is_open():
-        return AdapterResult(
-            adapter_name=adapter_name,
-            success=False,
-            data=None,
-            error=Exception(f"Circuit is open for adapter {adapter_name}"),
-            execution_time=0.0
-        )
-    
-    # Proceed with execution...
-```
-
-### Post-execution Recording
-
-Record the outcome to update circuit state:
-
-```python
-try:
-    # Execute adapter
-    result = await adapter.get_relevant_context(query, **kwargs)
-    
-    # Record success
-    cb.record_success()
-    return AdapterResult(
-        adapter_name=adapter_name,
-        success=True,
-        data=result,
-        execution_time=execution_time
-    )
-    
-except asyncio.TimeoutError:
-    # Record timeout failure
-    cb.record_failure()
-    cb.stats.timeout_calls += 1
-    return AdapterResult(
-        adapter_name=adapter_name,
-        success=False,
-        error=Exception(f"Timeout for adapter {adapter_name}"),
-        execution_time=execution_time
-    )
-    
-except Exception as e:
-    # Record general failure
-    cb.record_failure()
-    return AdapterResult(
-        adapter_name=adapter_name,
-        success=False,
-        error=e,
-        execution_time=execution_time
-    )
-```
-
-## Circuit Breaker Management
-
-### Per-Adapter Circuit Breakers
-
-Each adapter gets its own circuit breaker instance:
-
-```python
-def _get_circuit_breaker(self, adapter_name: str) -> SimpleCircuitBreaker:
-    """Get or create circuit breaker for adapter"""
-    if adapter_name not in self.circuit_breakers:
-        self.circuit_breakers[adapter_name] = SimpleCircuitBreaker(
-            adapter_name=adapter_name,
-            failure_threshold=self.failure_threshold,
-            recovery_timeout=self.recovery_timeout,
-            success_threshold=self.success_threshold
-        )
-    return self.circuit_breakers[adapter_name]
-```
-
-### Manual Circuit Management
-
-Provide administrative controls for circuit breakers:
-
-```python
-def reset_circuit_breaker(self, adapter_name: str):
-    """Manually reset a circuit breaker"""
-    if adapter_name in self.circuit_breakers:
-        cb = self.circuit_breakers[adapter_name]
-        cb._close_circuit()
-        cb.stats = CircuitBreakerStats()  # Reset statistics
-        logger.info(f"Manually reset circuit breaker for: {adapter_name}")
-
-def force_open_circuit_breaker(self, adapter_name: str):
-    """Manually open a circuit breaker"""
-    cb = self._get_circuit_breaker(adapter_name)
-    cb._open_circuit()
-    logger.warning(f"Manually opened circuit breaker for: {adapter_name}")
-```
-
-## Advanced Patterns
+The patterns in this section have not been built into ORBIT. They are included as design references for contributors. Do not configure or operate ORBIT as if these patterns are active.
 
 ### Sliding Window Failure Detection
 
-For more sophisticated failure detection, implement a sliding window:
+Rather than counting consecutive failures, open the circuit when the failure *rate* over a recent window exceeds a threshold:
 
 ```python
 class SlidingWindowCircuitBreaker(SimpleCircuitBreaker):
-    def __init__(self, adapter_name: str, window_size: int = 10, 
+    def __init__(self, adapter_name: str, window_size: int = 10,
                  failure_rate_threshold: float = 0.5, **kwargs):
         super().__init__(adapter_name, **kwargs)
         self.window_size = window_size
         self.failure_rate_threshold = failure_rate_threshold
         self.recent_calls = deque(maxlen=window_size)
-    
+
     def should_open_circuit(self) -> bool:
-        """Check if circuit should open based on failure rate"""
         if len(self.recent_calls) < self.window_size:
             return False
-            
         failure_rate = sum(1 for call in self.recent_calls if not call) / len(self.recent_calls)
         return failure_rate >= self.failure_rate_threshold
 ```
 
 ### Adaptive Timeouts
 
-Adjust timeouts based on historical performance:
+Adjust per-adapter timeouts based on recent p95 response times:
 
 ```python
 class AdaptiveTimeoutCircuitBreaker(SimpleCircuitBreaker):
@@ -269,202 +189,43 @@ class AdaptiveTimeoutCircuitBreaker(SimpleCircuitBreaker):
         super().__init__(adapter_name, **kwargs)
         self.response_times = deque(maxlen=100)
         self.base_timeout = 30.0
-    
+
     def get_adaptive_timeout(self) -> float:
-        """Calculate timeout based on recent response times"""
         if not self.response_times:
             return self.base_timeout
-            
-        avg_time = sum(self.response_times) / len(self.response_times)
-        p95_time = sorted(self.response_times)[int(len(self.response_times) * 0.95)]
-        
-        # Set timeout to 2x the 95th percentile response time
-        return max(self.base_timeout, p95_time * 2)
+        p95 = sorted(self.response_times)[int(len(self.response_times) * 0.95)]
+        return max(self.base_timeout, p95 * 2)
 ```
 
-### Bulkhead Pattern Integration
+### Bulkhead Pattern
 
-Combine circuit breakers with resource isolation:
+Limit concurrent in-flight calls per adapter independently of circuit state:
 
 ```python
 class BulkheadCircuitBreaker(SimpleCircuitBreaker):
     def __init__(self, adapter_name: str, max_concurrent_calls: int = 5, **kwargs):
         super().__init__(adapter_name, **kwargs)
         self.semaphore = asyncio.Semaphore(max_concurrent_calls)
-        self.active_calls = 0
-    
+
     async def execute_with_bulkhead(self, func, *args, **kwargs):
-        """Execute function with both circuit breaker and bulkhead protection"""
         if self.is_open():
-            raise CircuitOpenException(f"Circuit open for {self.adapter_name}")
-        
-        try:
-            async with self.semaphore:
-                self.active_calls += 1
-                try:
-                    result = await func(*args, **kwargs)
-                    self.record_success()
-                    return result
-                finally:
-                    self.active_calls -= 1
-        except Exception as e:
-            self.record_failure()
-            raise
+            raise Exception(f"Circuit open for {self.adapter_name}")
+        async with self.semaphore:
+            try:
+                result = await func(*args, **kwargs)
+                self.record_success()
+                return result
+            except Exception:
+                self.record_failure()
+                raise
 ```
 
-## Monitoring and Metrics
+### first_success and best_effort Strategies
 
-### Health Status Reporting
-
-```python
-def get_status(self) -> Dict[str, Any]:
-    """Get comprehensive circuit breaker status"""
-    return {
-        "adapter_name": self.adapter_name,
-        "state": self.state.value,
-        "stats": {
-            "total_calls": self.stats.total_calls,
-            "success_rate": self._calculate_success_rate(),
-            "failure_rate": self._calculate_failure_rate(),
-            "consecutive_failures": self.stats.consecutive_failures,
-            "consecutive_successes": self.stats.consecutive_successes,
-            "timeout_calls": self.stats.timeout_calls,
-            "last_failure": self.stats.last_failure_time,
-            "last_success": self.stats.last_success_time
-        },
-        "config": {
-            "failure_threshold": self.failure_threshold,
-            "recovery_timeout": self.recovery_timeout,
-            "success_threshold": self.success_threshold
-        },
-        "time_in_current_state": time.time() - self._state_changed_at
-    }
-```
+The executor has helper methods `_execute_first_success_strategy` and `_execute_best_effort_strategy` but these are not wired into `execute_adapters()`. To implement:
+- `first_success`: dispatch from `execute_adapters()` based on `self.execution_strategy`; cancel remaining tasks on first success; ensure `record_failure` is still called for cancelled tasks if that is the desired semantics.
+- `best_effort`: collect completed tasks up to a shorter deadline; cancel pending tasks; return partial results.
 
 ### Prometheus Metrics Integration
 
-```python
-from prometheus_client import Counter, Histogram, Gauge
-
-class MetricsCircuitBreaker(SimpleCircuitBreaker):
-    def __init__(self, adapter_name: str, **kwargs):
-        super().__init__(adapter_name, **kwargs)
-        
-        self.call_counter = Counter(
-            'circuit_breaker_calls_total',
-            'Total circuit breaker calls',
-            ['adapter', 'result']
-        )
-        
-        self.state_gauge = Gauge(
-            'circuit_breaker_state',
-            'Circuit breaker state (0=closed, 1=half_open, 2=open)',
-            ['adapter']
-        )
-        
-        self.response_time_histogram = Histogram(
-            'circuit_breaker_response_time_seconds',
-            'Response time distribution',
-            ['adapter']
-        )
-    
-    def record_success(self):
-        super().record_success()
-        self.call_counter.labels(adapter=self.adapter_name, result='success').inc()
-        self._update_state_metric()
-    
-    def record_failure(self):
-        super().record_failure()
-        self.call_counter.labels(adapter=self.adapter_name, result='failure').inc()
-        self._update_state_metric()
-```
-
-## Configuration Best Practices
-
-### Environment-Specific Settings
-
-```yaml
-# Development
-fault_tolerance:
-  failure_threshold: 3          # Fail fast for quick feedback
-  recovery_timeout: 10.0        # Quick recovery for testing
-  success_threshold: 1          # Single success to close
-
-# Production
-fault_tolerance:
-  failure_threshold: 5          # More tolerant of transient issues
-  recovery_timeout: 60.0        # Longer recovery time
-  success_threshold: 3          # Multiple successes required
-```
-
-### Adapter-Specific Configuration
-
-```yaml
-fault_tolerance:
-  adapters:
-    slow-database-adapter:
-      failure_threshold: 10     # Database might be slower
-      recovery_timeout: 120.0   # Longer recovery time
-      timeout: 60.0             # Generous timeout
-      
-    external-api-adapter:
-      failure_threshold: 3      # API failures should trigger quickly
-      recovery_timeout: 30.0    # Quick recovery attempts
-      timeout: 10.0             # Strict timeout
-```
-
-## Testing Circuit Breaker Behavior
-
-### Unit Testing
-
-```python
-import pytest
-import asyncio
-from unittest.mock import AsyncMock
-
-class TestCircuitBreaker:
-    def test_circuit_opens_after_threshold_failures(self):
-        cb = SimpleCircuitBreaker("test", failure_threshold=3)
-        
-        # Record failures
-        for _ in range(3):
-            cb.record_failure()
-        
-        assert cb.state == CircuitState.OPEN
-    
-    def test_circuit_transitions_to_half_open(self):
-        cb = SimpleCircuitBreaker("test", recovery_timeout=0.1)
-        
-        # Open circuit
-        cb._open_circuit()
-        
-        # Wait for recovery timeout
-        time.sleep(0.2)
-        
-        # Check should transition to half-open
-        assert not cb.is_open()
-        assert cb.state == CircuitState.HALF_OPEN
-```
-
-### Integration Testing
-
-```python
-async def test_circuit_breaker_with_failing_adapter():
-    # Create adapter that always fails
-    failing_adapter = AsyncMock()
-    failing_adapter.get_relevant_context.side_effect = Exception("Test failure")
-    
-    # Execute multiple times to trigger circuit breaker
-    results = []
-    for i in range(10):
-        result = await executor.execute_adapters(f"query {i}", ["failing-adapter"])
-        results.append(result)
-    
-    # Verify circuit opened after threshold
-    cb = executor._get_circuit_breaker("failing-adapter")
-    assert cb.state == CircuitState.OPEN
-    
-    # Verify fast failures
-    fast_fail_results = [r for r in results[-3:] if "circuit" in str(r[0].error).lower()]
-    assert len(fast_fail_results) > 0
-```
+Extend `MonitoringCircuitBreakerEventHandler` to emit Prometheus counters, gauges, and histograms via the `metrics_callback`. This keeps metrics out of the breaker core and composable with any monitoring backend.

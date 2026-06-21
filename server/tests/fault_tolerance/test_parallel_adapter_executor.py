@@ -3,6 +3,8 @@ Test for ParallelAdapterExecutor with adapter-specific circuit breaker configura
 """
 
 import pytest
+import asyncio
+import inspect
 from unittest.mock import Mock
 import sys
 import os
@@ -216,6 +218,220 @@ class TestParallelAdapterExecutor:
         assert status['consecutive_failures'] == 1
         assert status['consecutive_successes'] == 0
 
+    def test_reset_circuit_breaker_clears_stats_and_backoff(self, executor):
+        """reset_circuit_breaker must clear stats/history and reset backoff, not just close."""
+        from services.parallel_adapter_executor import CircuitState
+
+        cb = executor._get_circuit_breaker('qa-sql')
+
+        # Open the circuit by recording enough failures
+        for _ in range(10):
+            cb.record_failure()
+        assert cb.state == CircuitState.OPEN
+        assert cb.stats.total_failures > 0
+        assert cb.recovery_attempts > 0
+
+        # Reset via the executor public API
+        executor.reset_circuit_breaker('qa-sql')
+
+        assert cb.state == CircuitState.CLOSED
+        assert cb.stats.total_failures == 0
+        assert cb.stats.total_calls == 0
+        assert cb.recovery_attempts == 0
+        assert cb.current_recovery_timeout == cb.base_recovery_timeout
+
+    def test_half_open_probe_limit_via_executor(self, executor):
+        """Only max_half_open_calls probes may pass when the circuit is half-open."""
+        from services.parallel_adapter_executor import CircuitState
+
+        cb = executor._get_circuit_breaker('qa-sql')
+        cb.max_half_open_calls = 1
+
+        # Force the circuit to HALF_OPEN
+        for _ in range(10):
+            cb.record_failure()
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_probes = 0
+
+        # First probe should be allowed
+        assert cb._claim_half_open_slot() is True
+        # Second probe must be rejected
+        assert cb._claim_half_open_slot() is False
+
+    @pytest.mark.asyncio
+    async def test_timeout_split_proportions(self, executor):
+        """Adapter lookup gets 30% of the timeout, query execution gets 70%."""
+        from unittest.mock import patch
+
+        adapter_timeout = 10.0  # override for a round number
+
+        lookup_timeout_seen = []
+        query_timeout_seen = []
+
+        async def fake_wait_for(coro, timeout):
+            if inspect.iscoroutine(coro):
+                coro.close()
+            if not lookup_timeout_seen:
+                lookup_timeout_seen.append(timeout)
+                mock_adapter = Mock()
+                mock_adapter.get_relevant_context = Mock(return_value=[])
+                return mock_adapter
+            else:
+                query_timeout_seen.append(timeout)
+                return []
+
+        context = AdapterExecutionContext(request_id="timeout-test")
+        with patch.object(executor, '_get_adapter_fault_tolerance_config',
+                          return_value={'operation_timeout': adapter_timeout}):
+            with patch('services.parallel_adapter_executor.asyncio.wait_for',
+                       side_effect=fake_wait_for):
+                await executor._execute_single_adapter('qa-sql', 'q', context)
+
+        assert lookup_timeout_seen, "lookup wait_for was never called"
+        assert query_timeout_seen, "query wait_for was never called"
+        assert abs(lookup_timeout_seen[0] - adapter_timeout * 0.3) < 0.001
+        assert abs(query_timeout_seen[0] - adapter_timeout * 0.7) < 0.001
+
+    @pytest.mark.asyncio
+    async def test_execute_single_adapter_fast_fails_saturated_half_open(self, executor):
+        """_execute_single_adapter must return 'probe limit reached' when HALF_OPEN is saturated."""
+        from services.parallel_adapter_executor import CircuitState
+
+        cb = executor._get_circuit_breaker('qa-sql')
+        cb.max_half_open_calls = 1
+
+        # Drive to OPEN via public behavior, then manually advance to HALF_OPEN
+        for _ in range(10):
+            cb.record_failure()
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_probes = 1  # slot already taken
+
+        context = AdapterExecutionContext(request_id="saturated-probe-test")
+        result = await executor._execute_single_adapter('qa-sql', 'q', context)
+
+        assert not result.success
+        assert "probe limit reached" in str(result.error).lower()
+
+    @pytest.mark.asyncio
+    async def test_timeout_during_adapter_lookup_records_failure(self, executor):
+        """A TimeoutError in the lookup phase records a failure and increments timeout_calls."""
+        from unittest.mock import patch
+
+        cb = executor._get_circuit_breaker('qa-sql')
+        context = AdapterExecutionContext(request_id="lookup-timeout-test")
+
+        call_count = [0]
+
+        async def fake_wait_for(coro, timeout):
+            if asyncio.iscoroutine(coro):
+                coro.close()
+            call_count[0] += 1
+            raise asyncio.TimeoutError()  # always fail — simulates lookup timeout
+
+        with patch('services.parallel_adapter_executor.asyncio.wait_for', side_effect=fake_wait_for):
+            result = await executor._execute_single_adapter('qa-sql', 'q', context)
+
+        assert not result.success
+        assert "timeout" in str(result.error).lower()
+        assert call_count[0] == 1, "only the lookup wait_for should have been called"
+        assert cb.stats.total_failures == 1
+        assert cb.stats.timeout_calls == 1
+
+    @pytest.mark.asyncio
+    async def test_timeout_during_query_execution_records_failure(self, executor):
+        """A TimeoutError in the query phase records a failure and increments timeout_calls."""
+        from unittest.mock import patch
+
+        cb = executor._get_circuit_breaker('qa-sql')
+        context = AdapterExecutionContext(request_id="query-timeout-test")
+
+        call_count = [0]
+
+        async def fake_wait_for(coro, timeout):
+            if asyncio.iscoroutine(coro):
+                coro.close()
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # Lookup succeeds
+                mock_adapter = Mock()
+                mock_adapter.get_relevant_context = Mock(return_value=[])
+                return mock_adapter
+            raise asyncio.TimeoutError()  # query times out
+
+        with patch('services.parallel_adapter_executor.asyncio.wait_for', side_effect=fake_wait_for):
+            result = await executor._execute_single_adapter('qa-sql', 'q', context)
+
+        assert not result.success
+        assert "timeout" in str(result.error).lower()
+        assert call_count[0] == 2, "both lookup and query wait_for should have been called"
+        assert cb.stats.total_failures == 1
+        assert cb.stats.timeout_calls == 1
+
+    @pytest.mark.asyncio
+    async def test_timeout_calls_consistent_with_failure_stats(self, executor):
+        """timeout_calls must increment with each timeout and stay <= total_failures."""
+        from unittest.mock import patch
+
+        cb = executor._get_circuit_breaker('qa-vector-chroma')
+        context = AdapterExecutionContext(request_id="timeout-consistency-test")
+
+        async def always_timeout(coro, timeout):
+            if asyncio.iscoroutine(coro):
+                coro.close()
+            raise asyncio.TimeoutError()
+
+        with patch('services.parallel_adapter_executor.asyncio.wait_for', side_effect=always_timeout):
+            for _ in range(3):
+                await executor._execute_single_adapter('qa-vector-chroma', 'q', context)
+
+        assert cb.stats.timeout_calls == 3
+        assert cb.stats.total_failures == 3
+        assert cb.stats.timeout_calls <= cb.stats.total_failures
+
+    def test_max_half_open_calls_read_from_adapter_config(self, executor):
+        """max_half_open_calls is read from adapter-level fault_tolerance config."""
+        config = {
+            'adapters': [
+                {
+                    'name': 'probe-limited',
+                    'fault_tolerance': {
+                        'max_half_open_calls': 3,
+                    }
+                }
+            ],
+            'fault_tolerance': {}
+        }
+        mgr = Mock()
+        ex = ParallelAdapterExecutor(mgr, config)
+        cb = ex._get_circuit_breaker('probe-limited')
+        assert cb.max_half_open_calls == 3
+
+    @pytest.mark.asyncio
+    async def test_cancelled_half_open_probe_releases_slot(self, executor):
+        """Cancelled adapter tasks must not leak half-open probe slots."""
+        from services.parallel_adapter_executor import CircuitState
+        from unittest.mock import patch
+
+        cb = executor._get_circuit_breaker('qa-sql')
+        cb.max_half_open_calls = 1
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_probes = 0
+
+        async def slow_lookup(adapter_name):
+            await asyncio.sleep(10)
+
+        context = AdapterExecutionContext(request_id="cancel-test")
+        with patch.object(executor, '_get_adapter_with_timeout', side_effect=slow_lookup):
+            task = asyncio.create_task(executor._execute_single_adapter('qa-sql', 'q', context))
+            await asyncio.sleep(0.05)
+            assert cb._half_open_probes == 1
+
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        assert cb._half_open_probes == 0
+
 
 if __name__ == "__main__":
-    pytest.main([__file__]) 
+    pytest.main([__file__])

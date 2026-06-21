@@ -108,15 +108,15 @@ performance:
 
 fault_tolerance:
   circuit_breaker:
-    failure_threshold: 5
-    recovery_timeout: 30
-    success_threshold: 3
-    timeout: 30
-    max_recovery_timeout: 300.0
+    failure_threshold: 5        # Consecutive failures before opening
+    recovery_timeout: 30        # Base recovery wait in seconds (exponential backoff applied)
+    success_threshold: 3        # Consecutive successes in HALF_OPEN before closing
+    max_recovery_timeout: 300.0 # Backoff ceiling in seconds
     enable_exponential_backoff: true
+    max_half_open_calls: 1      # Max concurrent probes allowed while HALF_OPEN
   execution:
-    strategy: "all"  # "all", "first_success", "best_effort"
-    timeout: 35 
+    strategy: "all"  # Only "all" is currently implemented; first_success/best_effort are planned
+    timeout: 35      # Total operation timeout per adapter call (30% init, 70% query)
     max_retries: 3
     retry_delay: 1
   

@@ -360,5 +360,298 @@ class TestSimpleCircuitBreakerEvents:
         assert ("reset", "test-adapter") in events_triggered
 
 
+class TestSafeEventDispatch:
+    """Tests for safe event dispatch without a running event loop."""
+
+    def test_record_failure_no_event_loop_does_not_raise(self):
+        """record_failure must not raise RuntimeError when called outside an event loop."""
+        cb = SimpleCircuitBreaker(
+            adapter_name="sync-adapter",
+            failure_threshold=1,
+            event_handler=DefaultCircuitBreakerEventHandler(),
+        )
+        # Drive to OPEN — _open_circuit emits an event; must not raise
+        cb.record_failure()
+
+    def test_record_success_no_event_loop_does_not_raise(self):
+        """record_success in HALF_OPEN must not raise when no loop is running."""
+        from services.parallel_adapter_executor import CircuitState
+        cb = SimpleCircuitBreaker(
+            adapter_name="sync-adapter",
+            failure_threshold=1,
+            success_threshold=1,
+            event_handler=DefaultCircuitBreakerEventHandler(),
+        )
+        cb.record_failure()  # opens the circuit
+        # Manually move to HALF_OPEN to avoid waiting for recovery timeout
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_probes = 1
+        cb.stats.consecutive_successes = 0
+        cb.record_success()  # triggers _close_circuit event — must not raise
+
+    def test_reset_no_event_loop_does_not_raise(self):
+        """reset() must not raise RuntimeError when called outside an event loop."""
+        cb = SimpleCircuitBreaker(
+            adapter_name="sync-adapter",
+            event_handler=DefaultCircuitBreakerEventHandler(),
+        )
+        cb.reset()
+
+    def test_handler_exception_does_not_break_state_transition(self):
+        """An event handler that raises must not prevent the state transition from completing."""
+        from services.parallel_adapter_executor import CircuitState
+
+        class BrokenHandler(CircuitBreakerEventHandler):
+            async def on_circuit_open(self, adapter_name, stats, reason=""):
+                raise RuntimeError("handler boom")
+
+            async def on_circuit_close(self, adapter_name, stats):
+                raise RuntimeError("handler boom")
+
+            async def on_circuit_half_open(self, adapter_name, stats):
+                raise RuntimeError("handler boom")
+
+            async def on_circuit_reset(self, adapter_name, stats):
+                raise RuntimeError("handler boom")
+
+        cb = SimpleCircuitBreaker(
+            adapter_name="broken-handler-adapter",
+            failure_threshold=1,
+            event_handler=BrokenHandler(),
+        )
+        cb.record_failure()
+        # State must still be OPEN even though the handler would raise
+        assert cb.state == CircuitState.OPEN
+
+    @pytest.mark.asyncio
+    async def test_async_handler_exception_is_consumed(self):
+        """A scheduled event handler exception must not surface as an unhandled task exception."""
+        from services.parallel_adapter_executor import CircuitState
+
+        class BrokenHandler(CircuitBreakerEventHandler):
+            async def on_circuit_open(self, adapter_name, stats, reason=""):
+                raise RuntimeError("handler boom")
+
+            async def on_circuit_close(self, adapter_name, stats):
+                raise RuntimeError("handler boom")
+
+            async def on_circuit_half_open(self, adapter_name, stats):
+                raise RuntimeError("handler boom")
+
+            async def on_circuit_reset(self, adapter_name, stats):
+                raise RuntimeError("handler boom")
+
+        cb = SimpleCircuitBreaker(
+            adapter_name="async-broken-handler-adapter",
+            failure_threshold=1,
+            event_handler=BrokenHandler(),
+        )
+
+        cb.record_failure()
+        await asyncio.sleep(0.05)
+
+        assert cb.state == CircuitState.OPEN
+
+
+class TestConcurrentSafety:
+    """Tests for thread-safety of SimpleCircuitBreaker."""
+
+    def test_concurrent_failures_open_circuit_exactly_once(self):
+        """Multiple threads failing at once must open the circuit exactly once."""
+        import threading
+        from services.parallel_adapter_executor import CircuitState
+
+        cb = SimpleCircuitBreaker(
+            adapter_name="concurrent-adapter",
+            failure_threshold=3,
+            event_handler=DefaultCircuitBreakerEventHandler(),
+        )
+
+        errors = []
+
+        def fail():
+            try:
+                cb.record_failure()
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=fail) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Thread errors: {errors}"
+        assert cb.state == CircuitState.OPEN
+        assert cb.stats.total_failures == 10
+        assert cb.stats.consecutive_failures >= cb.failure_threshold
+
+    def test_concurrent_success_failure_mix(self):
+        """Mixed concurrent successes and failures must produce consistent counters."""
+        import threading
+
+        cb = SimpleCircuitBreaker(
+            adapter_name="mixed-concurrent-adapter",
+            failure_threshold=100,  # high so the circuit stays closed throughout
+            event_handler=DefaultCircuitBreakerEventHandler(),
+        )
+
+        n_successes = 20
+        n_failures = 15
+        errors = []
+
+        def succeed():
+            try:
+                cb.record_success()
+            except Exception as e:
+                errors.append(e)
+
+        def fail():
+            try:
+                cb.record_failure()
+            except Exception as e:
+                errors.append(e)
+
+        threads = (
+            [threading.Thread(target=succeed) for _ in range(n_successes)] +
+            [threading.Thread(target=fail) for _ in range(n_failures)]
+        )
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Thread errors: {errors}"
+        assert cb.stats.total_calls == n_successes + n_failures
+        assert cb.stats.total_successes == n_successes
+        assert cb.stats.total_failures == n_failures
+
+    def test_run_cleanup_concurrent_with_reset(self):
+        """force_cleanup() and reset() running from separate threads must not corrupt state."""
+        import threading
+        from services.parallel_adapter_executor import CircuitState
+
+        cb = SimpleCircuitBreaker(
+            adapter_name="cleanup-race-adapter",
+            failure_threshold=100,
+            cleanup_interval=0,      # allow every cleanup call to actually run
+            retention_period=0,      # prune all records immediately
+            event_handler=DefaultCircuitBreakerEventHandler(),
+        )
+        # Seed some history so cleanup has something to do
+        for _ in range(50):
+            cb.record_failure()
+
+        errors = []
+
+        def do_cleanup():
+            for _ in range(20):
+                try:
+                    cb.force_cleanup()
+                except Exception as e:
+                    errors.append(e)
+
+        def do_reset():
+            for _ in range(20):
+                try:
+                    cb.reset()
+                except Exception as e:
+                    errors.append(e)
+
+        t1 = threading.Thread(target=do_cleanup)
+        t2 = threading.Thread(target=do_reset)
+        t1.start(); t2.start()
+        t1.join(); t2.join()
+
+        assert not errors, f"Thread errors: {errors}"
+        # After all resets the breaker must be in a coherent closed state
+        assert cb.state == CircuitState.CLOSED
+
+
+class TestHalfOpenProbeGating:
+    """Tests for half-open probe limit enforcement."""
+
+    def test_claim_half_open_slot_allows_up_to_max(self):
+        """_claim_half_open_slot should allow exactly max_half_open_calls probes."""
+        from services.parallel_adapter_executor import CircuitState
+
+        cb = SimpleCircuitBreaker(
+            adapter_name="probe-adapter",
+            failure_threshold=1,
+            max_half_open_calls=2,
+        )
+        cb.record_failure()
+        cb.state = CircuitState.HALF_OPEN
+
+        assert cb._claim_half_open_slot() is True   # probe 1
+        assert cb._claim_half_open_slot() is True   # probe 2
+        assert cb._claim_half_open_slot() is False  # over limit
+
+    def test_claim_half_open_slot_non_half_open_always_passes(self):
+        """_claim_half_open_slot on a CLOSED circuit must always return True."""
+        from services.parallel_adapter_executor import CircuitState
+
+        cb = SimpleCircuitBreaker(adapter_name="closed-adapter")
+        assert cb.state == CircuitState.CLOSED
+        assert cb._claim_half_open_slot() is True
+
+    def test_probe_counter_decrements_on_success(self):
+        """record_success in HALF_OPEN should decrement the probe counter."""
+        from services.parallel_adapter_executor import CircuitState
+
+        cb = SimpleCircuitBreaker(
+            adapter_name="probe-success-adapter",
+            failure_threshold=1,
+            success_threshold=5,  # high threshold so circuit stays half-open
+            max_half_open_calls=2,
+        )
+        cb.record_failure()
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_probes = 2
+
+        cb.record_success()
+        assert cb._half_open_probes == 1
+
+    def test_probe_counter_decrements_on_failure(self):
+        """record_failure in HALF_OPEN should decrement the probe counter then re-open."""
+        from services.parallel_adapter_executor import CircuitState
+
+        cb = SimpleCircuitBreaker(
+            adapter_name="probe-fail-adapter",
+            failure_threshold=1,
+            max_half_open_calls=2,
+        )
+        cb.record_failure()
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_probes = 2
+
+        cb.record_failure()
+        # Circuit re-opens; probe counter reset by _transition_to_half_open on next cycle
+        assert cb.state == CircuitState.OPEN
+
+    def test_transition_to_half_open_resets_probe_counter(self):
+        """Moving to HALF_OPEN must reset _half_open_probes to zero."""
+        from services.parallel_adapter_executor import CircuitState
+
+        cb = SimpleCircuitBreaker(
+            adapter_name="reset-probes-adapter",
+            failure_threshold=1,
+            recovery_timeout=0.01,
+            max_half_open_calls=3,
+        )
+        cb.record_failure()
+        # Manually exhaust probes
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_probes = 3
+
+        # Re-open then let recovery expire
+        cb._open_circuit()
+        import time; time.sleep(0.05)
+        cb.is_open()  # triggers OPEN → HALF_OPEN transition
+
+        assert cb.state == CircuitState.HALF_OPEN
+        assert cb._half_open_probes == 0
+
+
 if __name__ == "__main__":
-    pytest.main([__file__]) 
+    pytest.main([__file__])

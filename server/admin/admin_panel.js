@@ -1303,6 +1303,27 @@
     );
   }
 
+  function formatSeconds(value) {
+    return typeof value === "number" ? formatNum(value, value >= 10 ? 0 : 1) + " s" : "\u2014";
+  }
+
+  async function resetAdapterCircuit(adapterName, btn) {
+    await withButton(btn, async function () {
+      await api("POST", ENDPOINTS.healthAdapters + "/" + encodeURIComponent(adapterName) + "/reset");
+      if (lastAdapters && lastAdapters[adapterName]) {
+        var status = lastAdapters[adapterName];
+        status.state = "closed";
+        status.consecutive_failures = 0;
+        status.consecutive_successes = 0;
+        if (status.exponential_backoff) {
+          status.exponential_backoff.recovery_attempts = 0;
+          status.exponential_backoff.current_timeout = status.exponential_backoff.base_timeout || 0;
+        }
+        renderMonitoringAdapterList(lastAdapters);
+      }
+    }, "Circuit breaker reset for " + adapterName);
+  }
+
   function renderMonitoringTable(container, columns, rows, emptyMessage, paginator) {
     clear(container);
     if (!rows.length) {
@@ -1422,16 +1443,29 @@
     var rows = filtered.map(function (pair) {
       var name = pair[0], status = pair[1];
       var state = (status && status.state || "unknown").toLowerCase();
-      var failures = (status && status.failure_count) || 0;
+      var failures = (status && status.consecutive_failures) || 0;
       var reqs = (status && (status.request_count || status.success_count)) || 0;
       var latency = status && status.average_latency_ms;
+      var backoff = status && status.exponential_backoff || {};
+      var recoveryAttempts = backoff.recovery_attempts || 0;
+      var nextRetry = state === "open" ? formatSeconds(backoff.current_timeout) : "\u2014";
       var latencyStr = typeof latency === "number" ? formatNum(latency, latency >= 100 ? 0 : 1) + " ms" : "\u2014";
+      var resetBtn = el("button", {
+        type: "button",
+        className: "secondary",
+        title: "Reset circuit breaker for " + name,
+        "aria-label": "Reset circuit breaker for " + name,
+        onclick: function () { resetAdapterCircuit(name, resetBtn); }
+      }, "Reset");
       return [
         el("td", null, el("div", { className: "monitoring-table-primary", title: name }, name)),
         el("td", null, monitoringStatusCell(state.replace("_", " "), monitoringStateTone(state))),
         el("td", { style: "text-align:right;font-weight:600" }, formatNum(reqs)),
         el("td", { style: "text-align:right;font-weight:600" }, formatNum(failures)),
-        el("td", { style: "text-align:right;font-weight:600" }, latencyStr)
+        el("td", { style: "text-align:right;font-weight:600" }, formatNum(recoveryAttempts)),
+        el("td", { style: "text-align:right;font-weight:600" }, nextRetry),
+        el("td", { style: "text-align:right;font-weight:600" }, latencyStr),
+        el("td", { style: "text-align:right" }, resetBtn)
       ];
     });
     renderMonitoringTable(container, [
@@ -1439,7 +1473,10 @@
       { label: "State" },
       { label: "Requests", attrs: { style: "text-align:right" } },
       { label: "Failures", attrs: { style: "text-align:right" } },
-      { label: "Avg Latency", attrs: { style: "text-align:right" } }
+      { label: "Recovery Attempts", attrs: { style: "text-align:right" } },
+      { label: "Next Retry", attrs: { style: "text-align:right" } },
+      { label: "Avg Latency", attrs: { style: "text-align:right" } },
+      { label: "Actions", attrs: { style: "text-align:right" } }
     ], rows, "No adapters match the current filters.", overviewAdapterPaginator);
   }
 

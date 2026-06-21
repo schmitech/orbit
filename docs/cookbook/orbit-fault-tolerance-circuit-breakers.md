@@ -21,8 +21,8 @@ flowchart LR
 
 | Component | Role |
 |-----------|------|
-| Fault tolerance config | Master switch and execution strategy (e.g. all, first_success, best_effort). |
-| Circuit breaker | Per-adapter: failure threshold, recovery timeout, success threshold to close. |
+| Fault tolerance config | Master switch and execution strategy. |
+| Circuit breaker | Per-adapter: failure threshold, recovery timeout, success threshold to close, and half-open probe limit. |
 | Parallel executor | Runs adapters concurrently with timeouts and resource cleanup. |
 
 ## Prerequisites
@@ -40,21 +40,21 @@ In `config/config.yaml`, under `fault_tolerance`, enable the feature and choose 
 fault_tolerance:
   enabled: true
   execution:
-    strategy: "all"           # "all" | "first_success" | "best_effort"
+    strategy: "all"           # Only implemented strategy; see note below
     timeout: 35
     max_retries: 3
   circuit_breaker:
     failure_threshold: 5     # Failures before opening circuit
-    recovery_timeout: 30      # Seconds before trying again
-    success_threshold: 3     # Successes to close circuit
-    timeout: 30
+    recovery_timeout: 30      # Seconds before trying again (base; exponential backoff applied)
+    success_threshold: 3     # Successes in HALF_OPEN before closing circuit
     max_recovery_timeout: 300.0
     enable_exponential_backoff: true
+    max_half_open_calls: 1   # Max concurrent probes when HALF_OPEN (default: 1)
 ```
 
-- **all**: Run all adapters and combine results; circuit breakers still skip failed adapters.
-- **first_success**: Stop as soon as one adapter succeeds.
-- **best_effort**: Run all, use the best result according to config.
+**Execution strategy:** `all` is the only currently implemented strategy — all available adapters run in parallel and results are combined. `first_success` (stop after first success, cancel the rest) and `best_effort` (return whatever finishes within a shorter window) are planned for a future release.
+
+**Timeout allocation:** Each adapter call splits its `operation_timeout` into two budgets: 30% for adapter lookup/initialization and 70% for query execution. A query against a 30 s timeout adapter will time out at 21 s if the adapter lookup itself completes quickly. Document adapter-level `operation_timeout` with this split in mind.
 
 ### 2. Set adapter-level timeouts (optional)
 
@@ -62,12 +62,13 @@ Adapters can define their own fault tolerance and timeouts so one slow adapter d
 
 ```yaml
   fault_tolerance:
-    operation_timeout: 15.0
+    operation_timeout: 15.0      # 30% for lookup (4.5 s), 70% for query (10.5 s)
     failure_threshold: 10
     recovery_timeout: 30.0
     success_threshold: 5
     max_recovery_timeout: 120.0
     enable_exponential_backoff: true
+    max_half_open_calls: 1       # Probe limit; increase only for high-traffic adapters
     max_retries: 3
 ```
 
@@ -85,8 +86,8 @@ Use the dashboard or health/status endpoints to see adapter and circuit state. O
 
 - Increase `failure_threshold` if transient errors are common so the circuit doesn’t open too quickly.
 - Increase `recovery_timeout` for slow-recovering services.
-- Use `first_success` when you have fallback adapters and want to minimize latency.
-- Set `operation_timeout` and `max_retries` so that one stuck adapter doesn’t hold the request too long.
+- Set `operation_timeout` and `max_retries` so that one stuck adapter doesn’t hold the request too long. Remember the 30/70 split: 30% of `operation_timeout` is reserved for adapter initialization.
+- Leave `max_half_open_calls` at 1 (the default) unless you have high traffic and need faster recovery; increasing it lets more concurrent probes hit a recovering dependency.
 
 ## Validation checklist
 
@@ -108,7 +109,7 @@ Verify the dependency is actually healthy and that ORBIT can reach it. Ensure `s
 Confirm `operation_timeout` (and global `execution.timeout`) are set and that the executor enforces them. Look for code paths that don’t respect the timeout (e.g. blocking calls). See fault-tolerance troubleshooting docs for async/timeout details.
 
 **Partial or empty results**  
-With strategy `all`, open circuits mean fewer adapters run; results may be partial. Use `first_success` or fallback adapters if you need a single successful path. Check that the pipeline correctly merges or selects results when some adapters are skipped.
+Open circuits mean fewer adapters run; results may be partial. Check that the pipeline correctly merges or selects results when some adapters are skipped.
 
 ## Security and compliance considerations
 

@@ -103,7 +103,7 @@ class InferencePipeline:
             total_time = time.perf_counter() - start_time
             self.monitor.record_pipeline_metrics(total_time, not context.has_error())
             
-            logger.info(f"Pipeline processing completed in {total_time:.3f}s")
+            logger.debug(f"Pipeline processing completed in {total_time:.3f}s")
             return context
             
         except Exception as e:
@@ -342,7 +342,7 @@ class InferencePipeline:
             total_time = time.perf_counter() - start_time
             self.monitor.record_pipeline_metrics(total_time, not context.has_error())
             
-            logger.info(f"Streaming pipeline processing completed in {total_time:.3f}s")
+            logger.debug(f"Streaming pipeline processing completed in {total_time:.3f}s")
             
         except Exception as e:
             total_time = time.perf_counter() - start_time
