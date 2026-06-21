@@ -381,17 +381,16 @@ export function ChatInterface({
                 )}
               </div>
               <div className="flex w-full flex-wrap items-center gap-2 my-2 md:my-0 sm:w-auto md:justify-end md:gap-3">
-<button
-                  onClick={onOpenSettings}
-                  className="hidden md:inline-flex h-[42px] w-[42px] items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50 dark:border-[#3c3f4a] dark:text-[#9aa1bc] dark:hover:border-[#4d5166] dark:hover:bg-[#2d2f39] dark:hover:text-[#ececf1]"
-                  aria-label="Settings"
-                  title="Settings"
-                >
-                  <Settings className="h-4 w-4" />
-                </button>
-                {!shouldShowAgentSelectionList && !getEnableHeader() && (
-                  <AuthStatus />
-                )}
+                <div className="hidden flex-shrink-0 items-center md:inline-flex">
+                  <button
+                    onClick={onOpenSettings}
+                    className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50 dark:border-[#3c3f4a] dark:text-[#9aa1bc] dark:hover:border-[#4d5166] dark:hover:bg-[#2d2f39] dark:hover:text-[#ececf1]"
+                    aria-label="Settings"
+                    title="Settings"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </button>
+                </div>
                 {!isSingleAdapterMode && !shouldShowAgentSelectionList && !!currentConversation?.adapterName && (
                   <button
                     type="button"
@@ -427,6 +426,11 @@ export function ChatInterface({
                     New Conversation
                   </button>
                 )}
+                {!getEnableHeader() && (
+                  <div className="order-4 hidden flex-shrink-0 items-center md:inline-flex">
+                    <AuthStatus />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -453,9 +457,6 @@ export function ChatInterface({
                               />
                             </div>
                           )}
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          {!getEnableHeader() && <AuthStatus />}
                         </div>
                       </div>
                       <AgentSelectionList

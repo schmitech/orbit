@@ -1,11 +1,11 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import { useMsal } from '@azure/msal-react';
 import { LogIn, LogOut } from 'lucide-react';
-import { getEnableAuth, getEnableHeader, getAuthProvider, getAuthScopes } from '../utils/runtimeConfig';
+import { getEnableAuth, getAuthProvider, getAuthScopes } from '../utils/runtimeConfig';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 
 export function AuthStatus() {
-  if (!getEnableAuth() || !getEnableHeader()) return null;
+  if (!getEnableAuth()) return null;
   if (getAuthProvider() === 'entra') return <EntraAuthStatusInner />;
   return <Auth0AuthStatusInner />;
 }
