@@ -86,15 +86,17 @@ export function ChatInterface({
       !conversation.adapterLoadError
   );
   const showEmptyState = !currentConversation || currentConversation.messages.length === 0;
+  const currentAdapterSupportsThreading = currentConversation?.adapterInfo?.supportsThreading === true;
+  const mainComposerSkillsEnabled = Boolean(currentConversation?.adapterName && currentConversation?.adapterInfo) && !currentAdapterSupportsThreading;
   // Own the skill-selection state here so it is shared between the empty-state
   // and docked MessageInput instances. Both render the same conversation, so a
   // single source of truth keeps the selected skill (and its dismiss control)
   // alive across the empty → active transition on the first message.
   const skillState = useSkills({
     adapterName: currentConversation?.adapterName,
-    enabled: true,
+    enabled: mainComposerSkillsEnabled,
     selectionScopeKey: currentConversationId,
-    supportsThreading: currentConversation?.adapterInfo?.supportsThreading ?? false,
+    supportsThreading: currentAdapterSupportsThreading,
   });
   const defaultInputPlaceholder = getDefaultInputPlaceholder();
   const applicationName = getApplicationName();

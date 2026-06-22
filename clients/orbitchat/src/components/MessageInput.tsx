@@ -607,8 +607,12 @@ export function MessageInput({
     const conversationFiles = currentConv?.attachedFiles || [];
     const allFileIds = conversationFiles.map(f => f.file_id);
 
+    const activeSkillName = selectedSkill?.name;
     debugLog('[MessageInput] Auto-sending voice message immediately:', voiceMessage);
-    onSend(voiceMessage, allFileIds.length > 0 ? allFileIds : undefined, undefined, selectedSkill?.name);
+    onSend(voiceMessage, allFileIds.length > 0 ? allFileIds : undefined, undefined, activeSkillName);
+    if (activeSkillName) {
+      clearSkill();
+    }
     setTimeout(() => {
       setShowSkillPicker(false);
     }, 0);
@@ -623,7 +627,7 @@ export function MessageInput({
       textareaRef.current.style.overflowY = 'hidden';
       adjustTextareaVerticalAlignment();
     }
-  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend, selectedSkill, adjustTextareaVerticalAlignment, clearSuggestions]);
+  }, [voiceRecordingAvailable, voiceCompletionCount, isInputDisabled, isComposing, onSend, selectedSkill, clearSkill, adjustTextareaVerticalAlignment, clearSuggestions]);
 
   // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
@@ -845,6 +849,9 @@ export function MessageInput({
 
       const activeSkillName = selectedSkill?.name;
       onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined, undefined, activeSkillName);
+      if (activeSkillName) {
+        clearSkill();
+      }
       setShowSkillPicker(false);
       playSoundEffect('messageSent', settings.soundEnabled);
       setMessage('');

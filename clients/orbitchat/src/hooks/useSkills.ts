@@ -85,7 +85,7 @@ export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
   }, []);
 
   useEffect(() => {
-    if (!enabled || !adapterName) {
+    if (!isActive || !adapterName) {
       return;
     }
 
@@ -97,7 +97,7 @@ export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
       window.clearTimeout(timeoutId);
       abortRef.current?.abort();
     };
-  }, [enabled, adapterName, fetchSkills]);
+  }, [isActive, adapterName, fetchSkills]);
 
   const selectSkill = useCallback((skill: SkillInfo | null) => {
     setSelectedSkillsByKey(prev => {
@@ -127,7 +127,7 @@ export function useSkills(options: UseSkillsOptions = {}): UseSkillsResult {
     });
   }, [selectedSkillKey]);
 
-  const selectedSkill = selectedSkillsByKey[selectedSkillKey] ?? null;
+  const selectedSkill = isActive ? (selectedSkillsByKey[selectedSkillKey] ?? null) : null;
 
   return {
     skills: isActive && loadedAdapterName === adapterName ? skills : [],
