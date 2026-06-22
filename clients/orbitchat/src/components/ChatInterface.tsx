@@ -28,6 +28,7 @@ import { AgentSeoContent } from './AgentSeoContent';
 import { applyDocumentSeo, getRuntimeSeoAdapterById, getRuntimeSeoAdapterBySlug, shouldRenderAgentNotesForSeo, type SeoAdapter } from '../utils/seo';
 import { ModelsService } from '../services/modelsService';
 import type { AllowedModel } from '../types';
+import { PACKAGE_VERSION } from '../utils/version';
 
 
 const MOBILE_FRAME_CLASSES =
@@ -38,6 +39,14 @@ const MOBILE_INPUT_WRAPPER_CLASSES =
 
 const MOBILE_HEADER_CLASSES =
   'relative z-20 shrink-0 -mx-4 px-4 pt-2 pb-2 bg-transparent border-b border-transparent dark:border-transparent dark:bg-transparent md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
+
+function VersionBadge({ className }: { className: string }) {
+  return (
+    <span className={className} title={`OrbitChat version ${PACKAGE_VERSION}`}>
+      v{PACKAGE_VERSION}
+    </span>
+  );
+}
 
 interface ChatInterfaceProps {
   onOpenSettings: () => void;
@@ -354,7 +363,10 @@ export function ChatInterface({
                   </button>
                 </div>
                 <div className="ml-auto flex-shrink-0">
-                  <AuthStatus />
+                  <div className="flex items-center gap-2">
+                    <VersionBadge className="text-[11px] font-medium leading-none text-gray-400 dark:text-[#858999]" />
+                    <AuthStatus />
+                  </div>
                 </div>
               </div>
             )}
@@ -433,6 +445,7 @@ export function ChatInterface({
                     <AuthStatus />
                   </div>
                 )}
+                <VersionBadge className="order-5 hidden flex-shrink-0 text-xs font-medium text-gray-400 dark:text-[#858999] md:inline-flex" />
               </div>
             </div>
           </div>

@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { getVersionInfo } from './utils/version.ts';
+import { PACKAGE_VERSION } from './utils/version.ts';
 import { debugLog } from './utils/debug.ts';
 import { getApplicationFavicon, getStartupScripts } from './utils/runtimeConfig.ts';
 import { AuthProviderWrapper } from './auth/AuthProvider.tsx';
@@ -55,9 +55,8 @@ for (const scriptConfig of startupScripts) {
 }
 
 // Log version information on startup
-const versionInfo = getVersionInfo();
 debugLog('🚀 AI Chat Application started');
-debugLog(`📱 App Version: v${versionInfo.appVersion}`);
+debugLog(`📱 App Version: v${PACKAGE_VERSION}`);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
