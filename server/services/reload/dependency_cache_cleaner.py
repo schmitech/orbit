@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from ai_services.factory import AIServiceFactory, ServiceType
 from embeddings.base import EmbeddingServiceFactory
+from services.adapter_capabilities import uses_retrieval_services
 try:
     from server.services.reranker_service_manager import RerankingServiceManager
 except ImportError:
@@ -206,8 +207,8 @@ class DependencyCacheCleaner:
         cleared = []
         old_embedding_provider = adapter_config.get('embedding_provider')
 
-        # If no adapter-specific provider, use global default
-        if not old_embedding_provider:
+        # If no adapter-specific provider, use global default only for retrieval adapters.
+        if not old_embedding_provider and uses_retrieval_services(adapter_config):
             old_embedding_provider = self.config.get('embedding', {}).get('provider')
             if old_embedding_provider:
                 logger.debug(f"Using global default embedding provider for cache clearing: {old_embedding_provider}")
@@ -259,8 +260,8 @@ class DependencyCacheCleaner:
         cleared = []
         old_reranker_provider = adapter_config.get('reranker_provider')
 
-        # If no adapter-specific provider, use global default
-        if not old_reranker_provider:
+        # If no adapter-specific provider, use global default only for retrieval adapters.
+        if not old_reranker_provider and uses_retrieval_services(adapter_config):
             # Check for reranker provider_override, or fallback to inference provider
             reranker_config = self.config.get('reranker', {})
             old_reranker_provider = reranker_config.get('provider_override') or reranker_config.get('provider')
@@ -301,8 +302,8 @@ class DependencyCacheCleaner:
         cleared = []
         old_vision_provider = adapter_config.get('vision_provider')
 
-        # If no adapter-specific provider, use global default
-        if not old_vision_provider:
+        # If no adapter-specific provider, use global default only for retrieval adapters.
+        if not old_vision_provider and uses_retrieval_services(adapter_config):
             vision_config = self.config.get('vision', {})
             old_vision_provider = vision_config.get('provider')
             if old_vision_provider:
@@ -337,13 +338,6 @@ class DependencyCacheCleaner:
         cleared = []
         old_audio_provider = adapter_config.get('audio_provider')
 
-        # If no adapter-specific provider, use global default from sound config
-        if not old_audio_provider:
-            sound_config = self.config.get('sound', {})
-            old_audio_provider = sound_config.get('provider')
-            if old_audio_provider:
-                logger.debug(f"Using global default audio provider for cache clearing: {old_audio_provider}")
-
         if not old_audio_provider or not self.audio_cache:
             return cleared
 
@@ -370,31 +364,12 @@ class DependencyCacheCleaner:
         Returns:
             List of cleared cache descriptions
         """
-        cleared = []
-        old_stt_provider = adapter_config.get('stt_provider')
-
-        # If no adapter-specific provider, use global default from stt config
-        if not old_stt_provider:
-            stt_config = self.config.get('stt', {})
-            old_stt_provider = stt_config.get('provider')
-            if old_stt_provider:
-                logger.debug(f"Using global default STT provider for cache clearing: {old_stt_provider}")
-
-        if not old_stt_provider or not self.audio_cache:
-            return cleared
-
-        # STT uses audio_cache
-        cache_key = self.audio_cache.build_cache_key(old_stt_provider)
-
-        if self.audio_cache.contains(cache_key):
-            await self.audio_cache.remove(cache_key)
-            cleared.append(f"stt:{cache_key}")
-
-        # Also clear the AIServiceFactory cache for this provider (STT uses AUDIO service type)
-        AIServiceFactory.clear_cache(service_type=ServiceType.AUDIO, provider=old_stt_provider)
-        logger.debug(f"Cleared AIServiceFactory audio/STT cache for provider '{old_stt_provider}'")
-
-        return cleared
+        return await self._clear_audio_variant_cache(
+            adapter_config=adapter_config,
+            provider_key='stt_provider',
+            prefix='stt',
+            log_label='audio/STT',
+        )
 
     async def _clear_tts_cache(self, adapter_config: Dict[str, Any]) -> List[str]:
         """
@@ -406,29 +381,34 @@ class DependencyCacheCleaner:
         Returns:
             List of cleared cache descriptions
         """
+        return await self._clear_audio_variant_cache(
+            adapter_config=adapter_config,
+            provider_key='tts_provider',
+            prefix='tts',
+            log_label='audio/TTS',
+        )
+
+    async def _clear_audio_variant_cache(
+        self,
+        adapter_config: Dict[str, Any],
+        provider_key: str,
+        prefix: str,
+        log_label: str,
+    ) -> List[str]:
         cleared = []
-        old_tts_provider = adapter_config.get('tts_provider')
+        old_provider = adapter_config.get(provider_key)
 
-        # If no adapter-specific provider, use global default from tts config
-        if not old_tts_provider:
-            tts_config = self.config.get('tts', {})
-            old_tts_provider = tts_config.get('provider')
-            if old_tts_provider:
-                logger.debug(f"Using global default TTS provider for cache clearing: {old_tts_provider}")
-
-        if not old_tts_provider or not self.audio_cache:
+        if not old_provider or not self.audio_cache:
             return cleared
 
-        # TTS uses audio_cache
-        cache_key = self.audio_cache.build_cache_key(old_tts_provider)
+        cache_key = self.audio_cache.build_cache_key(old_provider)
 
         if self.audio_cache.contains(cache_key):
             await self.audio_cache.remove(cache_key)
-            cleared.append(f"tts:{cache_key}")
+            cleared.append(f"{prefix}:{cache_key}")
 
-        # Also clear the AIServiceFactory cache for this provider (TTS uses AUDIO service type)
-        AIServiceFactory.clear_cache(service_type=ServiceType.AUDIO, provider=old_tts_provider)
-        logger.debug(f"Cleared AIServiceFactory audio/TTS cache for provider '{old_tts_provider}'")
+        AIServiceFactory.clear_cache(service_type=ServiceType.AUDIO, provider=old_provider)
+        logger.debug(f"Cleared AIServiceFactory {log_label} cache for provider '{old_provider}'")
 
         return cleared
 

@@ -605,6 +605,98 @@ class TestAdapterLoaderInferencePreload:
             # Should NOT have called create_provider since no provider is configured
             self.provider_cache.create_provider.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_retrieval_services_skip_global_defaults_when_capabilities_disable_retrieval(self):
+        """Passthrough adapters should not preload global embedding/reranker/vision defaults."""
+        self.config.update({
+            'embedding': {'enabled': True, 'provider': 'openai'},
+            'reranker': {'enabled': True, 'provider': 'cohere'},
+            'vision': {'enabled': True, 'provider': 'gemini'},
+        })
+        adapter_config = {
+            'name': 'simple_chat',
+            'enabled': True,
+            'type': 'passthrough',
+            'capabilities': {'retrieval_behavior': 'none'},
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+
+        loader = self._create_loader()
+
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            await loader.load_adapter('simple_chat', adapter_config)
+
+        self.embedding_cache.create_service.assert_not_awaited()
+        self.reranker_cache.create_service.assert_not_awaited()
+        self.vision_cache.create_service.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_retrieval_services_use_global_defaults_when_capabilities_enable_retrieval(self):
+        """Retrieval adapters may still preload global service defaults."""
+        self.config.update({
+            'embedding': {'enabled': True, 'provider': 'openai'},
+            'reranker': {'enabled': True, 'provider': 'cohere'},
+            'vision': {'enabled': True, 'provider': 'gemini'},
+        })
+        adapter_config = {
+            'name': 'retrieval_adapter',
+            'enabled': True,
+            'type': 'retriever',
+            'capabilities': {'retrieval_behavior': 'always'},
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+
+        loader = self._create_loader()
+
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            await loader.load_adapter('retrieval_adapter', adapter_config)
+
+        self.embedding_cache.create_service.assert_awaited_once_with('openai', 'retrieval_adapter')
+        self.reranker_cache.create_service.assert_awaited_once_with('cohere', 'retrieval_adapter')
+        self.vision_cache.create_service.assert_awaited_once_with('gemini', 'retrieval_adapter')
+
+    @pytest.mark.asyncio
+    async def test_image_video_services_do_not_use_global_defaults(self):
+        """Image/video generation preload should require adapter-level providers."""
+        self.config.update({
+            'image': {'enabled': True, 'provider': 'gemini'},
+            'video': {'enabled': True, 'provider': 'xai'},
+        })
+        adapter_config = {
+            'name': 'simple_chat',
+            'enabled': True,
+            'type': 'passthrough',
+            'capabilities': {'retrieval_behavior': 'none'},
+            'implementation': 'retrievers.passthrough.PassthroughRetriever'
+        }
+        adapter_manager = Mock()
+        adapter_manager.get_image_service = AsyncMock()
+        adapter_manager.get_video_service = AsyncMock()
+
+        from services.loader.adapter_loader import AdapterLoader
+        loader = AdapterLoader(
+            self.config,
+            self.app_state,
+            self.provider_cache,
+            self.embedding_cache,
+            self.reranker_cache,
+            self.vision_cache,
+            self.audio_cache,
+            adapter_manager=adapter_manager,
+        )
+
+        mock_retriever = Mock()
+        mock_retriever.domain_adapter = None
+        with patch.object(loader, '_create_adapter_sync', return_value=mock_retriever):
+            await loader.load_adapter('simple_chat', adapter_config)
+
+        adapter_manager.get_image_service.assert_not_awaited()
+        adapter_manager.get_video_service.assert_not_awaited()
+
 
 class TestAdapterLoaderSTTTTSPreload:
     """Tests for STT and TTS provider preloading in AdapterLoader"""
@@ -785,6 +877,69 @@ class TestDependencyCacheCleanerExtended:
         self.audio_cache.remove.assert_awaited_once()
         assert len(cleared) == 1
         assert cleared[0].startswith('tts:')
+
+    @pytest.mark.asyncio
+    async def test_clear_stt_cache_does_not_use_global_default(self):
+        """STT cleanup should match loader behavior and only clear explicit providers."""
+        self.config['stt'] = {'provider': 'whisper'}
+        adapter_config = {'name': 'test_adapter'}
+
+        cleaner = self._create_cleaner()
+        cleared = await cleaner._clear_stt_cache(adapter_config)
+
+        self.audio_cache.remove.assert_not_awaited()
+        assert cleared == []
+
+    @pytest.mark.asyncio
+    async def test_clear_tts_cache_does_not_use_global_default(self):
+        """TTS cleanup should match loader behavior and only clear explicit providers."""
+        self.config['tts'] = {'provider': 'openai'}
+        adapter_config = {'name': 'test_adapter'}
+
+        cleaner = self._create_cleaner()
+        cleared = await cleaner._clear_tts_cache(adapter_config)
+
+        self.audio_cache.remove.assert_not_awaited()
+        assert cleared == []
+
+    @pytest.mark.asyncio
+    async def test_clear_retrieval_caches_skip_global_defaults_when_capabilities_disable_retrieval(self):
+        """Retrieval cleanup should not evict global caches for passthrough adapters."""
+        self.config.update({
+            'embedding': {'provider': 'openai'},
+            'reranker': {'provider': 'cohere'},
+            'vision': {'provider': 'gemini'},
+        })
+        adapter_config = {
+            'name': 'simple_chat',
+            'type': 'passthrough',
+            'capabilities': {'retrieval_behavior': 'none'},
+        }
+
+        cleaner = self._create_cleaner()
+
+        embedding_cleared = await cleaner._clear_embedding_cache(adapter_config)
+        reranker_cleared = await cleaner._clear_reranker_cache(adapter_config)
+        vision_cleared = await cleaner._clear_vision_cache(adapter_config)
+
+        self.embedding_cache.build_cache_key.assert_not_called()
+        self.reranker_cache.build_cache_key.assert_not_called()
+        self.vision_cache.build_cache_key.assert_not_called()
+        assert embedding_cleared == []
+        assert reranker_cleared == []
+        assert vision_cleared == []
+
+    @pytest.mark.asyncio
+    async def test_clear_audio_cache_does_not_use_global_default(self):
+        """Audio cleanup should match loader behavior and only clear explicit providers."""
+        self.config['sound'] = {'provider': 'openai'}
+        adapter_config = {'name': 'test_adapter'}
+
+        cleaner = self._create_cleaner()
+        cleared = await cleaner._clear_audio_cache(adapter_config)
+
+        self.audio_cache.remove.assert_not_awaited()
+        assert cleared == []
 
     @pytest.mark.asyncio
     async def test_clear_store_cache(self):
