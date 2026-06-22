@@ -40,6 +40,7 @@ Available providers:
     - NebiusInferenceService: Nebius AI Studio inference
     - VeniceInferenceService: Venice AI privacy-focused inference
     - ScalewayInferenceService: Scaleway European cloud inference
+    - FuguInferenceService: Sakana AI (Fugu) inference
 """
 
 import logging
@@ -87,6 +88,7 @@ _implementations = [
     ('nebius_inference_service', 'NebiusInferenceService'),
     ('venice_inference_service', 'VeniceInferenceService'),
     ('scaleway_inference_service', 'ScalewayInferenceService'),
+    ('fugu_inference_service', 'FuguInferenceService'),
 ]
 
 for module_name, class_name in _implementations:

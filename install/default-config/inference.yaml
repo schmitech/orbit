@@ -649,3 +649,13 @@ inference:
     top_p: 0.8
     max_tokens: 4096
     stream: true
+  fugu:
+    enabled: true
+    api_key: ${FUGU_API_KEY}
+    base_url: "https://api.sakana.ai/v1"
+    model: "fugu"  # Options: fugu, fugu-ultra, fugu-ultra-20260615
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
+    reasoning_effort: "high"  # Options: high, xhigh, max
