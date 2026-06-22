@@ -25,5 +25,29 @@ export default defineConfig(() => {
         'lucide-react',
       ],
     },
+    build: {
+      chunkSizeWarningLimit: 650,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-markdown': [
+              'react-markdown',
+              'remark-gfm',
+              'remark-math',
+              'rehype-katex',
+              'katex',
+              'unified',
+            ],
+            'vendor-syntax': ['react-syntax-highlighter'],
+            'vendor-auth': [
+              '@auth0/auth0-react',
+              '@azure/msal-browser',
+              '@azure/msal-react',
+            ],
+          },
+        },
+      },
+    },
   };
 });
