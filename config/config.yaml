@@ -210,6 +210,8 @@ logging:
       level: "WARNING"
     httpcore:
       level: "WARNING"
+    primp:
+      level: "WARNING"
     hpack:
       level: "WARNING"
     docling:

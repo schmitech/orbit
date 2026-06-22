@@ -78,3 +78,4 @@ import:
   - "adapters/fetch.yaml"
   - "adapters/mcp-agent.yaml"
   - "adapters/elasticsearch-logs.yaml"
+  - "adapters/web-search-providers.yaml"

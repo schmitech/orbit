@@ -361,6 +361,50 @@ class TestFetchStepProcess:
         assert result.has_error()
         assert "404" in result.error
 
+    @pytest.mark.asyncio
+    async def test_bare_domain_gets_https_prepended(self):
+        step = FetchStep(_FakeContainer())
+        ctx = ProcessingContext(message="fetch example.com/page", adapter_name="fetch")
+
+        jina_markdown = "# Page\n" + "x" * 200
+
+        with patch("socket.gethostbyname", return_value="93.184.216.34"):
+            with patch(
+                "inference.pipeline.steps.fetch._fetch_jina",
+                new=AsyncMock(return_value=jina_markdown),
+            ):
+                result = await step.process(ctx)
+
+        assert not result.has_error()
+        assert "https://example.com/page" in result.formatted_context
+
+    @pytest.mark.asyncio
+    async def test_bare_domain_only_no_path(self):
+        step = FetchStep(_FakeContainer())
+        ctx = ProcessingContext(message="summarise github.com", adapter_name="fetch")
+
+        jina_markdown = "# GitHub\n" + "x" * 200
+
+        with patch("socket.gethostbyname", return_value="140.82.121.4"):
+            with patch(
+                "inference.pipeline.steps.fetch._fetch_jina",
+                new=AsyncMock(return_value=jina_markdown),
+            ):
+                result = await step.process(ctx)
+
+        assert not result.has_error()
+        assert "https://github.com" in result.formatted_context
+
+    @pytest.mark.asyncio
+    async def test_no_url_and_no_bare_domain_sets_error(self):
+        step = FetchStep(_FakeContainer())
+        ctx = ProcessingContext(message="just some plain text", adapter_name="fetch")
+
+        result = await step.process(ctx)
+
+        assert result.has_error()
+        assert "No URL" in result.error
+
     def test_should_execute_true_for_fetch_type(self):
         step = FetchStep(_FakeContainer(adapter_type="fetch"))
         ctx = ProcessingContext(adapter_name="fetch")

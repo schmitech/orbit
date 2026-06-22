@@ -72,7 +72,8 @@ dependencies = [
     "pycountry>=24.6.1",
     "py-toon-format>=0.1.0",
     "colorama>=0.4.6",
-    "beautifulsoup4>=4.15.0"
+    "beautifulsoup4>=4.15.0",
+    "ddgs>=9.11.3",
 ]
 
 # ============================================================================

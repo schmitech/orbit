@@ -15,6 +15,7 @@ from .video_generation import VideoGenerationStep
 from .document_generation import DocumentGenerationStep
 from .mcp_agent import MCPAgentStep
 from .fetch import FetchStep
+from .web_search import WebSearchStep
 
 __all__ = [
     'SafetyFilterStep',
@@ -28,4 +29,5 @@ __all__ = [
     'DocumentGenerationStep',
     'MCPAgentStep',
     'FetchStep',
+    'WebSearchStep',
 ]

@@ -130,6 +130,8 @@ The dashboard shows API metrics, latency, active sessions, configured adapters, 
 
 - **File upload and multimodal RAG:** Process PDFs, DOCX, spreadsheets, CSVs, markdown, text, images, and audio, then reuse cached file context across conversations.
 
+- **Provider-agnostic web search:** Bring real-time web context to any LLM using dedicated search backends — DuckDuckGo (free, no key), Brave, SearXNG (self-hosted), Serper, Tavily, Google PSE, and Perplexity. The `web-search` adapter type fetches and injects results so any inference provider (Anthropic, Ollama, OpenAI, …) can synthesize the answer. Gemini, OpenAI, and xAI also support single-call provider-native grounded search.
+
 - **MCP tool-calling agents:** Connect to Model Context Protocol servers over stdio or SSE. Examples include filesystem, GitHub, GitLab, Jira, Confluence, Sentry, Slack, Postgres, Brave Search, Fetch, Google Drive, Notion, Docker, AWS, browser automation, and SharePoint-style remote tools.
 
 - **Media and document generation:** Add image, video, PDF, Word, Excel, PowerPoint, CSV, and markdown generation adapters to the same chat workflow.
@@ -155,6 +157,7 @@ ORBIT combines the pieces required to turn private AI experiments into durable a
 | **Private business data** | SQL, NoSQL, vector, REST, GraphQL, Elasticsearch, DuckDB, files, and composite multi-source retrieval. |
 | **Production API layer** | OpenAI-compatible gateway with API keys, quotas, rate limits, routing, metrics, and audit logs. |
 | **Domain copilots** | Configured adapters for natural-language database, API, log, file, procurement, HR, analytics, and customer-order workflows. |
+| **Real-time web context** | External search backends (DuckDuckGo, Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity) decoupled from synthesis — any LLM can answer from fresh web results. |
 | **Tool execution** | MCP-connected agent loops with bounded iterations, timeouts, result limits, and server-side orchestration. |
 | **Provider independence** | Separate routing for inference, embeddings, rerankers, vision, image, video, STT, TTS, and moderation providers. |
 | **Operational resilience** | Circuit breakers, fallback routing, datasource pooling, hot reloads, and request-level observability. |
@@ -277,6 +280,7 @@ OpenAI-compatible ORBIT API
              +--> SQL / NoSQL / DuckDB / Athena
              +--> REST / GraphQL / Elasticsearch
              +--> MCP tool agents
+             +--> Web search (DuckDuckGo, Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity)
              +--> Image / video / document generation
       |
       v

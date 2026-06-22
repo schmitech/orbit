@@ -302,11 +302,11 @@ def create_database_service(config: Dict[str, Any]) -> DatabaseService:
 
     if backend_type == 'mongodb':
         from services.mongodb_service import MongoDBService
-        logger.info("Using MongoDB as database backend")
+        logger.debug("Using MongoDB as database backend")
         return MongoDBService(config)
     elif backend_type == 'sqlite':
         from services.sqlite_service import SQLiteService
-        logger.info("Using SQLite as database backend")
+        logger.debug("Using SQLite as database backend")
         return SQLiteService(config)
     else:
         raise ValueError(f"Unsupported database backend type: {backend_type}")

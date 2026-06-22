@@ -1,0 +1,204 @@
+# EXTERNAL SEARCH PROVIDER ADAPTERS
+#
+# These adapters call a dedicated external search API, then use any configured LLM
+# to synthesize the answer — searching and synthesis are decoupled.
+#
+# MECHANISM: type "web-search"
+#   WebSearchStep fires, calls the configured provider, populates
+#   context.formatted_context with a numbered snippet list and context.sources.
+#   LLMInferenceStep then synthesizes a response using any LLM provider.
+#
+# AVAILABLE PROVIDERS (web_search.provider key):
+#   duckduckgo   — free, no API key, best for private queries
+#   searxng      — free, self-hosted (set SEARXNG_URL)
+#   brave        — requires BRAVE_SEARCH_API_KEY
+#   serper       — Google results, requires SERPER_API_KEY
+#   tavily       — AI-native search, requires TAVILY_API_KEY
+#   google_pse   — requires GOOGLE_PSE_API_KEY + GOOGLE_PSE_ENGINE_ID
+#   perplexity   — requires PERPLEXITY_API_KEY
+#
+# ALTERNATIVE: for provider-native search (Gemini GoogleSearch grounding,
+#   OpenAI web_search_preview, xAI Grok search) in a single API call, see:
+#   config/adapters/web-search.yaml
+#
+# DOCS: docs/adapters/web-search.md
+#
+# WEB_SEARCH BLOCK OPTIONS
+#   provider:          Required. One of the provider keys listed above.
+#   result_count:      Number of results to fetch (default: 5)
+#   filter_list:       Optional domain substring whitelist
+#   api_key:           Required for Brave, Serper, Tavily, Google PSE, Perplexity
+#   query_url:         SearXNG only — base URL of your instance
+#   search_engine_id:  Google PSE only
+#   api_url:           Perplexity only — override for custom deployments
+#   backend:           DuckDuckGo only — auto, google, brave, etc.
+#
+# TEST EXAMPLE (DuckDuckGo — no API key needed):
+#   curl -X POST http://localhost:3000/v1/chat \
+#     -H "Content-Type: application/json" \
+#     -H "X-API-Key: <key for an adapter that allows web-search-duckduckgo>" \
+#     -d '{"messages":[{"role":"user","content":"What are today'\''s top news headlines?"}],
+#          "skill":"web-search-duckduckgo"}'
+
+adapters:
+
+  # ── DuckDuckGo ──────────────────────────────────────────────────────────────
+  # Free, no API key required. Best for quick/private queries.
+  - name: "web-search-duckduckgo"
+    enabled: true
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "anthropic"
+    model: "claude-haiku-4-5-20251001"
+    web_search:
+      provider: "duckduckgo"
+      result_count: 5
+      # backend: "auto"   # optional: auto, duckduckgo, google, brave, etc.
+    capabilities:
+      expose_as_skill: true
+      skill_name: "web-search-duckduckgo"
+      skill_description: "Search the web using DuckDuckGo (free, no API key)"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+
+  # ── Brave Search ─────────────────────────────────────────────────────────────
+  # Requires a Brave Search API key (https://brave.com/search/api/).
+  - name: "web-search-brave"
+    enabled: false
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "anthropic"
+    model: "claude-haiku-4-5-20251001"
+    web_search:
+      provider: "brave"
+      api_key: "${BRAVE_SEARCH_API_KEY}"
+      result_count: 5
+    capabilities:
+      expose_as_skill: true
+      skill_name: "web-search-brave"
+      skill_description: "Search the web using Brave Search API"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+
+  # ── SearXNG (self-hosted) ────────────────────────────────────────────────────
+  # Requires a running SearXNG instance. Set query_url to your instance URL.
+  - name: "web-search-searxng"
+    enabled: false
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "anthropic"
+    model: "claude-haiku-4-5-20251001"
+    web_search:
+      provider: "searxng"
+      query_url: "${SEARXNG_URL}"   # e.g. http://localhost:8080
+      result_count: 5
+      # language: "en"
+      # safesearch: "1"
+      # categories: ["general"]
+    capabilities:
+      expose_as_skill: true
+      skill_name: "web-search-searxng"
+      skill_description: "Search the web using a self-hosted SearXNG instance"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+
+  # ── Serper (Google via serper.dev) ───────────────────────────────────────────
+  # Requires a Serper API key (https://serper.dev/).
+  - name: "web-search-serper"
+    enabled: false
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    web_search:
+      provider: "serper"
+      api_key: "${SERPER_API_KEY}"
+      result_count: 5
+    capabilities:
+      expose_as_skill: true
+      skill_name: "web-search-serper"
+      skill_description: "Search Google via the Serper API"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+
+  # ── Tavily ───────────────────────────────────────────────────────────────────
+  # AI-native search API. Requires a Tavily API key (https://tavily.com/).
+  - name: "web-search-tavily"
+    enabled: false
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "anthropic"
+    model: "claude-haiku-4-5-20251001"
+    web_search:
+      provider: "tavily"
+      api_key: "${TAVILY_API_KEY}"
+      result_count: 5
+    capabilities:
+      expose_as_skill: true
+      skill_name: "web-search-tavily"
+      skill_description: "Search the web using Tavily AI search"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+
+  # ── Perplexity Search ────────────────────────────────────────────────────────
+  # Requires a Perplexity API key (https://docs.perplexity.ai/docs/search/quickstart).
+  # Returns structured results (link, title, snippet) from the /search endpoint.
+  - name: "web-search-perplexity"
+    enabled: false
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "anthropic"
+    model: "claude-haiku-4-5-20251001"
+    web_search:
+      provider: "perplexity"
+      api_key: "${PERPLEXITY_API_KEY}"
+      result_count: 5
+      # api_url: "https://api.perplexity.ai/search"  # override for custom deployments
+    capabilities:
+      expose_as_skill: true
+      skill_name: "web-search-perplexity"
+      skill_description: "Search the web using Perplexity Search API"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+
+  # ── Google Programmable Search Engine ───────────────────────────────────────
+  # Requires a Google API key and a Custom Search Engine ID.
+  # See: https://programmablesearchengine.google.com/
+  - name: "web-search-google-pse"
+    enabled: false
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "anthropic"
+    model: "claude-haiku-4-5-20251001"
+    web_search:
+      provider: "google_pse"
+      api_key: "${GOOGLE_PSE_API_KEY}"
+      search_engine_id: "${GOOGLE_PSE_ENGINE_ID}"
+      result_count: 5
+    capabilities:
+      expose_as_skill: true
+      skill_name: "web-search-google-pse"
+      skill_description: "Search Google via Programmable Search Engine"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false

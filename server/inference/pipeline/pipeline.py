@@ -13,7 +13,7 @@ from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, MCPAgentStep, FetchStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, MCPAgentStep, FetchStep, WebSearchStep
 
 logger = logging.getLogger(__name__)
 
@@ -402,6 +402,9 @@ class InferencePipelineBuilder:
 
         # Fetch — executes instead of LLM for fetch adapters
         steps.append(FetchStep(container))
+
+        # Web search — retrieves external search results as context for LLM synthesis
+        steps.append(WebSearchStep(container))
 
         # LLM inference is always needed (skips image/video/document/fetch generation adapters)
         steps.append(LLMInferenceStep(container))

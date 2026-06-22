@@ -1,24 +1,32 @@
-# Web search skill adapter — answers with up-to-date information from the web.
+# PROVIDER-NATIVE WEB SEARCH
 #
-# SUPPORTED PROVIDERS: only "gemini", "openai", and "xai" support web search, and the
-# configured model must support the web_search tool (e.g. gemini-3.1-pro-preview,
-# an OpenAI search-capable model, or a Grok reasoning model like grok-4.3). Pointing
-# this adapter at any other provider/model will fail at request time.
+# This adapter delegates web search to the LLM provider's built-in search tool.
+# Searching and synthesis happen in a single API call — the provider does both.
 #
-# Exposed as the "web-search" skill. Any adapter that lists "web-search" in its
-# capabilities.available_skills can invoke it (see simple-chat in passthrough.yaml).
+# MECHANISM: type "passthrough" + capabilities.web_search: true
+#   RequestContextBuilder sets context.web_search = True
+#   LLMInferenceStep passes web_search=True to the provider
+#   The provider activates its native search tool and returns a grounded response
+#
+# SUPPORTED PROVIDERS: only "gemini", "openai", and "xai" support native web search.
+#   - gemini:  google_search grounding tool (e.g. gemini-3.1-pro-preview)
+#   - openai:  web_search_preview tool via the Responses API
+#   - xai:     web_search tool (e.g. grok-4.3)
+#   Other providers produce undefined behavior — most will forward the unknown
+#   web_search kwarg to the underlying API and return an error (e.g. HTTP 400).
+#
+# ALTERNATIVE: for provider-agnostic search (DuckDuckGo, Brave, Serper, Tavily,
+#   SearXNG, Google PSE, Perplexity) that works with any LLM, see:
+#   config/adapters/web-search-providers.yaml
+#
+# DOCS: docs/adapters/web-search.md
 #
 # Test it:
 #   curl -X POST http://localhost:3000/v1/chat \
 #     -H "Content-Type: application/json" \
 #     -H "X-API-Key: <key for an adapter that allows web-search, e.g. simple-chat>" \
-#     -d '{"messages":[{"role":"user","content":"What are todays top news headlines?"}],
+#     -d '{"messages":[{"role":"user","content":"What are today'\''s top news headlines?"}],
 #          "skill":"web-search"}'
-#
-# This skill always uses the provider/model below. To use OpenAI or xAI instead,
-# change inference_provider to "openai"/"xai" and model to a search-capable model.
-# (Runtime model switching via the request "model" field is validated against the
-# *calling* adapter's allowed_models, not this one, so it is not used on the skill path.)
 adapters:
   - name: "web-search-chat"
     enabled: true

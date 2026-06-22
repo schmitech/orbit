@@ -18,10 +18,12 @@ import httpx
 from bs4 import BeautifulSoup
 
 from ..base import PipelineStep, ProcessingContext
+from ._utils import get_adapter_type as _get_adapter_type
 
 logger = logging.getLogger(__name__)
 
 _URL_RE = re.compile(r'https?://[^\s]+')
+_BARE_DOMAIN_RE = re.compile(r'(?<!\S)([a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z]{2,})+(?:/[^\s]*)?)')
 _JINA_BASE = "https://r.jina.ai/"
 _MIN_CONTENT_LEN = 100
 _REDIRECT_CODES = {301, 302, 303, 307, 308}
@@ -37,7 +39,6 @@ def _is_private_host(url: str) -> bool:
         hostname = urlparse(url).hostname or ""
         if not hostname:
             return True
-        # Resolve to IP and check against private/special ranges
         addr = ipaddress.ip_address(socket.gethostbyname(hostname))
         return (
             addr.is_loopback
@@ -48,22 +49,7 @@ def _is_private_host(url: str) -> bool:
             or addr.is_multicast
         )
     except Exception:
-        # DNS failure or invalid IP — treat as unsafe
         return True
-
-
-def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
-    """Return the adapter's 'type' field, or None if unavailable."""
-    if not adapter_name or not container.has('adapter_manager'):
-        return None
-    try:
-        adapter_manager = container.get('adapter_manager')
-        adapter_config = adapter_manager.get_adapter_config(adapter_name)
-        if adapter_config:
-            return adapter_config.get('type')
-    except Exception:
-        pass
-    return None
 
 
 class FetchStep(PipelineStep):
@@ -86,11 +72,15 @@ class FetchStep(PipelineStep):
 
     async def process(self, context: ProcessingContext) -> ProcessingContext:
         match = _URL_RE.search(context.message)
-        if not match:
-            context.set_error("No URL found in message. Please provide a URL starting with http:// or https://.")
-            return context
-
-        url = match.group(0).rstrip('.,;)')
+        if match:
+            url = match.group(0).rstrip('.,;)')
+        else:
+            bare = _BARE_DOMAIN_RE.search(context.message)
+            if not bare:
+                context.set_error("No URL found in message. Please provide a URL starting with http:// or https://.")
+                return context
+            url = "https://" + bare.group(1).rstrip('.,;)')
+            logger.debug("FetchStep: no scheme found, prepended https:// → %s", url)
 
         adapter_config = {}
         if context.adapter_name and self.container.has('adapter_manager'):
