@@ -2,6 +2,9 @@
 
 ## [2.7.7] - 2026-06-21
 
+### Bug Fixes & Technical Improvements
+- **Reranker Reload**: Fixed `'NoneType' object has no attribute 'messages'` crash when reloading an adapter that inherits the global Anthropic reranker. The dependency cleaner was calling `RerankingServiceManager.clear_cache()` via the `services.` import path while the cache manager used the `server.services.` namespace package path (set by `PYTHONPATH`), so the close-on-removal left a stale `client=None` instance in the unreachable singleton. Fixed by aligning the import in `dependency_cache_cleaner.py` to use the same `try: server.services / except: services` pattern already used by `reranker_cache_manager.py`.
+
 ### Core System Updates
 - **Circuit Breakers**: Hardened adapter circuit breaker resilience with safer event dispatching, locking, half-open probe gating, and added admin panel controls to view backoff states and reset circuits.
 - **Log Tailing**: Added an admin endpoint to list and select specific rotated log files for tailing, with a fallback to the newest log file.

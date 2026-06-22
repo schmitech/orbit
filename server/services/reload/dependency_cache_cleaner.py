@@ -9,6 +9,10 @@ from typing import Any, Dict, List, Optional
 
 from ai_services.factory import AIServiceFactory, ServiceType
 from embeddings.base import EmbeddingServiceFactory
+try:
+    from server.services.reranker_service_manager import RerankingServiceManager
+except ImportError:
+    from services.reranker_service_manager import RerankingServiceManager
 
 logger = logging.getLogger(__name__)
 
@@ -273,9 +277,14 @@ class DependencyCacheCleaner:
             await self.reranker_cache.remove(cache_key)
             cleared.append(f"reranker:{cache_key}")
 
-        # Also clear the AIServiceFactory cache for this provider
+        # Also clear the AIServiceFactory and RerankingServiceManager singleton caches.
+        # RerankingServiceManager._instances must be cleared here: reranker_cache.remove() calls
+        # service.close() (setting client=None), but RerankingServiceManager keeps a separate
+        # reference to the same instance, so subsequent create_reranker_service() calls return
+        # the closed (client=None) object, causing "'NoneType' has no attribute 'messages'" on reload.
         AIServiceFactory.clear_cache(service_type=ServiceType.RERANKING, provider=old_reranker_provider)
-        logger.debug(f"Cleared AIServiceFactory reranking cache for provider '{old_reranker_provider}'")
+        RerankingServiceManager.clear_cache()
+        logger.debug(f"Cleared AIServiceFactory and RerankingServiceManager reranking caches for provider '{old_reranker_provider}'")
 
         return cleared
 
