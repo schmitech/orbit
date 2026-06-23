@@ -73,15 +73,18 @@ class AzureOpenAIInferenceService(InferenceService, AzureBaseService):
             messages_from_kwargs = kwargs.pop('messages', None)
             conversation_messages, system_prompt = self._build_messages(prompt, messages_from_kwargs)
 
-            # Call Azure AI with messages and optional system prompt
+            full_messages = []
+            if system_prompt:
+                full_messages.append({"role": "system", "content": system_prompt})
+            full_messages.extend(conversation_messages)
+
             response = await self.client.complete(
-                messages=conversation_messages,
-                system=system_prompt,
+                messages=full_messages,
+                model=self.deployment,
                 temperature=kwargs.pop('temperature', self.temperature),
                 top_p=kwargs.pop('top_p', self.top_p),
                 max_tokens=kwargs.pop('max_tokens', self.max_tokens),
-                stream=False,
-                **kwargs  # Any other Azure-specific parameters
+                **kwargs
             )
 
             if not response.choices or not response.choices[0].message:
@@ -112,18 +115,21 @@ class AzureOpenAIInferenceService(InferenceService, AzureBaseService):
             messages_from_kwargs = kwargs.pop('messages', None)
             conversation_messages, system_prompt = self._build_messages(prompt, messages_from_kwargs)
 
-            # Call Azure AI with streaming enabled
+            full_messages = []
+            if system_prompt:
+                full_messages.append({"role": "system", "content": system_prompt})
+            full_messages.extend(conversation_messages)
+
             response = await self.client.complete(
-                messages=conversation_messages,
-                system=system_prompt,
+                messages=full_messages,
+                model=self.deployment,
                 temperature=kwargs.pop('temperature', self.temperature),
                 top_p=kwargs.pop('top_p', self.top_p),
                 max_tokens=kwargs.pop('max_tokens', self.max_tokens),
                 stream=True,
-                **kwargs  # Any other Azure-specific parameters
+                **kwargs
             )
 
-            # Stream the response chunks
             async for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content

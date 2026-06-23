@@ -81,9 +81,9 @@ class AzureBaseService(ProviderAIService):
         # Get API version
         self.api_version = azure_config.get("api_version", self.DEFAULT_API_VERSION)
 
-        # Initialize Azure AI client
+        # Initialize Azure AI async client
         try:
-            from azure.ai.inference import ChatCompletionsClient
+            from azure.ai.inference.aio import ChatCompletionsClient
             from azure.core.credentials import AzureKeyCredential
 
             self.client = ChatCompletionsClient(

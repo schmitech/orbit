@@ -306,8 +306,8 @@ inference:
     max_tokens: 1024
   azure:
     enabled: false
-    base_url: http://azure-ai.endpoint.microsoft.com
-    deployment: "azure-ai-deployment"
+    endpoint: "https://<your-resource-name>.openai.azure.com/"
+    deployment: "your-deployment-name"
     api_key: ${AZURE_ACCESS_KEY}
     context_window: 128000  # Azure OpenAI GPT-4 Turbo supports 128K context
     temperature: 0.1
