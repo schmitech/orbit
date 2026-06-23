@@ -2,6 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /orbit
 
+ARG CUDA_VER=cu121
+ARG UID=1001
+ARG GID=0
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Performance Optimizations for CPU/GPU inference
 # ═══════════════════════════════════════════════════════════════════════════
@@ -10,7 +14,8 @@ WORKDIR /orbit
 # - Environment variables optimize threading and memory for ML workloads
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Install system dependencies including performance libraries
+# Install system dependencies including performance libraries.
+# libopenblas-dev and numactl optimize CPU inference workloads.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
@@ -21,8 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     libffi-dev \
     libpq-dev \
+    jq \
     zstd \
-    # Performance optimizations
     libopenblas-dev \
     numactl \
     && apt-get clean \
@@ -31,16 +36,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ═══════════════════════════════════════════════════════════════════════════
 # CPU Performance Environment Variables
 # ═══════════════════════════════════════════════════════════════════════════
-# These optimize threading and memory allocation for inference workloads
+# These optimize threading and memory allocation for inference workloads.
+# MALLOC_TRIM_THRESHOLD_ reduces Python memory fragmentation.
+# TOKENIZERS_PARALLELISM=false optimizes for inference rather than training.
 ENV OMP_NUM_THREADS=4 \
     MKL_NUM_THREADS=4 \
     OPENBLAS_NUM_THREADS=4 \
     VECLIB_MAXIMUM_THREADS=4 \
     NUMEXPR_NUM_THREADS=4 \
-    # Reduce Python memory fragmentation
     MALLOC_TRIM_THRESHOLD_=100000 \
-    # Optimize for inference (not training)
-    TOKENIZERS_PARALLELISM=false
+    TOKENIZERS_PARALLELISM=false \
+    PYTHONUNBUFFERED=1 \
+    HF_HOME=/orbit/data/cache/hf \
+    SCARF_NO_ANALYTICS=true \
+    DO_NOT_TRACK=true \
+    ANONYMIZED_TELEMETRY=false \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    CUDA_VER=${CUDA_VER}
 
 # Copy dependency configuration first (for better caching)
 COPY install/dependencies.toml /orbit/install/
@@ -52,10 +64,15 @@ RUN chmod +x /orbit/install/setup.sh
 
 # Install Python dependencies (all profiles - ready for future adapters like multimodal)
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir tomli && \
+    pip install --no-cache-dir uv tomli && \
     cd /orbit/install && \
     python3 generate_requirements.py all --output /tmp/requirements.txt && \
-    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    grep -Ev '^(torch|torchvision)([<=>[:space:]]|$)' /tmp/requirements.txt > /tmp/requirements-no-torch.txt && \
+    uv pip install --system --no-cache-dir -r /tmp/requirements-no-torch.txt && \
+    uv pip install --system --no-cache-dir --index-url "https://download.pytorch.org/whl/${CUDA_VER}" \
+        "torch>=2.2.2,<3.0.0" \
+        "torchvision>=0.17.0,<1" && \
+    rm /tmp/requirements-no-torch.txt && \
     rm /tmp/requirements.txt
 
 # Copy the application code
@@ -110,14 +127,15 @@ EXPOSE 3000
 
 # Health check - API server only
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD curl -sf http://localhost:3000/health | jq -e '.status == "healthy"' > /dev/null || exit 1
 
 # Copy entrypoint script
 COPY docker/docker-entrypoint.sh /orbit/docker-entrypoint.sh
 RUN chmod +x /orbit/docker-entrypoint.sh && \
-    useradd -r -u 1001 -g root orbit && \
-    chown -R orbit:root /orbit/logs /orbit/data /orbit/models /orbit/config-runtime && \
-    chown orbit:root /orbit/orbit.db.default && \
+    if ! getent group "${GID}" >/dev/null; then groupadd -r -g "${GID}" orbit; fi && \
+    useradd -r -u "${UID}" -g "${GID}" orbit && \
+    chown -R orbit:"${GID}" /orbit/logs /orbit/data /orbit/models /orbit/config-runtime && \
+    chown orbit:"${GID}" /orbit/orbit.db.default && \
     chmod 640 /orbit/orbit.db.default
 
 USER orbit

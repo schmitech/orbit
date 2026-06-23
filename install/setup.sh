@@ -58,7 +58,7 @@
 # Platform / dependency notes:
 #   1. Use Python 3.12 whenever possible. The script selects the best interpreter and installs tomli automatically.
 #   2. PyTorch/docling installs now honour --torch-backend (cpu, cuda, metal, auto). CUDA installs pull wheels from
-#      https://download.pytorch.org/whl/cu121, CPU installs use the CPU wheel channel, and Metal targets the macOS wheel.
+#      https://download.pytorch.org/whl/${CUDA_VER:-cu121}, CPU installs use the CPU wheel channel, and Metal targets the macOS wheel.
 #      vLLM (GPU-only) is skipped unless a CUDA GPU is detected or explicitly requested.
 #   3. CPU-only PyTorch wheels expose a synthetic torch.xpu shim so docling no longer crashes when Intel extensions are missing.
 #   4. uv (if installed) is used for faster installs but sticks to stable releases; prerelease upgrades are opt-in per package.
@@ -487,9 +487,9 @@ install_torch_package() {
     case "$backend" in
         cuda)
             if [ -n "$version" ]; then
-                package="torch==${version}+cu121"
+                package="torch==${version}+${CUDA_VER}"
             fi
-            extra_args=(--index-url "https://download.pytorch.org/whl/cu121")
+            extra_args=(--index-url "https://download.pytorch.org/whl/${CUDA_VER}")
             ;;
         cpu)
             if [ -n "$version" ]; then
@@ -552,6 +552,7 @@ GGUF_MODELS_CONFIG="$SCRIPT_DIR/gguf-models.json"
 PYTHON_CMD_OVERRIDE=""
 PYTHON_CMD=""
 TORCH_BACKEND="auto"
+CUDA_VER="${CUDA_VER:-cu121}"
 RESOLVED_TORCH_BACKEND=""
 TORCH_SPEC=""
 TORCHVISION_SPEC=""
@@ -637,6 +638,14 @@ while [[ $# -gt 0 ]]; do
             esac
             shift 2
             ;;
+        --cuda-ver)
+            if [ -z "$2" ]; then
+                print_message "red" "Error: --cuda-ver requires a value like cu121"
+                exit 1
+            fi
+            CUDA_VER="$2"
+            shift 2
+            ;;
         --wizard)
             RUN_WIZARD=true
             shift
@@ -655,6 +664,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --gguf-models-config <f>Path to GGUF models .json config (default: ./gguf-models.json)"
             echo "  --python-cmd <cmd>      Python executable to use (skips interactive selection)"
             echo "  --torch-backend <mode>  Force torch backend (auto, cpu, cuda, metal). Default: auto"
+            echo "  --cuda-ver <channel>    PyTorch CUDA wheel channel for cuda backend. Default: ${CUDA_VER}"
             echo "  --wizard                Interactive guided setup (recommended for newcomers)"
             echo "  --help, -h              Show this help message"
             echo ""

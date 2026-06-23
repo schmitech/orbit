@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "═══════════════════════════════════════════════════════════════════════════"
 echo "  ORBIT Server - Starting"
@@ -88,6 +88,10 @@ else
 fi
 echo "  Selected Preset: $SELECTED_PRESET"
 echo ""
+
+if [ "$DETECTED_GPU" = "nvidia" ]; then
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}:/usr/local/lib/python3.12/site-packages/torch/lib:/usr/local/lib/python3.12/site-packages/nvidia/cudnn/lib"
+fi
 
 CONFIG_SOURCE_DIR="/orbit/config"
 RUNTIME_CONFIG_DIR="/orbit/config-runtime"

@@ -56,6 +56,12 @@ This starts three containers:
 - **ollama-init** - pulls required models then exits
 - **orbit** - ORBIT API server (port 3000)
 
+To use a different host port for ORBIT, set `ORBIT_PORT` before starting:
+
+```bash
+ORBIT_PORT=3001 docker compose up -d
+```
+
 ### 2. Verify Everything is Running
 
 ```bash
@@ -154,8 +160,10 @@ Set these in `docker-compose.yml` under the `orbit` service:
   - `smollm2-1.7b-gpu` - force GPU preset
   - `smollm2-1.7b-cpu` - force CPU preset
   - Any preset name from `ollama.yaml`
+- `ORBIT_PORT` - Host port exposed by Docker Compose for the ORBIT API (default: `3000`)
 - `OLLAMA_HOST` - Ollama service address (default: `ollama:11434`)
   - Use host:port such as `ollama:11434`; `http://` and `https://` URLs are also accepted.
+  - Use `host.docker.internal:11434` to reach an Ollama server running on the Docker host.
 - `ORBIT_DEFAULT_ADMIN_PASSWORD` - Admin password for CLI access (default: `admin123`)
 - `ORBIT_ALLOW_DEFAULT_CREDENTIALS` - Set to `true` to acknowledge and silence the startup warning about the bundled default database/API key.
   - Leave unset for the warning to print on each start.
@@ -166,7 +174,7 @@ Set these in `docker-compose.yml` under the `orbit` service:
 Docker-compose volumes are configured by default:
 
 - `ollama-data` - Ollama models (persists across restarts, no re-download)
-- `orbit-data` - ORBIT application data
+- `orbit-data` - ORBIT application data and HuggingFace cache
 - `orbit-logs` - ORBIT server logs
 
 Models are only pulled once by `ollama-init`. Subsequent `docker compose down && docker compose up -d` will reuse cached models.
@@ -320,6 +328,15 @@ chmod +x publish.sh
 ```
 
 The build creates a lean server-only image (no Ollama, no Node.js, no models). Models are pulled at runtime by the `ollama-init` service.
+
+Advanced builds can override the runtime user and CUDA wheel channel:
+
+```bash
+docker build -f docker/Dockerfile .. \
+  --build-arg UID="$(id -u)" \
+  --build-arg GID="$(id -g)" \
+  --build-arg CUDA_VER=cu121
+```
 
 ### Build Script Options
 

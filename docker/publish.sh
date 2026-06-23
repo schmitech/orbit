@@ -35,12 +35,16 @@
 #     npm install -g orbitchat
 #     ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' orbitchat
 #
-set -e
+set -euo pipefail
 
 # Default values
 BUILD=false
 PUBLISH=false
+NO_CACHE=false
 VERSION_TAG=""
+CUDA_VER="cu121"
+UID_ARG="1001"
+GID_ARG="0"
 IMAGE_NAME="schmitech/orbit"
 IMAGE_TAG_BASIC="basic"
 IMAGE_TAG_LATEST="latest"
@@ -64,12 +68,17 @@ print_help() {
     echo "  --build              Build the Docker image"
     echo "  --publish            Build and push to Docker Hub"
     echo "  --tag VERSION        Tag version (e.g., v1.0.0)"
+    echo "  --cuda-ver VER       CUDA wheel channel (default: cu121, e.g. cu124, cu128)"
+    echo "  --uid UID            User ID for the orbit process (default: 1001)"
+    echo "  --gid GID            Group ID for the orbit process (default: 0)"
+    echo "  --no-cache           Build without using Docker layer cache"
     echo "  --help               Show this help message"
     echo ""
     echo "Examples:"
     echo "  ./publish.sh --build"
-    echo "  ./publish.sh --publish"
+    echo "  ./publish.sh --build --no-cache"
     echo "  ./publish.sh --publish --tag v1.0.0"
+    echo "  ./publish.sh --publish --cuda-ver cu128 --tag v1.0.0"
     exit 0
 }
 
@@ -78,10 +87,11 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --build) BUILD=true; shift ;;
         --publish) PUBLISH=true; BUILD=true; shift ;;
-        --tag)
-            VERSION_TAG="$2"
-            shift 2
-            ;;
+        --no-cache) NO_CACHE=true; shift ;;
+        --tag) VERSION_TAG="$2"; shift 2 ;;
+        --cuda-ver) CUDA_VER="$2"; shift 2 ;;
+        --uid) UID_ARG="$2"; shift 2 ;;
+        --gid) GID_ARG="$2"; shift 2 ;;
         --help) print_help ;;
         *) echo -e "${RED}Unknown parameter: $1${NC}"; exit 1 ;;
     esac
@@ -124,6 +134,8 @@ if [ "$BUILD" = true ]; then
     echo -e "${GREEN}Configuration:${NC}"
     echo -e "${BLUE}   Image: Server-only (Ollama runs separately via docker-compose)${NC}"
     echo -e "${BLUE}   Presets: smollm2-1.7b-cpu / smollm2-1.7b-gpu (auto-detected)${NC}"
+    echo -e "${BLUE}   CUDA wheel channel: ${CUDA_VER}${NC}"
+    echo -e "${BLUE}   UID/GID: ${UID_ARG}/${GID_ARG}${NC}"
     echo -e "${GREEN}Hardware Support:${NC}"
     echo -e "${BLUE}   CPU: Optimized with OpenBLAS${NC}"
     echo -e "${BLUE}   GPU: NVIDIA CUDA (use docker-compose.gpu.yml override)${NC}"
@@ -137,8 +149,18 @@ if [ "$BUILD" = true ]; then
     # Build the Docker image
     echo -e "${YELLOW}Building Docker image...${NC}"
 
+    BUILD_ARGS=(
+        --build-arg "CUDA_VER=${CUDA_VER}"
+        --build-arg "UID=${UID_ARG}"
+        --build-arg "GID=${GID_ARG}"
+    )
+    if [ "$NO_CACHE" = true ]; then
+        BUILD_ARGS+=(--no-cache)
+    fi
+
     if docker build \
         -f docker/Dockerfile \
+        "${BUILD_ARGS[@]}" \
         -t "${IMAGE_NAME}:${IMAGE_TAG_BASIC}" \
         -t "${IMAGE_NAME}:${IMAGE_TAG_LATEST}" \
         .; then

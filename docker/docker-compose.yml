@@ -4,6 +4,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   ollama:
     image: ollama/ollama:latest
+    pull_policy: always
     container_name: orbit-ollama
     ports:
       - "11434:11434"
@@ -48,7 +49,9 @@ services:
       dockerfile: docker/Dockerfile
     container_name: orbit-server
     ports:
-      - "3000:3000"
+      - "${ORBIT_PORT:-3000}:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       ollama:
         condition: service_healthy
