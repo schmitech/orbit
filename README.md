@@ -53,6 +53,8 @@ Use ORBIT when you need to:
 - Ship private RAG with API keys, quotas, rate limits, moderation, audit logs, metrics, and admin controls.
 - Prototype locally with Ollama or llama.cpp, then keep the same architecture for production deployments.
 
+For a comparison of ORBIT and Open WebUI, see the [ORBIT and Open WebUI Comparison Guide](docs/orbit-vs-openwebui.md).
+
 If ORBIT is useful to you, starring the repo helps more developers discover it.
 
 ---

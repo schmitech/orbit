@@ -44,6 +44,7 @@ New to ORBIT? Start here.
 | [Tutorial](tutorial.md) | Step-by-step guide to chat with your data |
 | [Server Setup](server.md) | Detailed server configuration and deployment options |
 | [Configuration Guide](configuration.md) | Complete configuration reference |
+| [ORBIT and Open WebUI](orbit-vs-openwebui.md) | Architectural comparison |
 
 ---
 
