@@ -132,6 +132,7 @@ export function AgentSelectionList({
       })
     : adapters;
   const isFilteringAgents = searchQuery.trim().length > 0;
+  const shouldUseCenteredList = isFilteringAgents || filteredAdapters.length === 1;
 
   useEffect(() => {
     const el = scrollContainerRef.current;
@@ -224,7 +225,7 @@ export function AgentSelectionList({
           onKeyDown={handleCardListKeyDown}
           className="agent-selection-scroll flex-1 min-h-0 overflow-y-auto pr-1 pb-2"
         >
-          {isFilteringAgents ? (
+          {shouldUseCenteredList ? (
             <div className="mx-auto flex w-full max-w-xl flex-col gap-3 lg:max-w-2xl">
               {filteredAdapters.map(adapter => (
                 <AgentCard key={adapter.id} adapter={adapter} onSelect={(selected) => onAdapterSelect(selected.id)} />

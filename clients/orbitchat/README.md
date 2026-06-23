@@ -28,21 +28,14 @@ Installed CLI commands:
    export ORBIT_ADAPTER_KEYS='{"simple-chat":"my-secret-key"}'
    ```
 
-2. (Optional) Configure adapter URLs and metadata in `orbitchat.yaml`:
-   ```yaml
-   adapters:
-     - id: "simple-chat"
-       name: "Simple Chat"
-       apiUrl: "http://localhost:3000"
-       description: "Default conversational agent."
-   ```
-
-3. Run the CLI:
+2. Run the CLI:
    ```bash
-   orbitchat --config ./orbitchat.yaml --port 5173
+   orbitchat
    ```
 
-4. Open `http://localhost:5173` — select an agent and start chatting.
+3. Open `http://localhost:5173` — select an agent and start chatting.
+
+> **Tip:** For custom adapter names, descriptions, backend URLs, or multiple adapters pointing to different hosts, create an `orbitchat.yaml` (see `orbitchat.yaml.example`) and pass it via `--config ./orbitchat.yaml`. Without it, adapters default to `http://localhost:3000` with the adapter ID as the display name.
 
 ## Architecture
 
@@ -78,7 +71,7 @@ Options:
 # Start with a custom config file
 orbitchat --config /path/to/orbitchat.yaml
 
-# Start with adapter keys defined inline
+# Start with adapter keys defined inline (defaults to http://localhost:3000)
 ORBIT_ADAPTER_KEYS='{"Chat":"mykey"}' orbitchat
 
 # API proxy only — no UI, no build required
@@ -256,11 +249,19 @@ orbitchat --port 8080
 
 ## Troubleshooting
 
+### `GET /api/adapters` returns 404
+
+This means orbitchat started with no valid adapters — `ORBIT_ADAPTER_KEYS` was not set, was invalid JSON, or all keys had empty values. Check:
+
+1. `ORBIT_ADAPTER_KEYS` is exported and contains valid JSON.
+2. The values are non-empty strings (e.g. `'{"simple-chat":"my-key"}'` not `'{"simple-chat":""}'`).
+3. The CLI startup logs show "Loaded N adapters".
+
 ### No Adapters Available
 
 If the agent selector shows no adapters:
-1. Ensure `VITE_ADAPTER_KEYS` is set and contains valid JSON.
-2. Verify that the adapter `id` in `orbitchat.yaml` exactly matches the key used in `VITE_ADAPTER_KEYS`.
+1. Ensure `ORBIT_ADAPTER_KEYS` (or `VITE_ADAPTER_KEYS`) is set and contains valid JSON.
+2. If using `orbitchat.yaml`, verify that the adapter `id` exactly matches the key used in `ORBIT_ADAPTER_KEYS`.
 3. Check the CLI startup logs for "Available Adapters: ...".
 
 ### Stale Configuration

@@ -334,8 +334,9 @@ function loadAdaptersForProxy(yamlAdapters) {
       const keys = JSON.parse(envKeysRaw);
       for (const [id, value] of Object.entries(keys)) {
         if (!adapters[id]) {
-          // Strict mode: only adapters explicitly declared in orbitchat.yaml are allowed.
-          continue;
+          // Auto-register adapters declared only via env (no YAML entry).
+          // Uses the fallback API URL; YAML declaration overrides this when present.
+          adapters[id] = { apiKey: '', apiUrl: fallbackApiUrl, name: id };
         }
         const isObjectValue = typeof value === 'object' && value !== null;
         adapters[id].apiKey = isObjectValue ? String(value.apiKey || value.key || '') : String(value);

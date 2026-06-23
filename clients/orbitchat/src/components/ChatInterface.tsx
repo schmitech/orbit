@@ -364,7 +364,7 @@ export function ChatInterface({
                 </div>
                 <div className="ml-auto flex-shrink-0">
                   <div className="flex items-center gap-2">
-                    <VersionBadge className="text-[11px] font-medium leading-none text-gray-400 dark:text-[#858999]" />
+                    <VersionBadge className="text-xs font-medium leading-none text-gray-400 dark:text-[#858999]" />
                     <AuthStatus />
                   </div>
                 </div>
@@ -445,7 +445,7 @@ export function ChatInterface({
                     <AuthStatus />
                   </div>
                 )}
-                <VersionBadge className="order-5 hidden flex-shrink-0 text-xs font-medium text-gray-400 dark:text-[#858999] md:inline-flex" />
+                <VersionBadge className="order-5 hidden flex-shrink-0 text-[13px] font-medium text-gray-400 dark:text-[#858999] md:inline-flex" />
               </div>
             </div>
           </div>
