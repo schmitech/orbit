@@ -94,6 +94,17 @@ cd orbit-2.7.7
 
 Use `./install/setup.sh --wizard` for interactive setup.
 
+### Windows (Native)
+
+```bat
+git clone https://github.com/schmitech/orbit.git
+cd orbit
+install\setup.bat --profile default
+bin\orbit.bat start
+```
+
+For profiles, GGUF model downloads, PyTorch backend selection, PowerShell setup, and troubleshooting, see the [Windows installation guide](install/windows.md).
+
 ### Verify the Gateway
 
 ```bash
