@@ -68,7 +68,7 @@ Replace `your-api-key` with the key returned by `./bin/orbit.sh key create` (or 
 
 ### 4. Persist settings with a config file
 
-Create `~/.orbit-chat-app/config.json` so you don’t pass the key on the command line:
+Create `~/.orbitchat/config.json` so you don’t pass the key on the command line:
 
 ```json
 {
@@ -94,7 +94,7 @@ CLI arguments still override config file values.
 
 To avoid sending API keys to the browser, use the built-in middleware and an adapters file.
 
-Create `~/.orbit-chat-app/adapters.yaml` (or next to `bin/orbitchat.js`, or in the current working directory):
+Create `~/.orbitchat/adapters.yaml` (or next to `bin/orbitchat.js`, or in the current working directory):
 
 ```yaml
 adapters:
@@ -140,7 +140,7 @@ Verify the key with `./bin/orbit.sh key list` (or your admin API). Ensure the ke
 Pick another port: `orbitchat --port 8080`. If 5173 is in use by another app, change it or stop the other process.
 
 **Middleware not proxying**  
-Start with `--enable-api-middleware` (or set `VITE_ENABLE_API_MIDDLEWARE=true` before starting). Ensure the adapters file is in a location orbitchat looks for (e.g. `~/.orbit-chat-app/adapters.yaml` or next to the executable). Restart the CLI after changing `adapters.yaml`.
+Start with `--enable-api-middleware` (or set `VITE_ENABLE_API_MIDDLEWARE=true` before starting). Ensure the adapters file is in a location orbitchat looks for (e.g. `~/.orbitchat/adapters.yaml` or next to the executable). Restart the CLI after changing `adapters.yaml`.
 
 ## Security and compliance considerations
 

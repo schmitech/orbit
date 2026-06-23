@@ -27,7 +27,7 @@ A standalone chat application for ORBIT that can be installed as an npm package 
 
 ```bash
 git clone https://github.com/schmitech/orbit.git
-cd orbit/clients/chat-app
+cd orbit/clients/orbitchat
 ```
 
 2. **Install Dependencies**
@@ -116,13 +116,13 @@ Options:
   --port PORT                      Server port (default: 5173)
   --host HOST                      Server host (default: localhost)
   --open                           Open browser automatically
-  --config PATH                    Path to config file (default: ~/.orbit-chat-app/config.json)
+  --config PATH                    Path to config file (default: ~/.orbitchat/config.json)
   --help, -h                       Show help message
 ```
 
 ### Configuration File
 
-Create a config file at `~/.orbit-chat-app/config.json`:
+Create a config file at `~/.orbitchat/config.json`:
 
 ```json
 {
@@ -148,7 +148,7 @@ Create a config file at `~/.orbit-chat-app/config.json`:
 
 Configuration is loaded in the following priority order:
 1. CLI arguments (highest priority)
-2. Config file (`~/.orbit-chat-app/config.json`)
+2. Config file (`~/.orbitchat/config.json`)
 3. Environment variables (`VITE_*`)
 4. Default values (lowest priority)
 
@@ -159,7 +159,7 @@ The CLI can run an Express middleware layer that injects API keys server-side so
 1. **Create `adapters.yaml`** – the server loads the first file it finds from:
    - `<orbitchat install>/adapters.yaml` (next to `bin/orbitchat.js`)
    - The current working directory
-   - `~/.orbit-chat-app/adapters.yaml`
+   - `~/.orbitchat/adapters.yaml`
 
    ```yaml
    adapters:

@@ -340,7 +340,7 @@ Choose the right model for your use case:
 ### 1. Using the API Client (Browser)
 
 ```typescript
-// clients/chat-app/src/example-whisper-usage.ts
+// clients/orbitchat/src/example-whisper-usage.ts
 
 // Record audio from microphone
 async function recordAndTranscribe() {

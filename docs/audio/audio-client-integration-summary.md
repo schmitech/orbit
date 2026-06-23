@@ -29,21 +29,21 @@ This document summarizes the changes made to support audio services in the clien
 - `streamChat()`: Extended to accept audio parameters and return audio in responses
 - Legacy `streamChat()` function: Updated signature to match
 
-### 2. Chat App API Loader (`clients/chat-app/src/api/loader.ts`)
+### 2. Chat App API Loader (`clients/orbitchat/src/api/loader.ts`)
 
 **Updated Interfaces:**
 - `StreamResponse`: Added `audio` and `audioFormat` fields
 - `ApiClient.streamChat()`: Extended signature to accept audio parameters
 - `ApiFunctions.streamChat()`: Updated to match new signature
 
-### 3. Chat App Types (`clients/chat-app/src/types/index.ts`)
+### 3. Chat App Types (`clients/orbitchat/src/types/index.ts`)
 
 **Updated Interfaces:**
 - `Message`: Added optional audio fields:
   - `audio?: string` - Base64-encoded audio data
   - `audioFormat?: string` - Audio format
 
-### 4. Chat Store (`clients/chat-app/src/stores/chatStore.ts`)
+### 4. Chat Store (`clients/orbitchat/src/stores/chatStore.ts`)
 
 **Updated Functionality:**
 - `sendMessage()`: Now handles audio responses from the API
@@ -102,7 +102,7 @@ for await (const response of api.streamChat(
 Create a component to record audio from the microphone:
 
 ```typescript
-// Example: clients/chat-app/src/components/AudioRecorder.tsx
+// Example: clients/orbitchat/src/components/AudioRecorder.tsx
 export function AudioRecorder({ onAudioRecorded }: { onAudioRecorded: (audio: string) => void }) {
   // Use MediaRecorder API to record audio
   // Convert to base64 and call onAudioRecorded
@@ -113,7 +113,7 @@ export function AudioRecorder({ onAudioRecorded }: { onAudioRecorded: (audio: st
 Create a component to play audio responses:
 
 ```typescript
-// Example: clients/chat-app/src/components/AudioPlayer.tsx
+// Example: clients/orbitchat/src/components/AudioPlayer.tsx
 export function AudioPlayer({ audio, format }: { audio: string; format?: string }) {
   // Decode base64 audio and play using HTML5 Audio API
 }

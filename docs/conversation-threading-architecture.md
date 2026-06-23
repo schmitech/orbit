@@ -513,7 +513,7 @@ REDIS_PASSWORD=  # Optional
 
 ## Frontend Integration
 
-### Types (`clients/chat-app/src/types/index.ts`)
+### Types (`clients/orbitchat/src/types/index.ts`)
 
 ```typescript
 interface ThreadInfo {
@@ -542,7 +542,7 @@ interface Conversation {
 }
 ```
 
-### Thread Service (`clients/chat-app/src/services/threadService.ts`)
+### Thread Service (`clients/orbitchat/src/services/threadService.ts`)
 
 ```typescript
 class ThreadService {
@@ -552,7 +552,7 @@ class ThreadService {
 }
 ```
 
-### UI Component (`clients/chat-app/src/components/Message.tsx`)
+### UI Component (`clients/orbitchat/src/components/Message.tsx`)
 
 ```typescript
 // "Start Thread" button shown when:

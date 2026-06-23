@@ -23,7 +23,7 @@ The multimodal adapter is a hybrid system that:
 ```
 ┌─────────────────┐
 │   Chat Client   │
-│   (chat-app)    │
+│   (orbitchat)    │
 └────────┬────────┘
          │
          │ 1. Upload file → GET file_id
@@ -93,7 +93,7 @@ The multimodal adapter is a hybrid system that:
 **Step 1: User uploads a file**
 
 ```typescript
-// Frontend: chat-app sends file to backend
+// Frontend: orbitchat sends file to backend
 POST /api/files/upload
 Headers: X-API-Key: <api_key>
 Body: FormData with file
@@ -118,7 +118,7 @@ Body: FormData with file
 **Step 4: User sends message with file context**
 
 ```typescript
-// Frontend: chat-app sends message with file_ids
+// Frontend: orbitchat sends message with file_ids
 POST /v1/chat
 Headers: 
   - X-API-Key: <api_key>

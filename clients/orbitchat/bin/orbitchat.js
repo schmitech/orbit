@@ -2,7 +2,7 @@
 /**
  * ORBIT Chat CLI
  *
- * Serves the chat-app as a standalone application with runtime configuration.
+ * Serves the orbitchat as a standalone application with runtime configuration.
  * Configuration is read from orbitchat.yaml.
  * Secrets come from VITE_ADAPTER_KEYS / ORBIT_ADAPTER_KEYS env var.
  */
