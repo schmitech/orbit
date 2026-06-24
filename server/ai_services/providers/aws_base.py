@@ -100,7 +100,7 @@ class AWSBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        logger.info(
+        logger.debug(
             f"Configured AWS Bedrock service with model: {self.model} in region: {self.region}"
         )
 
@@ -115,7 +115,7 @@ class AWSBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     f"Initialized AWS Bedrock {self.service_type.value} service "
                     f"with model {self.model}"
                 )

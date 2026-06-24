@@ -123,7 +123,7 @@ class AdapterReloader:
                     adapter = await self.adapter_loader.load_adapter(adapter_name, adapter_config_full)
                     self.adapter_cache.put(adapter_name, adapter)
                     self._register_capabilities(adapter_name, adapter_config_full)
-                    logger.info(f"Successfully preloaded adapter '{adapter_name}' with new configuration")
+                    logger.debug(f"Successfully preloaded adapter '{adapter_name}' with new configuration")
             except ValueError as e:
                 error_msg = str(e)
                 logger.error(f"Failed to preload adapter '{adapter_name}' after reload: {error_msg}")

@@ -84,7 +84,7 @@ class AuditService:
         # If "database", use the same backend as internal_services.backend.type
         if storage_backend == 'database':
             backend_type = self.config.get('internal_services', {}).get('backend', {}).get('type', 'sqlite')
-            logger.info(f"Audit storage_backend='database' resolved to '{backend_type}'")
+            logger.debug(f"Audit storage_backend='database' resolved to '{backend_type}'")
             return backend_type
 
         return storage_backend
@@ -99,13 +99,13 @@ class AuditService:
         backend = self._resolve_storage_backend()
 
         if backend == 'elasticsearch':
-            logger.info("Using Elasticsearch for audit storage")
+            logger.debug("Using Elasticsearch for audit storage")
             return ElasticsearchAuditStrategy(self.config)
         elif backend == 'sqlite':
-            logger.info("Using SQLite for audit storage")
+            logger.debug("Using SQLite for audit storage")
             return SQLiteAuditStrategy(self.config, self._database_service)
         elif backend == 'mongodb':
-            logger.info("Using MongoDB for audit storage")
+            logger.debug("Using MongoDB for audit storage")
             return MongoDBDAuditStrategy(self.config, self._database_service)
         else:
             raise ValueError(f"Unsupported audit storage backend: {backend}")
@@ -115,13 +115,13 @@ class AuditService:
         backend = self._resolve_storage_backend()
 
         if backend == 'elasticsearch':
-            logger.info("Using Elasticsearch for admin audit storage")
+            logger.debug("Using Elasticsearch for admin audit storage")
             return ElasticsearchAdminAuditStrategy(self.config)
         elif backend == 'sqlite':
-            logger.info("Using SQLite for admin audit storage")
+            logger.debug("Using SQLite for admin audit storage")
             return SQLiteAdminAuditStrategy(self.config, self._database_service)
         elif backend == 'mongodb':
-            logger.info("Using MongoDB for admin audit storage")
+            logger.debug("Using MongoDB for admin audit storage")
             return MongoDBAdminAuditStrategy(self.config, self._database_service)
         else:
             raise ValueError(f"Unsupported admin audit storage backend: {backend}")
@@ -143,7 +143,7 @@ class AuditService:
             await self._strategy.initialize()
 
             if self._strategy.is_initialized():
-                logger.info(f"Audit service initialized with {self._strategy.backend_name} backend")
+                logger.debug(f"Audit service initialized with {self._strategy.backend_name} backend")
                 self._initialized = True
 
                 # Clear audit logs if configured
@@ -168,7 +168,7 @@ class AuditService:
                 self._admin_strategy = self._create_admin_strategy()
                 await self._admin_strategy.initialize()
                 if self._admin_strategy.is_initialized():
-                    logger.info(
+                    logger.debug(
                         f"Admin audit storage initialized with {self._admin_strategy.backend_name} backend"
                     )
                 else:

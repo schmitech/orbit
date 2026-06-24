@@ -34,7 +34,7 @@ class DocumentAdapterFactory:
             factory_func: Function that creates the adapter instance
         """
         cls._registered_adapters[adapter_type.lower()] = factory_func
-        logger.info(f"Registered adapter type in factory: {adapter_type}")
+        logger.debug(f"Registered adapter type in factory: {adapter_type}")
 
     @classmethod
     def create_adapter(cls, adapter_type: str, **kwargs) -> DocumentAdapter:

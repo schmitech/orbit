@@ -39,7 +39,7 @@ class CassandraDatasource(BaseDatasource):
         password = cassandra_config.get('password')
         
         try:
-            logger.info(f"Initializing Cassandra connection to {contact_points}:{port}/{keyspace}")
+            logger.debug(f"Initializing Cassandra connection to {contact_points}:{port}/{keyspace}")
             
             # Create authentication provider if credentials provided
             auth_provider = None
@@ -60,7 +60,7 @@ class CassandraDatasource(BaseDatasource):
             result = self._client.execute("SELECT now() FROM system.local")
             result.one()
             
-            logger.info("Cassandra connection successful")
+            logger.debug("Cassandra connection successful")
             self._initialized = True
             
         except Exception as e:

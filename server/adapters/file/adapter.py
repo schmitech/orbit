@@ -331,13 +331,13 @@ def create_file_adapter(config: Dict[str, Any] = None, **kwargs) -> FileAdapter:
 
 # Register the adapter with the factory
 DocumentAdapterFactory.register_adapter("file", create_file_adapter)
-logger.info("Registered FileAdapter as 'file'")
+logger.debug("Registered FileAdapter as 'file'")
 
 
 # Register adapter with the global registry for dynamic loading
 def register_file_adapter():
     """Register file adapter with the global adapter registry"""
-    logger.info("Registering file adapter with global registry...")
+    logger.debug("Registering file adapter with global registry...")
     try:
         from adapters.registry import ADAPTER_REGISTRY
         
@@ -358,7 +358,7 @@ def register_file_adapter():
                 'vision_provider': 'openai'
             }
         )
-        logger.info("Registered file adapter with datasource='none'")
+        logger.debug("Registered file adapter with datasource='none'")
     except Exception as e:
         logger.error(f"Failed to register file adapter: {e}")
 

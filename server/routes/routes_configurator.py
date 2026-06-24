@@ -940,20 +940,20 @@ class RouteConfigurator:
 
         # Authentication is always enabled - include auth router
         app.include_router(auth_router)
-        logger.info("Authentication routes registered")
+        logger.debug("Authentication routes registered")
 
         # Include health routes (always enabled as core functionality)
         from routes.health_routes import create_health_router
         health_router = create_health_router()
         app.include_router(health_router)
-        logger.info("Health routes registered")
+        logger.debug("Health routes registered")
         
         # Include metrics routes (WebSocket + Prometheus)
         try:
             from routes.metrics_routes import create_metrics_router
             metrics_router = create_metrics_router()
             app.include_router(metrics_router)
-            logger.info("Metrics routes registered")
+            logger.debug("Metrics routes registered")
         except Exception as e:
             logger.warning(f"Failed to register metrics routes: {e}")
 
@@ -962,7 +962,7 @@ class RouteConfigurator:
             from routes.admin_panel_routes import create_admin_panel_router
             admin_panel_router = create_admin_panel_router()
             app.include_router(admin_panel_router)
-            logger.info("Admin panel routes registered")
+            logger.debug("Admin panel routes registered")
         except Exception as e:
             logger.warning(f"Failed to register admin panel routes: {e}")
 
@@ -971,7 +971,7 @@ class RouteConfigurator:
             from routes.file_routes import create_file_router
             file_router = create_file_router()
             app.include_router(file_router)
-            logger.info("File routes registered")
+            logger.debug("File routes registered")
         except Exception as e:
             logger.warning(f"Failed to register file routes: {e}")
 
@@ -979,7 +979,7 @@ class RouteConfigurator:
         try:
             from routes.voice_routes import router as voice_router
             app.include_router(voice_router)
-            logger.info("Voice routes registered")
+            logger.debug("Voice routes registered")
         except Exception as e:
             logger.warning(f"Failed to register voice routes: {e}")
     

@@ -61,7 +61,7 @@ class MilvusRetriever(AbstractVectorRetriever):
                 port=self.port
             )
             
-            logger.info(f"Connected to Milvus at {self.host}:{self.port}")
+            logger.debug(f"Connected to Milvus at {self.host}:{self.port}")
             
         except ImportError:
             error_msg = "pymilvus package is required for Milvus retriever. Install with: pip install pymilvus"
@@ -77,7 +77,7 @@ class MilvusRetriever(AbstractVectorRetriever):
         try:
             from pymilvus import connections
             connections.disconnect("default")
-            logger.info("Milvus client closed")
+            logger.debug("Milvus client closed")
         except Exception as e:
             logger.error(f"Error closing Milvus connection: {str(e)}")
 

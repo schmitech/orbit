@@ -77,7 +77,7 @@ class LlamaCppBaseService(ProviderAIService):
         self.llama_model = None
         self.executor = None
 
-        logger.info(f"Configured Llama.cpp in API mode at {self.base_url}")
+        logger.debug(f"Configured Llama.cpp in API mode at {self.base_url}")
 
     def _setup_direct_mode(self, llama_config: Dict[str, Any]) -> None:
         """Setup for direct mode (GGUF model loading)."""
@@ -127,7 +127,7 @@ class LlamaCppBaseService(ProviderAIService):
         self.client = None
         self.executor = ThreadPoolExecutor(max_workers=1)  # For running model inference in separate thread
 
-        logger.info(f"Configured Llama.cpp in direct mode with model: {self.model}")
+        logger.debug(f"Configured Llama.cpp in direct mode with model: {self.model}")
 
     async def initialize(self) -> bool:
         try:

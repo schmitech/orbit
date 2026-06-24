@@ -68,7 +68,7 @@ class QASSQLRetriever(SQLiteRetriever):
         # QA-specific search fields prioritization
         self.default_search_fields = ['id', 'question', 'answer', 'content', 'title']
         
-        logger.info(f"QASSQLRetriever initialized with confidence_threshold={self.confidence_threshold}")
+        logger.debug(f"QASSQLRetriever initialized with confidence_threshold={self.confidence_threshold}")
 
     def _get_datasource_name(self) -> str:
         """Return the name of this datasource for config lookup"""

@@ -107,7 +107,7 @@ class AzureBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        logger.info(
+        logger.debug(
             f"Configured Azure AI service with deployment: {self.deployment}"
         )
 
@@ -122,7 +122,7 @@ class AzureBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     f"Initialized Azure AI {self.service_type.value} service "
                     f"with deployment {self.deployment}"
                 )

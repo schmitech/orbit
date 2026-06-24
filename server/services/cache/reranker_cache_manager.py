@@ -79,9 +79,9 @@ class RerankerCacheManager(ServiceCacheManager):
         model = reranker_config.get('model', '')
 
         if model:
-            logger.info(f"Loading reranker service '{provider_name}/{model}'{adapter_context}")
+            logger.debug(f"Loading reranker service '{provider_name}/{model}'{adapter_context}")
         else:
-            logger.info(f"Loading reranker service '{provider_name}'{adapter_context}")
+            logger.debug(f"Loading reranker service '{provider_name}'{adapter_context}")
 
         try:
             from server.services.reranker_service_manager import RerankingServiceManager

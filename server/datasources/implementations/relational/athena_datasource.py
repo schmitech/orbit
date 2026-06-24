@@ -51,7 +51,7 @@ class AthenaDatasource(BaseDatasource):
         )
 
         try:
-            logger.info(
+            logger.debug(
                 "Initializing Athena connection (region=%s, schema=%s, work_group=%s)",
                 region_name,
                 schema_name or "default",
@@ -86,7 +86,7 @@ class AthenaDatasource(BaseDatasource):
             cursor.close()
 
             self._initialized = True
-            logger.info("Athena connection established successfully")
+            logger.debug("Athena connection established successfully")
 
         except Exception as e:
             logger.error(f"Failed to connect to Athena: {str(e)}")

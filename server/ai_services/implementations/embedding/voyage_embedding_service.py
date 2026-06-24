@@ -53,7 +53,7 @@ class VoyageEmbeddingService(EmbeddingService):
             timeout = aiohttp.ClientTimeout(total=60)
             self.session = aiohttp.ClientSession(timeout=timeout)
             self.initialized = True
-            logger.info(f"Voyage AI embedding service initialized with model: {self.model}")
+            logger.debug(f"Voyage AI embedding service initialized with model: {self.model}")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize Voyage AI embedding service: {e}")

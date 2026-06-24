@@ -64,7 +64,7 @@ class DomainParameterExtractor:
         # Initialize validator
         self.validator = Validator(self.domain_config)
 
-        logger.info("Initialized DomainParameterExtractor with %d patterns", len(self.patterns))
+        logger.debug("Initialized DomainParameterExtractor with %d patterns", len(self.patterns))
 
     async def extract_parameters(self, user_query: str, template: Dict) -> Dict[str, Any]:
         """

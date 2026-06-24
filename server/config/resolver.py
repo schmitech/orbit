@@ -90,11 +90,11 @@ class ConfigResolver:
         if 'internal_services' in self.config and 'elasticsearch' in self.config['internal_services']:
             self.config['elasticsearch'] = self.config['internal_services']['elasticsearch']
 
-        logger.info(f"Using inference provider: {inference_provider}")
-        logger.info(f"Using datasource provider: {datasource_provider}")
-        logger.info(f"Using embedding provider: {embedding_provider}")
-        logger.info(f"Using safety provider: {safety_provider}")
-        logger.info(f"Using reranker provider: {reranker_provider}")
+        logger.debug(f"Using inference provider: {inference_provider}")
+        logger.debug(f"Using datasource provider: {datasource_provider}")
+        logger.debug(f"Using embedding provider: {embedding_provider}")
+        logger.debug(f"Using safety provider: {safety_provider}")
+        logger.debug(f"Using reranker provider: {reranker_provider}")
     
     def _resolve_component_provider(self, component_name: str) -> str:
         """
@@ -118,7 +118,7 @@ class ConfigResolver:
             moderator = component_config.get('moderator')
             if moderator:
                 # If a specific moderator is configured, use it
-                logger.info(f"{component_name.capitalize()} uses configured moderator: {moderator}")
+                logger.debug(f"{component_name.capitalize()} uses configured moderator: {moderator}")
                 return moderator
             else:
                 # If no moderator specified, fall back to main provider
@@ -132,7 +132,7 @@ class ConfigResolver:
                 logger.info(f"{component_name.capitalize()} uses custom provider: {provider_override}")
                 return provider_override
             else:
-                logger.info(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
+                logger.debug(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
                 return main_provider
 
     def _resolve_component_model(self, component_name: str, provider: str) -> str:
@@ -170,5 +170,5 @@ class ConfigResolver:
         if model_suffix and model:
             model = f"{model}{model_suffix}"
         
-        logger.info(f"{component_name.capitalize()} using model: {model}")
+        logger.debug(f"{component_name.capitalize()} using model: {model}")
         return model

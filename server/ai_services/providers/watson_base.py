@@ -32,7 +32,7 @@ class WatsonBaseService(ProviderAIService):
         )
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
-        logger.info(f"Configured Watson with model: {self.model}")
+        logger.debug(f"Configured Watson with model: {self.model}")
 
     async def initialize(self) -> bool:
         try:

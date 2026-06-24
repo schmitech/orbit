@@ -29,7 +29,7 @@ class MarqoStore(BaseVectorStore):
         try:
             self._client = marqo.Client(url=self.url)
             self.status = StoreStatus.CONNECTED
-            logger.info(f"Marqo store '{self.config.name}' connected successfully.")
+            logger.debug(f"Marqo store '{self.config.name}' connected successfully.")
             return True
         except Exception as e:
             self.status = StoreStatus.ERROR

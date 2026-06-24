@@ -163,6 +163,10 @@ logging:
   capture_warnings: true
   propagate: false
   loggers:
+    # Suppress langid third-party library initialization spam
+    langid.langid:
+      level: "WARNING"
+      propagate: false
     # Suppress all Python warnings (ResourceWarnings, DeprecationWarnings, etc.)
     py.warnings:
       level: "ERROR"

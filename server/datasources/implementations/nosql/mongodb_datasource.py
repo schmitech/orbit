@@ -36,7 +36,7 @@ class MongoDBDatasource(BaseDatasource):
             connection_string = mongodb_config.get('connection_string')
 
             if connection_string:
-                logger.info(f"Initializing MongoDB using connection string to database: {database}")
+                logger.debug(f"Initializing MongoDB using connection string to database: {database}")
                 uri = connection_string
             else:
                 # Option 2: Build connection string from individual parameters
@@ -49,7 +49,7 @@ class MongoDBDatasource(BaseDatasource):
                 retry_writes = mongodb_config.get('retry_writes', True)
                 w = mongodb_config.get('w', 'majority')
 
-                logger.info(f"Initializing MongoDB connection to {host}:{port}/{database}")
+                logger.debug(f"Initializing MongoDB connection to {host}:{port}/{database}")
 
                 # Build connection URI based on host format and authentication
                 if "mongodb.net" in host and username and password:
@@ -79,7 +79,7 @@ class MongoDBDatasource(BaseDatasource):
             # Test the connection
             await self._client.admin.command('ping')
 
-            logger.info("MongoDB connection successful")
+            logger.debug("MongoDB connection successful")
             self._initialized = True
 
         except Exception as e:

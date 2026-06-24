@@ -74,7 +74,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                     logger.error(f"Model file not found at: {self.model_path}")
                     return False
 
-                logger.info(f"Loading Llama.cpp model from: {self.model_path}")
+                logger.debug(f"Loading Llama.cpp model from: {self.model_path}")
 
                 # Load model in a thread to avoid blocking
                 def _load_model():
@@ -92,11 +92,11 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                     )
 
                 self.llama_model = await asyncio.to_thread(_load_model)
-                logger.info("Llama.cpp model loaded successfully")
+                logger.debug("Llama.cpp model loaded successfully")
 
             else:
                 # API mode: Already initialized by LlamaCppBaseService
-                logger.info(f"Llama.cpp API mode configured at {self.base_url}")
+                logger.debug(f"Llama.cpp API mode configured at {self.base_url}")
 
             self.initialized = True
             return True

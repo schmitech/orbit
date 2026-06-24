@@ -55,7 +55,7 @@ class TemplateEmbeddingStore:
         # Embedding dimension (will be set when first template is added)
         self._embedding_dimension: Optional[int] = None
         
-        logger.info(f"TemplateEmbeddingStore initialized with store_type={store_type}, collection={collection_name}")
+        logger.debug(f"TemplateEmbeddingStore initialized with store_type={store_type}, collection={collection_name}")
     
     async def initialize(self, config_path: Optional[str] = None):
         """
@@ -108,7 +108,7 @@ class TemplateEmbeddingStore:
                 collection_info = await self._vector_store.get_collection_info(self.collection_name)
                 collection_info.get('metadata', {}).get('dimension')
 
-            logger.info(f"TemplateEmbeddingStore initialized successfully with store_type={store_type_to_use}")
+            logger.debug(f"TemplateEmbeddingStore initialized successfully with store_type={store_type_to_use}")
 
         except Exception as e:
             logger.error(f"Failed to initialize TemplateEmbeddingStore: {e}")
@@ -166,7 +166,7 @@ class TemplateEmbeddingStore:
                     'embedding': embedding,
                     'metadata': metadata
                 }
-                logger.info(f"Added template {template_id} to embedding store")
+                logger.debug(f"Added template {template_id} to embedding store")
             
             return success
             
@@ -229,7 +229,7 @@ class TemplateEmbeddingStore:
                 collection_name=self.collection_name
             )
             
-            logger.info(f"Added {len(templates)} templates to embedding store")
+            logger.debug(f"Added {len(templates)} templates to embedding store")
             
             return {template_id: success for template_id in ids}
             

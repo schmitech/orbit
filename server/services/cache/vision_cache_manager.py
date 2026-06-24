@@ -79,9 +79,9 @@ class VisionCacheManager(ServiceCacheManager):
         model = vision_config.get('model', '')
 
         if model:
-            logger.info(f"Loading vision service '{provider_name}/{model}'{adapter_context}")
+            logger.debug(f"Loading vision service '{provider_name}/{model}'{adapter_context}")
         else:
-            logger.info(f"Loading vision service '{provider_name}'{adapter_context}")
+            logger.debug(f"Loading vision service '{provider_name}'{adapter_context}")
 
         try:
             from server.ai_services.services.vision_service import create_vision_service

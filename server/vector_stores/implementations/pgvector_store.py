@@ -29,7 +29,7 @@ class PgvectorStore(BaseVectorStore):
             register_vector(self._conn)
             self._cursor = self._conn.cursor()
             self.status = StoreStatus.CONNECTED
-            logger.info(f"Pgvector store '{self.config.name}' connected successfully.")
+            logger.debug(f"Pgvector store '{self.config.name}' connected successfully.")
             return True
         except Exception as e:
             self.status = StoreStatus.ERROR

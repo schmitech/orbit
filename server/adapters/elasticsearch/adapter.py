@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Register with the factory
 DocumentAdapterFactory.register_adapter("elasticsearch", lambda **kwargs: ElasticsearchAdapter(**kwargs))
-logger.info("Registered ElasticsearchAdapter as 'elasticsearch'")
+logger.debug("Registered ElasticsearchAdapter as 'elasticsearch'")
 
 
 class ElasticsearchAdapter(HttpAdapter):
@@ -63,7 +63,7 @@ class ElasticsearchAdapter(HttpAdapter):
         self.index_pattern = config.get('index_pattern', '*') if config else '*'
         self.use_query_dsl = config.get('use_query_dsl', True) if config else True
 
-        logger.info(f"ElasticsearchAdapter initialized for index pattern: {self.index_pattern}")
+        logger.debug(f"ElasticsearchAdapter initialized for index pattern: {self.index_pattern}")
 
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -190,7 +190,7 @@ class ElasticsearchAdapter(HttpAdapter):
 # Register adapter with the global registry for dynamic loading
 def register_elasticsearch_adapter():
     """Register Elasticsearch adapter with the global adapter registry"""
-    logger.info("Registering Elasticsearch adapter with global registry...")
+    logger.debug("Registering Elasticsearch adapter with global registry...")
 
     try:
         from adapters.registry import ADAPTER_REGISTRY
@@ -206,7 +206,7 @@ def register_elasticsearch_adapter():
                 'use_query_dsl': True
             }
         )
-        logger.info("Registered Elasticsearch adapter for elasticsearch datasource")
+        logger.debug("Registered Elasticsearch adapter for elasticsearch datasource")
 
         # Also register for OpenSearch (compatible with Elasticsearch)
         ADAPTER_REGISTRY.register(
@@ -219,9 +219,9 @@ def register_elasticsearch_adapter():
                 'use_query_dsl': True
             }
         )
-        logger.info("Registered Elasticsearch adapter for opensearch datasource")
+        logger.debug("Registered Elasticsearch adapter for opensearch datasource")
 
-        logger.info("Elasticsearch adapter registration complete")
+        logger.debug("Elasticsearch adapter registration complete")
 
     except Exception as e:
         logger.error(f"Failed to register Elasticsearch adapter: {e}")

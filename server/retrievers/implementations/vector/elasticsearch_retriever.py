@@ -79,7 +79,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             if not self.es_client.ping():
                 raise Exception("Failed to connect to Elasticsearch")
             
-            logger.info(f"Connected to Elasticsearch at {self.node}")
+            logger.debug(f"Connected to Elasticsearch at {self.node}")
             
         except ImportError:
             error_msg = "elasticsearch package is required for Elasticsearch retriever. Install with: pip install elasticsearch"
@@ -95,7 +95,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
         try:
             if self.es_client:
                 self.es_client.close()
-            logger.info("Elasticsearch client closed")
+            logger.debug("Elasticsearch client closed")
         except Exception as e:
             logger.error(f"Error closing Elasticsearch connection: {str(e)}")
 

@@ -55,7 +55,7 @@ class TransformersBaseService(ProviderAIService):
         self.model_instance = None
         self.executor = ThreadPoolExecutor(max_workers=1)
 
-        logger.info(
+        logger.debug(
             f"Configured Transformers service: model={self.model}, "
             f"device={self.device}, device_map={self.device_map}, dtype={dtype_str}"
         )

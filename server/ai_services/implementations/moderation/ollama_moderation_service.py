@@ -67,7 +67,7 @@ class OllamaModerationService(ModerationService, OllamaBaseService):
         # Override model to use Llama Guard 3 by default
         if not provider_config.get('model'):
             self.model = "llama-guard3:8b"
-            logger.info(f"Using default Llama Guard 3 model: {self.model}")
+            logger.debug(f"Using default Llama Guard 3 model: {self.model}")
 
     async def initialize(self) -> bool:
         """

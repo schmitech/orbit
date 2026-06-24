@@ -78,7 +78,7 @@ class RedisRetriever(AbstractVectorRetriever):
             # Test connection
             self.redis_client.ping()
             
-            logger.info(f"Connected to Redis at {self.host}:{self.port}")
+            logger.debug(f"Connected to Redis at {self.host}:{self.port}")
             
         except ImportError:
             error_msg = "redis package is required for Redis retriever. Install with: pip install redis"
@@ -94,7 +94,7 @@ class RedisRetriever(AbstractVectorRetriever):
         try:
             if self.redis_client:
                 self.redis_client.close()
-            logger.info("Redis client closed")
+            logger.debug("Redis client closed")
         except Exception as e:
             logger.error(f"Error closing Redis connection: {str(e)}")
 

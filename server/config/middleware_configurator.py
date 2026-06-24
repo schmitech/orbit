@@ -131,13 +131,13 @@ class MiddlewareConfigurator:
         admin_cfg = audit_cfg.get('admin_events', {}) or {}
 
         if not audit_cfg.get('enabled', False) or not admin_cfg.get('enabled', False):
-            _logger.info("Admin audit middleware is disabled in configuration")
+            _logger.debug("Admin audit middleware is disabled in configuration")
             return
 
         try:
             from server.middleware.admin_audit_middleware import AdminAuditMiddleware
             app.add_middleware(AdminAuditMiddleware, config=config)
-            _logger.info("Admin audit middleware configured successfully")
+            _logger.debug("Admin audit middleware configured successfully")
         except ImportError as e:
             _logger.warning(f"AdminAuditMiddleware not available - admin audit disabled: {e}")
         except Exception as e:
@@ -153,7 +153,7 @@ class MiddlewareConfigurator:
 
         if headers_config.get('enabled', True):
             app.add_middleware(SecurityHeadersMiddleware, headers_config=headers_config, https_enabled=https_enabled)
-            _logger.info("Security headers middleware configured successfully")
+            _logger.debug("Security headers middleware configured successfully")
         else:
             _logger.warning("Security headers middleware is DISABLED - this is not recommended for production")
 
@@ -195,15 +195,15 @@ class MiddlewareConfigurator:
                 allow_credentials = False
 
         if allow_credentials and not has_wildcard:
-            _logger.info(f"CORS configured with credentials enabled for specific origins: {allowed_origins}")
+            _logger.debug(f"CORS configured with credentials enabled for specific origins: {allowed_origins}")
 
-        _logger.info("CORS Configuration:")
-        _logger.info(f"  - Allowed Origins: {allowed_origins}")
-        _logger.info(f"  - Allow Credentials: {allow_credentials}")
-        _logger.info(f"  - Allowed Methods: {allowed_methods}")
-        _logger.info(f"  - Allowed Headers: {allowed_headers}")
-        _logger.info(f"  - Exposed Headers: {expose_headers}")
-        _logger.info(f"  - Max Age: {max_age}s")
+        _logger.debug("CORS Configuration:")
+        _logger.debug(f"  - Allowed Origins: {allowed_origins}")
+        _logger.debug(f"  - Allow Credentials: {allow_credentials}")
+        _logger.debug(f"  - Allowed Methods: {allowed_methods}")
+        _logger.debug(f"  - Allowed Headers: {allowed_headers}")
+        _logger.debug(f"  - Exposed Headers: {expose_headers}")
+        _logger.debug(f"  - Max Age: {max_age}s")
 
         app.add_middleware(
             CORSMiddleware,
@@ -215,7 +215,7 @@ class MiddlewareConfigurator:
             max_age=max_age,
         )
 
-        _logger.info("CORS middleware configured successfully")
+        _logger.debug("CORS middleware configured successfully")
 
     @staticmethod
     def _configure_logging_middleware(app: FastAPI, logger: logging.Logger) -> None:
@@ -251,7 +251,7 @@ class MiddlewareConfigurator:
         try:
             from server.middleware.metrics_middleware import MetricsMiddleware
             app.add_middleware(MetricsMiddleware)
-            _logger.info("Metrics middleware configured successfully")
+            _logger.debug("Metrics middleware configured successfully")
         except ImportError:
             _logger.warning("MetricsMiddleware not available - metrics collection disabled")
         except Exception as e:
@@ -268,7 +268,7 @@ class MiddlewareConfigurator:
         rate_limit_config = security_config.get('rate_limiting', {}) or {}
 
         if not rate_limit_config.get('enabled', False):
-            _logger.info("Rate limiting middleware is disabled in configuration")
+            _logger.debug("Rate limiting middleware is disabled in configuration")
             return
 
         redis_config = config.get('internal_services', {}).get('redis', {}) or {}
@@ -282,7 +282,7 @@ class MiddlewareConfigurator:
         try:
             from server.middleware.rate_limit_middleware import RateLimitMiddleware
             app.add_middleware(RateLimitMiddleware, config=config)
-            _logger.info("Rate limiting middleware configured successfully")
+            _logger.debug("Rate limiting middleware configured successfully")
         except ImportError as e:
             _logger.warning(f"RateLimitMiddleware not available - rate limiting disabled: {e}")
         except Exception as e:
@@ -300,7 +300,7 @@ class MiddlewareConfigurator:
         throttle_config = security_config.get('throttling', {}) or {}
 
         if not throttle_config.get('enabled', False):
-            _logger.info("Throttle middleware is disabled in configuration")
+            _logger.debug("Throttle middleware is disabled in configuration")
             return
 
         redis_config = config.get('internal_services', {}).get('redis', {}) or {}
@@ -314,7 +314,7 @@ class MiddlewareConfigurator:
         try:
             from server.middleware.throttle_middleware import ThrottleMiddleware
             app.add_middleware(ThrottleMiddleware, config=config)
-            _logger.info("Throttle middleware configured successfully")
+            _logger.debug("Throttle middleware configured successfully")
         except ImportError as e:
             _logger.warning(f"ThrottleMiddleware not available - throttling disabled: {e}")
         except Exception as e:
@@ -331,7 +331,7 @@ class MiddlewareConfigurator:
         compression_config = config.get('performance', {}).get('compression', {})
 
         if not compression_config.get('enabled', True):
-            _logger.info("GZip compression middleware is disabled in configuration")
+            _logger.debug("GZip compression middleware is disabled in configuration")
             return
 
         try:
@@ -349,7 +349,7 @@ class MiddlewareConfigurator:
                 minimum_size=minimum_size,
                 excluded_paths=excluded_paths
             )
-            _logger.info(f"GZip compression middleware configured (min_size={minimum_size}, excluded: {excluded_paths})")
+            _logger.debug(f"GZip compression middleware configured (min_size={minimum_size}, excluded: {excluded_paths})")
         except ImportError as e:
             _logger.warning(f"SelectiveGZipMiddleware not available - compression disabled: {e}")
         except Exception as e:
@@ -366,14 +366,14 @@ class MiddlewareConfigurator:
         etag_config = config.get('performance', {}).get('etag_caching', {})
 
         if not etag_config.get('enabled', True):
-            _logger.info("ETag caching middleware is disabled in configuration")
+            _logger.debug("ETag caching middleware is disabled in configuration")
             return
 
         try:
             from server.middleware.etag_middleware import ETagMiddleware
             excluded_paths = etag_config.get('excluded_paths', ['/v1/chat', '/ws', '/mcp'])
             app.add_middleware(ETagMiddleware, excluded_paths=excluded_paths)
-            _logger.info(f"ETag caching middleware configured (excluded: {excluded_paths})")
+            _logger.debug(f"ETag caching middleware configured (excluded: {excluded_paths})")
         except ImportError as e:
             _logger.warning(f"ETagMiddleware not available - ETag caching disabled: {e}")
         except Exception as e:

@@ -598,7 +598,7 @@ class ParallelAdapterExecutor:
         self._active_requests = set()
         self._shutdown_timeout = exec_config.get('shutdown_timeout', 30.0)
         
-        logger.info(f"ParallelAdapterExecutor initialized with timeout={self.operation_timeout}s")
+        logger.debug(f"ParallelAdapterExecutor initialized with timeout={self.operation_timeout}s")
     
     @property
     def timeout(self):

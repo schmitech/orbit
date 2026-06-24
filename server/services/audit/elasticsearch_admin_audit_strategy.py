@@ -62,7 +62,7 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
             )
 
             await asyncio.wait_for(self._es_client.ping(), timeout=5.0)
-            logger.info("Connected to Elasticsearch for admin audit storage")
+            logger.debug("Connected to Elasticsearch for admin audit storage")
 
             await self._setup_index()
             self._initialized = True
@@ -83,7 +83,7 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
                 logger.debug(f"Using existing admin audit index: {self._index_name}")
                 return
 
-            logger.info(f"Creating admin audit index: {self._index_name}")
+            logger.debug(f"Creating admin audit index: {self._index_name}")
             await self._es_client.indices.create(
                 index=self._index_name,
                 settings={
@@ -121,7 +121,7 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
                     }
                 },
             )
-            logger.info(f"Created admin audit index: {self._index_name}")
+            logger.debug(f"Created admin audit index: {self._index_name}")
         except Exception as e:
             logger.error(f"Failed to setup Elasticsearch admin audit index: {e}")
             raise

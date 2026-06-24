@@ -10,7 +10,7 @@ from .base.sql_retriever import AbstractSQLRetriever
 from adapters.factory import DocumentAdapterFactory
 
 logger = logging.getLogger(__name__)
-logger.info("Initializing retrievers package")
+logger.debug("Initializing retrievers package")
 
 # Import implementations to register them
 try:
@@ -45,7 +45,7 @@ try:
     # Import Intent specialization
     from .implementations.intent import IntentPostgreSQLRetriever
     
-    logger.info("Successfully imported vector retriever implementations")
+    logger.debug("Successfully imported vector retriever implementations")
 except ImportError as e:
     logger.warning(f"Some vector retrievers could not be imported: {e}")
 
@@ -57,14 +57,14 @@ try:
         MySQLRetriever
     )
     
-    logger.info("Successfully imported SQL retriever implementations")
+    logger.debug("Successfully imported SQL retriever implementations")
 except ImportError as e:
     logger.warning(f"Some SQL retrievers could not be imported: {e}")
 
 # Import Composite retriever implementations
 try:
     from .implementations.composite import CompositeIntentRetriever
-    logger.info("Successfully imported CompositeIntentRetriever")
+    logger.debug("Successfully imported CompositeIntentRetriever")
 except ImportError as e:
     CompositeIntentRetriever = None
     logger.debug(f"CompositeIntentRetriever not available: {e}")

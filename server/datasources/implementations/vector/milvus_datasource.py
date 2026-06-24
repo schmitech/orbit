@@ -37,7 +37,7 @@ class MilvusDatasource(BaseDatasource):
             
             # Test the connection
             if utility.has_connection("default"):
-                logger.info(f"Milvus connection successful to {host}:{port}")
+                logger.debug(f"Milvus connection successful to {host}:{port}")
                 self._client = connections.get_connection_addr("default")
                 self._initialized = True
             else:

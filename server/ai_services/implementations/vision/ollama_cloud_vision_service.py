@@ -96,7 +96,7 @@ class OllamaCloudVisionService(VisionService):
 
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     "Initialized Ollama Cloud vision service with model %s",
                     self.model,
                 )

@@ -23,7 +23,7 @@ __all__ = [
 
 def register_adapters():
     """Register all built-in adapters with the registry"""
-    logger.info("Registering built-in domain adapters...")
+    logger.debug("Registering built-in domain adapters...")
 
     # Import adapter modules to trigger their registration
     # These modules have module-level registration code
@@ -33,7 +33,7 @@ def register_adapters():
         import adapters.elasticsearch.adapter  # Elasticsearch adapter
         import adapters.file.adapter  # File adapter
         import adapters.composite.adapter  # noqa: F401 - side-effect registration
-        logger.info("Imported adapter modules with auto-registration")
+        logger.debug("Imported adapter modules with auto-registration")
     except ImportError as e:
         logger.warning(f"Failed to import some adapter modules: {e}")
 
@@ -64,7 +64,7 @@ def register_adapters():
         )
         logger.debug(f"Registered Generic adapter for {datasource}")
 
-    logger.info("Built-in domain adapters registration complete")
+    logger.debug("Built-in domain adapters registration complete")
 
     # Register passthrough conversational adapter
     def _create_conversational_adapter(config=None, **kwargs):
@@ -84,7 +84,7 @@ def register_adapters():
         config={}
     )
 
-    logger.info("Registered conversational passthrough adapter")
+    logger.debug("Registered conversational passthrough adapter")
 
     # Register passthrough multimodal adapter
     def _create_multimodal_adapter(config=None, **kwargs):
@@ -105,7 +105,7 @@ def register_adapters():
             factory_func=_create_multimodal_adapter,
             config={}
         )
-    logger.info("Registered multimodal passthrough adapter")
+    logger.debug("Registered multimodal passthrough adapter")
 
     # openai_realtime, mcp_agent, fetch, and web-search each route via their own step;
     # the domain adapter is the same conversational passthrough.
@@ -117,7 +117,7 @@ def register_adapters():
             factory_func=_create_conversational_adapter,
             config={}
         )
-    logger.info("Registered openai_realtime, mcp_agent, fetch, and web-search conversational adapters")
+    logger.debug("Registered openai_realtime, mcp_agent, fetch, and web-search conversational adapters")
 
 
 # Register adapters when module is imported

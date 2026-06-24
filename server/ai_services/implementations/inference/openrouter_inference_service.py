@@ -54,7 +54,7 @@ class OpenRouterInferenceService(InferenceService):
         # Client will be initialized in initialize()
         self.client: Optional[OpenRouter] = None
 
-        logger.info(f"Configured OpenRouter service with model: {self.model}")
+        logger.debug(f"Configured OpenRouter service with model: {self.model}")
 
     async def initialize(self) -> bool:
         """Initialize the OpenRouter service."""
@@ -66,7 +66,7 @@ class OpenRouterInferenceService(InferenceService):
             self.client = OpenRouter(api_key=self.api_key)
 
             self.initialized = True
-            logger.info(f"Initialized OpenRouter inference service with model {self.model}")
+            logger.debug(f"Initialized OpenRouter inference service with model {self.model}")
             return True
 
         except Exception as e:

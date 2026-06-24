@@ -38,7 +38,7 @@ class WeaviateStore(BaseVectorStore):
                     grpc_port=self.weaviate_grpc_port,
                 )
             self.status = StoreStatus.CONNECTED
-            logger.info(f"Weaviate store '{self.config.name}' connected successfully.")
+            logger.debug(f"Weaviate store '{self.config.name}' connected successfully.")
             return True
         except Exception as e:
             self.status = StoreStatus.ERROR

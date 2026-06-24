@@ -45,9 +45,9 @@ class ImageGenerationCacheManager(ServiceCacheManager):
         model = image_config.get('model', '')
 
         if model:
-            logger.info(f"Loading image generation service '{provider_name}/{model}'{adapter_context}")
+            logger.debug(f"Loading image generation service '{provider_name}/{model}'{adapter_context}")
         else:
-            logger.info(f"Loading image generation service '{provider_name}'{adapter_context}")
+            logger.debug(f"Loading image generation service '{provider_name}'{adapter_context}")
 
         try:
             from server.ai_services.factory import AIServiceFactory

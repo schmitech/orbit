@@ -37,7 +37,7 @@ class SupabaseDatasource(BaseDatasource):
         sslmode = supabase_config.get('sslmode', 'require')  # Supabase requires SSL
 
         try:
-            logger.info(f"Initializing Supabase connection to {host}:{port}/{database}")
+            logger.debug(f"Initializing Supabase connection to {host}:{port}/{database}")
 
             # Create connection
             self._client = psycopg.connect(
@@ -57,7 +57,7 @@ class SupabaseDatasource(BaseDatasource):
             cursor.close()
             
             if version:
-                logger.info(f"Supabase connection successful: {version['version']}")
+                logger.debug(f"Supabase connection successful: {version['version']}")
             
             self._initialized = True
             

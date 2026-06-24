@@ -323,7 +323,7 @@ class OllamaModelWarmer:
 
         # Check if model is already loaded to skip unnecessary warm-up
         if skip_if_loaded and await self.is_model_loaded():
-            logger.info(f"Model {self.model} already loaded, skipping warm-up")
+            logger.debug(f"Model {self.model} already loaded, skipping warm-up")
             return True
 
         logger.info(f"Warming up Ollama model {self.model}...")

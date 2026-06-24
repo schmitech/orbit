@@ -59,7 +59,7 @@ class AdapterRegistry:
             'config': config or {}
         }
         
-        logger.info(f"Registered adapter: type={adapter_type}, datasource={datasource}, name={adapter_name}")
+        logger.debug(f"Registered adapter: type={adapter_type}, datasource={datasource}, name={adapter_name}")
         
     def get(self, adapter_type: str, datasource: str, adapter_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -280,7 +280,7 @@ class AdapterRegistry:
                     implementation=implementation,
                     config=adapter_config
                 )
-                logger.info(f"Registered adapter from config: {implementation}")
+                logger.debug(f"Registered adapter from config: {implementation}")
                     
             except Exception as e:
                 logger.error(f"Error registering adapter from definition {adapter_def}: {e}")

@@ -76,7 +76,7 @@ class ShimmyBaseService(ProviderAIService):
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
         
-        logger.info(f"Configured Shimmy service at {self.base_url} with model: {self.model}")
+        logger.debug(f"Configured Shimmy service at {self.base_url} with model: {self.model}")
 
     async def initialize(self) -> bool:
         """Initialize the Shimmy service."""
@@ -85,7 +85,7 @@ class ShimmyBaseService(ProviderAIService):
                 return True
             
             self.initialized = True
-            logger.info(f"Initialized Shimmy service at {self.base_url}")
+            logger.debug(f"Initialized Shimmy service at {self.base_url}")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize Shimmy service: {str(e)}")

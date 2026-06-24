@@ -76,7 +76,7 @@ class TensorRTBaseService(ProviderAIService):
         self.trt_engine = None
         self.executor = None
 
-        logger.info(f"Configured TensorRT-LLM in API mode at {self.base_url}")
+        logger.debug(f"Configured TensorRT-LLM in API mode at {self.base_url}")
 
     def _setup_direct_mode(self, tensorrt_config: Dict[str, Any]) -> None:
         """Setup for direct mode (in-process model loading with TensorRT-LLM)."""
@@ -110,7 +110,7 @@ class TensorRTBaseService(ProviderAIService):
         self.client = None
         self.executor = ThreadPoolExecutor(max_workers=1)
 
-        logger.info(f"Configured TensorRT-LLM in direct mode with model: {self.model}")
+        logger.debug(f"Configured TensorRT-LLM in direct mode with model: {self.model}")
 
     async def initialize(self) -> bool:
         """Initialize TensorRT-LLM (load model in direct mode or verify API connection)."""

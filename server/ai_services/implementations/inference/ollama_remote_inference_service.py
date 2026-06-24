@@ -99,7 +99,7 @@ class OllamaRemoteInferenceService(InferenceService):
 
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     "Initialized Ollama Remote inference service with model %s at %s",
                     self.model,
                     self.base_url,

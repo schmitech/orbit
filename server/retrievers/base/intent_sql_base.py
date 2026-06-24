@@ -48,9 +48,9 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         # Override return_results from intent_config if specified (fixes default of 3 in parent class)
         if 'return_results' in self.intent_config:
             self.return_results = self.intent_config.get('return_results')
-            logger.info(f"Intent SQL retriever: return_results set to {self.return_results} from adapter config")
+            logger.debug(f"Intent SQL retriever: return_results set to {self.return_results} from adapter config")
         else:
-            logger.info(f"Intent SQL retriever: using default return_results={self.return_results} from parent class")
+            logger.debug(f"Intent SQL retriever: using default return_results={self.return_results} from parent class")
 
         # Store configuration for vector store
         self.store_name = self.intent_config.get('store_name')
@@ -125,7 +125,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
     async def initialize(self) -> None:
         """Initialize intent-specific features and database connection."""
         try:
-            logger.info(f"Initializing {self.__class__.__name__} for intent-based queries")
+            logger.debug(f"Initializing {self.__class__.__name__} for intent-based queries")
 
             # Ensure datasource is initialized (connection will be obtained automatically via property)
             await self._ensure_datasource_initialized()
@@ -154,7 +154,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
     async def _initialize_embedding_client(self):
         """Initialize embedding client with fallback support."""
         embedding_provider = self.config.get('embedding', {}).get('provider')
-        logger.info(f"Using global embedding provider: {embedding_provider}")
+        logger.debug(f"Using global embedding provider: {embedding_provider}")
 
         # Store for re-initialization if client is closed by cache cleanup
         self._embedding_provider = embedding_provider
@@ -179,7 +179,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             # Only initialize if not already initialized (singleton may be pre-initialized)
             if not self.embedding_client.initialized:
                 await self.embedding_client.initialize()
-                logger.info(f"Successfully initialized {embedding_provider} embedding provider")
+                logger.debug(f"Successfully initialized {embedding_provider} embedding provider")
             else:
                 logger.debug("Embedding service already initialized, skipping initialization")
 
@@ -194,7 +194,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 # Only initialize if not already initialized (singleton may be pre-initialized)
                 if not self.embedding_client.initialized:
                     await self.embedding_client.initialize()
-                    logger.info("Successfully initialized Ollama fallback embedding provider")
+                    logger.debug("Successfully initialized Ollama fallback embedding provider")
                 else:
                     logger.debug("Ollama embedding service already initialized, skipping initialization")
             except Exception as fallback_error:
@@ -293,11 +293,11 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         inference_provider = self.config.get('inference_provider')
         
         if inference_provider:
-            logger.info(f"Using adapter-specific inference provider: {inference_provider}")
+            logger.debug(f"Using adapter-specific inference provider: {inference_provider}")
             self.inference_client = ProviderFactory.create_provider_by_name(inference_provider, self.config)
         else:
             # Fall back to default provider
-            logger.info("Using default inference provider from config")
+            logger.debug("Using default inference provider from config")
             self.inference_client = ProviderFactory.create_provider(self.config)
         
         await self.inference_client.initialize()
@@ -351,24 +351,24 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 # Get the expected dimension from current embedding client
                 test_embedding = await self.embedding_client.embed_query("test")
                 expected_dim = len(test_embedding) if test_embedding else 768
-                logger.info(f"Expected embedding dimension from current client: {expected_dim}")
-                
+                logger.debug(f"Expected embedding dimension from current client: {expected_dim}")
+
                 stats = await self.template_store.get_statistics()
                 existing_dim = stats.get('collection_metadata', {}).get('dimension')
-                
+
                 if existing_dim and existing_dim != expected_dim:
                     logger.warning(f"Existing collection has wrong dimension ({existing_dim}), expected {expected_dim}, recreating collection")
-                    
+
                     # Delete the collection entirely and recreate with correct dimension
                     if hasattr(self.template_store, '_vector_store'):
                         vector_store = self.template_store._vector_store
                         collection_name = self.template_store.collection_name
-                        
+
                         # Delete the collection
                         if await vector_store.collection_exists(collection_name):
                             await vector_store.delete_collection(collection_name)
                             logger.info(f"Deleted collection {collection_name}")
-                        
+
                         # Recreate with correct dimension
                         await vector_store.create_collection(collection_name, dimension=expected_dim)
                         logger.info(f"Recreated collection {collection_name} with dimension {expected_dim}")
@@ -385,7 +385,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 # Pass the template store directly since we don't have a store manager
                 await self.domain_adapter.initialize_embeddings()
             
-            logger.info(f"Initialized vector store for template collection: {self.template_collection_name}")
+            logger.debug(f"Initialized vector store for template collection: {self.template_collection_name}")
             
         except ImportError as e:
             logger.error(f"Vector store system not available: {e}")
@@ -440,11 +440,11 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     stats = await self.template_store.get_statistics()
                     existing_count = stats.get('total_templates', 0)
                     if existing_count > 0:
-                        logger.info(f"Found {existing_count} existing templates, skipping reload")
+                        logger.debug(f"Found {existing_count} existing templates, skipping reload")
                         return
                 except Exception:
                     pass
-            
+
             # Load templates into the template store
             loaded_count = 0
 

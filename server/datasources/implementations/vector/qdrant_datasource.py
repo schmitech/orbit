@@ -30,7 +30,7 @@ class QdrantDatasource(BaseDatasource):
         api_key = qdrant_config.get('api_key')
         url = qdrant_config.get('url')  # Alternative to host:port
 
-        logger.info("Initializing Qdrant client...")
+        logger.debug("Initializing Qdrant client...")
 
         # Initialize Qdrant client
         if url:
@@ -41,7 +41,7 @@ class QdrantDatasource(BaseDatasource):
             self._client = QdrantClient(host=host, port=port, api_key=api_key)
 
         self._initialized = True
-        logger.info("Qdrant client initialized successfully")
+        logger.debug("Qdrant client initialized successfully")
 
     async def health_check(self) -> bool:
         """Perform a health check on the Qdrant connection."""

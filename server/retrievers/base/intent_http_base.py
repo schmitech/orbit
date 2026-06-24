@@ -63,9 +63,9 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
         # Override return_results from intent_config if specified (fixes default of 3 in parent class)
         if 'return_results' in self.intent_config:
             self.return_results = self.intent_config.get('return_results')
-            logger.info(f"Intent HTTP retriever: return_results set to {self.return_results} from adapter config")
+            logger.debug(f"Intent HTTP retriever: return_results set to {self.return_results} from adapter config")
         else:
-            logger.info(f"Intent HTTP retriever: using default return_results={self.return_results} from parent class")
+            logger.debug(f"Intent HTTP retriever: using default return_results={self.return_results} from parent class")
 
         # Store configuration for vector store
         self.store_name = self.intent_config.get('store_name')
@@ -174,7 +174,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
     async def initialize(self) -> None:
         """Initialize HTTP client and intent-specific features."""
         try:
-            logger.info(f"Initializing {self.__class__.__name__} for intent-based HTTP queries")
+            logger.debug(f"Initializing {self.__class__.__name__} for intent-based HTTP queries")
 
             # Initialize HTTP client
             await self._initialize_http_client()
@@ -300,7 +300,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
 
             if not self.embedding_client.initialized:
                 await self.embedding_client.initialize()
-                logger.info(f"Successfully initialized {embedding_provider} embedding provider")
+                logger.debug(f"Successfully initialized {embedding_provider} embedding provider")
             else:
                 logger.debug("Embedding service already initialized, skipping initialization")
 
@@ -315,7 +315,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                 self._owns_embedding_client = False
                 if not self.embedding_client.initialized:
                     await self.embedding_client.initialize()
-                    logger.info("Successfully initialized Ollama fallback embedding provider")
+                    logger.debug("Successfully initialized Ollama fallback embedding provider")
             except Exception as fallback_error:
                 logger.error(f"Failed to initialize fallback embedding provider: {fallback_error}")
                 raise Exception("Unable to initialize any embedding provider")
@@ -410,11 +410,11 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
         inference_provider = self.config.get('inference_provider')
 
         if inference_provider:
-            logger.info(f"Using adapter-specific inference provider: {inference_provider}")
+            logger.debug(f"Using adapter-specific inference provider: {inference_provider}")
             self.inference_client = ProviderFactory.create_provider_by_name(
                 inference_provider, self.config)
         else:
-            logger.info("Using default inference provider from config")
+            logger.debug("Using default inference provider from config")
             self.inference_client = ProviderFactory.create_provider(self.config)
 
         await self.inference_client.initialize()
@@ -458,7 +458,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
             try:
                 test_embedding = await self.embedding_client.embed_query("test")
                 expected_dim = len(test_embedding) if test_embedding else 768
-                logger.info(f"Expected embedding dimension from current client: {expected_dim}")
+                logger.debug(f"Expected embedding dimension from current client: {expected_dim}")
 
                 stats = await self.template_store.get_statistics()
                 existing_dim = stats.get('collection_metadata', {}).get('dimension')
@@ -485,7 +485,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
             if hasattr(self.template_store, 'set_embedding_client'):
                 self.template_store.set_embedding_client(self.embedding_client)
 
-            logger.info(f"Initialized vector store for template collection: {self.template_collection_name}")
+            logger.debug(f"Initialized vector store for template collection: {self.template_collection_name}")
 
         except ImportError as e:
             logger.error(f"Vector store system not available: {e}")
@@ -508,7 +508,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                 logger.warning("No templates found in template library")
                 return
 
-            logger.info(f"Loading {len(templates)} templates into vector store")
+            logger.debug(f"Loading {len(templates)} templates into vector store")
 
             force_reload = self.intent_config.get('force_reload_templates', False)
             reload_on_start = self.intent_config.get('reload_templates_on_start', True)
@@ -531,7 +531,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                     stats = await self.template_store.get_statistics()
                     existing_count = stats.get('total_templates', 0)
                     if existing_count > 0:
-                        logger.info(f"Found {existing_count} existing templates, skipping reload")
+                        logger.debug(f"Found {existing_count} existing templates, skipping reload")
                         return
                 except Exception:
                     pass

@@ -131,7 +131,7 @@ class RerankingServiceManager:
                 config,
                 use_cache=False  # We handle caching ourselves
             )
-            logger.info(f"Created reranker service: {provider_name}")
+            logger.debug(f"Created reranker service: {provider_name}")
             return service
 
         except ValueError as e:

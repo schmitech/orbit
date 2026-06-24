@@ -97,7 +97,7 @@ class OllamaCloudInferenceService(InferenceService):
 
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     "Initialized Ollama Cloud inference service with model %s",
                     self.model,
                 )

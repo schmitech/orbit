@@ -40,7 +40,7 @@ class DatasourceRegistry:
         if self._discovered:
             return
             
-        logger.info("Starting auto-discovery of datasource implementations...")
+        logger.debug("Starting auto-discovery of datasource implementations...")
         
         try:
             # Import the implementations package
@@ -70,7 +70,7 @@ class DatasourceRegistry:
                                 
                                 if datasource_name_value:
                                     self._registry[datasource_name_value] = attr
-                                    logger.info(f"Discovered datasource implementation: {datasource_name_value} -> {attr.__name__}")
+                                    logger.debug(f"Discovered datasource implementation: {datasource_name_value} -> {attr.__name__}")
                                 else:
                                     logger.warning(f"Class {attr.__name__} has empty datasource_name")
                             except Exception as e:
@@ -83,7 +83,7 @@ class DatasourceRegistry:
             logger.error(f"Failed to discover datasource implementations: {e}")
             
         self._discovered = True
-        logger.info(f"Datasource discovery completed. Found {len(self._registry)} implementations: {list(self._registry.keys())}")
+        logger.debug(f"Datasource discovery completed. Found {len(self._registry)} implementations: {list(self._registry.keys())}")
     
     def register(self, datasource_name: str, implementation: Type[BaseDatasource]) -> None:
         """

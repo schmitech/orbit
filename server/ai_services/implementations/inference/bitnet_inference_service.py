@@ -76,7 +76,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                     logger.error(f"Model file not found at: {self.model_path}")
                     return False
                 
-                logger.info(f"Loading BitNet model from: {self.model_path}")
+                logger.debug(f"Loading BitNet model from: {self.model_path}")
                 
                 # Load model in a thread to avoid blocking
                 def _load_model():
@@ -99,7 +99,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                     )
                 
                 self.model = await asyncio.to_thread(_load_model)
-                logger.info("BitNet model loaded successfully")
+                logger.debug("BitNet model loaded successfully")
                 
             else:
                 # API mode: Initialize OpenAI-compatible client
@@ -108,7 +108,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                     api_key=self.api_key or "not-needed",
                     base_url=self.base_url
                 )
-                logger.info(f"BitNet API client initialized for {self.base_url}")
+                logger.debug(f"BitNet API client initialized for {self.base_url}")
             
             self.initialized = True
             return True

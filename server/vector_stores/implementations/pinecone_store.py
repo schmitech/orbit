@@ -71,7 +71,7 @@ class PineconeStore(BaseVectorStore):
             self._client = Pinecone(**init_kwargs)
 
             self.status = StoreStatus.CONNECTED
-            logger.info(f"Pinecone store {self.config.name} connected successfully")
+            logger.debug(f"Pinecone store {self.config.name} connected successfully")
             return True
 
         except ImportError:

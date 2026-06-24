@@ -75,7 +75,7 @@ class BitNetBaseService(ProviderAIService):
         self.bitnet_model = None
         self.executor = None
 
-        logger.info(f"Configured BitNet in API mode at {self.base_url}")
+        logger.debug(f"Configured BitNet in API mode at {self.base_url}")
 
     def _setup_direct_mode(self, bitnet_config: Dict[str, Any]) -> None:
         """Setup for direct mode (1.58-bit quantized model loading)."""
@@ -148,7 +148,7 @@ class BitNetBaseService(ProviderAIService):
         self.client = None
         self.executor = ThreadPoolExecutor(max_workers=1)  # For running model inference in separate thread
 
-        logger.info(f"Configured BitNet in direct mode with model: {self.model}")
+        logger.debug(f"Configured BitNet in direct mode with model: {self.model}")
 
     async def initialize(self) -> bool:
         """Initialize the BitNet service."""

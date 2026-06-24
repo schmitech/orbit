@@ -49,7 +49,7 @@ class ShimmyInferenceService(InferenceService, ShimmyBaseService):
             # Initialize via base service
             result = await super().initialize()
             if result:
-                logger.info(f"Shimmy inference service initialized at {self.base_url}")
+                logger.debug(f"Shimmy inference service initialized at {self.base_url}")
             return result
         except Exception as e:
             logger.error(f"Failed to initialize Shimmy inference service: {str(e)}")

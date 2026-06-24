@@ -54,7 +54,7 @@ class HuggingFaceBaseService(ProviderAIService):
 
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
-        logger.info(f"Configured Hugging Face with model: {self.model}, provider: {self.hf_provider}")
+        logger.debug(f"Configured Hugging Face with model: {self.model}, provider: {self.hf_provider}")
 
     async def initialize(self) -> bool:
         try:
@@ -62,7 +62,7 @@ class HuggingFaceBaseService(ProviderAIService):
                 logger.error("Hugging Face API key is not configured")
                 return False
             self.initialized = True
-            logger.info(f"Hugging Face service initialized with model: {self.model}")
+            logger.debug(f"Hugging Face service initialized with model: {self.model}")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize Hugging Face: {str(e)}")
@@ -71,7 +71,7 @@ class HuggingFaceBaseService(ProviderAIService):
     async def verify_connection(self) -> bool:
         try:
             await self.client.get_endpoint_info()
-            logger.info(f"Hugging Face connection verified for model: {self.model}")
+            logger.debug(f"Hugging Face connection verified for model: {self.model}")
             return True
         except Exception as e:
             logger.warning(f"Hugging Face connection verification failed: {str(e)}")

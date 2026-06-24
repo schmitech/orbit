@@ -92,7 +92,7 @@ class CompositeAdapter(DocumentAdapter):
 
 def register_composite_adapter():
     """Register composite adapter with the global adapter registry."""
-    logger.info("Registering composite adapter with global registry...")
+    logger.debug("Registering composite adapter with global registry...")
 
     try:
         # Register for 'none' datasource since composite doesn't use a specific datasource
@@ -105,7 +105,7 @@ def register_composite_adapter():
                 'confidence_threshold': 0.4
             }
         )
-        logger.info("Registered composite adapter for datasource=none")
+        logger.debug("Registered composite adapter for datasource=none")
 
     except Exception as e:
         logger.error(f"Failed to register composite adapter: {e}")

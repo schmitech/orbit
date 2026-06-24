@@ -79,7 +79,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
                     
                     if adapter.get('enabled', True):
                         config = adapter.get('config', {})
-                        logger.info(f"Found matching enabled adapter config for {datasource_name}")
+                        logger.debug(f"Found matching enabled adapter config for {datasource_name}")
                         return config
                     else:
                         found_disabled = True
@@ -147,13 +147,13 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
                     adapter_name='qa',
                     config=self.config
                 )
-                logger.info(f"Successfully created QA domain adapter for {self.get_datasource_name()}")
+                logger.debug(f"Successfully created QA domain adapter for {self.get_datasource_name()}")
             except Exception as e:
                 logger.error(f"Failed to create domain adapter: {str(e)}")
                 # Try fallback to generic QA adapter
                 try:
                     self.domain_adapter = self._create_fallback_adapter()
-                    logger.info("Using generic QA adapter as fallback")
+                    logger.debug("Using generic QA adapter as fallback")
                 except Exception as fallback_e:
                     logger.error(f"Failed to create fallback domain adapter: {str(fallback_e)}")
                     self.domain_adapter = None

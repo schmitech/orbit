@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Register with the factory
 DocumentAdapterFactory.register_adapter("intent", lambda **kwargs: IntentAdapter(**kwargs))
-logger.info("Registered IntentAdapter as 'intent'")
+logger.debug("Registered IntentAdapter as 'intent'")
 
 
 class IntentAdapter(HttpAdapter):
@@ -39,11 +39,11 @@ class IntentAdapter(HttpAdapter):
 
     async def initialize_embeddings(self, store_manager=None):
         """Initialize embeddings using the vector store system."""
-        logger.info("Initializing embeddings for intent adapter")
+        logger.debug("Initializing embeddings for intent adapter")
 
         if store_manager:
             self.store_manager = store_manager
-            logger.info("Store manager registered with intent adapter")
+            logger.debug("Store manager registered with intent adapter")
 
         if self.template_library and hasattr(self, 'store_manager'):
             try:
@@ -55,7 +55,7 @@ class IntentAdapter(HttpAdapter):
                     template_store = self.store_manager.get_store('template_embeddings')
 
                 if not template_store:
-                    logger.info("Creating new template embedding store")
+                    logger.debug("Creating new template embedding store")
                     vector_config = self.config.get('vector_store', {})
                     collection_name = self.config.get('template_collection_name', 'intent_query_templates')
 
@@ -64,7 +64,7 @@ class IntentAdapter(HttpAdapter):
                         first_available = self.store_manager.get_first_available_store_type()
                         if first_available:
                             store_type = first_available
-                            logger.info(f"No vector_store type configured, using first available: {store_type}")
+                            logger.debug(f"No vector_store type configured, using first available: {store_type}")
                         else:
                             store_type = 'chroma'
                             logger.warning("No vector stores available, defaulting to 'chroma'")
@@ -83,23 +83,23 @@ class IntentAdapter(HttpAdapter):
                         await template_store.initialize()
 
                 self.template_store = template_store
-                logger.info("Template embedding store initialized")
+                logger.debug("Template embedding store initialized")
 
             except Exception as e:
                 logger.warning(f"Failed to initialize template embeddings: {e}")
-                logger.info("Intent adapter will work without vector store support")
+                logger.debug("Intent adapter will work without vector store support")
         else:
             if not self.template_library:
-                logger.info("No template library loaded, skipping embedding initialization")
+                logger.debug("No template library loaded, skipping embedding initialization")
             if not hasattr(self, 'store_manager'):
-                logger.info("No store manager available, skipping embedding initialization")
+                logger.debug("No store manager available, skipping embedding initialization")
 
         return True
 
 
 def register_intent_adapter():
     """Register intent adapter with the global adapter registry"""
-    logger.info("Registering intent adapter with global registry...")
+    logger.debug("Registering intent adapter with global registry...")
     try:
         from adapters.registry import ADAPTER_REGISTRY
 
@@ -112,9 +112,9 @@ def register_intent_adapter():
                 implementation='adapters.intent.adapter.IntentAdapter',
                 config={'confidence_threshold': 0.1}
             )
-            logger.info(f"Registered intent adapter for {datasource}")
+            logger.debug(f"Registered intent adapter for {datasource}")
 
-        logger.info("Intent adapter registration complete")
+        logger.debug("Intent adapter registration complete")
 
     except Exception as e:
         logger.error(f"Failed to register intent adapter: {e}")

@@ -103,7 +103,7 @@ class ProviderCacheManager(ServiceCacheManager):
         if model_override:
             self._apply_model_override(config_for_provider, provider_name, model_override)
         else:
-            logger.info(f"Loading inference provider '{provider_name}' with default model")
+            logger.debug(f"Loading inference provider '{provider_name}' with default model")
 
         try:
             from server.inference.pipeline.providers import UnifiedProviderFactory as ProviderFactory
@@ -134,14 +134,14 @@ class ProviderCacheManager(ServiceCacheManager):
                     inference_section[key] = value
                 inference_section['enabled'] = enabled
 
-                logger.info(
+                logger.debug(
                     f"Loading Ollama with preset '{model_override}' (model: {preset.get('model', 'unknown')})"
                 )
                 return
 
             config_for_provider['inference'][provider_name]['model'] = model_override
-            logger.info(f"Loading Ollama with model override: {model_override}")
+            logger.debug(f"Loading Ollama with model override: {model_override}")
             return
 
         config_for_provider['inference'][provider_name]['model'] = model_override
-        logger.info(f"Loading inference provider '{provider_name}' with model override: {model_override}")
+        logger.debug(f"Loading inference provider '{provider_name}' with model override: {model_override}")

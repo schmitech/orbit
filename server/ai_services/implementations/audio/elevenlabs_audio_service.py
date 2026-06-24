@@ -84,7 +84,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
             )
 
             self.initialized = True
-            logger.info(f"ElevenLabs audio service initialized with model: {self.tts_model}")
+            logger.debug(f"ElevenLabs audio service initialized with model: {self.tts_model}")
             return True
 
         except Exception as e:

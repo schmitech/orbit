@@ -19,7 +19,7 @@ MAX_FORMATTED_VALUE_LENGTH = 500
 
 # Register with the factory
 DocumentAdapterFactory.register_adapter("http", lambda **kwargs: HttpAdapter(**kwargs))
-logger.info("Registered HttpAdapter as 'http'")
+logger.debug("Registered HttpAdapter as 'http'")
 
 
 class HttpAdapter(DocumentAdapter):
@@ -75,12 +75,12 @@ class HttpAdapter(DocumentAdapter):
             else:
                 self.template_library = self._load_yaml_config(template_library_path, "template library")
 
-        logger.info(f"{self.__class__.__name__} initialized with confidence_threshold={confidence_threshold}")
+        logger.debug(f"{self.__class__.__name__} initialized with confidence_threshold={confidence_threshold}")
         if self.domain_config:
-            logger.info(f"Loaded domain: {self.domain_config.get('domain_name', 'Unknown')}")
+            logger.debug(f"Loaded domain: {self.domain_config.get('domain_name', 'Unknown')}")
         if self.template_library:
             template_count = len(self.template_library.get('templates', {}))
-            logger.info(f"Loaded {template_count} templates")
+            logger.debug(f"Loaded {template_count} templates")
 
     def _load_yaml_config(self, path: str, config_type: str) -> Optional[Dict[str, Any]]:
         """
@@ -144,7 +144,7 @@ class HttpAdapter(DocumentAdapter):
                         merged_library["templates"].append(template)
                         total_loaded += 1
 
-        logger.info(f"Loaded {total_loaded} total HTTP templates from {len(paths)} files")
+        logger.debug(f"Loaded {total_loaded} total HTTP templates from {len(paths)} files")
         return merged_library
 
     def get_domain_config(self) -> Optional[Dict[str, Any]]:
@@ -349,12 +349,12 @@ class HttpAdapter(DocumentAdapter):
         Args:
             store_manager: Optional StoreManager instance for managing vector stores
         """
-        logger.info("Initializing embeddings for HTTP adapter")
+        logger.debug("Initializing embeddings for HTTP adapter")
 
         # Store reference to store manager if provided
         if store_manager:
             self.store_manager = store_manager
-            logger.info("Store manager registered with HTTP adapter")
+            logger.debug("Store manager registered with HTTP adapter")
 
         return True
 
@@ -362,7 +362,7 @@ class HttpAdapter(DocumentAdapter):
 # Register adapter with the global registry for dynamic loading
 def register_http_adapter():
     """Register HTTP adapter with the global adapter registry"""
-    logger.info("Registering HTTP adapter with global registry...")
+    logger.debug("Registering HTTP adapter with global registry...")
 
     try:
         from adapters.registry import ADAPTER_REGISTRY
@@ -377,9 +377,9 @@ def register_http_adapter():
                 'confidence_threshold': 0.1
             }
         )
-        logger.info("Registered HTTP adapter for http datasource")
+        logger.debug("Registered HTTP adapter for http datasource")
 
-        logger.info("HTTP adapter registration complete")
+        logger.debug("HTTP adapter registration complete")
 
     except Exception as e:
         logger.error(f"Failed to register HTTP adapter: {e}")

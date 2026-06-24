@@ -68,7 +68,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             # They will be created automatically during database initialization
             await self._ensure_audit_columns()
 
-            logger.info(f"SQLite audit storage initialized with collection: {self._collection_name}")
+            logger.debug(f"SQLite audit storage initialized with collection: {self._collection_name}")
             self._initialized = True
 
         except Exception as e:

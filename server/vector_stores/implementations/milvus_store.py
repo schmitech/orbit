@@ -25,7 +25,7 @@ class MilvusStore(BaseVectorStore):
         try:
             self._client = MilvusClient(uri=self.uri)
             self.status = StoreStatus.CONNECTED
-            logger.info(f"Milvus store '{self.config.name}' connected successfully.")
+            logger.debug(f"Milvus store '{self.config.name}' connected successfully.")
             return True
         except Exception as e:
             self.status = StoreStatus.ERROR

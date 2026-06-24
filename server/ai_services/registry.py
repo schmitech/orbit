@@ -60,7 +60,7 @@ def _register_services(
         try:
             module = __import__(module_path, fromlist=[class_name])
             AIServiceFactory.register_service(service_type, provider_key, getattr(module, class_name))
-            logger.info(f"Registered {display_name} {service_type.value} service")
+            logger.debug(f"Registered {display_name} {service_type.value} service")
         except (ImportError, AttributeError) as e:
             logger.debug(f"Skipping {display_name} {service_type.value} service - missing dependencies: {e}")
 
@@ -260,7 +260,7 @@ def register_all_services(config: Dict[str, Any] = None) -> None:
 
         # Log available services once registration completes
         available = AIServiceFactory.list_available_services()
-        logger.info(f"Registered services: {available}")
+        logger.debug(f"Registered services: {available}")
 
 
 def get_embedding_service_legacy(provider: str, config: Dict[str, Any]):

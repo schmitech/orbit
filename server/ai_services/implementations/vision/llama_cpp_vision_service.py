@@ -55,7 +55,7 @@ class LlamaCppVisionService(VisionService, LlamaCppBaseService):
         try:
             if self.mode == "api":
                 # API mode: server already has the model loaded
-                logger.info(f"Llama.cpp vision API mode configured at {self.base_url}")
+                logger.debug(f"Llama.cpp vision API mode configured at {self.base_url}")
                 self.initialized = True
                 return True
 
@@ -71,7 +71,7 @@ class LlamaCppVisionService(VisionService, LlamaCppBaseService):
                 logger.error(f"Vision model file not found at: {self.model_path}")
                 return False
 
-            logger.info(f"Loading llama.cpp vision model from: {self.model_path}")
+            logger.debug(f"Loading llama.cpp vision model from: {self.model_path}")
 
             def _load():
                 kwargs = dict(
@@ -93,7 +93,7 @@ class LlamaCppVisionService(VisionService, LlamaCppBaseService):
                 return Llama(**kwargs)
 
             self.llama_model = await asyncio.to_thread(_load)
-            logger.info(f"Llama.cpp vision model loaded (format={self.chat_format})")
+            logger.debug(f"Llama.cpp vision model loaded (format={self.chat_format})")
             self.initialized = True
             return True
 

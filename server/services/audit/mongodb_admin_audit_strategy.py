@@ -44,7 +44,7 @@ class MongoDBAdminAuditStrategy(AdminAuditStorageStrategy):
 
             await self._create_indexes()
 
-            logger.info(
+            logger.debug(
                 f"MongoDB admin audit storage initialized with collection: {self._collection_name}"
             )
             self._initialized = True

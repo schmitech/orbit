@@ -80,9 +80,9 @@ class AudioCacheManager(ServiceCacheManager):
         model_info = self._get_model_info(provider_name)
 
         if model_info:
-            logger.info(f"Loading audio service '{provider_name}' ({', '.join(model_info)}){adapter_context}")
+            logger.debug(f"Loading audio service '{provider_name}' ({', '.join(model_info)}){adapter_context}")
         else:
-            logger.info(f"Loading audio service '{provider_name}'{adapter_context}")
+            logger.debug(f"Loading audio service '{provider_name}'{adapter_context}")
 
         try:
             from server.ai_services.services.audio_service import create_audio_service

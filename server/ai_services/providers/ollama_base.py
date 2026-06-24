@@ -158,7 +158,7 @@ class OllamaBaseService(ProviderAIService):
             if warmup_success:
                 # Warm-up succeeded, model is confirmed working - skip redundant verification
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     f"Initialized Ollama {self.service_type.value} service "
                     f"with model {self.model}"
                 )
@@ -168,7 +168,7 @@ class OllamaBaseService(ProviderAIService):
             logger.warning(f"Warm-up failed for {self.model}, attempting connection verification...")
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     f"Initialized Ollama {self.service_type.value} service "
                     f"with model {self.model} (via verification fallback)"
                 )

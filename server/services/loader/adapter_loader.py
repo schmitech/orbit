@@ -94,7 +94,7 @@ class AdapterLoader:
 
         if inference_provider:
             model_override = adapter_config.get('model')
-            logger.info(f"Preloading inference provider '{inference_provider}' for adapter '{adapter_name}' (model: {model_override or 'default'})")
+            logger.debug(f"Preloading inference provider '{inference_provider}' for adapter '{adapter_name}' (model: {model_override or 'default'})")
             try:
                 # Clear any stale cached instance for this provider BEFORE creating new one
                 # This ensures we get a fresh instance with properly initialized client
@@ -105,7 +105,7 @@ class AdapterLoader:
                 log_msg = f"Preloaded inference provider '{inference_provider}' for adapter '{adapter_name}'"
                 if model_override:
                     log_msg += f" with model override '{model_override}'"
-                logger.info(log_msg)
+                logger.debug(log_msg)
             except Exception as e:
                 logger.error(f"Failed to preload inference provider '{inference_provider}' for adapter '{adapter_name}': {str(e)}", exc_info=True)
         else:
@@ -342,7 +342,7 @@ class AdapterLoader:
                 factory_clear(provider)
 
             await cache_manager.create_service(provider, adapter_name)
-            logger.info(f"Preloaded {log_label} provider '{provider}' for adapter '{adapter_name}'")
+            logger.debug(f"Preloaded {log_label} provider '{provider}' for adapter '{adapter_name}'")
         except Exception as e:
             logger.warning(f"Failed to preload {warning_label} for adapter {adapter_name}: {str(e)}")
 
@@ -373,7 +373,7 @@ class AdapterLoader:
         try:
             method = getattr(self.adapter_manager, manager_method)
             await method(provider, adapter_name)
-            logger.info(f"Preloaded {log_label} provider '{provider}' for adapter '{adapter_name}'")
+            logger.debug(f"Preloaded {log_label} provider '{provider}' for adapter '{adapter_name}'")
         except Exception as e:
             logger.warning(f"Failed to preload {warning_label} for adapter {adapter_name}: {str(e)}")
 

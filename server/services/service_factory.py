@@ -340,7 +340,7 @@ class ServiceFactory:
                     app.state.redis_service = None
         else:
             app.state.redis_service = None
-            logger.info("Redis service is disabled in configuration")
+            logger.debug("Redis service is disabled in configuration")
     
     async def _initialize_thread_dataset_service(self, app: FastAPI) -> None:
         """Initialize Thread Dataset Service (shared instance for all services)."""
@@ -371,7 +371,7 @@ class ServiceFactory:
         if not throttle_enabled:
             app.state.quota_service = None
             app.state.quota_background_tasks = None
-            logger.info("Quota Service disabled (throttling not enabled)")
+            logger.debug("Quota Service disabled (throttling not enabled)")
             return
 
         # Throttling requires Redis
@@ -423,7 +423,7 @@ class ServiceFactory:
             app.state.database_service,
             thread_dataset_service=thread_dataset_service
         )
-        logger.info("Initializing Chat History Service...")
+        logger.debug("Initializing Chat History Service...")
         try:
             await app.state.chat_history_service.initialize()
             logger.info("Chat History Service initialized successfully")
@@ -454,7 +454,7 @@ class ServiceFactory:
         """Initialize API Key Service."""
         from services.api_key_service import ApiKeyService
         app.state.api_key_service = ApiKeyService(self.config, app.state.database_service)
-        logger.info("Initializing API Key Service...")
+        logger.debug("Initializing API Key Service...")
         try:
             await app.state.api_key_service.initialize()
             logger.info("API Key Service initialized successfully")
@@ -472,7 +472,7 @@ class ServiceFactory:
             database_service=app.state.database_service,
             redis_service=redis_service
         )
-        logger.info("Initializing Prompt Service...")
+        logger.debug("Initializing Prompt Service...")
         try:
             await app.state.prompt_service.initialize()
             logger.info("Prompt Service initialized successfully")
@@ -497,18 +497,18 @@ class ServiceFactory:
             app.state.adapter_manager = adapter_manager
             app.state.retriever = adapter_proxy  # LLM clients expect 'retriever'
             
-            logger.info("Fault Tolerant Adapter Manager initialized successfully")
+            logger.debug("Fault Tolerant Adapter Manager initialized successfully")
             
             # Log available adapters - use the base adapter manager for both types
             base_adapter_manager = adapter_manager.base_adapter_manager if hasattr(adapter_manager, 'base_adapter_manager') else adapter_manager
             available_adapters = base_adapter_manager.get_available_adapters()
-            logger.info(f"Available adapters: {available_adapters}")
+            logger.debug(f"Available adapters: {available_adapters}")
             
             # Preload all adapters in parallel to prevent sequential blocking
             if available_adapters:
                 # Get timeout from config (default 120s for Ollama cold starts)
                 preload_timeout = self.config.get('performance', {}).get('adapter_preload_timeout', 120.0)
-                logger.info(f"Starting parallel adapter preloading (timeout: {preload_timeout}s per adapter)...")
+                logger.debug(f"Starting parallel adapter preloading (timeout: {preload_timeout}s per adapter)...")
                 preload_results = await base_adapter_manager.preload_all_adapters(timeout_per_adapter=preload_timeout)
                 
                 # Log preloading results
@@ -717,11 +717,11 @@ class ServiceFactory:
             app.state.vector_store_manager = store_manager  # Keep for backward compatibility
             app.state.store_manager = store_manager  # New unified name
             
-            logger.info("Store Manager initialized (lazy loading enabled)")
+            logger.debug("Store Manager initialized (lazy loading enabled)")
             
             # Log available store types
             stats = app.state.vector_store_manager.get_statistics()
-            logger.info(f"Available vector store types: {stats.get('available_store_types', [])}")
+            logger.debug(f"Available vector store types: {stats.get('available_store_types', [])}")
             
         except ImportError as e:
             logger.warning(f"Vector stores module not available: {e}")

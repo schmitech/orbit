@@ -81,7 +81,7 @@ class CohereAudioService(AudioService):
                 timeout=self.timeout,
             )
             self.initialized = True
-            self.logger.info("Initialized Cohere audio service (STT)")
+            self.logger.debug("Initialized Cohere audio service (STT)")
             return True
         except Exception as e:
             self.logger.error("Failed to initialize Cohere audio service: %s", e)

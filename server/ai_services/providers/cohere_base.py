@@ -135,7 +135,7 @@ class CohereBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     f"Initialized Cohere {self.service_type.value} service "
                     f"with model {self.model}"
                 )

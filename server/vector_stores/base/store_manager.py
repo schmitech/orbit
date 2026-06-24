@@ -73,7 +73,7 @@ class StoreManager:
             try:
                 from ..implementations.pinecone_store import PineconeStore
                 self._store_classes['pinecone'] = PineconeStore
-                logger.info("Registered PineconeStore")
+                logger.debug("Registered PineconeStore")
             except ImportError:
                 logger.warning("PineconeStore not available")
 
@@ -81,7 +81,7 @@ class StoreManager:
             try:
                 from ..implementations.qdrant_store import QdrantStore
                 self._store_classes['qdrant'] = QdrantStore
-                logger.info("Registered QdrantStore")
+                logger.debug("Registered QdrantStore")
             except ImportError:
                 logger.warning("QdrantStore not available")
 
@@ -89,7 +89,7 @@ class StoreManager:
             try:
                 from ..implementations.faiss_store import FaissStore
                 self._store_classes['faiss'] = FaissStore
-                logger.info("Registered FaissStore")
+                logger.debug("Registered FaissStore")
             except ImportError:
                 logger.warning("FaissStore not available")
 
@@ -97,7 +97,7 @@ class StoreManager:
             try:
                 from ..implementations.weaviate_store import WeaviateStore
                 self._store_classes['weaviate'] = WeaviateStore
-                logger.info("Registered WeaviateStore")
+                logger.debug("Registered WeaviateStore")
             except ImportError:
                 logger.warning("WeaviateStore not available")
 
@@ -105,7 +105,7 @@ class StoreManager:
             try:
                 from ..implementations.milvus_store import MilvusStore
                 self._store_classes['milvus'] = MilvusStore
-                logger.info("Registered MilvusStore")
+                logger.debug("Registered MilvusStore")
             except ImportError:
                 logger.warning("MilvusStore not available")
 
@@ -116,7 +116,7 @@ class StoreManager:
                     warnings.filterwarnings("ignore", category=DeprecationWarning, module="marqo.*")
                     from ..implementations.marqo_store import MarqoStore
                 self._store_classes['marqo'] = MarqoStore
-                logger.info("Registered MarqoStore")
+                logger.debug("Registered MarqoStore")
             except ImportError:
                 logger.warning("MarqoStore not available")
 
@@ -124,7 +124,7 @@ class StoreManager:
             try:
                 from ..implementations.pgvector_store import PgvectorStore
                 self._store_classes['pgvector'] = PgvectorStore
-                logger.info("Registered PgvectorStore")
+                logger.debug("Registered PgvectorStore")
             except ImportError:
                 logger.warning("PgvectorStore not available")
 
@@ -132,7 +132,7 @@ class StoreManager:
             try:
                 from ..implementations.duckdb_store import DuckDBStore
                 self._store_classes['duckdb'] = DuckDBStore
-                logger.info("Registered DuckDBStore")
+                logger.debug("Registered DuckDBStore")
             except ImportError:
                 logger.warning("DuckDBStore not available")
 

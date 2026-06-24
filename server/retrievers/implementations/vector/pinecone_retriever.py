@@ -65,7 +65,7 @@ class PineconeRetriever(AbstractVectorRetriever):
 
             self.pinecone_client = Pinecone(**init_kwargs)
 
-            logger.info("Connected to Pinecone")
+            logger.debug("Connected to Pinecone")
 
         except ImportError:
             error_msg = "pinecone package is required for Pinecone retriever. Install with: pip install pinecone>=3.0.0"
@@ -79,7 +79,7 @@ class PineconeRetriever(AbstractVectorRetriever):
     async def close_client(self) -> None:
         """Close the Pinecone client."""
         # Pinecone doesn't require explicit closure
-        logger.info("Pinecone client closed")
+        logger.debug("Pinecone client closed")
 
     async def set_collection(self, collection_name: str) -> None:
         """

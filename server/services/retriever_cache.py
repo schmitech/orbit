@@ -79,7 +79,7 @@ class RetrieverCache:
             return retriever
 
         # Create new retriever instance
-        logger.info(f"Creating new FileVectorRetriever (cache_key: {cache_key[:8]}...)")
+        logger.debug(f"Creating new FileVectorRetriever (cache_key: {cache_key[:8]}...)")
         retriever = FileVectorRetriever(config=config)
         await retriever.initialize()
 

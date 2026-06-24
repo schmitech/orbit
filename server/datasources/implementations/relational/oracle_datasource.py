@@ -44,7 +44,7 @@ class OracleDatasource(BaseDatasource):
             # Create DSN using the modern oracledb syntax
             dsn = f"{host}:{port}/{service_name}"
 
-            logger.info(f"Initializing Oracle connection pool to {host}:{port}/{service_name} "
+            logger.debug(f"Initializing Oracle connection pool to {host}:{port}/{service_name} "
                         f"(pool_size={pool_size}, min={min_pool_size})")
 
             # Create connection pool using oracledb
@@ -70,7 +70,7 @@ class OracleDatasource(BaseDatasource):
             finally:
                 self._pool.release(conn)
 
-            logger.info("Oracle connection pool successful")
+            logger.debug("Oracle connection pool successful")
 
             self._initialized = True
 

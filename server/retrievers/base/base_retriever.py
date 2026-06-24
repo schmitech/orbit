@@ -419,7 +419,7 @@ class RetrieverFactory:
             retriever_class: The retriever class to register
         """
         cls._registered_retrievers[retriever_type] = retriever_class
-        logger.info(f"Registered retriever type: {retriever_type}")
+        logger.debug(f"Registered retriever type: {retriever_type}")
     
     @classmethod
     def create_retriever(cls, retriever_type: str, **kwargs) -> BaseRetriever:
@@ -447,7 +447,7 @@ class RetrieverFactory:
             raise ValueError(f"Unknown retriever type: {retriever_type}. Valid types: {valid_types}")
         
         retriever_class = cls._registered_retrievers[retriever_type]
-        logger.info(f"Creating retriever of type: {retriever_type}")
+        logger.debug(f"Creating retriever of type: {retriever_type}")
         return retriever_class(**kwargs)
     
     @classmethod
@@ -460,5 +460,5 @@ class RetrieverFactory:
             factory_func: Function that creates the retriever instance when needed
         """
         cls._registry.register(retriever_type, factory_func)
-        logger.info(f"Registered lazy-loaded retriever type: {retriever_type}")
+        logger.debug(f"Registered lazy-loaded retriever type: {retriever_type}")
     

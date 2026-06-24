@@ -94,7 +94,7 @@ class SentenceTransformersBaseService(ProviderAIService):
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
 
-        logger.info(
+        logger.debug(
             f"Configured Sentence Transformers service: "
             f"model={self.model}, mode={self.mode}, device={self.device}"
         )
@@ -147,7 +147,7 @@ class SentenceTransformersBaseService(ProviderAIService):
 
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     f"Initialized Sentence Transformers service "
                     f"(mode={self.mode}, model={self.model})"
                 )
@@ -197,7 +197,7 @@ class SentenceTransformersBaseService(ProviderAIService):
 
         # Use the connection manager from base class
 
-        logger.info(f"Configured remote API for model: {self.model}")
+        logger.debug(f"Configured remote API for model: {self.model}")
 
     async def verify_connection(self) -> bool:
         """

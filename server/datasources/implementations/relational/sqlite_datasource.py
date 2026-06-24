@@ -22,14 +22,14 @@ class SQLiteDatasource(BaseDatasource):
         sqlite_config = self.config.get('datasources', {}).get('sqlite', {})
         database = sqlite_config.get('database', 'sqlite_db.db')
         
-        logger.info(f"Initializing SQLite connection to {database}")
+        logger.debug(f"Initializing SQLite connection to {database}")
 
         try:
             self._client = sqlite3.connect(database)
             # Configure row factory to enable dictionary-like row access
             self._client.row_factory = sqlite3.Row
             self._initialized = True
-            logger.info("SQLite connection established successfully")
+            logger.debug("SQLite connection established successfully")
         except Exception as e:
             logger.error(f"Failed to connect to SQLite database: {str(e)}")
             raise

@@ -72,7 +72,7 @@ class GoogleBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        logger.info(
+        logger.debug(
             f"Configured {self.provider_name.title()} service with model: {self.model}"
         )
 
@@ -85,7 +85,7 @@ class GoogleBaseService(ProviderAIService):
         """
         try:
             self.initialized = True
-            logger.info(
+            logger.debug(
                 f"Initialized {self.provider_name.title()} {self.service_type.value} service "
                 f"with model {self.model}"
             )

@@ -73,7 +73,7 @@ class ChromaRetriever(AbstractVectorRetriever):
         # Ensure datasource is initialized
         await self._ensure_datasource_initialized()
 
-        logger.info("ChromaDB client initialized from datasource")
+        logger.debug("ChromaDB client initialized from datasource")
 
         # Set collection if we have a collection name from config
         if self.collection_name:
@@ -92,7 +92,7 @@ class ChromaRetriever(AbstractVectorRetriever):
     async def close_client(self) -> None:
         """Close the ChromaDB client via datasource."""
         # Datasource close is handled by parent class
-        logger.info("ChromaDB client closed via datasource")
+        logger.debug("ChromaDB client closed via datasource")
 
     async def set_collection(self, collection_name: str) -> None:
         """
@@ -143,7 +143,7 @@ class ChromaRetriever(AbstractVectorRetriever):
             self.collection_name = collection_name
             # Use class name in log for better clarity
             class_name = self.__class__.__name__
-            logger.info(f"[{class_name}] Successfully connected to existing collection: {collection_name}")
+            logger.debug(f"[{class_name}] Successfully connected to existing collection: {collection_name}")
             
         except HTTPException:
             # Re-raise HTTP exceptions as-is

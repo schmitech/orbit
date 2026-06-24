@@ -69,7 +69,7 @@ class ElasticsearchDatasource(BaseDatasource):
             # Add authentication if credentials are available
             if self.username and self.password:
                 client_kwargs["basic_auth"] = (self.username, self.password)
-                logger.info("Elasticsearch: Using basic authentication")
+                logger.debug("Elasticsearch: Using basic authentication")
             else:
                 logger.warning("Elasticsearch: No credentials found, attempting unauthenticated connection")
 
@@ -88,7 +88,7 @@ class ElasticsearchDatasource(BaseDatasource):
 
             # Test connection
             cluster_info = await self._client.info()
-            logger.info(f"Connected to Elasticsearch cluster: {cluster_info.get('cluster_name', 'unknown')} "
+            logger.debug(f"Connected to Elasticsearch cluster: {cluster_info.get('cluster_name', 'unknown')} "
                            f"(version: {cluster_info.get('version', {}).get('number', 'unknown')})")
 
             self._initialized = True

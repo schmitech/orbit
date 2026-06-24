@@ -67,7 +67,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             # Create indexes for efficient querying
             await self._create_indexes()
 
-            logger.info(f"MongoDB audit storage initialized with collection: {self._collection_name}")
+            logger.debug(f"MongoDB audit storage initialized with collection: {self._collection_name}")
             self._initialized = True
 
         except Exception as e:

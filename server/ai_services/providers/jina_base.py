@@ -142,7 +142,7 @@ class JinaBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     f"Initialized Jina {self.service_type.value} service "
                     f"with model {self.model}"
                 )
@@ -174,7 +174,7 @@ class JinaBaseService(ProviderAIService):
                 "input": ["test connection"]
             }
 
-            logger.info(f"Verifying connection to Jina API with model {self.model}")
+            logger.debug(f"Verifying connection to Jina API with model {self.model}")
 
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status != 200:
@@ -187,7 +187,7 @@ class JinaBaseService(ProviderAIService):
                 # Verify the response structure
                 if "data" in data and len(data["data"]) > 0 and "embedding" in data["data"][0]:
                     embedding = data["data"][0]["embedding"]
-                    logger.info(f"Successfully verified connection to Jina API. Got embedding with {len(embedding)} dimensions.")
+                    logger.debug(f"Successfully verified connection to Jina API. Got embedding with {len(embedding)} dimensions.")
                     return True
                 else:
                     logger.error(f"Unexpected response structure from Jina API: {data}")

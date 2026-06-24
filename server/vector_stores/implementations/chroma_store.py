@@ -83,7 +83,7 @@ class ChromaStore(BaseVectorStore):
                 )
             
             self.status = StoreStatus.CONNECTED
-            logger.info(f"ChromaDB store {self.config.name} connected successfully")
+            logger.debug(f"ChromaDB store {self.config.name} connected successfully")
             return True
             
         except ImportError:

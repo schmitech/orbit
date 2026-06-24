@@ -133,7 +133,7 @@ class AIServiceFactory:
             if use_cache:
                 cls._service_cache[key] = service_instance
 
-            logger.info(
+            logger.debug(
                 f"Created {service_class.__name__} for {service_type.value} "
                 f"service with provider {provider}"
             )

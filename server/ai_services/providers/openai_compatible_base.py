@@ -182,7 +182,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        logger.info(
+        logger.debug(
             f"Configured {self.provider_name.title()} service with model: {self.model}"
         )
 
@@ -225,7 +225,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
                 else " (verification running asynchronously)" if self._verification_inflight
                 else " (verification skipped or failed)"
             )
-            logger.info(
+            logger.debug(
                 f"Initialized {self.provider_name.title()} "
                 f"{self.service_type.value} service with model {self.model}{suffix}"
             )

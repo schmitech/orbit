@@ -454,7 +454,7 @@ class DynamicAdapterManager:
         """
         try:
             await self.get_adapter(adapter_name)
-            logger.info(f"Preloaded adapter: {adapter_name}")
+            logger.debug(f"Preloaded adapter: {adapter_name}")
         except Exception as e:
             logger.error(f"Failed to preload adapter {adapter_name}: {str(e)}")
 

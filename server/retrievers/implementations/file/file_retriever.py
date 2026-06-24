@@ -96,21 +96,21 @@ class FileVectorRetriever(AbstractVectorRetriever):
                         name=vector_store_name,
                         store_type=vector_store_name  # Use the configured store type (e.g., 'qdrant', 'chroma')
                     )
-                    logger.info(f"Created vector store: {vector_store_name}")
+                    logger.debug(f"Created vector store: {vector_store_name}")
                 except Exception as create_error:
                     logger.warning(f"Could not create vector store '{vector_store_name}': {create_error}. "
                                  f"File adapter will operate in limited mode without vector search. "
                                  f"Ensure '{vector_store_name}' is enabled and configured in config/stores.yaml")
                     self._default_store = None
             else:
-                logger.info(f"Initialized vector store: {vector_store_name}")
+                logger.debug(f"Initialized vector store: {vector_store_name}")
         except Exception as e:
             logger.warning(f"Error initializing vector store {vector_store_name}: {e}. "
                          f"File adapter will operate in limited mode. Check vector store configuration in config/stores.yaml.")
             self._default_store = None
         
         self.initialized = True
-        logger.info("FileVectorRetriever initialized")
+        logger.debug("FileVectorRetriever initialized")
     
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
                                   file_ids: Optional[List[str]] = None,

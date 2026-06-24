@@ -52,15 +52,15 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
         # (in case parent class initialization didn't get it right)
         if self.adapter_config and 'confidence_threshold' in self.adapter_config:
             self.confidence_threshold = self.adapter_config['confidence_threshold']
-            logger.info(f"QAQdrantRetriever overriding confidence_threshold to {self.confidence_threshold}")
-        
+            logger.debug(f"QAQdrantRetriever overriding confidence_threshold to {self.confidence_threshold}")
+
         self.score_scaling_factor = self.adapter_config.get(
             'score_scaling_factor', 1.0
         ) if self.adapter_config else 1.0
-        
-        logger.info("QAQdrantRetriever initialized with:")
-        logger.info(f"  confidence_threshold={self.confidence_threshold} (used for filtering)")
-        logger.info(f"  score_scaling_factor={self.score_scaling_factor}")
+
+        logger.debug("QAQdrantRetriever initialized with:")
+        logger.debug(f"  confidence_threshold={self.confidence_threshold} (used for filtering)")
+        logger.debug(f"  score_scaling_factor={self.score_scaling_factor}")
     
     def get_datasource_name(self) -> str:
         """Return the datasource name."""

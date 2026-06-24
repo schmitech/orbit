@@ -79,9 +79,9 @@ class EmbeddingCacheManager(ServiceCacheManager):
         model = embedding_config.get('model', '')
 
         if model:
-            logger.info(f"Loading embedding service '{provider_name}/{model}'{adapter_context}")
+            logger.debug(f"Loading embedding service '{provider_name}/{model}'{adapter_context}")
         else:
-            logger.info(f"Loading embedding service '{provider_name}'{adapter_context}")
+            logger.debug(f"Loading embedding service '{provider_name}'{adapter_context}")
 
         try:
             from server.embeddings.base import EmbeddingServiceFactory

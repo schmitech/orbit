@@ -39,7 +39,7 @@ class NvidiaEmbeddingService(EmbeddingService):
         self.truncate = provider_config.get("truncate", "NONE")
 
         self.client: Optional[AsyncOpenAI] = None
-        logger.info(f"Configured NVIDIA embedding service with model: {self.model}")
+        logger.debug(f"Configured NVIDIA embedding service with model: {self.model}")
 
     async def initialize(self) -> bool:
         try:
@@ -52,7 +52,7 @@ class NvidiaEmbeddingService(EmbeddingService):
             )
 
             self.initialized = True
-            logger.info(f"Initialized NVIDIA embedding service with model {self.model}")
+            logger.debug(f"Initialized NVIDIA embedding service with model {self.model}")
             return True
 
         except Exception as e:

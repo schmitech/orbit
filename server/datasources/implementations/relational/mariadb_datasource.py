@@ -36,7 +36,7 @@ class MariaDBDatasource(BaseDatasource):
         password = mariadb_config.get('password', '')
         
         try:
-            logger.info(f"Initializing MariaDB connection to {host}:{port}/{database}")
+            logger.debug(f"Initializing MariaDB connection to {host}:{port}/{database}")
             
             # Create connection
             self._client = mysql.connector.connect(
@@ -55,7 +55,7 @@ class MariaDBDatasource(BaseDatasource):
             cursor.close()
             
             if version:
-                logger.info(f"MariaDB connection successful: {version[0]}")
+                logger.debug(f"MariaDB connection successful: {version[0]}")
             
             self._initialized = True
             

@@ -111,7 +111,7 @@ class AnthropicBaseService(ProviderAIService):
             # Verify connection with a simple test
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     f"Initialized Anthropic {self.service_type.value} service "
                     f"with model {self.model}"
                 )

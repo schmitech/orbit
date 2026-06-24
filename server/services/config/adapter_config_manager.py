@@ -60,7 +60,7 @@ class AdapterConfigManager:
                     disabled_count += 1
                     logger.debug(f"Skipping disabled adapter: {adapter_name}")
 
-        logger.info(f"Loaded {enabled_count} enabled adapter configurations ({disabled_count} disabled)")
+        logger.debug(f"Loaded {enabled_count} enabled adapter configurations ({disabled_count} disabled)")
 
     def get(self, adapter_name: str) -> Optional[Dict[str, Any]]:
         """

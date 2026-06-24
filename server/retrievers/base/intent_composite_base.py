@@ -129,11 +129,11 @@ class CompositeIntentRetriever(BaseRetriever):
         self._cross_adapter_template_store = None
         self._cross_adapter_templates: Dict[str, Dict[str, Any]] = {}
 
-        logger.info(f"CompositeIntentRetriever configured with {len(self.child_adapter_names)} child adapters: {self.child_adapter_names}")
+        logger.debug(f"CompositeIntentRetriever configured with {len(self.child_adapter_names)} child adapters: {self.child_adapter_names}")
         if self.cross_adapter_enabled:
-            logger.info(f"Cross-adapter templates enabled with {len(self.cross_adapter_template_paths)} template path(s)")
+            logger.debug(f"Cross-adapter templates enabled with {len(self.cross_adapter_template_paths)} template path(s)")
         if self.multistage_enabled:
-            logger.info(f"Multi-stage selection enabled: reranking={self.reranking_enabled}, string_similarity={self.string_similarity_enabled}")
+            logger.debug(f"Multi-stage selection enabled: reranking={self.reranking_enabled}, string_similarity={self.string_similarity_enabled}")
 
     def _init_multi_stage_config(self, config: Dict[str, Any]) -> None:
         """Initialize multi-stage selection configuration from composite_retrieval section."""
@@ -187,7 +187,7 @@ class CompositeIntentRetriever(BaseRetriever):
                     enabled.append('reranking')
                 if self.string_similarity_enabled:
                     enabled.append('string_similarity')
-                logger.info(
+                logger.debug(
                     f"Composite retrieval active weights ({', '.join(enabled)}) sum to "
                     f"{total_weight:.2f}. Scores will be normalized to 1.0 "
                     f"(ratio preserved)."
@@ -200,7 +200,7 @@ class CompositeIntentRetriever(BaseRetriever):
     async def initialize(self) -> None:
         """Initialize the composite retriever and resolve child adapters."""
         try:
-            logger.info(f"Initializing CompositeIntentRetriever with {len(self.child_adapter_names)} child adapters")
+            logger.debug(f"Initializing CompositeIntentRetriever with {len(self.child_adapter_names)} child adapters")
             
             # Initialize base class
             await super().initialize()
@@ -215,7 +215,7 @@ class CompositeIntentRetriever(BaseRetriever):
             if self.cross_adapter_enabled:
                 await self._initialize_cross_adapter_templates()
 
-            logger.info(f"CompositeIntentRetriever initialization complete with {len(self._child_adapters)} active child adapters")
+            logger.debug(f"CompositeIntentRetriever initialization complete with {len(self._child_adapters)} active child adapters")
             
         except Exception as e:
             logger.error(f"Failed to initialize CompositeIntentRetriever: {e}")
@@ -239,7 +239,7 @@ class CompositeIntentRetriever(BaseRetriever):
 
             if not self.embedding_client.initialized:
                 await self.embedding_client.initialize()
-                logger.info(f"Initialized {embedding_provider} embedding provider for composite retriever")
+                logger.debug(f"Initialized {embedding_provider} embedding provider for composite retriever")
             else:
                 logger.debug("Embedding service already initialized")
 
@@ -366,7 +366,7 @@ class CompositeIntentRetriever(BaseRetriever):
         if not self._child_adapters:
             raise ValueError(f"No valid child adapters could be resolved from: {self.child_adapter_names}")
 
-        logger.info(f"Resolved {len(self._child_adapters)} child adapters: {list(self._child_adapters.keys())}")
+        logger.debug(f"Resolved {len(self._child_adapters)} child adapters: {list(self._child_adapters.keys())}")
 
     async def _initialize_cross_adapter_templates(self) -> None:
         """
@@ -466,7 +466,7 @@ class CompositeIntentRetriever(BaseRetriever):
 
             await self._cross_adapter_template_store.batch_add_templates(batch)
 
-            logger.info(
+            logger.debug(
                 f"Initialized {len(self._cross_adapter_templates)} cross-adapter templates "
                 f"with {len(vector_entries)} example embeddings"
             )
@@ -562,7 +562,7 @@ class CompositeIntentRetriever(BaseRetriever):
             for t in templates:
                 t['cross_adapter'] = True
 
-            logger.info(f"Loaded {len(templates)} cross-adapter templates from {full_path}")
+            logger.debug(f"Loaded {len(templates)} cross-adapter templates from {full_path}")
             return templates
 
         except Exception as e:

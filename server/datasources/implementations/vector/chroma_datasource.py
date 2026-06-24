@@ -36,7 +36,7 @@ class ChromaDBDatasource(BaseDatasource):
             self._client = self._initialize_remote_client(chroma_config)
             
         self._initialized = True
-        logger.info("ChromaDB client initialized successfully")
+        logger.debug("ChromaDB client initialized successfully")
     
     def _initialize_local_client(self, chroma_config: Dict[str, Any]):
         """Initialize a local ChromaDB PersistentClient."""
@@ -48,7 +48,7 @@ class ChromaDBDatasource(BaseDatasource):
         # Ensure the directory exists
         os.makedirs(db_path, exist_ok=True)
         
-        logger.info(f"Using local ChromaDB at path: {db_path}")
+        logger.debug(f"Using local ChromaDB at path: {db_path}")
         return chromadb.PersistentClient(path=str(db_path))
     
     def _initialize_remote_client(self, chroma_config: Dict[str, Any]):
@@ -58,7 +58,7 @@ class ChromaDBDatasource(BaseDatasource):
         host = chroma_config['host']
         port = int(chroma_config['port'])
         
-        logger.info(f"Connecting to ChromaDB at {host}:{port}...")
+        logger.debug(f"Connecting to ChromaDB at {host}:{port}...")
         return chromadb.HttpClient(host=host, port=port)
     
     async def health_check(self) -> bool:

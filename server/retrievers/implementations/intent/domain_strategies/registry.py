@@ -63,7 +63,7 @@ class DomainStrategyRegistry:
             return strategy_class()
 
         if domain_config is not None:
-            logger.info(
+            logger.debug(
                 "Falling back to GenericDomainStrategy for domain '%s' (type '%s')",
                 domain_name or getattr(domain_config, "domain_name", "unknown"),
                 domain_type or "unknown",

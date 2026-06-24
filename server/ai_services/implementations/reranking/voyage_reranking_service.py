@@ -60,7 +60,7 @@ class VoyageRerankingService(RerankingService):
             self.session = aiohttp.ClientSession(timeout=timeout)
 
             self.initialized = True
-            logger.info(f"Voyage AI reranking service initialized with model: {self.model}")
+            logger.debug(f"Voyage AI reranking service initialized with model: {self.model}")
             return True
 
         except Exception as e:

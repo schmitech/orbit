@@ -30,13 +30,13 @@ class PineconeDatasource(BaseDatasource):
         if not api_key:
             raise ValueError("Pinecone API key is required")
 
-        logger.info("Initializing Pinecone client...")
+        logger.debug("Initializing Pinecone client...")
 
         # Initialize Pinecone client (new SDK v3+ API)
         self._client = Pinecone(api_key=api_key)
 
         self._initialized = True
-        logger.info("Pinecone client initialized successfully")
+        logger.debug("Pinecone client initialized successfully")
 
     async def health_check(self) -> bool:
         """Perform a health check on the Pinecone connection."""

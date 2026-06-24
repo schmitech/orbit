@@ -42,7 +42,7 @@ class SQLServerDatasource(BaseDatasource):
         connection_timeout = sqlserver_config.get('connection_timeout', 5)
 
         try:
-            logger.info(f"Initializing SQL Server connection pool to {host}:{port}/{database} "
+            logger.debug(f"Initializing SQL Server connection pool to {host}:{port}/{database} "
                         f"(pool_size={pool_size})")
 
             # pymssql doesn't have built-in pooling, use a simple thread-safe queue-based pool
@@ -73,7 +73,7 @@ class SQLServerDatasource(BaseDatasource):
                 cursor.close()
 
                 if version:
-                    logger.info(f"SQL Server connection successful: {version[0][:50]}...")
+                    logger.debug(f"SQL Server connection successful: {version[0][:50]}...")
             finally:
                 self.return_connection(conn)
 

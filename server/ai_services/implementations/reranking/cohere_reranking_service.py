@@ -84,7 +84,7 @@ class CohereRerankingService(RerankingService, CohereBaseService):
             self.session = aiohttp.ClientSession(timeout=timeout)
 
             self.initialized = True
-            logger.info(f"Cohere reranking service initialized with model: {self.model}")
+            logger.debug(f"Cohere reranking service initialized with model: {self.model}")
             return True
 
         except Exception as e:

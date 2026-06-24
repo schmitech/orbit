@@ -144,7 +144,7 @@ class VLLMAudioService(AudioService):
         self.snac_device = provider_config.get('snac_device', default_device)
         self._snac_initialized = False
 
-        logger.info(
+        logger.debug(
             f"Configured vLLM audio service with TTS model: {self.tts_model} "
             f"at {self.base_url} (max_concurrent_requests: {self.max_concurrent_requests})"
         )
@@ -432,16 +432,16 @@ class VLLMAudioService(AudioService):
                 )
 
             if self.connection_verified:
-                logger.info(
+                logger.debug(
                     f"Initialized vLLM audio service with model {self.tts_model}"
                 )
             elif self._verification_inflight:
-                logger.info(
+                logger.debug(
                     f"Initialized vLLM audio service with model {self.tts_model} "
                     f"(verification running asynchronously)"
                 )
             else:
-                logger.info(
+                logger.debug(
                     f"Initialized vLLM audio service with model {self.tts_model} "
                     f"(verification skipped or failed)"
                 )

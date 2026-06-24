@@ -32,7 +32,7 @@ class ConversationalImplementation(BaseRetriever):
         if self.initialized:
             return
         await super().initialize()
-        logger.info("Conversational passthrough implementation ready (no datasource involved)")
+        logger.debug("Conversational passthrough implementation ready (no datasource involved)")
 
     async def close(self) -> None:
         """Close BaseRetriever resources (no additional cleanup required)."""

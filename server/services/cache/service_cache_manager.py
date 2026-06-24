@@ -137,7 +137,7 @@ class ServiceCacheManager:
                     f"{self.service_label.capitalize()} initialization for {cache_key} was cancelled"
                 )
 
-            logger.info(f"Successfully cached {self.service_label}: {cache_key}")
+            logger.debug(f"Successfully cached {self.service_label}: {cache_key}")
             return service
         except _InitializationCancelled:
             raise

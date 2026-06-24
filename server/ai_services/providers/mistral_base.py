@@ -113,7 +113,7 @@ class MistralBaseService(ProviderAIService):
             # Verify connection
             if await self.verify_connection():
                 self.initialized = True
-                logger.info(
+                logger.debug(
                     f"Initialized Mistral {self.service_type.value} service "
                     f"with model {self.model}"
                 )

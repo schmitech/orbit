@@ -97,7 +97,7 @@ class UnifiedProviderFactory:
             )
 
         logger = logging.getLogger(__name__)
-        logger.info(f"Creating provider '{provider_name}' by name using unified architecture")
+        logger.debug(f"Creating provider '{provider_name}' by name using unified architecture")
 
         return create_unified_provider(provider_name, config)
 

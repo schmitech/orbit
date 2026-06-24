@@ -41,7 +41,7 @@ class MySQLDatasource(BaseDatasource):
         statement_timeout = mysql_config.get('statement_timeout', 10000)
 
         try:
-            logger.info(f"Initializing MySQL connection pool to {host}:{port}/{database} "
+            logger.debug(f"Initializing MySQL connection pool to {host}:{port}/{database} "
                         f"(pool_size={pool_size})")
 
             # Create connection pool
@@ -71,7 +71,7 @@ class MySQLDatasource(BaseDatasource):
                 cursor.close()
 
                 if version:
-                    logger.info(f"MySQL connection successful: {version[0]}")
+                    logger.debug(f"MySQL connection successful: {version[0]}")
             finally:
                 conn.close()
 

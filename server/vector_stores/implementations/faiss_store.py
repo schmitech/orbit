@@ -55,7 +55,7 @@ class FaissStore(BaseVectorStore):
             # Load all existing collections from disk
             self._load_all_collections()
             self.status = StoreStatus.CONNECTED
-            logger.info(f"FaissStore '{self.config.name}' connected and loaded from '{self.persist_directory}'.")
+            logger.debug(f"FaissStore '{self.config.name}' connected and loaded from '{self.persist_directory}'.")
             return True
         except Exception as e:
             logger.error(f"Error connecting to FaissStore: {e}")
@@ -91,7 +91,7 @@ class FaissStore(BaseVectorStore):
 
         if os.path.exists(paths['index']):
             index = faiss.read_index(paths['index'])
-            logger.info(f"Loaded FAISS index for collection '{collection_name}'. Size: {index.ntotal}")
+            logger.debug(f"Loaded FAISS index for collection '{collection_name}'. Size: {index.ntotal}")
         else:
             index = faiss.IndexIDMap(faiss.IndexFlatL2(self.embedding_dim))
             logger.debug(f"Created new FAISS index for collection '{collection_name}'.")
@@ -99,7 +99,7 @@ class FaissStore(BaseVectorStore):
         if os.path.exists(paths['metadata']):
             with open(paths['metadata'], 'r') as f:
                 metadata = json.load(f)
-            logger.info(f"Loaded metadata for collection '{collection_name}'")
+            logger.debug(f"Loaded metadata for collection '{collection_name}'")
         else:
             metadata = {}
             logger.debug(f"Created new metadata store for collection '{collection_name}'.")
@@ -273,7 +273,7 @@ class FaissStore(BaseVectorStore):
             'metadata': {}
         }
 
-        logger.info(f"Created FAISS collection '{collection_name}'")
+        logger.debug(f"Created FAISS collection '{collection_name}'")
         return True
 
     async def delete_collection(self, collection_name: str) -> bool:

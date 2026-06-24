@@ -25,7 +25,7 @@ class DuckDBDatasource(BaseDatasource):
         access_mode = duckdb_config.get('access_mode', 'automatic')
         threads = duckdb_config.get('threads', None)
         
-        logger.info(f"Initializing DuckDB connection to {database}")
+        logger.debug(f"Initializing DuckDB connection to {database}")
         
         try:
             # Configure connection parameters
@@ -54,10 +54,10 @@ class DuckDBDatasource(BaseDatasource):
             
             if result:
                 version = result[0]
-                logger.info(f"DuckDB connection successful: {version}")
+                logger.debug(f"DuckDB connection successful: {version}")
             
             self._initialized = True
-            logger.info("DuckDB connection established successfully")
+            logger.debug("DuckDB connection established successfully")
             
         except Exception as e:
             logger.error(f"Failed to connect to DuckDB database: {str(e)}")

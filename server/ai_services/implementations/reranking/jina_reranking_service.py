@@ -70,7 +70,7 @@ class JinaRerankingService(RerankingService, JinaBaseService):
             await super().initialize()
 
             self.initialized = True
-            logger.info(f"Jina AI reranking service initialized with model: {self.model}")
+            logger.debug(f"Jina AI reranking service initialized with model: {self.model}")
             return True
 
         except Exception as e:

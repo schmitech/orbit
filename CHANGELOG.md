@@ -2,6 +2,9 @@
 
 ## [2.7.8] - 2026-06-24
 
+### Bug Fixes & Technical Improvements
+- **Logging Verbosity**: Reduced startup log noise by downgrading ~700 per-component initialization messages (adapter registration, provider caching, retriever init, vector store connections, datasource discovery, middleware config details) from INFO to DEBUG across 130 server files; suppressed `langid.langid` third-party initialization spam via the logger config.
+
 ### Core System Updates
 - **Web Search**: Added a provider-agnostic `web-search` adapter type that decouples search retrieval from LLM synthesis, enabling any configured LLM to answer using search results fetched from a dedicated backend.
 - **Sakana AI Integration**: Integrated the Sakana AI Fugu API as an inference provider with support for streaming, tool calling, connection verification overrides, and rate-limit error handling.

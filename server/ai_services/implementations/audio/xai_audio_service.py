@@ -112,7 +112,7 @@ class XAIAudioService(AudioService):
                 timeout=self.timeout,
             )
             self.initialized = True
-            self.logger.info("Initialized xAI audio service for speech-to-text")
+            self.logger.debug("Initialized xAI audio service for speech-to-text")
             return True
         except Exception as e:
             self.logger.error("Failed to initialize xAI audio service: %s", e)

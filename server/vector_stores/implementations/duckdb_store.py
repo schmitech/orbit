@@ -66,7 +66,7 @@ class DuckDBStore(BaseStore):
                 self._client = duckdb.connect(self.database_path, read_only=self.read_only)
             
             self.status = StoreStatus.CONNECTED
-            logger.info(f"DuckDB store '{self.config.name}' connected successfully.")
+            logger.debug(f"DuckDB store '{self.config.name}' connected successfully.")
             return True
             
         except Exception as e:

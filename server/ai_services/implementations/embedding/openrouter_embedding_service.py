@@ -54,7 +54,7 @@ class OpenRouterEmbeddingService(EmbeddingService):
         # Client will be initialized in initialize()
         self.client: Optional[AsyncOpenAI] = None
 
-        logger.info(f"Configured OpenRouter embedding service with model: {self.model}")
+        logger.debug(f"Configured OpenRouter embedding service with model: {self.model}")
 
     async def initialize(self) -> bool:
         """Initialize the OpenRouter embedding service."""
@@ -69,7 +69,7 @@ class OpenRouterEmbeddingService(EmbeddingService):
             )
 
             self.initialized = True
-            logger.info(f"Initialized OpenRouter embedding service with model {self.model}")
+            logger.debug(f"Initialized OpenRouter embedding service with model {self.model}")
             return True
 
         except Exception as e:

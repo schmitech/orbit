@@ -164,7 +164,7 @@ class MarkItDownProcessor(FileProcessor):
                 # Extract text content
                 if hasattr(result, 'text_content') and result.text_content:
                     text_length = len(result.text_content)
-                    logger.info(f"[MarkItDown] Successfully extracted {text_length} characters from {filename or 'unknown'}")
+                    logger.debug(f"[MarkItDown] Successfully extracted {text_length} characters from {filename or 'unknown'}")
                     return result.text_content
 
                 logger.warning(f"[MarkItDown] No text content extracted from {filename or 'unknown'}")

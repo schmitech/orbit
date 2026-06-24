@@ -113,10 +113,10 @@ class AbstractVectorRetriever(BaseRetriever):
         embedding_provider = self.config.get('embedding', {}).get('provider')
 
         if embedding_provider:
-            logger.info("AbstractVectorRetriever._initialize_embeddings() called")
-            logger.info(f"  embedding_provider from config: {embedding_provider}")
-            logger.info(f"  config['embedding'] = {self.config.get('embedding', {})}")
-            logger.info(f"  'embeddings' in config: {'embeddings' in self.config}")
+            logger.debug("AbstractVectorRetriever._initialize_embeddings() called")
+            logger.debug(f"  embedding_provider from config: {embedding_provider}")
+            logger.debug(f"  config['embedding'] = {self.config.get('embedding', {})}")
+            logger.debug(f"  'embeddings' in config: {'embeddings' in self.config}")
 
         # Use new embedding service architecture if specified
         if embedding_provider and 'embeddings' in self.config:

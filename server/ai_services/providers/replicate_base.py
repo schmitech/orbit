@@ -42,7 +42,7 @@ class ReplicateBaseService(ProviderAIService):
 
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
-        logger.info(f"Configured Replicate with model: {self.model}")
+        logger.debug(f"Configured Replicate with model: {self.model}")
 
     async def initialize(self) -> bool:
         try:

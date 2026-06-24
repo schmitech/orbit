@@ -46,7 +46,7 @@ class SQLiteAdminAuditStrategy(AdminAuditStorageStrategy):
             # The audit_admin_logs table is defined in sqlite_service.py's schema
             # and auto-created at DatabaseService initialization time.
 
-            logger.info(
+            logger.debug(
                 f"SQLite admin audit storage initialized with collection: {self._collection_name}"
             )
             self._initialized = True

@@ -40,7 +40,7 @@ class PostgreSQLDatasource(BaseDatasource):
             statement_timeout = postgres_config.get('statement_timeout', 10000)
             validate_on_borrow = postgres_config.get('validate_on_borrow', True)
 
-            logger.info(f"Initializing PostgreSQL connection pool to {host}:{port}/{database} "
+            logger.debug(f"Initializing PostgreSQL connection pool to {host}:{port}/{database} "
                         f"(pool_size={pool_size}, min={min_pool_size})")
 
             # Build conninfo string for the pool
@@ -74,7 +74,7 @@ class PostgreSQLDatasource(BaseDatasource):
                 cursor.close()
 
                 if version:
-                    logger.info(f"PostgreSQL connection successful: {version['version']}")
+                    logger.debug(f"PostgreSQL connection successful: {version['version']}")
             finally:
                 self._pool.putconn(conn)
 

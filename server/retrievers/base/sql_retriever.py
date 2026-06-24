@@ -76,7 +76,7 @@ class AbstractSQLRetriever(BaseRetriever):
         # Default fields to search
         self.default_search_fields = ['id', 'content']
 
-        logger.info(f"AbstractSQLRetriever initialized with relevance_threshold={self.relevance_threshold}")
+        logger.debug(f"AbstractSQLRetriever initialized with relevance_threshold={self.relevance_threshold}")
 
     @property
     def connection(self) -> Any:

@@ -117,7 +117,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
 
             # Test connection
             await asyncio.wait_for(self._es_client.ping(), timeout=5.0)
-            logger.info("Connected to Elasticsearch for audit storage")
+            logger.debug("Connected to Elasticsearch for audit storage")
 
             # Setup index
             await self._setup_index()
@@ -139,7 +139,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         try:
             index_exists = await self._es_client.indices.exists(index=self._index_name)
             if not index_exists:
-                logger.info(f"Creating audit index: {self._index_name}")
+                logger.debug(f"Creating audit index: {self._index_name}")
                 await self._es_client.indices.create(
                     index=self._index_name,
                     settings={
@@ -183,7 +183,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                         }
                     }
                 )
-                logger.info(f"Created audit index: {self._index_name}")
+                logger.debug(f"Created audit index: {self._index_name}")
             else:
                 logger.debug(f"Using existing audit index: {self._index_name}")
 
