@@ -28,8 +28,6 @@ import { AgentSeoContent } from './AgentSeoContent';
 import { applyDocumentSeo, getRuntimeSeoAdapterById, getRuntimeSeoAdapterBySlug, shouldRenderAgentNotesForSeo, type SeoAdapter } from '../utils/seo';
 import { ModelsService } from '../services/modelsService';
 import type { AllowedModel } from '../types';
-import { PACKAGE_VERSION } from '../utils/version';
-
 
 const MOBILE_FRAME_CLASSES =
   'rounded-t-[32px] border border-white/40 bg-transparent px-4 pb-4 pt-[max(env(safe-area-inset-top),1rem)] shadow-none backdrop-blur-0 dark:border-[#2f303d] dark:bg-transparent md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent md:dark:border-0';
@@ -39,14 +37,6 @@ const MOBILE_INPUT_WRAPPER_CLASSES =
 
 const MOBILE_HEADER_CLASSES =
   'relative z-20 shrink-0 -mx-4 px-4 pt-2 pb-2 bg-transparent border-b border-transparent dark:border-transparent dark:bg-transparent md:static md:mx-0 md:px-0 md:pt-6 md:pb-6 md:bg-transparent md:border-gray-200 md:dark:border-[#4a4b54] md:dark:bg-transparent';
-
-function VersionBadge({ className }: { className: string }) {
-  return (
-    <span className={className} title={`OrbitChat version ${PACKAGE_VERSION}`}>
-      v{PACKAGE_VERSION}
-    </span>
-  );
-}
 
 interface ChatInterfaceProps {
   onOpenSettings: () => void;
@@ -363,10 +353,7 @@ export function ChatInterface({
                   </button>
                 </div>
                 <div className="ml-auto flex-shrink-0">
-                  <div className="flex items-center gap-2">
-                    <VersionBadge className="text-xs font-medium leading-none text-gray-400 dark:text-[#858999]" />
-                    <AuthStatus />
-                  </div>
+                  <AuthStatus />
                 </div>
               </div>
             )}
@@ -445,7 +432,6 @@ export function ChatInterface({
                     <AuthStatus />
                   </div>
                 )}
-                <VersionBadge className="order-5 hidden flex-shrink-0 text-[13px] font-medium text-gray-400 dark:text-[#858999] md:inline-flex" />
               </div>
             </div>
           </div>

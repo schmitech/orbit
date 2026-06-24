@@ -6,6 +6,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import { clearTokenGetter } from '../auth/tokenStore';
 import { setAuthenticatedUserId, setIsAuthenticated } from '../auth/authState';
 import { useLoginPromptStore } from '../stores/loginPromptStore';
+import { PACKAGE_VERSION } from '../utils/version';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -243,6 +244,10 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
               </button>
             </div>
           </div>
+
+          <p className="pt-2 text-center text-xs text-gray-400 dark:text-[#858999]">
+            v{PACKAGE_VERSION}
+          </p>
 
         </div>
         {showResetConfirm && (

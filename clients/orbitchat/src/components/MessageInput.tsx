@@ -1958,9 +1958,9 @@ export function MessageInput({
           aria-modal="true"
           aria-labelledby="agent-info-title"
           tabIndex={-1}
-          className="w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-white shadow-2xl transform animate-fadeIn dark:bg-gray-800"
+          className="w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-white shadow-2xl transform animate-fadeIn dark:bg-[#1a1b1e]"
         >
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-[#2d2f39]">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
                 <CircleHelp className="w-5 h-5 text-blue-500" />
@@ -1972,7 +1972,7 @@ export function MessageInput({
             <button
               type="button"
               onClick={() => setShowAgentInfo(false)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-[#25262f] rounded-lg transition-colors"
               aria-label="Close"
             >
               <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -1985,7 +1985,7 @@ export function MessageInput({
               syntaxTheme={agentInfoSyntaxTheme}
             />
           </div>
-          <div className="flex items-center justify-end p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
+          <div className="flex items-center justify-end p-6 border-t border-gray-200 dark:border-[#2d2f39] bg-gray-50 dark:bg-[#111113] rounded-b-2xl">
             <button
               type="button"
               onClick={() => setShowAgentInfo(false)}
