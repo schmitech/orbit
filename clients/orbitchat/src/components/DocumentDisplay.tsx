@@ -32,6 +32,56 @@ const FORMAT_LABELS: Record<string, string> = {
   csv: 'CSV file',
 };
 
+const DOCX_PRIVATE_USE_BULLET_RE =
+  /[\uE000-\uF8FF]|\\[eE][0-9a-fA-F]{2,3}|\\[fF][0-8][0-9a-fA-F]{2,3}/;
+const DOCX_PREVIEW_NUM_RULE_RE =
+  /((?:p\.)?generated-docx-preview-num-\d+-\d+:before\s*\{[^}]*?)content\s*:\s*"([^"]*)"\s*;([^}]*?\})/g;
+
+function normalizeDocxBulletContent(content: string) {
+  if (!DOCX_PRIVATE_USE_BULLET_RE.test(content)) {
+    return null;
+  }
+
+  const suffix = content.match(/(?:\\9|\t|\u00A0| )+$/)?.[0] || '\\9';
+  return `•${suffix}`;
+}
+
+function normalizeDocxPreviewBullets(container: HTMLElement) {
+  const styleElements = Array.from(container.querySelectorAll('style'));
+
+  styleElements.forEach(styleElement => {
+    const css = styleElement.textContent;
+    if (!css || !DOCX_PRIVATE_USE_BULLET_RE.test(css)) {
+      return;
+    }
+
+    styleElement.textContent = css.replace(
+      DOCX_PREVIEW_NUM_RULE_RE,
+      (match, before: string, content: string, after: string) => {
+        const normalizedContent = normalizeDocxBulletContent(content);
+        if (!normalizedContent) {
+          return match;
+        }
+        const sanitizedAfter = after.replace(/\s*font-family\s*:\s*[^;{}]+;?/gi, '');
+        return `${before}content: "${normalizedContent}";${sanitizedAfter}`;
+      }
+    );
+  });
+
+  const symbolSpans = Array.from(container.querySelectorAll<HTMLSpanElement>('span[style*="font-family"]'));
+  symbolSpans.forEach(span => {
+    if (!/\b(symbol|wingdings|webdings)\b/i.test(span.style.fontFamily)) {
+      return;
+    }
+
+    const text = span.textContent || '';
+    if (DOCX_PRIVATE_USE_BULLET_RE.test(text)) {
+      span.textContent = text.replace(DOCX_PRIVATE_USE_BULLET_RE, '•');
+      span.style.fontFamily = '';
+    }
+  });
+}
+
 function normalizeFormat(format?: string): string {
   const normalized = (format || 'pdf').toLowerCase().replace(/^\./, '');
   return normalized || 'pdf';
@@ -188,12 +238,15 @@ export function DocumentDisplay({
 
     const container = docxContainerRef.current;
     container.replaceChildren();
-    import('docx-preview').then(({ renderAsync }) => renderAsync(arrayBuffer.slice(0), container, undefined, {
-      className: 'generated-docx-preview',
-      inWrapper: false,
-      ignoreWidth: true,
-      ignoreHeight: true,
-    })).catch(error => {
+    import('docx-preview').then(async ({ renderAsync }) => {
+      await renderAsync(arrayBuffer.slice(0), container, undefined, {
+        className: 'generated-docx-preview',
+        inWrapper: false,
+        ignoreWidth: true,
+        ignoreHeight: true,
+      });
+      normalizeDocxPreviewBullets(container);
+    }).catch(error => {
       console.warn('[DocumentDisplay] Failed to render DOCX preview', error);
       setErrorMessage('Unable to render document preview');
     });
@@ -206,12 +259,15 @@ export function DocumentDisplay({
 
     const container = modalDocxContainerRef.current;
     container.replaceChildren();
-    import('docx-preview').then(({ renderAsync }) => renderAsync(arrayBuffer.slice(0), container, undefined, {
-      className: 'generated-docx-preview',
-      inWrapper: false,
-      ignoreWidth: true,
-      ignoreHeight: true,
-    })).catch(error => {
+    import('docx-preview').then(async ({ renderAsync }) => {
+      await renderAsync(arrayBuffer.slice(0), container, undefined, {
+        className: 'generated-docx-preview',
+        inWrapper: false,
+        ignoreWidth: true,
+        ignoreHeight: true,
+      });
+      normalizeDocxPreviewBullets(container);
+    }).catch(error => {
       console.warn('[DocumentDisplay] Failed to render modal DOCX preview', error);
     });
   }, [arrayBuffer, format, previewOpen]);
