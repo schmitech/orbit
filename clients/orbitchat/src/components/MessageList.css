@@ -129,19 +129,33 @@
   }
 }
 
-/* Blinking cursor shown at the end of streaming assistant messages */
-@keyframes blink-cursor {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+/* Subtle activity marker shown at the end of streaming assistant messages */
+@keyframes streaming-cursor-pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: translateY(-0.08em) scale(0.82);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-0.08em) scale(1);
+  }
 }
 
+.streaming-cursor .markdown-content > :last-child::after,
 .streaming-cursor::after {
-  content: '▍';
-  display: inline;
-  animation: blink-cursor 1s step-end infinite;
-  color: currentColor;
-  margin-left: 1px;
-  font-weight: 400;
+  content: '';
+  display: inline-block;
+  width: 0.42em;
+  height: 0.42em;
+  margin-left: 0.35em;
+  border-radius: 9999px;
+  background: currentColor;
+  vertical-align: baseline;
+  animation: streaming-cursor-pulse 1.15s ease-in-out infinite;
+}
+
+.streaming-cursor:has(.markdown-content > :last-child)::after {
+  content: none;
 }
 
 /* Thread replies scroll container */
