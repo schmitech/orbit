@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.7.8] - 2026-06-24
+
+### Core System Updates
+- **Web Search**: Added a provider-agnostic `web-search` adapter type that decouples search retrieval from LLM synthesis, enabling any configured LLM to answer using search results fetched from a dedicated backend.
+- **Sakana AI Integration**: Integrated the Sakana AI Fugu API as an inference provider with support for streaming, tool calling, connection verification overrides, and rate-limit error handling.
+- **Windows Support**: Added native Windows deployment files (`setup.bat`, `orbit.bat`, `win_setup_helper.py`, and `install/windows.md`) to run ORBIT natively without requiring WSL.
+- **Docker & Deployments**: Hardened the Docker build and publish flow with `uv` installation, configurable CUDA and UID/GID permissions, persisted cache directories, and content-aware health checks.
+- **Service Loading**: Optimized service loading and cleanup by adding a retrieval-capability helper to skip preloading/clearing embedding, reranker, and vision services for passthrough adapters, and aligned audio cleanup behavior.
+
+### Chat-app & UI Improvements
+- **Skills Invocation**: Configured skills to clear immediately after a single invocation, and limited skill availability to thread replies for threaded adapters.
+- **Streaming Experience**: Replaced the blinking cursor with a subtle pulsing dot at the end of streaming markdown content to improve text readability.
+- **UI Layout & Versioning**: Displayed the package version in settings, centered single agent cards in the list layout, and polished the about dialog.
+- **Out of Service Page**: Revamped the UI and user experience on the "out of service" page.
+- **orbitchat v3.10.3 & v3.10.5**: Published new client package releases and updated customer order adapter settings.
+
+### Bug Fixes & Technical Improvements
+- **Security**: Patched 5 npm vulnerabilities by upgrading Vite to 6.4.3, react-syntax-highlighter to 15.6.6, and overriding prismjs to ^1.30.0.
+- **Build Optimization**: Split the 2MB main vendor bundle into named chunks (markdown, syntax, auth, charts) to enable independent browser caching.
+- **Azure Provider**: Switched to the async Azure AI inference client, corrected config field mapping (`base_url` to `endpoint`), corrected the system message parameter injection, and updated the default multimodal provider.
+- **DOCX Previews**: Normalized Word and symbol private-use bullet glyphs in DOCX previews to display correct bullet formatting instead of empty rectangles.
+- **Folder Renaming**: Updated client reference naming from `orbit-chat`/`chat-app` to `orbitchat` across the repository.
+
+### Documentation & Configuration
+- **Documentation**: Added a detailed comparison between ORBIT and Open WebUI, and improved general content and discoverability.
+
 ## [2.7.7] - 2026-06-21
 
 ### Bug Fixes & Technical Improvements
