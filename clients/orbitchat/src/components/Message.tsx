@@ -510,11 +510,15 @@ export function Message({
     }
     const previousDraft = threadInput;
     const previousSkill = selectedSkill;
+    const activeSkillName = selectedSkill?.name;
     setThreadInput('');
     setIsSendingThreadMessage(true);
     setShowThreadSkillPicker(false);
+    if (activeSkillName) {
+      clearSkill();
+    }
     try {
-      await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed, selectedSkill?.name, threadSelectedModel ?? defaultModel ?? undefined);
+      await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed, activeSkillName, threadSelectedModel ?? defaultModel ?? undefined);
       // Refocus the thread input field after sending
       setTimeout(() => {
         if (threadTextareaRef.current) {
