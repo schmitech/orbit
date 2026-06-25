@@ -305,10 +305,11 @@ inference:
     accept: "application/json"
     max_tokens: 1024
   azure:
-    enabled: false
+    enabled: true
     endpoint: "https://<your-resource-name>.openai.azure.com/"
     deployment: "your-deployment-name"
     api_key: ${AZURE_ACCESS_KEY}
+    api_version: "2024-06-01"
     context_window: 128000  # Azure OpenAI GPT-4 Turbo supports 128K context
     temperature: 0.1
     top_p: 0.8

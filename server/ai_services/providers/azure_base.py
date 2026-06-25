@@ -29,7 +29,6 @@ class AzureBaseService(ProviderAIService):
     - Common Azure error handling patterns
     """
 
-    DEFAULT_API_VERSION = "2024-06-01"
 
     def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "azure"):
         """
@@ -79,7 +78,11 @@ class AzureBaseService(ProviderAIService):
         self.deployment = azure_config.get("deployment_name") or azure_config.get("deployment", "gpt-35-turbo")
 
         # Get API version
-        self.api_version = azure_config.get("api_version", self.DEFAULT_API_VERSION)
+        self.api_version = azure_config.get("api_version")
+        if not self.api_version:
+            raise ValueError(
+                "Azure api_version is required. Set it in configuration under azure.api_version"
+            )
 
         # Initialize Azure AI async client
         try:

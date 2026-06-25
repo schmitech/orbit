@@ -310,6 +310,7 @@ inference:
     base_url: http://azure-ai.endpoint.microsoft.com
     deployment: "azure-ai-deployment"
     api_key: ${AZURE_ACCESS_KEY}
+    api_version: "2024-06-01"
     context_window: 128000  # Azure OpenAI GPT-4 Turbo supports 128K context
     temperature: 0.1
     top_p: 0.8
