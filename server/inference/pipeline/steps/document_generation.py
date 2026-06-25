@@ -58,7 +58,7 @@ class DocumentGenerationStep(PipelineStep):
         from ai_services.services.document_generation_service import DocumentRenderer
 
         fmt = self._resolve_format(context)
-        logger.info("Document generation: format=%s, adapter=%s", fmt, context.adapter_name)
+        logger.debug("Document generation: format=%s, adapter=%s", fmt, context.adapter_name)
 
         spec = await self._generate_spec(context, fmt)
         if spec is None:
