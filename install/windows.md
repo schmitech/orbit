@@ -105,6 +105,7 @@ The wrapper auto-activates `venv\` if `VIRTUAL_ENV` is not already set, so you d
 | :--- | :--- |
 | `python` not found | Re-run the Python installer and check **"Add python.exe to PATH"**, or add it manually via System → Environment Variables |
 | PowerShell execution policy error | Run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` |
+| Need to activate the virtual environment manually | From Command Prompt run `venv\Scripts\activate.bat`; from PowerShell run `venv\Scripts\Activate.ps1` |
 | CUDA wheels installed but GPU not used | Confirm `nvidia-smi` is on your PATH and your CUDA driver is ≥ 12.1 |
 | `tomllib` / `tomli` import error | Run `pip install tomli` inside the activated venv |
 | GGUF download fails | Check your Hugging Face token if the model is gated; set `HF_TOKEN` in `server\.env` |
