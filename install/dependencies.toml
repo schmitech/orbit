@@ -16,7 +16,7 @@
 [profiles.default]
 description = "Minimal server dependencies (always installed - use API mode or Ollama for chat)"
 dependencies = [
-    "numpy<2.0.0",  # Pin to NumPy 1.x for PyTorch compatibility
+    "numpy>=1.24.0",  # 2.x supported; no upper pin avoids source-build on Python 3.13+
     "openai>=2.38.0",
     "anthropic>=0.89.0",
     "cohere>=5.21.1",
@@ -83,7 +83,7 @@ dependencies = [
 description = "Direct GGUF model loading (llama-cpp-python for simple-chat adapter)"
 dependencies = [
     "llama-cpp-python>=0.3.20",
-    "numpy<2.0.0",
+    "numpy>=1.24.0",
 ]
 
 # ============================================================================
@@ -134,6 +134,8 @@ dependencies = [
     "python-magic>=0.4.27",
     "filetype>=1.2.0",
     # Docling layout uses RT-DETR (torch+torchvision). Floor matches docling; no PyPI x86_64 Mac wheels above torch 2.2.2.
+    "numpy>=1.24.0,<2.0.0; python_version < '3.13'",  # torch 2.2.x wheel was built against NumPy 1.x
+    "numpy>=2.0.0; python_version >= '3.13'",           # no NumPy 1.x wheel for Python 3.13+
     "torch>=2.2.2,<3.0.0",
     "torchvision>=0.17.0,<1",
     "docling>=2.84.0",
@@ -171,7 +173,8 @@ dependencies = [
 [profiles.torch]
 description = "PyTorch and Hugging Face inference (transformers, accelerate; GPU recommended)"
 dependencies = [
-    "numpy<2.0.0",  # Pin to NumPy 1.x for compatibility with PyTorch
+    "numpy>=1.24.0,<2.0.0; python_version < '3.13'",  # torch 2.2.x wheel was built against NumPy 1.x
+    "numpy>=2.0.0; python_version >= '3.13'",           # no NumPy 1.x wheel for Python 3.13+
     # Same range as docling/files: Apple Silicon gets current torch; Intel macOS is capped at last PyPI wheel (2.2.2).
     "torch>=2.2.2,<3.0.0",
     "torchvision>=0.17.0,<1",
@@ -189,7 +192,7 @@ dependencies = [
 [profiles.vllm]
 description = "vLLM for local model inference (pins PyTorch 2.5.1; use with or without profile torch)"
 dependencies = [
-    "numpy<2.0.0",
+    "numpy>=1.24.0",
     "torch==2.5.1",  # Required by vLLM 0.6.x; do not upgrade without checking vLLM compatibility
     "vllm>=0.6.4",
 ]
