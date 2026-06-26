@@ -174,8 +174,13 @@ templates:
       - "Show me orders from John Smith in the last 3 days"
       - "What did Jane Doe order this week?"
       - "Find all orders from Bob Johnson within the last 7 days"
-      - "Recent orders from Alice Wilson"
+      - "Recent orders from Alice Wilson in the last 5 days"
       - "I'm looking for all orders from Shelia Olson within the last 3 days"
+      - "Orders from Maria Garcia placed in the past 2 weeks"
+      - "What has Tom Brown ordered in the last 30 days?"
+      - "Show purchases by Emily Chen within the past week"
+      - "David Kim orders from the last 14 days"
+      - "Find recent orders from Lisa Park in the past month"
     parameters:
       - name: customer_name
         type: string

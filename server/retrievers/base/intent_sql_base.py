@@ -727,6 +727,19 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 else:
                     parameters = await self._extract_parameters(query, template)
 
+                # Skip template if any required parameter is still missing after extraction
+                missing_required = [
+                    p['name'] for p in template.get('parameters', [])
+                    if p.get('required', False)
+                    and (p['name'] not in parameters or parameters[p['name']] is None)
+                ]
+                if missing_required:
+                    logger.debug(
+                        "Template %s missing required params %s, trying next candidate",
+                        template.get('id'), missing_required,
+                    )
+                    continue
+
                 # Execute template
                 results, error = await self._execute_template(template, parameters)
 

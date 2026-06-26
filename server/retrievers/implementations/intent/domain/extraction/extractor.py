@@ -82,6 +82,7 @@ class DomainParameterExtractor:
             param_name = param['name']
             # Handle both 'type' and 'data_type' for backward compatibility
             param_type = param.get('type') or param.get('data_type', 'string')
+            normalized_type = str(param_type or 'string').lower()
 
             # Check if we have a direct match
             value = None
@@ -96,6 +97,16 @@ class DomainParameterExtractor:
                     value = extracted_values[key]
             elif param_name in extracted_values:
                 value = extracted_values[param_name]
+            elif normalized_type not in {'string', 'str', 'text', 'varchar', 'char', 'enum'}:
+                # Try matching entity.field keys by converting dot to underscore
+                # e.g. first-pass stores "order.id" but param is named "order_id"
+                # Skip string types: their first-pass extraction uses IGNORECASE regex
+                # which can greedily match the whole query; _extract_generic_parameter
+                # handles them correctly via case-sensitive patterns.
+                for key, val in extracted_values.items():
+                    if '.' in key and key.replace('.', '_') == param_name:
+                        value = val
+                        break
 
             # If no value found through patterns, try context extraction
             if value is None and entity and field:

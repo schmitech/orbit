@@ -249,9 +249,79 @@ class ValueExtractor:
             if year_value is not None:
                 return year_value
 
+            # For day-count parameters (e.g. days_back, inactive_days), try relative-time
+            # phrases before raw numbers. Use 'days' (plural) to avoid false positives on
+            # parameters like periods_back, set_back, since_date, or duration_periods.
+            if 'days' in param_name.lower():
+                time_value = self._extract_relative_time_days(user_query)
+                if time_value is not None:
+                    return time_value
+
             numeric_value = self._extract_numeric_parameter(user_query, param_name)
             if numeric_value is not None:
                 return numeric_value
+
+        # Handle decimal/monetary parameters with directional awareness
+        if param_type in {'decimal', 'float', 'number'}:
+            param_lower = param_name.lower()
+            is_min = any(kw in param_lower for kw in {'min', 'from', 'above', 'over', 'start', 'lower', 'floor', 'minimum'})
+            is_max = any(kw in param_lower for kw in {'max', 'below', 'under', 'end', 'upper', 'ceil', 'ceiling', 'maximum'})
+            _NUM = r'\d+(?:,\d{3})*(?:\.\d{1,2})?'
+
+            def _parse_amount(s: str) -> Optional[float]:
+                try:
+                    return float(s.replace(',', ''))
+                except (ValueError, TypeError):
+                    return None
+
+            # Range "between X and Y" — pick first for min, second for max
+            range_m = re.search(
+                rf'between\s+\$?\s*({_NUM})\s+and\s+\$?\s*({_NUM})',
+                user_query, re.IGNORECASE,
+            )
+            if range_m:
+                if is_min:
+                    return _parse_amount(range_m.group(1))
+                if is_max:
+                    return _parse_amount(range_m.group(2))
+
+            # Lower-bound directional patterns
+            if is_min:
+                for pat in [
+                    rf'(?:above|over|more\s+than|exceed(?:s|ed)?|greater\s+than|from)\s+\$?\s*({_NUM})\b(?!\s*days?)',
+                    rf'\$\s*({_NUM})\s*(?:and\s+(?:up|above|over))',
+                ]:
+                    m = re.search(pat, user_query, re.IGNORECASE)
+                    if m:
+                        v = _parse_amount(m.group(1))
+                        if v is not None:
+                            return v
+
+            # Upper-bound directional patterns
+            if is_max:
+                for pat in [
+                    rf'(?:below|under|less\s+than|no\s+more\s+than|up\s+to)\s+\$?\s*({_NUM})\b(?!\s*days?)',
+                ]:
+                    m = re.search(pat, user_query, re.IGNORECASE)
+                    if m:
+                        v = _parse_amount(m.group(1))
+                        if v is not None:
+                            return v
+
+            # Generic fallback: only for required params or params with no clear direction
+            # (avoids filling optional min/max with a stray amount from an unrelated clause)
+            if param.get('required', False) or not (is_min or is_max):
+                for pat in [
+                    rf'\$\s*({_NUM})',
+                    rf'({_NUM})\s*(?:dollars?|usd)',
+                ]:
+                    m = re.search(pat, user_query, re.IGNORECASE)
+                    if m:
+                        v = _parse_amount(m.group(1))
+                        if v is not None:
+                            return v
+
+            return None
 
         # Handle date parameters
         if param_type == 'date':
@@ -426,6 +496,46 @@ class ValueExtractor:
             value = match.group(1).strip().rstrip(',')
             if len(value) >= 3 and value.lower() not in self._STOP_WORDS:
                 return value
+
+        return None
+
+    def _extract_relative_time_days(self, user_query: str) -> Optional[int]:
+        """Map relative time phrases to a number of days."""
+        # Explicit numeric patterns first: "last 5 days", "past 3 weeks", "within 2 months"
+        numeric_patterns = [
+            (r'(?:last|past|previous|within)\s+(\d+)\s+days?', 1),
+            (r'(\d+)\s+days?\s+(?:ago|back)', 1),
+            (r'(?:last|past|previous|within)\s+(\d+)\s+weeks?', 7),
+            (r'(\d+)\s+weeks?\s+(?:ago|back)', 7),
+            (r'(?:last|past|previous|within)\s+(\d+)\s+months?', 30),
+            (r'(\d+)\s+months?\s+(?:ago|back)', 30),
+        ]
+        for pattern, multiplier in numeric_patterns:
+            match = re.search(pattern, user_query, re.IGNORECASE)
+            if match:
+                return int(match.group(1)) * multiplier
+
+        # Named period phrases
+        phrase_map = [
+            ('today', 1),
+            ('yesterday', 1),
+            ('this week', 7),
+            ('last week', 7),
+            ('past week', 7),
+            ('this month', 30),
+            ('last month', 30),
+            ('past month', 30),
+            ('this quarter', 90),
+            ('last quarter', 90),
+            ('past quarter', 90),
+            ('this year', 365),
+            ('last year', 365),
+            ('past year', 365),
+        ]
+        query_lower = user_query.lower()
+        for phrase, days in phrase_map:
+            if phrase in query_lower:
+                return days
 
         return None
 
