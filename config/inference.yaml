@@ -305,7 +305,7 @@ inference:
     accept: "application/json"
     max_tokens: 1024
   azure:
-    enabled: true
+    enabled: false
     endpoint: "https://<your-resource-name>.openai.azure.com/"
     deployment: "your-deployment-name"
     api_key: ${AZURE_ACCESS_KEY}

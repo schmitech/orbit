@@ -210,6 +210,12 @@ logging:
       level: "ERROR"
     metal:
       level: "ERROR"
+    azure.core.pipeline.policies.http_logging_policy:
+      level: "WARNING"
+      propagate: false
+    azure:
+      level: "WARNING"
+      propagate: false
     httpx:
       level: "WARNING"
     httpcore:
