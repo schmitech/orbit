@@ -14,6 +14,7 @@ interface MessageListProps {
   onStartThread?: (messageId: string, sessionId: string) => void;
   onClearThread?: (messageId: string, threadId: string) => Promise<void> | void;
   onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string, skill?: string, model?: string) => Promise<void> | void;
+  onEditMessage?: (messageId: string, newContent: string) => void;
   sessionId?: string;
   isLoading?: boolean;
   contentMaxWidthClass?: string;
@@ -28,6 +29,7 @@ export function MessageList({
   onStartThread,
   onClearThread,
   onSendThreadMessage,
+  onEditMessage,
   sessionId,
   isLoading,
   contentMaxWidthClass = 'max-w-[64rem]',
@@ -171,6 +173,7 @@ export function MessageList({
                 onStartThread={onStartThread}
                 onClearThread={onClearThread}
                 onSendThreadMessage={onSendThreadMessage}
+                onEdit={onEditMessage}
                 threadMessages={threadLookup.get(message.id)}
                 sessionId={sessionId}
                 isThreadSendDisabled={isLoading}

@@ -11,7 +11,8 @@ import {
   Sparkles,
   ThumbsDown,
   ThumbsUp,
-  X
+  X,
+  Edit2
 } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import type { AllowedModel } from '../types';
@@ -39,6 +40,7 @@ interface MessageProps {
   onStartThread?: (messageId: string, sessionId: string) => void;
   onClearThread?: (messageId: string, threadId: string) => Promise<void> | void;
   onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string, skill?: string, model?: string) => Promise<void> | void;
+  onEdit?: (messageId: string, newContent: string) => void;
   threadMessages?: MessageType[];
   sessionId?: string;
   isThreadSendDisabled?: boolean;
@@ -218,6 +220,7 @@ export function Message({
   onStartThread,
   onClearThread,
   onSendThreadMessage,
+  onEdit,
   threadMessages,
   sessionId,
   isThreadSendDisabled,
@@ -228,6 +231,9 @@ export function Message({
   const [copied, setCopied] = useState(false);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
   const [showFeedbackAcknowledgement, setShowFeedbackAcknowledgement] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content || '');
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
@@ -366,6 +372,34 @@ export function Message({
     };
   }, []);
 
+
+  useEffect(() => {
+    if (isEditing && editTextareaRef.current) {
+      editTextareaRef.current.focus();
+      const length = editTextareaRef.current.value.length;
+      editTextareaRef.current.setSelectionRange(length, length);
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+    if (isEditing && editTextareaRef.current) {
+      editTextareaRef.current.style.height = 'auto';
+      editTextareaRef.current.style.height = `${editTextareaRef.current.scrollHeight}px`;
+    }
+  }, [isEditing, editContent]);
+
+  const handleEditSubmit = () => {
+    const trimmed = editContent.trim();
+    if (!trimmed || trimmed === message.content) {
+      setIsEditing(false);
+      setEditContent(message.content || '');
+      return;
+    }
+    if (onEdit) {
+      onEdit(message.id, trimmed);
+    }
+    setIsEditing(false);
+  };
 
   const scrollThreadRepliesToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -510,15 +544,11 @@ export function Message({
     }
     const previousDraft = threadInput;
     const previousSkill = selectedSkill;
-    const activeSkillName = selectedSkill?.name;
     setThreadInput('');
     setIsSendingThreadMessage(true);
     setShowThreadSkillPicker(false);
-    if (activeSkillName) {
-      clearSkill();
-    }
     try {
-      await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed, activeSkillName, threadSelectedModel ?? defaultModel ?? undefined);
+      await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed, selectedSkill?.name, threadSelectedModel ?? defaultModel ?? undefined);
       // Refocus the thread input field after sending
       setTimeout(() => {
         if (threadTextareaRef.current) {
@@ -805,56 +835,112 @@ export function Message({
   }, [currentConversation?.adapterName, syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
 
   return (
-    <div className="group animate-fadeIn min-w-0 w-full px-0">
+    <div className="animate-fadeIn min-w-0 w-full px-0">
       <div className="min-w-0 space-y-1">
-        <div className={bubbleClasses}>
-          {renderedMessageContent}
-
-          {message.attachments && message.attachments.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {message.attachments.map(file => (
-                <div key={file.file_id} className={`flex items-center gap-3 rounded-xl border p-3 ${attachmentClasses}`}>
-                  <File className="h-4 w-4 text-gray-500 dark:text-[#bfc2cd]" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-[#353740] dark:text-[#ececf1]">{file.filename}</p>
-                    <p className="text-xs text-gray-500 dark:text-[#bfc2cd]">{(file.file_size / 1024).toFixed(1)} KB</p>
-                  </div>
+        <div className={`max-w-full ${!isAssistant ? 'group relative' : ''}`}>
+          <div className={bubbleClasses}>
+            {isEditing ? (
+              <div className="flex flex-col gap-2 min-w-[200px] sm:min-w-[300px]">
+                <textarea
+                  ref={editTextareaRef}
+                  className="w-full resize-none overflow-hidden bg-transparent outline-none text-[#111827] dark:text-[#f5f5f5]"
+                  value={editContent}
+                  onChange={e => setEditContent(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleEditSubmit();
+                    }
+                    if (e.key === 'Escape') {
+                      setIsEditing(false);
+                      setEditContent(message.content || '');
+                    }
+                  }}
+                  rows={1}
+                  style={{ minHeight: '24px' }}
+                />
+                <div className="flex justify-end gap-2 mt-2">
+                  <button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditContent(message.content || '');
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-[#4a4b54] dark:text-gray-200 dark:hover:bg-[#565869] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleEditSubmit}
+                    className="px-3 py-1.5 text-xs font-medium rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                    Send
+                  </button>
                 </div>
-              ))}
+              </div>
+            ) : (
+              renderedMessageContent
+            )}
+
+            {message.attachments && message.attachments.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {message.attachments.map(file => (
+                  <div key={file.file_id} className={`flex items-center gap-3 rounded-xl border p-3 ${attachmentClasses}`}>
+                    <File className="h-4 w-4 text-gray-500 dark:text-[#bfc2cd]" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-[#353740] dark:text-[#ececf1]">{file.filename}</p>
+                      <p className="text-xs text-gray-500 dark:text-[#bfc2cd]">{(file.file_size / 1024).toFixed(1)} KB</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {message.audio && isAssistant && !message.isStreaming && (
+              <AudioPlayer audio={message.audio} audioFormat={message.audioFormat} autoPlay={false} />
+            )}
+
+            {(message.image || message.imageUrl) && isAssistant && !message.isStreaming && (
+              <ImageDisplay
+                image={message.image}
+                imageUrl={message.imageUrl}
+                imageFormat={message.imageFormat}
+                revisedPrompt={message.imageRevisedPrompt}
+              />
+            )}
+
+            {(message.video || message.videoUrl) && isAssistant && !message.isStreaming && (
+              <VideoDisplay
+                video={message.video}
+                videoUrl={message.videoUrl}
+                videoFormat={message.videoFormat}
+                revisedPrompt={message.videoRevisedPrompt}
+                adapterName={currentConversation?.adapterName}
+              />
+            )}
+
+            {(message.document || message.documentUrl) && isAssistant && !message.isStreaming && (
+              <DocumentDisplay
+                document={message.document}
+                documentUrl={message.documentUrl}
+                documentFormat={message.documentFormat}
+                revisedPrompt={message.documentRevisedPrompt}
+                adapterName={currentConversation?.adapterName}
+              />
+            )}
+          </div>
+
+          {!isAssistant && !isEditing && (
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity pt-2 shrink-0 inline-block align-top ml-2">
+              <button
+                onClick={() => setIsEditing(true)}
+                className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
+                title="Edit prompt"
+                aria-label="Edit prompt"
+              >
+                <Edit2 className="h-4 w-4" />
+              </button>
             </div>
-          )}
-
-          {message.audio && isAssistant && !message.isStreaming && (
-            <AudioPlayer audio={message.audio} audioFormat={message.audioFormat} autoPlay={false} />
-          )}
-
-          {(message.image || message.imageUrl) && isAssistant && !message.isStreaming && (
-            <ImageDisplay
-              image={message.image}
-              imageUrl={message.imageUrl}
-              imageFormat={message.imageFormat}
-              revisedPrompt={message.imageRevisedPrompt}
-            />
-          )}
-
-          {(message.video || message.videoUrl) && isAssistant && !message.isStreaming && (
-            <VideoDisplay
-              video={message.video}
-              videoUrl={message.videoUrl}
-              videoFormat={message.videoFormat}
-              revisedPrompt={message.videoRevisedPrompt}
-              adapterName={currentConversation?.adapterName}
-            />
-          )}
-
-          {(message.document || message.documentUrl) && isAssistant && !message.isStreaming && (
-            <DocumentDisplay
-              document={message.document}
-              documentUrl={message.documentUrl}
-              documentFormat={message.documentFormat}
-              revisedPrompt={message.documentRevisedPrompt}
-              adapterName={currentConversation?.adapterName}
-            />
           )}
         </div>
 

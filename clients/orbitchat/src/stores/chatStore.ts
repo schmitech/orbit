@@ -130,6 +130,7 @@ interface ExtendedChatState extends ChatState {
   createThread: (messageId: string, sessionId: string) => Promise<void>;
   appendToLastMessage: (content: string, conversationId?: string) => void;
   regenerateResponse: (messageId: string, model?: string) => Promise<void>;
+  editMessageAndRegenerate: (messageId: string, newContent: string, model?: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
   clearError: () => void;
   configureApiSettings: (apiUrl: string, sessionId?: string, adapterName?: string) => Promise<void>;
@@ -1052,8 +1053,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     let regeneratingConversationId: string | null = null;
     try {
       if (get().isLoading) {
-        debugWarn('Another request is already in progress');
-        return;
+        await get().stopStreaming();
       }
 
       const isConfigured = await ensureApiConfigured();
@@ -1316,6 +1316,272 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       set(state => ({
         isLoading: false,
         ...(state.currentConversationId === regeneratingConversationId && {
+          error: `Failed to regenerate response: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        }),
+      }));
+    }
+  },
+
+  editMessageAndRegenerate: async (messageId: string, newContent: string, model?: string) => {
+    try {
+      if (get().isLoading) {
+        await get().stopStreaming();
+      }
+
+      const state = get();
+      const currentConv = state.conversations.find(c => c.id === state.currentConversationId);
+      if (!currentConv) return;
+
+      const messageIndex = currentConv.messages.findIndex(m => m.id === messageId);
+      if (messageIndex === -1) return;
+
+      const userMessage = currentConv.messages[messageIndex];
+      if (userMessage.role !== 'user') return;
+
+      const newAssistantMessageId = generateUniqueMessageId('assistant');
+      set(state => ({
+        conversations: state.conversations.map(conv =>
+          conv.id === state.currentConversationId
+            ? {
+                ...conv,
+                messages: [
+                  ...conv.messages.slice(0, messageIndex),
+                  { ...userMessage, content: newContent, updatedAt: new Date() },
+                  {
+                    id: newAssistantMessageId,
+                    content: '',
+                    role: 'assistant' as const,
+                    timestamp: new Date(),
+                    isStreaming: true,
+                  },
+                ],
+                updatedAt: new Date(),
+              }
+            : conv
+        ),
+        isLoading: true,
+        error: null,
+      }));
+
+      // Find the message index again after state update to trigger streamChat properly
+      const updatedState = get();
+      const updatedConv = updatedState.conversations.find(c => c.id === updatedState.currentConversationId);
+      if (!updatedConv) return;
+      
+      const updatedUserMessageIndex = updatedConv.messages.findIndex(m => m.id === messageId);
+      const updatedAssistantMessageId = updatedConv.messages[updatedUserMessageIndex + 1]?.id;
+
+      let regeneratingConversationId: string | null = updatedState.currentConversationId;
+      if (!regeneratingConversationId) throw new Error('No conversation selected');
+
+      let receivedAnyText = false;
+      const abortController = new AbortController();
+      activeAbortController = abortController;
+      activeStreamConversationId = regeneratingConversationId;
+      activeRequestId = null;
+
+      try {
+        const currentConversation = updatedState.conversations.find(conv => conv.id === regeneratingConversationId);
+        if (!currentConversation) throw new Error('Conversation not found');
+        if (!currentConversation.adapterName) {
+          throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
+        }
+
+        activeStreamSessionId = currentConversation.sessionId;
+
+        if (currentConversation.sessionId) {
+          const api = await getApi();
+          api.configureApi(
+            resolveApiUrl(currentConversation.apiUrl),
+            currentConversation.sessionId,
+            currentConversation.adapterName
+          );
+        }
+
+        const api = await getApi();
+        const { returnAudio, ttsVoice, language } = getAudioSettings(currentConversation);
+        
+        const attachmentIds = (userMessage.attachments || [])
+          .map(file => file.file_id)
+          .filter((fileId): fileId is string => typeof fileId === 'string' && fileId.length > 0);
+
+        for await (const response of api.streamChat(
+          newContent,
+          true,
+          attachmentIds.length > 0 ? attachmentIds : undefined,
+          undefined,
+          undefined,
+          undefined,
+          language,
+          returnAudio,
+          ttsVoice,
+          undefined,
+          undefined,
+          model
+        )) {
+          if (response.request_id && !activeRequestId) {
+            activeRequestId = response.request_id;
+            debugLog(`[chatStore] >>> CAPTURED request_id for regenerate stop: ${response.request_id}`);
+          }
+
+          if (response.text) {
+            const sanitizedText = sanitizeMessageContent(response.text);
+            if (sanitizedText) {
+              get().appendToLastMessage(sanitizedText, regeneratingConversationId);
+              receivedAnyText = true;
+            }
+          }
+
+          if (response.audio && response.done) {
+            set(state =>
+              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
+                audio: response.audio,
+                audioFormat: response.audioFormat || 'mp3',
+              }))
+            );
+          }
+
+          if (response.image && response.done) {
+            receivedAnyText = true;
+            set(state =>
+              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
+                image: response.image,
+                imageFormat: response.image_format || 'png',
+                imageRevisedPrompt: response.image_revised_prompt,
+                imageUrl: response.image_url,
+              }))
+            );
+          }
+
+          if ((response.video || response.video_url) && response.done) {
+            receivedAnyText = true;
+            set(state =>
+              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
+                video: response.video,
+                videoFormat: response.video_format || 'mp4',
+                videoRevisedPrompt: response.video_revised_prompt,
+                videoUrl: response.video_url,
+              }))
+            );
+          }
+
+          if ((response.document || response.document_url) && response.done) {
+            receivedAnyText = true;
+            set(state =>
+              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
+                document: response.document,
+                documentFormat: response.document_format || 'pdf',
+                documentRevisedPrompt: response.document_revised_prompt,
+                documentUrl: response.document_url,
+              }))
+            );
+          }
+
+          if (response.done) {
+            const threadingInfo = response.threading;
+            if (threadingInfo?.supports_threading) {
+              set(state => ({
+                conversations: state.conversations.map(conv => {
+                  if (conv.id !== regeneratingConversationId) return conv;
+                  return {
+                    ...conv,
+                    messages: conv.messages.map(msg =>
+                      msg.id === updatedAssistantMessageId
+                        ? { ...msg, supportsThreading: true, databaseMessageId: threadingInfo.message_id }
+                        : msg
+                    ),
+                    updatedAt: new Date(),
+                  };
+                }),
+              }));
+            }
+
+            if (response.assistant_message_id) {
+              set(state => ({
+                conversations: state.conversations.map(conv => {
+                  if (conv.id !== regeneratingConversationId) return conv;
+                  return {
+                    ...conv,
+                    messages: conv.messages.map(msg =>
+                      msg.id === updatedAssistantMessageId && !msg.databaseMessageId
+                        ? { ...msg, databaseMessageId: response.assistant_message_id }
+                        : msg
+                    ),
+                    updatedAt: new Date(),
+                  };
+                }),
+              }));
+            }
+
+            break;
+          }
+        }
+
+        if (!receivedAnyText && !abortController.signal.aborted) {
+          get().appendToLastMessage(
+            'No response received from the server. Please try again later.',
+            regeneratingConversationId
+          );
+        }
+      } catch (error) {
+        const isAbortError =
+          error instanceof Error &&
+          (error.name === 'AbortError' ||
+            error.message === 'Stream cancelled by user' ||
+            error.message.includes('aborted'));
+
+        if (isAbortError) {
+          debugLog('[chatStore] Regeneration stream was cancelled by user');
+          receivedAnyText = true;
+        } else {
+          logError('Regenerate API error:', error);
+          let errorMessage = 'Sorry, there was an error regenerating the response.';
+          if (error instanceof Error) {
+            if (error.message.startsWith('Server error:')) {
+              errorMessage = error.message.substring('Server error: '.length);
+            } else if (
+              error.message.includes('Could not connect') ||
+              error.message.includes('timed out')
+            ) {
+              errorMessage = error.message;
+            }
+          }
+          get().appendToLastMessage(errorMessage, regeneratingConversationId);
+        }
+      }
+
+      activeAbortController = null;
+      activeRequestId = null;
+      activeStreamSessionId = null;
+      activeStreamConversationId = null;
+
+      flushStreamingBuffer(regeneratingConversationId, set);
+
+      set(state => {
+        const updatedConversations = state.conversations.map(conv =>
+          conv.id === regeneratingConversationId
+            ? {
+                ...conv,
+                messages: conv.messages.map(msg =>
+                  msg.id === updatedAssistantMessageId ? { ...msg, isStreaming: false } : msg
+                ),
+                updatedAt: new Date(),
+              }
+            : conv
+        );
+        const currentConv = updatedConversations.find(conv => conv.id === state.currentConversationId);
+        return {
+          conversations: updatedConversations,
+          isLoading: currentConv
+            ? currentConv.messages.some(msg => msg.role === 'assistant' && msg.isStreaming)
+            : false,
+        };
+      });
+    } catch (error) {
+      logError('Edit & Regenerate error:', error);
+      set(state => ({
+        isLoading: false,
+        ...(state.currentConversationId === state.currentConversationId && {
           error: `Failed to regenerate response: ${error instanceof Error ? error.message : 'Unknown error'}`,
         }),
       }));
