@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.7.9] - 2026-06-26
+
+### Core System Updates
+- **LiteLLM Integration**: Added LiteLLM support for ORBIT's OpenAI-compatible endpoint with standalone, Python SDK, and Docker proxy setup guidance, plus a ready-to-use proxy config and minimal inference-only deployment notes.
+- **Azure OpenAI**: Added Azure OpenAI integration instructions and updated Azure settings, including logging changes and safer defaults.
+
+### Bug Fixes & Technical Improvements
+- **Intent Extraction**: Improved domain extractor parameter handling for relative day values, directional decimal bounds, and required-parameter fallback behavior, with new examples to keep timeless queries from hitting overly specific templates.
+- **MCP Client**: Added HTTP transport support to the MCP client while preserving transport-specific timeouts and redirect behavior, and introduced token shorthand plus shared header expansion across transports.
+
 ## [2.7.8] - 2026-06-24
 
 ### Bug Fixes & Technical Improvements

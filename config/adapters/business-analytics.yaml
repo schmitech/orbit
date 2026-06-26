@@ -32,6 +32,9 @@ adapters:
       - name: "ollama-gemma4-e2b"
         provider: "ollama"
         model: "gemma4-e2b-cpu"
+      - name: "nemotron-3-ultra"
+        provider: "openrouter"
+        model: "nvidia/nemotron-3-ultra-550b-a55b"
     capabilities:
       expose_as_skill: true
       skill_name: "business-analytics"

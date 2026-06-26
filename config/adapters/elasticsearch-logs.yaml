@@ -32,6 +32,9 @@ adapters:
       - name: "anthropic-claude-haiku"
         provider: "anthropic"
         model: "claude-haiku-4-5-20251001"
+      - name: "nemotron-3-ultra"
+        provider: "openrouter"
+        model: "nvidia/nemotron-3-ultra-550b-a55b"
     capabilities:
       available_skills:
         - "Image"

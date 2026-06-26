@@ -10,57 +10,57 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama_cloud"  # Override default inference provider
-    model: "gpt-oss:120b"         # Specific model for this adapter (default / fallback)
-    tts_provider: "openai"          # TTS provider for audio output (see tts.yaml)
+    inference_provider: "openai"  # Override default inference provider
+    model: "gpt-5.4-mini"         # Specific model for this adapter (default / fallback)
+    tts_provider: "gemini"          # TTS provider for audio output (see tts.yaml)
 
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
     allowed_models:
-      - name: "deepseek-chat"
-        provider: "deepseek"
-        model: "deepseek-chat"
-      - name: "cohere-command-a"
-        provider: "cohere"
-        model: "command-a-03-2025"
-      - name: "xai-grok-4.3"
+      - name: "minimax-m3"
+        provider: "ollama_cloud"
+        model: "minimax-m3"
+      - name: "grok-4.3"
         provider: "xai"
         model: "grok-4.3"
-      - name: "llama-cpp-gemma4"
-        provider: "llama_cpp"
-        model: "gemma4-e2b-direct-cpu"
-      - name: "ollama-gemma4-e2b"
-        provider: "ollama"
-        model: "gemma4-e2b-cpu"
-      - name: "ollama-gpt-oss-120b"
-        provider: "ollama_cloud"
-        model: "gpt-oss:20b"
-      - name: "openai-gpt-5.4-mini"
+      - name: "openai"
         provider: "openai"
         model: "gpt-5.4-mini"
-      - name: "anthropic-claude-haiku"
+      - name: "gpt-oss-120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b"
+      - name: "claude"
         provider: "anthropic"
-        model: "claude-haiku-4-5-20251001"
-      - name: "gemini-3.1-pro-preview"
+        model: "claude-sonnet-4-5-20250929"
+      - name: "gemini"
         provider: "gemini"
         model: "gemini-3.1-pro-preview"
+      - name: "fugu"
+        provider: "fugu"
+        model: "fugu"
+      - name: "nemotron-3-ultra"
+        provider: "openrouter"
+        model: "nvidia/nemotron-3-ultra-550b-a55b"
 
     # Capabilities: Pure passthrough - no retrieval
     capabilities:
       available_skills:
         - "Image"
         - "Video"
-        - "CSV"
-        - "Markdown"
         - "PDF"
         - "Word"
         - "Excel"
         - "PowerPoint"
-        - "business-analytics"
-        - "customer-orders"
-        - "HR"
         - "web-search"
+        - "web-search-duckduckgo"
         - "mcp-agent"
+        - "tender-notices"
+        - "award-notices"
+        - "contract-history"
+        - "standing-offers"
+        - "tender-notices"
+        - "CSV"
+        - "Markdown"
       retrieval_behavior: "none"         # No context retrieval (pure conversational)
       formatting_style: "standard"       # Standard formatting (not used since no retrieval)
       supports_file_ids: false           # Does not support file filtering

@@ -16,7 +16,7 @@
   <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit?color=red" alt="Last commit"></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue.svg?logo=python&logoColor=white" alt="Python"></a>
-  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.7.8-blue" alt="Version"></a>
+  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.7.9-blue" alt="Version"></a>
 </p>
 
 <p align="center">
@@ -84,9 +84,9 @@ See the [Docker Guide](docker/README.md) for GPU setup, model configuration, vol
 Install ORBIT directly into a local Python environment on Linux or macOS:
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.8/orbit-2.7.8.tar.gz
-tar -xzf orbit-2.7.8.tar.gz
-cd orbit-2.7.8
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.9/orbit-2.7.9.tar.gz
+tar -xzf orbit-2.7.9.tar.gz
+cd orbit-2.7.9
 
 ./install/setup.sh
 ./bin/orbit.sh start
