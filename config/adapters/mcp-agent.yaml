@@ -28,8 +28,8 @@ adapters:
     datasource: "none"
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
-    inference_provider: "ollama_cloud"         # must support native tool calling
-    model: "minimax-m3"
+    inference_provider: "openai"         # must support native tool calling
+    model: "gpt-5.4-mini"
 
     capabilities:
       expose_as_skill: true
@@ -40,6 +40,6 @@ adapters:
       requires_api_key_validation: false
       # Optionally restrict which MCP servers this adapter may use.
       # Omit (or set to null) to allow all enabled servers.
-      # mcp_servers:
-      #   - "github"
-      #   - "filesystem"
+      mcp_servers:
+        - "test-server"
+        - "filesystem"

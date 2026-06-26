@@ -238,23 +238,35 @@ class MCPClientManager:
                     await session.initialize()
                     yield session
 
-        elif transport in ("sse", "http"):
+        elif transport == "sse":
             from mcp.client.sse import sse_client
 
             url = server_config.get("url", "")
-            headers = server_config.get("headers", {})
-            # Expand ${VAR} references in header values
-            expanded_headers = {}
-            for k, v in headers.items():
-                expanded_headers[k] = os.path.expandvars(str(v)) if isinstance(v, str) else str(v)
-
-            async with sse_client(url, headers=expanded_headers) as (read, write):
+            headers = self._expand_headers(server_config)
+            async with sse_client(url, headers=headers) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     yield session
+
+        elif transport == "http":
+            from mcp.client.streamable_http import streamable_http_client
+            from mcp.shared._httpx_utils import create_mcp_http_client
+
+            url = server_config.get("url", "")
+            headers = self._expand_headers(server_config)
+            # MCP Streamable HTTP requires both JSON and SSE content types.
+            headers.setdefault("Accept", "application/json, text/event-stream")
+            # Use create_mcp_http_client so the client inherits MCP defaults:
+            # follow_redirects=True, 30s general timeout, 300s SSE read timeout.
+            async with create_mcp_http_client(headers=headers) as http_client:
+                async with streamable_http_client(url, http_client=http_client) as (read, write, _):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        yield session
+
         else:
             raise ValueError(
-                f"Unsupported MCP transport '{transport}'. Use 'stdio' or 'sse'."
+                f"Unsupported MCP transport '{transport}'. Use 'stdio', 'sse', or 'http'."
             )
 
     async def _list_tools_on_server(self, server_config: Dict[str, Any]) -> list:
@@ -283,6 +295,21 @@ class MCPClientManager:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _expand_headers(server_config: Dict[str, Any]) -> Dict[str, str]:
+        """Build request headers from server config, expanding ${VAR} references.
+
+        The optional ``token`` key is a shorthand for ``Authorization: Bearer <token>``.
+        Explicit ``headers`` entries are applied after and can override it.
+        """
+        result: Dict[str, str] = {}
+        token = server_config.get("token", "")
+        if token:
+            result["Authorization"] = f"Bearer {os.path.expandvars(str(token))}"
+        for k, v in server_config.get("headers", {}).items():
+            result[k] = os.path.expandvars(str(v)) if isinstance(v, str) else str(v)
+        return result
 
     @staticmethod
     def _extract_text_content(content_list) -> str:

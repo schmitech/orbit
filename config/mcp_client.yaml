@@ -33,6 +33,18 @@ mcp_client:
       command: "npx"
       args: ["-y", "@modelcontextprotocol/server-filesystem", "/orbit"]
       enabled: true
+    
+    # ── Streamable HTTP server example ───────────────────────────────────
+    #
+    # First, set MCP_TOKEN in .env then run the test server: 
+    #
+    # python server/tests/test_services/mcp_http_test_server.py --port 9999 --token test-secret
+    # 
+    - name: "test-server"
+      transport: "http"
+      url: "http://127.0.0.1:9999/mcp"
+      token: "${MCP_TOKEN}"
+      enabled: true
 
     # ════════════════════════════════════════════════════════════════════════
     # DEVELOPER WORKFLOW
@@ -257,3 +269,18 @@ mcp_client:
     #   headers:
     #     Authorization: "Bearer ${INTERNAL_MCP_TOKEN}"
     #   enabled: false
+
+    # ── Streamable HTTP server example ───────────────────────────────────
+    # Use transport: "http" for MCP servers that speak the Streamable HTTP
+    # protocol (POST + optional SSE response).  The client automatically
+    # sends Accept: application/json, text/event-stream.
+    #
+    # ``token`` is a shorthand for Authorization: Bearer <value>; it is
+    # expanded the same way as other env-var references (${VAR} syntax).
+    # Explicit ``headers`` entries are merged after and can override it.
+    #
+    # - name: "my-http-server"
+    #   transport: "http"
+    #   url: "http://127.0.0.1:9999/mcp"
+    #   token: "${MCP_TOKEN}"          # → Authorization: Bearer <value>
+    #   enabled: falses

@@ -97,14 +97,33 @@ mcp_client:
       headers:
         Authorization: "Bearer ${INTERNAL_MCP_TOKEN}"
       enabled: true
+
+    - name: "my-http-server"
+      transport: "http"
+      url: "http://127.0.0.1:9999/mcp"
+      token: "${MCP_TOKEN}"          # shorthand for Authorization: Bearer <value>
+      enabled: true
 ```
 
-Each server entry supports two transports:
+Each server entry supports three transports:
 
 | Transport | When to use | Required fields |
 |-----------|-------------|-----------------|
 | `stdio` | Local subprocess (npx, uvx, python -m …) | `command`, optionally `args`, `env` |
-| `sse` | Remote HTTP/SSE endpoint | `url`, optionally `headers` |
+| `sse` | Remote SSE endpoint | `url`, optionally `headers` |
+| `http` | Remote Streamable HTTP endpoint (MCP spec §4.2) | `url`, optionally `token` or `headers` |
+
+**`http` transport specifics** — uses the MCP Streamable HTTP protocol (POST + optional SSE response). ORBIT automatically adds `Accept: application/json, text/event-stream`. Bearer-token auth can be configured with the `token` shorthand instead of writing out a full `Authorization` header:
+
+```yaml
+- name: "my-http-server"
+  transport: "http"
+  url: "http://127.0.0.1:9999/mcp"
+  token: "${MCP_TOKEN}"          # shorthand → Authorization: Bearer <value>
+  enabled: true
+```
+
+`token` and explicit `headers` can coexist; explicit `headers` are applied after and can override the `Authorization` set by `token`.
 
 Secret values should always use `${ENV_VAR}` syntax — they are expanded at startup and never written to logs.
 
@@ -528,6 +547,136 @@ The configured `inference_provider` does not support native tool calling. Use on
 
 The MCP server returns `isError: true`. The error message is passed back to the model as the tool result, so the model can acknowledge the failure in its final answer. Check the server-side logs for the underlying cause.
 
+### HTTP transport: 401 Unauthorized
+
+- Verify `token` or `headers.Authorization` in `mcp_client.yaml` matches what the server expects.
+- Use `${ENV_VAR}` syntax and confirm the variable is set in the environment before starting ORBIT.
+- For servers that require a specific scheme, use `headers` directly instead of `token`:
+  ```yaml
+  headers:
+    Authorization: "ApiKey ${MY_API_KEY}"
+  ```
+
+### HTTP transport: connection refused or timeout
+
+- Confirm the server is reachable at the configured `url`.
+- The HTTP transport (`streamable_http_client`) uses POST requests — ensure the endpoint accepts POST, not GET.
+- Some servers require the path to end in `/mcp` or a specific route; check the server's documentation.
+
+---
+
+## Testing the HTTP Transport
+
+A self-contained FastMCP test server ships at `server/tests/test_services/mcp_http_test_server.py`. It exposes three tools over HTTP (`echo`, `add`, `fail_always`) and optionally enforces Bearer-token auth. Use it to verify the `http` transport end-to-end without needing an external service.
+
+### Start the test server
+
+```bash
+# No auth
+python server/tests/test_services/mcp_http_test_server.py --port 9999
+
+# With Bearer-token enforcement
+python server/tests/test_services/mcp_http_test_server.py --port 9999 --token test-secret
+```
+
+### Run the built-in smoke test
+
+The `--smoke-test` flag connects to a running server via `MCPClientManager`, discovers tools, calls each one, and asserts on the results:
+
+```bash
+python server/tests/test_services/mcp_http_test_server.py --smoke-test --port 9999 --token test-secret
+```
+
+Expected output:
+
+```
+Discovering tools …
+  Found: ['test-server__echo', 'test-server__add', 'test-server__fail_always']
+Calling echo …
+  Result: 'hello MCP'
+Calling add …
+  Result: '10'
+Calling fail_always (expect Tool error) …
+  Result: 'Tool error: intentional test failure'
+
+All smoke tests passed.
+```
+
+### Point an ORBIT adapter at the test server
+
+```yaml
+# config/mcp_client.yaml
+servers:
+  - name: "test-server"
+    transport: "http"
+    url: "http://127.0.0.1:9999/mcp"
+    token: "test-secret"
+    enabled: true
+```
+
+Then send requests through ORBIT with `"skill": "mcp-agent"` — the model will pick from `test-server__echo`, `test-server__add`, and `test-server__fail_always`:
+
+```bash
+# Triggers test-server__echo
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -H "X-Session-ID: test-1" \
+  -d '{"messages":[{"role":"user","content":"Echo back the message: hello from orbit"}],"skill":"mcp-agent"}'
+```
+
+```bash
+# Triggers test-server__add
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -H "X-Session-ID: test-2" \
+  -d '{"messages":[{"role":"user","content":"What is 42 plus 58?"}],"skill":"mcp-agent"}'
+```
+
+```bash
+# Triggers test-server__fail_always (tests error-path handling)
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -H "X-Session-ID: test-3" \
+  -d '{"messages":[{"role":"user","content":"Call the fail_always tool and tell me what happened"}],"skill":"mcp-agent"}'
+```
+
+A successful `add` response will include a `sources` entry showing the tool call and its result:
+
+```json
+{
+  "response": "42 + 58 = 100",
+  "sources": [
+    {
+      "type": "mcp_tool_call",
+      "tool": "test-server__add",
+      "arguments": {"a": 42, "b": 58},
+      "result_preview": "100"
+    }
+  ]
+}
+```
+
+> Make sure `MCP_TOKEN=test-secret` is set in the environment where ORBIT is running, and that `test-server` is listed in the `mcp_servers` allowlist of the `mcp-agent-chat` adapter.
+
+### Unit tests
+
+Transport selection and header construction are covered by the unit-test suite:
+
+```bash
+# From repo root:
+/path/to/venv/bin/python -m pytest server/tests/test_services/test_mcp_client_service.py -v
+```
+
+Key test classes:
+
+| Class | What it verifies |
+|-------|-----------------|
+| `TestExpandHeaders` | `token` → `Authorization: Bearer`, env-var expansion, header override precedence |
+| `TestOpenSessionTransportSelection` | `sse` routes to `sse_client`, `http` routes to `streamable_http_client`, correct `Accept` header injected, `token` wired to `Authorization`, unknown transport raises |
+
 ---
 
 ## Implementation Reference
@@ -571,7 +720,7 @@ The MCP server returns `isError: true`. The error message is passed back to the 
 
 ## Future Work
 
-- **Persistent MCP connections** — the current implementation opens a fresh connection per tool call (per-request for SSE, per-call subprocess for stdio). A persistent connection pool with reconnect logic would eliminate subprocess startup overhead.
+- **Persistent MCP connections** — the current implementation opens a fresh connection per tool call (per-request for SSE/HTTP, per-call subprocess for stdio). A persistent connection pool with reconnect logic would eliminate subprocess startup overhead.
 - **Human-in-the-loop approval** — annotate tools as read-only vs. write, and surface a confirmation step for state-changing calls.
 - **Resources and prompts** — v1 supports tools only. `list_resources` and `list_prompts` are future additions.
 - **User-supplied MCP servers** — v1 restricts server configuration to admins. Allowing trusted users to supply their own servers at request time is a future capability.
