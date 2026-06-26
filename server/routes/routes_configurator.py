@@ -132,6 +132,16 @@ class RouteConfigurator:
             return request.app.state.health_service
         return get_health_service
     
+    def _resolve_api_key(self, request: Request) -> Optional[str]:
+        """Return the raw API key from X-API-Key or Authorization: Bearer (in that order)."""
+        header_name = self.config.get('api_keys', {}).get('header_name', 'X-API-Key')
+        api_key = request.headers.get(header_name)
+        if not api_key:
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                api_key = auth_header[len('Bearer '):]
+        return api_key
+
     def _create_api_key_service_dependency(self):
         """Create API key service dependency."""
         async def get_api_key_service(request: Request):
@@ -314,9 +324,13 @@ class RouteConfigurator:
             Returns:
                 Tuple of (adapter_name, system_prompt_id) associated with the API key
             """
-            # Get API key from header
+            # Get API key from X-API-Key or Authorization: Bearer for OpenAI-compatible clients
             header_name = request.app.state.config.get('api_keys', {}).get('header_name', 'X-API-Key')
             api_key = request.headers.get(header_name)
+            if not api_key:
+                auth_header = request.headers.get('Authorization', '')
+                if auth_header.startswith('Bearer '):
+                    api_key = auth_header[len('Bearer '):]
             
             # For health endpoint, only require API key if explicitly configured
             if request.url.path == "/health":
@@ -427,7 +441,7 @@ class RouteConfigurator:
             """
             adapter_name, system_prompt_id = api_key_result
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
-            api_key = request.headers.get(self.config.get('api_keys', {}).get('header_name', 'X-API-Key'))
+            api_key = self._resolve_api_key(request)
 
             last_user_message, payload_kwargs = _prepare_chat_parameters(chat_request)
             return_audio = payload_kwargs.get("return_audio")
@@ -511,7 +525,7 @@ class RouteConfigurator:
             """
             adapter_name, system_prompt_id = api_key_result
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
-            api_key = request.headers.get(self.config.get('api_keys', {}).get('header_name', 'X-API-Key'))
+            api_key = self._resolve_api_key(request)
 
             last_user_message, payload_kwargs = _prepare_chat_parameters(chat_request)
             formatter = OpenAIResponseFormatter(

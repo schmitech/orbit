@@ -171,22 +171,32 @@ class RequestContextBuilder:
             if allowed:
                 match = next((m for m in allowed if m.get('name') == requested_model), None)
                 if match is None:
-                    allowed = [m['name'] for m in allowed if m.get('name')]
-                    raise ValueError(
-                        f"Model '{requested_model}' is not allowed for adapter '{adapter_name}'. "
-                        f"Allowed models: {allowed}"
+                    # OpenAI-compatible clients (e.g. LiteLLM) echo the adapter name back as
+                    # the model field. Treat that specific case as "no override" so they work
+                    # out of the box. Any other unrecognized value is a real validation error.
+                    if requested_model == adapter_name:
+                        logger.debug(
+                            f"Ignoring model echo '{requested_model}' from OpenAI-compatible client "
+                            f"for adapter '{adapter_name}' — using adapter default"
+                        )
+                    else:
+                        allowed_names = [m['name'] for m in allowed if m.get('name')]
+                        raise ValueError(
+                            f"Model '{requested_model}' is not allowed for adapter '{adapter_name}'. "
+                            f"Allowed models: {allowed_names}"
+                        )
+                else:
+                    runtime_provider = match.get('provider')
+                    runtime_model_name = match.get('model')
+                    if not runtime_provider or not runtime_model_name:
+                        raise ValueError(
+                            f"Adapter '{adapter_name}' has an invalid allowed_models entry for "
+                            f"'{requested_model}'. Each entry must include 'name', 'provider', and 'model'."
+                        )
+                    logger.debug(
+                        f"Runtime model override: '{requested_model}' → "
+                        f"{runtime_provider}/{runtime_model_name} for adapter '{adapter_name}'"
                     )
-                runtime_provider = match.get('provider')
-                runtime_model_name = match.get('model')
-                if not runtime_provider or not runtime_model_name:
-                    raise ValueError(
-                        f"Adapter '{adapter_name}' has an invalid allowed_models entry for "
-                        f"'{requested_model}'. Each entry must include 'name', 'provider', and 'model'."
-                    )
-                logger.debug(
-                    f"Runtime model override: '{requested_model}' → "
-                    f"{runtime_provider}/{runtime_model_name} for adapter '{adapter_name}'"
-                )
             # If adapter has no allowed_models list, silently ignore the override
 
         # Resolve skill invocation: validate allowlist and swap adapter

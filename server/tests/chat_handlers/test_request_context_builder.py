@@ -219,6 +219,91 @@ class TestRequestContextBuilder:
         assert context.timezone is None
 
 
+class TestAllowedModels:
+    """Tests for runtime model override via allowed_models."""
+
+    def _builder_with_allowed_models(self, base_config, allowed_models):
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'passthrough',
+            'inference_provider': 'openai',
+            'config': {},
+            'allowed_models': allowed_models,
+        }
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def test_valid_model_overrides_provider(self, base_config):
+        """A model name present in allowed_models sets runtime_provider and runtime_model_name."""
+        allowed = [{'name': 'claude', 'provider': 'anthropic', 'model': 'claude-sonnet-4-5'}]
+        builder = self._builder_with_allowed_models(base_config, allowed)
+
+        context = builder.build_context(
+            message="hello",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="claude",
+        )
+
+        assert context.runtime_provider == 'anthropic'
+        assert context.runtime_model_name == 'claude-sonnet-4-5'
+
+    def test_model_echo_from_openai_client_uses_adapter_default(self, base_config):
+        """When requested_model equals the adapter name, treat it as no override.
+
+        OpenAI-compatible clients (e.g. LiteLLM) echo the adapter name back as the
+        model field. This narrow case is ignored so those clients work out of the box
+        without disabling validation for genuinely unknown model names.
+        """
+        allowed = [{'name': 'claude', 'provider': 'anthropic', 'model': 'claude-sonnet-4-5'}]
+        builder = self._builder_with_allowed_models(base_config, allowed)
+
+        context = builder.build_context(
+            message="hello",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="test_adapter",  # echoes adapter name — treated as no override
+        )
+
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+
+    def test_unknown_model_not_in_allowed_models_raises(self, base_config):
+        """A model name not in allowed_models (and not an adapter-name echo) raises ValueError."""
+        allowed = [{'name': 'claude', 'provider': 'anthropic', 'model': 'claude-sonnet-4-5'}]
+        builder = self._builder_with_allowed_models(base_config, allowed)
+
+        with pytest.raises(ValueError, match="not allowed"):
+            builder.build_context(
+                message="hello",
+                adapter_name="test_adapter",
+                context_messages=[],
+                requested_model="gpt-99",  # unknown, not an adapter-name echo
+            )
+
+    def test_no_allowed_models_ignores_requested_model(self, base_config):
+        """When adapter defines no allowed_models list, any requested_model is silently ignored."""
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'passthrough',
+            'inference_provider': 'openai',
+            'config': {},
+            # no allowed_models key
+        }
+        builder = RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+        context = builder.build_context(
+            message="hello",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="anything",
+        )
+
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+
+
 class TestSkillRouting:
     """Tests for skill invocation via RequestContextBuilder."""
 

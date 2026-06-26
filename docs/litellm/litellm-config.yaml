@@ -1,0 +1,43 @@
+# LiteLLM Proxy Configuration for ORBIT
+#
+# Each entry maps a model_name (what clients send) to an ORBIT adapter via its API key.
+# The API key determines which adapter ORBIT uses — the model field is ignored by ORBIT.
+#
+# Create API keys with:
+#   ./bin/orbit.sh key create --adapter <adapter-name> --name "<description>"
+#
+# ORBIT base URL: http://localhost:3000/v1
+# Adjust if ORBIT is running on a different host or port.
+
+model_list:
+
+  # ---------------------------------------------------------------------------
+  # General Chat (Passthrough)
+  # Adapter: simple-chat — routes directly to the configured LLM provider
+  # ---------------------------------------------------------------------------
+  - model_name: orbit-chat
+    litellm_params:
+      model: openai/simple-chat
+      api_base: http://localhost:3000/v1
+      api_key: "default-key"
+
+  # ---------------------------------------------------------------------------
+  # HR / Employee Data (Intent SQL — SQLite)
+  # Adapter: intent-sql-sqlite-hr — natural language → SQL over HR database
+  # ---------------------------------------------------------------------------
+  - model_name: orbit-hr
+    litellm_params:
+      model: openai/intent-sql-sqlite-hr
+      api_base: http://localhost:3000/v1
+      api_key: "human-resources"
+
+# ---------------------------------------------------------------------------
+# LiteLLM proxy settings
+# ---------------------------------------------------------------------------
+litellm_settings:
+  set_verbose: false
+  drop_params: true      # silently drop unsupported params (e.g. logprobs) instead of erroring
+
+# Uncomment to require a key for all requests to this proxy:
+# general_settings:
+#   master_key: sk-REPLACE_WITH_YOUR_LITELLM_MASTER_KEY
