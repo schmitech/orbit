@@ -147,6 +147,8 @@ The dashboard shows API metrics, latency, active sessions, configured adapters, 
 
 - **MCP tool-calling agents:** Connect to Model Context Protocol servers over stdio or SSE. Examples include filesystem, GitHub, GitLab, Jira, Confluence, Sentry, Slack, Postgres, Brave Search, Fetch, Google Drive, Notion, Docker, AWS, browser automation, and SharePoint-style remote tools.
 
+- **A2A peer agent protocol:** ORBIT implements the [Google Agent-to-Agent (A2A) protocol](https://google.github.io/A2A/), exposing `/.well-known/agent.json` for discovery and a `POST /a2a` JSON-RPC 2.0 endpoint for task delegation. Other A2A-compatible agents and orchestrators can discover ORBIT's skills, send tasks, and stream responses — using the same API keys as the REST and OpenAI-compatible interfaces. See the [A2A integration guide](docs/a2a-protocol.md).
+
 - **Media and document generation:** Add image, video, PDF, Word, Excel, PowerPoint, CSV, and markdown generation adapters to the same chat workflow.
 
 - **Voice-ready services:** Configure STT and TTS across OpenAI, Whisper, Google, Gemini, ElevenLabs, Ollama, vLLM, Coqui, Anthropic, Cohere, and xAI-style providers.
@@ -279,11 +281,11 @@ ORBIT combines the pieces required to turn private AI experiments into durable a
 ## Architecture
 
 ```text
-Client or Chat UI
-      |
-      v
-OpenAI-compatible ORBIT API
-      |
+Client or Chat UI  |  OpenAI SDK  |  MCP agent  |  A2A peer agent
+                           |
+                           v
+              ORBIT API  (REST · OpenAI-compat · MCP · A2A)
+                           |
       +--> API keys, auth, quotas, rate limits, metrics, audit logs
       |
       +--> Adapter router
