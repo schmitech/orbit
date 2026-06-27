@@ -98,7 +98,22 @@ GOTO :parse_loop
 :: Find Python interpreter
 :: ---------------------------------------------------------------------------
 IF NOT "%PYTHON_CMD%"=="" GOTO :python_found
-FOR %%P IN (python3.12 python3.13 python3.11 python3 python) DO (
+:: Try the Python Launcher (py.exe) first — it bypasses Microsoft Store App Execution Aliases.
+WHERE py >NUL 2>&1
+IF NOT ERRORLEVEL 1 (
+    FOR %%V IN (3.14 3.13 3.12 3.11) DO (
+        IF "!PYTHON_CMD!"=="" (
+            py -%%V --version >NUL 2>&1
+            IF NOT ERRORLEVEL 1 (
+                FOR /F "tokens=*" %%P IN ('py -%%V -c "import sys; print(sys.executable)"') DO (
+                    IF "!PYTHON_CMD!"=="" SET "PYTHON_CMD=%%P"
+                )
+            )
+        )
+    )
+)
+:: Fall back to named executables on PATH
+FOR %%P IN (python3.14 python3.13 python3.12 python3 python) DO (
     IF "!PYTHON_CMD!"=="" (
         WHERE %%P >NUL 2>&1
         IF NOT ERRORLEVEL 1 (
@@ -112,7 +127,13 @@ FOR %%P IN (python3.12 python3.13 python3.11 python3 python) DO (
 :python_found
 IF "!PYTHON_CMD!"=="" (
     echo ERROR: Python 3.12 or higher is required but was not found.
-    echo Please install Python 3.12+ from https://www.python.org/downloads/ and ensure it is on your PATH.
+    echo.
+    echo If Python is installed but not detected, check for the Microsoft Store
+    echo App Execution Alias: Settings ^> Apps ^> Advanced app settings ^>
+    echo App execution aliases ^> turn off "python.exe" and "python3.exe".
+    echo.
+    echo Or install Python 3.12+ from https://www.python.org/downloads/
+    echo and ensure "Add Python to PATH" is checked during installation.
     exit /b 1
 )
 FOR /F "tokens=*" %%V IN ('!PYTHON_CMD! -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"') DO (
