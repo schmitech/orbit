@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Clear chat history and related data in orbit.db.
 
-This script deletes all rows from chat_history, file_chunks, and uploaded_files
-in an Orbit SQLite database. Use it to reset conversation state without
-dropping the schema (e.g. for a fresh chat or debugging).
+This script deletes all rows from chat_history, thread_datasets, file_chunks,
+and uploaded_files in an Orbit SQLite database. Use it to reset conversation
+state without dropping the schema (e.g. for a fresh chat or debugging).
 
 What gets cleared (in dependency order):
   1. feedback              (references chat_history)
   2. conversation_threads  (references chat_history)
-  3. file_chunks           (references uploaded_files)
-  4. uploaded_files
-  5. chat_history
-  6. audit_logs
+  3. thread_datasets       (conversation thread dataset fallback storage)
+  4. file_chunks           (references uploaded_files)
+  5. uploaded_files
+  6. chat_history
+  7. audit_logs
 
 Usage
 -----
@@ -37,7 +38,13 @@ import sqlite3
 DEFAULT_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'orbit.db')
 
 def main():
-    parser = argparse.ArgumentParser(description='Clear chat_history, feedback, conversation_threads, audit_logs, file_chunks, and uploaded_files in orbit.db')
+    parser = argparse.ArgumentParser(
+        description=(
+            'Clear chat_history, feedback, conversation_threads, '
+            'thread_datasets, audit_logs, file_chunks, and uploaded_files '
+            'in orbit.db'
+        )
+    )
     parser.add_argument(
         '-d', '--db',
         default=DEFAULT_DB,
@@ -63,22 +70,27 @@ def main():
     ct_before = cur.fetchone()[0]
     cur.execute('DELETE FROM conversation_threads')
 
-    # 3. file_chunks (references uploaded_files.id)
+    # 3. thread_datasets (conversation thread dataset fallback storage)
+    cur.execute('SELECT COUNT(*) FROM thread_datasets')
+    td_before = cur.fetchone()[0]
+    cur.execute('DELETE FROM thread_datasets')
+
+    # 4. file_chunks (references uploaded_files.id)
     cur.execute('SELECT COUNT(*) FROM file_chunks')
     fc_before = cur.fetchone()[0]
     cur.execute('DELETE FROM file_chunks')
 
-    # 4. uploaded_files
+    # 5. uploaded_files
     cur.execute('SELECT COUNT(*) FROM uploaded_files')
     uf_before = cur.fetchone()[0]
     cur.execute('DELETE FROM uploaded_files')
 
-    # 5. chat_history
+    # 6. chat_history
     cur.execute('SELECT COUNT(*) FROM chat_history')
     ch_before = cur.fetchone()[0]
     cur.execute('DELETE FROM chat_history')
 
-    # 6. audit_logs
+    # 7. audit_logs
     cur.execute('SELECT COUNT(*) FROM audit_logs')
     al_before = cur.fetchone()[0]
     cur.execute('DELETE FROM audit_logs')
@@ -89,6 +101,8 @@ def main():
     fb_after = cur.fetchone()[0]
     cur.execute('SELECT COUNT(*) FROM conversation_threads')
     ct_after = cur.fetchone()[0]
+    cur.execute('SELECT COUNT(*) FROM thread_datasets')
+    td_after = cur.fetchone()[0]
     cur.execute('SELECT COUNT(*) FROM file_chunks')
     fc_after = cur.fetchone()[0]
     cur.execute('SELECT COUNT(*) FROM uploaded_files')
@@ -100,6 +114,7 @@ def main():
 
     print(f'feedback: {fb_before} -> {fb_after}.')
     print(f'conversation_threads: {ct_before} -> {ct_after}.')
+    print(f'thread_datasets: {td_before} -> {td_after}.')
     print(f'file_chunks: {fc_before} -> {fc_after}.')
     print(f'uploaded_files: {uf_before} -> {uf_after}.')
     print(f'chat_history: {ch_before} -> {ch_after}.')
