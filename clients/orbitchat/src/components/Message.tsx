@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  Edit2,
   File,
   MessageSquare,
   RotateCcw,
@@ -36,6 +37,7 @@ import { ModelPickerButton } from './ModelPickerButton';
 interface MessageProps {
   message: MessageType;
   onRegenerate?: (messageId: string) => void;
+  onEdit?: (messageId: string, newContent: string) => void;
   onStartThread?: (messageId: string, sessionId: string) => void;
   onClearThread?: (messageId: string, threadId: string) => Promise<void> | void;
   onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string, skill?: string, model?: string) => Promise<void> | void;
@@ -215,6 +217,7 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
 export function Message({
   message,
   onRegenerate,
+  onEdit,
   onStartThread,
   onClearThread,
   onSendThreadMessage,
@@ -225,6 +228,10 @@ export function Message({
   defaultModel = null,
   selectedModel = null,
 }: MessageProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content || '');
+  const [isEditComposing, setIsEditComposing] = useState(false);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [copied, setCopied] = useState(false);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
   const [showFeedbackAcknowledgement, setShowFeedbackAcknowledgement] = useState(false);
@@ -366,6 +373,26 @@ export function Message({
     };
   }, []);
 
+
+  // Focus + auto-resize the textarea when edit mode opens or content changes
+  useEffect(() => {
+    if (!isEditing || !editTextareaRef.current) return;
+    const el = editTextareaRef.current;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [isEditing, editContent]);
+
+  const handleEditSubmit = useCallback(() => {
+    const trimmed = editContent.trim();
+    if (!trimmed || trimmed === message.content) {
+      setIsEditing(false);
+      return;
+    }
+    onEdit?.(message.id, trimmed);
+    setIsEditing(false);
+  }, [editContent, message.content, message.id, onEdit]);
 
   const scrollThreadRepliesToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -738,7 +765,7 @@ export function Message({
     const toMs = (ts: Date | string) => ts instanceof Date ? ts.getTime() : new Date(ts).getTime();
     const sortedReplies = [...threadReplies].sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp));
     
-    return sortedReplies.map(reply => {
+    return sortedReplies.map((reply) => {
       const replyIsAssistant = reply.role === 'assistant';
 
       const replyMarkdownClass = replyIsAssistant ? threadAssistantMarkdownClass : threadUserMarkdownClass;
@@ -808,7 +835,54 @@ export function Message({
     <div className="group animate-fadeIn min-w-0 w-full px-0">
       <div className="min-w-0 space-y-1">
         <div className={bubbleClasses}>
-          {renderedMessageContent}
+          {isEditing ? (
+            <div className="flex flex-col gap-2">
+              <textarea
+                ref={editTextareaRef}
+                className="w-full resize-none overflow-hidden bg-transparent outline-none text-[#111827] dark:text-[#f5f5f5] leading-relaxed"
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                onCompositionStart={() => setIsEditComposing(true)}
+                onCompositionEnd={() => setIsEditComposing(false)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey && !isEditComposing) {
+                    e.preventDefault();
+                    handleEditSubmit();
+                  }
+                  if (e.key === 'Escape') {
+                    setIsEditing(false);
+                    setEditContent(message.content || '');
+                  }
+                }}
+                maxLength={AppConfig.maxMessageLength}
+                rows={1}
+                style={{ minHeight: '24px' }}
+              />
+              <div className="flex items-center justify-between gap-2 mt-1">
+                <span className="text-xs text-gray-400 dark:text-[#6e6e80]">Will regenerate response</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditContent(message.content || '');
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-[#4a4b54] dark:text-gray-200 dark:hover:bg-[#565869] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleEditSubmit}
+                    className="px-3 py-1.5 text-xs font-medium rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            renderedMessageContent
+          )}
 
           {message.attachments && message.attachments.length > 0 && (
             <div className="mt-3 space-y-2">
@@ -857,6 +931,23 @@ export function Message({
             />
           )}
         </div>
+
+        {/* Edit button below user bubble — mirrors the assistant action bar pattern */}
+        {!isAssistant && onEdit && !isEditing && (
+          <div className="ml-auto flex max-w-[var(--orbit-user-bubble-max)] justify-end py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => {
+                setEditContent(message.content || '');
+                setIsEditing(true);
+              }}
+              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
+              title="Edit message"
+              aria-label="Edit message"
+            >
+              <Edit2 className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {isAssistant && !message.isStreaming && (
           <div className="py-1 flex flex-nowrap items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0] transition-opacity">

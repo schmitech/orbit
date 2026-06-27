@@ -11,6 +11,7 @@ import type { AllowedModel } from '../types';
 interface MessageListProps {
   messages: MessageType[];
   onRegenerate?: (messageId: string) => void;
+  onEditMessage?: (messageId: string, newContent: string) => void;
   onStartThread?: (messageId: string, sessionId: string) => void;
   onClearThread?: (messageId: string, threadId: string) => Promise<void> | void;
   onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string, skill?: string, model?: string) => Promise<void> | void;
@@ -25,6 +26,7 @@ interface MessageListProps {
 export function MessageList({
   messages,
   onRegenerate,
+  onEditMessage,
   onStartThread,
   onClearThread,
   onSendThreadMessage,
@@ -168,6 +170,7 @@ export function MessageList({
               <Message
                 message={message}
                 onRegenerate={onRegenerate}
+                onEdit={onEditMessage}
                 onStartThread={onStartThread}
                 onClearThread={onClearThread}
                 onSendThreadMessage={onSendThreadMessage}

@@ -54,6 +54,7 @@ export function ChatInterface({
     canCreateNewConversation,
     sendMessage,
     regenerateResponse,
+    editMessageAndRegenerate,
     isLoading,
     configureApiSettings,
     error,
@@ -528,6 +529,7 @@ export function ChatInterface({
               <MessageList
                 messages={currentConversation.messages}
                 onRegenerate={(messageId) => regenerateResponse(messageId, selectedModel ?? undefined)}
+                onEditMessage={(messageId, newContent) => editMessageAndRegenerate(messageId, newContent, selectedModel ?? undefined)}
                 onStartThread={async (messageId: string, sessionId: string) => {
                   try {
                     await createThread(messageId, sessionId);

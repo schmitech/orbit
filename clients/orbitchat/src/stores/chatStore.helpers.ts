@@ -65,6 +65,29 @@ export const generateUniqueSessionId = (): string => {
   return `session_${timestamp}_${random}`;
 };
 
+export const ensureUniqueMessageIds = (messages: Message[]): Message[] => {
+  const seen = new Set<string>();
+  let changed = false;
+
+  const normalized = messages.map(message => {
+    if (!seen.has(message.id)) {
+      seen.add(message.id);
+      return message;
+    }
+
+    changed = true;
+    const nextMessage = {
+      ...message,
+      id: generateUniqueMessageId(message.role),
+    };
+    seen.add(nextMessage.id);
+    debugWarn(`[chatStore] Re-keyed duplicate message id ${message.id}`);
+    return nextMessage;
+  });
+
+  return changed ? normalized : messages;
+};
+
 // Message counting / ID extraction
 export const countNonStreamingMessages = (messages: Message[]): number =>
   messages.filter(m => !m.isThreadMessage && !(m.role === 'assistant' && m.isStreaming)).length;
