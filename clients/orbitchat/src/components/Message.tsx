@@ -374,14 +374,20 @@ export function Message({
   }, []);
 
 
-  // Focus + auto-resize the textarea when edit mode opens or content changes
+  // Focus and place cursor at end when edit mode first opens
+  useEffect(() => {
+    if (!isEditing || !editTextareaRef.current) return;
+    const el = editTextareaRef.current;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [isEditing]);
+
+  // Auto-resize textarea as content changes
   useEffect(() => {
     if (!isEditing || !editTextareaRef.current) return;
     const el = editTextareaRef.current;
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
-    el.focus();
-    el.setSelectionRange(el.value.length, el.value.length);
   }, [isEditing, editContent]);
 
   const handleEditSubmit = useCallback(() => {
@@ -447,7 +453,7 @@ export function Message({
 
   const bubbleClasses = isAssistant
     ? 'message-bubble message-bubble-assistant min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
-    : 'message-bubble message-bubble-user inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]';
+    : 'message-bubble message-bubble-user relative inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 pr-10 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]';
 
   const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';
 
@@ -847,9 +853,11 @@ export function Message({
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey && !isEditComposing) {
                     e.preventDefault();
+                    e.stopPropagation();
                     handleEditSubmit();
                   }
                   if (e.key === 'Escape') {
+                    e.stopPropagation();
                     setIsEditing(false);
                     setEditContent(message.content || '');
                   }
@@ -930,24 +938,20 @@ export function Message({
               adapterName={currentConversation?.adapterName}
             />
           )}
-        </div>
-
-        {/* Edit button below user bubble — mirrors the assistant action bar pattern */}
-        {!isAssistant && onEdit && !isEditing && (
-          <div className="ml-auto flex max-w-[var(--orbit-user-bubble-max)] justify-end py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {!isAssistant && onEdit && !isEditing && (
             <button
               onClick={() => {
                 setEditContent(message.content || '');
                 setIsEditing(true);
               }}
-              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
+              className="absolute top-1/2 -translate-y-1/2 right-2 rounded-md p-1 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white transition-colors"
               title="Edit message"
               aria-label="Edit message"
             >
-              <Edit2 className="h-4 w-4" />
+              <Edit2 className="h-3.5 w-3.5" />
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {isAssistant && !message.isStreaming && (
           <div className="py-1 flex flex-nowrap items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0] transition-opacity">
