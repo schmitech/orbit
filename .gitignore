@@ -17,6 +17,7 @@ ENV/
 htmlcov/
 .pytest_cache/
 dist/
+models/
 
 # Logs
 logs/

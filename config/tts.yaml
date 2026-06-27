@@ -233,4 +233,44 @@ tts_providers:
       max_wait_ms: 30000
       exponential_base: 2
 
+  supertonic:
+    # Supertonic TTS - Local, high-quality neural TTS with 31-language support
+    # Based on https://github.com/supertone-inc/supertonic
+    # Runs completely locally - no API costs or network calls after model download.
+    # Requires: pip install supertonic
+    #
+    # Model download (run once from the orbit project root):
+    #   python install/download_hf_gguf_model.py \
+    #     --repo-id "Supertone/supertonic-3" --output-dir "./models/supertonic-3"
+    # This downloads all 5 model files (ONNX + config). No --filename flag needed
+    # since the default pattern "*" matches everything.
+    # Or with the Hugging Face CLI:
+    #   huggingface-cli download Supertone/supertonic-3 --local-dir ./models/supertonic-3
+    enabled: true
+    # Path to the locally downloaded model directory.
+    # Set to null to let the package auto-download from Hugging Face on first run.
+    model_dir: "models/supertonic-3"
+    # Voice style — preset IDs: M1, M2, M3, M4, M5 (male) / F1, F2, F3, F4, F5 (female)
+    # Can also be a path to a custom voice JSON profile exported from Supertone Voice Builder.
+    tts_voice: "F1"
+    # Language code (31 languages supported) or "na" for language-agnostic mode.
+    # Examples: en, ko, ja, zh, fr, de, es, pt, it, ru, ar, hi, ...
+    tts_language: "en"
+    tts_format: "wav"  # Only wav is natively supported
+    # Diffusion steps: 5 (fast, lower quality) → 12 (slow, higher quality). Default: 8
+    total_steps: 8
+    # Speaking speed: 0.7 (slow) – 2.0 (fast). Recommended range: 0.9–1.5
+    speed: 1.05
+    # Timeout configuration (local processing)
+    timeout:
+      connect: 5000    # 5 seconds
+      total: 120000    # 2 minutes (synthesis of longer texts can be slow)
+    # Retry configuration
+    retry:
+      enabled: false   # Not needed for local processing
+      max_retries: 1
+      initial_wait_ms: 1000
+      max_wait_ms: 5000
+      exponential_base: 2
+
   # Note: whisper is STT-only, configured in stt.yaml
