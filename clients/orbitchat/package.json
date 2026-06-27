@@ -1,7 +1,7 @@
 {
   "name": "orbitchat",
   "private": false,
-  "version": "3.10.7",
+  "version": "3.10.8",
   "type": "module",
   "bin": {
     "orbitchat": "./bin/orbitchat.js",
@@ -40,7 +40,7 @@
     "js-yaml": "^4.1.1",
     "katex": "^0.16.27",
     "lucide-react": "^0.469.0",
-    "mermaid": "^11.12.2",
+    "mermaid": "11.15.0",
     "papaparse": "^5.5.3",
     "path": "^0.12.7",
     "react": "^19.0.0",
