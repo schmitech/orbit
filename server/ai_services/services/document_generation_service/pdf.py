@@ -1,7 +1,10 @@
 import unicodedata
+import logging
 from typing import Dict, Any
 
 from .base import BaseRenderer
+
+logger = logging.getLogger(__name__)
 
 
 class PDFRenderer(BaseRenderer):
@@ -69,6 +72,7 @@ class PDFRenderer(BaseRenderer):
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import cm
+        from reportlab.platypus import Image as RLImage
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
         from reportlab.lib import colors
 
@@ -134,6 +138,17 @@ class PDFRenderer(BaseRenderer):
                 )
                 story.append(tbl)
                 story.append(Spacer(1, 0.3 * cm))
+            chart_data = section.get("chart")
+            if chart_data:
+                try:
+                    from .chart_image import render_chart_to_png
+
+                    png_bytes = render_chart_to_png(chart_data, width_px=500, height_px=280)
+                    img_buf = io.BytesIO(png_bytes)
+                    story.append(RLImage(img_buf, width=500, height=280))
+                    story.append(Spacer(1, 0.4 * cm))
+                except Exception as exc:
+                    logger.warning("Chart rendering failed for PDF section: %s", exc)
 
         doc.build(story)
         return buf.getvalue()

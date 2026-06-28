@@ -57,6 +57,23 @@ SAMPLE_SPEC = {
     "metadata": {"author": "ORBIT", "date": "2026-05-23"},
 }
 
+CHART_SPEC = {
+    "title": "Quarterly Revenue",
+    "sections": [
+        {
+            "heading": "Revenue Trend",
+            "body": "Revenue increased each quarter.",
+            "chart": {
+                "type": "bar",
+                "title": "Revenue by Quarter",
+                "labels": ["Q1", "Q2", "Q3", "Q4"],
+                "datasets": [{"label": "Revenue", "data": [2.4, 2.9, 3.2, 3.8]}],
+            },
+        }
+    ],
+    "metadata": {"author": "ORBIT", "date": "2026-06-28"},
+}
+
 
 def _make_container(adapter_type: str = "document_generation",
                     document_format: str = "pdf",
@@ -128,6 +145,42 @@ class TestDocumentRenderer:
         assert len(data) > 100
         # DOCX is a ZIP archive
         assert data[:2] == b"PK"
+
+    def test_render_pdf_embeds_chart_image(self):
+        without_chart = {
+            **CHART_SPEC,
+            "sections": [{k: v for k, v in CHART_SPEC["sections"][0].items() if k != "chart"}],
+        }
+
+        pdf_without_chart = self.renderer.render(without_chart, "pdf")
+        pdf_with_chart = self.renderer.render(CHART_SPEC, "pdf")
+
+        assert pdf_with_chart[:4] == b"%PDF"
+        assert len(pdf_with_chart) > len(pdf_without_chart)
+
+    def test_render_docx_embeds_chart_image(self):
+        without_chart = {
+            **CHART_SPEC,
+            "sections": [{k: v for k, v in CHART_SPEC["sections"][0].items() if k != "chart"}],
+        }
+
+        docx_without_chart = self.renderer.render(without_chart, "docx")
+        docx_with_chart = self.renderer.render(CHART_SPEC, "docx")
+
+        assert docx_with_chart[:2] == b"PK"
+        assert len(docx_with_chart) > len(docx_without_chart)
+
+    def test_render_pptx_embeds_chart_image(self):
+        without_chart = {
+            **CHART_SPEC,
+            "sections": [{k: v for k, v in CHART_SPEC["sections"][0].items() if k != "chart"}],
+        }
+
+        pptx_without_chart = self.renderer.render(without_chart, "pptx")
+        pptx_with_chart = self.renderer.render(CHART_SPEC, "pptx")
+
+        assert pptx_with_chart[:2] == b"PK"
+        assert len(pptx_with_chart) > len(pptx_without_chart)
 
     def test_render_xlsx(self):
         data = self.renderer.render(SAMPLE_SPEC, "xlsx")
@@ -513,6 +566,49 @@ class TestDocumentGenerationStepProcess:
         assert spec["sections"] == [
             {"heading": "Content", "body": "Make a report", "bullet_points": []}
         ]
+
+    def test_pdf_prompt_includes_chart_schema(self):
+        from inference.pipeline.base import ProcessingContext
+
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator",
+            message="Make a PDF with sales trends",
+        )
+        step = self.StepClass(_make_container(document_format="pdf"))
+
+        prompt = step._build_spec_prompt(ctx, "pdf")
+
+        assert '"chart"' in prompt
+        assert "chart.type: bar | line | pie | area" in prompt
+
+    def test_pptx_prompt_includes_chart_schema(self):
+        from inference.pipeline.base import ProcessingContext
+
+        ctx = ProcessingContext(
+            adapter_name="pptx-generator",
+            message="Make a PowerPoint with sales trends",
+        )
+        step = self.StepClass(_make_container(document_format="pptx"))
+
+        prompt = step._build_spec_prompt(ctx, "pptx")
+
+        assert '"chart"' in prompt
+        assert "Charts get their own slide" in prompt
+        assert "chart.type: bar | line | pie | area" in prompt
+
+    def test_xlsx_prompt_excludes_chart_schema(self):
+        from inference.pipeline.base import ProcessingContext
+
+        ctx = ProcessingContext(
+            adapter_name="xlsx-generator",
+            message="Export sales data",
+        )
+        step = self.StepClass(_make_container(document_format="xlsx"))
+
+        prompt = step._build_spec_prompt(ctx, "xlsx")
+
+        assert '"chart"' not in prompt
+        assert "chart.type" not in prompt
 
     @pytest.mark.asyncio
     async def test_process_error_on_invalid_format(self):

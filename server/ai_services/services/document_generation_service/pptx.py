@@ -1,7 +1,10 @@
 import io
+import logging
 from typing import Dict, Any
 
 from .base import BaseRenderer
+
+logger = logging.getLogger(__name__)
 
 
 class PptxRenderer(BaseRenderer):
@@ -145,6 +148,41 @@ class PptxRenderer(BaseRenderer):
 
                 if slide_numbers:
                     self._add_slide_number(tbl_slide, slide_index, slide_width, slide_height, font_body)
+
+            chart_data = section.get("chart")
+            if chart_data:
+                try:
+                    from .chart_image import render_chart_to_png
+
+                    chart_slide = prs.slides.add_slide(blank_layout)
+                    slide_index += 1
+
+                    top_offset = Inches(0.6)
+                    if show_heading and heading:
+                        lbl = chart_slide.shapes.add_textbox(
+                            Inches(0.5), Inches(0.2),
+                            Inches(slide_width - 1), Inches(0.5),
+                        )
+                        lbl_tf = lbl.text_frame
+                        lbl_tf.text = heading
+                        lbl_p = lbl_tf.paragraphs[0]
+                        lbl_p.font.bold = True
+                        lbl_p.font.size = Pt(title_pt)
+                        lbl_p.font.name = font_header
+                        top_offset = Inches(0.9)
+
+                    png_bytes = render_chart_to_png(chart_data, width_px=900, height_px=480)
+                    chart_slide.shapes.add_picture(
+                        io.BytesIO(png_bytes),
+                        Inches(1.0),
+                        top_offset,
+                        width=Inches(slide_width - 2),
+                    )
+
+                    if slide_numbers:
+                        self._add_slide_number(chart_slide, slide_index, slide_width, slide_height, font_body)
+                except Exception as exc:
+                    logger.warning("Chart rendering failed for PPTX section: %s", exc)
 
         buf = io.BytesIO()
         prs.save(buf)

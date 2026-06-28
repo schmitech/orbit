@@ -252,6 +252,9 @@ logging:
     pdfminer.pdfinterp:
       level: "WARNING"
       propagate: false
+    matplotlib.font_manager:
+      level: "ERROR"
+      propagate: false
 
 clock_service:
   enabled: true
