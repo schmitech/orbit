@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { MusicRendererProps } from '../types';
+import { copyCodeToClipboard, exportSvgAsPng } from './graphExportUtils';
 
 type AbcJsLike = {
   renderAbc: (target: HTMLElement | string, code: string, options?: Record<string, unknown>) => unknown;
@@ -102,6 +103,8 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isAbc, setIsAbc] = useState(false);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [exportingPng, setExportingPng] = useState(false);
   const lastCodeRef = useRef<string>('');
   const lastUpdateTimeRef = useRef<number>(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -307,6 +310,14 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
     );
   }
 
+  const handleExportPng = async () => {
+    const svgEl = containerRef.current?.querySelector('svg') as SVGSVGElement | null;
+    if (!svgEl) return;
+    setExportingPng(true);
+    await exportSvgAsPng(svgEl, 'music-notation.png');
+    setExportingPng(false);
+  };
+
   // Render ABC notation - always render container so ref is available
   if (isAbc) {
     return (
@@ -317,6 +328,35 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
           position: 'relative',
         }}
       >
+        {!isLoading && !isStreaming && (
+          <div className="graph-action-bar">
+            <button
+              className="graph-action-button"
+              type="button"
+              onClick={() => copyCodeToClipboard(code, setCopiedCode)}
+              title={copiedCode ? 'Copied!' : 'Copy code'}
+              aria-label="Copy ABC notation to clipboard"
+            >
+              {copiedCode ? (
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M5.5 4.5H3.5C2.94772 4.5 2.5 4.94772 2.5 5.5V12.5C2.5 13.0523 2.94772 13.5 3.5 13.5H10.5C11.0523 13.5 11.5 13.0523 11.5 12.5V10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M13.5 9.5V3.5C13.5 2.94772 13.0523 2.5 12.5 2.5H6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              )}
+              <span>{copiedCode ? 'Copied!' : 'Copy'}</span>
+            </button>
+            <button
+              className="graph-action-button"
+              type="button"
+              onClick={handleExportPng}
+              title="Export as PNG"
+              aria-label="Export music notation as PNG image"
+              disabled={exportingPng}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <span>{exportingPng ? 'Exporting…' : 'PNG'}</span>
+            </button>
+          </div>
+        )}
         {isStreaming && (
           <div
             style={{

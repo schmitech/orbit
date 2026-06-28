@@ -745,6 +745,10 @@
   opacity: 1;
 }
 
+.markdown-content .graph-action-bar.graph-action-bar--visible {
+  opacity: 1;
+}
+
 @media (hover: none) and (pointer: coarse) {
   .markdown-content .graph-action-bar {
     opacity: 1;
