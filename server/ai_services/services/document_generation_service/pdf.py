@@ -28,13 +28,37 @@ class PDFRenderer(BaseRenderer):
         '÷': '/',   # division sign
     })
 
+    # Unicode ranges that are emoji or emoji-modifier codepoints.
+    # Characters in these ranges have no Helvetica glyph and no useful ASCII
+    # decomposition, so they are stripped silently rather than shown as '?'.
+    _EMOJI_RANGES = (
+        (0x2194, 0x2199),  # arrows
+        (0x2300, 0x23FF),  # Misc Technical (clocks, hourglasses, etc.)
+        (0x2600, 0x27BF),  # Misc Symbols + Dingbats
+        (0x2B00, 0x2BFF),  # Misc Symbols and Arrows
+        (0xFE00, 0xFE0F),  # Variation Selectors (emoji presentation VS-16 etc.)
+        (0x1F000, 0x1FAFF),  # Mahjong/Domino tiles through Symbols Extended-A
+        (0xE0000, 0xE01FF),  # Tags (used in flag emoji sequences)
+    )
+    # Zero-width joiners and similar invisible connectors used in emoji sequences
+    _EMOJI_JOINERS = frozenset([0x200D, 0x20E3, 0xFE0F])
+
+    @classmethod
+    def _is_emoji(cls, cp: int) -> bool:
+        if cp in cls._EMOJI_JOINERS:
+            return True
+        return any(lo <= cp <= hi for lo, hi in cls._EMOJI_RANGES)
+
     @staticmethod
     def _sanitize_pdf_text(text: str) -> str:
         text = text.translate(PDFRenderer._PDF_CHAR_MAP)
         result = []
         for ch in text:
-            if ord(ch) <= 0x00FF:
+            cp = ord(ch)
+            if cp <= 0x00FF:
                 result.append(ch)
+            elif PDFRenderer._is_emoji(cp):
+                pass  # strip silently — no Helvetica glyph, no useful decomposition
             else:
                 normalized = unicodedata.normalize('NFKD', ch)
                 ascii_part = normalized.encode('ascii', 'ignore').decode('ascii')
