@@ -21,7 +21,7 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 # Test configuration
-TEST_API_KEY = "files"  # Assumes this key is mapped to file-document-qa adapter
+TEST_API_KEY = "files-key"  # Assumes this key is mapped to file-document-qa adapter
 TEST_SERVER_URL = "http://localhost:3000"
 TEST_SESSION_ID = "test-session-file-chat"  # Test session ID
 

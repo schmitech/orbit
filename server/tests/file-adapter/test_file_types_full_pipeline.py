@@ -23,7 +23,7 @@ File types tested:
 Prerequisites:
 1. Server running on http://localhost:3000
 2. File Processing Service initialized
-3. API key "files" mapped to file-document-qa adapter
+3. API key "files-key" mapped to file-document-qa adapter
 4. Vision services configured (for image tests)
 """
 
@@ -36,7 +36,7 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 
 # Test configuration
-TEST_API_KEY = "files"
+TEST_API_KEY = "files-key"
 TEST_SERVER_URL = "http://localhost:3000"
 TEST_SESSION_ID = "test-session-file-types"
 PROCESSING_WAIT_TIME = 3  # seconds to wait for file processing
