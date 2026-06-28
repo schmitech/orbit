@@ -9,6 +9,7 @@ import json
 import asyncio
 import base64
 import logging
+import inspect
 from typing import Dict, Any, Optional, AsyncIterator, Tuple
 from collections import deque
 
@@ -104,26 +105,52 @@ class StreamingHandler:
             Audio chunk dictionary or None if generation fails
         """
         try:
-            # Collect audio via streaming to get faster first-byte from API
-            audio_chunks = []
-            audio_format_str = None
+            async def _generate_audio() -> Tuple[Optional[bytes], Optional[str]]:
+                # Prefer provider-level streaming when available, then fall back
+                # to the stable non-streaming AudioHandler contract.
+                audio_chunks = []
+                audio_format_str = None
+                streaming_method = getattr(self.audio_handler, "generate_audio_streaming", None)
 
-            async def _stream_collect():
-                nonlocal audio_format_str
-                async for chunk_bytes, fmt in self.audio_handler.generate_audio_streaming(
+                if callable(streaming_method):
+                    try:
+                        stream = streaming_method(
+                            text=sentence.strip(),
+                            adapter_name=adapter_name,
+                            tts_voice=tts_voice,
+                            language=language
+                        )
+
+                        if inspect.isawaitable(stream):
+                            stream = await stream
+
+                        if hasattr(stream, "__aiter__"):
+                            async for chunk_bytes, fmt in stream:
+                                audio_chunks.append(chunk_bytes)
+                                if audio_format_str is None:
+                                    audio_format_str = fmt
+                    except (AttributeError, TypeError) as e:
+                        logger.debug(f"Streaming audio unavailable, falling back to generate_audio: {str(e)}")
+
+                if audio_chunks:
+                    return b"".join(audio_chunks), audio_format_str
+
+                result = await self.audio_handler.generate_audio(
                     text=sentence.strip(),
                     adapter_name=adapter_name,
                     tts_voice=tts_voice,
                     language=language
-                ):
-                    audio_chunks.append(chunk_bytes)
-                    if audio_format_str is None:
-                        audio_format_str = fmt
+                )
+                if result is None:
+                    return None, None
+                return result
 
-            await asyncio.wait_for(_stream_collect(), timeout=self.audio_timeout)
+            audio_data, audio_format_str = await asyncio.wait_for(
+                _generate_audio(),
+                timeout=self.audio_timeout
+            )
 
-            if audio_chunks:
-                audio_data = b"".join(audio_chunks)
+            if audio_data:
                 # Use faster base64 encoding in executor to avoid blocking
                 loop = asyncio.get_event_loop()
                 audio_base64 = await loop.run_in_executor(
