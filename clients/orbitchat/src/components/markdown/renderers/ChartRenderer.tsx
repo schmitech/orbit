@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { copyCodeToClipboard, exportSvgAsPng } from './graphExportUtils';
 import {
   Area,
   AreaChart,
@@ -962,6 +963,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   const [isWaitingForData, setIsWaitingForData] = useState(false);
   const [containerWidth, setContainerWidth] = useState(0);
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [exportingPng, setExportingPng] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCodeRef = useRef<string>('');
   const lastUpdateTimeRef = useRef<number>(0);
@@ -1505,6 +1508,134 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     );
   };
 
+  const handleExportPng = async () => {
+    const svgEl = chartViewportRef.current?.querySelector('svg') as SVGSVGElement | null;
+    if (!svgEl) return;
+    setExportingPng(true);
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
+
+    // Use SVG attributes for chart dimensions (more reliable than bbox for Recharts).
+    const bbox = svgEl.getBoundingClientRect();
+    const chartW = parseFloat(svgEl.getAttribute('width') || '0') || Math.max(bbox.width, 400);
+    const chartH = parseFloat(svgEl.getAttribute('height') || '0') || Math.max(bbox.height, 200);
+
+    // Header (title + description)
+    const TITLE_H = config.title ? 32 : 0;
+    const DESC_H = config.description ? 20 : 0;
+    const headerH = TITLE_H + DESC_H;
+
+    // Legend items — sourced from series or data depending on chart type.
+    const legendItems: Array<{ name: string; color: string }> = (() => {
+      if (!showLegend) return [];
+      if (config.type === 'pie' || config.type === 'radialbar' || config.type === 'funnel') {
+        return config.data.map((item, idx) => ({
+          name: String((item as ChartDataItem)[config.xKey || 'name'] ?? `Item ${idx + 1}`),
+          color: colors[idx % colors.length],
+        }));
+      }
+      return derivedSeries.map((s) => ({ name: s.name, color: s.color }));
+    })();
+
+    const ITEM_W = 130;
+    const ROW_H = 22;
+    const LEGEND_PAD_TOP = 10;
+    const itemsPerRow = Math.max(1, Math.floor(chartW / ITEM_W));
+    const legendRows = legendItems.length > 0 ? Math.ceil(legendItems.length / itemsPerRow) : 0;
+    const legendH = legendRows > 0 ? legendRows * ROW_H + LEGEND_PAD_TOP : 0;
+
+    const totalW = chartW;
+    const totalH = headerH + chartH + legendH;
+
+    // Build composite SVG (not attached to DOM — pass explicit dims to exporter).
+    const mk = <T extends SVGElement>(tag: string) => document.createElementNS(NS, tag) as T;
+
+    const outer = mk<SVGSVGElement>('svg');
+    outer.setAttribute('xmlns', NS);
+    outer.setAttribute('width', String(totalW));
+    outer.setAttribute('height', String(totalH));
+    outer.setAttribute('viewBox', `0 0 ${totalW} ${totalH}`);
+
+    // White background
+    const bg = mk<SVGRectElement>('rect');
+    bg.setAttribute('width', String(totalW));
+    bg.setAttribute('height', String(totalH));
+    bg.setAttribute('fill', '#ffffff');
+    outer.appendChild(bg);
+
+    // Title
+    if (config.title) {
+      const t = mk<SVGTextElement>('text');
+      t.setAttribute('x', String(totalW / 2));
+      t.setAttribute('y', '22');
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-family', FONT);
+      t.setAttribute('font-size', '16');
+      t.setAttribute('font-weight', '600');
+      t.setAttribute('fill', '#111827');
+      t.textContent = config.title;
+      outer.appendChild(t);
+    }
+
+    // Description
+    if (config.description) {
+      const d = mk<SVGTextElement>('text');
+      d.setAttribute('x', String(totalW / 2));
+      d.setAttribute('y', String(TITLE_H + 15));
+      d.setAttribute('text-anchor', 'middle');
+      d.setAttribute('font-family', FONT);
+      d.setAttribute('font-size', '12');
+      d.setAttribute('fill', '#6b7280');
+      d.textContent = config.description;
+      outer.appendChild(d);
+    }
+
+    // Chart content shifted down to sit below the header
+    const chartGroup = mk<SVGGElement>('g');
+    chartGroup.setAttribute('transform', `translate(0, ${headerH})`);
+    Array.from(svgEl.childNodes).forEach((n) => chartGroup.appendChild(n.cloneNode(true)));
+    outer.appendChild(chartGroup);
+
+    // Legend
+    if (legendItems.length > 0) {
+      const legendG = mk<SVGGElement>('g');
+      const legendY = headerH + chartH + LEGEND_PAD_TOP;
+
+      legendItems.forEach((item, idx) => {
+        const row = Math.floor(idx / itemsPerRow);
+        const col = idx % itemsPerRow;
+        const rowItemCount = Math.min(itemsPerRow, legendItems.length - row * itemsPerRow);
+        const rowStartX = (totalW - rowItemCount * ITEM_W) / 2;
+        const ix = rowStartX + col * ITEM_W;
+        const iy = legendY + row * ROW_H;
+
+        const rect = mk<SVGRectElement>('rect');
+        rect.setAttribute('x', String(ix));
+        rect.setAttribute('y', String(iy));
+        rect.setAttribute('width', '10');
+        rect.setAttribute('height', '10');
+        rect.setAttribute('rx', '2');
+        rect.setAttribute('fill', item.color);
+        legendG.appendChild(rect);
+
+        const txt = mk<SVGTextElement>('text');
+        txt.setAttribute('x', String(ix + 14));
+        txt.setAttribute('y', String(iy + 9));
+        txt.setAttribute('font-family', FONT);
+        txt.setAttribute('font-size', '12');
+        txt.setAttribute('fill', '#374151');
+        txt.textContent = item.name;
+        legendG.appendChild(txt);
+      });
+      outer.appendChild(legendG);
+    }
+
+    const filename = `${(config.title || 'chart').replace(/\s+/g, '-').toLowerCase()}.png`;
+    await exportSvgAsPng(outer, filename, { w: totalW, h: totalH });
+    setExportingPng(false);
+  };
+
   return (
     <>
       <div
@@ -1514,6 +1645,33 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
         tabIndex={0}
         style={{ flexDirection: 'column', alignItems: 'stretch', position: 'relative' }}
       >
+        <div className="graph-action-bar">
+          <button
+            className="graph-action-button"
+            type="button"
+            onClick={() => copyCodeToClipboard(code, setCopiedCode)}
+            title={copiedCode ? 'Copied!' : 'Copy code'}
+            aria-label="Copy chart code to clipboard"
+          >
+            {copiedCode ? (
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M5.5 4.5H3.5C2.94772 4.5 2.5 4.94772 2.5 5.5V12.5C2.5 13.0523 2.94772 13.5 3.5 13.5H10.5C11.0523 13.5 11.5 13.0523 11.5 12.5V10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M13.5 9.5V3.5C13.5 2.94772 13.0523 2.5 12.5 2.5H6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            )}
+            <span>{copiedCode ? 'Copied!' : 'Copy'}</span>
+          </button>
+          <button
+            className="graph-action-button"
+            type="button"
+            onClick={handleExportPng}
+            title="Export as PNG"
+            aria-label="Export chart as PNG image"
+            disabled={exportingPng}
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <span>{exportingPng ? 'Exporting…' : 'PNG'}</span>
+          </button>
+        </div>
         {isStreaming && (
           <div className="md-expandable-actions" aria-live="polite">
             <div
