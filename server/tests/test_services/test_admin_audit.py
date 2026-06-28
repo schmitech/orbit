@@ -453,7 +453,7 @@ class TestAuditEventsEndpoint:
         try:
             app = _build_endpoint_app(audit_service)
             with TestClient(app) as client:
-                resp = client.get("/admin/audit/events")
+                resp = client.get("/admin/audit/events?source=admin")
             assert resp.status_code == 503
             assert "not enabled" in resp.json()["detail"].lower()
         finally:

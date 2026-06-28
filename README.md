@@ -55,6 +55,8 @@ Use ORBIT when you need to:
 
 For a comparison of ORBIT and Open WebUI, see the [ORBIT and Open WebUI Comparison Guide](docs/openwebui/orbit-vs-openwebui.md).
 
+For a comparison of ORBIT and LiteLLM, see the [ORBIT and LiteLLM Comparison Guide](docs/litellm/orbit-vs-litellm.md).
+
 If ORBIT is useful to you, starring the repo helps more developers discover it.
 
 ---
