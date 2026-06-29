@@ -51,22 +51,30 @@ ORBIT is a single API gateway that puts production controls in front of any AI m
 
 ## 🚀 Quick Start
 
-**Docker Compose** — boots ORBIT with Ollama and a lightweight local model:
+> [!WARNING]
+> **Do not clone and deploy the `main` branch in production.**
+> Use the latest stable release tarball from
+> [GitHub Releases](https://github.com/schmitech/orbit/releases) instead.
+> The `main` branch is intended for development and testing and may include
+> unreleased changes.
 
-```bash
-git clone https://github.com/schmitech/orbit.git
-cd orbit/docker
-docker compose up -d
-# NVIDIA GPU: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-```
-
-**Release tarball** (Linux/macOS):
+**Latest stable release tarball** (Linux/macOS):
 
 ```bash
 curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.10/orbit-2.7.10.tar.gz
 tar -xzf orbit-2.7.10.tar.gz && cd orbit-2.7.10
 ./install/setup.sh        # add --wizard for interactive setup
 ./bin/orbit.sh start
+```
+
+**Docker Compose from `main`** — for local development/testing with Ollama and a
+lightweight local model:
+
+```bash
+git clone https://github.com/schmitech/orbit.git
+cd orbit/docker
+docker compose up -d
+# NVIDIA GPU: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
 
 **Windows (native):** see the [Windows installation guide](install/windows.md).
