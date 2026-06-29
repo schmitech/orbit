@@ -533,7 +533,11 @@ if [ "$PUBLISH" = true ]; then
     echo ""
     echo -e "${BLUE}Run the published image:${NC}"
     echo -e "   docker pull ${IMAGE_NAME}:${RUN_TAG}"
-    echo -e "   docker run -d --name ${CONTAINER_NAME} -p 3000:3000 ${IMAGE_NAME}:${RUN_TAG}"
+    if [ -z "$CONFIG_DIR" ]; then
+        echo -e "   docker run -d --name ${CONTAINER_NAME} --add-host=host.docker.internal:host-gateway -e OLLAMA_HOST=host.docker.internal:11434 -p 3000:3000 ${IMAGE_NAME}:${RUN_TAG}"
+    else
+        echo -e "   docker run -d --name ${CONTAINER_NAME} -p 3000:3000 ${IMAGE_NAME}:${RUN_TAG}"
+    fi
     echo ""
     echo -e "${BLUE}Run with provider credentials:${NC}"
     echo -e "   docker run -d --name ${CONTAINER_NAME} --env-file ./orbit.env -p 3000:3000 ${IMAGE_NAME}:${RUN_TAG}"

@@ -105,24 +105,24 @@ curl -X POST http://localhost:3000/v1/chat \
   }'
 ```
 
-### Option B: Pre-built image (single container)
+### Option B: Pre-built Image (Single Container)
 
-To run only the ORBIT server from Docker Hub (no Ollama or models inside the image):
+To run only the ORBIT server from Docker Hub with Ollama running on your host:
 
 ```bash
 docker pull schmitech/orbit:basic
-docker run -d --name orbit-basic -p 3000:3000 schmitech/orbit:basic
+docker run -d --name orbit-basic \
+  --add-host=host.docker.internal:host-gateway \
+  -e OLLAMA_HOST=host.docker.internal:11434 \
+  -p 3000:3000 \
+  schmitech/orbit:basic
 ```
 
-The server will listen on port 3000 but needs an LLM backend to handle chat:
+The image does not include Ollama or models. The server listens on port 3000
+and needs an LLM backend to handle chat:
 
-- **Ollama on your host:** use `host.docker.internal` so the container can reach it:
-  ```bash
-  docker run -d --name orbit-basic -p 3000:3000 \
-    -e OLLAMA_HOST=host.docker.internal:11434 \
-    schmitech/orbit:basic
-  ```
 - **Ollama in another container or remote:** set `OLLAMA_HOST` to that address (e.g. `ollama:11434` or `http://your-ollama-host:11434`).
+- **Non-Ollama targeted image:** set `ORBIT_WAIT_FOR_OLLAMA=false` only if your config has no Ollama dependency and you need to bypass the readiness check explicitly.
 
 The `basic` image includes the **simple-chat** adapter only. For the full stack (Ollama + model pull + ORBIT), use Docker Compose (Option A above).
 
@@ -333,11 +333,16 @@ chmod +x publish.sh
 # Build and publish to Docker Hub
 ./publish.sh --publish
 
-# Build and publish with version tag
-./publish.sh --publish --tag v1.0.0
+# Build and publish the default Ollama/basic image with version tags
+./publish.sh --publish --tag v2.7.10
+
+# Build and publish a targeted OpenAI image
+./publish.sh --publish --tag 2.7.10-openai --config-dir ../deploy/openai
 ```
 
-The build creates a lean server-only image (no Ollama, no Node.js, no models). Models are pulled at runtime by the `ollama-init` service.
+The build creates a lean server-only image with no Ollama, no Node.js, and no
+bundled models. When you use Docker Compose, models are pulled by the
+`ollama-init` service.
 
 For development or release testing only, you can opt into local sources:
 
@@ -395,6 +400,7 @@ secrets, Kubernetes Secrets, or your deployment platform's secret manager.
 Example env file:
 
 ```env
+ORBIT_DEFAULT_ADMIN_PASSWORD=change-this-admin-password
 OPENAI_API_KEY=sk-...
 GOOGLE_API_KEY=...
 DATASOURCE_QDRANT_API_KEY=...
@@ -415,10 +421,14 @@ Single variables can also be passed directly:
 
 ```bash
 docker run -d --name orbit-2.7.10-openai \
+  -e ORBIT_DEFAULT_ADMIN_PASSWORD="change-this-admin-password" \
   -e OPENAI_API_KEY="$OPENAI_API_KEY" \
   -p 3000:3000 \
   schmitech/orbit:2.7.10-openai
 ```
+
+The Docker image defaults `ORBIT_DEFAULT_ADMIN_PASSWORD` to `admin123` for
+first-run convenience. Override it before exposing ORBIT beyond localhost.
 
 Advanced builds can override the runtime user and CUDA wheel channel:
 
@@ -436,7 +446,8 @@ docker build -f docker/Dockerfile .. \
 ./publish.sh --build --tag v2.7.10  # Build from a specific release tarball
 ./publish.sh --build --tag 2.7.10-openai --config-dir ../deploy/openai
 ./publish.sh --publish            # Build and push to Docker Hub
-./publish.sh --publish --tag v1.0.0  # Build, push, and tag version
+./publish.sh --publish --tag v2.7.10  # Build, push, and tag default image
+./publish.sh --publish --tag 2.7.10-openai --config-dir ../deploy/openai
 ./publish.sh --build --source checkout  # Development/testing only
 ./publish.sh --help               # Show help
 ```

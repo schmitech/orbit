@@ -139,6 +139,34 @@ esac
 echo "Rewriting Ollama URLs to: $OLLAMA_URL"
 find "$RUNTIME_CONFIG_DIR" -name '*.yaml' -exec sed -i "s|http://localhost:11434|${OLLAMA_URL}|g" {} +
 
+should_wait_for_ollama() {
+    local mode="${ORBIT_WAIT_FOR_OLLAMA:-auto}"
+
+    case "$mode" in
+        true|1|yes) return 0 ;;
+        false|0|no) return 1 ;;
+        auto)
+            if grep -qiE 'inference_provider:[[:space:]]*"?ollama"?|-[[:space:]]*"?ollama.yaml"?' "$RUNTIME_CONFIG_DIR/config.yaml" 2>/dev/null; then
+                return 0
+            fi
+            if grep -RqiE 'inference_provider:[[:space:]]*"?ollama"?|model:[[:space:]]*"?smollm2-|provider:[[:space:]]*"?ollama"?' "$RUNTIME_CONFIG_DIR/adapters" 2>/dev/null; then
+                return 0
+            fi
+            return 1
+            ;;
+        *)
+            echo "Warning: invalid ORBIT_WAIT_FOR_OLLAMA=${mode}; using auto"
+            if grep -qiE 'inference_provider:[[:space:]]*"?ollama"?|-[[:space:]]*"?ollama.yaml"?' "$RUNTIME_CONFIG_DIR/config.yaml" 2>/dev/null; then
+                return 0
+            fi
+            if grep -RqiE 'inference_provider:[[:space:]]*"?ollama"?|model:[[:space:]]*"?smollm2-|provider:[[:space:]]*"?ollama"?' "$RUNTIME_CONFIG_DIR/adapters" 2>/dev/null; then
+                return 0
+            fi
+            return 1
+            ;;
+    esac
+}
+
 if [ "${ORBIT_ALLOW_DEFAULT_CREDENTIALS:-false}" != "true" ]; then
     echo ""
     echo "SECURITY WARNING:"
@@ -151,26 +179,35 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════
 # Wait for Ollama to be ready
 # ═══════════════════════════════════════════════════════════════════════════
-echo "Waiting for Ollama to be ready at ${OLLAMA_URL}..."
-MAX_RETRIES=30
-RETRY_COUNT=0
-while ! curl -s "${OLLAMA_URL}/api/tags" > /dev/null 2>&1; do
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-        echo "Error: Ollama failed to respond after $MAX_RETRIES attempts"
-        exit 1
-    fi
-    echo "Waiting for Ollama... (attempt $RETRY_COUNT/$MAX_RETRIES)"
-    sleep 2
-done
-echo "Ollama is ready"
+OLLAMA_STATUS="not required"
+if should_wait_for_ollama; then
+    echo "Waiting for Ollama to be ready at ${OLLAMA_URL}..."
+    MAX_RETRIES="${ORBIT_OLLAMA_MAX_RETRIES:-30}"
+    RETRY_COUNT=0
+    while ! curl -s "${OLLAMA_URL}/api/tags" > /dev/null 2>&1; do
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
+            echo "Error: Ollama failed to respond after $MAX_RETRIES attempts"
+            echo "Hint: if Ollama is running on the Docker host, pass:"
+            echo "  -e OLLAMA_HOST=host.docker.internal:11434 --add-host=host.docker.internal:host-gateway"
+            echo "For non-Ollama provider images, pass ORBIT_WAIT_FOR_OLLAMA=false or remove Ollama references from the config overlay."
+            exit 1
+        fi
+        echo "Waiting for Ollama... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+        sleep 2
+    done
+    OLLAMA_STATUS="$OLLAMA_URL"
+    echo "Ollama is ready"
+else
+    echo "Skipping Ollama readiness check (ORBIT_WAIT_FOR_OLLAMA=${ORBIT_WAIT_FOR_OLLAMA:-auto})"
+fi
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════════════════"
 echo "  ORBIT Server is starting"
 echo "═══════════════════════════════════════════════════════════════════════════"
 echo "  API:      http://localhost:3000"
-echo "  Ollama:   $OLLAMA_URL"
+echo "  Ollama:   $OLLAMA_STATUS"
 echo "  Preset:   $SELECTED_PRESET"
 if [ "$DETECTED_GPU" = "cpu" ]; then
     echo "  Hardware: CPU"

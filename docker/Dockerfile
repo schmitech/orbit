@@ -116,6 +116,7 @@ COPY install/orbit.db.default /orbit/orbit.db.default
 ENV PYTHONPATH=/orbit:/orbit/server
 ENV PATH="/orbit/bin:${PATH}"
 ENV ENVIRONMENT=production
+ENV ORBIT_DEFAULT_ADMIN_PASSWORD=admin123
 
 # ═══════════════════════════════════════════════════════════════════════════
 # GPU/CPU Auto-Detection Configuration
