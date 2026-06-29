@@ -203,6 +203,15 @@ class SQLiteService(DatabaseService):
                     metadata_json TEXT
                 )
             ''',
+            'thread_datasets': '''
+                CREATE TABLE IF NOT EXISTS thread_datasets (
+                    id TEXT PRIMARY KEY,
+                    thread_id TEXT NOT NULL,
+                    dataset_json TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            ''',
             'uploaded_files': '''
                 CREATE TABLE IF NOT EXISTS uploaded_files (
                     id TEXT PRIMARY KEY,
@@ -323,6 +332,10 @@ class SQLiteService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_conversation_threads_parent_session ON conversation_threads(parent_session_id)',
                 'CREATE INDEX IF NOT EXISTS idx_conversation_threads_thread_session ON conversation_threads(thread_session_id)',
                 'CREATE INDEX IF NOT EXISTS idx_conversation_threads_expires_at ON conversation_threads(expires_at)',
+            ],
+            'thread_datasets': [
+                'CREATE INDEX IF NOT EXISTS idx_thread_datasets_thread_id ON thread_datasets(thread_id)',
+                'CREATE INDEX IF NOT EXISTS idx_thread_datasets_expires_at ON thread_datasets(expires_at)',
             ],
             'uploaded_files': [
                 'CREATE INDEX IF NOT EXISTS idx_uploaded_files_api_key ON uploaded_files(api_key)',

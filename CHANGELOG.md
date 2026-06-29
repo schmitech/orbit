@@ -13,6 +13,7 @@
 ### Bug Fixes & Technical Improvements
 - **PDF Rendering**: Rendered emojis correctly in PDFs instead of replacement characters.
 - **Regression Fixes**: Cleaned up unit test regressions, including the vision config key and streaming audio mock behavior.
+- **SQLite Thread Datasets**: Added the missing `thread_datasets` table and indexes to SQLite initialization so database fallback storage for conversation thread datasets is available.
 
 ### Documentation & Configuration
 - **Integration Guides**: Added Open WebUI integration instructions and a LiteLLM comparison guide.
