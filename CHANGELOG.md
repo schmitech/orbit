@@ -11,6 +11,7 @@
 - **Export Toolbar**: Added copy-code and PNG export actions for charts and Mermaid diagrams, then extended the toolbar to SVG and ABC renderers.
 
 ### Bug Fixes & Technical Improvements
+- **Azure Tool Calling**: Implemented `generate_with_tools` in `AzureOpenAIInferenceService`, resolving a `NotImplementedError` when tool-calling was invoked with the Azure provider.
 - **PDF Rendering**: Rendered emojis correctly in PDFs instead of replacement characters.
 - **Regression Fixes**: Cleaned up unit test regressions, including the vision config key and streaming audio mock behavior.
 - **SQLite Thread Datasets**: Added the missing `thread_datasets` table and indexes to SQLite initialization so database fallback storage for conversation thread datasets is available.
