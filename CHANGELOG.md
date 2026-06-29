@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.7.10] - 2026-06-28
+
+### Core System Updates
+- **Chart Rendering**: Added chart rendering to generated PDF, DOCX, and PPTX documents, embedding section-level charts as higher-resolution PNG images with support for bar, line, pie, area, and composed dual-axis charts.
+- **Node API**: Brought the Node API client into parity with server routes by adding media fields, model and skill params, new response interfaces, and the corrected deactivate-api-key route.
+- **orbitchat v3.10.9**: Published the latest chat client release.
+
+### Chat-app & UI Improvements
+- **Export Toolbar**: Added copy-code and PNG export actions for charts and Mermaid diagrams, then extended the toolbar to SVG and ABC renderers.
+
+### Bug Fixes & Technical Improvements
+- **PDF Rendering**: Rendered emojis correctly in PDFs instead of replacement characters.
+- **Regression Fixes**: Cleaned up unit test regressions, including the vision config key and streaming audio mock behavior.
+
+### Documentation & Configuration
+- **Integration Guides**: Added Open WebUI integration instructions and a LiteLLM comparison guide.
+- **README Cleanup**: Streamlined the README for faster scanning and better front-loading of the main value proposition.
+
 ## [2.7.9] - 2026-06-26
 
 ### Core System Updates
