@@ -313,12 +313,22 @@ docker compose restart orbit
 
 ### Build the Image
 
+By default, `publish.sh` builds the Docker image from the latest stable release
+tarball on GitHub, not from the current checkout. This keeps production images
+aligned with released ORBIT code.
+
 ```bash
 cd docker
 chmod +x publish.sh
 
-# Build only
+# Build from the latest stable release tarball
 ./publish.sh --build
+
+# Build from a specific stable release tarball
+./publish.sh --build --tag v2.7.10
+
+# Build a targeted OpenAI image from release v2.7.10 with custom config
+./publish.sh --build --tag 2.7.10-openai --config-dir ../deploy/openai
 
 # Build and publish to Docker Hub
 ./publish.sh --publish
@@ -328,6 +338,87 @@ chmod +x publish.sh
 ```
 
 The build creates a lean server-only image (no Ollama, no Node.js, no models). Models are pulled at runtime by the `ollama-init` service.
+
+For development or release testing only, you can opt into local sources:
+
+```bash
+# Build from a local release-style tarball generated from this checkout
+./publish.sh --build --source local-tarball --tag v2.7.10
+
+# Build directly from this checkout
+./publish.sh --build --source checkout
+```
+
+### Targeted Config Builds
+
+Use `--config-dir` to build deployment-specific images for different providers,
+adapters, models, or datasources. The directory is copied over `/orbit/config`
+after the default Docker config, so matching files replace the image defaults
+and new files are added.
+
+Example config overlay:
+
+```text
+deploy/openai/
+├── config.yaml
+├── adapters.yaml
+├── inference.yaml
+└── adapters/
+    ├── passthrough.yaml
+    └── file.yaml
+```
+
+Example targeted images:
+
+```bash
+./publish.sh --build --tag 2.7.10-openai --config-dir ../deploy/openai
+./publish.sh --build --tag 2.7.10-gemini --config-dir ../deploy/gemini
+./publish.sh --build --tag 2.7.10-ollama --config-dir ../deploy/ollama
+```
+
+For release builds, tags like `2.7.10-openai` automatically resolve the source
+tarball from release `v2.7.10`. Use `--release-tag v2.7.10` when you want to be
+explicit.
+
+Custom config builds require `--tag` and do not update the generic `latest` or
+`basic` tags. They create the targeted tag, such as
+`schmitech/orbit:2.7.10-openai`, plus the compatibility tag
+`schmitech/orbit:basic-2.7.10-openai`.
+
+### Runtime Environment Variables
+
+Do not bake API keys or datasource passwords into the Docker image. Targeted
+images should include provider/model/datasource configuration only; secrets are
+supplied at runtime through Docker environment variables, an env file, Compose
+secrets, Kubernetes Secrets, or your deployment platform's secret manager.
+
+Example env file:
+
+```env
+OPENAI_API_KEY=sk-...
+GOOGLE_API_KEY=...
+DATASOURCE_QDRANT_API_KEY=...
+DATASOURCE_POSTGRES_PASSWORD=...
+```
+
+Run a targeted image with those values:
+
+```bash
+docker pull schmitech/orbit:2.7.10-openai
+docker run -d --name orbit-2.7.10-openai \
+  --env-file ./orbit.env \
+  -p 3000:3000 \
+  schmitech/orbit:2.7.10-openai
+```
+
+Single variables can also be passed directly:
+
+```bash
+docker run -d --name orbit-2.7.10-openai \
+  -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+  -p 3000:3000 \
+  schmitech/orbit:2.7.10-openai
+```
 
 Advanced builds can override the runtime user and CUDA wheel channel:
 
@@ -342,8 +433,11 @@ docker build -f docker/Dockerfile .. \
 
 ```bash
 ./publish.sh --build              # Build the Docker image
+./publish.sh --build --tag v2.7.10  # Build from a specific release tarball
+./publish.sh --build --tag 2.7.10-openai --config-dir ../deploy/openai
 ./publish.sh --publish            # Build and push to Docker Hub
 ./publish.sh --publish --tag v1.0.0  # Build, push, and tag version
+./publish.sh --build --source checkout  # Development/testing only
 ./publish.sh --help               # Show help
 ```
 

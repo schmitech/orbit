@@ -72,3 +72,4 @@ results/
 .claude
 *.yaml.bak
 .antigravitycli
+.gitkeep
