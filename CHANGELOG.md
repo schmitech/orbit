@@ -9,6 +9,7 @@
 
 ### Bug Fixes & Technical Improvements
 - **Azure Tool Calling**: Implemented `generate_with_tools` in `AzureOpenAIInferenceService` to prevent Azure tool-calling requests from failing with `NotImplementedError`.
+- **Anthropic Sampling Params**: Removed `temperature` and `top_p` from Anthropic inference and reranking requests and configs, fixing `400 invalid_request_error` failures from Claude models that no longer accept these parameters.
 - **Docker Runtime Defaults**: Added Ollama readiness controls, corrected direct-run commands for host Ollama, and preserved the default admin password environment value for first-run containers.
 - **Technical Debt Cleanup**: Removed deprecated and backward-compatible code, trimming unused paths across the codebase.
 
