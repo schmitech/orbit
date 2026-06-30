@@ -291,8 +291,6 @@ class ServiceFactory:
 
         # Create database service using factory
         app.state.database_service = create_database_service(self.config)
-
-        # For backward compatibility, also set mongodb_service
         app.state.mongodb_service = app.state.database_service
 
         backend_type = self.config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')

@@ -211,54 +211,48 @@ class LLMInferenceStep(PipelineStep):
             yield user_message
             context.set_error(user_message)
     
-    async def _build_prompt(self, context: ProcessingContext) -> str:
-        """
-        Build the full prompt for LLM generation.
-
-        Args:
-            context: The processing context
-
-        Returns:
-            The complete prompt string
-        """
-        # Check if we should use message format (for passthrough adapters)
-        if self._should_use_message_format(context):
-            await self._build_message_format(context)
-            # Return a simplified fallback prompt derived from the already-built messages
-            # to avoid duplicate logging and work
-            if hasattr(context, 'messages') and context.messages:
-                # Extract system content from the first message (already built)
-                system_content = context.messages[0].get('content', '') if context.messages else ''
-                return f"{system_content}\n\nUser: {context.message}"
-
-        # Build traditional concatenated format for non-message-format adapters
-        return await self._build_traditional_prompt(context)
-
-    def _should_use_message_format(self, context: ProcessingContext) -> bool:
-        """
-        Determine if we should use message-based format.
-
-        Args:
-            context: The processing context
-
-        Returns:
-            True if message format should be used
-        """
-        # Use message format for passthrough adapters
+    def _uses_native_chat_format(self, context: ProcessingContext) -> bool:
+        """Return True for providers/adapters that accept a structured messages array."""
         if context.adapter_name and self.container.has('adapter_manager'):
             adapter_manager = self.container.get('adapter_manager')
             adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
             if adapter_config and adapter_config.get('type') == 'passthrough':
                 return True
-
-        # Use message format for Ollama-based providers - smaller models perform
-        # significantly better with structured system/user roles than with a single
-        # concatenated prompt string in the user role
         inference_provider = getattr(context, 'inference_provider', None)
         if inference_provider and inference_provider.startswith('ollama'):
             return True
-
         return False
+
+    async def _build_prompt(self, context: ProcessingContext) -> str:
+        """Build the full prompt for LLM generation."""
+        if self._uses_native_chat_format(context):
+            await self._build_message_format(context)
+            if hasattr(context, 'messages') and context.messages:
+                system_content = context.messages[0].get('content', '')
+                return f"{system_content}\n\nUser: {context.message}"
+        context.messages = None
+        return await self._build_traditional_prompt(context)
+
+    async def _build_traditional_prompt(self, context: ProcessingContext) -> str:
+        """Build a single concatenated prompt string for providers that don't accept a messages array."""
+        builder = self._create_prompt_builder()
+        system_content = await builder.build_system_message_content(context)
+
+        parts = [system_content]
+
+        if context.context_messages:
+            history = []
+            for msg in context.context_messages:
+                role = msg.get('role', '').lower()
+                content = msg.get('content', '')
+                if role and content:
+                    history.append(f"{role.title()}: {content}")
+            if history:
+                parts.append(f"\nConversation History:\n" + "\n".join(history))
+
+        parts.append(f"\nUser: {context.message}")
+        parts.append("Assistant:")
+        return "\n".join(parts)
 
     async def _build_message_format(self, context: ProcessingContext) -> None:
         """
@@ -298,141 +292,3 @@ class LLMInferenceStep(PipelineStep):
             System message content
         """
         return await self._create_prompt_builder().build_system_message_content(context)
-
-    async def _build_traditional_prompt(self, context: ProcessingContext) -> str:
-        """
-        Build traditional concatenated prompt (backward compatibility).
-
-        Args:
-            context: The processing context
-
-        Returns:
-            The complete prompt string
-        """
-        # Get system prompt
-        system_prompt = await self._get_system_prompt(context)
-
-        # Build conversation history
-        history_text = self._format_conversation_history(context.context_messages)
-
-        # Build context section wrapped in <context> tags
-        context_section = ""
-        if context.formatted_context:
-            is_file_or_multimodal = context.adapter_name and ('file' in context.adapter_name.lower() or 'multimodal' in context.adapter_name.lower())
-            if is_file_or_multimodal:
-                context_section = f"\n<context>\n## UPLOADED FILE CONTENT\n\n{context.formatted_context}\n</context>"
-            else:
-                context_section = f"\n<context>\n{context.formatted_context}\n</context>"
-
-        # Build the complete prompt
-        parts = [system_prompt]
-
-        # Add time instruction
-        time_instruction = self._build_time_instruction(context)
-        if time_instruction:
-            parts.append(time_instruction)
-
-        # Add language matching instruction based on detection
-        language_instruction = self._build_language_instruction(context)
-        if language_instruction:
-            parts.append(language_instruction)
-
-        # Add chart instruction
-        chart_instruction = self._build_chart_instruction()
-        if chart_instruction:
-            parts.append(chart_instruction)
-
-        if context_section:
-            parts.append(context_section)
-
-        if history_text:
-            parts.append(f"\nConversation History:\n{history_text}")
-
-        # Add concise instruction right before the question
-        if context.formatted_context:
-            is_file_or_multimodal = context.adapter_name and ('file' in context.adapter_name.lower() or 'multimodal' in context.adapter_name.lower())
-            if is_file_or_multimodal:
-                parts.append("\nAnswer using the uploaded file content in <context>. If the answer is not there, say so.")
-            else:
-                parts.append("\nPrioritize the <context> section when answering. If the answer is not there, say so.")
-        else:
-            parts.append("\nAnswer based on the system prompt. Maintain your persona.")
-
-        parts.append(f"\nUser: {context.message}")
-        parts.append("Assistant:")
-
-        return "\n".join(parts)
-    
-    def _build_time_instruction(self, context: ProcessingContext) -> str:
-        """
-        Build time instruction based on clock service and context.
-
-        Uses the clock service to generate a formatted time instruction
-        that can be injected into the prompt. Supports per-adapter
-        timezone and format overrides.
-
-        Args:
-            context: The processing context containing timezone and time_format
-
-        Returns:
-            Formatted time instruction string, or empty string if disabled
-        """
-        return self._create_prompt_builder().build_time_instruction(context)
-    
-    async def _get_system_prompt(self, context: ProcessingContext) -> str:
-        """
-        Get the system prompt for the context.
-
-        The prompt_service already handles Redis caching internally,
-        so we just need to call it and optionally cache in memory.
-
-        Args:
-            context: The processing context
-
-        Returns:
-            The system prompt string
-        """
-        return await self._create_prompt_builder().get_system_prompt(context)
-    
-    def _format_conversation_history(self, context_messages: list) -> str:
-        """
-        Format conversation history for the prompt.
-        
-        Args:
-            context_messages: List of conversation messages
-            
-        Returns:
-            Formatted conversation history
-        """
-        if not context_messages:
-            return ""
-        
-        history = []
-        for msg in context_messages:
-            role = msg.get('role', '').lower()
-            content = msg.get('content', '')
-            if role and content:
-                history.append(f"{role.title()}: {content}")
-        
-        return "\n".join(history)
-    
-    def _build_language_instruction(self, context: ProcessingContext) -> str:
-        """
-        Build language instruction based on detected language.
-        
-        Args:
-            context: The processing context
-            
-        Returns:
-            Language instruction string or empty string
-        """
-        return self._create_prompt_builder().build_language_instruction(context)
-    
-    def _build_chart_instruction(self) -> str:
-        """
-        Build compact chart formatting instruction for LLM.
-
-        Returns:
-            Chart instruction string for the markdown renderer with recharts support.
-        """
-        return self._create_prompt_builder().build_chart_instruction()

@@ -47,50 +47,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
         
     def _extract_adapter_config(self) -> Optional[Dict[str, Any]]:
         """Extract QA adapter configuration if available."""
-        try:
-            # First check if adapter_config was directly passed in the config
-            # This happens when DynamicAdapterManager creates the retriever
-            if 'adapter_config' in self.config:
-                logger.debug("Using adapter config passed directly from DynamicAdapterManager")
-                return self.config['adapter_config']
-            
-            # Otherwise fall back to searching through adapters (for backward compatibility)
-            datasource_name = self.get_datasource_name()
-            logger.debug(f"Extracting adapter config for datasource: {datasource_name}")
-            
-            # Check if this is actually a QA retriever or a subclass with different adapter type
-            # FileChromaRetriever inherits from QAChromaRetriever but uses 'file' adapter type
-            class_name = self.__class__.__name__
-            is_file_retriever = 'File' in class_name
-            
-            if is_file_retriever:
-                # Don't look for QA adapter config for file retrievers
-                logger.debug(f"Skipping QA adapter config extraction for {class_name}")
-                return None
-            
-            # Track if we found a disabled matching adapter
-            found_disabled = False
-            
-            for adapter in self.config.get('adapters', []):
-                logger.debug(f"Checking adapter: {adapter.get('name', 'unnamed')}")
-                if (adapter.get('type') == 'retriever' and 
-                    adapter.get('datasource') == datasource_name and 
-                    adapter.get('adapter') == 'qa'):
-                    
-                    if adapter.get('enabled', True):
-                        config = adapter.get('config', {})
-                        logger.debug(f"Found matching enabled adapter config for {datasource_name}")
-                        return config
-                    else:
-                        found_disabled = True
-                        logger.debug(f"Found matching adapter for {datasource_name} but it's disabled")
-            
-            # Only warn if we didn't find any matching adapter (enabled or disabled)
-            if not found_disabled:
-                logger.warning(f"No matching adapter found for datasource={datasource_name}, adapter=qa")
-        except Exception as e:
-            logger.warning(f"Error extracting adapter config: {str(e)}")
-        return None
+        return self.config.get('adapter_config')
     
     def _merge_configs(self) -> Dict[str, Any]:
         """Merge adapter config with datasource config."""

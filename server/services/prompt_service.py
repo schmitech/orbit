@@ -46,11 +46,7 @@ class PromptService:
         backend_type = config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
 
         if backend_type == 'mongodb':
-            # MongoDB: read collection name from mongodb config
             mongodb_config = config.get('internal_services', {}).get('mongodb', {})
-            if not mongodb_config:
-                # Fallback to root mongodb section for backward compatibility
-                mongodb_config = config.get('mongodb', {})
             self.collection_name = mongodb_config.get('prompts_collection', 'system_prompts')
         else:
             # SQLite or other backends: use default table name

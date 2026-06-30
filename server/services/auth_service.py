@@ -50,11 +50,7 @@ class AuthService:
         backend_type = config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
 
         if backend_type == 'mongodb':
-            # MongoDB: read collection names from config
             mongodb_config = config.get('internal_services', {}).get('mongodb', {})
-            if not mongodb_config:
-                # Fallback to root mongodb section for backward compatibility
-                mongodb_config = config.get('mongodb', {})
             self.users_collection_name = mongodb_config.get('users_collection', 'users')
             self.sessions_collection_name = mongodb_config.get('sessions_collection', 'sessions')
         else:
