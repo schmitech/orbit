@@ -74,8 +74,7 @@ class AuditRecord:
     """
     Data class representing an audit record.
 
-    This structure matches the existing Elasticsearch audit schema for
-    backward compatibility while supporting SQLite and MongoDB storage.
+    This structure is shared by Elasticsearch, SQLite, and MongoDB storage.
     """
     timestamp: datetime
     query: str

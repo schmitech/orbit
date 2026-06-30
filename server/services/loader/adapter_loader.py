@@ -54,8 +54,8 @@ class AdapterLoader:
             provider_cache: Provider cache manager
             embedding_cache: Embedding cache manager
             reranker_cache: Reranker cache manager
-            vision_cache: Vision cache manager (optional for backward compatibility)
-            audio_cache: Audio cache manager (optional for backward compatibility)
+            vision_cache: Optional vision cache manager
+            audio_cache: Optional audio cache manager
             thread_pool: Optional thread pool for async operations
             adapter_manager: Reference to DynamicAdapterManager for composite adapters
         """

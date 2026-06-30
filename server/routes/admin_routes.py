@@ -374,8 +374,7 @@ async def get_api_key_status(
     """
     Get the status of a specific API key.
 
-    Accepts a record _id, raw API key value, or adapter name for
-    backwards compatibility with client proxies.
+    Accepts a record _id or raw API key value as the identifier.
     """
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
@@ -424,9 +423,7 @@ async def update_api_key(
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
 
-    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-    if not adapter_manager:
-        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
 
     success = await api_key_service.update_api_key_metadata(
         api_key_id,
@@ -479,9 +476,7 @@ async def get_adapter_capabilities(
     request: Request,
 ):
     """Return adapter capability metadata relevant to admin operations."""
-    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-    if not adapter_manager:
-        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
     if not adapter_manager:
         raise HTTPException(status_code=503, detail="Adapter manager is not available")
 

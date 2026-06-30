@@ -3,7 +3,6 @@ Elasticsearch Audit Storage Strategy
 =====================================
 
 Implementation of AuditStorageStrategy for Elasticsearch backend.
-Extracted from the existing LoggerService implementation for backward compatibility.
 """
 
 import os
@@ -52,9 +51,6 @@ def extract_client_ip(ip_value: str) -> tuple[str, str | None]:
 class ElasticsearchAuditStrategy(AuditStorageStrategy):
     """
     Elasticsearch implementation of audit storage.
-
-    This implementation is extracted from the existing LoggerService to maintain
-    backward compatibility with existing Elasticsearch audit logs.
     """
 
     def __init__(self, config: Dict[str, Any]):
@@ -99,7 +95,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             return
 
         try:
-            # Create Elasticsearch client (ES 9.0.2 compatible)
+            # Create Elasticsearch client with ES 9.0.2 options.
             client_kwargs = {
                 "basic_auth": (username, password),
                 "verify_certs": False,
@@ -206,7 +202,6 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             return False
 
         try:
-            # Build document (matches existing LoggerService schema)
             # Handle proxy scenarios (e.g., Cloudflare) where IP may contain multiple addresses
             if record.ip_metadata.get("type") == "local":
                 ip_for_elastic = "127.0.0.1"
@@ -257,7 +252,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             result = await self._es_client.index(
                 index=self._index_name,
                 document=document,
-                refresh="wait_for"  # ES 9.0.2 compatible
+                refresh="wait_for"
             )
 
             logger.debug(f"Stored audit record in Elasticsearch with ID: {result['_id']} (compressed: {self._compress_responses})")

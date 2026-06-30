@@ -32,8 +32,7 @@ class AuditService:
     Unified audit service for conversation logging.
 
     This service provides a facade for storing audit records to different
-    backends based on configuration. It maintains backward compatibility
-    with the LoggerService.log_conversation() signature.
+    backends based on configuration.
 
     Configuration:
         internal_services.audit.enabled: Whether audit logging is enabled
@@ -183,8 +182,6 @@ class AuditService:
         """
         Convert a raw IP value (or list thereof) into structured IP metadata.
 
-        This method is extracted from LoggerService for compatibility.
-
         Args:
             ip: IP address string or list of IP strings
 
@@ -283,8 +280,6 @@ class AuditService:
     ) -> None:
         """
         Log a conversation interaction to the configured audit backend.
-
-        This method maintains backward compatibility with LoggerService.log_conversation().
 
         Args:
             query: The user's query

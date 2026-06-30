@@ -317,8 +317,7 @@ class ChunkManager:
                     collection_name=self.collection_name
                 )
             else:
-                # Fallback: We'd need to query then delete each chunk individually
-                # For now, just remove from cache tracking
+                # The vector store cannot remove chunks by metadata; remove only local cache tracking.
                 logger.warning("Vector store doesn't support metadata-based deletion")
 
             logger.info(f"Invalidated cache for {source_url}")
@@ -545,7 +544,7 @@ class ChunkManager:
         while len(remaining) > char_limit:
             # Try to split at word boundary near the limit
             split_pos = char_limit
-            # Look backwards for word boundary (space, newline, punctuation)
+            # Look behind the split point for a word boundary (space, newline, punctuation)
             for i in range(split_pos, max(0, split_pos - 200), -1):
                 if remaining[i] in ' \n\t.,;:!?':
                     split_pos = i + 1
@@ -585,7 +584,7 @@ class ChunkManager:
 
     async def _embed_chunks_individually(self, chunk_texts: List[str]) -> Tuple[List[List[float]], List[int]]:
         """
-        Embed chunks one at a time as fallback.
+        Embed chunks one at a time after batch embedding fails.
 
         Args:
             chunk_texts: List of chunk texts to embed

@@ -819,7 +819,6 @@ class ChatHistoryService:
                     return 0
 
                 # Calculate which messages to keep (from newest, within budget)
-                # Work backwards from newest to oldest
                 messages_reversed = list(reversed(all_messages))
                 accumulated_tokens = 0
                 keep_count = 0
