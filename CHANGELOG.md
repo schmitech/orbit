@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.7.11] - 2026-06-30
+
+### Core System Updates
+- **Docker Publishing**: Built production Docker images from stable release artifacts by default, with opt-in checkout and local tarball modes for development and release testing, plus provider-specific config overlays and runtime secret guidance.
+- **SQLite Auth Sync**: Added SQLite-to-SQLite auth sync for migrating personas and API keys from a backup database into a fresh SQLite database.
+- **Release Guidance**: Updated deployment guidance to emphasize installing the latest stable release in production environments.
+
+### Bug Fixes & Technical Improvements
+- **Azure Tool Calling**: Implemented `generate_with_tools` in `AzureOpenAIInferenceService` to prevent Azure tool-calling requests from failing with `NotImplementedError`.
+- **Docker Runtime Defaults**: Added Ollama readiness controls, corrected direct-run commands for host Ollama, and preserved the default admin password environment value for first-run containers.
+- **Technical Debt Cleanup**: Removed deprecated and backward-compatible code, trimming unused paths across the codebase.
+
 ## [2.7.10] - 2026-06-28
 
 ### Core System Updates
