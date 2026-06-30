@@ -19,7 +19,6 @@ class FaultTolerantAdapterManager:
     - Parallel adapter execution
     - Circuit breaker protection
     - Easy debugging and monitoring
-    - Backward compatibility with existing API
     """
     
     def __init__(self, config: Dict[str, Any], app_state: Any):
@@ -41,11 +40,11 @@ class FaultTolerantAdapterManager:
     
     @property
     def config_manager(self):
-        """Delegate to base adapter manager's config_manager for backward compatibility."""
+        """Delegate to base adapter manager's config_manager."""
         return self.base_adapter_manager.config_manager
 
     async def get_adapter(self, adapter_name: str) -> Any:
-        """Get a single adapter - backward compatibility method"""
+        """Get a single adapter by name."""
         return await self.base_adapter_manager.get_adapter(adapter_name)
     
     def get_available_adapters(self) -> List[str]:
@@ -218,29 +217,3 @@ class FaultTolerantAdapterManager:
 
         # Cleanup base adapter manager
         await self.base_adapter_manager.close()
-
-# Proxy class for backward compatibility
-class FaultTolerantAdapterProxy:
-    """
-    Proxy that provides the retriever interface for backward compatibility.
-    """
-    
-    def __init__(self, fault_tolerant_manager: FaultTolerantAdapterManager):
-        self.manager = fault_tolerant_manager
-    
-    async def get_relevant_context(self, query: str, adapter_name: str = None,
-                                 adapter_names: List[str] = None,
-                                 api_key: Optional[str] = None,
-                                 **kwargs) -> List[Dict[str, Any]]:
-        """Get relevant context through the fault-tolerant manager"""
-        return await self.manager.get_relevant_context(
-            query=query,
-            adapter_names=adapter_names,
-            adapter_name=adapter_name,
-            api_key=api_key,
-            **kwargs
-        )
-    
-    def get_health_status(self) -> Dict[str, Any]:
-        """Get health status"""
-        return self.manager.get_health_status()

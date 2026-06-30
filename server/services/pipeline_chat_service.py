@@ -59,8 +59,6 @@ class PipelineChatService:
             redis_service: Optional Redis service for session persistence
             adapter_manager: Optional shared adapter manager (uses app.state.adapter_manager).
             audit_service: Optional audit service for audit trail storage.
-                           If provided, config changes during reload will be reflected.
-                           If not provided, creates a local instance (backward compatibility).
             database_service: Optional database service (SQLite/MongoDB) for thread operations.
             thread_dataset_service: Optional thread dataset service for conversation threading.
         """
