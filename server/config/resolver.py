@@ -1,5 +1,5 @@
 """
-Configuration resolver for handling provider configurations and ensuring backward compatibility.
+Configuration resolver for handling provider configurations.
 
 This module handles the resolution of all provider configurations in the system,
 including inference, embedding, datasource, and reranker providers.
@@ -9,17 +9,17 @@ import logging
 from typing import Dict, Any
 
 
-
 logger = logging.getLogger(__name__)
+
+
 class ConfigResolver:
     """
-    Handles resolution of provider configurations and ensures backward compatibility.
+    Handles resolution of provider configurations.
     
     This class is responsible for:
     - Resolving provider configurations for all components
     - Handling provider inheritance and overrides
     - Managing component-specific settings
-    - Ensuring backward compatibility
     - Model resolution for components
     """
     
@@ -36,7 +36,7 @@ class ConfigResolver:
     
     def resolve_all_providers(self) -> None:
         """
-        Resolve all provider configurations and ensure backward compatibility.
+        Resolve all provider configurations.
         
         This method handles the resolution of all provider configurations in the system,
         including:
@@ -47,16 +47,13 @@ class ConfigResolver:
         - Reranker provider
         
         The resolution process:
-        1. Checks for inference-only mode
-        2. Resolves each provider configuration
-        3. Updates component-specific settings
-        4. Handles backward compatibility
+        1. Resolves each provider configuration
+        2. Updates component-specific settings
         
         The method supports:
         - Provider inheritance
         - Component-specific overrides
         - Model resolution
-        - Backward compatibility mapping
         
         """
         # Get selected providers
@@ -64,8 +61,8 @@ class ConfigResolver:
         safety_provider = self._resolve_component_provider('safety')
         safety_model = self._resolve_component_model('safety', safety_provider)
         if 'safety' in self.config:
-                self.config['safety']['resolved_provider'] = safety_provider
-                self.config['safety']['resolved_model'] = safety_model
+            self.config['safety']['resolved_provider'] = safety_provider
+            self.config['safety']['resolved_model'] = safety_model
 
         # Always resolve all providers
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
@@ -81,14 +78,6 @@ class ConfigResolver:
         if 'reranker' in self.config:
             self.config['reranker']['resolved_provider'] = reranker_provider
             self.config['reranker']['resolved_model'] = reranker_model
-
-        # Handle mongodb settings for backward compatibility
-        if 'internal_services' in self.config and 'mongodb' in self.config['internal_services']:
-            self.config['mongodb'] = self.config['internal_services']['mongodb']
-
-        # Handle elasticsearch settings for backward compatibility
-        if 'internal_services' in self.config and 'elasticsearch' in self.config['internal_services']:
-            self.config['elasticsearch'] = self.config['internal_services']['elasticsearch']
 
         logger.debug(f"Using inference provider: {inference_provider}")
         logger.debug(f"Using datasource provider: {datasource_provider}")
