@@ -292,27 +292,17 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
 
             # Atomically check hard limits before incrementing. Rejected requests
             # must not consume additional quota.
-            if hasattr(quota_service, 'check_and_increment_usage'):
-                (
-                    daily_used,
-                    monthly_used,
-                    daily_reset_seconds,
-                    monthly_reset_seconds,
-                    exceeded_type
-                ) = await quota_service.check_and_increment_usage(
-                    api_key,
-                    daily_limit,
-                    monthly_limit
-                )
-            else:
-                # Backward-compatible fallback for tests or custom quota services.
-                daily_used, monthly_used, daily_reset_seconds, monthly_reset_seconds = \
-                    await quota_service.increment_usage(api_key)
-                exceeded_type = None
-                if daily_limit is not None and daily_used > daily_limit:
-                    exceeded_type = 'daily'
-                elif monthly_limit is not None and monthly_used > monthly_limit:
-                    exceeded_type = 'monthly'
+            (
+                daily_used,
+                monthly_used,
+                daily_reset_seconds,
+                monthly_reset_seconds,
+                exceeded_type
+            ) = await quota_service.check_and_increment_usage(
+                api_key,
+                daily_limit,
+                monthly_limit
+            )
 
             # Calculate remaining
             daily_remaining = None if daily_limit is None else max(0, daily_limit - daily_used)

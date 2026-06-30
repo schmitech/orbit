@@ -299,9 +299,10 @@ class FileVectorRetriever(AbstractVectorRetriever):
                                     f"(provider signature '{provider_signature}' not found in collection name)"
                                 )
                     else:
-                        # If we can't determine provider, include all collections (backward compatibility)
-                        logger.debug(f"FileVectorRetriever: No provider signature - using collection {coll_name} (backward compatibility)")
-                        collections.add(coll_name)
+                        logger.warning(
+                            f"FileVectorRetriever: Skipping collection {coll_name} because "
+                            "the current embedding provider signature could not be determined"
+                        )
                 else:
                     logger.warning(f"FileVectorRetriever: File {file_id} has no collection_name in metadata")
 
@@ -331,8 +332,10 @@ class FileVectorRetriever(AbstractVectorRetriever):
                         if provider_signature in coll_name:
                             collections.add(coll_name)
                     else:
-                        # If we can't determine provider, include all collections (backward compatibility)
-                        collections.add(coll_name)
+                        logger.warning(
+                            f"FileVectorRetriever: Skipping collection {coll_name} because "
+                            "the current embedding provider signature could not be determined"
+                        )
 
             return list(collections)
 
@@ -538,8 +541,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
                 chunk_ids = [c['chunk_id'] for c in chunks]
                 logger.debug(f"Deleting {len(chunk_ids)} chunks from vector store for file {file_id}")
 
-                # Delete each chunk from vector store
-                # Most vector stores support batch deletion, but we'll delete individually for compatibility
+                # Delete each chunk from vector store.
                 deletion_errors = []
                 for chunk_id in chunk_ids:
                     try:
@@ -598,7 +600,6 @@ class FileVectorRetriever(AbstractVectorRetriever):
     def _get_datasource_name(self) -> str:
         """Return the name of this datasource for config lookup"""
         # Note: File adapter doesn't use traditional datasources (datasource: "none" in adapter config)
-        # This is used by parent class for legacy config lookup
         return "files"  # Match the global config section name
 
     def _get_datasource_config(self) -> Dict[str, Any]:
@@ -618,13 +619,12 @@ class FileVectorRetriever(AbstractVectorRetriever):
         if adapter_config:
             return adapter_config
 
-        # Fallback to global 'files' config section
+        # Use global 'files' config section when adapter-specific config is absent
         files_config = self.config.get('files', {})
         if files_config:
             return files_config
 
-        # Final fallback to parent's logic (for edge cases)
-        return super()._get_datasource_config()
+        return {}
     
     async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
         """

@@ -41,7 +41,6 @@ class TestInferenceServerDocsExposure:
     def _build_server(self):
         mock_logger = Mock()
         mock_thread_pool_manager = Mock()
-        mock_thread_pool_manager.get_pool.return_value = Mock()
 
         with patch("inference_server.load_config", return_value={}), \
              patch("inference_server.LoggingConfigurator.setup_initial_logging", return_value=mock_logger), \

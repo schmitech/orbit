@@ -115,9 +115,6 @@ class InferenceServer:
         
         # Initialize thread pool manager with specialized pools
         self.thread_pool_manager = ThreadPoolManager(self.config, self.logger)
-        
-        # Keep backward compatibility - use IO pool as default
-        self.thread_pool = self.thread_pool_manager.get_pool('io')
 
         docs_enabled = self._docs_enabled()
         
@@ -518,7 +515,7 @@ class InferenceServer:
 
         # Get performance configuration
         perf_config = self.config.get('performance', {})
-        workers = perf_config.get('workers', 1)  # Default to 1 worker for backward compatibility
+        workers = perf_config.get('workers', 1)
 
         config_kwargs = {
             "host": host,

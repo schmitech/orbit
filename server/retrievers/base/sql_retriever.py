@@ -433,7 +433,3 @@ class AbstractSQLRetriever(BaseRetriever):
             logger.error(f"Error retrieving context: {str(e)}")
             logger.error(traceback.format_exc())
             return []
-
-
-# For backward compatibility, keep the old class name as an alias
-SQLRetriever = AbstractSQLRetriever
