@@ -219,7 +219,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
         """
         super().__init__(config=config, datasource=datasource, **kwargs)
 
-        # Extract connection parameters using mixin (may still be needed for legacy code)
+        # Extract connection parameters using mixin.
         self.connection_params = self.extract_connection_params(self.datasource_config)
 
         # Database-specific settings
@@ -316,7 +316,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
                     if self._datasource:
                         await self._datasource.close()
                         await self._datasource.initialize()
-                        self._connection = self._datasource.get_client()
+                        self._connection = self._datasource.get_connection()
 
                     logger.info(f"Reconnected to {self._get_datasource_name()} successfully")
 

@@ -112,12 +112,6 @@ class PostgreSQLDatasource(BaseDatasource):
 
         return conn
 
-    def get_client(self):
-        """Get a dedicated client connection for legacy callers."""
-        if self._client is None and hasattr(self, '_pool') and self._pool:
-            self._client = self.get_connection()
-        return super().get_client()
-
     def return_connection(self, conn):
         """Return a connection to the pool."""
         if hasattr(self, '_pool') and self._pool:
@@ -153,13 +147,6 @@ class PostgreSQLDatasource(BaseDatasource):
     async def close(self) -> None:
         """Close the PostgreSQL connection pool."""
         if hasattr(self, '_pool') and self._pool:
-            # Return the backward-compat client first
-            if self._client:
-                try:
-                    self._pool.putconn(self._client)
-                except Exception:
-                    pass
-                self._client = None
             self._pool.close()
             self._pool = None
             logger.info("PostgreSQL connection pool closed")

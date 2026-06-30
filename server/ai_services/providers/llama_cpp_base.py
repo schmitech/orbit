@@ -44,7 +44,7 @@ class LlamaCppBaseService(ProviderAIService):
         llama_config = self._extract_provider_config()
 
         # Determine mode: API or Direct
-        # Default to "direct" for backward compatibility (previous version only supported direct mode)
+        # Default to "direct"
         explicit_mode = "mode" in llama_config
         self.mode = llama_config.get("mode", "direct")
         self.model_path = llama_config.get("model_path")

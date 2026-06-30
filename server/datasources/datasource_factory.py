@@ -17,7 +17,7 @@ class DatasourceFactory:
     """
     Factory class for creating datasource clients using the registry pattern.
     
-    This class provides a backward-compatible interface while delegating to the
+    This class provides an interface while delegating to the
     registry for actual datasource creation and management.
     """
     
