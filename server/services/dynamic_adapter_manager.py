@@ -43,8 +43,6 @@ class DynamicAdapterManager:
     - Adapter loading and initialization
     - Reload orchestration for hot-swapping
 
-    This class maintains backward-compatible public API while delegating
-    to specialized components for better maintainability.
     """
 
     def __init__(self, config: Dict[str, Any], app_state=None):
@@ -762,46 +760,6 @@ class DynamicAdapterManager:
 
         logger.info("Dynamic Adapter Manager closed")
 
-    # Backward compatibility properties for internal state access
-    @property
-    def _adapter_cache(self) -> Dict[str, Any]:
-        """Backward compatibility: Direct access to adapter cache dict."""
-        return self.adapter_cache._cache.copy()
-
-    @property
-    def _adapter_configs(self) -> Dict[str, Dict[str, Any]]:
-        """Backward compatibility: Direct access to adapter configs dict."""
-        return self.config_manager._adapter_configs.copy()
-
-    @property
-    def _provider_cache(self) -> Dict[str, Any]:
-        """Backward compatibility: Direct access to provider cache dict."""
-        return self.provider_cache._cache.copy()
-
-    @property
-    def _embedding_cache(self) -> Dict[str, Any]:
-        """Backward compatibility: Direct access to embedding cache dict."""
-        return self.embedding_cache._cache.copy()
-
-    @property
-    def _reranker_cache(self) -> Dict[str, Any]:
-        """Backward compatibility: Direct access to reranker cache dict."""
-        return self.reranker_cache._cache.copy()
-
-    @property
-    def _vision_cache(self) -> Dict[str, Any]:
-        """Backward compatibility: Direct access to vision cache dict."""
-        return self.vision_cache._cache.copy()
-
-    @property
-    def _audio_cache(self) -> Dict[str, Any]:
-        """Backward compatibility: Direct access to audio cache dict."""
-        return self.audio_cache._cache.copy()
-
-    @property
-    def _initializing_adapters(self):
-        """Backward compatibility: Direct access to initializing set."""
-        return self.adapter_cache._initializing.copy()
 
 
 class AdapterProxy:
@@ -833,7 +791,7 @@ class AdapterProxy:
         Args:
             query: The user's query
             adapter_name: Name of the adapter to use
-            api_key: Optional API key (for backward compatibility)
+            api_key: Optional API key passed through to the adapter
             **kwargs: Additional parameters
 
         Returns:

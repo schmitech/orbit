@@ -298,7 +298,7 @@ def create_database_service(config: Dict[str, Any]) -> DatabaseService:
     """
     # Get backend configuration
     backend_config = config.get('internal_services', {}).get('backend', {})
-    backend_type = backend_config.get('type', 'mongodb')  # Default to MongoDB for backward compatibility
+    backend_type = backend_config.get('type', 'mongodb')
 
     if backend_type == 'mongodb':
         from services.mongodb_service import MongoDBService

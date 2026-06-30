@@ -369,8 +369,6 @@ class TestDynamicAdapterManagerIntegration:
         assert hasattr(manager.reranker_cache, '_cache_lock')
         assert hasattr(manager.reranker_cache, '_initializing')
         
-        # Check backward compatibility property
-        assert hasattr(manager, '_reranker_cache')
 
     def test_get_overridden_reranker_exception_handling(self):
         """Test that get_overridden_reranker handles missing provider gracefully."""

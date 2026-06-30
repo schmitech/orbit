@@ -13,5 +13,6 @@ def uses_retrieval_services(adapter_config: Dict[str, Any]) -> bool:
     if capabilities.get('retrieval') or capabilities.get('semantic_search'):
         return True
 
-    # Backward compatibility for configs that predate capabilities inference.
+    # Adapters that declare type: but no explicit capabilities block: treat all
+    # non-passthrough types as retrieval-enabled.
     return adapter_config.get('type') != 'passthrough'
