@@ -38,9 +38,7 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
         InferenceService.__init__(self, config, "anthropic")
 
         # Get inference-specific configuration
-        self.temperature = self._get_temperature(default=0.1)
         self.max_tokens = self._get_max_tokens(default=1024)
-        self.top_p = self._get_top_p(default=0.8)
 
     @staticmethod
     def _extract_system_message(messages):
@@ -100,9 +98,7 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
             params["tools"] = anthropic_tools
         if system_content:
             params["system"] = system_content
-        temp = kwargs.pop("temperature", self.temperature)
-        if temp is not None:
-            params["temperature"] = temp
+        kwargs.pop("temperature", None)
 
         try:
             response = await self.client.messages.create(**params)
@@ -222,10 +218,9 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
             system_content, messages = self._extract_system_message(messages)
 
             # Build parameters using configured values
-            # Note: Anthropic API doesn't allow both temperature and top_p
-            # Prefer temperature if both are provided
-            temperature = kwargs.pop('temperature', self.temperature)
-            top_p = kwargs.pop('top_p', self.top_p)
+            # Note: Anthropic no longer accepts temperature/top_p for current Claude models
+            kwargs.pop('temperature', None)
+            kwargs.pop('top_p', None)
 
             params = {
                 "model": self.model,
@@ -236,12 +231,6 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
 
             if system_content:
                 params["system"] = system_content
-
-            # Only include temperature or top_p, not both
-            if temperature is not None:
-                params["temperature"] = temperature
-            elif top_p is not None:
-                params["top_p"] = top_p
 
             response = await self.client.messages.create(**params)
 
@@ -277,10 +266,9 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
             system_content, messages = self._extract_system_message(messages)
 
             # Build parameters using configured values
-            # Note: Anthropic API doesn't allow both temperature and top_p
-            # Prefer temperature if both are provided
-            temperature = kwargs.pop('temperature', self.temperature)
-            top_p = kwargs.pop('top_p', self.top_p)
+            # Note: Anthropic no longer accepts temperature/top_p for current Claude models
+            kwargs.pop('temperature', None)
+            kwargs.pop('top_p', None)
 
             params = {
                 "model": self.model,
@@ -291,12 +279,6 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
 
             if system_content:
                 params["system"] = system_content
-
-            # Only include temperature or top_p, not both
-            if temperature is not None:
-                params["temperature"] = temperature
-            elif top_p is not None:
-                params["top_p"] = top_p
 
             async with self.client.messages.stream(**params) as stream:
                 async for text in stream.text_stream:
