@@ -164,6 +164,23 @@ adapters:
 
 The `mcp_servers` allowlist under `capabilities` is optional. When present, the step only passes tools from those servers to the model — useful if you have multiple skill adapters that should each access a different subset of servers.
 
+> **The skill always uses `mcp-agent-chat`'s own model, not the invoking
+> adapter's.** When a client sends `skill: "mcp-agent"`, the request is
+> routed to `mcp-agent-chat`, which has its own `inference_provider`/`model`
+> above. Any per-request `"model"` override the client also sent (resolved
+> against the *invoking* adapter's `allowed_models`, e.g. `simple-chat`) is
+> discarded — the tool-calling loop always runs on `mcp-agent-chat`'s
+> configured model, regardless of which model the conversation was otherwise
+> using. For example, sending `{"model": "claude", "skill": "mcp-agent"}` to
+> an adapter whose `allowed_models` includes `claude` still runs the tool
+> loop on `mcp-agent-chat`'s `openai`/`gpt-4.1-mini` — not Claude. If you
+> want the skill to run on a different model, change `inference_provider`/
+> `model` here, not the invoking adapter's `allowed_models`.
+>
+> (This only applies because `mcp-agent-chat` has its own configured LLM.
+> Skills with no LLM of their own, like `fetch`, instead keep using the
+> invoking adapter's resolved provider/model.)
+
 ### Step 3 — Register the adapter (`config/adapters.yaml`)
 
 The import is already added:
@@ -305,6 +322,44 @@ client already opted into — opportunistic mode sends tool schemas on **every**
 conversational turn for that adapter, including turns that never call a
 tool. Keep `mcp_servers` narrow; in opportunistic mode this is closer to a
 requirement than an optimization tip.
+
+### Runtime model overrides and tool support
+
+The provider requirement above applies to whichever provider is **actually
+resolved for the request**, not just the adapter's static `inference_provider`.
+If the adapter defines `allowed_models` and the client sends a `"model"`
+field that maps to a provider without `generate_with_tools` support (e.g.
+`openrouter`, `deepseek`, `cohere` — not in the
+[Supported Inference Providers](#supported-inference-providers) table), the
+tool loop is skipped for that request even though the adapter's default
+provider fully supports it:
+
+```yaml
+# config/adapters/multimodal.yaml
+allowed_models:
+  - name: "gemini"
+    provider: "gemini"          # ✅ tool calling works
+  - name: "nemotron-3-ultra"
+    provider: "openrouter"      # ❌ falls back to plain generation
+```
+
+**This fallback is silent to the client.** The response still returns
+`200 OK` with normal-looking text and no error field — there is no `sources`
+array and nothing in the JSON response tells the caller that tools were
+skipped. The model still answers the question, but without ever calling a
+tool, so it may fabricate plausible-looking data (fake customer records,
+invented metrics, etc.) instead of saying it lacks the information. The only
+visible signal is a server-side log line:
+
+```
+WARNING - Adapter '<adapter>' has mcp_tools enabled but provider '<provider>'
+does not support generate_with_tools; falling back to plain generation.
+```
+
+If responses seem to be inventing data instead of reflecting real tool
+results, check this log line first, and confirm which provider the request
+actually resolved to (the adapter's default, or a `"model"` override) before
+assuming the MCP server or tool discovery is broken.
 
 ### Interaction with the `mcp-agent` skill
 

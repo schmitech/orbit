@@ -20,8 +20,8 @@ adapters:
     # If omitted, the adapter always uses the model defined above.
     allowed_models:
       - name: "minimax-m3"
-        provider: "ollama_cloud"
-        model: "minimax-m3"
+        provider: "openrouter"
+        model: "minimax/minimax-m3"
       - name: "deepseek"
         provider: "deepseek"
         model: "deepseek-chat"
@@ -35,8 +35,8 @@ adapters:
         provider: "ollama"
         model: "gemma4-e2b-cpu"
       - name: "gpt-oss-120b"
-        provider: "ollama_cloud"
-        model: "gpt-oss:20b"
+        provider: "openrouter"
+        model: "openai/gpt-oss-120b:free"
       - name: "claude"
         provider: "anthropic"
         model: "claude-sonnet-4-5-20250929"
@@ -74,6 +74,15 @@ adapters:
         - "file_ids"
         - "api_key"
         - "session_id"
+      # Opportunistic MCP tool calling: the model may call these tools on any
+      # turn without the client sending skill:"mcp-agent" — no adapter swap,
+      # same thread throughout. Requires mcp_client.enabled: true AND
+      # mcp_client.allow_opportunistic: true in config/mcp_client.yaml.
+      # See docs/adapters/mcp-agent.md#opportunistic-mode.
+      mcp_tools: false
+      mcp_servers:              # allowlist — keep narrow; every enabled
+        # - "filesystem"           # server's tool schemas are sent on EVERY
+        - "business-sample"      # conversational turn, not just tool-using ones
 
     config:
       # File adapter configuration (similar to file-document-qa)
