@@ -17,10 +17,12 @@ from datetime import datetime
 from .audit_storage_strategy import AuditStorageStrategy, AuditRecord
 from .sqlite_audit_strategy import SQLiteAuditStrategy
 from .mongodb_audit_strategy import MongoDBDAuditStrategy
+from .postgres_audit_strategy import PostgresAuditStrategy
 from .elasticsearch_audit_strategy import ElasticsearchAuditStrategy
 from .admin_audit_storage_strategy import AdminAuditStorageStrategy, AdminAuditRecord
 from .sqlite_admin_audit_strategy import SQLiteAdminAuditStrategy
 from .mongodb_admin_audit_strategy import MongoDBAdminAuditStrategy
+from .postgres_admin_audit_strategy import PostgresAdminAuditStrategy
 from .elasticsearch_admin_audit_strategy import ElasticsearchAdminAuditStrategy
 from utils.text_utils import mask_api_key
 
@@ -36,11 +38,11 @@ class AuditService:
 
     Configuration:
         internal_services.audit.enabled: Whether audit logging is enabled
-        internal_services.audit.storage_backend: "elasticsearch", "sqlite", "mongodb", or "database"
+        internal_services.audit.storage_backend: "elasticsearch", "sqlite", "mongodb", "postgres", or "database"
         internal_services.audit.collection_name: Name of the audit collection/table
 
     When storage_backend is "database", the service uses the same backend as
-    configured in internal_services.backend.type (sqlite or mongodb).
+    configured in internal_services.backend.type (sqlite, mongodb, or postgres).
     """
 
     def __init__(self, config: Dict[str, Any], database_service=None):
@@ -75,7 +77,7 @@ class AuditService:
         Resolve the storage backend type from configuration.
 
         Returns:
-            The storage backend type: "elasticsearch", "sqlite", or "mongodb"
+            The storage backend type: "elasticsearch", "sqlite", "mongodb", or "postgres"
         """
         audit_config = self.config.get('internal_services', {}).get('audit', {})
         storage_backend = audit_config.get('storage_backend', 'elasticsearch')
@@ -106,6 +108,9 @@ class AuditService:
         elif backend == 'mongodb':
             logger.debug("Using MongoDB for audit storage")
             return MongoDBDAuditStrategy(self.config, self._database_service)
+        elif backend == 'postgres':
+            logger.debug("Using PostgreSQL for audit storage")
+            return PostgresAuditStrategy(self.config, self._postgres_database_service())
         else:
             raise ValueError(f"Unsupported audit storage backend: {backend}")
 
@@ -122,8 +127,25 @@ class AuditService:
         elif backend == 'mongodb':
             logger.debug("Using MongoDB for admin audit storage")
             return MongoDBAdminAuditStrategy(self.config, self._database_service)
+        elif backend == 'postgres':
+            logger.debug("Using PostgreSQL for admin audit storage")
+            return PostgresAdminAuditStrategy(self.config, self._postgres_database_service())
         else:
             raise ValueError(f"Unsupported admin audit storage backend: {backend}")
+
+    def _postgres_database_service(self):
+        """
+        Return the shared database_service only if it's actually a Postgres backend.
+
+        Audit storage_backend may be set to "postgres" explicitly even when
+        internal_services.backend.type is sqlite/mongodb (i.e. not via the
+        "database" alias). In that case self._database_service is the wrong
+        backend type, so return None and let PostgresAuditStrategy construct
+        its own dedicated PostgresService instead of writing audit records to
+        the unrelated shared backend.
+        """
+        backend_type = self.config.get('internal_services', {}).get('backend', {}).get('type')
+        return self._database_service if backend_type == 'postgres' else None
 
     async def initialize(self) -> None:
         """

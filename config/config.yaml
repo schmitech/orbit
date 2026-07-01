@@ -263,11 +263,18 @@ clock_service:
 
 internal_services:
   # Backend database configuration
-  # Choose between 'sqlite' (no installation required) or 'mongodb' (requires MongoDB server)
+  # Choose between 'sqlite' (no installation required), 'mongodb', or 'postgres' (require a running server)
   backend:
-    type: "sqlite" # sqlite or mongodb
+    type: "sqlite" # sqlite, mongodb, or postgres
     sqlite:
       database_path: "orbit.db"  # Path to SQLite database file (relative to project root)
+    postgres:
+      host: ${INTERNAL_SERVICES_POSTGRES_HOST}
+      port: ${INTERNAL_SERVICES_POSTGRES_PORT}
+      database: ${INTERNAL_SERVICES_POSTGRES_DB}
+      username: ${INTERNAL_SERVICES_POSTGRES_USERNAME}
+      password: ${INTERNAL_SERVICES_POSTGRES_PASSWORD}
+      sslmode: ${INTERNAL_SERVICES_POSTGRES_SSLMODE}
   
   elasticsearch:
     enabled: false
@@ -281,7 +288,7 @@ internal_services:
   audit:
     enabled: true
     # Storage backend for audit logs
-    # Options: "elasticsearch", "sqlite", "mongodb", "database"
+    # Options: "elasticsearch", "sqlite", "mongodb", "postgres", "database"
     # "database" means use the same backend as internal_services.backend.type
     storage_backend: "database"
     # Collection/table name for audit logs
@@ -355,7 +362,7 @@ chat_history:
 conversation_threading:
   enabled: true
   dataset_ttl_hours: 24  # Global default TTL for stored datasets
-  storage_backend: "sqlite"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
+  storage_backend: "sqlite"  # redis, sqlite, mongodb, postgres (fallback order: redis -> database)
   redis_key_prefix: "thread_dataset:"
 
 # Autocomplete configuration for query suggestions based on intent template nl_examples

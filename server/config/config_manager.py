@@ -228,6 +228,17 @@ def _validate_required_config(config: Dict[str, Any]) -> None:
             ('internal_services', 'mongodb', 'database'),
         ])
 
+    if backend_type == 'postgres' or audit_backend == 'postgres':
+        # password is intentionally not required - trust/peer-auth and local
+        # Postgres setups commonly use an empty password (PostgresService
+        # already accepts one).
+        required_paths.extend([
+            ('internal_services', 'backend', 'postgres', 'host'),
+            ('internal_services', 'backend', 'postgres', 'port'),
+            ('internal_services', 'backend', 'postgres', 'username'),
+            ('internal_services', 'backend', 'postgres', 'database'),
+        ])
+
     elasticsearch_config = internal_services.get('elasticsearch', {})
     if elasticsearch_config.get('enabled') or audit_backend == 'elasticsearch':
         required_paths.extend([

@@ -238,6 +238,13 @@ class ConfigurationSummaryLogger:
             database = mongodb_config.get('database', 'orbit')
             self.logger.info(f"  MongoDB host: {host}:{port}")
             self.logger.info(f"  MongoDB database: {database}")
+        elif backend_type == 'postgres':
+            postgres_config = backend_config.get('postgres', {})
+            host = postgres_config.get('host', 'localhost')
+            port = postgres_config.get('port', 5432)
+            database = postgres_config.get('database', 'orbit')
+            self.logger.info(f"  PostgreSQL host: {host}:{port}")
+            self.logger.info(f"  PostgreSQL database: {database}")
 
     def _log_fault_tolerance_configuration(self) -> None:
         """Log fault tolerance service configuration."""

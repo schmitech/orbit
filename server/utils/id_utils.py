@@ -16,10 +16,10 @@ def generate_id(backend_type: str = 'mongodb') -> Union[Any, str]:
     Generate an ID appropriate for the specified backend type.
 
     Args:
-        backend_type: Type of database backend ('mongodb' or 'sqlite')
+        backend_type: Type of database backend ('mongodb', 'sqlite', or 'postgres')
 
     Returns:
-        Generated ID (ObjectId for MongoDB, UUID string for SQLite)
+        Generated ID (ObjectId for MongoDB, UUID string for SQLite/Postgres)
 
     Raises:
         ValueError: If backend_type is not supported
@@ -27,7 +27,7 @@ def generate_id(backend_type: str = 'mongodb') -> Union[Any, str]:
     if backend_type == 'mongodb':
         from bson import ObjectId
         return ObjectId()
-    elif backend_type == 'sqlite':
+    elif backend_type in ('sqlite', 'postgres'):
         # Generate a UUID4 and return as string
         return str(uuid.uuid4())
     else:
@@ -43,7 +43,7 @@ def ensure_id(id_value: Union[str, Any], backend_type: str = 'mongodb') -> Union
 
     Args:
         id_value: ID value to convert/validate
-        backend_type: Type of database backend ('mongodb' or 'sqlite')
+        backend_type: Type of database backend ('mongodb', 'sqlite', or 'postgres')
 
     Returns:
         ID in the correct format for the backend
@@ -63,8 +63,8 @@ def ensure_id(id_value: Union[str, Any], backend_type: str = 'mongodb') -> Union
         else:
             raise ValueError(f"Cannot convert {type(id_value)} to ObjectId")
 
-    elif backend_type == 'sqlite':
-        # SQLite uses UUID strings, so just convert to string and validate
+    elif backend_type in ('sqlite', 'postgres'):
+        # SQLite/Postgres use UUID strings, so just convert to string and validate
         if isinstance(id_value, str):
             # Validate that it's a valid UUID
             try:
@@ -101,7 +101,7 @@ def is_valid_id(id_value: Any, backend_type: str = 'mongodb') -> bool:
 
     Args:
         id_value: ID value to check
-        backend_type: Type of database backend ('mongodb' or 'sqlite')
+        backend_type: Type of database backend ('mongodb', 'sqlite', or 'postgres')
 
     Returns:
         True if the ID is valid, False otherwise
