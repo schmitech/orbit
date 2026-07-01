@@ -14,6 +14,7 @@ from config.config_manager import was_resolved_from_preset
 from ai_services.factory import AIServiceFactory, ServiceType
 from embeddings.base import EmbeddingServiceFactory
 from services.adapter_capabilities import uses_retrieval_services
+from inference.pipeline.steps._utils import NO_INFERENCE_PROVIDER_ADAPTER_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -84,32 +85,51 @@ class AdapterLoader:
         Returns:
             The initialized adapter instance
         """
-        # Preload inference provider if adapter has an override or uses global provider
-        inference_provider = adapter_config.get('inference_provider')
-        logger.debug(f"Adapter '{adapter_name}' inference_provider from config: {inference_provider}")
-        if not inference_provider:
-            # Use global default provider
-            inference_provider = self.config.get('general', {}).get('inference_provider')
-            logger.debug(f"Using global default inference_provider: {inference_provider}")
-
-        if inference_provider:
-            model_override = adapter_config.get('model')
-            logger.debug(f"Preloading inference provider '{inference_provider}' for adapter '{adapter_name}' (model: {model_override or 'default'})")
-            try:
-                # Clear any stale cached instance for this provider BEFORE creating new one
-                # This ensures we get a fresh instance with properly initialized client
-                AIServiceFactory.clear_cache(service_type=ServiceType.INFERENCE, provider=inference_provider)
-                logger.debug(f"Cleared AIServiceFactory inference cache for '{inference_provider}' before preload")
-
-                await self.provider_cache.create_provider(inference_provider, model_override, adapter_name)
-                log_msg = f"Preloaded inference provider '{inference_provider}' for adapter '{adapter_name}'"
-                if model_override:
-                    log_msg += f" with model override '{model_override}'"
-                logger.debug(log_msg)
-            except Exception as e:
-                logger.error(f"Failed to preload inference provider '{inference_provider}' for adapter '{adapter_name}': {str(e)}", exc_info=True)
+        # Preload inference provider if adapter has an override or uses global provider.
+        # Adapters that define rewrite_provider (e.g. document/image generators) resolve
+        # their LLM independently at request time and don't use the global provider at all,
+        # so preload the rewrite provider instead of falling back to the global default.
+        # 'fetch'/'openai_realtime' adapters never call a text-inference LLM at all
+        # (FetchStep returns scraped content directly; openai_realtime goes straight to
+        # OpenAI's speech-to-speech Realtime API), so skip provider preload entirely.
+        adapter_type = adapter_config.get('type')
+        if adapter_type in NO_INFERENCE_PROVIDER_ADAPTER_TYPES:
+            logger.debug(f"Adapter '{adapter_name}' is type '{adapter_type}' — skipping inference provider preload")
         else:
-            logger.warning(f"No inference provider configured for adapter '{adapter_name}' (neither in adapter config nor global config)")
+            inference_provider = adapter_config.get('inference_provider')
+            model_override = None
+            logger.debug(f"Adapter '{adapter_name}' inference_provider from config: {inference_provider}")
+            if not inference_provider:
+                rewrite_provider = adapter_config.get('rewrite_provider')
+                if rewrite_provider:
+                    inference_provider = rewrite_provider
+                    model_override = adapter_config.get('rewrite_model')
+                    logger.debug(f"Using rewrite_provider '{inference_provider}' for adapter '{adapter_name}'")
+                else:
+                    # Use global default provider
+                    inference_provider = self.config.get('general', {}).get('inference_provider')
+                    logger.debug(f"Using global default inference_provider: {inference_provider}")
+
+            if inference_provider:
+                model_override = model_override or adapter_config.get('model')
+                logger.debug(f"Preloading inference provider '{inference_provider}' for adapter '{adapter_name}' (model: {model_override or 'default'})")
+                try:
+                    # Clear any stale cached instance for this provider BEFORE creating new one
+                    # This ensures we get a fresh instance with properly initialized client
+                    AIServiceFactory.clear_cache(service_type=ServiceType.INFERENCE, provider=inference_provider)
+                    logger.debug(f"Cleared AIServiceFactory inference cache for '{inference_provider}' before preload")
+
+                    await self.provider_cache.create_provider(inference_provider, model_override, adapter_name)
+                    log_msg = f"Preloaded inference provider '{inference_provider}' for adapter '{adapter_name}'"
+                    if model_override:
+                        log_msg += f" with model override '{model_override}'"
+                    logger.debug(log_msg)
+                except Exception as e:
+                    # Preload failures are non-fatal (the adapter loads lazily on next access),
+                    # so warn without a full traceback rather than logging as an error.
+                    logger.warning(f"Could not preload inference provider '{inference_provider}' for adapter '{adapter_name}': {str(e)}")
+            else:
+                logger.warning(f"No inference provider configured for adapter '{adapter_name}' (neither in adapter config nor global config)")
 
         uses_retrieval = uses_retrieval_services(adapter_config)
 
