@@ -941,20 +941,6 @@ export function Message({
                 adapterName={currentConversation?.adapterName}
               />
             )}
-          </div>
-
-          {!isAssistant && !isEditing && (
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity pt-2 shrink-0 inline-block align-top ml-2">
-              <button
-                onClick={() => setIsEditing(true)}
-                className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors"
-                title="Edit prompt"
-                aria-label="Edit prompt"
-              >
-                <Edit2 className="h-4 w-4" />
-              </button>
-            </div>
-          )}
           {!isAssistant && onEdit && !isEditing && (
             <button
               onClick={() => {
