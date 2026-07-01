@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.8.0] - 2026-07-01
+
+### Core System Updates
+- **PostgreSQL Backend**: Added PostgreSQL as a third internal-services database backend alongside SQLite and MongoDB, implementing a locked database service for transaction isolation, dedicated audit log storage, config/env var wiring, and a sqlite-to-postgres migration script.
+
+### Chat-app & UI Improvements
+- **Internationalization (i18n)**: Introduced multi-language UI support via `react-i18next` with localStorage persistence, browser locale detection, and English/French translation bundles configurable via `orbitchat.yaml`.
+
+### Bug Fixes & Technical Improvements
+- **Language Switch Routing**: Fixed a regression where changing languages triggered route synchronization and generated a new conversation.
+- **Generator Adapter Provider Resolution**: Fixed document/image/video generator adapters (`rewrite_provider`/`rewrite_model`) and voice adapters (`fetch`, `openai_realtime`) being incorrectly gated on the global `inference_provider`'s enabled status during preload, causing false "disabled provider" warnings and startup errors even though these adapters resolve their own provider independently; also fixed a regression where `fetch` adapters stopped returning any response after being excluded from LLM inference.
+
 ## [2.7.11] - 2026-06-30
 
 ### Core System Updates

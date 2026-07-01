@@ -14,7 +14,7 @@
   <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit?color=red" alt="Last commit"></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue.svg?logo=python&logoColor=white" alt="Python"></a>
-  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.7.11-blue" alt="Version"></a>
+  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.8.0-blue" alt="Version"></a>
 </p>
 
 <p align="center">
@@ -61,8 +61,8 @@ ORBIT is a single API gateway that puts production controls in front of any AI m
 **Latest stable release tarball** (Linux/macOS):
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.7.11/orbit-2.7.11.tar.gz
-tar -xzf orbit-2.7.11.tar.gz && cd orbit-2.7.11
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.8.0/orbit-2.8.0.tar.gz
+tar -xzf orbit-2.8.0.tar.gz && cd orbit-2.8.0
 ./install/setup.sh        # add --wizard for interactive setup
 ./bin/orbit.sh start
 ```
