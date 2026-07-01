@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, X } from 'lucide-react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { useTranslation } from 'react-i18next';
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -21,13 +22,16 @@ export function ConfirmationModal({
   onConfirm,
   title,
   message,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText,
+  cancelText,
   type = 'danger',
   isLoading = false
 }: ConfirmationModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, { enabled: isOpen, onEscape: onClose });
+  const { t } = useTranslation();
+  const resolvedConfirmText = confirmText ?? t('common.confirm');
+  const resolvedCancelText = cancelText ?? t('common.cancel');
 
   if (!isOpen) return null;
 
@@ -89,7 +93,7 @@ export function ConfirmationModal({
             type="button"
             onClick={onClose}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
           </button>
@@ -110,7 +114,7 @@ export function ConfirmationModal({
             disabled={isLoading}
             className="px-4 py-3 md:py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {cancelText}
+            {resolvedCancelText}
           </button>
           <button
             type="button"
@@ -121,10 +125,10 @@ export function ConfirmationModal({
             {isLoading ? (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Clearing...
+                {t('confirmationModal.loadingLabel')}
               </div>
             ) : (
-              confirmText
+              resolvedConfirmText
             )}
           </button>
         </div>

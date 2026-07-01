@@ -8,6 +8,7 @@ import {
   getFooterTopPadding,
   getFooterNavLinks,
 } from '../utils/runtimeConfig';
+import { useTranslation } from 'react-i18next';
 
 interface AppFooterProps {
   placement?: 'default' | 'sidebar';
@@ -15,6 +16,7 @@ interface AppFooterProps {
 }
 
 export function AppFooter({ placement = 'default', compact = false }: AppFooterProps) {
+  const { t } = useTranslation();
   if (!getEnableFooter()) return null;
 
   const text = getFooterText();
@@ -65,7 +67,7 @@ export function AppFooter({ placement = 'default', compact = false }: AppFooterP
               </p>
             )}
             {navLinks.length > 0 && (
-              <nav aria-label="Footer links">
+              <nav aria-label={t('appFooter.navLinksAriaLabel')}>
                 <ul className={`flex flex-wrap items-center ${linksJustifyClass} ${compact ? 'gap-1' : 'gap-1.5 sm:gap-2'}`}>
                   {navLinks.map((link, index) => {
                     const showInlineSeparator = layout === 'inline' && index > 0;

@@ -1,8 +1,10 @@
 import { RefreshCw } from 'lucide-react';
 import { getApplicationName } from '../utils/runtimeConfig';
 import { PACKAGE_VERSION } from '../utils/version';
+import { useTranslation } from 'react-i18next';
 
 export function OutOfServicePage({ message }: { message: string }) {
+  const { t } = useTranslation();
   const applicationName = getApplicationName();
 
   return (
@@ -25,13 +27,13 @@ export function OutOfServicePage({ message }: { message: string }) {
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500 dark:bg-amber-400" />
               </span>
               <span className="text-xs font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-400">
-                Service paused
+                {t('outOfService.statusBadge')}
               </span>
             </div>
 
             <div className="space-y-4">
               <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-4xl">
-                Temporarily unavailable
+                {t('outOfService.heading')}
               </h1>
               <p className="max-w-md whitespace-pre-wrap text-base leading-relaxed text-slate-500 dark:text-slate-400">
                 {message}
@@ -47,7 +49,7 @@ export function OutOfServicePage({ message }: { message: string }) {
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
               >
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                Try again
+                {t('outOfService.retryButton')}
               </button>
               <span className="hidden text-slate-300 dark:text-slate-700 sm:block" aria-hidden="true">
                 ·

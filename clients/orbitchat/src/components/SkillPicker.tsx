@@ -1,5 +1,6 @@
 import React from 'react';
 import { Check, ImageIcon, Sparkles, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { SkillInfo } from '../types';
 
 interface SkillPickerProps {
@@ -36,6 +37,7 @@ export function SkillPicker({
   onSelect,
   onActiveSkillChange
 }: SkillPickerProps) {
+  const { t } = useTranslation();
   const listRef = React.useRef<HTMLDivElement | null>(null);
   const normalizedQuery = query.toLowerCase().replace(/-/g, ' ');
   const filteredSkills = normalizedQuery
@@ -53,7 +55,7 @@ export function SkillPicker({
   if (!isLoading && skills.length === 0) {
     return (
       <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg shadow-black/5 dark:border-[#242424] dark:bg-[#101010] dark:shadow-black/30">
-        <p className="px-4 py-3 text-sm text-gray-500 dark:text-[#bfc2cd]">No skills available for this adapter.</p>
+        <p className="px-4 py-3 text-sm text-gray-500 dark:text-[#bfc2cd]">{t('skillPicker.noSkillsAvailable')}</p>
       </div>
     );
   }
@@ -64,17 +66,17 @@ export function SkillPicker({
         <div className="px-4 py-3.5">
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-[#bfc2cd]">
             <div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden="true" />
-            Loading skills...
+            {t('skillPicker.loadingLabel')}
           </div>
         </div>
       ) : filteredSkills.length === 0 ? (
         <div className="px-4 py-3.5">
           <p className="text-sm text-gray-500 dark:text-[#bfc2cd]">
-            {normalizedQuery ? `No matching skills for "${query}".` : 'No matching skills.'}
+            {normalizedQuery ? t('skillPicker.noMatchingSkills', { query }) : t('skillPicker.noMatchingSkillsGeneric')}
           </p>
         </div>
       ) : (
-        <div ref={listRef} role="listbox" aria-label="Available skills" className="max-h-72 overflow-y-auto p-1.5">
+        <div ref={listRef} role="listbox" aria-label={t('skillPicker.listboxLabel')} className="max-h-72 overflow-y-auto p-1.5">
           {filteredSkills.map((skill, index) => {
             const isSelected = selectedSkill?.name === skill.name;
             const isActive =

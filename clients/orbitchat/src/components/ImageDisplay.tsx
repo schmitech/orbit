@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronUp, Download, X, ZoomIn } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ImageDisplayProps {
   image?: string;          // base64-encoded image data (present during live session)
@@ -20,6 +21,7 @@ interface ImageDisplayProps {
  *     Fetched via JS so the Express proxy can inject the API key.
  */
 export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedPrompt }: ImageDisplayProps) {
+  const { t } = useTranslation();
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -97,11 +99,11 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
           className="generated-image-container"
           style={{ position: 'relative', display: 'inline-block', cursor: 'zoom-in', maxWidth: '100%' }}
           onClick={() => setLightboxOpen(true)}
-          title={revisedPrompt || 'Generated image — click to enlarge'}
+          title={revisedPrompt || t('imageDisplay.generatedImageTitle')}
         >
           <img
             src={src}
-            alt={revisedPrompt || 'Generated image'}
+            alt={revisedPrompt || t('imageDisplay.generatedImageAlt')}
             style={{
               maxWidth: '100%',
               maxHeight: '480px',
@@ -121,7 +123,7 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
           >
             <button
               onClick={handleDownload}
-              title="Download image"
+              title={t('imageDisplay.downloadImageTooltip')}
               style={{
                 background: 'rgba(0,0,0,0.55)',
                 border: 'none',
@@ -137,7 +139,7 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setLightboxOpen(true); }}
-              title="View full size"
+              title={t('imageDisplay.viewFullSizeTooltip')}
               style={{
                 background: 'rgba(0,0,0,0.55)',
                 border: 'none',
@@ -173,7 +175,7 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
               aria-expanded={promptExpanded}
             >
               {promptExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              {promptExpanded ? 'Hide prompt' : 'Show prompt'}
+              {promptExpanded ? t('imageDisplay.hidePrompt') : t('imageDisplay.showPrompt')}
             </button>
             {promptExpanded && (
               <div
@@ -195,7 +197,7 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
                     marginBottom: '3px',
                   }}
                 >
-                  Prompt
+                  {t('imageDisplay.promptLabel')}
                 </span>
                 <span style={{ fontSize: '0.8rem', lineHeight: 1.45, opacity: 0.85 }}>
                   {revisedPrompt}
@@ -238,7 +240,7 @@ export function ImageDisplay({ image, imageUrl, imageFormat = 'png', revisedProm
           </button>
           <img
             src={src}
-            alt={revisedPrompt || 'Generated image'}
+            alt={revisedPrompt || t('imageDisplay.generatedImageAlt')}
             style={{
               display: 'block',
               width: 'auto',

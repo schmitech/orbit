@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SettingsProvider } from './contexts/SettingsContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import { ChatInterface } from './components/ChatInterface';
 import { Sidebar } from './components/Sidebar';
 import { Settings } from './components/Settings';
 import { PanelLeftOpen, X } from 'lucide-react';
 import { getOutOfServiceMessage } from './utils/runtimeConfig';
+import { useTranslation } from 'react-i18next';
 import { OutOfServicePage } from './components/OutOfServicePage';
 import { AuthGate } from './components/AuthGate';
 import { LoginPromptModal } from './components/LoginPromptModal';
@@ -14,6 +16,7 @@ import { AgentHomeNavProvider } from './contexts/AgentHomeNavProvider';
 import { useChatStore } from './stores/chatStore';
 
 function App() {
+  const { t } = useTranslation();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(
@@ -41,8 +44,9 @@ function App() {
   return (
     <ThemeProvider>
       <SettingsProvider>
-        <AuthGate>
-          <AgentHomeNavProvider>
+        <LanguageProvider>
+          <AuthGate>
+            <AgentHomeNavProvider>
             <div className="h-dvh flex flex-col bg-white dark:bg-black text-slate-900 dark:text-slate-100">
               <div className="flex-1 flex flex-col md:flex-row md:pl-4 min-h-0">
                 {showSidebar && (
@@ -54,8 +58,8 @@ function App() {
                         type="button"
                         onClick={() => setIsDesktopSidebarCollapsed(false)}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-[#333645] dark:bg-[#161616] dark:text-[#d1d5db] dark:hover:border-[#43465a] dark:hover:bg-[#202020] dark:hover:text-white"
-                        aria-label="Open sidebar"
-                        title="Open sidebar"
+                        aria-label={t('app.sidebar.openAriaLabel')}
+                        title={t('app.sidebar.openTitle')}
                       >
                         <PanelLeftOpen className="h-4 w-4" />
                       </button>
@@ -96,7 +100,7 @@ function App() {
                   <button
                     onClick={() => setIsMobileSidebarOpen(false)}
                     className="absolute -right-3 top-[max(env(safe-area-inset-top),0.75rem)] rounded-full bg-white/95 p-3 text-gray-600 shadow-lg active:scale-95 transition-transform dark:bg-[#2d2f39] dark:text-[#ececf1]"
-                    aria-label="Close menu"
+                    aria-label={t('app.menu.closeAriaLabel')}
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -106,6 +110,7 @@ function App() {
             </div>
           </AgentHomeNavProvider>
         </AuthGate>
+      </LanguageProvider>
       </SettingsProvider>
     </ThemeProvider>
   );

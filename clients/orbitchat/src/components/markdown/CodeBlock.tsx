@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { CodeBlockProps } from './types';
@@ -178,6 +179,7 @@ const getCodeFromChildren = (children: React.ReactNode): string => {
 
 // Copy button component for code blocks
 const CopyButton: React.FC<{ code: string }> = ({ code }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -208,8 +210,8 @@ const CopyButton: React.FC<{ code: string }> = ({ code }) => {
     <button
       className="code-copy-button"
       onClick={handleCopy}
-      title={copied ? 'Copied!' : 'Copy code'}
-      aria-label={copied ? 'Copied!' : 'Copy code to clipboard'}
+      title={copied ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyTitle')}
+      aria-label={copied ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyAriaLabel')}
     >
       {copied ? (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -222,7 +224,7 @@ const CopyButton: React.FC<{ code: string }> = ({ code }) => {
           <path d="M9.5 6.5L13.5 2.5L9.5 2.5V6.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       )}
-      <span className="code-copy-button-text">{copied ? 'Copied!' : 'Copy'}</span>
+      <span className="code-copy-button-text">{copied ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyLabel')}</span>
     </button>
   );
 };
@@ -239,9 +241,10 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   enableSyntaxHighlighting = true,
   syntaxTheme,
 }) => {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const effectiveTheme = useEffectiveTheme(containerRef, syntaxTheme);
-  const rendererFallback = <div className="markdown-code-block code-block-container">Loading renderer...</div>;
+  const rendererFallback = <div className="markdown-code-block code-block-container">{t('markdown.codeBlock.loadingRenderer')}</div>;
 
   // Handle inline code (always render as code)
   if (inline) {

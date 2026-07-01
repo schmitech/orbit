@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Upload, Loader2, CircleAlert } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { FileAttachment } from '../types';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { useChatStore } from '../stores/chatStore';
@@ -56,8 +57,9 @@ export function FileUpload({
   onUploadingChange,
   onUploadSuccess,
   maxFiles = AppConfig.maxFilesPerConversation,
-  disabled = false 
+  disabled = false
 }: FileUploadProps): React.ReactElement {
+  const { t } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
   const [globalUploadRevision, setGlobalUploadRevision] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -244,22 +246,22 @@ export function FileUpload({
     const activeConversationId = conversationId || store.currentConversationId;
 
     if (!activeConversationId) {
-      onUploadError?.('Please select or create a conversation before uploading files.');
+      onUploadError?.(t('fileUpload.selectBeforeUpload'));
       return;
     }
 
     const conversation = store.conversations.find(conv => conv.id === activeConversationId);
     if (!conversation) {
-      onUploadError?.('Conversation not found. Please try again.');
+      onUploadError?.(t('fileUpload.conversationNotFound'));
       return;
     }
 
     const existingUploads = uploadedFilesStoreRef.current.get(activeConversationId) || [];
     if (existingUploads.length + fileArray.length > maxFiles) {
-      const error = `Maximum ${maxFiles} files allowed per conversation. Please remove some files first.`;
+      const error = t('fileUpload.maxFilesPerConversationError', { count: maxFiles });
       if (getIsAuthConfigured() && !getIsAuthenticated()) {
         useLoginPromptStore.getState().openLoginPrompt(
-          `You've reached the guest limit of ${maxFiles} files per conversation. Sign in to upload more files.`
+          t('fileUpload.maxFilesGuestLimitMessage', { count: maxFiles })
         );
       }
       onUploadError?.(error);
@@ -273,10 +275,10 @@ export function FileUpload({
       );
       const projectedTotal = totalFilesAcrossConversations + fileArray.length;
       if (projectedTotal > AppConfig.maxTotalFiles) {
-        const error = `Maximum ${AppConfig.maxTotalFiles} total files allowed across all conversations. Please remove some files from other conversations first.`;
+        const error = t('fileUpload.maxTotalFilesError', { count: AppConfig.maxTotalFiles });
         if (getIsAuthConfigured() && !getIsAuthenticated()) {
           useLoginPromptStore.getState().openLoginPrompt(
-            `You've reached the guest limit of ${AppConfig.maxTotalFiles} total files. Sign in to upload more files.`
+            t('fileUpload.maxTotalFilesGuestLimitMessage', { count: AppConfig.maxTotalFiles })
           );
         }
         onUploadError?.(error);
@@ -285,7 +287,7 @@ export function FileUpload({
     }
 
     if (!conversation.adapterName) {
-      onUploadError?.('Adapter not configured for this conversation. Please select an adapter first.');
+      onUploadError?.(t('fileUpload.adapterNotConfigured'));
       return;
     }
 
@@ -441,7 +443,7 @@ export function FileUpload({
         abortControllersRef.current.delete(file.name);
       }
     }
-  }, [addFileToConversation, conversationId, maxFiles, onUploadError, updateUploadedStore, updateUploadingStore]);
+  }, [addFileToConversation, conversationId, maxFiles, onUploadError, t, updateUploadedStore, updateUploadingStore]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -547,7 +549,7 @@ export function FileUpload({
             </p>
             {isError ? (
               <p className="mt-0.5 text-xs text-red-600 dark:text-red-400 truncate">
-                {progress.error || 'Processing failed'}
+                {progress.error || t('fileUpload.processingFailedMessage')}
               </p>
             ) : (
               <div className="mt-1 flex items-center gap-2">
@@ -566,9 +568,9 @@ export function FileUpload({
           <span className={`text-xs font-medium shrink-0 ${
             isError ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-[#bfc2cd]'
           }`}>
-            {progress.status === 'uploading' ? 'Uploading' :
-             progress.status === 'processing' ? 'Processing' :
-             progress.status === 'completed' ? 'Done' : 'Failed'}
+            {progress.status === 'uploading' ? t('fileUpload.uploadingStatus') :
+             progress.status === 'processing' ? t('fileUpload.processingStatus') :
+             progress.status === 'completed' ? t('fileUpload.completedStatus') : t('fileUpload.failedStatus')}
           </span>
         </div>
       </div>
@@ -605,7 +607,7 @@ export function FileUpload({
               : 'border-gray-200 bg-gray-50 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-inset dark:border-[#242424] dark:bg-[#101010] dark:hover:bg-[#1a1a1a]'
             }
           `}
-          aria-label={disabled ? 'File upload disabled' : 'Upload files'}
+          aria-label={disabled ? t('fileUpload.disabledAriaLabel') : t('fileUpload.enabledAriaLabel')}
         >
           <input
             ref={fileInputRef}
@@ -635,10 +637,10 @@ export function FileUpload({
                   ? 'text-blue-700 dark:text-blue-300'
                   : 'text-[#353740] dark:text-[#ececf1]'
               }`}>
-                {disabled ? 'File upload disabled' : isDragging ? 'Drop files here' : 'Drop files or click to browse'}
+                {disabled ? t('fileUpload.disabledAriaLabel') : isDragging ? t('fileUpload.draggingText') : t('fileUpload.dragDropText')}
               </p>
               <p className="text-xs text-gray-400 dark:text-[#8e8ea0] mt-0.5">
-                PDF, DOCX, TXT, CSV, code files, images, audio &middot; max {maxFiles} files
+                {t('fileUpload.fileTypesAndLimit', { count: maxFiles })}
               </p>
             </div>
           </div>
@@ -648,7 +650,7 @@ export function FileUpload({
       {otherUploadingConversations.length > 0 && (
         <div className="w-full max-w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 dark:border-[#242424] dark:bg-[#101010]">
           <p className="text-xs font-medium text-gray-500 dark:text-[#8e8ea0] px-1">
-            Other conversations
+            {t('fileUpload.otherConversationsLabel')}
           </p>
           {otherUploadingConversations.map(({ conversationId: otherId, uploads }) => (
             <div key={otherId} className="space-y-1.5">

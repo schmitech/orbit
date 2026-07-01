@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './i18n.ts';
 import { PACKAGE_VERSION } from './utils/version.ts';
 import { debugLog } from './utils/debug.ts';
 import { getApplicationFavicon, getStartupScripts } from './utils/runtimeConfig.ts';

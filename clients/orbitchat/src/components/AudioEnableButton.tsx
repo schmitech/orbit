@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { debugLog } from '../utils/debug';
 
@@ -12,6 +13,7 @@ interface AudioEnableButtonProps {
  * Required due to browser autoplay policies - needs user gesture to enable audio.
  */
 export function AudioEnableButton({ className = '' }: AudioEnableButtonProps) {
+  const { t } = useTranslation();
   const [isEnabled, setIsEnabled] = useState(() => audioStreamManager.isAudioEnabled());
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -61,19 +63,19 @@ export function AudioEnableButton({ className = '' }: AudioEnableButtonProps) {
             : 'bg-blue-500 text-white hover:bg-blue-600'
           : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
       } ${className}`}
-      title={isEnabled ? (isPlaying ? 'Audio playing...' : 'Voice enabled - Click to disable') : 'Click to enable voice responses'}
+      title={isEnabled ? (isPlaying ? t('audio.button.audioPlayingTitle') : t('audio.button.voiceEnabledTitle')) : t('audio.button.enableVoiceTitle')}
     >
       {isEnabled ? (
         <>
           <Volume2 className={`h-4 w-4 ${isPlaying ? 'animate-pulse' : ''}`} />
           <span className="text-sm font-medium">
-            {isPlaying ? 'Playing...' : 'Voice On'}
+            {isPlaying ? t('audio.button.playingLabel') : t('audio.button.voiceOnLabel')}
           </span>
         </>
       ) : (
         <>
           <VolumeX className="h-4 w-4" />
-          <span className="text-sm font-medium">Enable Voice</span>
+          <span className="text-sm font-medium">{t('audio.button.enableVoiceLabel')}</span>
         </>
       )}
     </button>

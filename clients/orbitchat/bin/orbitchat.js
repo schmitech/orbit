@@ -114,6 +114,10 @@ const DEFAULTS = {
     mode: 'multi',
     defaultAdapterId: '',
   },
+  i18n: {
+    activeLanguages: ['en'],
+    defaultLanguage: 'en',
+  },
   application: {
     name: 'ORBIT Chat',
     description: "Explore ideas with ORBIT's AI copilots, share context, and build together.",

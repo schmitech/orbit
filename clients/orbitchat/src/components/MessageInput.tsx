@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
 import { ArrowUp, CircleHelp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square, CircleAlert, TriangleAlert, Sparkles } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useVoice } from '../hooks/useVoice';
 import { useAutocomplete } from '../hooks/useAutocomplete';
 import type { UseSkillsResult } from '../hooks/useSkills';
@@ -173,6 +174,7 @@ export function MessageInput({
   selectedModel = null,
   onSelectModel,
 }: MessageInputProps) {
+  const { t } = useTranslation();
   const [message, setMessage] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -873,15 +875,15 @@ export function MessageInput({
 
     const successMessage =
       uploadedFiles.length === 1
-        ? `File "${uploadedFiles[0].filename}" uploaded successfully`
-        : `${uploadedFiles.length} files uploaded successfully`;
+        ? t('messageInput.uploadSuccess.single', { filename: uploadedFiles[0].filename })
+        : t('messageInput.uploadSuccess.multiple', { count: uploadedFiles.length });
 
     playSoundEffect('success', settings.soundEnabled);
     setUploadSuccessMessage(successMessage);
     setTimeout(() => {
       setUploadSuccessMessage(null);
     }, 6000);
-  }, [settings.soundEnabled]);
+  }, [settings.soundEnabled, t]);
 
   const handleFilesSelected = useCallback((conversationId: string | null, files: FileAttachment[]) => {
     debugLog(`[MessageInput] handleFilesSelected called with ${files.length} files for conversation ${conversationId}:`, files);
@@ -941,7 +943,7 @@ export function MessageInput({
         isDeleting: false
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to remove file';
+      const errorMessage = error instanceof Error ? error.message : t('messageInput.fileRemoveFailed');
       debugError('[MessageInput] Failed to remove file:', error);
       setUploadError(errorMessage);
       setFileDeleteConfirmation({
@@ -951,7 +953,7 @@ export function MessageInput({
         isDeleting: false
       });
     }
-  }, [currentConversationId, fileDeleteConfirmation.fileId, removeFileFromConversation]);
+  }, [currentConversationId, fileDeleteConfirmation.fileId, removeFileFromConversation, t]);
 
   const normalizeSuggestionText = useCallback((text: string) => {
     return text.replace(/\s+/g, ' ').trim();
@@ -1135,10 +1137,10 @@ export function MessageInput({
       if (projectedConversationFileCount > AppConfig.maxFilesPerConversation) {
         if (isGuest) {
           useLoginPromptStore.getState().openLoginPrompt(
-            `You've reached the guest limit of ${AppConfig.maxFilesPerConversation} files per conversation. Sign in to upload more files.`
+            t('fileUpload.maxFilesGuestLimitMessage', { count: AppConfig.maxFilesPerConversation })
           );
         }
-        throw new Error(`Maximum ${AppConfig.maxFilesPerConversation} files allowed per conversation. Please remove some files first.`);
+        throw new Error(t('fileUpload.maxFilesPerConversationError', { count: AppConfig.maxFilesPerConversation }));
       }
 
       if (AppConfig.maxTotalFiles !== null) {
@@ -1149,19 +1151,19 @@ export function MessageInput({
         if (totalFilesAcrossConversations + filesFromClipboard.length > AppConfig.maxTotalFiles) {
           if (isGuest) {
             useLoginPromptStore.getState().openLoginPrompt(
-              `You've reached the guest limit of ${AppConfig.maxTotalFiles} total files. Sign in to upload more files.`
+              t('fileUpload.maxTotalFilesGuestLimitMessage', { count: AppConfig.maxTotalFiles })
             );
           }
-          throw new Error(`Maximum ${AppConfig.maxTotalFiles} total files allowed across all conversations. Please remove some files from other conversations first.`);
+          throw new Error(t('fileUpload.maxTotalFilesError', { count: AppConfig.maxTotalFiles }));
         }
       }
 
       if (!currentConv) {
-        throw new Error('Conversation not found. Please select a conversation first.');
+        throw new Error(t('messageInput.conversationNotFoundShort'));
       }
 
       if (!currentConv.adapterName) {
-        throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
+        throw new Error(t('fileUpload.adapterNotConfigured'));
       }
 
       const conversationApiUrl = resolveApiUrl(currentConv.apiUrl);
@@ -1280,43 +1282,43 @@ export function MessageInput({
     } finally {
       setConversationUploading(pasteConversationId, false);
     }
-  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isGuest, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled]);
+  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isGuest, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled, t]);
 
   const adapterInputPlaceholder = getAdapterInputPlaceholder(currentConversation?.adapterName);
   const basePlaceholder = (hasProcessingFiles || isUploading)
-    ? 'Files are uploading, please wait...'
+    ? t('messageInput.placeholder.filesUploading')
     : adapterInputPlaceholder
     ? adapterInputPlaceholder
     : canUseFileUploads
-    ? 'Message ORBIT or drop files here'
+    ? t('messageInput.placeholder.messageOrbit')
     : placeholder;
   const effectivePlaceholder = workspaceMessageLimitReached
     ? (isGuest
-      ? `Guest limit of ${AppConfig.maxTotalMessages} messages reached. Sign in for higher limits.`
-      : `Workspace limit of ${AppConfig.maxTotalMessages} messages reached. Delete or archive old conversations to continue.`)
+      ? t('messageInput.placeholder.guestLimitTotal', { count: AppConfig.maxTotalMessages })
+      : t('messageInput.placeholder.workspaceLimitTotal', { count: AppConfig.maxTotalMessages }))
     : conversationMessageLimitReached
     ? (isGuest
-      ? `Guest limit of ${AppConfig.maxMessagesPerConversation} messages reached. Sign in for higher limits.`
-      : `This chat hit the ${AppConfig.maxMessagesPerConversation} message limit. Start a new conversation to continue.`)
+      ? t('messageInput.placeholder.guestLimitPerConversation', { count: AppConfig.maxMessagesPerConversation })
+      : t('messageInput.placeholder.conversationLimitReached', { count: AppConfig.maxMessagesPerConversation }))
     : basePlaceholder;
 
   const limitWarnings: string[] = [];
   if (workspaceMessageLimitReached && AppConfig.maxTotalMessages !== null) {
     if (isGuest) {
       if (showLoginPrompt) {
-        limitWarnings.push(`Guest limit of ${AppConfig.maxTotalMessages} total messages reached. Sign in for higher limits, or delete conversations to start over.`);
+        limitWarnings.push(t('messageInput.limitWarning.guestTotalMessages', { count: AppConfig.maxTotalMessages }));
       }
     } else {
-      limitWarnings.push(`Workspace limit of ${AppConfig.maxTotalMessages} total messages reached. Delete or export older conversations to continue.`);
+      limitWarnings.push(t('messageInput.limitWarning.workspaceTotalMessages', { count: AppConfig.maxTotalMessages }));
     }
   }
   if (conversationMessageLimitReached && AppConfig.maxMessagesPerConversation !== null) {
     if (isGuest) {
       if (showLoginPrompt) {
-        limitWarnings.push(`Guest limit of ${AppConfig.maxMessagesPerConversation} messages per conversation reached. Sign in for higher limits, or delete conversations to start over.`);
+        limitWarnings.push(t('messageInput.limitWarning.guestPerConversation', { count: AppConfig.maxMessagesPerConversation }));
       }
     } else {
-      limitWarnings.push(`This conversation reached the ${AppConfig.maxMessagesPerConversation} message limit. Start a new conversation to keep chatting.`);
+      limitWarnings.push(t('messageInput.limitWarning.conversationLimitReached', { count: AppConfig.maxMessagesPerConversation }));
     }
   }
   if (uploadError) {
@@ -1410,10 +1412,10 @@ export function MessageInput({
               {isGuest && (messageLimitActive || fileLimitActive) && showLoginPrompt && (
                 <button
                   type="button"
-                  onClick={() => useLoginPromptStore.getState().openLoginPrompt('Sign in to unlock higher message limits and more conversations.')}
+                  onClick={() => useLoginPromptStore.getState().openLoginPrompt(t('messageInput.signInPrompt.message'))}
                   className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-[#353740] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#40414f] dark:bg-white dark:text-[#353740] dark:hover:bg-gray-200 transition-colors"
                 >
-                  Sign in for higher limits
+                  {t('messageInput.signInPrompt.button')}
                 </button>
               )}
             </div>
@@ -1445,7 +1447,7 @@ export function MessageInput({
                   textareaRef.current?.focus();
                 }}
                 className="-mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600"
-                aria-label="Remove skill"
+                aria-label={t('messageInput.selectedSkill.removeAriaLabel')}
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
@@ -1461,8 +1463,8 @@ export function MessageInput({
               type="button"
               onClick={openSkillPicker}
               className="flex h-8 shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600"
-              aria-label="Show available skills (or type a forward slash)"
-              title="Use a skill"
+              aria-label={t('messageInput.skillsHint.ariaLabel')}
+              title={t('messageInput.skillsHint.title')}
             >
               <span
                 className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gray-200 font-mono text-[10px] leading-none text-gray-600 dark:bg-[#2a2a2a] dark:text-gray-300"
@@ -1470,7 +1472,7 @@ export function MessageInput({
               >
                 /
               </span>
-              Skills
+              {t('messageInput.skillsHint.text')}
             </button>
           )}
 
@@ -1509,7 +1511,7 @@ export function MessageInput({
             )}
             <textarea
               ref={textareaRef}
-              aria-label="Message input"
+              aria-label={t('messageInput.textarea.ariaLabel')}
               value={message}
               onChange={(e) => {
                 const val = e.target.value;
@@ -1575,18 +1577,18 @@ export function MessageInput({
                   }`}
                   title={
                     !isFileSupported
-                      ? 'File upload not supported by this adapter'
+                      ? t('messageInput.fileUpload.titleNotSupported')
                       : fileLimitActive && conversationFileLimitReached && AppConfig.maxFilesPerConversation !== null
-                      ? `Maximum of ${AppConfig.maxFilesPerConversation} files reached in this conversation. Start a new chat to upload more.`
+                      ? t('messageInput.fileUpload.titleLimitPerConversation', { count: AppConfig.maxFilesPerConversation })
                       : fileLimitActive && workspaceFileLimitReached && AppConfig.maxTotalFiles !== null
-                      ? `Workspace limit of ${AppConfig.maxTotalFiles} total files reached. Remove files from other conversations first.`
+                      ? t('messageInput.fileUpload.titleLimitWorkspace', { count: AppConfig.maxTotalFiles })
                       : isInputDisabled
-                      ? 'Files are uploading. Please wait...'
+                      ? t('messageInput.fileUpload.titleUploading')
                       : visibleAttachedFiles.length > 0
-                      ? `${visibleAttachedFiles.length} file(s) attached`
-                      : 'Attach files'
+                      ? t('messageInput.fileUpload.titleAttached', { count: visibleAttachedFiles.length })
+                      : t('messageInput.fileUpload.attachAriaLabel')
                   }
-                  aria-label="Attach files"
+                  aria-label={t('messageInput.fileUpload.attachAriaLabel')}
                 >
                   {isFileUploadDisabled && isHoveringUpload ? (
                     <X className="h-4 w-4" />
@@ -1627,10 +1629,10 @@ export function MessageInput({
                     }`}
                     title={
                       settings.voiceEnabled
-                        ? 'Voice responses enabled - Click to disable'
-                        : 'Enable voice responses (text-to-speech)'
+                        ? t('messageInput.voiceOutput.titleEnabled')
+                        : t('messageInput.voiceOutput.titleDisabled')
                     }
-                    aria-label={settings.voiceEnabled ? 'Disable voice responses' : 'Enable voice responses'}
+                    aria-label={settings.voiceEnabled ? t('messageInput.voiceOutput.ariaLabelEnabled') : t('messageInput.voiceOutput.ariaLabelDisabled')}
                   >
                     {settings.voiceEnabled ? (
                       <Volume2 className="h-5 w-5" />
@@ -1655,12 +1657,12 @@ export function MessageInput({
                       }`}
                       title={
                         isInputDisabled
-                          ? 'Files are uploading. Please wait...'
+                          ? t('messageInput.voiceInput.titleUploading')
                           : isListening
-                          ? 'Stop recording'
-                          : 'Start voice input'
+                          ? t('messageInput.voiceInput.titleListening')
+                          : t('messageInput.voiceInput.titleDisabled')
                       }
-                      aria-label={isListening ? 'Stop recording' : 'Start voice input'}
+                      aria-label={isListening ? t('messageInput.voiceInput.ariaLabelListening') : t('messageInput.voiceInput.ariaLabelDisabled')}
                     >
                       {isListening || (isInputDisabled && isHoveringMic) ? (
                         <MicOff className="h-5 w-5" />
@@ -1677,8 +1679,8 @@ export function MessageInput({
                   type="button"
                   onClick={() => setShowAgentInfo(true)}
                   className="hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]"
-                  title="About this agent"
-                  aria-label="About this agent"
+                  title={t('messageInput.agentInfo.title')}
+                  aria-label={t('messageInput.agentInfo.ariaLabel')}
                 >
                   <CircleHelp className="h-5 w-5" />
                 </button>
@@ -1698,8 +1700,8 @@ export function MessageInput({
                     stopStreaming();
                   }}
                   className="flex h-9 w-9 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-full transition-all active:scale-95 bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
-                  title="Stop generating"
-                  aria-label="Stop generating"
+                  title={t('messageInput.stop.title')}
+                  aria-label={t('messageInput.stop.ariaLabel')}
                 >
                   <Square className="h-4 w-4 md:h-3 md:w-3 fill-current" />
                 </button>
@@ -1712,8 +1714,8 @@ export function MessageInput({
                       ? 'bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200'
                       : 'bg-gray-300 text-gray-500 dark:bg-[#565869] dark:text-[#6b6f7a]'
                   }`}
-                  title="Send message"
-                  aria-label="Send message"
+                  title={t('messageInput.submit.title')}
+                  aria-label={t('messageInput.submit.ariaLabel')}
                 >
                   <ArrowUp className="h-4 w-4" />
                 </button>
@@ -1737,7 +1739,7 @@ export function MessageInput({
                       ? 'border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-950/30'
                       : 'border-gray-200 bg-white dark:border-[#4a4b54] dark:bg-[#2d2f39]'
                   }`}
-                  title={isFailed ? (file.error_message || 'File processing failed') : undefined}
+                  title={isFailed ? (file.error_message || t('messageInput.fileProcessingFailedTitle')) : undefined}
                 >
                   {isProcessing && (
                     <Loader2 className="h-3 w-3 animate-spin text-blue-500 dark:text-blue-400 flex-shrink-0" />
@@ -1754,11 +1756,11 @@ export function MessageInput({
                   </span>
                   {isProcessing && (
                     <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
-                      {file.processing_status === 'uploading' ? 'Uploading...' : 'Processing...'}
+                      {file.processing_status === 'uploading' ? t('messageInput.attachedFile.uploadingStatus') : t('messageInput.attachedFile.processingStatus')}
                     </span>
                   )}
                   {isFailed && (
-                    <span className="text-xs text-red-500 dark:text-red-400">Failed</span>
+                    <span className="text-xs text-red-500 dark:text-red-400">{t('messageInput.attachedFile.failedStatus')}</span>
                   )}
                   <button
                     type="button"
@@ -1774,7 +1776,7 @@ export function MessageInput({
                       }
                     }}
                     className="rounded p-2 md:p-0.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-[#bfc2cd] dark:hover:bg-red-900/30 dark:hover:text-red-300"
-                    title={isFailed ? 'Dismiss' : 'Remove file'}
+                    title={isFailed ? t('messageInput.attachedFile.removeTitleFailed') : t('messageInput.attachedFile.removeTitleNormal')}
                   >
                     <X className="h-4 w-4 md:h-3 md:w-3" />
                   </button>
@@ -1795,12 +1797,12 @@ export function MessageInput({
           >
             {showFileUpload && (
               <div className="mb-2 flex items-center justify-between px-1">
-                <span className="text-xs font-medium text-gray-500 dark:text-[#8e8ea0] uppercase tracking-wider">Attach files</span>
+                <span className="text-xs font-medium text-gray-500 dark:text-[#8e8ea0] uppercase tracking-wider">{t('messageInput.uploadPanel.headingAttach')}</span>
                 <button
                   type="button"
                   onClick={() => setShowFileUpload(false)}
                   className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-[#6b6f7a] dark:hover:bg-[#3c3f4a] dark:hover:text-[#bfc2cd] transition-colors"
-                  title="Close"
+                  title={t('messageInput.uploadPanel.closeTitle')}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -1808,7 +1810,7 @@ export function MessageInput({
             )}
             {(isUploading || pasteUploadingFiles.size > 0) && !showFileUpload && pasteUploadingFiles.size === 0 && (
               <div className="mb-2 px-1">
-                <span className="text-xs font-medium text-gray-500 dark:text-[#8e8ea0] uppercase tracking-wider">Uploading files</span>
+                <span className="text-xs font-medium text-gray-500 dark:text-[#8e8ea0] uppercase tracking-wider">{t('messageInput.uploadPanel.headingUploading')}</span>
               </div>
             )}
             {pasteUploadingFiles.size > 0 && (
@@ -1844,12 +1846,12 @@ export function MessageInput({
                       </div>
                       <span className="text-xs font-medium text-gray-500 dark:text-[#bfc2cd] shrink-0">
                         {progress.status === 'uploading'
-                          ? 'Uploading'
+                          ? t('messageInput.uploadProgress.statusUploading')
                           : progress.status === 'processing'
-                          ? 'Processing'
+                          ? t('messageInput.uploadProgress.statusProcessing')
                           : progress.status === 'completed'
-                          ? 'Done'
-                          : 'Pending'}
+                          ? t('messageInput.uploadProgress.statusCompleted')
+                          : t('messageInput.uploadProgress.statusPending')}
                       </span>
                     </div>
                   </div>
@@ -1881,7 +1883,7 @@ export function MessageInput({
           {voiceRecordingAvailable && isListening && (
             <span className="flex items-center gap-2 text-sm md:text-xs text-gray-500 dark:text-[#bfc2cd]">
               <span className="h-2.5 w-2.5 md:h-2 md:w-2 animate-pulse rounded-full bg-red-500" />
-              Listening...
+              {t('messageInput.listeningIndicator')}
             </span>
           )}
         </div>
@@ -1910,7 +1912,7 @@ export function MessageInput({
 
         {/* ChatGPT-style autocomplete suggestions below input */}
         {showAutocompletePanel && (
-          <div ref={autocompletePanelRef} role="listbox" aria-label="Autocomplete suggestions" className="w-full pt-1">
+          <div ref={autocompletePanelRef} role="listbox" aria-label={t('messageInput.autocompletePanel.ariaLabel')} className="w-full pt-1">
             {suggestions.map((suggestion, index) => {
               const isSelected = index === selectedIndex;
 
@@ -1939,10 +1941,10 @@ export function MessageInput({
           isOpen={fileDeleteConfirmation.isOpen}
           onClose={closeFileDeleteConfirmation}
           onConfirm={confirmFileDelete}
-          title="Remove File"
-          message={`Are you sure you want to remove "${fileDeleteConfirmation.filename}"? This will delete the file from both the server and this conversation. This action cannot be undone.`}
-          confirmText="Remove"
-          cancelText="Cancel"
+          title={t('messageInput.fileDelete.title')}
+          message={t('messageInput.fileDelete.message', { filename: fileDeleteConfirmation.filename })}
+          confirmText={t('messageInput.fileDelete.confirmText')}
+          cancelText={t('common.cancel')}
           type="danger"
           isLoading={fileDeleteConfirmation.isDeleting}
         />
@@ -1966,14 +1968,14 @@ export function MessageInput({
                 <CircleHelp className="w-5 h-5 text-blue-500" />
               </div>
               <h2 id="agent-info-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                About this agent
+                {t('messageInput.agentInfoModal.title')}
               </h2>
             </div>
             <button
               type="button"
               onClick={() => setShowAgentInfo(false)}
               className="p-2 hover:bg-gray-100 dark:hover:bg-[#25262f] rounded-lg transition-colors"
-              aria-label="Close"
+              aria-label={t('messageInput.agentInfoModal.closeAriaLabel')}
             >
               <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </button>
@@ -1991,7 +1993,7 @@ export function MessageInput({
               onClick={() => setShowAgentInfo(false)}
               className="px-4 py-3 md:py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium shadow-sm hover:shadow-md"
             >
-              Got it
+              {t('messageInput.agentInfoModal.confirmButton')}
             </button>
           </div>
         </div>

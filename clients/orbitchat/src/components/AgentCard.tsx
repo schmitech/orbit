@@ -1,4 +1,5 @@
 import { ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { Adapter } from '../utils/middlewareConfig';
 import { MarkdownRenderer } from './markdown';
 import { useTheme } from '../contexts/ThemeContext';
@@ -9,6 +10,7 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ adapter, onSelect }: AgentCardProps) {
+  const { t } = useTranslation();
   const description = adapter.description?.trim();
   const { isDark } = useTheme();
   const syntaxTheme: 'dark' | 'light' = isDark ? 'dark' : 'light';
@@ -47,7 +49,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
                 </div>
               ) : (
                 <p className="mt-1 text-sm leading-5 text-slate-500 dark:text-slate-400">
-                  Configure this agent to see its capabilities.
+                  {t('agentCard.configureMessage')}
                 </p>
               )}
             </div>
@@ -59,7 +61,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
                 handleCardActivate();
               }}
               className="hidden h-8 w-8 flex-shrink-0 items-center justify-center self-start rounded-full text-slate-700 transition-all duration-150 hover:bg-slate-100 group-hover:translate-x-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 dark:text-slate-200 dark:hover:bg-white/10 dark:focus-visible:ring-sky-400/30 md:inline-flex"
-              aria-label={`Start conversation with ${adapter.name}`}
+              aria-label={t('agentCard.startConversationAriaLabel', { name: adapter.name })}
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -75,7 +77,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
             handleCardActivate();
           }}
           className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-700 transition-all duration-150 hover:bg-slate-100 group-hover:translate-x-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/30 dark:text-slate-200 dark:hover:bg-white/10 dark:focus-visible:ring-sky-400/30"
-          aria-label={`Start conversation with ${adapter.name}`}
+          aria-label={t('agentCard.startConversationAriaLabel', { name: adapter.name })}
         >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </button>

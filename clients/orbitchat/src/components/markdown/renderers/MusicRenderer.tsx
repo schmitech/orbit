@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { MusicRendererProps } from '../types';
 import { copyCodeToClipboard, exportSvgAsPng } from './graphExportUtils';
 
@@ -97,6 +98,7 @@ const isLikelyIncomplete = (code: string): boolean => {
 };
 
 export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -334,22 +336,22 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
               className="graph-action-button"
               type="button"
               onClick={() => copyCodeToClipboard(code, setCopiedCode)}
-              title={copiedCode ? 'Copied!' : 'Copy code'}
-              aria-label="Copy ABC notation to clipboard"
+              title={copiedCode ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyTitle')}
+              aria-label={t('markdown.music.copyNotationAriaLabel')}
             >
               {copiedCode ? (
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               ) : (
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M5.5 4.5H3.5C2.94772 4.5 2.5 4.94772 2.5 5.5V12.5C2.5 13.0523 2.94772 13.5 3.5 13.5H10.5C11.0523 13.5 11.5 13.0523 11.5 12.5V10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M13.5 9.5V3.5C13.5 2.94772 13.0523 2.5 12.5 2.5H6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               )}
-              <span>{copiedCode ? 'Copied!' : 'Copy'}</span>
+              <span>{copiedCode ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyLabel')}</span>
             </button>
             <button
               className="graph-action-button"
               type="button"
               onClick={handleExportPng}
-              title="Export as PNG"
-              aria-label="Export music notation as PNG image"
+              title={t('markdown.music.exportPngTitle')}
+              aria-label={t('markdown.music.exportPngAriaLabel')}
               disabled={exportingPng}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -416,7 +418,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
             >
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeLinecap="round" />
             </svg>
-            <span style={{ fontSize: '13px' }}>Rendering notation...</span>
+            <span style={{ fontSize: '13px' }}>{t('markdown.music.rendering')}</span>
             <style>{`
               @keyframes spin {
                 from { transform: rotate(0deg); }

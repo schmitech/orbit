@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { AllowedModel } from '../types';
 
 interface ModelPickerButtonProps {
@@ -23,11 +24,14 @@ export function ModelPickerButton({
   onSelect,
   wrapperClassName = 'relative hidden md:block',
   maxWidthClass = 'max-w-[200px]',
-  triggerTitle = 'Select model',
-  listboxLabel = 'Select model',
+  triggerTitle,
+  listboxLabel,
   staticPaddingClass = 'px-3 py-1.5',
   triggerPaddingClass = 'px-3 py-1.5',
 }: ModelPickerButtonProps) {
+  const { t } = useTranslation();
+  const resolvedTriggerTitle = triggerTitle ?? t('modelPicker.selectModel');
+  const resolvedListboxLabel = listboxLabel ?? t('modelPicker.selectModel');
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [dropdownPos, setDropdownPos] = useState<{ bottom: number; right: number } | null>(null);
@@ -123,9 +127,9 @@ export function ModelPickerButton({
                 type="text"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search models…"
+                placeholder={t('modelPicker.searchPlaceholder')}
                 className="flex-1 bg-transparent pl-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#6b6f7a]"
-                aria-label="Search models"
+                aria-label={t('modelPicker.searchAriaLabel')}
               />
             </div>
           </div>
@@ -133,12 +137,12 @@ export function ModelPickerButton({
           {/* Model list */}
           <div
             role="listbox"
-            aria-label={listboxLabel}
+            aria-label={resolvedListboxLabel}
             className="max-h-60 overflow-y-auto py-1"
           >
             {filtered.length === 0 ? (
               <div className="px-3 py-5 text-center text-xs text-gray-400 dark:text-[#6b6f7a]">
-                No models match &ldquo;{query}&rdquo;
+                {t('modelPicker.noModelsMatch', { query })}
               </div>
             ) : (
               filtered.map(model => {
@@ -180,7 +184,7 @@ export function ModelPickerButton({
           {availableModels.length > 8 && (
             <div className="border-t border-gray-100 px-3 py-1.5 dark:border-[#222222]">
               <span className="text-[10px] text-gray-400 dark:text-[#6b6f7a]">
-                {filtered.length} of {availableModels.length} models
+                {t('modelPicker.modelCountHint', { filtered: filtered.length, total: availableModels.length })}
               </span>
             </div>
           )}
@@ -200,7 +204,7 @@ export function ModelPickerButton({
             className={`inline-flex min-w-[100px] ${maxWidthClass} items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 ${triggerPaddingClass} text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] dark:hover:bg-[#3a3b48]`}
             aria-haspopup="listbox"
             aria-expanded={open}
-            title={triggerTitle}
+            title={resolvedTriggerTitle}
           >
             <span className="truncate flex-1">{effectiveModel}</span>
             <ChevronDown

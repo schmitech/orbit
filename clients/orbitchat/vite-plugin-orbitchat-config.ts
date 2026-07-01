@@ -28,6 +28,7 @@ interface AdapterConfig {
 
 interface YamlConfig {
   agentMode?: { mode?: 'single' | 'multi'; defaultAdapterId?: string };
+  i18n?: { activeLanguages?: string[]; defaultLanguage?: string };
   seo?: {
     includeSitemap?: boolean;
     siteUrl?: string;

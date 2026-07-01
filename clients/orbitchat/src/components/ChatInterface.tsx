@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
@@ -47,6 +48,7 @@ export function ChatInterface({
   onOpenSettings,
   onOpenSidebar,
 }: ChatInterfaceProps) {
+  const { t } = useTranslation();
   const {
     conversations,
     currentConversationId,
@@ -167,10 +169,10 @@ export function ChatInterface({
   const canStartNewConversation = canCreateNewConversation();
   const canChangeAgent = !!currentConversation?.adapterName && (currentConversation?.messages.length || 0) === 0;
   const newConversationTooltip = canStartNewConversation
-    ? 'Start a new conversation'
+    ? t('chatInterface.newConversation.tooltipCanStart')
     : isGuest
-    ? 'Guest conversation limit reached. Sign in for more conversations.'
-    : 'Finish your current conversation before starting a new one.';
+    ? t('chatInterface.newConversation.tooltipGuestLimited')
+    : t('chatInterface.newConversation.tooltipCannotStart');
   const showHeaderMetadata = !!(currentConversation && !shouldShowAgentSelectionList);
   const headerBorderClass = shouldShowAgentSelectionList
     ? 'border-transparent dark:border-transparent md:border-transparent md:dark:border-transparent'
@@ -305,7 +307,7 @@ export function ChatInterface({
   }, [currentConversation]);
 
   return (
-    <main className="flex-1 flex flex-col bg-transparent overflow-hidden" aria-label="Chat workspace">
+    <main className="flex-1 flex flex-col bg-transparent overflow-hidden" aria-label={t('chatInterface.workspace.ariaLabel')}>
       <div className="flex h-full w-full flex-col overflow-hidden px-3 sm:px-5 lg:px-8">
         <div className={`mx-auto flex h-full w-full ${chatMaxWidthClass} flex-col overflow-hidden md:pb-4 ${MOBILE_FRAME_CLASSES}`}>
 
@@ -319,7 +321,7 @@ export function ChatInterface({
                 <button
                   onClick={clearError}
                   className="ml-4 rounded p-1 text-red-500 hover:bg-red-100 hover:text-red-700 dark:text-red-200 dark:hover:bg-red-800/40"
-                  aria-label="Dismiss error"
+                  aria-label={t('chatInterface.error.dismissAriaLabel')}
                 >
                   ×
                 </button>
@@ -339,18 +341,18 @@ export function ChatInterface({
                         ? 'border-white/50 bg-white/80 text-gray-800 active:scale-[0.97] hover:bg-white dark:border-[#2f303d] dark:bg-[#232430] dark:text-[#ececf1]'
                         : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 shadow-none dark:border-[#2f303d] dark:bg-[#181922] dark:text-[#6b6f7a]'
                     }`}
-                    aria-label="Open conversations menu"
+                    aria-label={t('chatInterface.mobile.openChatsMenuAriaLabel')}
                   >
                     <Menu className="h-4 w-4" />
-                    Chats
+                    {t('chatInterface.mobile.chatsButton')}
                   </button>
                   <button
                     onClick={onOpenSettings}
                     className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/50 bg-[#11121a]/90 px-3 py-2 text-xs font-semibold text-white shadow-sm active:scale-[0.97] transition-all duration-150 hover:bg-[#0c0d14] dark:border-[#3b3c49] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
-                    aria-label="Open settings"
+                    aria-label={t('chatInterface.mobile.openSettingsAriaLabel')}
                   >
                     <Settings className="h-4 w-4" />
-                    Settings
+                    {t('chatInterface.mobile.settingsButton')}
                   </button>
                 </div>
                 <div className="ml-auto flex-shrink-0">
@@ -365,7 +367,7 @@ export function ChatInterface({
                     <div className="md:space-y-1">
                       <div className="flex items-baseline justify-between gap-2">
                         <h1 className="min-w-0 truncate text-lg md:text-2xl font-semibold text-[#353740] dark:text-[#ececf1]">
-                          {currentConversation?.title || 'New Chat'}
+                          {currentConversation?.title || t('chatInterface.newChatTitle')}
                         </h1>
                         {currentConversation && (
                           <span className="flex-shrink-0 text-xs md:hidden text-gray-500 dark:text-[#bfc2cd]">
@@ -375,7 +377,7 @@ export function ChatInterface({
                       </div>
                       {currentConversation && (
                         <div className="hidden md:flex items-center text-sm text-gray-500 dark:text-[#bfc2cd]">
-                          <span>Updated {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>{t('chatInterface.updatedAt', { time: currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}</span>
                         </div>
                       )}
                     </div>
@@ -387,8 +389,8 @@ export function ChatInterface({
                   <button
                     onClick={onOpenSettings}
                     className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50 dark:border-[#3c3f4a] dark:text-[#9aa1bc] dark:hover:border-[#4d5166] dark:hover:bg-[#2d2f39] dark:hover:text-[#ececf1]"
-                    aria-label="Settings"
-                    title="Settings"
+                    aria-label={t('chatInterface.settings.ariaLabel')}
+                    title={t('chatInterface.settings.title')}
                   >
                     <Settings className="h-4 w-4" />
                   </button>
@@ -408,9 +410,9 @@ export function ChatInterface({
                         ? 'border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400 focus-visible:ring-blue-500 dark:border-blue-500/40 dark:text-blue-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-400/60 dark:focus-visible:ring-blue-400/60'
                         : 'cursor-not-allowed border-gray-200 text-gray-400 bg-transparent dark:border-[#3c3f4a] dark:text-[#6b6f7a]'
                     }`}
-                    title={canChangeAgent ? 'Switch to a different agent before starting this conversation' : 'Agent cannot be changed after the conversation has started'}
+                    title={canChangeAgent ? t('chatInterface.changeAgent.titleEnabled') : t('chatInterface.changeAgent.titleDisabled')}
                   >
-                    Change Agent
+                    {t('chatInterface.changeAgent.button')}
                   </button>
                 )}
                 {!shouldShowAgentSelectionList && (
@@ -425,7 +427,7 @@ export function ChatInterface({
                     title={newConversationTooltip}
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    New Conversation
+                    {t('chatInterface.newConversation.button')}
                   </button>
                 )}
                 {!getEnableHeader() && (
@@ -484,7 +486,7 @@ export function ChatInterface({
                       </h2>
                     ) : isConfiguringAdapter ? (
                       <p className="w-full text-center text-sm text-gray-500 dark:text-[#bfc2cd]">
-                        Configuring your agent…
+                        {t('chatInterface.empty.configuringAgent')}
                       </p>
                     ) : null}
                     {seoAdapter && shouldRenderAgentNotesForSeo() && (
@@ -558,7 +560,7 @@ export function ChatInterface({
                       hasAdapterConfigurationError
                     }
                     autoFocusEnabled
-                    placeholder="Start a new topic..."
+                    placeholder={t('chatInterface.docked.placeholder')}
                     maxWidthClass={inputMaxWidthClass}
                     isCentered={false}
                     adapterNotes={currentConversation?.adapterInfo?.notes}

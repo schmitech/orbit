@@ -3,6 +3,7 @@ import { Message } from './Message';
 import { Message as MessageType } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
+import { useTranslation } from 'react-i18next';
 import './MessageList.css';
 
 
@@ -44,6 +45,7 @@ export function MessageList({
   const prevIsLoadingRef = useRef(isLoading);
   const shouldAutoScrollRef = useRef(true);
   const { settings } = useSettings();
+  const { t } = useTranslation();
 
   const { topLevelMessages, threadLookup } = useMemo(() => {
     const lookup = new Map<string, MessageType[]>();
@@ -146,8 +148,8 @@ export function MessageList({
     return (
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6">
         <div className="text-center text-lg text-gray-500 dark:text-[#bfc2cd]">
-          <p className="text-xl">Your messages will appear here.</p>
-          <p className="mt-1 text-lg">Start the conversation by sending a prompt below.</p>
+          <p className="text-xl">{t('messageList.emptyStateHeading')}</p>
+          <p className="mt-1 text-lg">{t('messageList.emptyStateSubheading')}</p>
         </div>
       </div>
     );

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Play, Pause, Volume2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { debugError, debugLog } from '../utils/debug';
 
 interface AudioPlayerProps {
@@ -16,6 +17,7 @@ interface AudioPlayerProps {
  * with play/pause controls and a progress bar.
  */
 export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxSizeMB = 10 }: AudioPlayerProps) {
+  const { t } = useTranslation();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -42,18 +44,18 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
         const estimatedSizeMB = estimatedSizeBytes / (1024 * 1024);
 
         if (estimatedSizeMB > maxSizeMB) {
-          throw new Error(`Audio file too large (${estimatedSizeMB.toFixed(1)}MB > ${maxSizeMB}MB limit)`);
+          throw new Error(t('audio.player.audioFileTooLargePlaceholder', { sizeMB: estimatedSizeMB.toFixed(1), maxMB: maxSizeMB }));
         }
 
         if (estimatedSizeMB > 2) {
           // Warn about large audio files (>2MB)
-          setSizeWarning(`Large audio file (${estimatedSizeMB.toFixed(1)}MB) - may take time to load`);
+          setSizeWarning(t('audio.player.largeAudioWarning', { sizeMB: estimatedSizeMB.toFixed(1) }));
           debugLog('[AudioPlayer] Large audio file detected', { sizeMB: estimatedSizeMB.toFixed(2) });
         }
 
         // Validate base64 string
         if (!/^[A-Za-z0-9+/=]+$/.test(audio.replace(/\s/g, ''))) {
-          throw new Error('Invalid base64 audio data');
+          throw new Error(t('audio.player.invalidBase64Error'));
         }
 
         // Decode base64 to binary
@@ -100,7 +102,7 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
       } catch (err) {
         debugError('[AudioPlayer] Failed to load audio:', err);
         if (isMounted) {
-          setError('Failed to load audio');
+          setError(t('audio.player.loadFailureError'));
           setIsLoading(false);
         }
       }
@@ -115,7 +117,7 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
         URL.revokeObjectURL(audioUrl);
       }
     };
-  }, [audio, audioFormat, autoPlay, maxSizeMB]);
+  }, [audio, audioFormat, autoPlay, maxSizeMB, t]);
 
   // Update duration when metadata is loaded
   const handleLoadedMetadata = () => {
@@ -148,7 +150,7 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
     } else {
       audioRef.current.play().catch(err => {
         debugError('[AudioPlayer] Playback failed:', err);
-        setError('Playback failed');
+        setError(t('audio.player.playbackFailureError'));
       });
     }
   };
@@ -203,8 +205,8 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
         onClick={togglePlay}
         disabled={isLoading}
         className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-50 dark:bg-[#4a4b54] dark:hover:bg-[#565869]"
-        title={isPlaying ? 'Pause' : 'Play'}
-        aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
+        title={isPlaying ? t('audio.player.pauseTitle') : t('audio.player.playTitle')}
+        aria-label={isPlaying ? t('audio.player.pauseAriaLabel') : t('audio.player.playAriaLabel')}
       >
         {isLoading ? (
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />

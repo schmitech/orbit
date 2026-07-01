@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown } from 'lucide-react';
 import { fetchAdapters, type Adapter } from '../utils/middlewareConfig';
 import { debugError } from '../utils/debug';
@@ -22,6 +23,7 @@ export function AdapterSelector({
   label,
   showLabel
 }: AdapterSelectorProps) {
+  const { t } = useTranslation();
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function AdapterSelector({
       } catch (err) {
         debugError('Failed to load adapters:', err);
         if (mounted) {
-          setError('Failed to load adapters. Please check your connection.');
+          setError(t('adapterSelector.failedToLoad'));
         }
       } finally {
         if (mounted) {
@@ -55,13 +57,13 @@ export function AdapterSelector({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [t]);
 
 
   const selectedAdapterObj = adapters.find(a => a.id === selectedAdapter);
 
   const computedShowLabel = typeof showLabel === 'boolean' ? showLabel : variant === 'prominent';
-  const labelText = label || (variant === 'prominent' ? 'Select an agent' : 'Adapter');
+  const labelText = label || (variant === 'prominent' ? t('adapterSelector.selectAnAgent') : t('adapterSelector.defaultLabel'));
 
   const containerClasses = useMemo(() => {
     if (variant === 'prominent') {
@@ -113,11 +115,11 @@ export function AdapterSelector({
           <div className="flex items-center justify-between gap-2">
             <div className="flex flex-col min-w-0">
               <span className={`truncate font-medium ${selectedAdapterObj ? 'text-[#11121a] dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
-                {isLoading ? 'Loading agents…' : 
-                 error ? 'Error loading agents' :
+                {isLoading ? t('adapterSelector.loadingAgents') :
+                 error ? t('adapterSelector.errorLoadingAgents') :
                  selectedAdapterObj ? selectedAdapterObj.name :
-                 adapters.length === 0 ? 'No agents available' :
-                 'Select an agent'}
+                 adapters.length === 0 ? t('adapterSelector.noAgentsAvailable') :
+                 t('adapterSelector.selectAnAgent')}
               </span>
               {variant === 'prominent' && selectedAdapterObj?.description && (
                 <span className="text-xs text-gray-500 dark:text-gray-400 truncate">

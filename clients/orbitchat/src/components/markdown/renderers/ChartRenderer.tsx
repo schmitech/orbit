@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { copyCodeToClipboard, exportSvgAsPng } from './graphExportUtils';
 import {
   Area,
@@ -957,6 +958,7 @@ const buildA11ySummary = (config: ChartConfig, series: NormalizedSeries[]): stri
 };
 
 export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) => {
+  const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
   const [config, setConfig] = useState<ChartConfig | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -1118,13 +1120,13 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 6v4m0 4h.01M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
           <div className="graph-error-content">
-            <div className="graph-error-title">Chart Rendering Error</div>
+            <div className="graph-error-title">{t('markdown.chart.errorTitle')}</div>
             <div className="graph-error-message">{error}</div>
           </div>
         </div>
         <details style={{ marginTop: '4px' }}>
           <summary className="graph-error-toggle" style={{ cursor: 'pointer', listStyle: 'none', userSelect: 'none' }}>
-            Show raw source
+            {t('markdown.chart.showRawSource')}
           </summary>
           <div className="graph-error-details">
             <pre><code>{code}</code></pre>
@@ -1136,7 +1138,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
 
   if (!config) {
     return (
-      <div className="graph-container chart-container" role="status" aria-label="Loading chart">
+      <div className="graph-container chart-container" role="status" aria-label={t('markdown.chart.loadingAriaLabel')}>
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -1459,7 +1461,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   const renderInteractiveLegend = (props: DefaultLegendContentProps) => {
     if (!props.payload) return null;
     return (
-      <div style={legendWrapperStyle} role="list" aria-label="Chart legend">
+      <div style={legendWrapperStyle} role="list" aria-label={t('markdown.chart.legendAriaLabel')}>
         {props.payload.map((entry, idx) => {
           const key = String(entry.dataKey ?? entry.value ?? idx);
           const isHidden = hiddenSeries.has(key);
@@ -1650,22 +1652,22 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
             className="graph-action-button"
             type="button"
             onClick={() => copyCodeToClipboard(code, setCopiedCode)}
-            title={copiedCode ? 'Copied!' : 'Copy code'}
-            aria-label="Copy chart code to clipboard"
+            title={copiedCode ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyTitle')}
+            aria-label={t('markdown.chart.copyCodeAriaLabel')}
           >
             {copiedCode ? (
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             ) : (
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M5.5 4.5H3.5C2.94772 4.5 2.5 4.94772 2.5 5.5V12.5C2.5 13.0523 2.94772 13.5 3.5 13.5H10.5C11.0523 13.5 11.5 13.0523 11.5 12.5V10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M13.5 9.5V3.5C13.5 2.94772 13.0523 2.5 12.5 2.5H6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
             )}
-            <span>{copiedCode ? 'Copied!' : 'Copy'}</span>
+            <span>{copiedCode ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyLabel')}</span>
           </button>
           <button
             className="graph-action-button"
             type="button"
             onClick={handleExportPng}
-            title="Export as PNG"
-            aria-label="Export chart as PNG image"
+            title={t('markdown.chart.exportPngTitle')}
+            aria-label={t('markdown.chart.exportPngAriaLabel')}
             disabled={exportingPng}
           >
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>

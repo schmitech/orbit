@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp, Download, X, Maximize2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface VideoDisplayProps {
   video?: string;          // base64-encoded video data (present during live session)
@@ -25,6 +26,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
  *     Fetched via JS so the Express proxy can inject the API key.
  */
 export function VideoDisplay({ video, videoUrl, videoFormat = 'mp4', revisedPrompt, adapterName }: VideoDisplayProps) {
+  const { t } = useTranslation();
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -136,7 +138,7 @@ export function VideoDisplay({ video, videoUrl, videoFormat = 'mp4', revisedProm
           >
             <button
               onClick={handleDownload}
-              title="Download video"
+              title={t('videoDisplay.downloadVideoTooltip')}
               style={{
                 background: 'rgba(0,0,0,0.55)',
                 border: 'none',
@@ -152,7 +154,7 @@ export function VideoDisplay({ video, videoUrl, videoFormat = 'mp4', revisedProm
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setLightboxOpen(true); }}
-              title="View full size"
+              title={t('videoDisplay.viewFullSizeTooltip')}
               style={{
                 background: 'rgba(0,0,0,0.55)',
                 border: 'none',
@@ -188,7 +190,7 @@ export function VideoDisplay({ video, videoUrl, videoFormat = 'mp4', revisedProm
               aria-expanded={promptExpanded}
             >
               {promptExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              {promptExpanded ? 'Hide prompt' : 'Show prompt'}
+              {promptExpanded ? t('videoDisplay.hidePrompt') : t('videoDisplay.showPrompt')}
             </button>
             {promptExpanded && (
               <div
@@ -210,7 +212,7 @@ export function VideoDisplay({ video, videoUrl, videoFormat = 'mp4', revisedProm
                     marginBottom: '3px',
                   }}
                 >
-                  Prompt
+                  {t('videoDisplay.promptLabel')}
                 </span>
                 <span style={{ fontSize: '0.8rem', lineHeight: 1.45, opacity: 0.85 }}>
                   {revisedPrompt}
