@@ -498,10 +498,10 @@ export function FileUpload({
   const conversationNameMap = useMemo(() => {
     const map = new Map<string, string>();
     conversations.forEach(conv => {
-      map.set(conv.id, conv.title || 'Conversation');
+      map.set(conv.id, conv.title || t('chatInterface.newChatTitle'));
     });
     return map;
-  }, [conversations]);
+  }, [conversations, t]);
 
   const otherUploadingConversations = useMemo(() => {
     void globalUploadRevision;

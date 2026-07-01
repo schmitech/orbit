@@ -128,11 +128,11 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
     const q = searchQuery.toLowerCase();
     return conversationsWithHistory.filter(
       (conv) =>
-        conv.title.toLowerCase().includes(q) ||
+        (conv.title || t('chatInterface.newChatTitle')).toLowerCase().includes(q) ||
         conv.messages.some((msg) => msg.content.toLowerCase().includes(q)) ||
         (conv.attachedFiles || []).some((file) => file.filename.toLowerCase().includes(q))
     );
-  }, [conversationsWithHistory, searchQuery]);
+  }, [conversationsWithHistory, searchQuery, t]);
 
   const timeGroups = useMemo(() => groupConversationsByTime(filteredConversations), [filteredConversations]);
 
@@ -212,7 +212,12 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
 
   const handleDeleteConversation = (e: React.MouseEvent, conversation: Conversation) => {
     e.stopPropagation();
-    setDeleteConfirmation({ isOpen: true, conversationId: conversation.id, conversationTitle: conversation.title, isDeleting: false });
+    setDeleteConfirmation({
+      isOpen: true,
+      conversationId: conversation.id,
+      conversationTitle: conversation.title || t('chatInterface.newChatTitle'),
+      isDeleting: false,
+    });
   };
 
   const confirmDelete = async () => {
@@ -232,7 +237,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
   const handleEditStart = (e: React.MouseEvent, conversation: Conversation) => {
     e.stopPropagation();
     setEditingId(conversation.id);
-    setEditTitle(conversation.title.slice(0, MAX_TITLE_LENGTH));
+    setEditTitle((conversation.title || t('chatInterface.newChatTitle')).slice(0, MAX_TITLE_LENGTH));
   };
 
   const handleEditSubmit = (id: string) => {
@@ -284,6 +289,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
   const renderConversationCard = (conversation: Conversation) => {
     const isActive = currentConversationId === conversation.id;
     const agentLabel = getConversationAgentLabel(conversation);
+    const displayTitle = conversation.title || t('chatInterface.newChatTitle');
 
     return (
       <div
@@ -305,7 +311,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
               : 'hover:bg-slate-100/70 dark:hover:bg-[#25262f]'
           } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 dark:focus-visible:ring-sky-400/40`}
         aria-current={isActive ? 'true' : undefined}
-        aria-label={t('sidebar.conversationCard.openAriaLabel', { title: conversation.title })}
+        aria-label={t('sidebar.conversationCard.openAriaLabel', { title: displayTitle })}
       >
         {editingId === conversation.id ? (
           <input
@@ -327,21 +333,21 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <div className="flex min-w-0 items-center gap-1">
               <h3 className={`flex-1 truncate text-sm leading-snug ${isActive ? 'font-medium text-slate-900 dark:text-[#ececf1]' : 'font-normal text-slate-700 dark:text-[#c5c8d6]'}`}>
-                {conversation.title}
+                {displayTitle}
               </h3>
               {/* Actions: hidden until hover/focus, then fade in */}
               <div className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover:opacity-100 group-focus-within:opacity-100">
                 <button
                   onClick={(e) => handleEditStart(e, conversation)}
                   className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600 dark:text-[#6b6f7a] dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6]"
-                  aria-label={t('sidebar.conversationCard.editAriaLabel', { title: conversation.title })}
+                  aria-label={t('sidebar.conversationCard.editAriaLabel', { title: displayTitle })}
                 >
                   <Edit2 className="h-3 w-3" />
                 </button>
                 <button
                   onClick={(e) => handleDeleteConversation(e, conversation)}
                   className="rounded p-1 text-slate-400 transition-colors hover:bg-red-100/80 hover:text-red-600 dark:text-[#6b6f7a] dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                  aria-label={t('sidebar.conversationCard.deleteAriaLabel', { title: conversation.title })}
+                  aria-label={t('sidebar.conversationCard.deleteAriaLabel', { title: displayTitle })}
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>

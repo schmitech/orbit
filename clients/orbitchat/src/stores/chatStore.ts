@@ -13,6 +13,8 @@ import {
   DEFAULT_ADAPTER,
   getInitialConversationAdapterId,
   buildDefaultConversation,
+  DEFAULT_CONVERSATION_TITLE,
+  normalizeStoredTitle,
   getOrCreateSessionId,
   setSessionId,
   generateUniqueMessageId,
@@ -210,7 +212,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             {
               id: newId,
               sessionId: newSessionId,
-              title: 'New Conversation',
+              title: DEFAULT_CONVERSATION_TITLE,
               messages: [],
               createdAt: new Date(),
               updatedAt: new Date(),
@@ -275,7 +277,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     const newConversation: Conversation = {
       id,
       sessionId: newSessionId,
-      title: 'New Chat',
+      title: DEFAULT_CONVERSATION_TITLE,
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -1862,7 +1864,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 sessionId: update.sessionId || conv.sessionId,
                 messages: [],
                 attachedFiles: [],
-                title: 'New Chat',
+                title: DEFAULT_CONVERSATION_TITLE,
                 updatedAt: update.updatedAt,
                 adapterLoadError: null,
               };
@@ -2103,7 +2105,7 @@ const initializeStore = async () => {
         const normalized: Conversation = {
           id: storedConversation.id,
           sessionId: storedConversation.sessionId || generateUniqueSessionId(),
-          title: storedConversation.title || 'New Chat',
+          title: normalizeStoredTitle(storedConversation.title),
           messages: uniqueMessages,
           createdAt: toDate(storedConversation.createdAt),
           updatedAt: toDate(storedConversation.updatedAt),
