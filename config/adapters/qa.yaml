@@ -58,8 +58,8 @@ adapters:
   datasource: chroma
   adapter: qa
   implementation: retrievers.implementations.qa.QAChromaRetriever
-  inference_provider: "ollama_cloud"
-  model: "gpt-oss:20b"
+  inference_provider: "openrouter"
+  model: "poolside/laguna-m.1:free"
   embedding_provider: openai
   embedding_model: text-embedding-3-small
   capabilities:

@@ -163,7 +163,6 @@ class AdapterCapabilities:
     @classmethod
     def for_standard_retriever(
         cls,
-        adapter_name: Optional[str] = None,
         supports_threading: bool = False,
         supports_autocomplete: bool = False,
     ) -> 'AdapterCapabilities':
@@ -171,7 +170,6 @@ class AdapterCapabilities:
         Create capabilities for standard retriever adapters (QA, Intent, etc.).
 
         Args:
-            adapter_name: Deprecated; retained for backward-compatible callers.
             supports_threading: Whether this retriever supports conversation threading.
             supports_autocomplete: Whether this retriever provides autocomplete suggestions.
         """

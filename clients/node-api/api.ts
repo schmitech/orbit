@@ -37,6 +37,19 @@ export interface StreamResponse {
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
   audio_chunk?: string;  // Optional streaming audio chunk (base64-encoded)
   chunk_index?: number;  // Index of the audio chunk for ordering
+  image?: string;  // Optional base64-encoded generated image
+  image_format?: string;  // Image format (png, jpeg, webp)
+  image_revised_prompt?: string;  // Provider-rewritten prompt (DALL-E 3)
+  image_url?: string;  // Persistent server-side URL for refresh
+  video?: string;  // Optional base64-encoded generated video
+  video_format?: string;  // Video format (mp4)
+  video_revised_prompt?: string;  // Provider-rewritten prompt
+  video_url?: string;  // Persistent server-side URL for refresh
+  document?: string;  // Optional base64-encoded generated document
+  document_format?: string;  // Document format (pdf, docx, xlsx, pptx)
+  document_revised_prompt?: string;  // Title / final prompt used
+  document_url?: string;  // Persistent server-side URL for refresh
+  assistant_message_id?: string;  // Database message ID for feedback
   threading?: {  // Optional threading metadata
     supports_threading: boolean;
     message_id: string;
@@ -76,6 +89,8 @@ interface ChatRequest {
   tts_voice?: string;  // Voice for TTS (e.g., "alloy", "echo" for OpenAI)
   source_language?: string;  // Source language for translation
   target_language?: string;  // Target language for translation
+  model?: string;  // Optional model override
+  skill?: string;  // Optional skill to invoke
 }
 
 // File-related interfaces
@@ -202,6 +217,58 @@ export interface ApiKeyQuotaDetails {
   daily_remaining?: number | null;
   monthly_remaining?: number | null;
   throttle_delay_ms?: number;
+}
+
+// Feedback interfaces
+export interface FeedbackResponse {
+  message_id: string;
+  feedback_type: string | null;
+  action: string;
+}
+
+export interface SessionFeedbackResponse {
+  feedbacks: Array<{ message_id: string; feedback_type: string }>;
+}
+
+// Model discovery interfaces
+export interface AdapterModelInfo {
+  id: string;
+  name?: string;
+  description?: string;
+  [key: string]: unknown;
+}
+
+export interface AdapterModelsResponse {
+  adapter_name: string;
+  models: AdapterModelInfo[];
+}
+
+export interface ModelInfo {
+  id: string;
+  adapter_name: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+export interface AllModelsResponse {
+  models: ModelInfo[];
+}
+
+// Skill discovery interfaces
+export interface SkillInfo {
+  name: string;
+  description: string;
+  adapter_name: string;
+  enabled: boolean;
+}
+
+export interface AdapterSkillsResponse {
+  adapter_name: string;
+  available_skills: string[];
+}
+
+export interface AllSkillsResponse {
+  skills: SkillInfo[];
 }
 
 interface ApiClientConfig {
@@ -822,13 +889,12 @@ export class ApiClient {
     );
   }
 
-  public async deactivateApiKey(apiKey: string, authToken?: string): Promise<any> {
+  public async deactivateApiKey(apiKeyId: string, authToken?: string): Promise<any> {
     return await this.requestJsonOrThrow<any>(
-      `${this.apiUrl}/admin/api-keys/deactivate`,
+      `${this.apiUrl}/admin/api-keys/${encodeURIComponent(apiKeyId)}/deactivate`,
       {
         method: 'POST',
-        headers: this.withBearerAuth({ 'Content-Type': 'application/json' }, authToken),
-        body: JSON.stringify({ api_key: apiKey })
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to deactivate API key'
     );
@@ -1268,8 +1334,8 @@ export class ApiClient {
 
   // Create Chat request
   private createChatRequest(
-    message: string, 
-    stream: boolean = true, 
+    message: string,
+    stream: boolean = true,
     fileIds?: string[],
     threadId?: string,
     audioInput?: string,
@@ -1278,7 +1344,9 @@ export class ApiClient {
     returnAudio?: boolean,
     ttsVoice?: string,
     sourceLanguage?: string,
-    targetLanguage?: string
+    targetLanguage?: string,
+    model?: string,
+    skill?: string
   ): ChatRequest {
     const request: ChatRequest = {
       messages: [
@@ -1313,6 +1381,12 @@ export class ApiClient {
     if (targetLanguage) {
       request.target_language = targetLanguage;
     }
+    if (model) {
+      request.model = model;
+    }
+    if (skill) {
+      request.skill = skill;
+    }
     return request;
   }
 
@@ -1328,7 +1402,9 @@ export class ApiClient {
     ttsVoice?: string,
     sourceLanguage?: string,
     targetLanguage?: string,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    model?: string,
+    skill?: string
   ): AsyncGenerator<StreamResponse> {
     try {
       // Add timeout to the fetch request
@@ -1348,8 +1424,8 @@ export class ApiClient {
             'Accept': stream ? 'text/event-stream' : 'application/json'
           },
           body: JSON.stringify(this.createChatRequest(
-            message, 
-            stream, 
+            message,
+            stream,
             fileIds,
             threadId,
             audioInput,
@@ -1358,7 +1434,9 @@ export class ApiClient {
             returnAudio,
             ttsVoice,
             sourceLanguage,
-            targetLanguage
+            targetLanguage,
+            model,
+            skill
           )),
         }),
         signal: controller.signal
@@ -1451,7 +1529,20 @@ export class ApiClient {
                       done: true,
                       audio: data.audio,
                       audioFormat: data.audio_format || data.audioFormat,
-                      threading: data.threading  // Pass through threading metadata
+                      image: data.image,
+                      image_format: data.image_format,
+                      image_revised_prompt: data.image_revised_prompt,
+                      image_url: data.image_url,
+                      video: data.video,
+                      video_format: data.video_format,
+                      video_revised_prompt: data.video_revised_prompt,
+                      video_url: data.video_url,
+                      document: data.document,
+                      document_format: data.document_format,
+                      document_revised_prompt: data.document_revised_prompt,
+                      document_url: data.document_url,
+                      assistant_message_id: data.assistant_message_id,
+                      threading: data.threading
                     };
                     return;
                 }
@@ -1934,6 +2025,62 @@ export class ApiClient {
     }
   }
 
+  public async submitFeedback(
+    messageId: string,
+    sessionId: string,
+    feedbackType: 'up' | 'down'
+  ): Promise<FeedbackResponse> {
+    return await this.requestJsonOrThrow<FeedbackResponse>(
+      `${this.apiUrl}/api/feedback`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: messageId, session_id: sessionId, feedback_type: feedbackType })
+      },
+      'Failed to submit feedback'
+    );
+  }
+
+  public async getSessionFeedback(sessionId: string): Promise<SessionFeedbackResponse> {
+    return await this.requestJsonOrThrow<SessionFeedbackResponse>(
+      `${this.apiUrl}/api/feedback/${encodeURIComponent(sessionId)}`,
+      { method: 'GET' },
+      'Failed to get session feedback'
+    );
+  }
+
+  public async getAdapterModels(adapterName: string): Promise<AdapterModelsResponse> {
+    return await this.requestJsonOrThrow<AdapterModelsResponse>(
+      `${this.apiUrl}/admin/adapters/${encodeURIComponent(adapterName)}/models`,
+      { method: 'GET' },
+      'Failed to get adapter models'
+    );
+  }
+
+  public async getAllModels(): Promise<AllModelsResponse> {
+    return await this.requestJsonOrThrow<AllModelsResponse>(
+      `${this.apiUrl}/admin/models`,
+      { method: 'GET' },
+      'Failed to get all models'
+    );
+  }
+
+  public async getAdapterSkills(adapterName: string): Promise<AdapterSkillsResponse> {
+    return await this.requestJsonOrThrow<AdapterSkillsResponse>(
+      `${this.apiUrl}/admin/adapters/${encodeURIComponent(adapterName)}/skills`,
+      { method: 'GET' },
+      'Failed to get adapter skills'
+    );
+  }
+
+  public async getAllSkills(): Promise<AllSkillsResponse> {
+    return await this.requestJsonOrThrow<AllSkillsResponse>(
+      `${this.apiUrl}/admin/skills`,
+      { method: 'GET' },
+      'Failed to get all skills'
+    );
+  }
+
   public async deleteAllFiles(): Promise<{ message: string; deleted_count: number; errors?: string[] | null }> {
     this.getRequiredApiKey('API key is required for deleting files');
 
@@ -1970,7 +2117,9 @@ export async function* streamChat(
   ttsVoice?: string,
   sourceLanguage?: string,
   targetLanguage?: string,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  model?: string,
+  skill?: string
 ): AsyncGenerator<StreamResponse> {
   if (!defaultClient) {
     throw new Error('API not configured. Please call configureApi() with your server URL before using any API functions.');
@@ -1988,7 +2137,9 @@ export async function* streamChat(
     ttsVoice,
     sourceLanguage,
     targetLanguage,
-    abortSignal
+    abortSignal,
+    model,
+    skill
   );
 }
 

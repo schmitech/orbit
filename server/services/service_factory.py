@@ -39,9 +39,6 @@ class ServiceFactory:
         self.logger = logger
         self.chat_history_enabled = is_true_value(config.get('chat_history', {}).get('enabled', False))
 
-        # Fault tolerance is always enabled as core functionality
-        self.fault_tolerance_enabled = True
-
         # Register AI services with config to enable selective loading
         register_all_services(config)
 
@@ -62,10 +59,6 @@ class ServiceFactory:
             
             # Initialize shared services (Logger, Moderator, Reranker)
             await self._initialize_shared_services(app)
-            
-            # Initialize fault tolerance services (always enabled)
-            logger.debug("Initializing fault tolerance services")
-            # Fault tolerance is now handled by FaultTolerantAdapterManager directly
             
             # Initialize LLM client
             await self._initialize_llm_client(app)
@@ -131,9 +124,7 @@ class ServiceFactory:
         else:
             # Auth is always enabled - log error if database is not available
             logger.error("Authentication is required but database service not available - server will not function properly")
-            if False:  # Keep old else branch for reference but never execute
-                logger.info("Auth service disabled in configuration")
-    
+        
     async def _initialize_auth_service(self, app: FastAPI) -> None:
         """Initialize the authentication service. Authentication is always enabled."""
         try:
@@ -291,8 +282,6 @@ class ServiceFactory:
 
         # Create database service using factory
         app.state.database_service = create_database_service(self.config)
-
-        # For backward compatibility, also set mongodb_service
         app.state.mongodb_service = app.state.database_service
 
         backend_type = self.config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
@@ -519,25 +508,17 @@ class ServiceFactory:
                 if failed_adapters:
                     logger.warning(f"Failed to preload adapters: {failed_adapters}")
             
-            # Health service registration is no longer needed with simplified fault tolerance system
-            
         except Exception as e:
             logger.error(f"Failed to initialize Dynamic Adapter Manager: {str(e)}")
             raise
     
-    # Fault tolerance services initialization removed - now handled by FaultTolerantAdapterManager directly
     async def _shutdown_fault_tolerance_services(self, app: FastAPI) -> None:
         """Shutdown fault tolerance services."""
         try:
-            # Shutdown fault tolerant adapter manager
-            if hasattr(app.state, 'fault_tolerant_adapter_manager'):
-                # FaultTolerantAdapterManager doesn't have cleanup method, but parallel executor might
-                if hasattr(app.state.fault_tolerant_adapter_manager, 'parallel_executor'):
-                    if app.state.fault_tolerant_adapter_manager.parallel_executor:
-                        await app.state.fault_tolerant_adapter_manager.parallel_executor.cleanup()
-                
+            adapter_manager = getattr(app.state, 'adapter_manager', None)
+            if adapter_manager is not None and hasattr(adapter_manager, 'cleanup'):
+                await adapter_manager.cleanup()
             logger.info("Fault tolerance services shutdown successfully")
-            
         except Exception as e:
             logger.error(f"Error shutting down fault tolerance services: {str(e)}")
     
@@ -714,8 +695,8 @@ class ServiceFactory:
             
             # Create the store manager (singleton)
             store_manager = get_store_manager(stores_config_path)
-            app.state.vector_store_manager = store_manager  # Keep for backward compatibility
-            app.state.store_manager = store_manager  # New unified name
+            app.state.vector_store_manager = store_manager
+            app.state.store_manager = store_manager
             
             logger.debug("Store Manager initialized (lazy loading enabled)")
             

@@ -1,0 +1,481 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "remove": "Remove",
+    "clear": "Clear",
+    "send": "Send",
+    "signIn": "Sign in",
+    "logOut": "Log out",
+    "download": "Download"
+  },
+  "app": {
+    "sidebar": {
+      "openAriaLabel": "Open sidebar",
+      "openTitle": "Open sidebar"
+    },
+    "menu": {
+      "closeAriaLabel": "Close menu"
+    }
+  },
+  "chatInterface": {
+    "workspace": {
+      "ariaLabel": "Chat workspace"
+    },
+    "error": {
+      "dismissAriaLabel": "Dismiss error"
+    },
+    "mobile": {
+      "chatsButton": "Chats",
+      "openChatsMenuAriaLabel": "Open conversations menu",
+      "settingsButton": "Settings",
+      "openSettingsAriaLabel": "Open settings"
+    },
+    "settings": {
+      "ariaLabel": "Settings",
+      "title": "Settings"
+    },
+    "changeAgent": {
+      "button": "Change Agent",
+      "titleEnabled": "Switch to a different agent before starting this conversation",
+      "titleDisabled": "Agent cannot be changed after the conversation has started"
+    },
+    "newConversation": {
+      "button": "New Conversation",
+      "tooltipCanStart": "Start a new conversation",
+      "tooltipGuestLimited": "Guest conversation limit reached. Sign in for more conversations.",
+      "tooltipCannotStart": "Finish your current conversation before starting a new one."
+    },
+    "empty": {
+      "configuringAgent": "Configuring your agent…"
+    },
+    "newChatTitle": "New Chat",
+    "updatedAt": "Updated {{time}}",
+    "docked": {
+      "placeholder": "Start a new topic..."
+    }
+  },
+  "settings": {
+    "dialog": {
+      "closeOverlayAriaLabel": "Close settings overlay",
+      "title": "Settings",
+      "closeButtonAriaLabel": "Close settings"
+    },
+    "appearance": {
+      "heading": "Appearance",
+      "themeLabel": "Theme",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "themeSystem": "System"
+    },
+    "language": {
+      "label": "Language"
+    },
+    "chat": {
+      "heading": "Chat Preferences"
+    },
+    "soundEffects": {
+      "label": "Sound Effects",
+      "description": "Play sounds for notifications and events",
+      "toggleAriaLabel": "Toggle sound effects"
+    },
+    "dataManagement": {
+      "heading": "Data Management",
+      "description": "Clear all application data including conversations, and personalized settings."
+    },
+    "reset": {
+      "button": "Reset Application",
+      "confirmTitle": "Reset application data?",
+      "confirmMessage": "This removes everything stored on this device and reloads the app.",
+      "confirmButton": "Reset"
+    }
+  },
+  "sidebar": {
+    "selectAgent": {
+      "title": "Select an Agent"
+    },
+    "deleteAllConversations": {
+      "title": "Delete all conversations",
+      "button": "Delete Conversations"
+    },
+    "navAriaLabel": "Conversation sidebar",
+    "adapterConfigureFailed": "Failed to configure adapter",
+    "collapse": {
+      "ariaLabel": "Close sidebar",
+      "title": "Close sidebar"
+    },
+    "search": {
+      "ariaLabel": "Search conversations",
+      "placeholder": "Search Conversations",
+      "clearAriaLabel": "Clear search"
+    },
+    "resultsNone": "No results",
+    "results_one": "{{count}} result",
+    "results_other": "{{count}} results",
+    "conversations": {
+      "ariaLabel": "Conversations"
+    },
+    "timeGroups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This Week",
+      "thisMonth": "This Month",
+      "earlier": "Earlier"
+    },
+    "conversationCard": {
+      "openAriaLabel": "Open conversation: {{title}}",
+      "editAriaLabel": "Rename conversation: {{title}}",
+      "deleteAriaLabel": "Delete conversation: {{title}}",
+      "editInputAriaLabel": "Edit conversation title"
+    },
+    "deleteConfirm": {
+      "title": "Delete Conversation",
+      "message": "Are you sure you want to delete \"{{title}}\"? This will clear the conversation history.",
+      "confirmText": "Delete"
+    },
+    "clearAllConfirm": {
+      "title": "Clear All Conversations",
+      "message_one": "Are you sure you want to delete this conversation? This will clear all conversation history.",
+      "message_other": "Are you sure you want to delete all {{count}} conversations? This will clear all conversation history.",
+      "confirmText": "Clear All"
+    }
+  },
+  "messageInput": {
+    "textarea": {
+      "ariaLabel": "Message input"
+    },
+    "skillsHint": {
+      "ariaLabel": "Show available skills (or type a forward slash)",
+      "title": "Use a skill",
+      "text": "Skills"
+    },
+    "selectedSkill": {
+      "removeAriaLabel": "Remove skill"
+    },
+    "fileUpload": {
+      "attachAriaLabel": "Attach files",
+      "titleNotSupported": "File upload not supported by this adapter",
+      "titleLimitPerConversation": "Maximum of {{count}} files reached in this conversation. Start a new chat to upload more.",
+      "titleLimitWorkspace": "Workspace limit of {{count}} total files reached. Remove files from other conversations first.",
+      "titleUploading": "Files are uploading. Please wait...",
+      "titleAttached": "{{count}} file(s) attached"
+    },
+    "voiceOutput": {
+      "titleEnabled": "Voice responses enabled - Click to disable",
+      "titleDisabled": "Enable voice responses (text-to-speech)",
+      "ariaLabelEnabled": "Disable voice responses",
+      "ariaLabelDisabled": "Enable voice responses"
+    },
+    "voiceInput": {
+      "titleUploading": "Files are uploading. Please wait...",
+      "titleListening": "Stop recording",
+      "titleDisabled": "Start voice input",
+      "ariaLabelListening": "Stop recording",
+      "ariaLabelDisabled": "Start voice input"
+    },
+    "agentInfo": {
+      "title": "About this agent",
+      "ariaLabel": "About this agent"
+    },
+    "submit": {
+      "title": "Send message",
+      "ariaLabel": "Send message"
+    },
+    "stop": {
+      "title": "Stop generating",
+      "ariaLabel": "Stop generating"
+    },
+    "attachedFile": {
+      "uploadingStatus": "Uploading...",
+      "processingStatus": "Processing...",
+      "failedStatus": "Failed",
+      "removeTitleFailed": "Dismiss",
+      "removeTitleNormal": "Remove file"
+    },
+    "uploadPanel": {
+      "headingAttach": "Attach files",
+      "headingUploading": "Uploading files",
+      "closeTitle": "Close"
+    },
+    "uploadProgress": {
+      "statusUploading": "Uploading",
+      "statusProcessing": "Processing",
+      "statusCompleted": "Done",
+      "statusPending": "Pending"
+    },
+    "listeningIndicator": "Listening...",
+    "fileDelete": {
+      "title": "Remove File",
+      "message": "Are you sure you want to remove \"{{filename}}\"? This will delete the file from both the server and this conversation. This action cannot be undone.",
+      "confirmText": "Remove"
+    },
+    "agentInfoModal": {
+      "title": "About this agent",
+      "closeAriaLabel": "Close",
+      "confirmButton": "Got it"
+    },
+    "placeholder": {
+      "filesUploading": "Files are uploading, please wait...",
+      "messageOrbit": "Message ORBIT or drop files here",
+      "guestLimitTotal": "Guest limit of {{count}} messages reached. Sign in for higher limits.",
+      "workspaceLimitTotal": "Workspace limit of {{count}} messages reached. Delete or archive old conversations to continue.",
+      "guestLimitPerConversation": "Guest limit of {{count}} messages reached. Sign in for higher limits.",
+      "conversationLimitReached": "This chat hit the {{count}} message limit. Start a new conversation to continue."
+    },
+    "limitWarning": {
+      "guestTotalMessages": "Guest limit of {{count}} total messages reached. Sign in for higher limits, or delete conversations to start over.",
+      "workspaceTotalMessages": "Workspace limit of {{count}} total messages reached. Delete or export older conversations to continue.",
+      "guestPerConversation": "Guest limit of {{count}} messages per conversation reached. Sign in for higher limits, or delete conversations to start over.",
+      "conversationLimitReached": "This conversation reached the {{count}} message limit. Start a new conversation to keep chatting."
+    },
+    "signInPrompt": {
+      "button": "Sign in for higher limits",
+      "message": "Sign in to unlock higher message limits and more conversations."
+    },
+    "autocompletePanel": {
+      "ariaLabel": "Autocomplete suggestions"
+    },
+    "uploadSuccess": {
+      "single": "File \"{{filename}}\" uploaded successfully",
+      "multiple": "{{count}} files uploaded successfully"
+    },
+    "conversationNotFoundShort": "Conversation not found. Please select a conversation first.",
+    "fileRemoveFailed": "Failed to remove file",
+    "fileProcessingFailedTitle": "File processing failed"
+  },
+  "authStatus": {
+    "signOutButton": {
+      "title": "Log out",
+      "ariaLabel": "Log out"
+    }
+  },
+  "loginPrompt": {
+    "heading": "Sign in for more"
+  },
+  "outOfService": {
+    "statusBadge": "Service paused",
+    "heading": "Temporarily unavailable",
+    "retryButton": "Try again"
+  },
+  "confirmationModal": {
+    "loadingLabel": "Clearing..."
+  },
+  "appHeader": {
+    "homeLinkAriaLabel": "Go to home page",
+    "logoAlt": "Logo",
+    "navLinksAriaLabel": "Header links"
+  },
+  "appFooter": {
+    "navLinksAriaLabel": "Footer links"
+  },
+  "agentCard": {
+    "configureMessage": "Configure this agent to see its capabilities.",
+    "startConversationAriaLabel": "Start conversation with {{name}}"
+  },
+  "markdown": {
+    "codeBlock": {
+      "copied": "Copied!",
+      "copyTitle": "Copy code",
+      "copyAriaLabel": "Copy code to clipboard",
+      "copyLabel": "Copy",
+      "loadingRenderer": "Loading renderer..."
+    },
+    "diagram": {
+      "copyCodeAriaLabel": "Copy diagram code to clipboard",
+      "exportPngTitle": "Export as PNG",
+      "exportPngAriaLabel": "Export diagram as PNG image",
+      "errorTitle": "Mermaid Diagram Error"
+    },
+    "music": {
+      "copyNotationAriaLabel": "Copy ABC notation to clipboard",
+      "exportPngTitle": "Export as PNG",
+      "exportPngAriaLabel": "Export music notation as PNG image",
+      "rendering": "Rendering notation..."
+    },
+    "svg": {
+      "copyCodeAriaLabel": "Copy SVG code to clipboard",
+      "exportPngTitle": "Export as PNG",
+      "exportPngAriaLabel": "Export SVG as PNG image"
+    },
+    "chart": {
+      "legendAriaLabel": "Chart legend",
+      "copyCodeAriaLabel": "Copy chart code to clipboard",
+      "exportPngTitle": "Export as PNG",
+      "exportPngAriaLabel": "Export chart as PNG image",
+      "errorTitle": "Chart Rendering Error",
+      "loadingAriaLabel": "Loading chart",
+      "showRawSource": "Show raw source"
+    }
+  },
+  "adapterSelector": {
+    "defaultLabel": "Adapter",
+    "selectAnAgent": "Select an agent",
+    "loadingAgents": "Loading agents…",
+    "errorLoadingAgents": "Error loading agents",
+    "noAgentsAvailable": "No agents available",
+    "failedToLoad": "Failed to load adapters. Please check your connection."
+  },
+  "agentSelectionList": {
+    "searchPlaceholder": "Search agents",
+    "clearSearchAriaLabel": "Clear search",
+    "noAgentsAvailable": "No agents are available yet. Configure adapters in your middleware settings to continue.",
+    "noSearchResults": "No agents match your search.",
+    "unableToLoad": "Unable to load agents right now."
+  },
+  "fileUpload": {
+    "selectBeforeUpload": "Please select or create a conversation before uploading files.",
+    "conversationNotFound": "Conversation not found. Please try again.",
+    "maxFilesPerConversationError": "Maximum {{count}} files allowed per conversation. Please remove some files first.",
+    "maxFilesGuestLimitMessage": "You've reached the guest limit of {{count}} files per conversation. Sign in to upload more files.",
+    "maxTotalFilesError": "Maximum {{count}} total files allowed across all conversations. Please remove some files from other conversations first.",
+    "maxTotalFilesGuestLimitMessage": "You've reached the guest limit of {{count}} total files. Sign in to upload more files.",
+    "adapterNotConfigured": "Adapter not configured for this conversation. Please select an adapter first.",
+    "disabledAriaLabel": "File upload disabled",
+    "enabledAriaLabel": "Upload files",
+    "dragDropText": "Drop files or click to browse",
+    "draggingText": "Drop files here",
+    "fileTypesAndLimit": "PDF, DOCX, TXT, CSV, code files, images, audio · max {{count}} files",
+    "otherConversationsLabel": "Other conversations",
+    "uploadingStatus": "Uploading",
+    "processingStatus": "Processing",
+    "completedStatus": "Done",
+    "failedStatus": "Failed",
+    "processingFailedMessage": "Processing failed"
+  },
+  "fileList": {
+    "header": "Files ({{count}})",
+    "noFilesAttached": "No files attached",
+    "uploadFilesToUse": "Upload files to use them in this conversation",
+    "removeFileTooltip": "Remove file",
+    "confirmRemoveTitle": "Remove File",
+    "confirmRemoveMessage": "Are you sure you want to remove \"{{filename}}\"? This will delete the file from both the server and this conversation. This action cannot be undone."
+  },
+  "documentDisplay": {
+    "generatedDocument": "Generated document",
+    "loadingPreview": "Loading preview...",
+    "openPreviewTooltip": "Open preview",
+    "downloadDocumentTooltip": "Download document",
+    "noSheetDataFound": "No sheet data found.",
+    "csvRowsPreviewMessage": "Showing first 25 of {{count}} rows — download for the full file.",
+    "noDataFound": "No data found.",
+    "previewUnavailable": "Preview is not available for this format. Use download to open it locally.",
+    "previewUnavailableShort": "Preview unavailable"
+  },
+  "imageDisplay": {
+    "generatedImageTitle": "Generated image — click to enlarge",
+    "generatedImageAlt": "Generated image",
+    "downloadImageTooltip": "Download image",
+    "viewFullSizeTooltip": "View full size",
+    "showPrompt": "Show prompt",
+    "hidePrompt": "Hide prompt",
+    "promptLabel": "Prompt"
+  },
+  "videoDisplay": {
+    "downloadVideoTooltip": "Download video",
+    "viewFullSizeTooltip": "View full size",
+    "showPrompt": "Show prompt",
+    "hidePrompt": "Hide prompt",
+    "promptLabel": "Prompt"
+  },
+  "audio": {
+    "button": {
+      "audioPlayingTitle": "Audio playing...",
+      "voiceEnabledTitle": "Voice enabled - Click to disable",
+      "enableVoiceTitle": "Click to enable voice responses",
+      "playingLabel": "Playing...",
+      "voiceOnLabel": "Voice On",
+      "enableVoiceLabel": "Enable Voice"
+    },
+    "player": {
+      "audioFileTooLargePlaceholder": "Audio file too large ({{sizeMB}}MB > {{maxMB}}MB limit)",
+      "largeAudioWarning": "Large audio file ({{sizeMB}}MB) - may take time to load",
+      "invalidBase64Error": "Invalid base64 audio data",
+      "loadFailureError": "Failed to load audio",
+      "playbackFailureError": "Playback failed",
+      "pauseTitle": "Pause",
+      "playTitle": "Play",
+      "pauseAriaLabel": "Pause audio",
+      "playAriaLabel": "Play audio"
+    }
+  },
+  "modelPicker": {
+    "searchPlaceholder": "Search models…",
+    "searchAriaLabel": "Search models",
+    "noModelsMatch": "No models match \"{{query}}\"",
+    "modelCountHint": "{{filtered}} of {{total}} models",
+    "selectModel": "Select model"
+  },
+  "skillPicker": {
+    "noSkillsAvailable": "No skills available for this adapter.",
+    "loadingLabel": "Loading skills...",
+    "noMatchingSkills": "No matching skills for \"{{query}}\".",
+    "noMatchingSkillsGeneric": "No matching skills.",
+    "listboxLabel": "Available skills"
+  },
+  "message": {
+    "edit": {
+      "willRegenerateHint": "Will regenerate response"
+    },
+    "copyImageLabel": "Copy image to clipboard",
+    "copyLabel": "Copy to clipboard",
+    "feedback": {
+      "good": "Good response",
+      "poor": "Poor response",
+      "thanks": "Thanks!"
+    },
+    "editAriaLabel": "Edit message",
+    "regenerateTitle": "Regenerate response",
+    "regenerateAriaLabel": "Regenerate response",
+    "thread": {
+      "continueDiscussionTitle": "Continue this discussion with the current answer's context",
+      "continueDiscussionAriaLabel": "Continue this discussion with the current answer's context",
+      "continueLabel": "Continue",
+      "replyCount_one": "{{count}} reply",
+      "replyCount_other": "{{count}} replies",
+      "clearTitle": "Clear replies",
+      "clearAriaLabel": "Clear replies",
+      "hideRepliesAriaLabel": "Hide replies",
+      "hideRepliesLabel": "Hide replies",
+      "placeholder": "Reply in thread...",
+      "skillsHint": "Use a skill",
+      "skillsHintAriaLabel": "Show available skills (or type a forward slash)",
+      "removeSkillAriaLabel": "Remove thread skill",
+      "sendMessageTitle": "Send thread message",
+      "selectModelTitle": "Select model for this thread",
+      "limitReachedGuest": "You've reached the guest limit of {{count}} messages per thread. Sign in to continue this thread.",
+      "limitReachedUser": "This thread reached the {{count}} message limit. Start a new conversation for more follow-ups.",
+      "signInForHigherLimits": "Sign in for higher limits",
+      "signInPromptMessage": "Sign in to unlock higher message limits and continue this thread."
+    },
+    "confirmation": {
+      "clearRepliesTitle": "Clear Replies",
+      "clearRepliesMessage": "Are you sure you want to clear these replies? This removes the child thread from the backend without deleting the main conversation."
+    }
+  },
+  "messageList": {
+    "emptyStateHeading": "Your messages will appear here.",
+    "emptyStateSubheading": "Start the conversation by sending a prompt below."
+  },
+  "voice": {
+    "browserNotSupported": "Speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.",
+    "error": {
+      "noSpeech": "No speech detected. Please try again.",
+      "audioCapture": "Microphone access denied. Please allow microphone access and try again.",
+      "notAllowed": "Microphone access not allowed. Please enable microphone permissions.",
+      "network": "Network error occurred. Please check your connection.",
+      "generic": "Speech recognition error: {{error}}",
+      "startFailed": "Failed to start speech recognition. Please try again."
+    }
+  },
+  "agent": {
+    "error": {
+      "singleAdapterMissing": "Single adapter mode requires agentMode.defaultAdapterId to match an adapter id in orbitchat.yaml.",
+      "configurationFailed": "Unable to configure this agent.",
+      "authenticationFailed": "We couldn't load this agent. It may not exist or you might not have access to it.",
+      "notFound": "This agent was not found on the server. Please pick another agent.",
+      "loadFailed": "Unable to load agent overview right now."
+    }
+  }
+}

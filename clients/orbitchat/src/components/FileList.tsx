@@ -1,11 +1,13 @@
 import { useState, type MouseEvent } from 'react';
 import { FileText, Trash2, Paperclip } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../stores/chatStore';
 import { FileAttachment } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { debugError } from '../utils/debug';
 
 export function FileList() {
+  const { t } = useTranslation();
   const {
     conversations,
     currentConversationId,
@@ -119,7 +121,7 @@ export function FileList() {
           <div className="flex items-center gap-2 mb-3">
             <Paperclip className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             <h3 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-              Files ({files.length})
+              {t('fileList.header', { count: files.length })}
             </h3>
           </div>
         </div>
@@ -129,10 +131,10 @@ export function FileList() {
             <div className="py-6 text-center">
               <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
               <p className="text-slate-400 dark:text-slate-500 text-xs font-medium">
-                No files attached
+                {t('fileList.noFilesAttached')}
               </p>
               <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">
-                Upload files to use them in this conversation
+                {t('fileList.uploadFilesToUse')}
               </p>
             </div>
           ) : (
@@ -169,7 +171,7 @@ export function FileList() {
                   <button
                     onClick={(e) => handleDeleteFile(e, file)}
                     className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all duration-200 text-red-500 dark:text-red-400"
-                    title="Remove file"
+                    title={t('fileList.removeFileTooltip')}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -185,10 +187,10 @@ export function FileList() {
         isOpen={deleteConfirmation.isOpen}
         onClose={cancelDelete}
         onConfirm={confirmDelete}
-        title="Remove File"
-        message={`Are you sure you want to remove "${deleteConfirmation.filename}"? This will delete the file from both the server and this conversation. This action cannot be undone.`}
-        confirmText="Remove"
-        cancelText="Cancel"
+        title={t('fileList.confirmRemoveTitle')}
+        message={t('fileList.confirmRemoveMessage', { filename: deleteConfirmation.filename })}
+        confirmText={t('common.remove')}
+        cancelText={t('common.cancel')}
         type="danger"
         isLoading={deleteConfirmation.isDeleting}
       />

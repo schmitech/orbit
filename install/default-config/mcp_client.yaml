@@ -1,0 +1,286 @@
+# MCP Client Configuration
+#
+# ORBIT can connect outward to external MCP servers, discover their tools,
+# and let the LLM call them in a multi-step agentic loop.
+#
+# Each server entry supports two transports:
+#   stdio  — spawns a local subprocess (e.g. via npx, uvx, python -m …)
+#   sse    — connects to a remote SSE endpoint
+#
+# Secrets should be supplied via environment variables using ${VAR} syntax.
+# They are expanded at runtime and never written to logs.
+#
+# This file provides examples; edit to match your environment.
+# Enable it by setting enabled: true and adding the import to config.yaml:
+#
+#   import:
+#     - "mcp_client.yaml"
+#
+# Then add "mcp-agent" to a consumer adapter's available_skills list and
+# register config/adapters/mcp-agent.yaml in config/adapters.yaml.
+
+mcp_client:
+  enabled: false                     # Set to false to disable MCP tool calling
+
+  tool_timeout: 30                  # Seconds before a tool call is aborted
+  max_tool_iterations: 5            # Maximum tool-calling rounds per request
+  tool_result_max_chars: 8000       # Cap on result text injected into model context (prevents context overflow)
+
+  servers:
+    # ── Filesystem MCP server (stdio, read-only local files) ─────────────
+    # - name: "filesystem"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-filesystem", "/orbit/docs"]
+    #   enabled: true
+    
+    # ── Streamable HTTP server example ───────────────────────────────────
+    #
+    # First, set MCP_TOKEN in .env then run the test server: 
+    #
+    # python server/tests/test_services/mcp_http_test_server.py --port 9999 --token test-secret
+    # 
+    # - name: "test-server"
+    #   transport: "http"
+    #   url: "http://127.0.0.1:9999/mcp"
+    #   token: "${MCP_TOKEN}"
+    #   enabled: true
+
+    # ════════════════════════════════════════════════════════════════════════
+    # DEVELOPER WORKFLOW
+    # ════════════════════════════════════════════════════════════════════════
+
+    # ── GitHub (stdio) ────────────────────────────────────────────────────
+    # Search repos, issues, PRs, commits, file contents, code.
+    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/github
+    # - name: "github"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-github"]
+    #   env:
+    #     GITHUB_TOKEN: "${GITHUB_TOKEN}"
+    #   enabled: false
+
+    # ── GitLab (stdio) ────────────────────────────────────────────────────
+    # Search repos, issues, MRs, pipelines on GitLab.com or self-hosted.
+    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/gitlab
+    # - name: "gitlab"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-gitlab"]
+    #   env:
+    #     GITLAB_PERSONAL_ACCESS_TOKEN: "${GITLAB_TOKEN}"
+    #     GITLAB_API_URL: "https://gitlab.com/api/v4"   # override for self-hosted
+    #   enabled: false
+
+    # ── Jira + Confluence / Atlassian (stdio) ─────────────────────────────
+    # Search and manage Jira issues, Confluence pages and spaces.
+    # Docs: https://github.com/sooperset/mcp-atlassian
+    # - name: "atlassian"
+    #   transport: "stdio"
+    #   command: "uvx"
+    #   args: ["mcp-atlassian"]
+    #   env:
+    #     JIRA_URL: "https://yourorg.atlassian.net"
+    #     JIRA_USERNAME: "${ATLASSIAN_EMAIL}"
+    #     JIRA_API_TOKEN: "${ATLASSIAN_API_TOKEN}"
+    #     CONFLUENCE_URL: "https://yourorg.atlassian.net/wiki"
+    #     CONFLUENCE_USERNAME: "${ATLASSIAN_EMAIL}"
+    #     CONFLUENCE_API_TOKEN: "${ATLASSIAN_API_TOKEN}"
+    #   enabled: false
+
+    # ── Sentry (stdio) ────────────────────────────────────────────────────
+    # Retrieve and analyse error events, issues, and stack traces from Sentry.
+    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/sentry
+    # - name: "sentry"
+    #   transport: "stdio"
+    #   command: "uvx"
+    #   args: ["mcp-server-sentry", "--auth-token", "${SENTRY_AUTH_TOKEN}"]
+    #   enabled: false
+
+    # ════════════════════════════════════════════════════════════════════════
+    # COMMUNICATION
+    # ════════════════════════════════════════════════════════════════════════
+
+    # ── Slack (stdio) ─────────────────────────────────────────────────────
+    # Read channels, post messages, search conversations.
+    # Requires a Slack app with channels:read, chat:write, search:read scopes.
+    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/slack
+    # - name: "slack"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-slack"]
+    #   env:
+    #     SLACK_BOT_TOKEN: "${SLACK_BOT_TOKEN}"
+    #     SLACK_TEAM_ID: "${SLACK_TEAM_ID}"
+    #   enabled: false
+
+    # ════════════════════════════════════════════════════════════════════════
+    # DATA & SEARCH
+    # ════════════════════════════════════════════════════════════════════════
+
+    # ── PostgreSQL (stdio) ────────────────────────────────────────────────
+    # Read-only SQL queries against a Postgres database.
+    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/postgres
+    # - name: "postgres"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-postgres", "${POSTGRES_CONNECTION_STRING}"]
+    #   enabled: false
+
+    # ── Brave Search (stdio) ──────────────────────────────────────────────
+    # Web and local search via the Brave Search API. Useful as a standalone
+    # search tool independent of a provider's native web search feature.
+    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search
+    # - name: "brave-search"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-brave-search"]
+    #   env:
+    #     BRAVE_API_KEY: "${BRAVE_API_KEY}"
+    #   enabled: false
+
+    # ── Fetch (stdio) ─────────────────────────────────────────────────────
+    # Retrieve any public URL as markdown text. Handy for reading docs,
+    # blog posts, or API responses inline. No auth required.
+    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/fetch
+    # - name: "fetch"
+    #   transport: "stdio"
+    #   command: "uvx"
+    #   args: ["mcp-server-fetch"]
+    #   enabled: false
+
+    # ════════════════════════════════════════════════════════════════════════
+    # PRODUCTIVITY & KNOWLEDGE
+    # ════════════════════════════════════════════════════════════════════════
+
+    # ── Google Drive (stdio) ──────────────────────────────────────────────
+    # Search, read, and export files from Google Drive (Docs, Sheets, etc.).
+    # Requires a GCP OAuth 2.0 client credentials JSON file.
+    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive
+    # - name: "google-drive"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-gdrive"]
+    #   env:
+    #     GDRIVE_CREDENTIALS_FILE: "${GDRIVE_CREDENTIALS_FILE}"  # path to OAuth JSON
+    #   enabled: false
+
+    # ── Notion (stdio) ────────────────────────────────────────────────────
+    # Search pages, read databases, and create/update Notion content.
+    # Requires a Notion integration token with access to your workspace.
+    # Docs: https://github.com/notionhq/notion-mcp-server
+    # - name: "notion"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@notionhq/notion-mcp-server"]
+    #   env:
+    #     OPENAPI_MCP_HEADERS: '{"Authorization":"Bearer ${NOTION_TOKEN}","Notion-Version":"2022-06-28"}'
+    #   enabled: false
+
+    # ── Memory / Knowledge Graph (stdio) ──────────────────────────────────
+    # Persistent entity-relationship memory across conversations. The model
+    # can store and recall facts, links, and observations between sessions.
+    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/memory
+    # - name: "memory"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-memory"]
+    #   enabled: false
+
+    # ════════════════════════════════════════════════════════════════════════
+    # INFRASTRUCTURE
+    # ════════════════════════════════════════════════════════════════════════
+
+    # ── Docker (stdio) ────────────────────────────────────────────────────
+    # List containers, images, volumes, and networks; start/stop containers;
+    # execute commands and view logs. Requires Docker daemon running locally.
+    # Docs: https://github.com/ckreiling/mcp-server-docker
+    # - name: "docker"
+    #   transport: "stdio"
+    #   command: "uvx"
+    #   args: ["mcp-server-docker"]
+    #   enabled: false
+
+    # ── AWS (stdio) ───────────────────────────────────────────────────────
+    # S3 operations, Lambda invocations, CloudWatch logs, IAM, and more.
+    # Uses the standard AWS credential chain (env vars, ~/.aws/credentials).
+    # Docs: https://github.com/aws-samples/aws-mcp-servers-samples
+    # - name: "aws"
+    #   transport: "stdio"
+    #   command: "uvx"
+    #   args: ["awslabs.aws-mcp-servers"]
+    #   env:
+    #     AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+    #     AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+    #     AWS_DEFAULT_REGION: "${AWS_DEFAULT_REGION}"
+    #   enabled: false
+
+    # ── Puppeteer / Browser automation (stdio) ────────────────────────────
+    # Launch a headless Chromium browser, navigate pages, take screenshots,
+    # click elements, fill forms, and extract content. Requires Node + Chrome.
+    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer
+    # - name: "puppeteer"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@modelcontextprotocol/server-puppeteer"]
+    #   enabled: false
+
+    # ── Microsoft SharePoint MCP server (SSE, requires Entra ID / M365) ───
+    # Hosted by Microsoft as part of Agent 365 (preview).
+    # Docs: https://learn.microsoft.com/en-us/microsoft-agent-365/mcp-server-reference/sharepoint
+    #
+    # Prerequisites:
+    #   1. Microsoft 365 / SharePoint Online tenant.
+    #   2. An Entra ID app registration with the following delegated Graph API scopes:
+    #        Sites.Read.All (read-only) or Sites.ReadWrite.All (full access)
+    #        Files.Read.All / Files.ReadWrite.All
+    #      Grant admin consent for the scopes you need.
+    #   3. Obtain an OAuth 2.0 Bearer token for the app (device code, client credentials,
+    #      or any supported flow). Export it as M365_ACCESS_TOKEN in the environment.
+    #   4. Replace {tenantId} below with your Entra tenant GUID
+    #      (visible in Entra portal → Overview → Tenant ID).
+    #
+    # Tools provided (34 total — preview, names may change):
+    #   Site navigation:   findSite, getSiteByPath, listSubsites
+    #   Document libs:     listDocumentLibrariesInSite, getDefaultDocumentLibraryInSite
+    #   File/folder CRUD:  getFolderChildren, findFileOrFolder, getFileOrFolderMetadata,
+    #                      readSmallTextFile, readSmallBinaryFile, createSmallTextFile,
+    #                      createSmallBinaryFile, createFolder, renameFileOrFolder,
+    #                      deleteFileOrFolder, moveFileOrFolder, copyFileOrFolder,
+    #                      checkOperationStatus, uploadFileFromUrl
+    #   Sharing:           shareFileOrFolder, sendInviteForList, setSensitivityLabelOnFile
+    #   List management:   listLists, createList, deleteList, listListItems, getListItem,
+    #                      createListItem, updateListItem, deleteListItem
+    #   Column management: listColumns, createColumn, updateColumn, deleteColumn
+    #
+    # Note: file operations are capped at 5 MB; copy/move are async (use checkOperationStatus).
+    # - name: "sharepoint"
+    #   transport: "sse"
+    #   url: "https://agent365.svc.cloud.microsoft/agents/tenants/{tenantId}/servers/mcp_SharePointRemoteServer"
+    #   headers:
+    #     Authorization: "Bearer ${M365_ACCESS_TOKEN}"
+    #   enabled: false
+
+    # ── Remote SSE server example ─────────────────────────────────────────
+    # - name: "docs-search"
+    #   transport: "sse"
+    #   url: "https://mcp.example.com/sse"
+    #   headers:
+    #     Authorization: "Bearer ${INTERNAL_MCP_TOKEN}"
+    #   enabled: false
+
+    # ── Streamable HTTP server example ───────────────────────────────────
+    # Use transport: "http" for MCP servers that speak the Streamable HTTP
+    # protocol (POST + optional SSE response).  The client automatically
+    # sends Accept: application/json, text/event-stream.
+    #
+    # ``token`` is a shorthand for Authorization: Bearer <value>; it is
+    # expanded the same way as other env-var references (${VAR} syntax).
+    # Explicit ``headers`` entries are merged after and can override it.
+    #
+    # - name: "my-http-server"
+    #   transport: "http"
+    #   url: "http://127.0.0.1:9999/mcp"
+    #   token: "${MCP_TOKEN}"          # → Authorization: Bearer <value>
+    #   enabled: falses

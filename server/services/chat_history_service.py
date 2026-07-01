@@ -4,7 +4,6 @@ Chat History Service
 
 This service manages chat conversation history with database persistence
 (supports both MongoDB and SQLite backends).
-Simplified version without Redis caching for better maintainability.
 """
 
 import logging
@@ -820,7 +819,6 @@ class ChatHistoryService:
                     return 0
 
                 # Calculate which messages to keep (from newest, within budget)
-                # Work backwards from newest to oldest
                 messages_reversed = list(reversed(all_messages))
                 accumulated_tokens = 0
                 keep_count = 0
@@ -1455,21 +1453,16 @@ class ChatHistoryService:
     async def get_context_messages(
         self,
         session_id: str,
-        max_messages: Optional[int] = None,
         max_tokens: Optional[int] = None
     ) -> Tuple[List[Dict[str, str]], int]:
         """
         Get conversation messages formatted for LLM context using rolling window query.
 
-        This method uses a token-based rolling window approach:
-        - Fetches messages from newest to oldest
-        - Accumulates tokens until budget is reached
-        - Returns messages in chronological order (oldest to newest)
-        - No archiving needed - query naturally enforces token budget
+        Fetches messages from newest to oldest, accumulates tokens until the budget is
+        reached, and returns messages in chronological order (oldest to newest).
 
         Args:
             session_id: Session identifier
-            max_messages: Maximum number of messages to include (deprecated, use max_tokens)
             max_tokens: Maximum token budget for context (defaults to max_token_budget)
 
         Returns:

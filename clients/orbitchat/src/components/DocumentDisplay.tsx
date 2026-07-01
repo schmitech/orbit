@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Download, ExternalLink, FileCode, FileSpreadsheet, FileText, Presentation, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { getAccessToken } from '../auth/tokenStore';
 import { getUserIdHeaderValue } from '../auth/userId';
 import { MarkdownRenderer } from './markdown/MarkdownRenderer';
@@ -110,6 +111,7 @@ export function DocumentDisplay({
   revisedPrompt,
   adapterName,
 }: DocumentDisplayProps) {
+  const { t } = useTranslation();
   const format = normalizeFormat(documentFormat);
   const [status, setStatus] = useState<LoadState>(document || documentUrl ? 'loading' : 'idle');
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -125,7 +127,7 @@ export function DocumentDisplay({
   const docxContainerRef = useRef<HTMLDivElement>(null);
   const modalDocxContainerRef = useRef<HTMLDivElement>(null);
 
-  const title = revisedPrompt || FORMAT_LABELS[format] || 'Generated document';
+  const title = revisedPrompt || FORMAT_LABELS[format] || t('documentDisplay.generatedDocument');
   const filename = useMemo(() => `generated-document.${format}`, [format]);
   const mimeType = MIME_TYPES[format] || 'application/octet-stream';
 
@@ -306,8 +308,8 @@ export function DocumentDisplay({
             <p className="truncate text-sm font-medium text-[#353740] dark:text-[#ececf1]">{title}</p>
             <p className="text-xs text-gray-500 dark:text-[#bfc2cd]">
               {FORMAT_LABELS[format] || `${format.toUpperCase()} document`}
-              {status === 'loading' ? ' · Loading preview...' : ''}
-              {status === 'error' ? ` · ${errorMessage || 'Preview unavailable'}` : ''}
+              {status === 'loading' ? ` · ${t('documentDisplay.loadingPreview')}` : ''}
+              {status === 'error' ? ` · ${errorMessage || t('documentDisplay.previewUnavailableShort')}` : ''}
             </p>
           </div>
           {canOpenFullPreview && (
@@ -315,8 +317,8 @@ export function DocumentDisplay({
               type="button"
               onClick={() => setPreviewOpen(true)}
               className="rounded-md p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
-              title="Open preview"
-              aria-label="Open preview"
+              title={t('documentDisplay.openPreviewTooltip')}
+              aria-label={t('documentDisplay.openPreviewTooltip')}
             >
               <ExternalLink className="h-4 w-4" />
             </button>
@@ -326,8 +328,8 @@ export function DocumentDisplay({
             onClick={handleDownload}
             disabled={!blobUrl}
             className="rounded-md p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
-            title="Download document"
-            aria-label="Download document"
+            title={t('documentDisplay.downloadDocumentTooltip')}
+            aria-label={t('documentDisplay.downloadDocumentTooltip')}
           >
             <Download className="h-4 w-4" />
           </button>
@@ -366,7 +368,7 @@ export function DocumentDisplay({
                         </tr>
                       )) : (
                         <tr>
-                          <td className="px-3 py-4 text-sm text-gray-500 dark:text-[#bfc2cd]">No sheet data found.</td>
+                          <td className="px-3 py-4 text-sm text-gray-500 dark:text-[#bfc2cd]">{t('documentDisplay.noSheetDataFound')}</td>
                         </tr>
                       )}
                     </tbody>
@@ -383,7 +385,7 @@ export function DocumentDisplay({
               <div className="p-3">
                 {csvTotalRows > 25 && (
                   <p className="mb-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
-                    Showing first 25 of {csvTotalRows} rows — download for the full file.
+                    {t('documentDisplay.csvRowsPreviewMessage', { count: csvTotalRows })}
                   </p>
                 )}
                 <div className="overflow-auto rounded-md border border-gray-200 bg-white dark:border-[#3b3c49] dark:bg-[#202123]">
@@ -399,7 +401,7 @@ export function DocumentDisplay({
                         </tr>
                       )) : (
                         <tr>
-                          <td className="px-3 py-4 text-sm text-gray-500 dark:text-[#bfc2cd]">No data found.</td>
+                          <td className="px-3 py-4 text-sm text-gray-500 dark:text-[#bfc2cd]">{t('documentDisplay.noDataFound')}</td>
                         </tr>
                       )}
                     </tbody>
@@ -412,7 +414,7 @@ export function DocumentDisplay({
 
         {status === 'ready' && !canPreviewInline && (
           <div className="px-3 py-4 text-sm text-gray-600 dark:text-[#bfc2cd]">
-            Preview is not available for this format. Use download to open it locally.
+            {t('documentDisplay.previewUnavailable')}
           </div>
         )}
       </div>
@@ -425,8 +427,8 @@ export function DocumentDisplay({
           <button
             onClick={(e) => { e.stopPropagation(); setPreviewOpen(false); }}
             className="fixed right-4 top-4 flex items-center rounded-full border-0 bg-white/15 p-2 text-white"
-            title="Close preview"
-            aria-label="Close preview"
+            title={t('common.close')}
+            aria-label={t('common.close')}
           >
             <X className="h-5 w-5" />
           </button>

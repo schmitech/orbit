@@ -17,6 +17,7 @@ ENV/
 htmlcov/
 .pytest_cache/
 dist/
+models/
 
 # Logs
 logs/
@@ -71,3 +72,4 @@ results/
 .claude
 *.yaml.bak
 .antigravitycli
+.gitkeep

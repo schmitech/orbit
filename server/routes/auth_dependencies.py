@@ -180,30 +180,17 @@ async def get_optional_user(
     return None
 
 
-# For backward compatibility with API key authentication
 async def check_admin_or_api_key(
     request: Request,
     current_user: Optional[Dict[str, Any]] = Depends(get_optional_user),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key")
 ) -> bool:
     """
-    Check if the request has either admin authentication or a valid API key.
+    Authorize a request via either admin bearer token or API key.
 
-    This allows existing API key functionality to continue working
-    while also supporting the new admin authentication.
-
-    Authentication is always required - there is no option to disable it.
-
-    Args:
-        request: The FastAPI request object
-        current_user: The current user if authenticated
-        x_api_key: The API key from header
-
-    Returns:
-        True if authorized, raises exception otherwise
-
-    Raises:
-        HTTPException: If neither admin auth nor valid API key
+    Admin routes accept both authentication methods: a session bearer token
+    issued by the auth service, or a valid X-API-Key header for programmatic
+    access. Raises 401 if neither is present or valid.
     """
     # If we have an admin user, allow access
     if current_user and current_user.get('role') == 'admin':

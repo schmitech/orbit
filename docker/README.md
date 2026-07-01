@@ -105,24 +105,24 @@ curl -X POST http://localhost:3000/v1/chat \
   }'
 ```
 
-### Option B: Pre-built image (single container)
+### Option B: Pre-built Image (Single Container)
 
-To run only the ORBIT server from Docker Hub (no Ollama or models inside the image):
+To run only the ORBIT server from Docker Hub with Ollama running on your host:
 
 ```bash
 docker pull schmitech/orbit:basic
-docker run -d --name orbit-basic -p 3000:3000 schmitech/orbit:basic
+docker run -d --name orbit-basic \
+  --add-host=host.docker.internal:host-gateway \
+  -e OLLAMA_HOST=host.docker.internal:11434 \
+  -p 3000:3000 \
+  schmitech/orbit:basic
 ```
 
-The server will listen on port 3000 but needs an LLM backend to handle chat:
+The image does not include Ollama or models. The server listens on port 3000
+and needs an LLM backend to handle chat:
 
-- **Ollama on your host:** use `host.docker.internal` so the container can reach it:
-  ```bash
-  docker run -d --name orbit-basic -p 3000:3000 \
-    -e OLLAMA_HOST=host.docker.internal:11434 \
-    schmitech/orbit:basic
-  ```
 - **Ollama in another container or remote:** set `OLLAMA_HOST` to that address (e.g. `ollama:11434` or `http://your-ollama-host:11434`).
+- **Non-Ollama targeted image:** set `ORBIT_WAIT_FOR_OLLAMA=false` only if your config has no Ollama dependency and you need to bypass the readiness check explicitly.
 
 The `basic` image includes the **simple-chat** adapter only. For the full stack (Ollama + model pull + ORBIT), use Docker Compose (Option A above).
 
@@ -313,21 +313,122 @@ docker compose restart orbit
 
 ### Build the Image
 
+By default, `publish.sh` builds the Docker image from the latest stable release
+tarball on GitHub, not from the current checkout. This keeps production images
+aligned with released ORBIT code.
+
 ```bash
 cd docker
 chmod +x publish.sh
 
-# Build only
+# Build from the latest stable release tarball
 ./publish.sh --build
+
+# Build from a specific stable release tarball
+./publish.sh --build --tag v2.7.11
+
+# Build a targeted OpenAI image from release v2.7.11 with custom config
+./publish.sh --build --tag 2.7.11-openai --config-dir ../deploy/openai
 
 # Build and publish to Docker Hub
 ./publish.sh --publish
 
-# Build and publish with version tag
-./publish.sh --publish --tag v1.0.0
+# Build and publish the default Ollama/basic image with version tags
+./publish.sh --publish --tag v2.7.11
+
+# Build and publish a targeted OpenAI image
+./publish.sh --publish --tag 2.7.11-openai --config-dir ../deploy/openai
 ```
 
-The build creates a lean server-only image (no Ollama, no Node.js, no models). Models are pulled at runtime by the `ollama-init` service.
+The build creates a lean server-only image with no Ollama, no Node.js, and no
+bundled models. When you use Docker Compose, models are pulled by the
+`ollama-init` service.
+
+For development or release testing only, you can opt into local sources:
+
+```bash
+# Build from a local release-style tarball generated from this checkout
+./publish.sh --build --source local-tarball --tag v2.7.11
+
+# Build directly from this checkout
+./publish.sh --build --source checkout
+```
+
+### Targeted Config Builds
+
+Use `--config-dir` to build deployment-specific images for different providers,
+adapters, models, or datasources. The directory is copied over `/orbit/config`
+after the default Docker config, so matching files replace the image defaults
+and new files are added.
+
+Example config overlay:
+
+```text
+deploy/openai/
+├── config.yaml
+├── adapters.yaml
+├── inference.yaml
+└── adapters/
+    ├── passthrough.yaml
+    └── file.yaml
+```
+
+Example targeted images:
+
+```bash
+./publish.sh --build --tag 2.7.11-openai --config-dir ../deploy/openai
+./publish.sh --build --tag 2.7.11-gemini --config-dir ../deploy/gemini
+./publish.sh --build --tag 2.7.11-ollama --config-dir ../deploy/ollama
+```
+
+For release builds, tags like `2.7.11-openai` automatically resolve the source
+tarball from release `v2.7.11`. Use `--release-tag v2.7.11` when you want to be
+explicit.
+
+Custom config builds require `--tag` and do not update the generic `latest` or
+`basic` tags. They create the targeted tag, such as
+`schmitech/orbit:2.7.11-openai`, plus the compatibility tag
+`schmitech/orbit:basic-2.7.11-openai`.
+
+### Runtime Environment Variables
+
+Do not bake API keys or datasource passwords into the Docker image. Targeted
+images should include provider/model/datasource configuration only; secrets are
+supplied at runtime through Docker environment variables, an env file, Compose
+secrets, Kubernetes Secrets, or your deployment platform's secret manager.
+
+Example env file:
+
+```env
+ORBIT_DEFAULT_ADMIN_PASSWORD=change-this-admin-password
+OPENAI_API_KEY=sk-...
+GOOGLE_API_KEY=...
+DATASOURCE_QDRANT_API_KEY=...
+DATASOURCE_POSTGRES_PASSWORD=...
+```
+
+Run a targeted image with those values:
+
+```bash
+docker pull schmitech/orbit:2.7.11-openai
+docker run -d --name orbit-2.7.11-openai \
+  --env-file ./orbit.env \
+  -p 3000:3000 \
+  schmitech/orbit:2.7.11-openai
+```
+
+Single variables can also be passed directly:
+
+```bash
+docker run -d --name orbit-2.7.11-openai \
+  -e ORBIT_DEFAULT_ADMIN_PASSWORD="change-this-admin-password" \
+  -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+  -p 3000:3000 \
+  schmitech/orbit:2.7.11-openai
+```
+
+The Docker image defaults `ORBIT_DEFAULT_ADMIN_PASSWORD` to `admin123` for
+first-run convenience. Override it before exposing ORBIT beyond localhost.
 
 Advanced builds can override the runtime user and CUDA wheel channel:
 
@@ -342,8 +443,12 @@ docker build -f docker/Dockerfile .. \
 
 ```bash
 ./publish.sh --build              # Build the Docker image
+./publish.sh --build --tag v2.7.11  # Build from a specific release tarball
+./publish.sh --build --tag 2.7.11-openai --config-dir ../deploy/openai
 ./publish.sh --publish            # Build and push to Docker Hub
-./publish.sh --publish --tag v1.0.0  # Build, push, and tag version
+./publish.sh --publish --tag v2.7.11  # Build, push, and tag default image
+./publish.sh --publish --tag 2.7.11-openai --config-dir ../deploy/openai
+./publish.sh --build --source checkout  # Development/testing only
 ./publish.sh --help               # Show help
 ```
 

@@ -11,9 +11,6 @@ from typing import Any, AsyncGenerator, Optional
 class LLMProvider(ABC):
     """
     Abstract base class for LLM providers in the pipeline architecture.
-    
-    This interface is maintained for backward compatibility with the existing
-    pipeline while the underlying implementation uses the new unified AI services.
     """
 
     @abstractmethod

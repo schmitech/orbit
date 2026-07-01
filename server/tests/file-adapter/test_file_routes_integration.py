@@ -8,7 +8,7 @@ Prerequisites:
 1. Server must be running on http://localhost:3000 (or configured port)
 2. File Processing Service must be initialized
 3. Vector store (Chroma) must be available
-4. Test API key should be configured (default: "files" for testing)
+4. Test API key should be configured (default: "files-key" for testing)
 """
 
 import pytest
@@ -18,7 +18,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Test configuration
-TEST_API_KEY = "files"
+TEST_API_KEY = "files-key"
 TEST_SERVER_URL = "http://localhost:3000"
 
 # Sample test content
@@ -516,4 +516,3 @@ async def test_complete_file_lifecycle(http_client, test_file, server_health_che
         headers=headers
     )
     assert get_response.status_code == 404
-

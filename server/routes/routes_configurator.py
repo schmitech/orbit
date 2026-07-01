@@ -996,5 +996,14 @@ class RouteConfigurator:
             logger.debug("Voice routes registered")
         except Exception as e:
             logger.warning(f"Failed to register voice routes: {e}")
+
+        # Include A2A (Agent-to-Agent) protocol routes
+        try:
+            from routes.a2a_routes import create_a2a_router
+            a2a_router = create_a2a_router()
+            app.include_router(a2a_router)
+            logger.debug("A2A routes registered (/.well-known/agent.json, /a2a)")
+        except Exception as e:
+            logger.warning(f"Failed to register A2A routes: {e}")
     
     

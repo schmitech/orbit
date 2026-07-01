@@ -49,7 +49,7 @@ class TestVisionServiceRegistration:
     def enabled_providers_config(self) -> Dict[str, Any]:
         """Create a config with all vision providers enabled."""
         return {
-            "vision": {
+            "visions": {
                 "openai": {
                     "enabled": True,
                     "api_key": "test-openai-key",

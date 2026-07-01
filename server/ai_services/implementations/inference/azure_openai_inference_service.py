@@ -7,11 +7,12 @@ the new unified AI services architecture.
 Compare with: server/inference/pipeline/providers/azure_provider.py (old implementation)
 """
 
-from typing import Dict, Any, AsyncGenerator
+import json
+from typing import Dict, Any, AsyncGenerator, List
 
 from ...base import ServiceType
 from ...providers import AzureBaseService
-from ...services import InferenceService
+from ...services import InferenceService, ToolCallingResult
 
 
 class AzureOpenAIInferenceService(InferenceService, AzureBaseService):
@@ -137,3 +138,64 @@ class AzureOpenAIInferenceService(InferenceService, AzureBaseService):
         except Exception as e:
             self._handle_azure_error(e, "streaming generation")
             yield f"Error: {str(e)}"
+
+    async def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        **kwargs,
+    ) -> ToolCallingResult:
+        """Single round of tool-enabled generation using Azure AI Inference."""
+        if not self.initialized:
+            await self.initialize()
+
+        params: Dict[str, Any] = {
+            "messages": messages,
+            "model": self.deployment,
+            "max_tokens": kwargs.pop("max_tokens", self.max_tokens),
+            "temperature": kwargs.pop("temperature", self.temperature),
+            "top_p": kwargs.pop("top_p", self.top_p),
+        }
+        if tools:
+            params["tools"] = tools
+            params["tool_choice"] = "auto"
+
+        try:
+            response = await self.client.complete(**params)
+        except Exception as e:
+            self._handle_azure_error(e, "tool-calling generation")
+            raise
+
+        choice = response.choices[0]
+        msg = choice.message
+
+        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+        tool_calls_result = None
+
+        if msg.tool_calls:
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in msg.tool_calls
+            ]
+            tool_calls_result = [
+                {
+                    "id": tc.id,
+                    "name": tc.function.name,
+                    "arguments": json.loads(tc.function.arguments or "{}"),
+                }
+                for tc in msg.tool_calls
+            ]
+
+        return ToolCallingResult(
+            text=msg.content,
+            tool_calls=tool_calls_result,
+            assistant_message=assistant_msg,
+            finish_reason=choice.finish_reason or "stop",
+        )

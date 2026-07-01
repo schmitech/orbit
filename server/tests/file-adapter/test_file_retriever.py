@@ -66,7 +66,7 @@ def test_file_retriever_initialization_defaults():
     retriever = FileVectorRetriever(config=config)
     
     assert retriever.metadata_store is not None
-    assert retriever.collection_prefix == 'files_'  # Default from global config or fallback
+    assert retriever.collection_prefix == 'files_'
     assert retriever.store_manager is None
     assert retriever._default_store is None
 
@@ -879,16 +879,13 @@ async def test_get_collections_provider_signature_exception(mock_retriever):
     mock_retriever.config = {'embedding': {}}
     mock_retriever.embeddings = None  # No embeddings object
     
-    # Should fall back to backward compatibility mode (include all collections)
     collections = await mock_retriever._get_collections_multiple(
         file_ids=[file_id],
         api_key=None,
         collection_name=None
     )
-    
-    # Should still return collection (backward compatibility)
-    assert len(collections) == 1
-    assert 'files_test_3_collection' in collections
+
+    assert collections == []
 
 
 @pytest.mark.asyncio
@@ -1020,14 +1017,13 @@ async def test_get_collections_mixed_match_and_mismatch(mock_retriever):
 
 @pytest.mark.asyncio
 async def test_get_collections_mismatch_without_embedding_metadata(mock_retriever):
-    """Test embedding mismatch when file doesn't have embedding metadata stored (legacy files)"""
-    file_id = 'legacy_file'
+    """Test embedding mismatch when file metadata lacks embedding details."""
+    file_id = 'file_without_embedding_metadata'
 
-    # Create file WITHOUT embedding metadata (legacy behavior)
     await mock_retriever.metadata_store.record_file_upload(
         file_id=file_id,
         api_key='test_key',
-        filename='legacy.txt',
+        filename='document.txt',
         mime_type='text/plain',
         file_size=100,
         storage_key='key',
@@ -1037,7 +1033,7 @@ async def test_get_collections_mismatch_without_embedding_metadata(mock_retrieve
     await mock_retriever.metadata_store.update_processing_status(
         file_id=file_id,
         status='completed',
-        collection_name='files_openai_1536_legacy'
+        collection_name='files_openai_1536_document'
         # Note: no embedding_provider or embedding_dimensions
     )
 
@@ -1515,4 +1511,3 @@ async def test_initialize_exception_handling(mock_api_key_service_class, mock_st
     # Should still be initialized (but with no store)
     assert retriever.initialized is True
     assert retriever._default_store is None
-

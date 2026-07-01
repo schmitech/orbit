@@ -88,8 +88,7 @@ class AbstractSQLRetriever(BaseRetriever):
             Database connection/client from the datasource
         """
         if self._connection is None and self._datasource is not None:
-            # Get client from datasource
-            self._connection = self._datasource.get_client()
+            self._connection = self._datasource.get_connection()
         return self._connection
 
     async def _ensure_datasource_initialized(self) -> None:
@@ -178,10 +177,13 @@ class AbstractSQLRetriever(BaseRetriever):
         """
         Close the datasource connection and clean up resources.
         """
+        if self._connection is not None and self._datasource is not None:
+            self._datasource.return_connection(self._connection)
+            self._connection = None
+
         if self._datasource is not None and self._datasource.is_initialized:
             await self._datasource.close()
             self._datasource_initialized = False
-            self._connection = None
             logger.debug(f"Datasource closed for {self._get_datasource_name()}")
     
 
@@ -433,7 +435,3 @@ class AbstractSQLRetriever(BaseRetriever):
             logger.error(f"Error retrieving context: {str(e)}")
             logger.error(traceback.format_exc())
             return []
-
-
-# For backward compatibility, keep the old class name as an alias
-SQLRetriever = AbstractSQLRetriever

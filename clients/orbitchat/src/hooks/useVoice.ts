@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { debugLog, debugError } from '../utils/debug';
 
 interface UseVoiceReturn {
@@ -77,6 +78,7 @@ export function useVoice(
   onComplete?: () => void,
   options: UseVoiceOptions = {}
 ): UseVoiceReturn {
+  const { t } = useTranslation();
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -147,7 +149,7 @@ export function useVoice(
 
   const startListening = useCallback(() => {
     if (!isSupported) {
-      setError('Speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.');
+      setError(t('voice.browserNotSupported'));
       return;
     }
 
@@ -218,19 +220,19 @@ export function useVoice(
         
         switch (event.error) {
           case 'no-speech':
-            setError('No speech detected. Please try again.');
+            setError(t('voice.error.noSpeech'));
             break;
           case 'audio-capture':
-            setError('Microphone access denied. Please allow microphone access and try again.');
+            setError(t('voice.error.audioCapture'));
             break;
           case 'not-allowed':
-            setError('Microphone access not allowed. Please enable microphone permissions.');
+            setError(t('voice.error.notAllowed'));
             break;
           case 'network':
-            setError('Network error occurred. Please check your connection.');
+            setError(t('voice.error.network'));
             break;
           default:
-            setError(`Speech recognition error: ${event.error}`);
+            setError(t('voice.error.generic', { error: event.error }));
         }
       };
 
@@ -238,10 +240,10 @@ export function useVoice(
       recognitionRef.current = recognition;
     } catch (err) {
       debugError('Failed to start speech recognition:', err);
-      setError('Failed to start speech recognition. Please try again.');
+      setError(t('voice.error.startFailed'));
       setIsListening(false);
     }
-  }, [isSupported, flushPendingTranscript, notifyCompletion, scheduleSilenceTimer, clearSilenceTimer, recognitionLanguage, normalizeTranscript, emitTranscript]);
+  }, [isSupported, flushPendingTranscript, notifyCompletion, scheduleSilenceTimer, clearSilenceTimer, recognitionLanguage, normalizeTranscript, emitTranscript, t]);
 
   const stopListening = useCallback(() => {
     debugLog('Stopping speech recognition...');

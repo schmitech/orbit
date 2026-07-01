@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X, Trash2, Edit2, Trash, PanelLeftClose } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -33,16 +34,16 @@ function getTimeGroupLabel(date: Date, now: Date): string {
   startOfWeek.setDate(startOfWeek.getDate() - startOfToday.getDay());
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  if (date >= startOfToday) return 'Today';
-  if (date >= startOfYesterday) return 'Yesterday';
-  if (date >= startOfWeek) return 'This Week';
-  if (date >= startOfMonth) return 'This Month';
-  return 'Earlier';
+  if (date >= startOfToday) return 'today';
+  if (date >= startOfYesterday) return 'yesterday';
+  if (date >= startOfWeek) return 'thisWeek';
+  if (date >= startOfMonth) return 'thisMonth';
+  return 'earlier';
 }
 
 function groupConversationsByTime(conversations: Conversation[]): TimeGroup[] {
   const now = new Date();
-  const order = ['Today', 'Yesterday', 'This Week', 'This Month', 'Earlier'];
+  const order = ['today', 'yesterday', 'thisWeek', 'thisMonth', 'earlier'];
   const map = new Map<string, Conversation[]>();
 
   for (const conv of conversations) {
@@ -63,6 +64,7 @@ function groupConversationsByTime(conversations: Conversation[]): TimeGroup[] {
 // ---------------------------------------------------------------------------
 
 export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps) {
+  const { t } = useTranslation();
   const isSingleAdapterMode = getIsSingleAdapterMode();
   const {
     conversations,
@@ -192,7 +194,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
       debugError('Failed to configure adapter:', error);
       setValidationError({
         conversationId: currentConversationId ?? null,
-        message: error instanceof Error ? error.message : 'Failed to configure adapter'
+        message: error instanceof Error ? error.message : t('sidebar.adapterConfigureFailed')
       });
     } finally {
       setIsValidating(false);
@@ -303,7 +305,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
               : 'hover:bg-slate-100/70 dark:hover:bg-[#25262f]'
           } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 dark:focus-visible:ring-sky-400/40`}
         aria-current={isActive ? 'true' : undefined}
-        aria-label={`Open conversation: ${conversation.title}`}
+        aria-label={t('sidebar.conversationCard.openAriaLabel', { title: conversation.title })}
       >
         {editingId === conversation.id ? (
           <input
@@ -319,7 +321,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
             maxLength={MAX_TITLE_LENGTH}
             className="flex-1 rounded border border-sky-300 bg-white px-2 py-0.5 text-sm text-[#353740] focus:outline-none focus:ring-2 focus:ring-sky-400/50 dark:border-sky-500/40 dark:bg-[#1a1b1e] dark:text-[#ececf1]"
             autoFocus
-            aria-label="Edit conversation title"
+            aria-label={t('sidebar.conversationCard.editInputAriaLabel')}
           />
         ) : (
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -332,14 +334,14 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
                 <button
                   onClick={(e) => handleEditStart(e, conversation)}
                   className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600 dark:text-[#6b6f7a] dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6]"
-                  aria-label={`Rename conversation: ${conversation.title}`}
+                  aria-label={t('sidebar.conversationCard.editAriaLabel', { title: conversation.title })}
                 >
                   <Edit2 className="h-3 w-3" />
                 </button>
                 <button
                   onClick={(e) => handleDeleteConversation(e, conversation)}
                   className="rounded p-1 text-slate-400 transition-colors hover:bg-red-100/80 hover:text-red-600 dark:text-[#6b6f7a] dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                  aria-label={`Delete conversation: ${conversation.title}`}
+                  aria-label={t('sidebar.conversationCard.deleteAriaLabel', { title: conversation.title })}
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -374,7 +376,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
             className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-[#3d4050] dark:bg-[#1a1b1e]"
           >
             <h2 id="select-agent-title" className="mb-4 text-lg font-semibold text-gray-900 dark:text-[#ececf1]">
-              Select an Agent
+              {t('sidebar.selectAgent.title')}
             </h2>
             <div className="space-y-5">
               <AdapterSelector
@@ -400,7 +402,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
                   className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-[#d1d5db] dark:hover:bg-[#2d2f39]"
                   disabled={isValidating}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -409,7 +411,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
       )}
 
       <nav
-        aria-label="Conversation sidebar"
+        aria-label={t('sidebar.navAriaLabel')}
         className="flex h-full md:h-[calc(100%-2rem)] md:mt-4 w-full md:w-72 flex-col border-r border-b border-gray-200 md:border-l md:border-t md:rounded-2xl md:overflow-hidden bg-transparent dark:border-[#2d2f39]"
       >
         {/* Header area */}
@@ -420,10 +422,10 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
               <button
                 onClick={handleClearAll}
                 className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-all duration-150 hover:bg-red-50 hover:border-red-300 hover:shadow-sm dark:border-red-500/25 dark:text-red-400 dark:hover:bg-red-950/20 dark:hover:border-red-500/40"
-                title="Delete all conversations"
+                title={t('sidebar.deleteAllConversations.title')}
               >
                 <Trash className="h-4 w-4" />
-                Delete Conversations
+                {t('sidebar.deleteAllConversations.button')}
               </button>
             )}
             {onToggleDesktopSidebar && (
@@ -431,8 +433,8 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
                 type="button"
                 onClick={onToggleDesktopSidebar}
                 className="ml-auto hidden shrink-0 md:inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-[#333645] dark:bg-[#161616] dark:text-[#d1d5db] dark:hover:border-[#43465a] dark:hover:bg-[#202020] dark:hover:text-white"
-                aria-label="Close sidebar"
-                title="Close sidebar"
+                aria-label={t('sidebar.collapse.ariaLabel')}
+                title={t('sidebar.collapse.title')}
               >
                 <PanelLeftClose className="h-4 w-4" />
               </button>
@@ -456,8 +458,8 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
                 ref={searchInputRef}
                 type="text"
                 role="searchbox"
-                aria-label="Search conversations"
-                placeholder="Search Conversations"
+                aria-label={t('sidebar.search.ariaLabel')}
+                placeholder={t('sidebar.search.placeholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="relative z-10 w-full bg-transparent py-3 pl-11 pr-11 text-sm font-medium text-slate-700 placeholder:font-normal placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
@@ -470,7 +472,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
                     searchInputRef.current?.focus();
                   }}
                   className="absolute right-3 top-1/2 z-10 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-400 transition-colors hover:border-slate-300 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-500 dark:hover:border-white/20 dark:hover:text-slate-200 dark:focus:ring-sky-500/20"
-                  aria-label="Clear search"
+                  aria-label={t('sidebar.search.clearAriaLabel')}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -481,8 +483,8 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
             {isSearching && (
               <p aria-live="polite" className="mt-2 text-center text-[11px] tabular-nums text-gray-400 dark:text-[#6e7490]">
                 {filteredConversations.length === 0
-                  ? 'No results'
-                  : `${filteredConversations.length} ${filteredConversations.length === 1 ? 'result' : 'results'}`}
+                  ? t('sidebar.resultsNone')
+                  : t('sidebar.results', { count: filteredConversations.length })}
               </p>
             )}
           </div>
@@ -493,7 +495,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
         <div
           ref={listRef}
           role="listbox"
-          aria-label="Conversations"
+          aria-label={t('sidebar.conversations.ariaLabel')}
           onKeyDown={handleListKeyDown}
           className="flex-1 overflow-y-auto bg-transparent px-3 py-2"
         >
@@ -506,9 +508,9 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
             // Grouped by time
             <div className="space-y-4">
               {timeGroups.map((group) => (
-                <section key={group.label} aria-label={group.label}>
+                <section key={group.label} aria-label={t(`sidebar.timeGroups.${group.label}`)}>
                   <h4 className="sticky top-0 z-10 mb-1 bg-transparent px-1 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 backdrop-blur-sm dark:text-[#6e7490]">
-                    {group.label}
+                    {t(`sidebar.timeGroups.${group.label}`)}
                   </h4>
                   <div className="space-y-1">
                     {group.conversations.map(renderConversationCard)}
@@ -525,7 +527,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
           if (navLinks.length === 0) return null;
           return (
             <div className="shrink-0 border-t border-gray-200/80 px-4 py-3 md:hidden dark:border-[#2d2f39]">
-              <nav aria-label="Header links">
+              <nav aria-label={t('appHeader.navLinksAriaLabel')}>
                 <ul className="flex flex-wrap gap-2">
                   {navLinks.map((link) => (
                     <li key={link.url}>
@@ -554,10 +556,10 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
         isOpen={deleteConfirmation.isOpen}
         onClose={cancelDelete}
         onConfirm={confirmDelete}
-        title="Delete Conversation"
-        message={`Are you sure you want to delete "${deleteConfirmation.conversationTitle}"? This will clear the conversation history.`}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title={t('sidebar.deleteConfirm.title')}
+        message={t('sidebar.deleteConfirm.message', { title: deleteConfirmation.conversationTitle })}
+        confirmText={t('sidebar.deleteConfirm.confirmText')}
+        cancelText={t('common.cancel')}
         type="danger"
         isLoading={deleteConfirmation.isDeleting}
       />
@@ -567,10 +569,10 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
         isOpen={clearAllConfirmation.isOpen}
         onClose={cancelClearAll}
         onConfirm={confirmClearAll}
-        title="Clear All Conversations"
-        message={totalConversations === 1 ? 'Are you sure you want to delete this conversation? This will clear all conversation history.' : `Are you sure you want to delete all ${totalConversations} conversations? This will clear all conversation history.`}
-        confirmText="Clear All"
-        cancelText="Cancel"
+        title={t('sidebar.clearAllConfirm.title')}
+        message={t('sidebar.clearAllConfirm.message', { count: totalConversations })}
+        confirmText={t('sidebar.clearAllConfirm.confirmText')}
+        cancelText={t('common.cancel')}
         type="danger"
         isLoading={clearAllConfirmation.isDeleting}
       />

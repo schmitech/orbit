@@ -5,6 +5,7 @@ import { useLoginPromptStore } from '../stores/loginPromptStore';
 import { getEnableAuth, getIsAuthConfigured, getAuthProvider, getAuthScopes } from '../utils/runtimeConfig';
 import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { LogIn, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export function LoginPromptModal() {
   const enableAuth = getEnableAuth();
@@ -51,6 +52,7 @@ function LoginPromptModalLayout({
   onClose: () => void;
   onLogin: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
       {/* Backdrop */}
@@ -64,7 +66,7 @@ function LoginPromptModalLayout({
         <button
           onClick={onClose}
           className="absolute right-3 top-3 rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
-          aria-label="Close"
+          aria-label={t('common.close')}
         >
           <X className="h-4 w-4" />
         </button>
@@ -74,7 +76,7 @@ function LoginPromptModalLayout({
             <LogIn className="h-5 w-5 text-blue-600 dark:text-blue-300" />
           </div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-[#ececf1]">
-            Sign in for more
+            {t('loginPrompt.heading')}
           </h2>
         </div>
 
@@ -87,13 +89,13 @@ function LoginPromptModalLayout({
             onClick={onLogin}
             className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600"
           >
-            Sign in
+            {t('common.signIn')}
           </button>
           <button
             onClick={onClose}
             className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-[#4a4b54] dark:bg-[#2d2f39] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       </div>

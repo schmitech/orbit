@@ -29,21 +29,42 @@ IF "%VIRTUAL_ENV%"=="" (
 :venv_done
 
 :: Locate a suitable Python interpreter (3.12+)
+:: Try the Python Launcher (py.exe) first — it bypasses Microsoft Store App Execution Aliases.
 SET "PYTHON_CMD="
-FOR %%P IN (python3.12 python3.13 python3 python) DO (
+WHERE py >NUL 2>&1
+IF NOT ERRORLEVEL 1 (
+    FOR %%V IN (3.14 3.13 3.12 3.11) DO (
+        IF "!PYTHON_CMD!"=="" (
+            py -%%V --version >NUL 2>&1
+            IF NOT ERRORLEVEL 1 (
+                FOR /F "tokens=*" %%P IN ('py -%%V -c "import sys; print(sys.executable)"') DO (
+                    IF "!PYTHON_CMD!"=="" SET "PYTHON_CMD=%%P"
+                )
+            )
+        )
+    )
+)
+:: Fall back to named executables on PATH
+FOR %%P IN (python3.14 python3.13 python3.12 python3 python) DO (
     IF "!PYTHON_CMD!"=="" (
         WHERE %%P >NUL 2>&1
         IF NOT ERRORLEVEL 1 (
-            FOR /F "tokens=*" %%V IN ('%%P -c "import sys; ok = sys.version_info >= (3,12); print(ok)"') DO (
+            FOR /F "tokens=*" %%V IN ('%%P -c "import sys; print(sys.version_info >= (3,12))"') DO (
                 IF "%%V"=="True" SET "PYTHON_CMD=%%P"
             )
         )
     )
 )
 
-IF "%PYTHON_CMD%"=="" (
+IF "!PYTHON_CMD!"=="" (
     echo ERROR: Python 3.12 or higher is required but was not found.
-    echo Please install Python 3.12+ from https://www.python.org/downloads/ and ensure it is on your PATH.
+    echo.
+    echo If Python is installed but not detected, check for the Microsoft Store
+    echo App Execution Alias: Settings ^> Apps ^> Advanced app settings ^>
+    echo App execution aliases ^> turn off "python.exe" and "python3.exe".
+    echo.
+    echo Or install Python 3.12+ from https://www.python.org/downloads/
+    echo and ensure "Add Python to PATH" is checked during installation.
     exit /b 1
 )
 

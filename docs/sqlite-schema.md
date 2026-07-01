@@ -12,6 +12,7 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `system_prompts` - System prompts for chat
 - `chat_history` - Chat message history
 - `conversation_threads` - Conversation threading for intent adapters
+- `thread_datasets` - Database fallback storage for conversation thread datasets
 - `uploaded_files` - Uploaded file metadata for file adapter workflows
 - `file_chunks` - Chunk metadata for processed uploaded files
 - `audit_logs` - Audit trail records for conversation logging and compliance
@@ -235,6 +236,33 @@ CREATE TABLE IF NOT EXISTS conversation_threads (
 - `idx_conversation_threads_parent_session` on `parent_session_id`
 - `idx_conversation_threads_thread_session` on `thread_session_id`
 - `idx_conversation_threads_expires_at` on `expires_at`
+
+---
+
+### thread_datasets
+
+Stores retrieved dataset content for conversation threads when Redis storage is unavailable or disabled.
+
+```sql
+CREATE TABLE IF NOT EXISTS thread_datasets (
+    id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    dataset_json TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Dataset key, typically `thread_dataset_{thread_id}_{timestamp}`
+- `thread_id` (TEXT): Conversation thread ID associated with the dataset
+- `dataset_json` (TEXT): JSON-encoded dataset payload containing query context and raw results
+- `expires_at` (TEXT): ISO format timestamp when the fallback dataset expires
+- `created_at` (TEXT): ISO format timestamp of dataset creation
+
+**Indexes:**
+- `idx_thread_datasets_thread_id` on `thread_id`
+- `idx_thread_datasets_expires_at` on `expires_at`
 
 ---
 

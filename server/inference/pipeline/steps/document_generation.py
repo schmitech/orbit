@@ -321,14 +321,25 @@ class DocumentGenerationStep(PipelineStep):
         display_author = self._author_display()
 
         format_hints: Dict[str, str] = {
-            'pdf': 'a structured report with sections, paragraphs, and tables',
-            'docx': 'a Word document with headings, paragraphs, and tables',
+            'pdf': (
+                'a structured report with sections, paragraphs, tables, and optional charts. '
+                'Use a "chart" object in a section when visualising trends, comparisons, or '
+                'distributions would be clearer than a table alone.'
+            ),
+            'docx': (
+                'a Word document with headings, paragraphs, tables, and optional charts. '
+                'Use a "chart" object in a section when visualising data would aid comprehension.'
+            ),
             'xlsx': (
                 'a spreadsheet where every section with structured data uses the "table" key '
                 '(a 2-D array, first row = column headers). '
                 'Never put tabular data in "body" text. Numeric cell values must be plain numbers.'
             ),
-            'pptx': 'a presentation where each section becomes a slide with a title and bullet points',
+            'pptx': (
+                'a presentation where each section becomes a slide with a title, bullet points, '
+                'tables, and optional charts. Use a "chart" object when visualising data would '
+                'make the slide deck clearer.'
+            ),
             'md': 'a Markdown document with headings, paragraphs, bullet lists, and pipe tables',
             'csv': (
                 'a CSV export where every section with structured data uses the "table" key '
@@ -373,7 +384,29 @@ class DocumentGenerationStep(PipelineStep):
                 "a brief paragraph, and \"bullet_points\" for a list. Tables get their own slide.\n"
                 "3. EVERY markdown table or data grid found in the conversation history or context "
                 "MUST appear as a \"table\" 2-D array in the JSON — not as bullet points or body text.\n"
-                "4. Output ONLY the JSON object. No extra text before or after.\n"
+                "4. Optionally include a chart object when visualising trends or comparisons adds value. "
+                "Charts get their own slide.\n"
+                "   chart.type: bar | line | pie | area | composed\n"
+                "   chart.labels: array of category labels\n"
+                "   chart.datasets: array of {label, data[], type?, yAxisId?} objects\n"
+                "   Use composed when mixing bar and line series or when two series have very different scales.\n"
+                "   For composed: set datasets[].type to 'bar' or 'line', and datasets[].yAxisId to 'left' or 'right'.\n"
+                "5. Output ONLY the JSON object. No extra text before or after.\n"
+            )
+        elif fmt in ('pdf', 'docx'):
+            rules = (
+                "Rules:\n"
+                "1. Use the conversation history and any data/context to populate real content.\n"
+                "2. Every section must have at least a heading and either body text or bullet_points.\n"
+                "3. Include a table only when the data has rows and columns; omit the table key otherwise.\n"
+                "4. Optionally include a chart object when visualising trends or comparisons adds value.\n"
+                "   chart.type: bar | line | pie | area | composed\n"
+                "   chart.labels: array of category labels\n"
+                "   chart.datasets: array of {label, data[], type?, yAxisId?} objects\n"
+                "   Use composed when mixing bar and line series or when two series have very different scales.\n"
+                "   For composed: set datasets[].type to 'bar' or 'line', and datasets[].yAxisId to 'left' or 'right'.\n"
+                "5. A section may have both a table and a chart, or just one, or neither.\n"
+                "6. Output ONLY the JSON object. No extra text before or after.\n"
             )
         else:
             rules = (
@@ -384,12 +417,24 @@ class DocumentGenerationStep(PipelineStep):
                 "4. Output ONLY the JSON object. No extra text before or after.\n"
             )
 
+        section_schema = (
+            '{"heading": "...", "body": "...", '
+            '"bullet_points": ["..."], '
+            '"table": [["col1", "col2"], ["val1", "val2"]]'
+        )
+        if fmt in ('pdf', 'docx', 'pptx'):
+            section_schema += (
+                ', "chart": {"type": "bar|line|pie|area", "title": "...", '
+                '"labels": ["A", "B", "C"], '
+                '"datasets": [{"label": "Series 1", "data": [1, 2, 3]}]}'
+            )
+        section_schema += '}'
+
         return (
             f"You are a document structure designer. Generate {hint}.\n"
             "Output ONLY a valid JSON object — no markdown code fences, no explanation.\n\n"
             "Required JSON schema:\n"
-            '{"title": "...", "sections": [{"heading": "...", "body": "...", '
-            '"table": [["col1", "col2"], ["val1", "val2"]], "bullet_points": ["..."]}], '
+            f'{{"title": "...", "sections": [{section_schema}], '
             f'"metadata": {{"author": "{display_author}", "date": "{today}"}}}}\n\n'
             f"{rules}\n"
             f"Conversation History:\n{history_text}\n"

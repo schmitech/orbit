@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowUp,
   Check,
   ChevronDown,
   ChevronUp,
   Copy,
+  Edit2,
   File,
   MessageSquare,
   RotateCcw,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
-  X,
-  Edit2
+  X
 } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import type { AllowedModel } from '../types';
@@ -37,10 +38,10 @@ import { ModelPickerButton } from './ModelPickerButton';
 interface MessageProps {
   message: MessageType;
   onRegenerate?: (messageId: string) => void;
+  onEdit?: (messageId: string, newContent: string) => void;
   onStartThread?: (messageId: string, sessionId: string) => void;
   onClearThread?: (messageId: string, threadId: string) => Promise<void> | void;
   onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string, skill?: string, model?: string) => Promise<void> | void;
-  onEdit?: (messageId: string, newContent: string) => void;
   threadMessages?: MessageType[];
   sessionId?: string;
   isThreadSendDisabled?: boolean;
@@ -146,6 +147,7 @@ function StreamingDots({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [showAcknowledgement, setShowAcknowledgement] = useState(false);
   const acknowledgementTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -190,8 +192,8 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
         onClick={() => handleClick('up')}
         disabled={isLoading}
         className={`rounded-md p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-[#6e6e80] hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
-        title="Good response"
-        aria-label="Good response"
+        title={t('message.feedback.good')}
+        aria-label={t('message.feedback.good')}
       >
         <ThumbsUp className="h-3.5 w-3.5" />
       </button>
@@ -199,15 +201,15 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
         onClick={() => handleClick('down')}
         disabled={isLoading}
         className={`rounded-md p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-[#6e6e80] hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
-        title="Poor response"
-        aria-label="Poor response"
+        title={t('message.feedback.poor')}
+        aria-label={t('message.feedback.poor')}
       >
         <ThumbsDown className="h-3.5 w-3.5" />
       </button>
       {showAcknowledgement && (
         <span className="ml-1 inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 animate-fadeIn dark:bg-emerald-500/15 dark:text-emerald-300">
           <Check className="h-3 w-3" />
-          Thanks!
+          {t('message.feedback.thanks')}
         </span>
       )}
     </div>
@@ -217,10 +219,10 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
 export function Message({
   message,
   onRegenerate,
+  onEdit,
   onStartThread,
   onClearThread,
   onSendThreadMessage,
-  onEdit,
   threadMessages,
   sessionId,
   isThreadSendDisabled,
@@ -228,12 +230,14 @@ export function Message({
   defaultModel = null,
   selectedModel = null,
 }: MessageProps) {
+  const { t } = useTranslation();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content || '');
+  const [isEditComposing, setIsEditComposing] = useState(false);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [copied, setCopied] = useState(false);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
   const [showFeedbackAcknowledgement, setShowFeedbackAcknowledgement] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState(message.content || '');
-  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
@@ -271,18 +275,18 @@ export function Message({
   );
   const hasGeneratedImage = Boolean((message.image || message.imageUrl) && isAssistant && !message.isStreaming);
   const hasGeneratedVideo = Boolean((message.video || message.videoUrl) && isAssistant && !message.isStreaming);
-  const copyLabel = hasGeneratedImage ? 'Copy image to clipboard' : 'Copy to clipboard';
+  const copyLabel = hasGeneratedImage ? t('message.copyImageLabel') : t('message.copyLabel');
   const threadsEnabled = getEnableConversationThreads();
   const threadCharLimit = AppConfig.maxMessageLength;
   const threadLimit = AppConfig.maxMessagesPerThread;
   const threadLimitReached = threadLimit !== null && threadReplyCount >= threadLimit;
   const threadLimitMessage = threadLimitReached
     ? (isGuest
-        ? `You've reached the guest limit of ${threadLimit} messages per thread. Sign in to continue this thread.`
-        : `This thread reached the ${threadLimit} message limit. Start a new conversation for more follow-ups.`)
+        ? t('message.thread.limitReachedGuest', { count: threadLimit })
+        : t('message.thread.limitReachedUser', { count: threadLimit }))
     : null;
   const { theme, isDark } = useTheme();
-  const threadPlaceholder = 'Reply in thread...';
+  const threadPlaceholder = t('message.thread.placeholder');
   const threadInputId = `thread-input-${message.id}`;
   const { skills, isLoading: skillsLoading, selectedSkill, selectSkill, clearSkill } = useSkills({
     adapterName: currentConversation?.adapterName,
@@ -373,33 +377,31 @@ export function Message({
   }, []);
 
 
+  // Focus and place cursor at end when edit mode first opens
   useEffect(() => {
-    if (isEditing && editTextareaRef.current) {
-      editTextareaRef.current.focus();
-      const length = editTextareaRef.current.value.length;
-      editTextareaRef.current.setSelectionRange(length, length);
-    }
+    if (!isEditing || !editTextareaRef.current) return;
+    const el = editTextareaRef.current;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
   }, [isEditing]);
 
+  // Auto-resize textarea as content changes
   useEffect(() => {
-    if (isEditing && editTextareaRef.current) {
-      editTextareaRef.current.style.height = 'auto';
-      editTextareaRef.current.style.height = `${editTextareaRef.current.scrollHeight}px`;
-    }
+    if (!isEditing || !editTextareaRef.current) return;
+    const el = editTextareaRef.current;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
   }, [isEditing, editContent]);
 
-  const handleEditSubmit = () => {
+  const handleEditSubmit = useCallback(() => {
     const trimmed = editContent.trim();
     if (!trimmed || trimmed === message.content) {
       setIsEditing(false);
-      setEditContent(message.content || '');
       return;
     }
-    if (onEdit) {
-      onEdit(message.id, trimmed);
-    }
+    onEdit?.(message.id, trimmed);
     setIsEditing(false);
-  };
+  }, [editContent, message.content, message.id, onEdit]);
 
   const scrollThreadRepliesToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -454,7 +456,7 @@ export function Message({
 
   const bubbleClasses = isAssistant
     ? 'message-bubble message-bubble-assistant min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
-    : 'message-bubble message-bubble-user inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]';
+    : 'message-bubble message-bubble-user relative inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 pr-10 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]';
 
   const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';
 
@@ -544,11 +546,15 @@ export function Message({
     }
     const previousDraft = threadInput;
     const previousSkill = selectedSkill;
+    const activeSkillName = selectedSkill?.name;
     setThreadInput('');
     setIsSendingThreadMessage(true);
     setShowThreadSkillPicker(false);
+    if (activeSkillName) {
+      clearSkill();
+    }
     try {
-      await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed, selectedSkill?.name, threadSelectedModel ?? defaultModel ?? undefined);
+      await onSendThreadMessage(message.threadInfo.thread_id, message.id, trimmed, activeSkillName, threadSelectedModel ?? defaultModel ?? undefined);
       // Refocus the thread input field after sending
       setTimeout(() => {
         if (threadTextareaRef.current) {
@@ -768,7 +774,7 @@ export function Message({
     const toMs = (ts: Date | string) => ts instanceof Date ? ts.getTime() : new Date(ts).getTime();
     const sortedReplies = [...threadReplies].sort((a, b) => toMs(a.timestamp) - toMs(b.timestamp));
     
-    return sortedReplies.map(reply => {
+    return sortedReplies.map((reply) => {
       const replyIsAssistant = reply.role === 'assistant';
 
       const replyMarkdownClass = replyIsAssistant ? threadAssistantMarkdownClass : threadUserMarkdownClass;
@@ -835,31 +841,37 @@ export function Message({
   }, [currentConversation?.adapterName, syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
 
   return (
-    <div className="animate-fadeIn min-w-0 w-full px-0">
+    <div className="group animate-fadeIn min-w-0 w-full px-0">
       <div className="min-w-0 space-y-1">
-        <div className={`max-w-full ${!isAssistant ? 'group relative' : ''}`}>
-          <div className={bubbleClasses}>
-            {isEditing ? (
-              <div className="flex flex-col gap-2 min-w-[200px] sm:min-w-[300px]">
-                <textarea
-                  ref={editTextareaRef}
-                  className="w-full resize-none overflow-hidden bg-transparent outline-none text-[#111827] dark:text-[#f5f5f5]"
-                  value={editContent}
-                  onChange={e => setEditContent(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleEditSubmit();
-                    }
-                    if (e.key === 'Escape') {
-                      setIsEditing(false);
-                      setEditContent(message.content || '');
-                    }
-                  }}
-                  rows={1}
-                  style={{ minHeight: '24px' }}
-                />
-                <div className="flex justify-end gap-2 mt-2">
+        <div className={bubbleClasses}>
+          {isEditing ? (
+            <div className="flex flex-col gap-2">
+              <textarea
+                ref={editTextareaRef}
+                className="w-full resize-none overflow-hidden bg-transparent outline-none text-[#111827] dark:text-[#f5f5f5] leading-relaxed"
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                onCompositionStart={() => setIsEditComposing(true)}
+                onCompositionEnd={() => setIsEditComposing(false)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey && !isEditComposing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleEditSubmit();
+                  }
+                  if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    setIsEditing(false);
+                    setEditContent(message.content || '');
+                  }
+                }}
+                maxLength={AppConfig.maxMessageLength}
+                rows={1}
+                style={{ minHeight: '24px' }}
+              />
+              <div className="flex items-center justify-between gap-2 mt-1">
+                <span className="text-xs text-gray-400 dark:text-[#6e6e80]">{t('message.edit.willRegenerateHint')}</span>
+                <div className="flex gap-2">
                   <button
                     onClick={() => {
                       setIsEditing(false);
@@ -867,57 +879,58 @@ export function Message({
                     }}
                     className="px-3 py-1.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-[#4a4b54] dark:text-gray-200 dark:hover:bg-[#565869] transition-colors"
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                   <button
                     onClick={handleEditSubmit}
                     className="px-3 py-1.5 text-xs font-medium rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"
                   >
                     <ArrowUp className="w-3.5 h-3.5" />
-                    Send
+                    {t('common.send')}
                   </button>
                 </div>
               </div>
-            ) : (
-              renderedMessageContent
-            )}
+            </div>
+          ) : (
+            renderedMessageContent
+          )}
 
-            {message.attachments && message.attachments.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {message.attachments.map(file => (
-                  <div key={file.file_id} className={`flex items-center gap-3 rounded-xl border p-3 ${attachmentClasses}`}>
-                    <File className="h-4 w-4 text-gray-500 dark:text-[#bfc2cd]" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-[#353740] dark:text-[#ececf1]">{file.filename}</p>
-                      <p className="text-xs text-gray-500 dark:text-[#bfc2cd]">{(file.file_size / 1024).toFixed(1)} KB</p>
-                    </div>
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {message.attachments.map(file => (
+                <div key={file.file_id} className={`flex items-center gap-3 rounded-xl border p-3 ${attachmentClasses}`}>
+                  <File className="h-4 w-4 text-gray-500 dark:text-[#bfc2cd]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-[#353740] dark:text-[#ececf1]">{file.filename}</p>
+                    <p className="text-xs text-gray-500 dark:text-[#bfc2cd]">{(file.file_size / 1024).toFixed(1)} KB</p>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
+          )}
 
-            {message.audio && isAssistant && !message.isStreaming && (
-              <AudioPlayer audio={message.audio} audioFormat={message.audioFormat} autoPlay={false} />
-            )}
+          {message.audio && isAssistant && !message.isStreaming && (
+            <AudioPlayer audio={message.audio} audioFormat={message.audioFormat} autoPlay={false} />
+          )}
 
-            {(message.image || message.imageUrl) && isAssistant && !message.isStreaming && (
-              <ImageDisplay
-                image={message.image}
-                imageUrl={message.imageUrl}
-                imageFormat={message.imageFormat}
-                revisedPrompt={message.imageRevisedPrompt}
-              />
-            )}
+          {(message.image || message.imageUrl) && isAssistant && !message.isStreaming && (
+            <ImageDisplay
+              image={message.image}
+              imageUrl={message.imageUrl}
+              imageFormat={message.imageFormat}
+              revisedPrompt={message.imageRevisedPrompt}
+            />
+          )}
 
-            {(message.video || message.videoUrl) && isAssistant && !message.isStreaming && (
-              <VideoDisplay
-                video={message.video}
-                videoUrl={message.videoUrl}
-                videoFormat={message.videoFormat}
-                revisedPrompt={message.videoRevisedPrompt}
-                adapterName={currentConversation?.adapterName}
-              />
-            )}
+          {(message.video || message.videoUrl) && isAssistant && !message.isStreaming && (
+            <VideoDisplay
+              video={message.video}
+              videoUrl={message.videoUrl}
+              videoFormat={message.videoFormat}
+              revisedPrompt={message.videoRevisedPrompt}
+              adapterName={currentConversation?.adapterName}
+            />
+          )}
 
             {(message.document || message.documentUrl) && isAssistant && !message.isStreaming && (
               <DocumentDisplay
@@ -941,6 +954,19 @@ export function Message({
                 <Edit2 className="h-4 w-4" />
               </button>
             </div>
+          )}
+          {!isAssistant && onEdit && !isEditing && (
+            <button
+              onClick={() => {
+                setEditContent(message.content || '');
+                setIsEditing(true);
+              }}
+              className="absolute top-1/2 -translate-y-1/2 right-2 rounded-md p-1 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white transition-colors"
+              title={t('message.editAriaLabel')}
+              aria-label={t('message.editAriaLabel')}
+            >
+              <Edit2 className="h-3.5 w-3.5" />
+            </button>
           )}
         </div>
 
@@ -968,8 +994,8 @@ export function Message({
                     onClick={() => handleFeedback('up')}
                     disabled={isFeedbackLoading}
                     className={`rounded-md p-1.5 transition-colors ${isFeedbackLoading ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
-                    title="Good response"
-                    aria-label="Good response"
+                    title={t('message.feedback.good')}
+                    aria-label={t('message.feedback.good')}
                   >
                     <ThumbsUp className="h-4 w-4" />
                   </button>
@@ -977,8 +1003,8 @@ export function Message({
                     onClick={() => handleFeedback('down')}
                     disabled={isFeedbackLoading}
                     className={`rounded-md p-1.5 transition-colors ${isFeedbackLoading ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
-                    title="Poor response"
-                    aria-label="Poor response"
+                    title={t('message.feedback.poor')}
+                    aria-label={t('message.feedback.poor')}
                   >
                     <ThumbsDown className="h-4 w-4" />
                   </button>
@@ -987,7 +1013,7 @@ export function Message({
                       <div className="absolute left-1/2 top-full h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-emerald-500 dark:bg-emerald-600" />
                       <div className="relative flex items-center gap-1.5">
                         <Check className="h-3.5 w-3.5" />
-                        <span>Thanks!</span>
+                        <span>{t('message.feedback.thanks')}</span>
                       </div>
                     </div>
                   )}
@@ -999,8 +1025,8 @@ export function Message({
                 <button
                   onClick={() => onRegenerate(message.id)}
                   className="rounded-md p-1.5 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
-                  title="Regenerate response"
-                  aria-label="Regenerate response"
+                  title={t('message.regenerateTitle')}
+                  aria-label={t('message.regenerateAriaLabel')}
                 >
                   <RotateCcw className="h-4 w-4" />
                 </button>
@@ -1016,11 +1042,11 @@ export function Message({
                     onStartThread(message.id, sessionId);
                   }}
                   className="ml-1 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs text-blue-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-100 hover:text-blue-800 hover:shadow-md dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:border-blue-400/50 dark:hover:bg-blue-500/20 dark:hover:text-blue-100 animate-follow-up-enter whitespace-nowrap"
-                  title="Continue this discussion with the current answer's context"
-                  aria-label="Continue this discussion with the current answer's context"
+                  title={t('message.thread.continueDiscussionTitle')}
+                  aria-label={t('message.thread.continueDiscussionAriaLabel')}
                 >
                   <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-                  <span>Continue</span>
+                  <span>{t('message.thread.continueLabel')}</span>
                 </button>
               )}
 
@@ -1033,7 +1059,7 @@ export function Message({
                     className="inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors text-xs"
                   >
                     <MessageSquare className="h-4 w-4" />
-                    <span className="truncate">{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</span>
+                    <span className="truncate">{t('message.thread.replyCount', { count: threadReplyCount })}</span>
                     {isThreadOpen
                       ? <ChevronUp className="h-3 w-3" />
                       : <ChevronDown className="h-3 w-3" />
@@ -1044,10 +1070,10 @@ export function Message({
                       type="button"
                       onClick={() => setShowClearThreadConfirmation(true)}
                       className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
-                      title="Clear replies"
-                      aria-label="Clear replies"
+                      title={t('message.thread.clearTitle')}
+                      aria-label={t('message.thread.clearAriaLabel')}
                     >
-                      Clear
+                      {t('common.clear')}
                     </button>
                   )}
                 </>
@@ -1076,10 +1102,10 @@ export function Message({
                       <div className="mt-2">
                         <button
                           type="button"
-                          onClick={() => useLoginPromptStore.getState().openLoginPrompt('Sign in to unlock higher message limits and continue this thread.')}
+                          onClick={() => useLoginPromptStore.getState().openLoginPrompt(t('message.thread.signInPromptMessage'))}
                           className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                         >
-                          Sign in for higher limits
+                          {t('message.thread.signInForHigherLimits')}
                         </button>
                       </div>
                     )}
@@ -1101,7 +1127,7 @@ export function Message({
                           type="button"
                           onClick={() => clearSkill()}
                           className="-mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100"
-                          aria-label="Remove thread skill"
+                          aria-label={t('message.thread.removeSkillAriaLabel')}
                         >
                           <X className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
@@ -1115,8 +1141,8 @@ export function Message({
                         type="button"
                         onClick={openThreadSkillPicker}
                         className="flex h-8 shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600"
-                        aria-label="Show available skills (or type a forward slash)"
-                        title="Use a skill"
+                        aria-label={t('message.thread.skillsHintAriaLabel')}
+                        title={t('message.thread.skillsHint')}
                       >
                         <span
                           className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gray-200 font-mono text-[10px] leading-none text-gray-600 dark:bg-[#2a2a2a] dark:text-gray-300"
@@ -1124,12 +1150,12 @@ export function Message({
                         >
                           /
                         </span>
-                        Skills
+                        {t('messageInput.skillsHint.text')}
                       </button>
                     )}
                     <div className="relative flex min-h-8 flex-1 items-center min-w-0">
                       <label htmlFor={threadInputId} className="sr-only">
-                        Reply in thread
+                        {t('message.thread.placeholder')}
                       </label>
                       {threadSkillInlineSuggestion && (
                         <div
@@ -1145,7 +1171,7 @@ export function Message({
                         ref={threadTextareaRef}
                         className="relative z-10 block h-8 w-full min-w-0 resize-none overflow-hidden bg-transparent px-0 py-0 text-base leading-8 text-[#353740] placeholder-slate-500 outline-none transition focus:outline-none disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#70707c] sm:text-sm sm:leading-8"
                         placeholder={threadPlaceholder}
-                        aria-label="Reply in thread"
+                        aria-label={t('message.thread.placeholder')}
                         value={threadInput}
                         onChange={e => {
                           const value = e.target.value;
@@ -1179,8 +1205,8 @@ export function Message({
                         maxWidthClass="max-w-[120px]"
                         triggerPaddingClass="px-2 py-1"
                         staticPaddingClass="px-2 py-1"
-                        triggerTitle="Select model for this thread"
-                        listboxLabel="Select model for this thread"
+                        triggerTitle={t('message.thread.selectModelTitle')}
+                        listboxLabel={t('message.thread.selectModelTitle')}
                       />
                       {threadInput.trim().length > 0 && (
                         <button
@@ -1188,7 +1214,7 @@ export function Message({
                           onClick={handleThreadSubmit}
                           disabled={threadComposerDisabled || threadInput.trim().length === 0}
                           className="flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-full transition active:scale-95 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400 disabled:cursor-not-allowed"
-                          title="Send thread message"
+                          title={t('message.thread.sendMessageTitle')}
                         >
                           <ArrowUp className="h-5 w-5 sm:h-4 sm:w-4" />
                         </button>
@@ -1222,10 +1248,10 @@ export function Message({
                       type="button"
                       onClick={() => setIsThreadOpen(false)}
                       className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-[#bfc2cd] dark:hover:bg-[#2f313a] dark:hover:text-white"
-                      aria-label="Hide replies"
+                      aria-label={t('message.thread.hideRepliesAriaLabel')}
                     >
                       <ChevronUp className="h-3 w-3" />
-                      <span>Hide replies</span>
+                      <span>{t('message.thread.hideRepliesLabel')}</span>
                     </button>
                   </div>
                 )}
@@ -1240,10 +1266,10 @@ export function Message({
           }
         }}
         onConfirm={handleClearThread}
-        title="Clear Replies"
-        message="Are you sure you want to clear these replies? This removes the child thread from the backend without deleting the main conversation."
-        confirmText="Clear"
-        cancelText="Cancel"
+        title={t('message.confirmation.clearRepliesTitle')}
+        message={t('message.confirmation.clearRepliesMessage')}
+        confirmText={t('common.clear')}
+        cancelText={t('common.cancel')}
         type="danger"
         isLoading={isClearingThread}
       />

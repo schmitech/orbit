@@ -161,10 +161,7 @@ async def admin_auth_check(
     request: Request,
     authorized: bool = Depends(check_admin_or_api_key)
 ):
-    """
-    Check if the request is authorized via admin auth or API key.
-    This allows backward compatibility with existing API key system.
-    """
+    """Check if the request is authorized via admin auth or API key."""
     return authorized
 
 
@@ -230,7 +227,6 @@ async def create_api_key(
 @admin_router.get("/api-keys", dependencies=[Depends(admin_auth_check)])
 async def list_api_keys(
     request: Request,
-    collection: Optional[str] = None,
     adapter: Optional[str] = None,
     active_only: bool = False,
     limit: int = 100,
@@ -238,33 +234,6 @@ async def list_api_keys(
 ):
     """
     List all API keys in the system with optional filtering and pagination.
-    
-    This endpoint provides a list of all API keys with:
-    - Masked key values
-    - Adapter associations
-    - Client information
-    - Creation timestamps
-    - Status information
-    
-    Security considerations:
-    - This is an admin-only endpoint
-    - Should be protected by additional authentication
-    - API keys are masked in the response
-    - Limited to 1000 keys per request
-    
-    Args:
-        collection: Optional collection name filter (legacy support)
-        adapter: Optional adapter name filter
-        active_only: If True, only return active keys
-        limit: Maximum number of keys to return (default: 100, max: 1000)
-        offset: Number of keys to skip for pagination (default: 0)
-        request: The incoming request
-        
-    Returns:
-        List of API key records with masked values
-        
-    Raises:
-        HTTPException: If API key listing fails or service is unavailable
     """
     # Check if API key service is available
     api_key_service = getattr(request.app.state, 'api_key_service', None)
@@ -288,9 +257,6 @@ async def list_api_keys(
         filter_query = {}
         if adapter:
             filter_query["adapter_name"] = adapter
-        elif collection:
-            # Legacy support for collection-based filtering
-            filter_query["collection_name"] = collection
         if active_only:
             filter_query["active"] = True
         
@@ -326,7 +292,6 @@ async def list_api_keys(
                 "id": record_id,    # canonical
                 "api_key": f"***{key['api_key'][-4:]}" if key.get("api_key") else "***",
                 "adapter_name": key.get("adapter_name"),
-                "collection_name": key.get("collection_name"),  # legacy
                 "client_name": key.get("client_name"),
                 "notes": key.get("notes"),
                 "active": key.get("active", True),
@@ -375,7 +340,6 @@ async def get_api_key_detail(
             "id": record_id,    # canonical
             "api_key": key.get("api_key"),
             "adapter_name": key.get("adapter_name"),
-            "collection_name": key.get("collection_name"),
             "client_name": key.get("client_name"),
             "notes": key.get("notes"),
             "active": key.get("active", True),
@@ -410,8 +374,7 @@ async def get_api_key_status(
     """
     Get the status of a specific API key.
 
-    Accepts a record _id, raw API key value, or adapter name for
-    backwards compatibility with client proxies.
+    Accepts a record _id or raw API key value as the identifier.
     """
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
@@ -460,9 +423,7 @@ async def update_api_key(
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
 
-    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-    if not adapter_manager:
-        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
 
     success = await api_key_service.update_api_key_metadata(
         api_key_id,
@@ -515,9 +476,7 @@ async def get_adapter_capabilities(
     request: Request,
 ):
     """Return adapter capability metadata relevant to admin operations."""
-    adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-    if not adapter_manager:
-        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
     if not adapter_manager:
         raise HTTPException(status_code=503, detail="Adapter manager is not available")
 
@@ -1587,7 +1546,7 @@ async def get_server_info(
     
     return {
         "pid": os.getpid(),
-        "version": "2.7.8",
+        "version": "2.7.11",
         "status": "running"
     }
 

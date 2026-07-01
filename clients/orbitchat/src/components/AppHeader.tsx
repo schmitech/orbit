@@ -15,8 +15,10 @@ import { AuthStatus } from './AuthStatus';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAgentHomeNav } from '../hooks/useAgentHomeNav';
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export function AppHeader() {
+  const { t } = useTranslation();
   const { goHome } = useAgentHomeNav();
   const { isDark } = useTheme();
   const homeHref = getAppHomePath();
@@ -61,7 +63,7 @@ export function AppHeader() {
           {logoUrl && (
             <a
               href={homeHref}
-              aria-label="Go to home page"
+              aria-label={t('appHeader.homeLinkAriaLabel')}
               onClick={(event) => {
                 event.preventDefault();
                 goHome();
@@ -70,7 +72,7 @@ export function AppHeader() {
             >
               <img
                 src={logoUrl}
-                alt="Logo"
+                alt={t('appHeader.logoAlt')}
                 draggable={false}
                 className={`block max-w-full flex-shrink-0 select-none ${hasCustomLogoDimensions ? '' : 'h-8 w-auto sm:h-10 md:h-11'}`.trim()}
                 style={{
@@ -84,7 +86,7 @@ export function AppHeader() {
         </div>
         <div className="hidden min-w-0 flex-1 items-center justify-end gap-2 sm:gap-4 md:flex">
           {navLinks.length > 0 && (
-            <nav aria-label="Header links" className="hidden sm:block">
+            <nav aria-label={t('appHeader.navLinksAriaLabel')} className="hidden sm:block">
               <ul className="flex items-center gap-1.5 sm:gap-2">
                 {navLinks.map((link) => (
                   <li key={link.url}>

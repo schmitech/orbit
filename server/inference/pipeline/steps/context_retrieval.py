@@ -53,18 +53,17 @@ class ContextRetrievalStep(PipelineStep):
         if not self.container.has('adapter_manager'):
             logger.debug(
                 "Adapter manager not available, skipping capability initialization. "
-                "Capabilities will be inferred on-demand."
+                "Adapters without registered capabilities will skip retrieval."
             )
             return
 
         adapter_manager = self.container.get('adapter_manager')
 
-        # Use public API so this works with any adapter manager implementation
         if not (hasattr(adapter_manager, 'get_available_adapters') and
                 hasattr(adapter_manager, 'get_adapter_config')):
             logger.debug(
                 "Adapter manager lacks get_available_adapters/get_adapter_config, "
-                "skipping capability initialization. Capabilities will be inferred on-demand."
+                "skipping capability initialization."
             )
             return
 
@@ -76,52 +75,14 @@ class ContextRetrievalStep(PipelineStep):
             if 'capabilities' in adapter_config:
                 self._capability_registry.register_from_config(adapter_name, adapter_config)
             else:
-                capabilities = self._infer_capabilities(adapter_config)
-                self._capability_registry.register(adapter_name, capabilities)
+                logger.warning(
+                    f"Adapter '{adapter_name}' has no capabilities configuration; "
+                    "context retrieval will be skipped for this adapter."
+                )
 
         logger.info(
             f"Initialized capabilities for {len(adapter_names)} adapters"
         )
-
-    def _infer_capabilities(self, adapter_config: Dict[str, Any], adapter_name: Optional[str] = None) -> AdapterCapabilities:
-        """
-        Infer adapter capabilities from configuration.
-
-        This provides backward compatibility for adapters that don't
-        explicitly declare capabilities in their config.
-
-        Args:
-            adapter_config: Adapter configuration dictionary
-            adapter_name: Optional adapter name for threading detection
-
-        Returns:
-            Inferred AdapterCapabilities
-        """
-        adapter_type = adapter_config.get('type', 'retriever')
-        adapter_impl = adapter_config.get('adapter', '')
-        
-        # Use provided adapter_name or get from config
-        if not adapter_name:
-            adapter_name = adapter_config.get('name', '')
-
-        # Image and video generation adapters never need context retrieval
-        if adapter_type in ('image_generation', 'video_generation'):
-            return AdapterCapabilities.for_passthrough(supports_file_retrieval=False)
-
-        # Passthrough adapters
-        if adapter_type == 'passthrough':
-            if adapter_impl == 'multimodal':
-                return AdapterCapabilities.for_passthrough(supports_file_retrieval=True)
-            else:
-                return AdapterCapabilities.for_passthrough(supports_file_retrieval=False)
-
-        # File adapters
-        if adapter_impl == 'file' or 'file' in adapter_name.lower():
-            return AdapterCapabilities.for_file_adapter()
-
-        # Standard retriever adapters (QA, Intent, etc.). Feature flags should
-        # come from explicit adapter capabilities config when present.
-        return AdapterCapabilities.for_standard_retriever()
 
     def _get_capabilities(self, adapter_name: str) -> Optional[AdapterCapabilities]:
         """
@@ -136,32 +97,30 @@ class ContextRetrievalStep(PipelineStep):
         capabilities = self._capability_registry.get(adapter_name)
 
         if not capabilities:
-            # Try to get from adapter manager if not in registry
             if self.container.has('adapter_manager'):
                 adapter_manager = self.container.get('adapter_manager')
                 adapter_config = adapter_manager.get_adapter_config(adapter_name)
 
                 if adapter_config:
                     try:
-                        # Prefer explicit capabilities config over inference
                         if 'capabilities' in adapter_config:
                             self._capability_registry.register_from_config(adapter_name, adapter_config)
                             capabilities = self._capability_registry.get(adapter_name)
+                            logger.debug(
+                                f"Registered capabilities for adapter: {adapter_name}"
+                            )
                         else:
-                            capabilities = self._infer_capabilities(adapter_config, adapter_name)
-                            self._capability_registry.register(adapter_name, capabilities)
-                        logger.debug(
-                            f"Inferred and registered capabilities for adapter: {adapter_name}"
-                        )
+                            logger.warning(
+                                f"Adapter '{adapter_name}' has no capabilities configuration."
+                            )
                     except Exception as e:
                         logger.warning(
-                            f"Failed to infer capabilities for adapter '{adapter_name}': {e}. "
-                            "Using default behavior."
+                            f"Failed to register capabilities for adapter '{adapter_name}': {e}."
                         )
                 else:
                     logger.warning(
                         f"Adapter configuration not found for '{adapter_name}'. "
-                        "Capabilities cannot be inferred."
+                        "Capabilities are unavailable."
                     )
 
         return capabilities
@@ -193,16 +152,11 @@ class ContextRetrievalStep(PipelineStep):
         capabilities = self._get_capabilities(context.adapter_name)
 
         if not capabilities:
-            # No capabilities found - assume standard retrieval for backward compatibility
             logger.warning(
                 f"No capabilities found for adapter '{context.adapter_name}'. "
-                "This may indicate: "
-                "1) Adapter not registered in capability registry, "
-                "2) Adapter configuration missing, or "
-                "3) Capability inference failed. "
-                "Assuming standard retrieval behavior (ALWAYS, STANDARD formatting)."
+                "Skipping context retrieval."
             )
-            return True
+            return False
 
         # Use capabilities to determine if retrieval should execute
         return capabilities.should_retrieve(context)
@@ -388,25 +342,9 @@ class ContextRetrievalStep(PipelineStep):
             Dictionary of kwargs
         """
         if capabilities:
-            # Use capabilities to build kwargs
             return capabilities.build_retriever_kwargs(context)
 
-        # Fallback: build kwargs manually for backward compatibility
-        kwargs = {}
-
-        # Always include api_key if present
-        if context.api_key:
-            kwargs['api_key'] = context.api_key
-
-        # Include file_ids if present (for backward compatibility)
-        if context.file_ids:
-            kwargs['file_ids'] = context.file_ids
-
-        # Include session_id if present
-        if context.session_id:
-            kwargs['session_id'] = context.session_id
-
-        return kwargs
+        return {}
 
     def _apply_language_boost(
         self,

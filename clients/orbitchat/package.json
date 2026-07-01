@@ -1,7 +1,7 @@
 {
   "name": "orbitchat",
   "private": false,
-  "version": "3.10.6",
+  "version": "3.10.9",
   "type": "module",
   "bin": {
     "orbitchat": "./bin/orbitchat.js",
@@ -21,6 +21,9 @@
     "lint:app": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "test": "node --test 'tests/**/*.test.js'",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
@@ -34,14 +37,16 @@
     "express": "^5.0.1",
     "express-rate-limit": "^8.2.1",
     "http-proxy-middleware": "^3.0.5",
+    "i18next": "^26.3.4",
     "js-yaml": "^4.1.1",
     "katex": "^0.16.27",
     "lucide-react": "^0.469.0",
-    "mermaid": "^11.12.2",
+    "mermaid": "11.15.0",
     "papaparse": "^5.5.3",
     "path": "^0.12.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-i18next": "^17.0.8",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^15.6.6",
     "read-excel-file": "^9.0.10",
@@ -60,6 +65,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.61.1",
     "@types/express": "^5.0.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.0.1",

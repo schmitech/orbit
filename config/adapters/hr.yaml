@@ -11,8 +11,8 @@ adapters:
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
     database: "examples/intent-templates/sql-intent-template/sqlite/hr/hr.db"
     # Provider overrides - intent adapters benefit from powerful models
-    inference_provider: "ollama_cloud"    # Cloud LLM for complex intent classification
-    model: "gpt-oss:120b"
+    inference_provider: "gemini"    # Cloud LLM for complex intent classification
+    model: "gemini-3.1-pro-preview"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
@@ -22,9 +22,6 @@ adapters:
       - name: "llama-cpp-gemma4"
         provider: "llama_cpp"
         model: "gemma4-e2b-direct-cpu"
-      - name: "ollama-gemma4-e2b"
-        provider: "ollama"
-        model: "gemma4-e2b-cpu"
       - name: "gpt-oss-120b"
         provider: "ollama_cloud"
         model: "gpt-oss:120b"
@@ -37,6 +34,9 @@ adapters:
       - name: "gemini-3.1-pro-preview"
         provider: "gemini"
         model: "gemini-3.1-pro-preview"
+      - name: "nemotron-3-ultra"
+        provider: "openrouter"
+        model: "nvidia/nemotron-3-ultra-550b-a55b"
     capabilities:
       expose_as_skill: true
       skill_name: "HR"

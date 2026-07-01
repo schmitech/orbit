@@ -1,5 +1,48 @@
 # Changelog
 
+## [2.7.11] - 2026-06-30
+
+### Core System Updates
+- **Docker Publishing**: Built production Docker images from stable release artifacts by default, with opt-in checkout and local tarball modes for development and release testing, plus provider-specific config overlays and runtime secret guidance.
+- **SQLite Auth Sync**: Added SQLite-to-SQLite auth sync for migrating personas and API keys from a backup database into a fresh SQLite database.
+- **Release Guidance**: Updated deployment guidance to emphasize installing the latest stable release in production environments.
+
+### Bug Fixes & Technical Improvements
+- **Azure Tool Calling**: Implemented `generate_with_tools` in `AzureOpenAIInferenceService` to prevent Azure tool-calling requests from failing with `NotImplementedError`.
+- **Anthropic Sampling Params**: Removed `temperature` and `top_p` from Anthropic inference and reranking requests and configs, fixing `400 invalid_request_error` failures from Claude models that no longer accept these parameters.
+- **Docker Runtime Defaults**: Added Ollama readiness controls, corrected direct-run commands for host Ollama, and preserved the default admin password environment value for first-run containers.
+- **Technical Debt Cleanup**: Removed deprecated and backward-compatible code, trimming unused paths across the codebase.
+
+## [2.7.10] - 2026-06-28
+
+### Core System Updates
+- **Chart Rendering**: Added chart rendering to generated PDF, DOCX, and PPTX documents, embedding section-level charts as higher-resolution PNG images with support for bar, line, pie, area, and composed dual-axis charts.
+- **Node API**: Brought the Node API client into parity with server routes by adding media fields, model and skill params, new response interfaces, and the corrected deactivate-api-key route.
+- **orbitchat v3.10.9**: Published the latest chat client release.
+
+### Chat-app & UI Improvements
+- **Export Toolbar**: Added copy-code and PNG export actions for charts and Mermaid diagrams, then extended the toolbar to SVG and ABC renderers.
+
+### Bug Fixes & Technical Improvements
+- **Azure Tool Calling**: Implemented `generate_with_tools` in `AzureOpenAIInferenceService`, resolving a `NotImplementedError` when tool-calling was invoked with the Azure provider.
+- **PDF Rendering**: Rendered emojis correctly in PDFs instead of replacement characters.
+- **Regression Fixes**: Cleaned up unit test regressions, including the vision config key and streaming audio mock behavior.
+- **SQLite Thread Datasets**: Added the missing `thread_datasets` table and indexes to SQLite initialization so database fallback storage for conversation thread datasets is available.
+
+### Documentation & Configuration
+- **Integration Guides**: Added Open WebUI integration instructions and a LiteLLM comparison guide.
+- **README Cleanup**: Streamlined the README for faster scanning and better front-loading of the main value proposition.
+
+## [2.7.9] - 2026-06-26
+
+### Core System Updates
+- **LiteLLM Integration**: Added LiteLLM support for ORBIT's OpenAI-compatible endpoint with standalone, Python SDK, and Docker proxy setup guidance, plus a ready-to-use proxy config and minimal inference-only deployment notes.
+- **Azure OpenAI**: Added Azure OpenAI integration instructions and updated Azure settings, including logging changes and safer defaults.
+
+### Bug Fixes & Technical Improvements
+- **Intent Extraction**: Improved domain extractor parameter handling for relative day values, directional decimal bounds, and required-parameter fallback behavior, with new examples to keep timeless queries from hitting overly specific templates.
+- **MCP Client**: Added HTTP transport support to the MCP client while preserving transport-specific timeouts and redirect behavior, and introduced token shorthand plus shared header expansion across transports.
+
 ## [2.7.8] - 2026-06-24
 
 ### Bug Fixes & Technical Improvements

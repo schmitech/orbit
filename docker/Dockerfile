@@ -91,9 +91,16 @@ COPY install/default-config/ /orbit/config/
 COPY docker/config/config.yaml.minimal /orbit/config/config.yaml
 COPY docker/config/adapters.yaml.minimal /orbit/config/adapters.yaml
 COPY docker/config/adapters/passthrough.yaml.minimal /orbit/config/adapters/passthrough.yaml
+COPY docker/config-custom/ /tmp/orbit-config-custom/
+RUN if find /tmp/orbit-config-custom -type f ! -name ".gitkeep" | grep -q .; then \
+        cp -R /tmp/orbit-config-custom/. /orbit/config/; \
+    fi && \
+    rm -rf /tmp/orbit-config-custom
 
-# Create .env file from env.example (same as tarball approach)
-COPY env.example /orbit/.env
+# Keep the env template for reference, but do not create /orbit/.env in Docker.
+# Runtime environment variables from docker run, --env-file, Compose, or
+# orchestrator secrets must remain the source of truth for provider keys.
+COPY env.example /orbit/env.example
 
 # Make scripts executable
 RUN chmod +x /orbit/bin/orbit.py /orbit/bin/orbit.sh
@@ -109,6 +116,7 @@ COPY install/orbit.db.default /orbit/orbit.db.default
 ENV PYTHONPATH=/orbit:/orbit/server
 ENV PATH="/orbit/bin:${PATH}"
 ENV ENVIRONMENT=production
+ENV ORBIT_DEFAULT_ADMIN_PASSWORD=admin123
 
 # ═══════════════════════════════════════════════════════════════════════════
 # GPU/CPU Auto-Detection Configuration

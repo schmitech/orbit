@@ -15,11 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class DomainParameterExtractor:
-    """
-    Facade class that orchestrates parameter extraction using composable services.
-    This is a refactored version that maintains backward compatibility while using
-    the new modular components.
-    """
+    """Facade class that orchestrates parameter extraction using composable services."""
 
     def __init__(self, inference_client, domain_config: Optional[Dict[str, Any]] = None, domain_strategy=None):
         """Initialize the domain parameter extractor"""
@@ -67,10 +63,7 @@ class DomainParameterExtractor:
         logger.debug("Initialized DomainParameterExtractor with %d patterns", len(self.patterns))
 
     async def extract_parameters(self, user_query: str, template: Dict) -> Dict[str, Any]:
-        """
-        Extract parameters from user query for a given template.
-        Maintains backward compatibility with the original interface.
-        """
+        """Extract parameters from user query for a given template."""
         parameters = {}
         template_params = template.get('parameters', [])
 
@@ -80,8 +73,8 @@ class DomainParameterExtractor:
         # Map extracted values to template parameters
         for param in template_params:
             param_name = param['name']
-            # Handle both 'type' and 'data_type' for backward compatibility
-            param_type = param.get('type') or param.get('data_type', 'string')
+            param_type = param.get('type', 'string')
+            normalized_type = str(param_type or 'string').lower()
 
             # Check if we have a direct match
             value = None
@@ -96,6 +89,16 @@ class DomainParameterExtractor:
                     value = extracted_values[key]
             elif param_name in extracted_values:
                 value = extracted_values[param_name]
+            elif normalized_type not in {'string', 'str', 'text', 'varchar', 'char', 'enum'}:
+                # Try matching entity.field keys by converting dot to underscore
+                # e.g. first-pass stores "order.id" but param is named "order_id"
+                # Skip string types: their first-pass extraction uses IGNORECASE regex
+                # which can greedily match the whole query; _extract_generic_parameter
+                # handles them correctly via case-sensitive patterns.
+                for key, val in extracted_values.items():
+                    if '.' in key and key.replace('.', '_') == param_name:
+                        value = val
+                        break
 
             # If no value found through patterns, try context extraction
             if value is None and entity and field:
@@ -154,7 +157,7 @@ class DomainParameterExtractor:
                         user_query, param, template_desc
                     )
                     if value is not None:
-                        param_type = param.get('type') or param.get('data_type', 'string')
+                        param_type = param.get('type', 'string')
                         coerced = self._coerce_parameter_value(value, param_type, param['name'])
                         if coerced is None and value is not None:
                             logger.debug(

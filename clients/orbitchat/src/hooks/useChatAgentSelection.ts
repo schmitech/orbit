@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ApiRequestError, getApi } from '../apiClient';
 import { useChatStore, debouncedSaveToLocalStorage } from '../stores/chatStore';
 import type { Conversation } from '../types';
@@ -25,9 +26,6 @@ interface UseChatAgentSelectionOptions {
 type AdapterInfoFetchResult = { ok: true } | { ok: false; error?: unknown };
 type AdapterNotesErrorState = { conversationId: string; message: string } | null;
 
-const missingSingleAdapterMessage =
-  'Single adapter mode requires agentMode.defaultAdapterId to match an adapter id in orbitchat.yaml.';
-
 export function useChatAgentSelection({
   currentConversation,
   showEmptyState,
@@ -36,6 +34,8 @@ export function useChatAgentSelection({
   clearError,
   clearCurrentConversationAdapter
 }: UseChatAgentSelectionOptions) {
+  const { t } = useTranslation();
+  const missingSingleAdapterMessage = t('agent.error.singleAdapterMissing');
   const [isConfiguringAdapter, setIsConfiguringAdapter] = useState(false);
   const [adapterNotesAsyncError, setAdapterNotesAsyncError] = useState<AdapterNotesErrorState>(null);
   const isSingleAdapterMode = getIsSingleAdapterMode();
@@ -73,7 +73,7 @@ export function useChatAgentSelection({
     if (!conversationId) {
       return;
     }
-    const friendlyMessage = message || 'Unable to configure this agent.';
+    const friendlyMessage = message || t('agent.error.configurationFailed');
     let updated = false;
     useChatStore.setState(state => {
       const target = state.conversations.find(conv => conv.id === conversationId);
@@ -92,7 +92,7 @@ export function useChatAgentSelection({
     if (updated) {
       persistChatState();
     }
-  }, [persistChatState]);
+  }, [persistChatState, t]);
 
   const clearConversationAdapterError = useCallback((conversationId?: string) => {
     if (!conversationId) {
@@ -121,18 +121,18 @@ export function useChatAgentSelection({
   const getAdapterInfoErrorMessage = useCallback((error: unknown): string => {
     if (error instanceof ApiRequestError) {
       if (error.status === 401) {
-        return 'We couldn’t load this agent. It may not exist or you might not have access to it.';
+        return t('agent.error.authenticationFailed');
       }
       if (error.status === 404) {
-        return 'This agent was not found on the server. Please pick another agent.';
+        return t('agent.error.notFound');
       }
       return error.message;
     }
     if (error instanceof Error) {
       return error.message;
     }
-    return 'Unable to load agent overview right now.';
-  }, []);
+    return t('agent.error.loadFailed');
+  }, [t]);
 
   const ensureConversationReadyForAgent = useCallback((): string | null => {
     const state = useChatStore.getState();
@@ -391,13 +391,21 @@ export function useChatAgentSelection({
     setPendingInitialPathSlug(null);
   }, [clearCurrentConversationAdapter, ensureConversationReadyForAgent, handleEmptyStateAdapterChange, isSingleAdapterMode]);
 
+  // Keep a ref to the latest synchronizeFromLocation so the mount/popstate effect below
+  // doesn't rerun (and re-sync the route) every time an unrelated dependency — like the
+  // `t` function identity changing on language switch — recreates the callback chain.
+  const synchronizeFromLocationRef = useRef(synchronizeFromLocation);
+  useEffect(() => {
+    synchronizeFromLocationRef.current = synchronizeFromLocation;
+  }, [synchronizeFromLocation]);
+
   useEffect(() => {
     const syncTimer = window.setTimeout(() => {
-      void synchronizeFromLocation();
+      void synchronizeFromLocationRef.current();
     }, 0);
 
     const handlePopState = () => {
-      void synchronizeFromLocation();
+      void synchronizeFromLocationRef.current();
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -406,7 +414,7 @@ export function useChatAgentSelection({
       locationSyncVersionRef.current += 1;
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [synchronizeFromLocation]);
+  }, []);
 
   const singleAdapterConversationId = currentConversation?.id;
   const singleAdapterConversationAdapterName = currentConversation?.adapterName;

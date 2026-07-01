@@ -49,8 +49,8 @@ class DependencyCacheCleaner:
             provider_cache: Provider cache manager
             embedding_cache: Embedding cache manager
             reranker_cache: Reranker cache manager
-            vision_cache: Vision cache manager (optional for backward compatibility)
-            audio_cache: Audio cache manager (optional for backward compatibility)
+            vision_cache: Optional vision cache manager
+            audio_cache: Optional audio cache manager
             app_state: FastAPI app state for accessing store_manager and datasource_registry
         """
         self.config = config
@@ -230,8 +230,8 @@ class DependencyCacheCleaner:
         AIServiceFactory.clear_cache(service_type=ServiceType.EMBEDDING, provider=old_embedding_provider)
         logger.debug(f"Cleared AIServiceFactory embedding cache for provider '{old_embedding_provider}'")
 
-        # Also clear the EmbeddingServiceFactory cache for this provider
-        # This is a third cache layer used by the legacy embedding system
+        # Also clear the EmbeddingServiceFactory cache for this provider.
+        # Retrievers may hold shared instances from this factory in addition to cache manager entries.
         try:
             factory_instances = EmbeddingServiceFactory.get_cached_instances()
             keys_to_remove = [k for k in factory_instances.keys() if k.startswith(f"{old_embedding_provider}:")]
@@ -262,7 +262,7 @@ class DependencyCacheCleaner:
 
         # If no adapter-specific provider, use global default only for retrieval adapters.
         if not old_reranker_provider and uses_retrieval_services(adapter_config):
-            # Check for reranker provider_override, or fallback to inference provider
+            # Check for reranker provider_override, then the configured reranker provider.
             reranker_config = self.config.get('reranker', {})
             old_reranker_provider = reranker_config.get('provider_override') or reranker_config.get('provider')
             if old_reranker_provider:

@@ -1,8 +1,7 @@
 """
 Unified Provider Factory
 
-This factory creates LLM providers using the new unified AI services architecture,
-while maintaining backward compatibility with the existing pipeline interface.
+This factory creates LLM providers using the new unified AI services architecture.
 """
 
 import logging

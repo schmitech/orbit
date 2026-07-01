@@ -47,6 +47,7 @@ class TestStreamingHandler:
         """Mock audio handler."""
         handler = AsyncMock(spec=AudioHandler)
         handler.generate_audio = AsyncMock(return_value=(b'audio_data', 'mp3'))
+        handler.generate_audio_streaming = AsyncMock(side_effect=AttributeError("no streaming"))
         return handler
 
     def test_initialization(self, base_config, mock_audio_handler):

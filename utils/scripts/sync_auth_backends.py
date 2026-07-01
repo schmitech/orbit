@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Sync api_keys and system_prompts between SQLite and MongoDB backends.
+"""Sync api_keys and system_prompts between auth backends.
 
 Copies the `api_keys` and `system_prompts` collections between the Orbit
-SQLite backend (default: orbit.db) and the MongoDB `orbit` database so
-both backends stay in sync when switching `internal_services.backend.type`.
+SQLite backend (default: orbit.db) and the MongoDB or PostgreSQL `orbit`
+database, or between two SQLite database files, so backends stay in sync when
+switching `internal_services.backend.type` or rebuilding a fresh SQLite
+database after schema changes.
 
 Matching is done on natural unique keys:
   - system_prompts.name
@@ -22,6 +24,14 @@ Loads `.env` from the project root for MongoDB credentials:
   INTERNAL_SERVICES_MONGODB_PASSWORD
   INTERNAL_SERVICES_MONGODB_DB   (default: orbit)
 
+Loads `.env` from the project root for PostgreSQL credentials:
+  INTERNAL_SERVICES_POSTGRES_HOST
+  INTERNAL_SERVICES_POSTGRES_PORT
+  INTERNAL_SERVICES_POSTGRES_USERNAME
+  INTERNAL_SERVICES_POSTGRES_PASSWORD
+  INTERNAL_SERVICES_POSTGRES_DB       (default: orbit)
+  INTERNAL_SERVICES_POSTGRES_SSLMODE  (default: prefer)
+
 Usage
 -----
 Run with the project venv activated.
@@ -29,15 +39,22 @@ Run with the project venv activated.
   # Copy SQLite -> MongoDB (upsert into MongoDB)
   python sync_auth_backends.py --direction sqlite-to-mongo
 
+  # Copy SQLite -> PostgreSQL (upsert into PostgreSQL)
+  python sync_auth_backends.py --direction sqlite-to-postgres
+
   # Copy MongoDB -> SQLite (upsert into SQLite)
   python sync_auth_backends.py --direction mongo-to-sqlite
 
-  # Dry run (show what would change, do not write)
-  python sync_auth_backends.py --direction sqlite-to-mongo --dry-run
+  # Copy SQLite -> SQLite (upsert into destination SQLite)
+  python sync_auth_backends.py --direction sqlite-to-sqlite \
+      --source-db ./orbit.db.bak --dest-db ./orbit.db
 
-  # Custom SQLite path / Mongo database
-  python sync_auth_backends.py --direction mongo-to-sqlite \
-      --db /path/to/orbit.db --mongo-db orbit
+  # Dry run (show what would change, do not write)
+  python sync_auth_backends.py --direction sqlite-to-postgres --dry-run
+
+  # Custom SQLite path / backend database
+  python sync_auth_backends.py --direction sqlite-to-postgres \
+      --db /path/to/orbit.db --postgres-db orbit
 
 Only upserts are performed. Records present in the destination but absent
 from the source are left untouched; pass --delete-missing to remove them.
@@ -86,6 +103,17 @@ def build_mongo_uri() -> Tuple[str, str]:
     else:
         uri = f"mongodb://{host}:{port}/{db}"
     return uri, db
+
+
+def build_postgres_config(postgres_db: Optional[str] = None) -> Dict[str, Any]:
+    return {
+        "host": os.getenv("INTERNAL_SERVICES_POSTGRES_HOST", "localhost"),
+        "port": int(os.getenv("INTERNAL_SERVICES_POSTGRES_PORT", "5432")),
+        "dbname": postgres_db or os.getenv("INTERNAL_SERVICES_POSTGRES_DB", "orbit"),
+        "user": os.getenv("INTERNAL_SERVICES_POSTGRES_USERNAME", "postgres"),
+        "password": os.getenv("INTERNAL_SERVICES_POSTGRES_PASSWORD", ""),
+        "sslmode": os.getenv("INTERNAL_SERVICES_POSTGRES_SSLMODE", "prefer"),
+    }
 
 
 def to_sqlite_value(v: Any) -> Any:
@@ -162,7 +190,10 @@ def get_sqlite_table_columns(conn: sqlite3.Connection, table: str) -> List[str]:
 
 
 def read_sqlite_prompts(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
-    cur = conn.execute("SELECT id, name, prompt, version, created_at, updated_at FROM system_prompts")
+    desired_cols = ["id", *PROMPT_FIELDS]
+    available_cols = set(get_sqlite_table_columns(conn, "system_prompts"))
+    cols = [col for col in desired_cols if col in available_cols]
+    cur = conn.execute("SELECT " + ", ".join(cols) + " FROM system_prompts")
     return [sqlite_row_to_prompt(r) for r in cur.fetchall()]
 
 
@@ -185,6 +216,19 @@ def mongo_id_str(v: Any) -> Optional[str]:
     if isinstance(v, ObjectId):
         return str(v)
     return str(v)
+
+
+def postgres_row_to_prompt(row: Dict[str, Any]) -> Dict[str, Any]:
+    return {f: row.get(f) for f in ["id", *PROMPT_FIELDS] if f in row}
+
+
+def postgres_row_to_api_key(row: Dict[str, Any]) -> Dict[str, Any]:
+    doc = {f: row.get(f) for f in ["id", *API_KEY_FIELDS] if f in row}
+    if doc.get("active") is not None:
+        doc["active"] = bool(doc["active"])
+    if doc.get("quota_throttle_enabled") is not None:
+        doc["quota_throttle_enabled"] = bool(doc["quota_throttle_enabled"])
+    return doc
 
 
 # --- SQLite -> MongoDB -------------------------------------------------------
@@ -283,26 +327,27 @@ def sync_sqlite_to_mongo(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
 
 def upsert_sqlite_prompt(conn: sqlite3.Connection, existing: Optional[sqlite3.Row], doc: Dict[str, Any], dry_run: bool) -> str:
     """Upsert a system_prompts row. Returns the row's id."""
+    available_cols = set(get_sqlite_table_columns(conn, "system_prompts"))
     if existing:
-        fields = [f for f in PROMPT_FIELDS if doc.get(f) is not None]
+        fields = [f for f in PROMPT_FIELDS if f in available_cols and f in doc and doc.get(f) is not None]
         set_clause = ", ".join(f"{f} = ?" for f in fields)
         params = [to_sqlite_value(doc[f]) for f in fields] + [existing["id"]]
-        if not dry_run:
+        if not dry_run and fields:
             conn.execute(f"UPDATE system_prompts SET {set_clause} WHERE id = ?", params)
         return existing["id"]
     new_id = doc.get("_sqlite_id") or str(uuid.uuid4())
+    insert_values = {
+        "name": doc.get("name"),
+        "prompt": doc.get("prompt"),
+        "version": doc.get("version") or "1.0",
+        "created_at": to_sqlite_value(doc.get("created_at")) or now_iso(),
+        "updated_at": to_sqlite_value(doc.get("updated_at")) or now_iso(),
+    }
+    cols = [col for col in PROMPT_FIELDS if col in available_cols and col in insert_values]
     if not dry_run:
         conn.execute(
-            "INSERT INTO system_prompts (id, name, prompt, version, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                new_id,
-                doc.get("name"),
-                doc.get("prompt"),
-                doc.get("version") or "1.0",
-                to_sqlite_value(doc.get("created_at")) or now_iso(),
-                to_sqlite_value(doc.get("updated_at")) or now_iso(),
-            ),
+            "INSERT INTO system_prompts (id, " + ", ".join(cols) + ") VALUES (?" + ", ?" * len(cols) + ")",
+            [new_id, *[insert_values[col] for col in cols]],
         )
     return new_id
 
@@ -315,7 +360,7 @@ def upsert_sqlite_api_key(conn: sqlite3.Connection, existing: Optional[sqlite3.R
         "quota_throttle_enabled", "quota_throttle_priority",
     ]
     available_cols = set(get_sqlite_table_columns(conn, "api_keys"))
-    cols = [col for col in desired_cols if col in available_cols]
+    cols = [col for col in desired_cols if col in available_cols and col in doc]
     vals = []
     for c in cols:
         v = doc.get(c)
@@ -451,6 +496,405 @@ def sync_mongo_to_sqlite(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
     print(f"  api_keys: inserted={inserted} updated={updated} unchanged={unchanged}")
 
 
+# --- SQLite -> PostgreSQL ----------------------------------------------------
+
+def ensure_postgres_auth_schema(pg_conn) -> None:
+    pg_conn.execute("""
+        CREATE TABLE IF NOT EXISTS system_prompts (
+            id TEXT PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            prompt TEXT NOT NULL,
+            version TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    pg_conn.execute("""
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id TEXT PRIMARY KEY,
+            api_key TEXT UNIQUE NOT NULL,
+            client_name TEXT NOT NULL,
+            notes TEXT,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            adapter_name TEXT,
+            system_prompt_id TEXT,
+            quota_daily_limit INTEGER,
+            quota_monthly_limit INTEGER,
+            quota_throttle_enabled INTEGER,
+            quota_throttle_priority INTEGER
+        )
+    """)
+    pg_conn.execute("CREATE INDEX IF NOT EXISTS idx_system_prompts_name ON system_prompts(name)")
+    pg_conn.execute("CREATE INDEX IF NOT EXISTS idx_api_keys_api_key ON api_keys(api_key)")
+
+
+def postgres_table_exists(pg_conn, table: str) -> bool:
+    row = pg_conn.execute("SELECT to_regclass(%s) AS table_name", (table,)).fetchone()
+    return bool(row and row.get("table_name"))
+
+
+def read_postgres_prompts(pg_conn) -> List[Dict[str, Any]]:
+    if not postgres_table_exists(pg_conn, "system_prompts"):
+        return []
+    rows = pg_conn.execute(
+        "SELECT id, name, prompt, version, created_at, updated_at FROM system_prompts"
+    ).fetchall()
+    return [postgres_row_to_prompt(row) for row in rows]
+
+
+def read_postgres_api_keys(pg_conn) -> List[Dict[str, Any]]:
+    if not postgres_table_exists(pg_conn, "api_keys"):
+        return []
+    rows = pg_conn.execute(
+        """
+        SELECT id, api_key, client_name, notes, active, created_at, adapter_name,
+               system_prompt_id, quota_daily_limit, quota_monthly_limit,
+               quota_throttle_enabled, quota_throttle_priority
+        FROM api_keys
+        """
+    ).fetchall()
+    return [postgres_row_to_api_key(row) for row in rows]
+
+
+def upsert_postgres_prompt(pg_conn, existing: Optional[Dict[str, Any]], doc: Dict[str, Any], dry_run: bool) -> str:
+    if existing:
+        fields = [f for f in PROMPT_FIELDS if f in doc and doc.get(f) is not None]
+        if fields and not dry_run:
+            set_clause = ", ".join(f'"{f}" = %s' for f in fields)
+            pg_conn.execute(
+                f"UPDATE system_prompts SET {set_clause} WHERE id = %s",
+                [*[doc[f] for f in fields], existing["id"]],
+            )
+        return existing["id"]
+
+    new_id = doc.get("_postgres_id") or str(uuid.uuid4())
+    values = {
+        "name": doc.get("name"),
+        "prompt": doc.get("prompt"),
+        "version": doc.get("version") or "1.0",
+        "created_at": doc.get("created_at") or now_iso(),
+        "updated_at": doc.get("updated_at") or now_iso(),
+    }
+    if not dry_run:
+        pg_conn.execute(
+            """
+            INSERT INTO system_prompts (id, name, prompt, version, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            [
+                new_id,
+                values["name"],
+                values["prompt"],
+                values["version"],
+                values["created_at"],
+                values["updated_at"],
+            ],
+        )
+    return new_id
+
+
+def upsert_postgres_api_key(pg_conn, existing: Optional[Dict[str, Any]], doc: Dict[str, Any], dry_run: bool) -> str:
+    desired_cols = [
+        "api_key", "client_name", "notes", "active", "created_at",
+        "adapter_name", "system_prompt_id",
+        "quota_daily_limit", "quota_monthly_limit",
+        "quota_throttle_enabled", "quota_throttle_priority",
+    ]
+    values = dict(doc)
+    for key in ("active", "quota_throttle_enabled"):
+        if values.get(key) is not None:
+            values[key] = 1 if to_bool(values[key]) else 0
+
+    if existing:
+        fields = [f for f in desired_cols if f in values]
+        if fields and not dry_run:
+            set_clause = ", ".join(f'"{f}" = %s' for f in fields)
+            pg_conn.execute(
+                f"UPDATE api_keys SET {set_clause} WHERE id = %s",
+                [*[values.get(f) for f in fields], existing["id"]],
+            )
+        return existing["id"]
+
+    new_id = values.get("_postgres_id") or str(uuid.uuid4())
+    insert_values = {
+        "api_key": values.get("api_key"),
+        "client_name": values.get("client_name"),
+        "notes": values.get("notes"),
+        "active": values.get("active") if values.get("active") is not None else 1,
+        "created_at": values.get("created_at") or now_iso(),
+        "adapter_name": values.get("adapter_name"),
+        "system_prompt_id": values.get("system_prompt_id"),
+        "quota_daily_limit": values.get("quota_daily_limit"),
+        "quota_monthly_limit": values.get("quota_monthly_limit"),
+        "quota_throttle_enabled": values.get("quota_throttle_enabled"),
+        "quota_throttle_priority": values.get("quota_throttle_priority"),
+    }
+    if not dry_run:
+        pg_conn.execute(
+            """
+            INSERT INTO api_keys (
+                id, api_key, client_name, notes, active, created_at,
+                adapter_name, system_prompt_id, quota_daily_limit,
+                quota_monthly_limit, quota_throttle_enabled, quota_throttle_priority
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            [
+                new_id,
+                insert_values["api_key"],
+                insert_values["client_name"],
+                insert_values["notes"],
+                insert_values["active"],
+                insert_values["created_at"],
+                insert_values["adapter_name"],
+                insert_values["system_prompt_id"],
+                insert_values["quota_daily_limit"],
+                insert_values["quota_monthly_limit"],
+                insert_values["quota_throttle_enabled"],
+                insert_values["quota_throttle_priority"],
+            ],
+        )
+    return new_id
+
+
+def sync_sqlite_to_postgres(
+    sqlite_conn: sqlite3.Connection,
+    pg_conn,
+    dry_run: bool,
+    delete_missing: bool,
+) -> None:
+    if not dry_run:
+        ensure_postgres_auth_schema(pg_conn)
+
+    print("== Syncing system_prompts: SQLite -> PostgreSQL ==")
+    sqlite_prompts = read_sqlite_prompts(sqlite_conn)
+    postgres_prompts = read_postgres_prompts(pg_conn)
+    postgres_by_name = {p["name"]: p for p in postgres_prompts if p.get("name")}
+
+    prompt_id_map: Dict[str, str] = {}
+    inserted = updated = unchanged = 0
+
+    for p in sqlite_prompts:
+        name = p.get("name")
+        if not name:
+            continue
+        existing = postgres_by_name.get(name)
+        source_id = p.get("id")
+
+        if existing:
+            if source_id:
+                prompt_id_map[source_id] = existing["id"]
+            changed = any(
+                f in p and not values_equal(existing.get(f), p.get(f))
+                for f in PROMPT_FIELDS
+            )
+            if not changed:
+                unchanged += 1
+                continue
+            print(f"  UPDATE prompt '{name}'")
+            upsert_postgres_prompt(pg_conn, existing, p, dry_run)
+            updated += 1
+        else:
+            new_id = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+            print(f"  INSERT prompt '{name}' (id={new_id})")
+            doc = dict(p)
+            doc["_postgres_id"] = new_id
+            upsert_postgres_prompt(pg_conn, None, doc, dry_run)
+            if source_id:
+                prompt_id_map[source_id] = new_id
+            inserted += 1
+
+    if delete_missing:
+        sqlite_names = {p.get("name") for p in sqlite_prompts}
+        for p in postgres_prompts:
+            if p.get("name") not in sqlite_names:
+                print(f"  DELETE prompt '{p['name']}' (not in SQLite)")
+                if not dry_run:
+                    pg_conn.execute("DELETE FROM system_prompts WHERE id = %s", (p["id"],))
+    print(f"  prompts: inserted={inserted} updated={updated} unchanged={unchanged}")
+
+    print("== Syncing api_keys: SQLite -> PostgreSQL ==")
+    sqlite_keys = read_sqlite_api_keys(sqlite_conn)
+    postgres_keys = read_postgres_api_keys(pg_conn)
+    postgres_by_apikey = {k["api_key"]: k for k in postgres_keys if k.get("api_key")}
+
+    inserted = updated = unchanged = 0
+    for k in sqlite_keys:
+        api_key = k.get("api_key")
+        if not api_key:
+            continue
+
+        doc = dict(k)
+        source_prompt_id = k.get("system_prompt_id")
+        if source_prompt_id:
+            translated = prompt_id_map.get(source_prompt_id)
+            if translated:
+                doc["system_prompt_id"] = translated
+            else:
+                print(f"  WARN api_key {api_key[:8]}... references unknown system_prompt_id {source_prompt_id}")
+                doc["system_prompt_id"] = None
+
+        existing = postgres_by_apikey.get(api_key)
+        source_id = k.get("id")
+        doc["_postgres_id"] = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+
+        if existing:
+            changed = False
+            for f in API_KEY_FIELDS:
+                if f not in doc:
+                    continue
+                sv = existing.get(f)
+                dv = doc.get(f)
+                if f in ("active", "quota_throttle_enabled"):
+                    if (bool(sv) if sv is not None else None) != to_bool(dv):
+                        changed = True
+                        break
+                elif not values_equal(sv, dv):
+                    changed = True
+                    break
+            if not changed:
+                unchanged += 1
+                continue
+            print(f"  UPDATE api_key {api_key[:8]}...")
+            upsert_postgres_api_key(pg_conn, existing, doc, dry_run)
+            updated += 1
+        else:
+            print(f"  INSERT api_key {api_key[:8]}... (id={doc['_postgres_id']})")
+            upsert_postgres_api_key(pg_conn, None, doc, dry_run)
+            inserted += 1
+
+    if delete_missing:
+        sqlite_apikeys = {k.get("api_key") for k in sqlite_keys}
+        for k in postgres_keys:
+            if k.get("api_key") not in sqlite_apikeys:
+                print(f"  DELETE api_key {k['api_key'][:8]}... (not in SQLite)")
+                if not dry_run:
+                    pg_conn.execute("DELETE FROM api_keys WHERE id = %s", (k["id"],))
+    print(f"  api_keys: inserted={inserted} updated={updated} unchanged={unchanged}")
+
+
+# --- SQLite -> SQLite --------------------------------------------------------
+
+def sync_sqlite_to_sqlite(
+    source_conn: sqlite3.Connection,
+    dest_conn: sqlite3.Connection,
+    dry_run: bool,
+    delete_missing: bool,
+) -> None:
+    print("== Syncing system_prompts: SQLite -> SQLite ==")
+    source_prompts = read_sqlite_prompts(source_conn)
+    dest_prompts = {
+        r["name"]: r
+        for r in dest_conn.execute("SELECT * FROM system_prompts").fetchall()
+        if r["name"]
+    }
+
+    # Map source prompt id -> destination prompt id for api_keys.system_prompt_id.
+    prompt_id_map: Dict[str, str] = {}
+    inserted = updated = unchanged = 0
+
+    for p in source_prompts:
+        name = p.get("name")
+        if not name:
+            continue
+        existing = dest_prompts.get(name)
+        source_id = p.get("id")
+        if existing:
+            if source_id:
+                prompt_id_map[source_id] = existing["id"]
+            changed = any(
+                f in p and not values_equal(existing[f], p.get(f))
+                for f in PROMPT_FIELDS if f in existing.keys()
+            )
+            if not changed:
+                unchanged += 1
+                continue
+            print(f"  UPDATE prompt '{name}'")
+            upsert_sqlite_prompt(dest_conn, existing, p, dry_run)
+            updated += 1
+        else:
+            new_id = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+            print(f"  INSERT prompt '{name}' (id={new_id})")
+            doc = dict(p)
+            doc["_sqlite_id"] = new_id
+            upsert_sqlite_prompt(dest_conn, None, doc, dry_run)
+            if source_id:
+                prompt_id_map[source_id] = new_id
+            inserted += 1
+
+    if delete_missing:
+        source_names = {p.get("name") for p in source_prompts}
+        for name, row in dest_prompts.items():
+            if name not in source_names:
+                print(f"  DELETE prompt '{name}' (not in source SQLite)")
+                if not dry_run:
+                    dest_conn.execute("DELETE FROM system_prompts WHERE id = ?", (row["id"],))
+    print(f"  prompts: inserted={inserted} updated={updated} unchanged={unchanged}")
+
+    print("== Syncing api_keys: SQLite -> SQLite ==")
+    source_keys = read_sqlite_api_keys(source_conn)
+    dest_keys = {
+        r["api_key"]: r
+        for r in dest_conn.execute("SELECT * FROM api_keys").fetchall()
+        if r["api_key"]
+    }
+
+    inserted = updated = unchanged = 0
+    for k in source_keys:
+        api_key = k.get("api_key")
+        if not api_key:
+            continue
+
+        doc = dict(k)
+        source_prompt_id = k.get("system_prompt_id")
+        if source_prompt_id:
+            translated = prompt_id_map.get(source_prompt_id)
+            if translated:
+                doc["system_prompt_id"] = translated
+            else:
+                print(f"  WARN api_key {api_key[:8]}... references unknown system_prompt_id {source_prompt_id}")
+                doc["system_prompt_id"] = None
+
+        existing = dest_keys.get(api_key)
+        source_id = k.get("id")
+        doc["_sqlite_id"] = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+
+        if existing:
+            changed = False
+            for f in API_KEY_FIELDS:
+                if f not in doc or f not in existing.keys():
+                    continue
+                sv = existing[f]
+                dv = doc.get(f)
+                if f in ("active", "quota_throttle_enabled"):
+                    if (bool(sv) if sv is not None else None) != to_bool(dv):
+                        changed = True
+                        break
+                elif not values_equal(sv, dv):
+                    changed = True
+                    break
+            if not changed:
+                unchanged += 1
+                continue
+            print(f"  UPDATE api_key {api_key[:8]}...")
+            upsert_sqlite_api_key(dest_conn, existing, doc, dry_run)
+            updated += 1
+        else:
+            print(f"  INSERT api_key {api_key[:8]}... (id={doc['_sqlite_id']})")
+            upsert_sqlite_api_key(dest_conn, None, doc, dry_run)
+            inserted += 1
+
+    if delete_missing:
+        source_apikeys = {k.get("api_key") for k in source_keys}
+        for apikey, row in dest_keys.items():
+            if apikey not in source_apikeys:
+                print(f"  DELETE api_key {apikey[:8]}... (not in source SQLite)")
+                if not dry_run:
+                    dest_conn.execute("DELETE FROM api_keys WHERE id = ?", (row["id"],))
+    print(f"  api_keys: inserted={inserted} updated={updated} unchanged={unchanged}")
+
+
 def _looks_like_uuid(value: str) -> bool:
     try:
         uuid.UUID(str(value))
@@ -460,13 +904,22 @@ def _looks_like_uuid(value: str) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Sync api_keys and system_prompts between SQLite and MongoDB.")
-    parser.add_argument("--direction", required=True, choices=["sqlite-to-mongo", "mongo-to-sqlite"],
+    parser = argparse.ArgumentParser(description="Sync api_keys and system_prompts between auth backends.")
+    parser.add_argument("--direction", required=True, choices=["sqlite-to-mongo", "mongo-to-sqlite", "sqlite-to-sqlite", "sqlite-to-postgres"],
                         help="Copy direction. Destination is upserted from source.")
     parser.add_argument("-d", "--db", default=str(DEFAULT_DB),
-                        help=f"Path to SQLite database (default: {DEFAULT_DB})")
+                        help=(
+                            "Path to SQLite database for MongoDB/PostgreSQL directions; "
+                            f"destination SQLite database for sqlite-to-sqlite if --dest-db is omitted (default: {DEFAULT_DB})"
+                        ))
+    parser.add_argument("--source-db", default=None,
+                        help="Source SQLite database path for sqlite-to-sqlite")
+    parser.add_argument("--dest-db", default=None,
+                        help="Destination SQLite database path for sqlite-to-sqlite")
     parser.add_argument("--mongo-db", default=None,
                         help="MongoDB database name (defaults to INTERNAL_SERVICES_MONGODB_DB or 'orbit')")
+    parser.add_argument("--postgres-db", default=None,
+                        help="PostgreSQL database name (defaults to INTERNAL_SERVICES_POSTGRES_DB or 'orbit')")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show planned changes without writing to the destination")
     parser.add_argument("--delete-missing", action="store_true",
@@ -476,34 +929,97 @@ def main() -> int:
     load_dotenv(PROJECT_ROOT / ".env")
 
     db_path = Path(args.db).expanduser().resolve()
-    mongo_uri, default_db = build_mongo_uri()
-    mongo_db_name = args.mongo_db or default_db
+    if args.direction == "sqlite-to-sqlite":
+        if not args.source_db:
+            print("ERROR: --source-db is required for sqlite-to-sqlite", file=sys.stderr)
+            return 2
+        source_path = Path(args.source_db).expanduser().resolve()
+        dest_path = Path(args.dest_db).expanduser().resolve() if args.dest_db else db_path
+        if source_path == dest_path:
+            print("ERROR: source and destination SQLite databases must be different files", file=sys.stderr)
+            return 2
 
-    print(f"SQLite:  {db_path}")
-    print(f"MongoDB: {mongo_uri.split('@')[-1]} (db={mongo_db_name})")
-    print(f"Direction: {args.direction}{' (DRY RUN)' if args.dry_run else ''}")
-    print()
+        print(f"Source SQLite:      {source_path}")
+        print(f"Destination SQLite: {dest_path}")
+        print(f"Direction: {args.direction}{' (DRY RUN)' if args.dry_run else ''}")
+        print()
 
-    conn = open_sqlite(db_path)
-    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
-    try:
-        client.admin.command("ping")
-    except Exception as e:
-        print(f"ERROR connecting to MongoDB: {e}", file=sys.stderr)
-        return 2
-
-    mdb = client[mongo_db_name]
-
-    try:
-        if args.direction == "sqlite-to-mongo":
-            sync_sqlite_to_mongo(conn, mdb, args.dry_run, args.delete_missing)
-        else:
-            sync_mongo_to_sqlite(conn, mdb, args.dry_run, args.delete_missing)
+        source_conn = open_sqlite(source_path)
+        dest_conn = open_sqlite(dest_path)
+        try:
+            sync_sqlite_to_sqlite(source_conn, dest_conn, args.dry_run, args.delete_missing)
             if not args.dry_run:
-                conn.commit()
-    finally:
-        conn.close()
-        client.close()
+                dest_conn.commit()
+        finally:
+            source_conn.close()
+            dest_conn.close()
+    elif args.direction == "sqlite-to-postgres":
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as e:
+            print(f"ERROR importing psycopg: {e}", file=sys.stderr)
+            return 2
+
+        pg_config = build_postgres_config(args.postgres_db)
+        safe_host = f"{pg_config['host']}:{pg_config['port']}/{pg_config['dbname']}"
+
+        print(f"SQLite:    {db_path}")
+        print(f"PostgreSQL: {safe_host}")
+        print(f"Direction: {args.direction}{' (DRY RUN)' if args.dry_run else ''}")
+        print()
+
+        conn = open_sqlite(db_path)
+        try:
+            pg_conn = psycopg.connect(**pg_config, row_factory=dict_row)
+        except Exception as e:
+            print(f"ERROR connecting to PostgreSQL: {e}", file=sys.stderr)
+            conn.close()
+            return 2
+
+        try:
+            sync_sqlite_to_postgres(conn, pg_conn, args.dry_run, args.delete_missing)
+            if not args.dry_run:
+                pg_conn.commit()
+            else:
+                pg_conn.rollback()
+        except Exception:
+            pg_conn.rollback()
+            raise
+        finally:
+            conn.close()
+            pg_conn.close()
+    else:
+        mongo_uri, default_db = build_mongo_uri()
+        mongo_db_name = args.mongo_db or default_db
+
+        print(f"SQLite:  {db_path}")
+        print(f"MongoDB: {mongo_uri.split('@')[-1]} (db={mongo_db_name})")
+        print(f"Direction: {args.direction}{' (DRY RUN)' if args.dry_run else ''}")
+        print()
+
+        conn = open_sqlite(db_path)
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+        try:
+            client.admin.command("ping")
+        except Exception as e:
+            print(f"ERROR connecting to MongoDB: {e}", file=sys.stderr)
+            conn.close()
+            client.close()
+            return 2
+
+        mdb = client[mongo_db_name]
+
+        try:
+            if args.direction == "sqlite-to-mongo":
+                sync_sqlite_to_mongo(conn, mdb, args.dry_run, args.delete_missing)
+            else:
+                sync_mongo_to_sqlite(conn, mdb, args.dry_run, args.delete_missing)
+                if not args.dry_run:
+                    conn.commit()
+        finally:
+            conn.close()
+            client.close()
 
     print("\nDone.")
     return 0

@@ -153,7 +153,7 @@ class MiddlewareConfigurator:
 
         if headers_config.get('enabled', True):
             app.add_middleware(SecurityHeadersMiddleware, headers_config=headers_config, https_enabled=https_enabled)
-            _logger.debug("Security headers middleware configured successfully")
+            _logger.info("Security headers middleware configured successfully")
         else:
             _logger.warning("Security headers middleware is DISABLED - this is not recommended for production")
 
@@ -195,15 +195,15 @@ class MiddlewareConfigurator:
                 allow_credentials = False
 
         if allow_credentials and not has_wildcard:
-            _logger.debug(f"CORS configured with credentials enabled for specific origins: {allowed_origins}")
+            _logger.info(f"CORS configured with credentials enabled for specific origins: {allowed_origins}")
 
-        _logger.debug("CORS Configuration:")
-        _logger.debug(f"  - Allowed Origins: {allowed_origins}")
-        _logger.debug(f"  - Allow Credentials: {allow_credentials}")
-        _logger.debug(f"  - Allowed Methods: {allowed_methods}")
-        _logger.debug(f"  - Allowed Headers: {allowed_headers}")
-        _logger.debug(f"  - Exposed Headers: {expose_headers}")
-        _logger.debug(f"  - Max Age: {max_age}s")
+        _logger.info("CORS Configuration:")
+        _logger.info(f"  - Allowed Origins: {allowed_origins}")
+        _logger.info(f"  - Allow Credentials: {allow_credentials}")
+        _logger.info(f"  - Allowed Methods: {allowed_methods}")
+        _logger.info(f"  - Allowed Headers: {allowed_headers}")
+        _logger.info(f"  - Exposed Headers: {expose_headers}")
+        _logger.info(f"  - Max Age: {max_age}s")
 
         app.add_middleware(
             CORSMiddleware,
@@ -215,7 +215,7 @@ class MiddlewareConfigurator:
             max_age=max_age,
         )
 
-        _logger.debug("CORS middleware configured successfully")
+        _logger.info("CORS middleware configured successfully")
 
     @staticmethod
     def _configure_logging_middleware(app: FastAPI, logger: logging.Logger) -> None:

@@ -20,6 +20,7 @@ import {
   countNonStreamingMessages,
   extractGeneratedFileIds,
   convertHistoryMessages,
+  ensureUniqueMessageIds,
   haveSameMessages,
   getAudioSettings,
 } from './chatStore.helpers';
@@ -1323,11 +1324,18 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   },
 
   editMessageAndRegenerate: async (messageId: string, newContent: string, model?: string) => {
+    let editingConversationId: string | null = null;
     try {
       if (get().isLoading) {
         await get().stopStreaming();
+        // Flush any buffered chunks from the cancelled stream before creating the
+        // new assistant message — otherwise late appendToLastMessage calls can
+        // corrupt the new regenerated bubble's content.
+        const prevConvId = get().currentConversationId;
+        if (prevConvId) flushStreamingBuffer(prevConvId, set);
       }
 
+      // Capture state after any in-flight stream has stopped and buffer drained
       const state = get();
       const currentConv = state.conversations.find(c => c.id === state.currentConversationId);
       if (!currentConv) return;
@@ -1338,7 +1346,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       const userMessage = currentConv.messages[messageIndex];
       if (userMessage.role !== 'user') return;
 
+      const attachmentIds = (userMessage.attachments || [])
+        .map(file => file.file_id)
+        .filter((fileId): fileId is string => typeof fileId === 'string' && fileId.length > 0);
+
       const newAssistantMessageId = generateUniqueMessageId('assistant');
+
       set(state => ({
         conversations: state.conversations.map(conv =>
           conv.id === state.currentConversationId
@@ -1363,25 +1376,16 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         error: null,
       }));
 
-      // Find the message index again after state update to trigger streamChat properly
-      const updatedState = get();
-      const updatedConv = updatedState.conversations.find(c => c.id === updatedState.currentConversationId);
-      if (!updatedConv) return;
-      
-      const updatedUserMessageIndex = updatedConv.messages.findIndex(m => m.id === messageId);
-      const updatedAssistantMessageId = updatedConv.messages[updatedUserMessageIndex + 1]?.id;
-
-      let regeneratingConversationId: string | null = updatedState.currentConversationId;
-      if (!regeneratingConversationId) throw new Error('No conversation selected');
+      editingConversationId = state.currentConversationId;
 
       let receivedAnyText = false;
       const abortController = new AbortController();
       activeAbortController = abortController;
-      activeStreamConversationId = regeneratingConversationId;
+      activeStreamConversationId = editingConversationId;
       activeRequestId = null;
 
       try {
-        const currentConversation = updatedState.conversations.find(conv => conv.id === regeneratingConversationId);
+        const currentConversation = get().conversations.find(conv => conv.id === editingConversationId);
         if (!currentConversation) throw new Error('Conversation not found');
         if (!currentConversation.adapterName) {
           throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
@@ -1400,10 +1404,6 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
         const api = await getApi();
         const { returnAudio, ttsVoice, language } = getAudioSettings(currentConversation);
-        
-        const attachmentIds = (userMessage.attachments || [])
-          .map(file => file.file_id)
-          .filter((fileId): fileId is string => typeof fileId === 'string' && fileId.length > 0);
 
         for await (const response of api.streamChat(
           newContent,
@@ -1421,20 +1421,20 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         )) {
           if (response.request_id && !activeRequestId) {
             activeRequestId = response.request_id;
-            debugLog(`[chatStore] >>> CAPTURED request_id for regenerate stop: ${response.request_id}`);
+            debugLog(`[chatStore] >>> CAPTURED request_id for edit-regenerate stop: ${response.request_id}`);
           }
 
           if (response.text) {
             const sanitizedText = sanitizeMessageContent(response.text);
             if (sanitizedText) {
-              get().appendToLastMessage(sanitizedText, regeneratingConversationId);
+              get().appendToLastMessage(sanitizedText, editingConversationId);
               receivedAnyText = true;
             }
           }
 
           if (response.audio && response.done) {
             set(state =>
-              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
+              updateLastAssistantMessage(state, editingConversationId!, () => ({
                 audio: response.audio,
                 audioFormat: response.audioFormat || 'mp3',
               }))
@@ -1444,7 +1444,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           if (response.image && response.done) {
             receivedAnyText = true;
             set(state =>
-              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
+              updateLastAssistantMessage(state, editingConversationId!, () => ({
                 image: response.image,
                 imageFormat: response.image_format || 'png',
                 imageRevisedPrompt: response.image_revised_prompt,
@@ -1456,7 +1456,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           if ((response.video || response.video_url) && response.done) {
             receivedAnyText = true;
             set(state =>
-              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
+              updateLastAssistantMessage(state, editingConversationId!, () => ({
                 video: response.video,
                 videoFormat: response.video_format || 'mp4',
                 videoRevisedPrompt: response.video_revised_prompt,
@@ -1468,7 +1468,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           if ((response.document || response.document_url) && response.done) {
             receivedAnyText = true;
             set(state =>
-              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
+              updateLastAssistantMessage(state, editingConversationId!, () => ({
                 document: response.document,
                 documentFormat: response.document_format || 'pdf',
                 documentRevisedPrompt: response.document_revised_prompt,
@@ -1482,11 +1482,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             if (threadingInfo?.supports_threading) {
               set(state => ({
                 conversations: state.conversations.map(conv => {
-                  if (conv.id !== regeneratingConversationId) return conv;
+                  if (conv.id !== editingConversationId) return conv;
                   return {
                     ...conv,
                     messages: conv.messages.map(msg =>
-                      msg.id === updatedAssistantMessageId
+                      msg.id === newAssistantMessageId
                         ? { ...msg, supportsThreading: true, databaseMessageId: threadingInfo.message_id }
                         : msg
                     ),
@@ -1499,11 +1499,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             if (response.assistant_message_id) {
               set(state => ({
                 conversations: state.conversations.map(conv => {
-                  if (conv.id !== regeneratingConversationId) return conv;
+                  if (conv.id !== editingConversationId) return conv;
                   return {
                     ...conv,
                     messages: conv.messages.map(msg =>
-                      msg.id === updatedAssistantMessageId && !msg.databaseMessageId
+                      msg.id === newAssistantMessageId && !msg.databaseMessageId
                         ? { ...msg, databaseMessageId: response.assistant_message_id }
                         : msg
                     ),
@@ -1520,7 +1520,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         if (!receivedAnyText && !abortController.signal.aborted) {
           get().appendToLastMessage(
             'No response received from the server. Please try again later.',
-            regeneratingConversationId
+            editingConversationId
           );
         }
       } catch (error) {
@@ -1531,10 +1531,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             error.message.includes('aborted'));
 
         if (isAbortError) {
-          debugLog('[chatStore] Regeneration stream was cancelled by user');
+          debugLog('[chatStore] Edit-regenerate stream was cancelled by user');
           receivedAnyText = true;
         } else {
-          logError('Regenerate API error:', error);
+          logError('Edit-regenerate API error:', error);
           let errorMessage = 'Sorry, there was an error regenerating the response.';
           if (error instanceof Error) {
             if (error.message.startsWith('Server error:')) {
@@ -1546,7 +1546,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               errorMessage = error.message;
             }
           }
-          get().appendToLastMessage(errorMessage, regeneratingConversationId);
+          get().appendToLastMessage(errorMessage, editingConversationId);
         }
       }
 
@@ -1555,15 +1555,15 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       activeStreamSessionId = null;
       activeStreamConversationId = null;
 
-      flushStreamingBuffer(regeneratingConversationId, set);
+      flushStreamingBuffer(editingConversationId, set);
 
       set(state => {
         const updatedConversations = state.conversations.map(conv =>
-          conv.id === regeneratingConversationId
+          conv.id === editingConversationId
             ? {
                 ...conv,
                 messages: conv.messages.map(msg =>
-                  msg.id === updatedAssistantMessageId ? { ...msg, isStreaming: false } : msg
+                  msg.id === newAssistantMessageId ? { ...msg, isStreaming: false } : msg
                 ),
                 updatedAt: new Date(),
               }
@@ -1577,11 +1577,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             : false,
         };
       });
+
+      // Persist the edited branch so a reload doesn't revert to pre-edit messages
+      debouncedSaveToLocalStorage(get);
     } catch (error) {
-      logError('Edit & Regenerate error:', error);
+      logError('Edit & regenerate error:', error);
       set(state => ({
         isLoading: false,
-        ...(state.currentConversationId === state.currentConversationId && {
+        ...(state.currentConversationId === editingConversationId && {
           error: `Failed to regenerate response: ${error instanceof Error ? error.message : 'Unknown error'}`,
         }),
       }));
@@ -1819,8 +1822,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             // Thread messages live under a separate session on the backend — preserve them
             // from local state so a backend sync doesn't wipe them out.
             const threadMessages = conversation.messages.filter(m => m.isThreadMessage);
-            const mergedMessages =
-              threadMessages.length > 0 ? [...normalizedMessages, ...threadMessages] : normalizedMessages;
+            const mergedMessages = ensureUniqueMessageIds(
+              threadMessages.length > 0 ? [...normalizedMessages, ...threadMessages] : normalizedMessages
+            );
 
             if (haveSameMessages(conversation.messages, mergedMessages)) return null;
 
@@ -2093,12 +2097,13 @@ const initializeStore = async () => {
         const sanitizedMessages: Message[] = storedMessages
           .filter(msg => !(msg.role === 'assistant' && msg.isStreaming))
           .map(msg => ({ ...msg, timestamp: toDate(msg.timestamp), isStreaming: false }));
+        const uniqueMessages = ensureUniqueMessageIds(sanitizedMessages);
 
         const normalized: Conversation = {
           id: storedConversation.id,
           sessionId: storedConversation.sessionId || generateUniqueSessionId(),
           title: storedConversation.title || 'New Chat',
-          messages: sanitizedMessages,
+          messages: uniqueMessages,
           createdAt: toDate(storedConversation.createdAt),
           updatedAt: toDate(storedConversation.updatedAt),
           attachedFiles: storedConversation.attachedFiles || [],

@@ -34,6 +34,10 @@ export interface RuntimeConfig {
     mode: 'single' | 'multi';
     defaultAdapterId: string;
   };
+  i18n: {
+    activeLanguages: string[];
+    defaultLanguage: string;
+  };
   application: {
     name: string;
     description: string;
@@ -151,6 +155,10 @@ export const DEFAULTS: RuntimeConfig = {
   agentMode: {
     mode: 'multi',
     defaultAdapterId: '',
+  },
+  i18n: {
+    activeLanguages: ['en'],
+    defaultLanguage: 'en',
   },
   application: {
     name: 'ORBIT Chat',
@@ -414,6 +422,18 @@ export function getConfiguredSingleAdapterId(): string | null {
 
   const adapterExists = runtimeConfig.adapters.some((adapter) => adapter?.id?.trim() === configuredId);
   return adapterExists ? configuredId : null;
+}
+
+export function getActiveLanguages(): string[] {
+  const configured = Array.isArray(runtimeConfig.i18n.activeLanguages)
+    ? runtimeConfig.i18n.activeLanguages.filter((value): value is string => typeof value === 'string')
+    : [];
+  return configured.length > 0 ? configured : ['en'];
+}
+
+export function getDefaultLanguage(): string {
+  const configured = runtimeConfig.i18n.defaultLanguage?.trim();
+  return configured && getActiveLanguages().includes(configured) ? configured : 'en';
 }
 
 export function getApplicationName(): string {

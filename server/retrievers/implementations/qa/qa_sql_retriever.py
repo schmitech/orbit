@@ -35,22 +35,8 @@ class QASSQLRetriever(SQLiteRetriever):
             datasource: Optional SQL connection
             **kwargs: Additional arguments
         """
-        # Get QA-specific adapter config if available
-        adapter_config = None
-        
-        # First try to get adapter config from the new direct method
-        if 'adapter_config' in config:
-            adapter_config = config.get('adapter_config', {})
-        else:
-            # Fallback to searching through adapters list (backward compatibility)
-            for adapter in config.get('adapters', []):
-                if (adapter.get('enabled', True) and
-                    adapter.get('type') == 'retriever' and 
-                    adapter.get('datasource') == 'sqlite' and 
-                    adapter.get('adapter') == 'qa'):
-                    adapter_config = adapter.get('config', {})
-                    break
-        
+        adapter_config = config.get('adapter_config', {})
+
         # Call parent constructor (SQLiteRetriever)
         super().__init__(config=config, datasource=datasource, domain_adapter=domain_adapter, **kwargs)
         

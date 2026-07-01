@@ -46,7 +46,6 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
         # Use the reranker-specific model, overriding the base class default
         self.model = provider_config.get('model', 'claude-haiku-4-5-20251001')
 
-        self.temperature = provider_config.get('temperature', 0.0)
         self.max_tokens = provider_config.get('max_tokens', 100)
 
     async def initialize(self) -> bool:
@@ -136,7 +135,6 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
         response = await self.client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
-            temperature=self.temperature,
             messages=[
                 {
                     "role": "user",

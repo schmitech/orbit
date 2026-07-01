@@ -4,7 +4,7 @@ Database Service Abstraction Layer
 
 This module provides an abstract base class for database operations and a factory
 method to create backend-specific implementations. This allows the application to
-work with either MongoDB or SQLite without changing the service layer code.
+work with MongoDB, SQLite, or PostgreSQL without changing the service layer code.
 
 The abstraction layer ensures that all database operations have a consistent
 interface regardless of the underlying database technology.
@@ -291,14 +291,14 @@ def create_database_service(config: Dict[str, Any]) -> DatabaseService:
         config: Application configuration dictionary
 
     Returns:
-        DatabaseService instance (either MongoDBService or SQLiteService)
+        DatabaseService instance (MongoDBService, SQLiteService, or PostgresService)
 
     Raises:
         ValueError: If the backend type is not supported or not configured
     """
     # Get backend configuration
     backend_config = config.get('internal_services', {}).get('backend', {})
-    backend_type = backend_config.get('type', 'mongodb')  # Default to MongoDB for backward compatibility
+    backend_type = backend_config.get('type', 'mongodb')
 
     if backend_type == 'mongodb':
         from services.mongodb_service import MongoDBService
@@ -308,5 +308,9 @@ def create_database_service(config: Dict[str, Any]) -> DatabaseService:
         from services.sqlite_service import SQLiteService
         logger.debug("Using SQLite as database backend")
         return SQLiteService(config)
+    elif backend_type == 'postgres':
+        from services.postgres_service import PostgresService
+        logger.debug("Using PostgreSQL as database backend")
+        return PostgresService(config)
     else:
         raise ValueError(f"Unsupported database backend type: {backend_type}")

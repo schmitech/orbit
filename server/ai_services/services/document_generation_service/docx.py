@@ -1,7 +1,10 @@
 import io
+import logging
 from typing import Dict, Any
 
 from .base import BaseRenderer
+
+logger = logging.getLogger(__name__)
 
 
 class DocxRenderer(BaseRenderer):
@@ -47,6 +50,18 @@ class DocxRenderer(BaseRenderer):
                     for c_idx, val in enumerate(row):
                         tbl.rows[r_idx + 1].cells[c_idx].text = str(val)
                 doc.add_paragraph()
+            chart_data = section.get("chart")
+            if chart_data:
+                try:
+                    from docx.shared import Inches
+
+                    from .chart_image import render_chart_to_png
+
+                    png_bytes = render_chart_to_png(chart_data, width_px=500, height_px=280)
+                    doc.add_picture(io.BytesIO(png_bytes), width=Inches(5.5))
+                    doc.add_paragraph()
+                except Exception as exc:
+                    logger.warning("Chart rendering failed for DOCX section: %s", exc)
 
         buf = io.BytesIO()
         doc.save(buf)

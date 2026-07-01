@@ -278,6 +278,7 @@ def _collect_extraction_trace(retriever, query: str, template: Dict[str, Any]) -
         for param in template_params:
             param_name = param.get('name', '?')
             param_type = param.get('type') or param.get('data_type', 'string')
+            normalized_type = str(param_type or 'string').lower()
             entity = param.get('entity')
             field = param.get('field')
             required = param.get('required', False)
@@ -308,6 +309,16 @@ def _collect_extraction_trace(retriever, query: str, template: Dict[str, Any]) -
             elif param_name in first_pass_matches:
                 value = first_pass_matches[param_name]
                 pt["resolution"] = "param_name_pattern"
+            elif normalized_type not in {'string', 'str', 'text', 'varchar', 'char', 'enum'}:
+                # Try entity.field keys stored as entity_field (dot → underscore)
+                # Skip string types: their first-pass extractor uses IGNORECASE regex
+                # which can return the whole query instead of the intended value.
+                for key, val in first_pass_matches.items():
+                    if '.' in key and key.replace('.', '_') == param_name:
+                        value = val
+                        pt["resolution"] = "entity_field_dot_pattern"
+                        pt["pattern_key"] = key
+                        break
 
             # Step 2: Context extraction (entity.field only)
             if value is None and entity and field and value_extractor:

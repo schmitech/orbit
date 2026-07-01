@@ -169,7 +169,6 @@ class ModeratorService:
         self.model = safety_config.get('model', config.get('inference', {}).get(self.provider, {}).get('model', 'gemma3:1b'))
         self.base_url = config.get('inference', {}).get(self.provider, {}).get('base_url', 'http://localhost:11434')
         
-        # Note: ModeratorFactory is deprecated, but we check available services instead
         available_services = AIServiceFactory.list_available_services()
         available_moderators = available_services.get('moderation', [])
         if self.moderator_name and self.moderator_name not in available_moderators:
@@ -296,7 +295,7 @@ Query: """
         if self.use_moderator:
             return await self._check_safety_with_moderator(query)
         
-        # Otherwise use the legacy LLM-based approach
+        # Otherwise use the configured LLM-based safety check.
         return await self._check_safety_with_llm(query)
     
     async def _check_safety_with_moderator(self, query: str) -> Tuple[bool, Optional[str]]:

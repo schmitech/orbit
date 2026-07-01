@@ -20,6 +20,19 @@ application:
   # If empty, uses bundled default: /favicon.svg
   favicon: ""
 
+# ---- Internationalization ----
+# UI chrome (buttons, labels, menus) can be shown in multiple languages.
+# This does NOT translate admin-authored content (application.name, description,
+# inputPlaceholder, adapter names/descriptions, footer/header text) — those are
+# authored directly in this file in whatever language you want.
+i18n:
+  # Languages to expose in the Settings > Language switcher.
+  # Supported values: "en", "fr". If this list has 1 or fewer entries,
+  # the switcher is hidden entirely.
+  activeLanguages: ["en", "fr"]
+  # Language used when no stored preference or browser language matches.
+  defaultLanguage: "en"
+
 # ---- SEO ----
 seo:
   # Enable sitemap.xml generation for adapter slug routes.

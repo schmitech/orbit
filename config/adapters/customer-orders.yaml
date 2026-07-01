@@ -24,6 +24,12 @@ adapters:
       - name: "ollama-gemma4-e2b"
         provider: "ollama"
         model: "gemma4-e2b-cpu"
+      - name: "deepseek"
+        provider: "deepseek"
+        model: "deepseek-chat"
+      - name: "cohere"
+        provider: "cohere"
+        model: "command-a-03-2025"
       - name: "ollama-gpt-oss-120b"
         provider: "ollama_cloud"
         model: "gpt-oss:120b"
@@ -33,6 +39,9 @@ adapters:
       - name: "gemini-3.1-pro-preview"
         provider: "gemini"
         model: "gemini-3.1-pro-preview"
+      - name: "openai"
+        provider: "openai"
+        model: "gpt-4.5-mini"
     capabilities:
       expose_as_skill: true
       skill_name: "customer-orders"

@@ -201,7 +201,11 @@ async def test_blocked_conversation(logger_service: LoggerService):
     
     doc = search_result["hits"]["hits"][0]["_source"]
     assert doc.get("blocked"), f"Blocked flag not set correctly: {doc.get('blocked')}"
-    assert test_data["query"] in doc.get("query", ""), "Query content mismatch"
+    assert doc.get("session_id") == test_data["session_id"], "Session ID mismatch"
+    # LoggerService stores request metadata only; full query/response text is
+    # handled by the audit storage service.
+    assert "query" not in doc, "Query should not be stored in logger Elasticsearch document"
+    assert "response" not in doc, "Response should not be stored in logger Elasticsearch document"
 
 
 @pytest.mark.asyncio

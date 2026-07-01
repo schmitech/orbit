@@ -46,7 +46,7 @@ class VLLMBaseService(ProviderAIService):
         vllm_config = self._extract_provider_config()
 
         # Determine mode: API or Direct
-        # Default to "api" for backward compatibility (previous version only supported API mode)
+        # Default to "api"
         self.mode = vllm_config.get("mode", "api")
 
         if self.mode == "direct":
