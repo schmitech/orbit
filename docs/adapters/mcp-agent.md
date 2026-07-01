@@ -189,6 +189,138 @@ Add `"mcp-agent"` to the `available_skills` list of any adapter whose users shou
 
 ---
 
+## Opportunistic Mode (mcp_tools capability)
+
+### Overview
+
+Everything above requires the client to explicitly send `skill: "mcp-agent"`,
+which swaps the whole request to a dedicated `mcp-agent-chat` adapter for that
+one turn. **Opportunistic mode** lets an ordinary conversational/passthrough
+adapter (e.g. `simple-chat-with-files`) decide, on any turn, whether an MCP
+tool is needed — no `skill` field, no adapter swap, same adapter and thread
+throughout the conversation. This is the same native tool-calling loop
+described above (`generate_with_tools`), just running inline inside
+`LLMInferenceStep`'s normal call instead of inside the dedicated
+`MCPAgentStep`.
+
+Because it removes the per-request client opt-in, opportunistic mode is
+gated by **two** switches that must both be true — a global admin gate and a
+per-adapter capability flag — rather than the skill mechanism's single
+`skill:` field.
+
+### How It Works
+
+```
+Client: POST /v1/chat
+  { "messages": [...] }              ← no "skill" field
+  X-API-Key: <key for simple-chat-with-files>
+
+   1. API key authenticates → adapter = "simple-chat-with-files"
+   2. Adapter capabilities: mcp_tools=true, mcp_servers=[...]
+   3. mcp_client.allow_opportunistic must also be true, or mcp_tools is ignored
+   4. LLMInferenceStep runs the same tool-calling loop MCPAgentStep uses:
+        a. Discover tools from the adapter's mcp_servers allowlist
+        b. Call provider.generate_with_tools(messages, tools)
+        c. If tool_calls → execute each via MCP, append results → go to b
+        d. If final text → done (model chose not to use any tool)
+   5. Response: { "response": "...", "sources": [...] }   ← sources only
+      present if a tool was actually invoked this turn
+```
+
+### Configuration
+
+| Field | Location | Default | Description |
+|-------|----------|---------|--------------|
+| `mcp_client.allow_opportunistic` | `config/mcp_client.yaml` | `false` | Global admin gate; must be `true` for any adapter's `mcp_tools: true` to take effect |
+| `capabilities.mcp_tools` | adapter YAML | `false` | Per-adapter opt-in: run the tool-calling loop inline on every turn |
+| `capabilities.mcp_servers` | adapter YAML | `null` (all servers) | Allowlist of MCP servers whose tools are exposed; shared with the `mcp-agent` skill mechanism |
+
+```yaml
+# config/mcp_client.yaml
+mcp_client:
+  enabled: true
+  allow_opportunistic: true   # required in addition to the per-adapter flag
+  servers:
+    - name: "filesystem"
+      transport: "stdio"
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/docs"]
+      enabled: true
+```
+
+```yaml
+# config/adapters/multimodal.yaml
+- name: "simple-chat-with-files"
+  ...
+  capabilities:
+    ...
+    mcp_tools: true
+    mcp_servers:
+      - "filesystem"
+```
+
+### Examples
+
+A plain message, no `skill` field, that triggers a tool call:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <key for simple-chat-with-files>" \
+  -H "X-Session-ID: <session-id>" \
+  -d '{"messages":[{"role":"user","content":"What files are in the docs directory?"}]}'
+```
+
+```json
+{
+  "response": "The docs directory contains: adapters/, prototypes/, ...",
+  "sources": [
+    {"type": "mcp_tool_call", "tool": "filesystem__list_directory", "arguments": {"path": "..."}, "result_preview": "..."}
+  ]
+}
+```
+
+A plain message that does *not* need a tool — the model declines to call one,
+`sources` is absent, and the response looks exactly like a normal
+conversational answer:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <key for simple-chat-with-files>" \
+  -H "X-Session-ID: <session-id>" \
+  -d '{"messages":[{"role":"user","content":"What is retrieval-augmented generation?"}]}'
+```
+
+### Model/Provider Requirements
+
+Same requirement as the explicit skill — see
+[Supported Inference Providers](#supported-inference-providers). ORBIT logs a
+startup warning (not a hard failure) if an adapter sets `mcp_tools: true`
+while its `inference_provider` isn't in that known-capable set, since some
+providers' support is mode-dependent (e.g. vLLM API vs. direct).
+
+Unlike the explicit skill — where tool schemas are only sent on requests the
+client already opted into — opportunistic mode sends tool schemas on **every**
+conversational turn for that adapter, including turns that never call a
+tool. Keep `mcp_servers` narrow; in opportunistic mode this is closer to a
+requirement than an optimization tip.
+
+### Interaction with the `mcp-agent` skill
+
+`mcp_tools` (opportunistic) and `"mcp-agent"` in `available_skills` (explicit)
+are independent, non-conflicting access paths to the same MCP servers — they
+never fire on the same request, since skill routing fully swaps
+`context.adapter_name` before the pipeline runs. They can coexist on the same
+adapter: use `mcp_tools: true` for lightweight, narrowly-scoped tools you
+want available with zero client-side ceremony (e.g. a filesystem allowlist
+for a docs assistant); keep the `mcp-agent` skill for heavier, broader, or
+cost-sensitive tool access you want the client to explicitly request per
+message (e.g. a GitHub server you don't want queried on every casual chat
+turn).
+
+---
+
 ## Examples
 
 ### Filesystem — list the repo root
@@ -380,9 +512,97 @@ The `sources` array appears in the final `{"done": true}` chunk.
 
 ## Multi-step Tool Calls
 
-A single request may involve several tool-calling rounds. Each round appends the tool result to the conversation before the next model call. The loop is bounded by `max_tool_iterations` (default 5); if that limit is reached without a final answer, one last model call is made to synthesize a response from the accumulated context.
+A single request may involve several tool-calling rounds, all resolved server-side within that one request/response cycle — the client never has to make a follow-up call to "continue" a chain. Each round appends the tool result to the conversation before the next model call. The loop is bounded by `max_tool_iterations` (default 5); if that limit is reached without a final answer, one last model call is made (with an empty tool list, forcing text output) to synthesize a response from the accumulated context.
 
-The model handles tool errors gracefully — if a tool call fails (access denied, network error, etc.), the error message is injected into the conversation and the model can retry with corrected arguments or explain the limitation in its final answer.
+The model handles tool errors gracefully — if a tool call fails (access denied, network error, invalid arguments, etc.), the error message is injected into the conversation and the model can retry with corrected arguments or explain the limitation in its final answer.
+
+### No external agent framework — plain Python loop over native tool calling
+
+The entire chaining mechanism is implemented as a single, bounded Python loop —
+`run_tool_calling_loop()` in `server/inference/pipeline/mcp_tool_loop.py`.
+There is **no LangChain, AutoGen, CrewAI, or any other agent-orchestration
+library** involved, and none is required to get multi-step behavior. The
+function has zero framework dependencies beyond `asyncio`/`logging`/`typing`:
+
+```python
+for iteration in range(max_iterations):
+    result = await provider.generate_with_tools(messages, tools)   # native provider API
+    if not result.tool_calls:
+        return result.text                                         # done — final answer
+    messages.append(result.assistant_message)
+    for tool_call in result.tool_calls:
+        tool_result = await mcp_manager.call_tool(tool_call.name, tool_call.arguments)
+        messages.append({"role": "tool", "content": tool_result})  # fed back for next round
+# iterations exhausted → one final call with tools=[] forces a text answer
+```
+
+(Simplified for illustration — the real implementation additionally handles
+cancellation, per-tool error wrapping, and result truncation; see the linked
+file for the exact code.) Everything the loop needs — the ability to describe
+tools as JSON schemas and have the model request calls against them — is
+already native to each supported provider's own API (OpenAI `tools`,
+Anthropic `tool_use`, Gemini `FunctionDeclaration`, etc.). ORBIT's own code
+is just the glue: build the tool list, call the provider, execute whatever
+the model asks for via MCP, append the result, repeat.
+
+This same loop is used **identically** by both invocation paths, so
+multi-step chaining behaves the same way regardless of how the request got
+there:
+
+- the explicit `mcp-agent` skill (`MCPAgentStep`, `skill: "mcp-agent"`)
+- [opportunistic mode](#opportunistic-mode-mcp_tools-capability) (`LLMInferenceStep`'s inline path, no `skill` field)
+
+The only other dependency involved is the official [`mcp`](https://pypi.org/project/mcp/) Python SDK, which is a thin client for the Model Context Protocol itself (session/transport handling, tool discovery, `call_tool`) — not an agent framework, and it was already a project dependency before this feature existed.
+
+### Real example: self-correcting multi-step chain
+
+This is not just a theoretical loop — it self-corrects in practice. A live
+test against the sample CRM server in `examples/mcp-server` produced this
+sequence for a single user turn (server log, timestamps trimmed):
+
+```
+Round 1 → business-sample__search_opportunities(limit=100)
+          ← MCP error: "Invalid arguments for tool search_opportunities:
+             limit: too_big, maximum 25"
+Round 2 → business-sample__search_opportunities(limit=25)   ← self-corrected
+          ← success
+Round 3 → final answer, synthesized from the returned opportunities
+```
+
+The model's first attempt used an out-of-range `limit`; the tool's
+validation error was fed back as the tool result (wrapped in `<tool_result>`
+tags to reduce prompt-injection risk), and the model corrected its own
+argument on the very next round — no retry logic, no error-recovery code, no
+external framework involved. This is the same self-correcting behavior
+already shown in [Exploratory behaviour](#exploratory-behaviour) with the
+filesystem server, just triggered by a tool-side validation error instead of
+an access-denied error.
+
+Two other useful multi-tool examples with the sample CRM server:
+
+- *"Find the EMEA customer with the lowest health score and build a
+  renewal-save account plan for them."* — requires `list_customers` to find
+  the customer, then `build_account_plan` with that customer's id; two
+  **different** tools chained in one turn based on reasoning over the first
+  tool's result.
+- *"Summarize the pipeline for EMEA and separately for APAC."* — may produce
+  two `summarize_pipeline` calls (one per region) in the same turn.
+
+See `examples/mcp-server/README.md` to run this server locally, and
+`playbook-mcp-conversation.md` at the repo root for a fuller set of
+multi-step, error-handling, and edge-case scenarios to test against it.
+
+### Verifying it yourself
+
+- Unit tests: `server/tests/test_inference/test_mcp_tool_loop.py` —
+  `TestRunToolCallingLoop::test_single_tool_call_then_final_answer` and
+  `test_exhaustion_forces_final_call_without_tools` assert the loop chains
+  multiple rounds and correctly forces a final answer when
+  `max_tool_iterations` is reached.
+- Live check: any multi-step response includes one `sources` entry
+  per tool call (see [Multi-step issue investigation](#github--multi-step-issue-investigation)
+  for the shape), so you can count rounds directly from the response without
+  reading server logs.
 
 ---
 
@@ -513,6 +733,8 @@ MCP servers can execute arbitrary commands (stdio) or reach external networks (S
 - **Timeouts and iteration cap.** `tool_timeout` aborts hung calls; `max_tool_iterations` bounds cost and loop risk.
 - **Result truncation.** Tool result previews in `sources` are capped at 2 000 characters to prevent leaking large payloads.
 - **Prompt-injection risk.** Tool results are untrusted text injected into the model context. Keep MCP servers narrowly scoped and consider result size limits for production deployments.
+- **Opportunistic mode widens exposure.** It moves from per-request opt-in (client sends `skill: "mcp-agent"`) to per-adapter default-on for every conversational turn. Keep `mcp_client.allow_opportunistic: false` (the default) until deliberately enabled.
+- **Always pair `mcp_tools: true` with a narrow `mcp_servers` allowlist** — in opportunistic mode, tool schemas are sent on every message the adapter receives, not only on messages that end up invoking a tool.
 
 ---
 
@@ -546,6 +768,21 @@ The configured `inference_provider` does not support native tool calling. Use on
 ### Tool results look wrong / server errors
 
 The MCP server returns `isError: true`. The error message is passed back to the model as the tool result, so the model can acknowledge the failure in its final answer. Check the server-side logs for the underlying cause.
+
+### `mcp_tools` capability has no effect / model never calls tools opportunistically
+
+Opportunistic mode is disabled by default even if the adapter sets
+`mcp_tools: true` — check that `mcp_client.allow_opportunistic: true` is also
+set in `config/mcp_client.yaml`. Both switches are required (see
+[Opportunistic Mode](#opportunistic-mode-mcp_tools-capability)).
+
+### Every response is slower / costs more, even when no tool is used
+
+In opportunistic mode, tool schemas are sent to the model on every
+conversational turn, not only turns that end up calling a tool. Narrow the
+adapter's `mcp_servers` allowlist, or consider whether the explicit
+`mcp-agent` skill (client opts in per-request) is a better fit than
+always-on opportunistic mode for this adapter.
 
 ### HTTP transport: 401 Unauthorized
 
@@ -683,10 +920,12 @@ Key test classes:
 
 | Component | File | Role |
 |-----------|------|------|
-| MCP client manager | `server/services/mcp_client_service.py` | Singleton; connects to servers, caches tool schemas, executes `call_tool` |
-| Agent pipeline step | `server/inference/pipeline/steps/mcp_agent.py` | `MCPAgentStep`; runs bounded tool-calling loop, streams final answer |
-| LLM step guard | `server/inference/pipeline/steps/llm_inference.py` | Skips LLM for `type == mcp_agent` (line ~78) |
-| Pipeline registration | `server/inference/pipeline/pipeline.py` | `MCPAgentStep` added before `ImageGenerationStep` |
+| MCP client manager | `server/services/mcp_client_service.py` | Singleton; connects to servers, caches tool schemas, executes `call_tool`; `allow_opportunistic` property gates opportunistic mode |
+| Shared tool-calling loop | `server/inference/pipeline/mcp_tool_loop.py` | `run_tool_calling_loop()`; used by both `MCPAgentStep` and `LLMInferenceStep`'s inline path |
+| Agent pipeline step | `server/inference/pipeline/steps/mcp_agent.py` | `MCPAgentStep`; explicit-skill entry point, delegates to `run_tool_calling_loop()` |
+| LLM step guard | `server/inference/pipeline/steps/llm_inference.py` | Skips LLM for `type == mcp_agent` (line ~78); `_should_run_mcp_tools`/`_run_inline_mcp_tools` implement opportunistic mode |
+| Pipeline registration | `server/inference/pipeline/pipeline.py` | `MCPAgentStep` added before `ImageGenerationStep`; streaming `done` payloads include `sources` for both the explicit and opportunistic paths |
+| `AdapterCapabilities.mcp_tools` / `.mcp_servers` | `server/adapters/capabilities.py` | Opportunistic-mode capability flags; `mcp_servers` allowlist shared with the `mcp-agent` skill |
 | `ToolCallingResult` | `server/ai_services/services/inference_service.py` | Normalized result type returned by `generate_with_tools` |
 | OpenAI tool calling | `server/ai_services/implementations/inference/openai_inference_service.py` | `generate_with_tools` via `chat.completions` |
 | Anthropic tool calling | `server/ai_services/implementations/inference/anthropic_inference_service.py` | `generate_with_tools` + OpenAI↔Anthropic message conversion |
@@ -705,7 +944,9 @@ Key test classes:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `sources` | `List[Dict]` | Populated by `MCPAgentStep` with one entry per tool call: `{type, tool, arguments, result_preview}` |
+| `sources` | `List[Dict]` | Populated by `MCPAgentStep` (or `LLMInferenceStep`'s opportunistic path) with one entry per tool call: `{type, tool, arguments, result_preview}` |
+| `mcp_tools` | `bool` | Opportunistic-mode capability flag, resolved from the (possibly skill-swapped) adapter's `capabilities.mcp_tools` |
+| `mcp_servers_allowlist` | `Optional[List[str]]` | Opportunistic-mode server allowlist, resolved from `capabilities.mcp_servers` |
 
 ### `ToolCallingResult` fields
 

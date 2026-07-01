@@ -11,6 +11,7 @@ from typing import AsyncGenerator
 from ai_services.errors import sanitize_provider_error
 from ..base import PipelineStep, ProcessingContext
 from ..prompt_builder import PromptInstructionBuilder
+from ..mcp_tool_loop import run_tool_calling_loop
 from ._utils import NO_LLM_ADAPTER_TYPES
 
 logger = logging.getLogger(__name__)
@@ -108,6 +109,17 @@ class LLMInferenceStep(PipelineStep):
                 context.set_error("No LLM provider available: check adapter and provider configuration")
                 return context
 
+            if self._should_run_mcp_tools(context):
+                try:
+                    if await self._run_inline_mcp_tools(context, llm_provider):
+                        return context
+                except NotImplementedError:
+                    logger.warning(
+                        "Adapter '%s' has mcp_tools enabled but provider '%s' does not "
+                        "support generate_with_tools; falling back to plain generation.",
+                        context.adapter_name, self._effective_provider_name(context),
+                    )
+
             # Build the full prompt
             full_prompt = await self._build_prompt(context)
             context.full_prompt = full_prompt
@@ -165,6 +177,18 @@ class LLMInferenceStep(PipelineStep):
                 yield error_msg
                 return
 
+            if self._should_run_mcp_tools(context):
+                try:
+                    if await self._run_inline_mcp_tools(context, llm_provider):
+                        yield context.response
+                        return
+                except NotImplementedError:
+                    logger.warning(
+                        "Adapter '%s' has mcp_tools enabled but provider '%s' does not "
+                        "support generate_with_tools; falling back to plain generation.",
+                        context.adapter_name, self._effective_provider_name(context),
+                    )
+
             # Build the full prompt
             full_prompt = await self._build_prompt(context)
             context.full_prompt = full_prompt
@@ -208,6 +232,73 @@ class LLMInferenceStep(PipelineStep):
             yield user_message
             context.set_error(user_message)
     
+    def _should_run_mcp_tools(self, context: ProcessingContext) -> bool:
+        """
+        True if this adapter opportunistically wants inline MCP tool access
+        AND MCP is enabled/opted-in globally. Provider tool-calling support
+        is checked at call time (NotImplementedError fallback), not here, so
+        an adapter can change inference_provider later without this check
+        going stale.
+        """
+        if not getattr(context, 'mcp_tools', False):
+            return False
+        mcp_manager = self._get_mcp_manager()
+        return mcp_manager is not None and mcp_manager.allow_opportunistic
+
+    def _get_mcp_manager(self):
+        """Get (or lazily initialize) the MCPClientManager from config."""
+        config = self.container.get_or_none('config') or {}
+        from services.mcp_client_service import get_mcp_client_manager
+        return get_mcp_client_manager(config)
+
+    @staticmethod
+    def _effective_provider_name(context: ProcessingContext) -> str:
+        """
+        Return the provider name actually resolved for this request, for use
+        in error/warning messages. context.runtime_provider (a per-request
+        "model" override) takes priority over the adapter's static
+        inference_provider, mirroring the same precedence _resolve_llm_provider
+        uses — otherwise a fallback triggered by a runtime override would
+        misleadingly blame the adapter's default provider instead of the one
+        that actually failed.
+        """
+        return getattr(context, 'runtime_provider', None) or getattr(context, 'inference_provider', None) or '?'
+
+    async def _run_inline_mcp_tools(self, context: ProcessingContext, llm_provider) -> bool:
+        """
+        Attempt the inline MCP tool-calling loop for an ordinary conversational
+        adapter (no skill swap). Returns True if it fully handled the response
+        (context.response/context.sources set), False if it could not run
+        (e.g. no tools discovered) and the caller should fall back to the
+        plain generate()/generate_stream() path.
+        """
+        mcp_manager = self._get_mcp_manager()
+        tools = await mcp_manager.get_all_tools(allowed_servers=context.mcp_servers_allowlist)
+        if not tools:
+            logger.warning(
+                "mcp_tools enabled for adapter '%s' but no MCP tools were discovered; "
+                "falling back to plain generation.", context.adapter_name,
+            )
+            return False
+
+        # Build the same message format used for native-chat-format providers,
+        # so RAG/file context (formatted_context) is included exactly as it
+        # is for the plain generate() path today.
+        await self._build_message_format(context)
+
+        final_text, sources, _ = await run_tool_calling_loop(
+            provider=llm_provider,
+            mcp_manager=mcp_manager,
+            messages=context.messages,
+            tools=tools,
+            max_iterations=mcp_manager.max_tool_iterations,
+            cancel_event=context.cancel_event,
+            is_cancelled=context.is_cancelled,
+        )
+        context.response = final_text or ""
+        context.sources = (context.sources or []) + sources
+        return True
+
     def _uses_native_chat_format(self, context: ProcessingContext) -> bool:
         """Return True for providers/adapters that accept a structured messages array."""
         if context.adapter_name and self.container.has('adapter_manager'):

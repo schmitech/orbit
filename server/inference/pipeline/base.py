@@ -89,6 +89,11 @@ class ProcessingContext:
     # Web search: enables the provider's native web search on the inference call
     web_search: bool = False
 
+    # Opportunistic MCP tools: enables an inline bounded tool-calling loop on
+    # the inference call for adapters that are NOT type == "mcp_agent".
+    mcp_tools: bool = False
+    mcp_servers_allowlist: Optional[List[str]] = None  # None = all enabled servers
+
     # Image generation output
     image: Optional[str] = None               # base64-encoded generated image
     image_format: Optional[str] = None        # "png", "jpeg", or "webp"

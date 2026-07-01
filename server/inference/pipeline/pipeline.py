@@ -311,7 +311,10 @@ class InferencePipeline:
                     await llm_step.post_process(context)
 
                     # Send final done message (even if cancelled, to signal stream end)
-                    done_json = json.dumps({"done": True})
+                    done_payload: dict = {"done": True}
+                    if context.sources:
+                        done_payload["sources"] = context.sources
+                    done_json = json.dumps(done_payload)
                     yield done_json
                     
                     # Record metrics
@@ -335,7 +338,10 @@ class InferencePipeline:
                         error_json = json.dumps({"error": str(e), "done": True})
                         yield error_json
                         return
-                response_json = json.dumps({"response": context.response, "done": True})
+                response_payload: dict = {"response": context.response, "done": True}
+                if context.sources:
+                    response_payload["sources"] = context.sources
+                response_json = json.dumps(response_payload)
                 yield response_json
             
             # Record overall pipeline metrics

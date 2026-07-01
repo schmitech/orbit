@@ -222,6 +222,12 @@ curl -X POST http://localhost:3000/v1/chat \
 
 The response is a normal text `response` whose content includes inline citations the model produced from its web search. Streaming (`"stream": true`) works the same way.
 
+> `web_search` is one of two "always-on capability flag" patterns in ORBIT — a
+> boolean on a normal conversational adapter's capabilities that changes what
+> a single inference call does, with no explicit `skill:` request needed. The
+> other is `mcp_tools` (opportunistic MCP tool calling) — see
+> [MCP Agent Skill: Opportunistic Mode](mcp-agent.md#opportunistic-mode-mcp_tools-capability).
+
 ---
 
 ## Admin API

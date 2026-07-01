@@ -34,13 +34,14 @@ mcp_client:
     #   args: ["-y", "@modelcontextprotocol/server-filesystem", "/orbit/docs"]
     #   enabled: true
     
-    # ── Streamable HTTP server example ───────────────────────────────────
+    # ── Business sample MCP server (Streamable HTTP) ─────────────────────
     #
-    # First, set MCP_TOKEN in .env then run the test server: 
+    # First, set MCP_TOKEN in .env or your shell, then run:
     #
-    # python server/tests/test_services/mcp_http_test_server.py --port 9999 --token test-secret
+    # cd examples/mcp-server
+    # MCP_TOKEN=test-secret npm start
     # 
-    # - name: "test-server"
+    # - name: "business-sample"
     #   transport: "http"
     #   url: "http://127.0.0.1:9999/mcp"
     #   token: "${MCP_TOKEN}"
