@@ -77,7 +77,6 @@ of sitting neatly inside the bubble corner.
 
 - The pencil icon appears **inside** the user bubble, overlaid in the top-right corner of the
   bubble, aligned vertically with a single-line or multi-line message.
-- Text inside the bubble wraps before reaching the icon (`pr-10` padding reserves the space).
 - The icon is invisible when the mouse is not hovering the bubble, and becomes visible only
   on hover.
 
