@@ -4,6 +4,7 @@
 
 ### Core System Updates
 - **PostgreSQL Backend**: Added PostgreSQL as a third internal-services database backend alongside SQLite and MongoDB, implementing a locked database service for transaction isolation, dedicated audit log storage, config/env var wiring, and a sqlite-to-postgres migration script.
+- **Opportunistic MCP Tool Calling**: Added a `capabilities.mcp_tools` adapter flag (gated by a new `mcp_client.allow_opportunistic` global switch) that lets any conversational/passthrough adapter call MCP tools inline on any turn, deciding on its own whether a tool is needed — no `skill: "mcp-agent"` field or adapter swap required. Reuses the same bounded, multi-step tool-calling loop as the explicit `mcp-agent` skill (extracted into a shared `run_tool_calling_loop()`), with zero external agent-framework dependency (no LangChain/AutoGen/CrewAI).
 
 ### Chat-app & UI Improvements
 - **Internationalization (i18n)**: Introduced multi-language UI support via `react-i18next` with localStorage persistence, browser locale detection, and English/French translation bundles configurable via `orbitchat.yaml`.

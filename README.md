@@ -22,7 +22,7 @@
   &nbsp;•&nbsp;
   <a href="#-features"><strong>Features</strong></a>
   &nbsp;•&nbsp;
-  <a href="#-demos"><strong>Demos</strong></a>
+  <a href="#-use-cases"><strong>Use Cases</strong></a>
   &nbsp;•&nbsp;
   <a href="docs/tutorial.md"><strong>Tutorial</strong></a>
   &nbsp;•&nbsp;
@@ -116,68 +116,102 @@ Then open the admin dashboard at **[http://localhost:3000/admin](http://localhos
 
 ---
 
-## 🎬 Demos
+## 💡 Use Cases
+
+Same gateway, different jobs. Each use case below maps to a recurring pain that
+teams across industries are trying to solve with AI — with a short demo as proof.
+
+| Business outcome | Who feels the pain | What it replaces |
+| :--- | :--- | :--- |
+| **Answers from scattered documents** | Insurance, legal, finance, research | Hours spent manually cross-referencing PDFs, spreadsheets, and scans |
+| **Self-service data access** | Retail, operations, finance, SaaS | BI ticket backlogs and waiting on the data team to write SQL |
+| **Faster incident response** | SRE, DevOps, security ops | Bottlenecks where only a few specialists can write query DSL |
+| **Automated internal workflows** | IT ops, support, back-office | Manual glue work across databases, Slack, files, and tickets |
+| **Conversational tool use, zero orchestration code** | Product, support, SaaS builders | Bolt-on agent frameworks (LangChain, AutoGen) just to get tool calling |
+| **AI on regulated data** | Healthcare, government, legal, banking | Compliance blocks on sending sensitive data to cloud LLMs |
+| **Governed AI rollout** | Any regulated or enterprise org | Shadow AI with no audit trail, cost control, or visibility |
+| **In-flow content generation** | Marketing, e-learning, communications | Slow, fragmented media-production tooling |
 
 <details open>
-<summary><strong>Multi-source RAG and file chat</strong></summary>
+<summary><strong>Turn scattered documents into instant answers</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/bc85d24a-72dd-4a71-8c3d-017e5fadd219" controls muted playsinline width="80%"></video>
   <br />
-  <em>Upload PDFs, spreadsheets, and images, then query them together in a unified thread.</em>
+  <em>Analysts stop hunting across files: upload PDFs, spreadsheets, and images, then query them together in one thread with context cached across the conversation.</em>
 </p>
 </details>
 
 <details>
-<summary><strong>Natural language to database queries</strong></summary>
+<summary><strong>Let business teams answer their own data questions</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/745a0635-fe17-432b-9b36-c7b22adcdfcc" controls muted playsinline width="80%"></video>
   <br />
-  <em>Translate plain English into SQL, query structured databases, and generate visualizations in chat.</em>
+  <em>No SQL and no ticket queue: ask in plain English, and ORBIT generates the query, runs it against your database, and charts the result in chat.</em>
 </p>
 </details>
 
 <details>
-<summary><strong>Agentic MCP and tool-calling loops</strong></summary>
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/a57ff84e-db9d-466d-8f82-e23473b745fb" controls muted playsinline width="80%"></video>
-  <br />
-  <em>Expose filesystem commands, Slack APIs, Postgres tools, and other MCP servers to multi-step workflows.</em>
-</p>
-</details>
-
-<details>
-<summary><strong>Elasticsearch log translation</strong></summary>
+<summary><strong>Cut incident response time by searching logs in plain English</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/e7fd2834-e438-4ac1-9173-0c0d56ca562b" controls muted playsinline width="80%"></video>
   <br />
-  <em>Ask operational questions in natural language; ORBIT compiles Elasticsearch Query DSL.</em>
+  <em>Investigations no longer stall on DSL expertise: ask operational questions naturally, and ORBIT compiles the Elasticsearch Query DSL and returns the answer.</em>
 </p>
 </details>
 
 <details>
-<summary><strong>Media and video generation</strong></summary>
+<summary><strong>Automate multi-step workflows across your internal tools</strong></summary>
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/0f0c88f2-20b2-4617-9e5f-7efd823fc164" controls muted playsinline width="80%"></video>
+  <video src="https://github.com/user-attachments/assets/a57ff84e-db9d-466d-8f82-e23473b745fb" controls muted playsinline width="80%"></video>
   <br />
-  <em>Generate videos and images as cross-adapter skills with conversation context.</em>
+  <em>Replace manual glue work: give models scoped, server-side access to MCP tools — filesystem, Slack, Postgres, GitHub, Jira — with bounded agent loops.</em>
 </p>
 </details>
 
 <details>
-<summary><strong>Admin panel and monitoring</strong></summary>
+<summary><strong>Let the model call tools on its own, like ChatGPT or Claude</strong></summary>
+<p>
+  Beyond explicit, client-requested tool skills, any conversational adapter can
+  opt into <strong>opportunistic MCP tool calling</strong>: the model decides,
+  turn by turn, whether an external tool is needed and calls it inline — no
+  <code>skill</code> field, no adapter swap, same thread throughout. Multi-step
+  chains, self-correction from tool errors, and mixing several tools in one turn
+  all work out of the box, powered by providers' native function calling with
+  <strong>no LangChain, AutoGen, or CrewAI dependency</strong> — just a small,
+  bounded, fully-owned server-side loop. See the
+  <a href="docs/adapters/mcp-agent.md#opportunistic-mode-mcp_tools-capability">opportunistic mode guide</a>.
+</p>
+</details>
+
+<details>
+<summary><strong>Keep regulated data in-house by running AI fully offline</strong></summary>
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/565275fa-8f54-4bd6-94de-3fb27a66a5ab" controls muted playsinline width="80%"></video>
+  <br />
+  <em>Meet data-residency and compliance rules: run local llama.cpp/Ollama models so sensitive PII never leaves your environment.</em>
+</p>
+</details>
+
+<details>
+<summary><strong>Govern and audit every AI interaction</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/f85fb880-9f76-471a-8875-a16d615c3aa8" controls muted playsinline width="80%"></video>
   <br />
-  <em>Monitor health, logs, adapter status, tokens, sessions, and latency from the dashboard.</em>
+  <em>End shadow AI: monitor health, latency, tokens, sessions, adapters, and logs from one dashboard — behind API keys, quotas, and rate limits.</em>
 </p>
 </details>
 
 <details>
-<summary><strong>More demos</strong></summary>
+<summary><strong>Generate on-brand media inside the same chat flow</strong></summary>
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/565275fa-8f54-4bd6-94de-3fb27a66a5ab" controls muted playsinline width="80%"></video>
-  <br /><em>Analyze sensitive PII data offline using local llama.cpp models.</em>
+  <video src="https://github.com/user-attachments/assets/0f0c88f2-20b2-4617-9e5f-7efd823fc164" controls muted playsinline width="80%"></video>
+  <br />
+  <em>Produce content without leaving the conversation: generate images and video as cross-adapter skills that carry conversation context.</em>
 </p>
+</details>
+
+<details>
+<summary><strong>More capabilities</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/1c7b4bb6-4067-40f5-982c-c9ad6faf663d" controls muted playsinline width="80%"></video>
   <br /><em>Render dynamic LLM-generated SVGs inline.</em>

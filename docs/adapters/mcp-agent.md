@@ -225,6 +225,21 @@ gated by **two** switches that must both be true — a global admin gate and a
 per-adapter capability flag — rather than the skill mechanism's single
 `skill:` field.
 
+> **Why "opportunistic"?** The name describes *when* a tool gets called: the
+> tools are made available on every turn, but the **model** decides, turn by
+> turn, whether the current question presents an actual *opportunity* to use
+> one — it isn't forced to, and the client never signals it in advance. Ask a
+> question it can answer directly and it just answers (no tool, no `sources`);
+> ask something that needs live data and it seizes the opportunity and calls
+> the tool. This is the middle ground between the two other possible modes:
+> **explicit/on-demand** (the `mcp-agent` skill — the *client* decides up
+> front by sending `skill: "mcp-agent"`) and a hypothetical **forced** mode
+> (a tool call on every turn regardless of need). The term follows the
+> established computing sense — as in "opportunistic encryption" or
+> "opportunistic locking" — meaning *do it when conditions make it useful,
+> but don't require or force it*. It's the same per-turn, model-decides
+> behavior ChatGPT and Claude exhibit natively.
+
 ### How It Works
 
 ```
