@@ -947,7 +947,7 @@ export function Message({
                 setEditContent(message.content || '');
                 setIsEditing(true);
               }}
-              className="absolute top-1/2 -translate-y-1/2 right-2 rounded-md p-1 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white transition-colors"
+              className="absolute top-1/2 -translate-y-1/2 right-2 rounded-md p-1 opacity-0 group-hover:opacity-100 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white transition-all duration-200"
               title={t('message.editAriaLabel')}
               aria-label={t('message.editAriaLabel')}
             >
