@@ -456,7 +456,7 @@ export function Message({
 
   const bubbleClasses = isAssistant
     ? 'message-bubble message-bubble-assistant min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
-    : 'message-bubble message-bubble-user relative inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 pr-10 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]';
+    : 'message-bubble message-bubble-user relative inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]';
 
   const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';
 
@@ -932,29 +932,31 @@ export function Message({
             />
           )}
 
-          {(message.document || message.documentUrl) && isAssistant && !message.isStreaming && (
-            <DocumentDisplay
-              document={message.document}
-              documentUrl={message.documentUrl}
-              documentFormat={message.documentFormat}
-              revisedPrompt={message.documentRevisedPrompt}
-              adapterName={currentConversation?.adapterName}
-            />
-          )}
-          {!isAssistant && onEdit && !isEditing && (
+            {(message.document || message.documentUrl) && isAssistant && !message.isStreaming && (
+              <DocumentDisplay
+                document={message.document}
+                documentUrl={message.documentUrl}
+                documentFormat={message.documentFormat}
+                revisedPrompt={message.documentRevisedPrompt}
+                adapterName={currentConversation?.adapterName}
+              />
+            )}
+          
+        </div>
+
+        {!isAssistant && onEdit && !isEditing && (
             <button
               onClick={() => {
                 setEditContent(message.content || '');
                 setIsEditing(true);
               }}
-              className="absolute top-1/2 -translate-y-1/2 right-2 rounded-md p-1 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white transition-colors"
+              className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white transition-all duration-200 "
               title={t('message.editAriaLabel')}
               aria-label={t('message.editAriaLabel')}
             >
-              <Edit2 className="h-3.5 w-3.5" />
+              <Edit2 className=" h-6 w-4 ml-1" />
             </button>
           )}
-        </div>
 
         {isAssistant && !message.isStreaming && (
           <div className="py-1 flex flex-nowrap items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0] transition-opacity">
