@@ -61,6 +61,10 @@ class MCPClientManager:
         }
         self._tool_timeout: int = int(mcp_config.get("tool_timeout", 30))
         self._max_tool_iterations: int = int(mcp_config.get("max_tool_iterations", 5))
+        # Defense-in-depth gate for opportunistic (non-skill) tool calling.
+        # Does not affect the explicit "mcp-agent" skill, which is governed
+        # only by `enabled` above.
+        self._allow_opportunistic: bool = bool(mcp_config.get("allow_opportunistic", False))
         # Cap on tool result text injected into the model context (not just preview).
         # Prevents unbounded context growth and limits prompt-injection surface area.
         self._tool_result_max_chars: int = int(mcp_config.get("tool_result_max_chars", 8000))
@@ -77,6 +81,10 @@ class MCPClientManager:
     @property
     def max_tool_iterations(self) -> int:
         return self._max_tool_iterations
+
+    @property
+    def allow_opportunistic(self) -> bool:
+        return self._allow_opportunistic
 
     async def get_all_tools(
         self, allowed_servers: Optional[List[str]] = None

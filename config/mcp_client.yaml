@@ -20,7 +20,21 @@
 # register config/adapters/mcp-agent.yaml in config/adapters.yaml.
 
 mcp_client:
-  enabled: true                     # Set to false to disable MCP tool calling
+  enabled: true                     # Set to false to disable MCP tool calling entirely
+
+  # Opportunistic mode gate (defense in depth). Even if an adapter sets
+  # capabilities.mcp_tools: true, the inline tool-calling loop will NOT run
+  # on ordinary conversational turns unless this is also true. Does not
+  # affect the explicit "mcp-agent" skill (skill: "mcp-agent" requests),
+  # which stays governed only by `enabled` above.
+  #
+  # Default false: admins must consciously widen exposure from "tools only
+  # when a client asks for the mcp-agent skill" to "tools on every
+  # conversational turn for adapters that request it" — MCP servers can
+  # execute arbitrary local commands or reach external networks, so this is
+  # a deliberate second opt-in on top of the per-adapter mcp_tools flag.
+  # See docs/adapters/mcp-agent.md#opportunistic-mode.
+  allow_opportunistic: true
 
   tool_timeout: 30                  # Seconds before a tool call is aborted
   max_tool_iterations: 5            # Maximum tool-calling rounds per request
@@ -34,13 +48,14 @@ mcp_client:
       args: ["-y", "@modelcontextprotocol/server-filesystem", "/orbit"]
       enabled: true
     
-    # ── Streamable HTTP server example ───────────────────────────────────
+    # ── Business sample MCP server (Streamable HTTP) ─────────────────────
     #
-    # First, set MCP_TOKEN in .env then run the test server: 
+    # First, set MCP_TOKEN in .env or your shell, then run:
     #
-    # python server/tests/test_services/mcp_http_test_server.py --port 9999 --token test-secret
+    # cd examples/mcp-server
+    # MCP_TOKEN=test-secret npm start
     # 
-    - name: "test-server"
+    - name: "business-sample"
       transport: "http"
       url: "http://127.0.0.1:9999/mcp"
       token: "${MCP_TOKEN}"

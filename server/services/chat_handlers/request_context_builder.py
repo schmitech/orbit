@@ -239,6 +239,10 @@ class RequestContextBuilder:
         final_cfg = self.get_adapter_config(adapter_name)
         web_search = bool(final_cfg.get('capabilities', {}).get('web_search', False))
 
+        # Resolve opportunistic MCP tool-calling capability the same way.
+        mcp_tools = bool(final_cfg.get('capabilities', {}).get('mcp_tools', False))
+        mcp_servers_allowlist = final_cfg.get('capabilities', {}).get('mcp_servers')
+
         # Create and return processing context
         return ProcessingContext(
             message=message,
@@ -266,4 +270,6 @@ class RequestContextBuilder:
             requested_skill=requested_skill,
             original_adapter_name=original_adapter_name,
             web_search=web_search,
+            mcp_tools=mcp_tools,
+            mcp_servers_allowlist=mcp_servers_allowlist,
         )

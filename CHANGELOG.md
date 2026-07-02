@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.8.0] - 2026-07-01
+
+### Core System Updates
+- **PostgreSQL Backend**: Added PostgreSQL as a third internal-services database backend alongside SQLite and MongoDB, implementing a locked database service for transaction isolation, dedicated audit log storage, config/env var wiring, and a sqlite-to-postgres migration script.
+- **Opportunistic MCP Tool Calling**: Added a `capabilities.mcp_tools` adapter flag (gated by a new `mcp_client.allow_opportunistic` global switch) that lets any conversational/passthrough adapter call MCP tools inline on any turn, deciding on its own whether a tool is needed — no `skill: "mcp-agent"` field or adapter swap required. Reuses the same bounded, multi-step tool-calling loop as the explicit `mcp-agent` skill (extracted into a shared `run_tool_calling_loop()`), with zero external agent-framework dependency (no LangChain/AutoGen/CrewAI).
+
+### Chat-app & UI Improvements
+- **Internationalization (i18n)**: Introduced multi-language UI support via `react-i18next` with localStorage persistence, browser locale detection, and English/French translation bundles configurable via `orbitchat.yaml`.
+
+### Bug Fixes & Technical Improvements
+- **Language Switch Routing**: Fixed a regression where changing languages triggered route synchronization and generated a new conversation.
+- **Generator Adapter Provider Resolution**: Fixed document/image/video generator adapters (`rewrite_provider`/`rewrite_model`) and voice adapters (`fetch`, `openai_realtime`) being incorrectly gated on the global `inference_provider`'s enabled status during preload, causing false "disabled provider" warnings and startup errors even though these adapters resolve their own provider independently; also fixed a regression where `fetch` adapters stopped returning any response after being excluded from LLM inference.
+
 ## [2.7.11] - 2026-06-30
 
 ### Core System Updates

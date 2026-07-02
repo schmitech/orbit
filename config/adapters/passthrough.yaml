@@ -12,7 +12,7 @@ adapters:
     # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "openai"  # Override default inference provider
     model: "gpt-5.4-mini"         # Specific model for this adapter (default / fallback)
-    tts_provider: "gemini"          # TTS provider for audio output (see tts.yaml)
+    tts_provider: "openai"          # TTS provider for audio output (see tts.yaml)
 
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
@@ -66,3 +66,11 @@ adapters:
       supports_file_ids: false           # Does not support file filtering
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: false # No API key validation needed
+      # Opportunistic MCP tool calling: the model may call these tools on any
+      # turn without the client sending skill:"mcp-agent" — no adapter swap,
+      # same thread throughout. Requires mcp_client.enabled: true AND
+      # mcp_client.allow_opportunistic: true in config/mcp_client.yaml.
+      # See docs/adapters/mcp-agent.md#opportunistic-mode.
+      mcp_tools: false
+      mcp_servers:
+        - "business-sample"

@@ -67,6 +67,16 @@ class AdapterCapabilities:
     # native web search (Gemini google_search grounding, OpenAI web search)
     web_search: bool = False
 
+    # Opportunistic MCP tool calling: when True, the adapter's inference call
+    # runs a bounded native tool-calling loop against configured MCP servers
+    # on every turn, without requiring the client to request the "mcp-agent"
+    # skill. Gated globally by mcp_client.allow_opportunistic.
+    mcp_tools: bool = False
+    # Allowlist of MCP server names exposed to this adapter's tool-calling
+    # loop. Shared by both mcp_tools (opportunistic) and the "mcp-agent"
+    # skill adapter. None/absent = all enabled servers.
+    mcp_servers: Optional[List[str]] = None
+
     # Skill exposure: when True, this adapter is published as an invokable skill
     expose_as_skill: bool = False
     skill_name: Optional[str] = None  # Public skill name (defaults to adapter name when unset)
@@ -115,6 +125,8 @@ class AdapterCapabilities:
             numeric_precision=capabilities_config.get('numeric_precision', {}),
             available_skills=capabilities_config.get('available_skills', []),
             web_search=capabilities_config.get('web_search', False),
+            mcp_tools=capabilities_config.get('mcp_tools', False),
+            mcp_servers=capabilities_config.get('mcp_servers'),
             # Skill exposure lives under capabilities.
             expose_as_skill=capabilities_config.get('expose_as_skill', False),
             skill_name=capabilities_config.get('skill_name'),

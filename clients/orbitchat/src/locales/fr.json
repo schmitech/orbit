@@ -43,7 +43,7 @@
       "titleDisabled": "L'agent ne peut pas être changé une fois la conversation commencée"
     },
     "newConversation": {
-      "button": "Nouvelle conversation",
+      "button": "Nouvelle",
       "tooltipCanStart": "Démarrer une nouvelle conversation",
       "tooltipGuestLimited": "Limite de conversations invité atteinte. Connectez-vous pour plus de conversations.",
       "tooltipCannotStart": "Terminez votre conversation actuelle avant d'en démarrer une nouvelle."
@@ -51,7 +51,7 @@
     "empty": {
       "configuringAgent": "Configuration de votre agent…"
     },
-    "newChatTitle": "Nouvelle discussion",
+    "newChatTitle": "Nouvelle",
     "updatedAt": "Mis à jour {{time}}",
     "docked": {
       "placeholder": "Démarrer un nouveau sujet..."
@@ -74,7 +74,7 @@
       "label": "Langue"
     },
     "chat": {
-      "heading": "Préférences de discussion"
+      "heading": "Préférences"
     },
     "soundEffects": {
       "label": "Effets sonores",
@@ -97,8 +97,8 @@
       "title": "Sélectionner un agent"
     },
     "deleteAllConversations": {
-      "title": "Supprimer toutes les conversations",
-      "button": "Supprimer les conversations"
+      "title": "Tout effacer",
+      "button": "Tout effacer"
     },
     "navAriaLabel": "Barre latérale des conversations",
     "adapterConfigureFailed": "Échec de la configuration de l'adaptateur",
@@ -108,7 +108,7 @@
     },
     "search": {
       "ariaLabel": "Rechercher des conversations",
-      "placeholder": "Rechercher des conversations",
+      "placeholder": "Rechercher",
       "clearAriaLabel": "Effacer la recherche"
     },
     "resultsNone": "Aucun résultat",

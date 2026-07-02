@@ -20,6 +20,17 @@ export const getInitialConversationAdapterId = (): string | undefined => {
   return getConfiguredSingleAdapterId() || undefined;
 };
 
+// Empty string signals "untitled" — UI renders it as the translated "New Chat" label,
+// so the displayed title stays in sync when the user switches language later.
+export const DEFAULT_CONVERSATION_TITLE = '';
+
+// Hardcoded English titles persisted by older builds, before default titles were
+// translated at render time. Normalize them back to the "untitled" sentinel on load.
+const LEGACY_DEFAULT_TITLES = ['New Chat', 'New Conversation'];
+
+export const normalizeStoredTitle = (title: string | undefined): string =>
+  title && !LEGACY_DEFAULT_TITLES.includes(title) ? title : DEFAULT_CONVERSATION_TITLE;
+
 export const buildDefaultConversation = (
   conversationId: string,
   sessionId: string,
@@ -27,7 +38,7 @@ export const buildDefaultConversation = (
 ): Conversation => ({
   id: conversationId,
   sessionId,
-  title: 'New Chat',
+  title: DEFAULT_CONVERSATION_TITLE,
   messages: [],
   createdAt: new Date(),
   updatedAt: new Date(),

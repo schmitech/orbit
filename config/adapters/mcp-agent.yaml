@@ -41,5 +41,5 @@ adapters:
       # Optionally restrict which MCP servers this adapter may use.
       # Omit (or set to null) to allow all enabled servers.
       mcp_servers:
-        - "test-server"
+        - "business-sample"
         - "filesystem"

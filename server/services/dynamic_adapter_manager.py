@@ -29,6 +29,7 @@ from .cache import (
 from .config import AdapterConfigManager
 from .loader import AdapterLoader
 from .reload import DependencyCacheCleaner, AdapterReloader
+from inference.pipeline.steps._utils import NO_INFERENCE_PROVIDER_ADAPTER_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -216,9 +217,23 @@ class DynamicAdapterManager:
                     finally:
                         self.adapter_cache.release_initialization(adapter_name)
 
+    def _resolve_inference_provider(self, adapter_config: Dict[str, Any], default: str = 'default') -> str:
+        """
+        Resolve the inference provider an adapter actually relies on.
+
+        Adapters that define rewrite_provider (e.g. document/image/video generators)
+        resolve their LLM independently at request time and never fall back to the
+        global default provider, so it must be checked ahead of the global default here.
+        """
+        return (
+            adapter_config.get('inference_provider')
+            or adapter_config.get('rewrite_provider')
+            or self.config.get('general', {}).get('inference_provider', default)
+        )
+
     def _build_adapter_info_parts(self, adapter_config: Dict[str, Any]) -> list:
         """Build common adapter info parts shared by log and preload messages."""
-        inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
+        inference_provider = self._resolve_inference_provider(adapter_config)
         model_override = adapter_config.get('model')
 
         embedding_provider = adapter_config.get('embedding_provider') or self.config.get('embedding', {}).get('provider', 'ollama')
@@ -239,7 +254,8 @@ class DynamicAdapterManager:
         )
 
         parts = []
-        parts.append(f"inference: {inference_provider}/{model_override}" if model_override else f"inference: {inference_provider}")
+        if adapter_config.get('type') not in NO_INFERENCE_PROVIDER_ADAPTER_TYPES:
+            parts.append(f"inference: {inference_provider}/{model_override}" if model_override else f"inference: {inference_provider}")
         parts.append(f"embedding: {embedding_provider}/{embedding_model}" if embedding_model else f"embedding: {embedding_provider}")
         if reranker_provider:
             parts.append(f"reranker: {reranker_provider}/{reranker_model}" if reranker_model else f"reranker: {reranker_provider}")
@@ -258,7 +274,7 @@ class DynamicAdapterManager:
         """Handle adapter loading errors with helpful messages."""
         if "No service registered for inference with provider" in str(error):
             adapter_config = self.config_manager.get(adapter_name) or {}
-            inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'unknown')
+            inference_provider = self._resolve_inference_provider(adapter_config, default='unknown')
 
             logger.warning("=" * 80)
             logger.warning(f"SKIPPING ADAPTER '{adapter_name}': Inference provider not available")
@@ -479,17 +495,18 @@ class DynamicAdapterManager:
                     timeout=timeout_per_adapter
                 )
 
-                # Also preload the inference provider
+                # Also preload the inference provider (skip for adapter types that never call the LLM)
                 adapter_config = self.get_adapter_config(adapter_name) or {}
-                inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
+                if adapter_config.get('type') not in NO_INFERENCE_PROVIDER_ADAPTER_TYPES:
+                    inference_provider = self._resolve_inference_provider(adapter_config)
 
-                try:
-                    await self.get_overridden_provider(inference_provider, adapter_name)
-                except ValueError as provider_error:
-                    if "No service registered for inference with provider" in str(provider_error):
-                        raise ValueError(f"Adapter '{adapter_name}' uses disabled inference provider '{inference_provider}'") from provider_error
-                    else:
-                        raise
+                    try:
+                        await self.get_overridden_provider(inference_provider, adapter_name)
+                    except ValueError as provider_error:
+                        if "No service registered for inference with provider" in str(provider_error):
+                            raise ValueError(f"Adapter '{adapter_name}' uses disabled inference provider '{inference_provider}'") from provider_error
+                        else:
+                            raise
 
                 # Build success message
                 message = self._build_preload_success_message(adapter_name, adapter_config)
@@ -548,7 +565,7 @@ class DynamicAdapterManager:
         """Build error result for adapter preloading."""
         if "No service registered for inference with provider" in str(error):
             adapter_config = self.get_adapter_config(adapter_name) or {}
-            inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'unknown')
+            inference_provider = self._resolve_inference_provider(adapter_config, default='unknown')
             return {
                 "adapter_name": adapter_name,
                 "success": False,

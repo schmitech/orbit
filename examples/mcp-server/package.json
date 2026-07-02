@@ -1,0 +1,21 @@
+{
+  "name": "orbit-business-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sample Streamable HTTP MCP server for ORBIT mcp_client.yaml testing.",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "smoke": "node src/smoke-test.js"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.1.0",
+    "@modelcontextprotocol/sdk": "^1.23.0",
+    "express": "^5.1.0",
+    "zod": "^3.25.76"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
