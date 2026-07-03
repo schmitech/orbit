@@ -1,0 +1,481 @@
+{
+  "common": {
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "confirm": "Bestätigen",
+    "delete": "Löschen",
+    "remove": "Entfernen",
+    "clear": "Leeren",
+    "send": "Senden",
+    "signIn": "Anmelden",
+    "logOut": "Abmelden",
+    "download": "Herunterladen"
+  },
+  "app": {
+    "sidebar": {
+      "openAriaLabel": "Seitenleiste öffnen",
+      "openTitle": "Seitenleiste öffnen"
+    },
+    "menu": {
+      "closeAriaLabel": "Menü schließen"
+    }
+  },
+  "chatInterface": {
+    "workspace": {
+      "ariaLabel": "Chat-Arbeitsbereich"
+    },
+    "error": {
+      "dismissAriaLabel": "Fehler schließen"
+    },
+    "mobile": {
+      "chatsButton": "Chats",
+      "openChatsMenuAriaLabel": "Konversationsmenü öffnen",
+      "settingsButton": "Einstellungen",
+      "openSettingsAriaLabel": "Einstellungen öffnen"
+    },
+    "settings": {
+      "ariaLabel": "Einstellungen",
+      "title": "Einstellungen"
+    },
+    "changeAgent": {
+      "button": "Agent wechseln",
+      "titleEnabled": "Wechsle zu einem anderen Agenten, bevor du diese Konversation startest",
+      "titleDisabled": "Der Agent kann nach Beginn der Konversation nicht mehr geändert werden"
+    },
+    "newConversation": {
+      "button": "Neue Konversation",
+      "tooltipCanStart": "Neue Konversation starten",
+      "tooltipGuestLimited": "Limit für Gastkonversationen erreicht. Melde dich an, um mehr Konversationen zu führen.",
+      "tooltipCannotStart": "Beende deine aktuelle Konversation, bevor du eine neue startest."
+    },
+    "empty": {
+      "configuringAgent": "Dein Agent wird konfiguriert…"
+    },
+    "newChatTitle": "Neuer Chat",
+    "updatedAt": "Aktualisiert {{time}}",
+    "docked": {
+      "placeholder": "Neues Thema starten..."
+    }
+  },
+  "settings": {
+    "dialog": {
+      "closeOverlayAriaLabel": "Einstellungsüberlagerung schließen",
+      "title": "Einstellungen",
+      "closeButtonAriaLabel": "Einstellungen schließen"
+    },
+    "appearance": {
+      "heading": "Darstellung",
+      "themeLabel": "Design",
+      "themeLight": "Hell",
+      "themeDark": "Dunkel",
+      "themeSystem": "System"
+    },
+    "language": {
+      "label": "Sprache"
+    },
+    "chat": {
+      "heading": "Chat-Einstellungen"
+    },
+    "soundEffects": {
+      "label": "Soundeffekte",
+      "description": "Sounds für Benachrichtigungen und Ereignisse abspielen",
+      "toggleAriaLabel": "Soundeffekte umschalten"
+    },
+    "dataManagement": {
+      "heading": "Datenverwaltung",
+      "description": "Alle Anwendungsdaten einschließlich Konversationen und personalisierter Einstellungen löschen."
+    },
+    "reset": {
+      "button": "Anwendung zurücksetzen",
+      "confirmTitle": "Anwendungsdaten zurücksetzen?",
+      "confirmMessage": "Dadurch wird alles entfernt, was auf diesem Gerät gespeichert ist, und die App wird neu geladen.",
+      "confirmButton": "Zurücksetzen"
+    }
+  },
+  "sidebar": {
+    "selectAgent": {
+      "title": "Agent auswählen"
+    },
+    "deleteAllConversations": {
+      "title": "Alle Konversationen löschen",
+      "button": "Konversationen löschen"
+    },
+    "navAriaLabel": "Konversations-Seitenleiste",
+    "adapterConfigureFailed": "Adapter konnte nicht konfiguriert werden",
+    "collapse": {
+      "ariaLabel": "Seitenleiste schließen",
+      "title": "Seitenleiste schließen"
+    },
+    "search": {
+      "ariaLabel": "Konversationen suchen",
+      "placeholder": "Konversationen suchen",
+      "clearAriaLabel": "Suche löschen"
+    },
+    "resultsNone": "Keine Ergebnisse",
+    "results_one": "{{count}} Ergebnis",
+    "results_other": "{{count}} Ergebnisse",
+    "conversations": {
+      "ariaLabel": "Konversationen"
+    },
+    "timeGroups": {
+      "today": "Heute",
+      "yesterday": "Gestern",
+      "thisWeek": "Diese Woche",
+      "thisMonth": "Dieser Monat",
+      "earlier": "Früher"
+    },
+    "conversationCard": {
+      "openAriaLabel": "Konversation öffnen: {{title}}",
+      "editAriaLabel": "Konversation umbenennen: {{title}}",
+      "deleteAriaLabel": "Konversation löschen: {{title}}",
+      "editInputAriaLabel": "Konversationstitel bearbeiten"
+    },
+    "deleteConfirm": {
+      "title": "Konversation löschen",
+      "message": "Möchtest du \"{{title}}\" wirklich löschen? Dadurch wird der Konversationsverlauf gelöscht.",
+      "confirmText": "Löschen"
+    },
+    "clearAllConfirm": {
+      "title": "Alle Konversationen leeren",
+      "message_one": "Möchtest du diese Konversation wirklich löschen? Dadurch wird der gesamte Konversationsverlauf gelöscht.",
+      "message_other": "Möchtest du wirklich alle {{count}} Konversationen löschen? Dadurch wird der gesamte Konversationsverlauf gelöscht.",
+      "confirmText": "Alle leeren"
+    }
+  },
+  "messageInput": {
+    "textarea": {
+      "ariaLabel": "Nachrichteneingabe"
+    },
+    "skillsHint": {
+      "ariaLabel": "Verfügbare Skills anzeigen (oder einen Schrägstrich eingeben)",
+      "title": "Skill verwenden",
+      "text": "Skills"
+    },
+    "selectedSkill": {
+      "removeAriaLabel": "Skill entfernen"
+    },
+    "fileUpload": {
+      "attachAriaLabel": "Dateien anhängen",
+      "titleNotSupported": "Dateiupload wird von diesem Adapter nicht unterstützt",
+      "titleLimitPerConversation": "Maximal {{count}} Dateien in dieser Konversation erreicht. Starte einen neuen Chat, um weitere hochzuladen.",
+      "titleLimitWorkspace": "Arbeitsbereichslimit von insgesamt {{count}} Dateien erreicht. Entferne zuerst Dateien aus anderen Konversationen.",
+      "titleUploading": "Dateien werden hochgeladen. Bitte warten...",
+      "titleAttached": "{{count}} Datei(en) angehängt"
+    },
+    "voiceOutput": {
+      "titleEnabled": "Sprachantworten aktiviert - Zum Deaktivieren klicken",
+      "titleDisabled": "Sprachantworten aktivieren (Text-zu-Sprache)",
+      "ariaLabelEnabled": "Sprachantworten deaktivieren",
+      "ariaLabelDisabled": "Sprachantworten aktivieren"
+    },
+    "voiceInput": {
+      "titleUploading": "Dateien werden hochgeladen. Bitte warten...",
+      "titleListening": "Aufnahme stoppen",
+      "titleDisabled": "Spracheingabe starten",
+      "ariaLabelListening": "Aufnahme stoppen",
+      "ariaLabelDisabled": "Spracheingabe starten"
+    },
+    "agentInfo": {
+      "title": "Über diesen Agenten",
+      "ariaLabel": "Über diesen Agenten"
+    },
+    "submit": {
+      "title": "Nachricht senden",
+      "ariaLabel": "Nachricht senden"
+    },
+    "stop": {
+      "title": "Generierung stoppen",
+      "ariaLabel": "Generierung stoppen"
+    },
+    "attachedFile": {
+      "uploadingStatus": "Wird hochgeladen...",
+      "processingStatus": "Wird verarbeitet...",
+      "failedStatus": "Fehlgeschlagen",
+      "removeTitleFailed": "Ausblenden",
+      "removeTitleNormal": "Datei entfernen"
+    },
+    "uploadPanel": {
+      "headingAttach": "Dateien anhängen",
+      "headingUploading": "Dateien werden hochgeladen",
+      "closeTitle": "Schließen"
+    },
+    "uploadProgress": {
+      "statusUploading": "Wird hochgeladen",
+      "statusProcessing": "Wird verarbeitet",
+      "statusCompleted": "Fertig",
+      "statusPending": "Ausstehend"
+    },
+    "listeningIndicator": "Hört zu...",
+    "fileDelete": {
+      "title": "Datei entfernen",
+      "message": "Möchtest du \"{{filename}}\" wirklich entfernen? Dadurch wird die Datei sowohl vom Server als auch aus dieser Konversation gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "confirmText": "Entfernen"
+    },
+    "agentInfoModal": {
+      "title": "Über diesen Agenten",
+      "closeAriaLabel": "Schließen",
+      "confirmButton": "Verstanden"
+    },
+    "placeholder": {
+      "filesUploading": "Dateien werden hochgeladen, bitte warten...",
+      "messageOrbit": "Nachricht an ORBIT senden oder Dateien hier ablegen",
+      "guestLimitTotal": "Gastlimit von {{count}} Nachrichten erreicht. Melde dich für höhere Limits an.",
+      "workspaceLimitTotal": "Arbeitsbereichslimit von {{count}} Nachrichten erreicht. Lösche oder archiviere alte Konversationen, um fortzufahren.",
+      "guestLimitPerConversation": "Gastlimit von {{count}} Nachrichten erreicht. Melde dich für höhere Limits an.",
+      "conversationLimitReached": "Dieser Chat hat das Limit von {{count}} Nachrichten erreicht. Starte eine neue Konversation, um fortzufahren."
+    },
+    "limitWarning": {
+      "guestTotalMessages": "Gastlimit von insgesamt {{count}} Nachrichten erreicht. Melde dich für höhere Limits an oder lösche Konversationen, um neu zu beginnen.",
+      "workspaceTotalMessages": "Arbeitsbereichslimit von insgesamt {{count}} Nachrichten erreicht. Lösche oder exportiere ältere Konversationen, um fortzufahren.",
+      "guestPerConversation": "Gastlimit von {{count}} Nachrichten pro Konversation erreicht. Melde dich für höhere Limits an oder lösche Konversationen, um neu zu beginnen.",
+      "conversationLimitReached": "Diese Konversation hat das Limit von {{count}} Nachrichten erreicht. Starte eine neue Konversation, um weiter zu chatten."
+    },
+    "signInPrompt": {
+      "button": "Für höhere Limits anmelden",
+      "message": "Melde dich an, um höhere Nachrichtenlimits und mehr Konversationen freizuschalten."
+    },
+    "autocompletePanel": {
+      "ariaLabel": "Autocomplete-Vorschläge"
+    },
+    "uploadSuccess": {
+      "single": "Datei \"{{filename}}\" erfolgreich hochgeladen",
+      "multiple": "{{count}} Dateien erfolgreich hochgeladen"
+    },
+    "conversationNotFoundShort": "Konversation nicht gefunden. Bitte wähle zuerst eine Konversation aus.",
+    "fileRemoveFailed": "Datei konnte nicht entfernt werden",
+    "fileProcessingFailedTitle": "Dateiverarbeitung fehlgeschlagen"
+  },
+  "authStatus": {
+    "signOutButton": {
+      "title": "Abmelden",
+      "ariaLabel": "Abmelden"
+    }
+  },
+  "loginPrompt": {
+    "heading": "Anmelden für mehr"
+  },
+  "outOfService": {
+    "statusBadge": "Dienst pausiert",
+    "heading": "Vorübergehend nicht verfügbar",
+    "retryButton": "Erneut versuchen"
+  },
+  "confirmationModal": {
+    "loadingLabel": "Wird geleert..."
+  },
+  "appHeader": {
+    "homeLinkAriaLabel": "Zur Startseite",
+    "logoAlt": "Logo",
+    "navLinksAriaLabel": "Header-Links"
+  },
+  "appFooter": {
+    "navLinksAriaLabel": "Footer-Links"
+  },
+  "agentCard": {
+    "configureMessage": "Konfiguriere diesen Agenten, um seine Funktionen zu sehen.",
+    "startConversationAriaLabel": "Konversation mit {{name}} starten"
+  },
+  "markdown": {
+    "codeBlock": {
+      "copied": "Kopiert!",
+      "copyTitle": "Code kopieren",
+      "copyAriaLabel": "Code in die Zwischenablage kopieren",
+      "copyLabel": "Kopieren",
+      "loadingRenderer": "Renderer wird geladen..."
+    },
+    "diagram": {
+      "copyCodeAriaLabel": "Diagrammcode in die Zwischenablage kopieren",
+      "exportPngTitle": "Als PNG exportieren",
+      "exportPngAriaLabel": "Diagramm als PNG-Bild exportieren",
+      "errorTitle": "Mermaid-Diagrammfehler"
+    },
+    "music": {
+      "copyNotationAriaLabel": "ABC-Notation in die Zwischenablage kopieren",
+      "exportPngTitle": "Als PNG exportieren",
+      "exportPngAriaLabel": "Musiknotation als PNG-Bild exportieren",
+      "rendering": "Notation wird gerendert..."
+    },
+    "svg": {
+      "copyCodeAriaLabel": "SVG-Code in die Zwischenablage kopieren",
+      "exportPngTitle": "Als PNG exportieren",
+      "exportPngAriaLabel": "SVG als PNG-Bild exportieren"
+    },
+    "chart": {
+      "legendAriaLabel": "Diagrammlegende",
+      "copyCodeAriaLabel": "Diagrammcode in die Zwischenablage kopieren",
+      "exportPngTitle": "Als PNG exportieren",
+      "exportPngAriaLabel": "Diagramm als PNG-Bild exportieren",
+      "errorTitle": "Diagramm-Renderfehler",
+      "loadingAriaLabel": "Diagramm wird geladen",
+      "showRawSource": "Rohquelle anzeigen"
+    }
+  },
+  "adapterSelector": {
+    "defaultLabel": "Adapter",
+    "selectAnAgent": "Agent auswählen",
+    "loadingAgents": "Agenten werden geladen…",
+    "errorLoadingAgents": "Fehler beim Laden der Agenten",
+    "noAgentsAvailable": "Keine Agenten verfügbar",
+    "failedToLoad": "Adapter konnten nicht geladen werden. Bitte überprüfe deine Verbindung."
+  },
+  "agentSelectionList": {
+    "searchPlaceholder": "Agenten suchen",
+    "clearSearchAriaLabel": "Suche löschen",
+    "noAgentsAvailable": "Noch sind keine Agenten verfügbar. Konfiguriere Adapter in deinen Middleware-Einstellungen, um fortzufahren.",
+    "noSearchResults": "Keine Agenten entsprechen deiner Suche.",
+    "unableToLoad": "Agenten können derzeit nicht geladen werden."
+  },
+  "fileUpload": {
+    "selectBeforeUpload": "Bitte wähle oder erstelle eine Konversation, bevor du Dateien hochlädst.",
+    "conversationNotFound": "Konversation nicht gefunden. Bitte versuche es erneut.",
+    "maxFilesPerConversationError": "Maximal {{count}} Dateien pro Konversation erlaubt. Bitte entferne zuerst einige Dateien.",
+    "maxFilesGuestLimitMessage": "Du hast das Gastlimit von {{count}} Dateien pro Konversation erreicht. Melde dich an, um mehr Dateien hochzuladen.",
+    "maxTotalFilesError": "Maximal {{count}} Dateien insgesamt über alle Konversationen erlaubt. Bitte entferne zuerst einige Dateien aus anderen Konversationen.",
+    "maxTotalFilesGuestLimitMessage": "Du hast das Gastlimit von insgesamt {{count}} Dateien erreicht. Melde dich an, um mehr Dateien hochzuladen.",
+    "adapterNotConfigured": "Adapter für diese Konversation nicht konfiguriert. Bitte wähle zuerst einen Adapter aus.",
+    "disabledAriaLabel": "Dateiupload deaktiviert",
+    "enabledAriaLabel": "Dateien hochladen",
+    "dragDropText": "Dateien ablegen oder zum Durchsuchen klicken",
+    "draggingText": "Dateien hier ablegen",
+    "fileTypesAndLimit": "PDF, DOCX, TXT, CSV, Codedateien, Bilder, Audio · max. {{count}} Dateien",
+    "otherConversationsLabel": "Andere Konversationen",
+    "uploadingStatus": "Wird hochgeladen",
+    "processingStatus": "Wird verarbeitet",
+    "completedStatus": "Fertig",
+    "failedStatus": "Fehlgeschlagen",
+    "processingFailedMessage": "Verarbeitung fehlgeschlagen"
+  },
+  "fileList": {
+    "header": "Dateien ({{count}})",
+    "noFilesAttached": "Keine Dateien angehängt",
+    "uploadFilesToUse": "Lade Dateien hoch, um sie in dieser Konversation zu verwenden",
+    "removeFileTooltip": "Datei entfernen",
+    "confirmRemoveTitle": "Datei entfernen",
+    "confirmRemoveMessage": "Möchtest du \"{{filename}}\" wirklich entfernen? Dadurch wird die Datei sowohl vom Server als auch aus dieser Konversation gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
+  },
+  "documentDisplay": {
+    "generatedDocument": "Generiertes Dokument",
+    "loadingPreview": "Vorschau wird geladen...",
+    "openPreviewTooltip": "Vorschau öffnen",
+    "downloadDocumentTooltip": "Dokument herunterladen",
+    "noSheetDataFound": "Keine Tabellendaten gefunden.",
+    "csvRowsPreviewMessage": "Die ersten 25 von {{count}} Zeilen werden angezeigt — lade die vollständige Datei herunter.",
+    "noDataFound": "Keine Daten gefunden.",
+    "previewUnavailable": "Für dieses Format ist keine Vorschau verfügbar. Verwende Herunterladen, um es lokal zu öffnen.",
+    "previewUnavailableShort": "Vorschau nicht verfügbar"
+  },
+  "imageDisplay": {
+    "generatedImageTitle": "Generiertes Bild — zum Vergrößern klicken",
+    "generatedImageAlt": "Generiertes Bild",
+    "downloadImageTooltip": "Bild herunterladen",
+    "viewFullSizeTooltip": "In voller Größe anzeigen",
+    "showPrompt": "Prompt anzeigen",
+    "hidePrompt": "Prompt ausblenden",
+    "promptLabel": "Prompt"
+  },
+  "videoDisplay": {
+    "downloadVideoTooltip": "Video herunterladen",
+    "viewFullSizeTooltip": "In voller Größe anzeigen",
+    "showPrompt": "Prompt anzeigen",
+    "hidePrompt": "Prompt ausblenden",
+    "promptLabel": "Prompt"
+  },
+  "audio": {
+    "button": {
+      "audioPlayingTitle": "Audio wird abgespielt...",
+      "voiceEnabledTitle": "Sprache aktiviert - Zum Deaktivieren klicken",
+      "enableVoiceTitle": "Klicken, um Sprachantworten zu aktivieren",
+      "playingLabel": "Wird abgespielt...",
+      "voiceOnLabel": "Sprache an",
+      "enableVoiceLabel": "Sprache aktivieren"
+    },
+    "player": {
+      "audioFileTooLargePlaceholder": "Audiodatei zu groß ({{sizeMB}} MB > Limit von {{maxMB}} MB)",
+      "largeAudioWarning": "Große Audiodatei ({{sizeMB}} MB) - das Laden kann dauern",
+      "invalidBase64Error": "Ungültige Base64-Audiodaten",
+      "loadFailureError": "Audio konnte nicht geladen werden",
+      "playbackFailureError": "Wiedergabe fehlgeschlagen",
+      "pauseTitle": "Pausieren",
+      "playTitle": "Abspielen",
+      "pauseAriaLabel": "Audio pausieren",
+      "playAriaLabel": "Audio abspielen"
+    }
+  },
+  "modelPicker": {
+    "searchPlaceholder": "Modelle suchen…",
+    "searchAriaLabel": "Modelle suchen",
+    "noModelsMatch": "Keine Modelle entsprechen \"{{query}}\"",
+    "modelCountHint": "{{filtered}} von {{total}} Modellen",
+    "selectModel": "Modell auswählen"
+  },
+  "skillPicker": {
+    "noSkillsAvailable": "Für diesen Adapter sind keine Skills verfügbar.",
+    "loadingLabel": "Skills werden geladen...",
+    "noMatchingSkills": "Keine passenden Skills für \"{{query}}\".",
+    "noMatchingSkillsGeneric": "Keine passenden Skills.",
+    "listboxLabel": "Verfügbare Skills"
+  },
+  "message": {
+    "edit": {
+      "willRegenerateHint": "Antwort wird neu generiert"
+    },
+    "copyImageLabel": "Bild in die Zwischenablage kopieren",
+    "copyLabel": "In die Zwischenablage kopieren",
+    "feedback": {
+      "good": "Gute Antwort",
+      "poor": "Schwache Antwort",
+      "thanks": "Danke!"
+    },
+    "editAriaLabel": "Nachricht bearbeiten",
+    "regenerateTitle": "Antwort neu generieren",
+    "regenerateAriaLabel": "Antwort neu generieren",
+    "thread": {
+      "continueDiscussionTitle": "Diese Diskussion mit dem Kontext der aktuellen Antwort fortsetzen",
+      "continueDiscussionAriaLabel": "Diese Diskussion mit dem Kontext der aktuellen Antwort fortsetzen",
+      "continueLabel": "Fortsetzen",
+      "replyCount_one": "{{count}} Antwort",
+      "replyCount_other": "{{count}} Antworten",
+      "clearTitle": "Antworten leeren",
+      "clearAriaLabel": "Antworten leeren",
+      "hideRepliesAriaLabel": "Antworten ausblenden",
+      "hideRepliesLabel": "Antworten ausblenden",
+      "placeholder": "Im Thread antworten...",
+      "skillsHint": "Skill verwenden",
+      "skillsHintAriaLabel": "Verfügbare Skills anzeigen (oder einen Schrägstrich eingeben)",
+      "removeSkillAriaLabel": "Thread-Skill entfernen",
+      "sendMessageTitle": "Thread-Nachricht senden",
+      "selectModelTitle": "Modell für diesen Thread auswählen",
+      "limitReachedGuest": "Du hast das Gastlimit von {{count}} Nachrichten pro Thread erreicht. Melde dich an, um diesen Thread fortzusetzen.",
+      "limitReachedUser": "Dieser Thread hat das Limit von {{count}} Nachrichten erreicht. Starte eine neue Konversation für weitere Nachfragen.",
+      "signInForHigherLimits": "Für höhere Limits anmelden",
+      "signInPromptMessage": "Melde dich an, um höhere Nachrichtenlimits freizuschalten und diesen Thread fortzusetzen."
+    },
+    "confirmation": {
+      "clearRepliesTitle": "Antworten leeren",
+      "clearRepliesMessage": "Möchtest du diese Antworten wirklich leeren? Dadurch wird der untergeordnete Thread im Backend entfernt, ohne die Hauptkonversation zu löschen."
+    }
+  },
+  "messageList": {
+    "emptyStateHeading": "Deine Nachrichten werden hier angezeigt.",
+    "emptyStateSubheading": "Starte die Konversation, indem du unten einen Prompt sendest."
+  },
+  "voice": {
+    "browserNotSupported": "Spracherkennung wird in diesem Browser nicht unterstützt. Bitte versuche es mit Chrome, Edge oder Safari.",
+    "error": {
+      "noSpeech": "Keine Sprache erkannt. Bitte versuche es erneut.",
+      "audioCapture": "Mikrofonzugriff verweigert. Bitte erlaube den Mikrofonzugriff und versuche es erneut.",
+      "notAllowed": "Mikrofonzugriff nicht erlaubt. Bitte aktiviere die Mikrofonberechtigungen.",
+      "network": "Netzwerkfehler aufgetreten. Bitte überprüfe deine Verbindung.",
+      "generic": "Spracherkennungsfehler: {{error}}",
+      "startFailed": "Spracherkennung konnte nicht gestartet werden. Bitte versuche es erneut."
+    }
+  },
+  "agent": {
+    "error": {
+      "singleAdapterMissing": "Der Einzeladaptermodus erfordert, dass agentMode.defaultAdapterId mit einer Adapter-ID in orbitchat.yaml übereinstimmt.",
+      "configurationFailed": "Dieser Agent konnte nicht konfiguriert werden.",
+      "authenticationFailed": "Wir konnten diesen Agenten nicht laden. Er existiert möglicherweise nicht oder du hast keinen Zugriff darauf.",
+      "notFound": "Dieser Agent wurde auf dem Server nicht gefunden. Bitte wähle einen anderen Agenten aus.",
+      "loadFailed": "Die Agentenübersicht kann derzeit nicht geladen werden."
+    }
+  }
+}

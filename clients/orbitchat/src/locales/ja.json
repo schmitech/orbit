@@ -1,0 +1,481 @@
+{
+  "common": {
+    "cancel": "キャンセル",
+    "close": "閉じる",
+    "confirm": "確認",
+    "delete": "削除",
+    "remove": "削除",
+    "clear": "クリア",
+    "send": "送信",
+    "signIn": "サインイン",
+    "logOut": "ログアウト",
+    "download": "ダウンロード"
+  },
+  "app": {
+    "sidebar": {
+      "openAriaLabel": "サイドバーを開く",
+      "openTitle": "サイドバーを開く"
+    },
+    "menu": {
+      "closeAriaLabel": "メニューを閉じる"
+    }
+  },
+  "chatInterface": {
+    "workspace": {
+      "ariaLabel": "チャットワークスペース"
+    },
+    "error": {
+      "dismissAriaLabel": "エラーを閉じる"
+    },
+    "mobile": {
+      "chatsButton": "チャット",
+      "openChatsMenuAriaLabel": "会話メニューを開く",
+      "settingsButton": "設定",
+      "openSettingsAriaLabel": "設定を開く"
+    },
+    "settings": {
+      "ariaLabel": "設定",
+      "title": "設定"
+    },
+    "changeAgent": {
+      "button": "エージェントを変更",
+      "titleEnabled": "この会話を開始する前に別のエージェントに切り替える",
+      "titleDisabled": "会話の開始後はエージェントを変更できません"
+    },
+    "newConversation": {
+      "button": "新しい会話",
+      "tooltipCanStart": "新しい会話を開始",
+      "tooltipGuestLimited": "ゲストの会話数上限に達しました。サインインすると会話を増やせます。",
+      "tooltipCannotStart": "新しい会話を始める前に、現在の会話を完了してください。"
+    },
+    "empty": {
+      "configuringAgent": "エージェントを設定しています…"
+    },
+    "newChatTitle": "新しいチャット",
+    "updatedAt": "{{time}}に更新",
+    "docked": {
+      "placeholder": "新しいトピックを開始..."
+    }
+  },
+  "settings": {
+    "dialog": {
+      "closeOverlayAriaLabel": "設定オーバーレイを閉じる",
+      "title": "設定",
+      "closeButtonAriaLabel": "設定を閉じる"
+    },
+    "appearance": {
+      "heading": "外観",
+      "themeLabel": "テーマ",
+      "themeLight": "ライト",
+      "themeDark": "ダーク",
+      "themeSystem": "システム"
+    },
+    "language": {
+      "label": "言語"
+    },
+    "chat": {
+      "heading": "チャット設定"
+    },
+    "soundEffects": {
+      "label": "効果音",
+      "description": "通知やイベントで音を再生する",
+      "toggleAriaLabel": "効果音を切り替え"
+    },
+    "dataManagement": {
+      "heading": "データ管理",
+      "description": "会話や個人設定を含むすべてのアプリケーションデータを消去します。"
+    },
+    "reset": {
+      "button": "アプリケーションをリセット",
+      "confirmTitle": "アプリケーションデータをリセットしますか？",
+      "confirmMessage": "このデバイスに保存されているすべてのデータを削除し、アプリを再読み込みします。",
+      "confirmButton": "リセット"
+    }
+  },
+  "sidebar": {
+    "selectAgent": {
+      "title": "エージェントを選択"
+    },
+    "deleteAllConversations": {
+      "title": "すべての会話を削除",
+      "button": "会話を削除"
+    },
+    "navAriaLabel": "会話サイドバー",
+    "adapterConfigureFailed": "アダプターの設定に失敗しました",
+    "collapse": {
+      "ariaLabel": "サイドバーを閉じる",
+      "title": "サイドバーを閉じる"
+    },
+    "search": {
+      "ariaLabel": "会話を検索",
+      "placeholder": "会話を検索",
+      "clearAriaLabel": "検索をクリア"
+    },
+    "resultsNone": "結果なし",
+    "results_one": "{{count}}件の結果",
+    "results_other": "{{count}}件の結果",
+    "conversations": {
+      "ariaLabel": "会話"
+    },
+    "timeGroups": {
+      "today": "今日",
+      "yesterday": "昨日",
+      "thisWeek": "今週",
+      "thisMonth": "今月",
+      "earlier": "以前"
+    },
+    "conversationCard": {
+      "openAriaLabel": "会話を開く: {{title}}",
+      "editAriaLabel": "会話名を変更: {{title}}",
+      "deleteAriaLabel": "会話を削除: {{title}}",
+      "editInputAriaLabel": "会話タイトルを編集"
+    },
+    "deleteConfirm": {
+      "title": "会話を削除",
+      "message": "\"{{title}}\" を削除してもよろしいですか？会話履歴が消去されます。",
+      "confirmText": "削除"
+    },
+    "clearAllConfirm": {
+      "title": "すべての会話をクリア",
+      "message_one": "この会話を削除してもよろしいですか？すべての会話履歴が消去されます。",
+      "message_other": "{{count}}件の会話をすべて削除してもよろしいですか？すべての会話履歴が消去されます。",
+      "confirmText": "すべてクリア"
+    }
+  },
+  "messageInput": {
+    "textarea": {
+      "ariaLabel": "メッセージ入力"
+    },
+    "skillsHint": {
+      "ariaLabel": "利用可能なスキルを表示（またはスラッシュを入力）",
+      "title": "スキルを使用",
+      "text": "スキル"
+    },
+    "selectedSkill": {
+      "removeAriaLabel": "スキルを削除"
+    },
+    "fileUpload": {
+      "attachAriaLabel": "ファイルを添付",
+      "titleNotSupported": "このアダプターはファイルアップロードに対応していません",
+      "titleLimitPerConversation": "この会話で最大 {{count}} 個のファイルに達しました。さらにアップロードするには新しいチャットを開始してください。",
+      "titleLimitWorkspace": "ワークスペース全体のファイル上限 {{count}} 個に達しました。先に他の会話からファイルを削除してください。",
+      "titleUploading": "ファイルをアップロード中です。お待ちください...",
+      "titleAttached": "{{count}} 個のファイルを添付済み"
+    },
+    "voiceOutput": {
+      "titleEnabled": "音声応答が有効です - クリックして無効化",
+      "titleDisabled": "音声応答を有効化（テキスト読み上げ）",
+      "ariaLabelEnabled": "音声応答を無効化",
+      "ariaLabelDisabled": "音声応答を有効化"
+    },
+    "voiceInput": {
+      "titleUploading": "ファイルをアップロード中です。お待ちください...",
+      "titleListening": "録音を停止",
+      "titleDisabled": "音声入力を開始",
+      "ariaLabelListening": "録音を停止",
+      "ariaLabelDisabled": "音声入力を開始"
+    },
+    "agentInfo": {
+      "title": "このエージェントについて",
+      "ariaLabel": "このエージェントについて"
+    },
+    "submit": {
+      "title": "メッセージを送信",
+      "ariaLabel": "メッセージを送信"
+    },
+    "stop": {
+      "title": "生成を停止",
+      "ariaLabel": "生成を停止"
+    },
+    "attachedFile": {
+      "uploadingStatus": "アップロード中...",
+      "processingStatus": "処理中...",
+      "failedStatus": "失敗",
+      "removeTitleFailed": "閉じる",
+      "removeTitleNormal": "ファイルを削除"
+    },
+    "uploadPanel": {
+      "headingAttach": "ファイルを添付",
+      "headingUploading": "ファイルをアップロード中",
+      "closeTitle": "閉じる"
+    },
+    "uploadProgress": {
+      "statusUploading": "アップロード中",
+      "statusProcessing": "処理中",
+      "statusCompleted": "完了",
+      "statusPending": "保留中"
+    },
+    "listeningIndicator": "聞き取り中...",
+    "fileDelete": {
+      "title": "ファイルを削除",
+      "message": "\"{{filename}}\" を削除してもよろしいですか？サーバーとこの会話の両方からファイルが削除されます。この操作は元に戻せません。",
+      "confirmText": "削除"
+    },
+    "agentInfoModal": {
+      "title": "このエージェントについて",
+      "closeAriaLabel": "閉じる",
+      "confirmButton": "了解"
+    },
+    "placeholder": {
+      "filesUploading": "ファイルをアップロード中です。お待ちください...",
+      "messageOrbit": "ORBIT にメッセージを送るか、ここにファイルをドロップ",
+      "guestLimitTotal": "ゲストの {{count}} 件のメッセージ上限に達しました。上限を増やすにはサインインしてください。",
+      "workspaceLimitTotal": "ワークスペースの {{count}} 件のメッセージ上限に達しました。続行するには古い会話を削除またはアーカイブしてください。",
+      "guestLimitPerConversation": "ゲストの {{count}} 件のメッセージ上限に達しました。上限を増やすにはサインインしてください。",
+      "conversationLimitReached": "このチャットは {{count}} 件のメッセージ上限に達しました。続行するには新しい会話を開始してください。"
+    },
+    "limitWarning": {
+      "guestTotalMessages": "ゲストの合計 {{count}} 件のメッセージ上限に達しました。上限を増やすにはサインインするか、会話を削除してやり直してください。",
+      "workspaceTotalMessages": "ワークスペースの合計 {{count}} 件のメッセージ上限に達しました。続行するには古い会話を削除またはエクスポートしてください。",
+      "guestPerConversation": "ゲストの会話ごとの {{count}} 件のメッセージ上限に達しました。上限を増やすにはサインインするか、会話を削除してやり直してください。",
+      "conversationLimitReached": "この会話は {{count}} 件のメッセージ上限に達しました。チャットを続けるには新しい会話を開始してください。"
+    },
+    "signInPrompt": {
+      "button": "サインインして上限を増やす",
+      "message": "サインインすると、メッセージ上限の引き上げと追加の会話が利用できます。"
+    },
+    "autocompletePanel": {
+      "ariaLabel": "オートコンプリート候補"
+    },
+    "uploadSuccess": {
+      "single": "ファイル \"{{filename}}\" を正常にアップロードしました",
+      "multiple": "{{count}} 個のファイルを正常にアップロードしました"
+    },
+    "conversationNotFoundShort": "会話が見つかりません。先に会話を選択してください。",
+    "fileRemoveFailed": "ファイルの削除に失敗しました",
+    "fileProcessingFailedTitle": "ファイル処理に失敗しました"
+  },
+  "authStatus": {
+    "signOutButton": {
+      "title": "ログアウト",
+      "ariaLabel": "ログアウト"
+    }
+  },
+  "loginPrompt": {
+    "heading": "サインインしてさらに利用"
+  },
+  "outOfService": {
+    "statusBadge": "サービス一時停止中",
+    "heading": "一時的に利用できません",
+    "retryButton": "再試行"
+  },
+  "confirmationModal": {
+    "loadingLabel": "クリア中..."
+  },
+  "appHeader": {
+    "homeLinkAriaLabel": "ホームページへ移動",
+    "logoAlt": "ロゴ",
+    "navLinksAriaLabel": "ヘッダーリンク"
+  },
+  "appFooter": {
+    "navLinksAriaLabel": "フッターリンク"
+  },
+  "agentCard": {
+    "configureMessage": "このエージェントを設定すると機能を確認できます。",
+    "startConversationAriaLabel": "{{name}} との会話を開始"
+  },
+  "markdown": {
+    "codeBlock": {
+      "copied": "コピーしました！",
+      "copyTitle": "コードをコピー",
+      "copyAriaLabel": "コードをクリップボードにコピー",
+      "copyLabel": "コピー",
+      "loadingRenderer": "レンダラーを読み込み中..."
+    },
+    "diagram": {
+      "copyCodeAriaLabel": "図のコードをクリップボードにコピー",
+      "exportPngTitle": "PNG としてエクスポート",
+      "exportPngAriaLabel": "図を PNG 画像としてエクスポート",
+      "errorTitle": "Mermaid 図エラー"
+    },
+    "music": {
+      "copyNotationAriaLabel": "ABC 記譜をクリップボードにコピー",
+      "exportPngTitle": "PNG としてエクスポート",
+      "exportPngAriaLabel": "楽譜を PNG 画像としてエクスポート",
+      "rendering": "記譜をレンダリング中..."
+    },
+    "svg": {
+      "copyCodeAriaLabel": "SVG コードをクリップボードにコピー",
+      "exportPngTitle": "PNG としてエクスポート",
+      "exportPngAriaLabel": "SVG を PNG 画像としてエクスポート"
+    },
+    "chart": {
+      "legendAriaLabel": "チャートの凡例",
+      "copyCodeAriaLabel": "チャートコードをクリップボードにコピー",
+      "exportPngTitle": "PNG としてエクスポート",
+      "exportPngAriaLabel": "チャートを PNG 画像としてエクスポート",
+      "errorTitle": "チャートのレンダリングエラー",
+      "loadingAriaLabel": "チャートを読み込み中",
+      "showRawSource": "元のソースを表示"
+    }
+  },
+  "adapterSelector": {
+    "defaultLabel": "アダプター",
+    "selectAnAgent": "エージェントを選択",
+    "loadingAgents": "エージェントを読み込み中…",
+    "errorLoadingAgents": "エージェントの読み込みエラー",
+    "noAgentsAvailable": "利用可能なエージェントがありません",
+    "failedToLoad": "アダプターを読み込めませんでした。接続を確認してください。"
+  },
+  "agentSelectionList": {
+    "searchPlaceholder": "エージェントを検索",
+    "clearSearchAriaLabel": "検索をクリア",
+    "noAgentsAvailable": "まだ利用可能なエージェントがありません。続行するにはミドルウェア設定でアダプターを設定してください。",
+    "noSearchResults": "検索に一致するエージェントはありません。",
+    "unableToLoad": "現在エージェントを読み込めません。"
+  },
+  "fileUpload": {
+    "selectBeforeUpload": "ファイルをアップロードする前に、会話を選択または作成してください。",
+    "conversationNotFound": "会話が見つかりません。もう一度お試しください。",
+    "maxFilesPerConversationError": "会話ごとに最大 {{count}} 個のファイルまで許可されています。先にいくつかのファイルを削除してください。",
+    "maxFilesGuestLimitMessage": "ゲストの会話ごとのファイル上限 {{count}} 個に達しました。さらにアップロードするにはサインインしてください。",
+    "maxTotalFilesError": "すべての会話で合計 {{count}} 個までのファイルが許可されています。先に他の会話からいくつかのファイルを削除してください。",
+    "maxTotalFilesGuestLimitMessage": "ゲストの合計ファイル上限 {{count}} 個に達しました。さらにアップロードするにはサインインしてください。",
+    "adapterNotConfigured": "この会話のアダプターが設定されていません。先にアダプターを選択してください。",
+    "disabledAriaLabel": "ファイルアップロードは無効です",
+    "enabledAriaLabel": "ファイルをアップロード",
+    "dragDropText": "ファイルをドロップするかクリックして参照",
+    "draggingText": "ここにファイルをドロップ",
+    "fileTypesAndLimit": "PDF、DOCX、TXT、CSV、コードファイル、画像、音声 · 最大 {{count}} 個",
+    "otherConversationsLabel": "他の会話",
+    "uploadingStatus": "アップロード中",
+    "processingStatus": "処理中",
+    "completedStatus": "完了",
+    "failedStatus": "失敗",
+    "processingFailedMessage": "処理に失敗しました"
+  },
+  "fileList": {
+    "header": "ファイル ({{count}})",
+    "noFilesAttached": "添付ファイルはありません",
+    "uploadFilesToUse": "この会話で使用するファイルをアップロードしてください",
+    "removeFileTooltip": "ファイルを削除",
+    "confirmRemoveTitle": "ファイルを削除",
+    "confirmRemoveMessage": "\"{{filename}}\" を削除してもよろしいですか？サーバーとこの会話の両方からファイルが削除されます。この操作は元に戻せません。"
+  },
+  "documentDisplay": {
+    "generatedDocument": "生成されたドキュメント",
+    "loadingPreview": "プレビューを読み込み中...",
+    "openPreviewTooltip": "プレビューを開く",
+    "downloadDocumentTooltip": "ドキュメントをダウンロード",
+    "noSheetDataFound": "シートデータが見つかりません。",
+    "csvRowsPreviewMessage": "{{count}} 行のうち最初の 25 行を表示しています — 完全なファイルはダウンロードしてください。",
+    "noDataFound": "データが見つかりません。",
+    "previewUnavailable": "この形式ではプレビューを利用できません。ローカルで開くにはダウンロードしてください。",
+    "previewUnavailableShort": "プレビュー不可"
+  },
+  "imageDisplay": {
+    "generatedImageTitle": "生成された画像 — クリックして拡大",
+    "generatedImageAlt": "生成された画像",
+    "downloadImageTooltip": "画像をダウンロード",
+    "viewFullSizeTooltip": "フルサイズで表示",
+    "showPrompt": "プロンプトを表示",
+    "hidePrompt": "プロンプトを非表示",
+    "promptLabel": "プロンプト"
+  },
+  "videoDisplay": {
+    "downloadVideoTooltip": "動画をダウンロード",
+    "viewFullSizeTooltip": "フルサイズで表示",
+    "showPrompt": "プロンプトを表示",
+    "hidePrompt": "プロンプトを非表示",
+    "promptLabel": "プロンプト"
+  },
+  "audio": {
+    "button": {
+      "audioPlayingTitle": "音声を再生中...",
+      "voiceEnabledTitle": "音声が有効です - クリックして無効化",
+      "enableVoiceTitle": "クリックして音声応答を有効化",
+      "playingLabel": "再生中...",
+      "voiceOnLabel": "音声オン",
+      "enableVoiceLabel": "音声を有効化"
+    },
+    "player": {
+      "audioFileTooLargePlaceholder": "音声ファイルが大きすぎます（{{sizeMB}}MB > 上限 {{maxMB}}MB）",
+      "largeAudioWarning": "大きな音声ファイル（{{sizeMB}}MB）- 読み込みに時間がかかる場合があります",
+      "invalidBase64Error": "無効な base64 音声データ",
+      "loadFailureError": "音声の読み込みに失敗しました",
+      "playbackFailureError": "再生に失敗しました",
+      "pauseTitle": "一時停止",
+      "playTitle": "再生",
+      "pauseAriaLabel": "音声を一時停止",
+      "playAriaLabel": "音声を再生"
+    }
+  },
+  "modelPicker": {
+    "searchPlaceholder": "モデルを検索…",
+    "searchAriaLabel": "モデルを検索",
+    "noModelsMatch": "\"{{query}}\" に一致するモデルはありません",
+    "modelCountHint": "{{total}} 件中 {{filtered}} 件のモデル",
+    "selectModel": "モデルを選択"
+  },
+  "skillPicker": {
+    "noSkillsAvailable": "このアダプターで利用できるスキルはありません。",
+    "loadingLabel": "スキルを読み込み中...",
+    "noMatchingSkills": "\"{{query}}\" に一致するスキルはありません。",
+    "noMatchingSkillsGeneric": "一致するスキルはありません。",
+    "listboxLabel": "利用可能なスキル"
+  },
+  "message": {
+    "edit": {
+      "willRegenerateHint": "応答が再生成されます"
+    },
+    "copyImageLabel": "画像をクリップボードにコピー",
+    "copyLabel": "クリップボードにコピー",
+    "feedback": {
+      "good": "良い応答",
+      "poor": "不十分な応答",
+      "thanks": "ありがとうございます！"
+    },
+    "editAriaLabel": "メッセージを編集",
+    "regenerateTitle": "応答を再生成",
+    "regenerateAriaLabel": "応答を再生成",
+    "thread": {
+      "continueDiscussionTitle": "現在の回答のコンテキストでこの議論を続ける",
+      "continueDiscussionAriaLabel": "現在の回答のコンテキストでこの議論を続ける",
+      "continueLabel": "続ける",
+      "replyCount_one": "{{count}} 件の返信",
+      "replyCount_other": "{{count}} 件の返信",
+      "clearTitle": "返信をクリア",
+      "clearAriaLabel": "返信をクリア",
+      "hideRepliesAriaLabel": "返信を非表示",
+      "hideRepliesLabel": "返信を非表示",
+      "placeholder": "スレッドに返信...",
+      "skillsHint": "スキルを使用",
+      "skillsHintAriaLabel": "利用可能なスキルを表示（またはスラッシュを入力）",
+      "removeSkillAriaLabel": "スレッドのスキルを削除",
+      "sendMessageTitle": "スレッドメッセージを送信",
+      "selectModelTitle": "このスレッドのモデルを選択",
+      "limitReachedGuest": "ゲストのスレッドごとの {{count}} 件のメッセージ上限に達しました。このスレッドを続けるにはサインインしてください。",
+      "limitReachedUser": "このスレッドは {{count}} 件のメッセージ上限に達しました。さらにフォローアップするには新しい会話を開始してください。",
+      "signInForHigherLimits": "サインインして上限を増やす",
+      "signInPromptMessage": "サインインすると、メッセージ上限を増やしてこのスレッドを続けられます。"
+    },
+    "confirmation": {
+      "clearRepliesTitle": "返信をクリア",
+      "clearRepliesMessage": "これらの返信をクリアしてもよろしいですか？メインの会話は削除せず、バックエンドから子スレッドを削除します。"
+    }
+  },
+  "messageList": {
+    "emptyStateHeading": "ここにメッセージが表示されます。",
+    "emptyStateSubheading": "下にプロンプトを送信して会話を開始してください。"
+  },
+  "voice": {
+    "browserNotSupported": "このブラウザーでは音声認識がサポートされていません。Chrome、Edge、または Safari をお試しください。",
+    "error": {
+      "noSpeech": "音声が検出されませんでした。もう一度お試しください。",
+      "audioCapture": "マイクへのアクセスが拒否されました。マイクアクセスを許可してもう一度お試しください。",
+      "notAllowed": "マイクへのアクセスが許可されていません。マイクの権限を有効にしてください。",
+      "network": "ネットワークエラーが発生しました。接続を確認してください。",
+      "generic": "音声認識エラー: {{error}}",
+      "startFailed": "音声認識を開始できませんでした。もう一度お試しください。"
+    }
+  },
+  "agent": {
+    "error": {
+      "singleAdapterMissing": "単一アダプターモードでは、agentMode.defaultAdapterId が orbitchat.yaml 内のアダプター ID と一致している必要があります。",
+      "configurationFailed": "このエージェントを設定できませんでした。",
+      "authenticationFailed": "このエージェントを読み込めませんでした。存在しないか、アクセス権がない可能性があります。",
+      "notFound": "このエージェントはサーバー上で見つかりませんでした。別のエージェントを選択してください。",
+      "loadFailed": "現在、エージェントの概要を読み込めません。"
+    }
+  }
+}

@@ -29,7 +29,7 @@ i18n:
   # Languages to expose in the Settings > Language switcher.
   # Supported values: "en", "fr". If this list has 1 or fewer entries,
   # the switcher is hidden entirely.
-  activeLanguages: ["en", "fr"]
+  activeLanguages: ["en", "fr", "es", "pt", "de", "ja", "zh"]
   # Language used when no stored preference or browser language matches.
   defaultLanguage: "en"
 

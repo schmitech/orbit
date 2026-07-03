@@ -419,7 +419,7 @@ export function ChatInterface({
                   <button
                     onClick={handleStartNewConversation}
                     disabled={!canStartNewConversation}
-                    className={`order-3 sm:order-2 inline-flex h-8 md:h-[42px] w-[calc(50%-0.25rem)] min-w-[140px] md:w-[190px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] ${
+                    className={`order-3 sm:order-2 inline-flex h-8 md:h-[42px] w-[calc(50%-0.25rem)] min-w-[160px] md:w-[220px] md:min-w-[220px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] whitespace-nowrap ${
                       canStartNewConversation
                         ? 'border-[#1f2937] bg-[#1f2937] text-white shadow-[0_2px_8px_rgba(15,23,42,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f2937]/40 dark:border-[#4b5568] dark:bg-[#2f3747] dark:text-[#e9edf8] dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] dark:focus-visible:ring-[#6f809f]/35'
                         : 'cursor-not-allowed border-gray-200 text-gray-400 bg-white/40 dark:border-[#3c3f4a] dark:text-[#6b6f7a] dark:bg-transparent'

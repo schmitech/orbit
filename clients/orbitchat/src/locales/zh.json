@@ -1,0 +1,481 @@
+{
+  "common": {
+    "cancel": "取消",
+    "close": "关闭",
+    "confirm": "确认",
+    "delete": "删除",
+    "remove": "移除",
+    "clear": "清除",
+    "send": "发送",
+    "signIn": "登录",
+    "logOut": "退出登录",
+    "download": "下载"
+  },
+  "app": {
+    "sidebar": {
+      "openAriaLabel": "打开侧边栏",
+      "openTitle": "打开侧边栏"
+    },
+    "menu": {
+      "closeAriaLabel": "关闭菜单"
+    }
+  },
+  "chatInterface": {
+    "workspace": {
+      "ariaLabel": "聊天工作区"
+    },
+    "error": {
+      "dismissAriaLabel": "关闭错误"
+    },
+    "mobile": {
+      "chatsButton": "聊天",
+      "openChatsMenuAriaLabel": "打开会话菜单",
+      "settingsButton": "设置",
+      "openSettingsAriaLabel": "打开设置"
+    },
+    "settings": {
+      "ariaLabel": "设置",
+      "title": "设置"
+    },
+    "changeAgent": {
+      "button": "更换智能体",
+      "titleEnabled": "在开始此会话前切换到其他智能体",
+      "titleDisabled": "会话开始后无法更换智能体"
+    },
+    "newConversation": {
+      "button": "新建会话",
+      "tooltipCanStart": "开始新会话",
+      "tooltipGuestLimited": "已达到访客会话限制。登录后可创建更多会话。",
+      "tooltipCannotStart": "请先完成当前会话，再开始新会话。"
+    },
+    "empty": {
+      "configuringAgent": "正在配置你的智能体…"
+    },
+    "newChatTitle": "新聊天",
+    "updatedAt": "已更新 {{time}}",
+    "docked": {
+      "placeholder": "开始新主题..."
+    }
+  },
+  "settings": {
+    "dialog": {
+      "closeOverlayAriaLabel": "关闭设置遮罩",
+      "title": "设置",
+      "closeButtonAriaLabel": "关闭设置"
+    },
+    "appearance": {
+      "heading": "外观",
+      "themeLabel": "主题",
+      "themeLight": "浅色",
+      "themeDark": "深色",
+      "themeSystem": "系统"
+    },
+    "language": {
+      "label": "语言"
+    },
+    "chat": {
+      "heading": "聊天偏好"
+    },
+    "soundEffects": {
+      "label": "音效",
+      "description": "为通知和事件播放声音",
+      "toggleAriaLabel": "切换音效"
+    },
+    "dataManagement": {
+      "heading": "数据管理",
+      "description": "清除所有应用数据，包括会话和个性化设置。"
+    },
+    "reset": {
+      "button": "重置应用",
+      "confirmTitle": "重置应用数据？",
+      "confirmMessage": "这将删除此设备上存储的所有内容并重新加载应用。",
+      "confirmButton": "重置"
+    }
+  },
+  "sidebar": {
+    "selectAgent": {
+      "title": "选择智能体"
+    },
+    "deleteAllConversations": {
+      "title": "删除所有会话",
+      "button": "删除会话"
+    },
+    "navAriaLabel": "会话侧边栏",
+    "adapterConfigureFailed": "配置适配器失败",
+    "collapse": {
+      "ariaLabel": "关闭侧边栏",
+      "title": "关闭侧边栏"
+    },
+    "search": {
+      "ariaLabel": "搜索会话",
+      "placeholder": "搜索会话",
+      "clearAriaLabel": "清除搜索"
+    },
+    "resultsNone": "无结果",
+    "results_one": "{{count}} 个结果",
+    "results_other": "{{count}} 个结果",
+    "conversations": {
+      "ariaLabel": "会话"
+    },
+    "timeGroups": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "thisWeek": "本周",
+      "thisMonth": "本月",
+      "earlier": "更早"
+    },
+    "conversationCard": {
+      "openAriaLabel": "打开会话：{{title}}",
+      "editAriaLabel": "重命名会话：{{title}}",
+      "deleteAriaLabel": "删除会话：{{title}}",
+      "editInputAriaLabel": "编辑会话标题"
+    },
+    "deleteConfirm": {
+      "title": "删除会话",
+      "message": "确定要删除“{{title}}”吗？这将清除会话历史。",
+      "confirmText": "删除"
+    },
+    "clearAllConfirm": {
+      "title": "清除所有会话",
+      "message_one": "确定要删除此会话吗？这将清除所有会话历史。",
+      "message_other": "确定要删除全部 {{count}} 个会话吗？这将清除所有会话历史。",
+      "confirmText": "全部清除"
+    }
+  },
+  "messageInput": {
+    "textarea": {
+      "ariaLabel": "消息输入"
+    },
+    "skillsHint": {
+      "ariaLabel": "显示可用技能（或输入正斜杠）",
+      "title": "使用技能",
+      "text": "技能"
+    },
+    "selectedSkill": {
+      "removeAriaLabel": "移除技能"
+    },
+    "fileUpload": {
+      "attachAriaLabel": "附加文件",
+      "titleNotSupported": "此适配器不支持文件上传",
+      "titleLimitPerConversation": "此会话已达到最多 {{count}} 个文件。请开始新聊天以上传更多文件。",
+      "titleLimitWorkspace": "已达到工作区总计 {{count}} 个文件的限制。请先从其他会话中移除文件。",
+      "titleUploading": "文件正在上传。请稍候...",
+      "titleAttached": "已附加 {{count}} 个文件"
+    },
+    "voiceOutput": {
+      "titleEnabled": "语音回复已启用 - 点击禁用",
+      "titleDisabled": "启用语音回复（文本转语音）",
+      "ariaLabelEnabled": "禁用语音回复",
+      "ariaLabelDisabled": "启用语音回复"
+    },
+    "voiceInput": {
+      "titleUploading": "文件正在上传。请稍候...",
+      "titleListening": "停止录音",
+      "titleDisabled": "开始语音输入",
+      "ariaLabelListening": "停止录音",
+      "ariaLabelDisabled": "开始语音输入"
+    },
+    "agentInfo": {
+      "title": "关于此智能体",
+      "ariaLabel": "关于此智能体"
+    },
+    "submit": {
+      "title": "发送消息",
+      "ariaLabel": "发送消息"
+    },
+    "stop": {
+      "title": "停止生成",
+      "ariaLabel": "停止生成"
+    },
+    "attachedFile": {
+      "uploadingStatus": "正在上传...",
+      "processingStatus": "正在处理...",
+      "failedStatus": "失败",
+      "removeTitleFailed": "关闭",
+      "removeTitleNormal": "移除文件"
+    },
+    "uploadPanel": {
+      "headingAttach": "附加文件",
+      "headingUploading": "正在上传文件",
+      "closeTitle": "关闭"
+    },
+    "uploadProgress": {
+      "statusUploading": "正在上传",
+      "statusProcessing": "正在处理",
+      "statusCompleted": "完成",
+      "statusPending": "待处理"
+    },
+    "listeningIndicator": "正在聆听...",
+    "fileDelete": {
+      "title": "移除文件",
+      "message": "确定要移除“{{filename}}”吗？这会从服务器和此会话中删除该文件。此操作无法撤销。",
+      "confirmText": "移除"
+    },
+    "agentInfoModal": {
+      "title": "关于此智能体",
+      "closeAriaLabel": "关闭",
+      "confirmButton": "知道了"
+    },
+    "placeholder": {
+      "filesUploading": "文件正在上传，请稍候...",
+      "messageOrbit": "向 ORBIT 发送消息或将文件拖放到此处",
+      "guestLimitTotal": "已达到访客 {{count}} 条消息限制。登录可获得更高限制。",
+      "workspaceLimitTotal": "已达到工作区 {{count}} 条消息限制。请删除或归档旧会话以继续。",
+      "guestLimitPerConversation": "已达到访客 {{count}} 条消息限制。登录可获得更高限制。",
+      "conversationLimitReached": "此聊天已达到 {{count}} 条消息限制。请开始新会话以继续。"
+    },
+    "limitWarning": {
+      "guestTotalMessages": "已达到访客总计 {{count}} 条消息限制。登录可获得更高限制，或删除会话重新开始。",
+      "workspaceTotalMessages": "已达到工作区总计 {{count}} 条消息限制。请删除或导出较早的会话以继续。",
+      "guestPerConversation": "已达到访客每个会话 {{count}} 条消息限制。登录可获得更高限制，或删除会话重新开始。",
+      "conversationLimitReached": "此会话已达到 {{count}} 条消息限制。请开始新会话继续聊天。"
+    },
+    "signInPrompt": {
+      "button": "登录以获得更高限制",
+      "message": "登录可解锁更高的消息限制和更多会话。"
+    },
+    "autocompletePanel": {
+      "ariaLabel": "自动补全建议"
+    },
+    "uploadSuccess": {
+      "single": "文件“{{filename}}”上传成功",
+      "multiple": "{{count}} 个文件上传成功"
+    },
+    "conversationNotFoundShort": "未找到会话。请先选择一个会话。",
+    "fileRemoveFailed": "移除文件失败",
+    "fileProcessingFailedTitle": "文件处理失败"
+  },
+  "authStatus": {
+    "signOutButton": {
+      "title": "退出登录",
+      "ariaLabel": "退出登录"
+    }
+  },
+  "loginPrompt": {
+    "heading": "登录以获得更多功能"
+  },
+  "outOfService": {
+    "statusBadge": "服务已暂停",
+    "heading": "暂时不可用",
+    "retryButton": "重试"
+  },
+  "confirmationModal": {
+    "loadingLabel": "正在清除..."
+  },
+  "appHeader": {
+    "homeLinkAriaLabel": "前往主页",
+    "logoAlt": "徽标",
+    "navLinksAriaLabel": "页眉链接"
+  },
+  "appFooter": {
+    "navLinksAriaLabel": "页脚链接"
+  },
+  "agentCard": {
+    "configureMessage": "配置此智能体以查看其功能。",
+    "startConversationAriaLabel": "开始与 {{name}} 的会话"
+  },
+  "markdown": {
+    "codeBlock": {
+      "copied": "已复制！",
+      "copyTitle": "复制代码",
+      "copyAriaLabel": "将代码复制到剪贴板",
+      "copyLabel": "复制",
+      "loadingRenderer": "正在加载渲染器..."
+    },
+    "diagram": {
+      "copyCodeAriaLabel": "将图表代码复制到剪贴板",
+      "exportPngTitle": "导出为 PNG",
+      "exportPngAriaLabel": "将图表导出为 PNG 图片",
+      "errorTitle": "Mermaid 图表错误"
+    },
+    "music": {
+      "copyNotationAriaLabel": "将 ABC 记谱复制到剪贴板",
+      "exportPngTitle": "导出为 PNG",
+      "exportPngAriaLabel": "将乐谱导出为 PNG 图片",
+      "rendering": "正在渲染记谱..."
+    },
+    "svg": {
+      "copyCodeAriaLabel": "将 SVG 代码复制到剪贴板",
+      "exportPngTitle": "导出为 PNG",
+      "exportPngAriaLabel": "将 SVG 导出为 PNG 图片"
+    },
+    "chart": {
+      "legendAriaLabel": "图表图例",
+      "copyCodeAriaLabel": "将图表代码复制到剪贴板",
+      "exportPngTitle": "导出为 PNG",
+      "exportPngAriaLabel": "将图表导出为 PNG 图片",
+      "errorTitle": "图表渲染错误",
+      "loadingAriaLabel": "正在加载图表",
+      "showRawSource": "显示原始源代码"
+    }
+  },
+  "adapterSelector": {
+    "defaultLabel": "适配器",
+    "selectAnAgent": "选择智能体",
+    "loadingAgents": "正在加载智能体…",
+    "errorLoadingAgents": "加载智能体时出错",
+    "noAgentsAvailable": "没有可用的智能体",
+    "failedToLoad": "加载适配器失败。请检查你的连接。"
+  },
+  "agentSelectionList": {
+    "searchPlaceholder": "搜索智能体",
+    "clearSearchAriaLabel": "清除搜索",
+    "noAgentsAvailable": "目前还没有可用的智能体。请在中间件设置中配置适配器以继续。",
+    "noSearchResults": "没有智能体与你的搜索匹配。",
+    "unableToLoad": "当前无法加载智能体。"
+  },
+  "fileUpload": {
+    "selectBeforeUpload": "上传文件前，请选择或创建一个会话。",
+    "conversationNotFound": "未找到会话。请重试。",
+    "maxFilesPerConversationError": "每个会话最多允许 {{count}} 个文件。请先移除一些文件。",
+    "maxFilesGuestLimitMessage": "你已达到访客每个会话 {{count}} 个文件的限制。登录后可上传更多文件。",
+    "maxTotalFilesError": "所有会话最多允许总计 {{count}} 个文件。请先从其他会话中移除一些文件。",
+    "maxTotalFilesGuestLimitMessage": "你已达到访客总计 {{count}} 个文件的限制。登录后可上传更多文件。",
+    "adapterNotConfigured": "此会话未配置适配器。请先选择适配器。",
+    "disabledAriaLabel": "文件上传已禁用",
+    "enabledAriaLabel": "上传文件",
+    "dragDropText": "拖放文件或点击浏览",
+    "draggingText": "将文件拖放到此处",
+    "fileTypesAndLimit": "PDF、DOCX、TXT、CSV、代码文件、图片、音频 · 最多 {{count}} 个文件",
+    "otherConversationsLabel": "其他会话",
+    "uploadingStatus": "正在上传",
+    "processingStatus": "正在处理",
+    "completedStatus": "完成",
+    "failedStatus": "失败",
+    "processingFailedMessage": "处理失败"
+  },
+  "fileList": {
+    "header": "文件 ({{count}})",
+    "noFilesAttached": "未附加文件",
+    "uploadFilesToUse": "上传文件以在此会话中使用",
+    "removeFileTooltip": "移除文件",
+    "confirmRemoveTitle": "移除文件",
+    "confirmRemoveMessage": "确定要移除“{{filename}}”吗？这会从服务器和此会话中删除该文件。此操作无法撤销。"
+  },
+  "documentDisplay": {
+    "generatedDocument": "生成的文档",
+    "loadingPreview": "正在加载预览...",
+    "openPreviewTooltip": "打开预览",
+    "downloadDocumentTooltip": "下载文档",
+    "noSheetDataFound": "未找到表格数据。",
+    "csvRowsPreviewMessage": "正在显示 {{count}} 行中的前 25 行 — 下载可查看完整文件。",
+    "noDataFound": "未找到数据。",
+    "previewUnavailable": "此格式不支持预览。请下载后在本地打开。",
+    "previewUnavailableShort": "预览不可用"
+  },
+  "imageDisplay": {
+    "generatedImageTitle": "生成的图片 — 点击放大",
+    "generatedImageAlt": "生成的图片",
+    "downloadImageTooltip": "下载图片",
+    "viewFullSizeTooltip": "查看完整尺寸",
+    "showPrompt": "显示提示词",
+    "hidePrompt": "隐藏提示词",
+    "promptLabel": "提示词"
+  },
+  "videoDisplay": {
+    "downloadVideoTooltip": "下载视频",
+    "viewFullSizeTooltip": "查看完整尺寸",
+    "showPrompt": "显示提示词",
+    "hidePrompt": "隐藏提示词",
+    "promptLabel": "提示词"
+  },
+  "audio": {
+    "button": {
+      "audioPlayingTitle": "音频正在播放...",
+      "voiceEnabledTitle": "语音已启用 - 点击禁用",
+      "enableVoiceTitle": "点击启用语音回复",
+      "playingLabel": "正在播放...",
+      "voiceOnLabel": "语音开启",
+      "enableVoiceLabel": "启用语音"
+    },
+    "player": {
+      "audioFileTooLargePlaceholder": "音频文件过大（{{sizeMB}}MB > {{maxMB}}MB 限制）",
+      "largeAudioWarning": "音频文件较大（{{sizeMB}}MB）- 可能需要一些时间加载",
+      "invalidBase64Error": "无效的 base64 音频数据",
+      "loadFailureError": "加载音频失败",
+      "playbackFailureError": "播放失败",
+      "pauseTitle": "暂停",
+      "playTitle": "播放",
+      "pauseAriaLabel": "暂停音频",
+      "playAriaLabel": "播放音频"
+    }
+  },
+  "modelPicker": {
+    "searchPlaceholder": "搜索模型…",
+    "searchAriaLabel": "搜索模型",
+    "noModelsMatch": "没有模型匹配“{{query}}”",
+    "modelCountHint": "{{filtered}} / {{total}} 个模型",
+    "selectModel": "选择模型"
+  },
+  "skillPicker": {
+    "noSkillsAvailable": "此适配器没有可用技能。",
+    "loadingLabel": "正在加载技能...",
+    "noMatchingSkills": "没有技能匹配“{{query}}”。",
+    "noMatchingSkillsGeneric": "没有匹配的技能。",
+    "listboxLabel": "可用技能"
+  },
+  "message": {
+    "edit": {
+      "willRegenerateHint": "将重新生成回复"
+    },
+    "copyImageLabel": "将图片复制到剪贴板",
+    "copyLabel": "复制到剪贴板",
+    "feedback": {
+      "good": "好回复",
+      "poor": "回复不佳",
+      "thanks": "谢谢！"
+    },
+    "editAriaLabel": "编辑消息",
+    "regenerateTitle": "重新生成回复",
+    "regenerateAriaLabel": "重新生成回复",
+    "thread": {
+      "continueDiscussionTitle": "使用当前回答的上下文继续此讨论",
+      "continueDiscussionAriaLabel": "使用当前回答的上下文继续此讨论",
+      "continueLabel": "继续",
+      "replyCount_one": "{{count}} 条回复",
+      "replyCount_other": "{{count}} 条回复",
+      "clearTitle": "清除回复",
+      "clearAriaLabel": "清除回复",
+      "hideRepliesAriaLabel": "隐藏回复",
+      "hideRepliesLabel": "隐藏回复",
+      "placeholder": "在线程中回复...",
+      "skillsHint": "使用技能",
+      "skillsHintAriaLabel": "显示可用技能（或输入正斜杠）",
+      "removeSkillAriaLabel": "移除线程技能",
+      "sendMessageTitle": "发送线程消息",
+      "selectModelTitle": "为此线程选择模型",
+      "limitReachedGuest": "你已达到访客每个线程 {{count}} 条消息的限制。登录后可继续此线程。",
+      "limitReachedUser": "此线程已达到 {{count}} 条消息限制。请开始新会话以进行更多追问。",
+      "signInForHigherLimits": "登录以获得更高限制",
+      "signInPromptMessage": "登录可解锁更高的消息限制并继续此线程。"
+    },
+    "confirmation": {
+      "clearRepliesTitle": "清除回复",
+      "clearRepliesMessage": "确定要清除这些回复吗？这会从后端移除子线程，但不会删除主会话。"
+    }
+  },
+  "messageList": {
+    "emptyStateHeading": "你的消息将显示在这里。",
+    "emptyStateSubheading": "在下方发送提示词以开始会话。"
+  },
+  "voice": {
+    "browserNotSupported": "此浏览器不支持语音识别。请尝试使用 Chrome、Edge 或 Safari。",
+    "error": {
+      "noSpeech": "未检测到语音。请重试。",
+      "audioCapture": "麦克风访问被拒绝。请允许麦克风访问后重试。",
+      "notAllowed": "不允许访问麦克风。请启用麦克风权限。",
+      "network": "发生网络错误。请检查你的连接。",
+      "generic": "语音识别错误：{{error}}",
+      "startFailed": "启动语音识别失败。请重试。"
+    }
+  },
+  "agent": {
+    "error": {
+      "singleAdapterMissing": "单适配器模式要求 agentMode.defaultAdapterId 与 orbitchat.yaml 中的某个适配器 ID 匹配。",
+      "configurationFailed": "无法配置此智能体。",
+      "authenticationFailed": "无法加载此智能体。它可能不存在，或你可能没有访问权限。",
+      "notFound": "服务器上未找到此智能体。请选择其他智能体。",
+      "loadFailed": "当前无法加载智能体概览。"
+    }
+  }
+}

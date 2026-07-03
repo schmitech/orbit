@@ -1,0 +1,481 @@
+{
+  "common": {
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "delete": "Eliminar",
+    "remove": "Quitar",
+    "clear": "Borrar",
+    "send": "Enviar",
+    "signIn": "Iniciar sesión",
+    "logOut": "Cerrar sesión",
+    "download": "Descargar"
+  },
+  "app": {
+    "sidebar": {
+      "openAriaLabel": "Abrir barra lateral",
+      "openTitle": "Abrir barra lateral"
+    },
+    "menu": {
+      "closeAriaLabel": "Cerrar menú"
+    }
+  },
+  "chatInterface": {
+    "workspace": {
+      "ariaLabel": "Espacio de chat"
+    },
+    "error": {
+      "dismissAriaLabel": "Descartar error"
+    },
+    "mobile": {
+      "chatsButton": "Chats",
+      "openChatsMenuAriaLabel": "Abrir menú de conversaciones",
+      "settingsButton": "Ajustes",
+      "openSettingsAriaLabel": "Abrir ajustes"
+    },
+    "settings": {
+      "ariaLabel": "Ajustes",
+      "title": "Ajustes"
+    },
+    "changeAgent": {
+      "button": "Cambiar agente",
+      "titleEnabled": "Cambia a otro agente antes de iniciar esta conversación",
+      "titleDisabled": "El agente no se puede cambiar después de iniciar la conversación"
+    },
+    "newConversation": {
+      "button": "Nueva conversación",
+      "tooltipCanStart": "Iniciar una nueva conversación",
+      "tooltipGuestLimited": "Se alcanzó el límite de conversaciones de invitado. Inicia sesión para tener más conversaciones.",
+      "tooltipCannotStart": "Termina tu conversación actual antes de iniciar una nueva."
+    },
+    "empty": {
+      "configuringAgent": "Configurando tu agente…"
+    },
+    "newChatTitle": "Nuevo chat",
+    "updatedAt": "Actualizado {{time}}",
+    "docked": {
+      "placeholder": "Iniciar un tema nuevo..."
+    }
+  },
+  "settings": {
+    "dialog": {
+      "closeOverlayAriaLabel": "Cerrar superposición de ajustes",
+      "title": "Ajustes",
+      "closeButtonAriaLabel": "Cerrar ajustes"
+    },
+    "appearance": {
+      "heading": "Apariencia",
+      "themeLabel": "Tema",
+      "themeLight": "Claro",
+      "themeDark": "Oscuro",
+      "themeSystem": "Sistema"
+    },
+    "language": {
+      "label": "Idioma"
+    },
+    "chat": {
+      "heading": "Preferencias de chat"
+    },
+    "soundEffects": {
+      "label": "Efectos de sonido",
+      "description": "Reproducir sonidos para notificaciones y eventos",
+      "toggleAriaLabel": "Activar o desactivar efectos de sonido"
+    },
+    "dataManagement": {
+      "heading": "Gestión de datos",
+      "description": "Borrar todos los datos de la aplicación, incluidas conversaciones y ajustes personalizados."
+    },
+    "reset": {
+      "button": "Restablecer aplicación",
+      "confirmTitle": "¿Restablecer los datos de la aplicación?",
+      "confirmMessage": "Esto elimina todo lo almacenado en este dispositivo y vuelve a cargar la aplicación.",
+      "confirmButton": "Restablecer"
+    }
+  },
+  "sidebar": {
+    "selectAgent": {
+      "title": "Seleccionar un agente"
+    },
+    "deleteAllConversations": {
+      "title": "Eliminar todas las conversaciones",
+      "button": "Eliminar conversaciones"
+    },
+    "navAriaLabel": "Barra lateral de conversaciones",
+    "adapterConfigureFailed": "No se pudo configurar el adaptador",
+    "collapse": {
+      "ariaLabel": "Cerrar barra lateral",
+      "title": "Cerrar barra lateral"
+    },
+    "search": {
+      "ariaLabel": "Buscar conversaciones",
+      "placeholder": "Buscar conversaciones",
+      "clearAriaLabel": "Borrar búsqueda"
+    },
+    "resultsNone": "Sin resultados",
+    "results_one": "{{count}} resultado",
+    "results_other": "{{count}} resultados",
+    "conversations": {
+      "ariaLabel": "Conversaciones"
+    },
+    "timeGroups": {
+      "today": "Hoy",
+      "yesterday": "Ayer",
+      "thisWeek": "Esta semana",
+      "thisMonth": "Este mes",
+      "earlier": "Anterior"
+    },
+    "conversationCard": {
+      "openAriaLabel": "Abrir conversación: {{title}}",
+      "editAriaLabel": "Renombrar conversación: {{title}}",
+      "deleteAriaLabel": "Eliminar conversación: {{title}}",
+      "editInputAriaLabel": "Editar título de la conversación"
+    },
+    "deleteConfirm": {
+      "title": "Eliminar conversación",
+      "message": "¿Seguro que quieres eliminar \"{{title}}\"? Esto borrará el historial de la conversación.",
+      "confirmText": "Eliminar"
+    },
+    "clearAllConfirm": {
+      "title": "Borrar todas las conversaciones",
+      "message_one": "¿Seguro que quieres eliminar esta conversación? Esto borrará todo el historial de conversaciones.",
+      "message_other": "¿Seguro que quieres eliminar las {{count}} conversaciones? Esto borrará todo el historial de conversaciones.",
+      "confirmText": "Borrar todo"
+    }
+  },
+  "messageInput": {
+    "textarea": {
+      "ariaLabel": "Entrada de mensaje"
+    },
+    "skillsHint": {
+      "ariaLabel": "Mostrar habilidades disponibles (o escribe una barra inclinada)",
+      "title": "Usar una habilidad",
+      "text": "Habilidades"
+    },
+    "selectedSkill": {
+      "removeAriaLabel": "Quitar habilidad"
+    },
+    "fileUpload": {
+      "attachAriaLabel": "Adjuntar archivos",
+      "titleNotSupported": "Este adaptador no admite la carga de archivos",
+      "titleLimitPerConversation": "Se alcanzó el máximo de {{count}} archivos en esta conversación. Inicia un chat nuevo para cargar más.",
+      "titleLimitWorkspace": "Se alcanzó el límite del espacio de trabajo de {{count}} archivos en total. Quita primero archivos de otras conversaciones.",
+      "titleUploading": "Los archivos se están cargando. Espera...",
+      "titleAttached": "{{count}} archivo(s) adjunto(s)"
+    },
+    "voiceOutput": {
+      "titleEnabled": "Respuestas de voz activadas - Haz clic para desactivar",
+      "titleDisabled": "Activar respuestas de voz (texto a voz)",
+      "ariaLabelEnabled": "Desactivar respuestas de voz",
+      "ariaLabelDisabled": "Activar respuestas de voz"
+    },
+    "voiceInput": {
+      "titleUploading": "Los archivos se están cargando. Espera...",
+      "titleListening": "Detener grabación",
+      "titleDisabled": "Iniciar entrada de voz",
+      "ariaLabelListening": "Detener grabación",
+      "ariaLabelDisabled": "Iniciar entrada de voz"
+    },
+    "agentInfo": {
+      "title": "Acerca de este agente",
+      "ariaLabel": "Acerca de este agente"
+    },
+    "submit": {
+      "title": "Enviar mensaje",
+      "ariaLabel": "Enviar mensaje"
+    },
+    "stop": {
+      "title": "Detener generación",
+      "ariaLabel": "Detener generación"
+    },
+    "attachedFile": {
+      "uploadingStatus": "Cargando...",
+      "processingStatus": "Procesando...",
+      "failedStatus": "Error",
+      "removeTitleFailed": "Descartar",
+      "removeTitleNormal": "Quitar archivo"
+    },
+    "uploadPanel": {
+      "headingAttach": "Adjuntar archivos",
+      "headingUploading": "Cargando archivos",
+      "closeTitle": "Cerrar"
+    },
+    "uploadProgress": {
+      "statusUploading": "Cargando",
+      "statusProcessing": "Procesando",
+      "statusCompleted": "Listo",
+      "statusPending": "Pendiente"
+    },
+    "listeningIndicator": "Escuchando...",
+    "fileDelete": {
+      "title": "Quitar archivo",
+      "message": "¿Seguro que quieres quitar \"{{filename}}\"? Esto eliminará el archivo tanto del servidor como de esta conversación. Esta acción no se puede deshacer.",
+      "confirmText": "Quitar"
+    },
+    "agentInfoModal": {
+      "title": "Acerca de este agente",
+      "closeAriaLabel": "Cerrar",
+      "confirmButton": "Entendido"
+    },
+    "placeholder": {
+      "filesUploading": "Los archivos se están cargando, espera...",
+      "messageOrbit": "Envía un mensaje a ORBIT o suelta archivos aquí",
+      "guestLimitTotal": "Se alcanzó el límite de invitado de {{count}} mensajes. Inicia sesión para límites más altos.",
+      "workspaceLimitTotal": "Se alcanzó el límite del espacio de trabajo de {{count}} mensajes. Elimina o archiva conversaciones antiguas para continuar.",
+      "guestLimitPerConversation": "Se alcanzó el límite de invitado de {{count}} mensajes. Inicia sesión para límites más altos.",
+      "conversationLimitReached": "Este chat alcanzó el límite de {{count}} mensajes. Inicia una nueva conversación para continuar."
+    },
+    "limitWarning": {
+      "guestTotalMessages": "Se alcanzó el límite de invitado de {{count}} mensajes en total. Inicia sesión para límites más altos o elimina conversaciones para empezar de nuevo.",
+      "workspaceTotalMessages": "Se alcanzó el límite del espacio de trabajo de {{count}} mensajes en total. Elimina o exporta conversaciones antiguas para continuar.",
+      "guestPerConversation": "Se alcanzó el límite de invitado de {{count}} mensajes por conversación. Inicia sesión para límites más altos o elimina conversaciones para empezar de nuevo.",
+      "conversationLimitReached": "Esta conversación alcanzó el límite de {{count}} mensajes. Inicia una nueva conversación para seguir chateando."
+    },
+    "signInPrompt": {
+      "button": "Inicia sesión para límites más altos",
+      "message": "Inicia sesión para desbloquear límites de mensajes más altos y más conversaciones."
+    },
+    "autocompletePanel": {
+      "ariaLabel": "Sugerencias de autocompletado"
+    },
+    "uploadSuccess": {
+      "single": "Archivo \"{{filename}}\" cargado correctamente",
+      "multiple": "{{count}} archivos cargados correctamente"
+    },
+    "conversationNotFoundShort": "Conversación no encontrada. Selecciona una conversación primero.",
+    "fileRemoveFailed": "No se pudo quitar el archivo",
+    "fileProcessingFailedTitle": "Error al procesar el archivo"
+  },
+  "authStatus": {
+    "signOutButton": {
+      "title": "Cerrar sesión",
+      "ariaLabel": "Cerrar sesión"
+    }
+  },
+  "loginPrompt": {
+    "heading": "Inicia sesión para más"
+  },
+  "outOfService": {
+    "statusBadge": "Servicio en pausa",
+    "heading": "Temporalmente no disponible",
+    "retryButton": "Intentar de nuevo"
+  },
+  "confirmationModal": {
+    "loadingLabel": "Borrando..."
+  },
+  "appHeader": {
+    "homeLinkAriaLabel": "Ir a la página de inicio",
+    "logoAlt": "Logo",
+    "navLinksAriaLabel": "Enlaces del encabezado"
+  },
+  "appFooter": {
+    "navLinksAriaLabel": "Enlaces del pie de página"
+  },
+  "agentCard": {
+    "configureMessage": "Configura este agente para ver sus capacidades.",
+    "startConversationAriaLabel": "Iniciar conversación con {{name}}"
+  },
+  "markdown": {
+    "codeBlock": {
+      "copied": "¡Copiado!",
+      "copyTitle": "Copiar código",
+      "copyAriaLabel": "Copiar código al portapapeles",
+      "copyLabel": "Copiar",
+      "loadingRenderer": "Cargando renderizador..."
+    },
+    "diagram": {
+      "copyCodeAriaLabel": "Copiar código del diagrama al portapapeles",
+      "exportPngTitle": "Exportar como PNG",
+      "exportPngAriaLabel": "Exportar diagrama como imagen PNG",
+      "errorTitle": "Error del diagrama Mermaid"
+    },
+    "music": {
+      "copyNotationAriaLabel": "Copiar notación ABC al portapapeles",
+      "exportPngTitle": "Exportar como PNG",
+      "exportPngAriaLabel": "Exportar notación musical como imagen PNG",
+      "rendering": "Renderizando notación..."
+    },
+    "svg": {
+      "copyCodeAriaLabel": "Copiar código SVG al portapapeles",
+      "exportPngTitle": "Exportar como PNG",
+      "exportPngAriaLabel": "Exportar SVG como imagen PNG"
+    },
+    "chart": {
+      "legendAriaLabel": "Leyenda del gráfico",
+      "copyCodeAriaLabel": "Copiar código del gráfico al portapapeles",
+      "exportPngTitle": "Exportar como PNG",
+      "exportPngAriaLabel": "Exportar gráfico como imagen PNG",
+      "errorTitle": "Error al renderizar el gráfico",
+      "loadingAriaLabel": "Cargando gráfico",
+      "showRawSource": "Mostrar fuente sin procesar"
+    }
+  },
+  "adapterSelector": {
+    "defaultLabel": "Adaptador",
+    "selectAnAgent": "Seleccionar un agente",
+    "loadingAgents": "Cargando agentes…",
+    "errorLoadingAgents": "Error al cargar agentes",
+    "noAgentsAvailable": "No hay agentes disponibles",
+    "failedToLoad": "No se pudieron cargar los adaptadores. Comprueba tu conexión."
+  },
+  "agentSelectionList": {
+    "searchPlaceholder": "Buscar agentes",
+    "clearSearchAriaLabel": "Borrar búsqueda",
+    "noAgentsAvailable": "Aún no hay agentes disponibles. Configura adaptadores en los ajustes del middleware para continuar.",
+    "noSearchResults": "Ningún agente coincide con tu búsqueda.",
+    "unableToLoad": "No se pueden cargar los agentes en este momento."
+  },
+  "fileUpload": {
+    "selectBeforeUpload": "Selecciona o crea una conversación antes de cargar archivos.",
+    "conversationNotFound": "Conversación no encontrada. Inténtalo de nuevo.",
+    "maxFilesPerConversationError": "Máximo de {{count}} archivos permitidos por conversación. Quita algunos archivos primero.",
+    "maxFilesGuestLimitMessage": "Alcanzaste el límite de invitado de {{count}} archivos por conversación. Inicia sesión para cargar más archivos.",
+    "maxTotalFilesError": "Máximo de {{count}} archivos en total permitidos en todas las conversaciones. Quita primero algunos archivos de otras conversaciones.",
+    "maxTotalFilesGuestLimitMessage": "Alcanzaste el límite de invitado de {{count}} archivos en total. Inicia sesión para cargar más archivos.",
+    "adapterNotConfigured": "El adaptador no está configurado para esta conversación. Selecciona un adaptador primero.",
+    "disabledAriaLabel": "Carga de archivos desactivada",
+    "enabledAriaLabel": "Cargar archivos",
+    "dragDropText": "Suelta archivos o haz clic para explorar",
+    "draggingText": "Suelta los archivos aquí",
+    "fileTypesAndLimit": "PDF, DOCX, TXT, CSV, archivos de código, imágenes, audio · máx. {{count}} archivos",
+    "otherConversationsLabel": "Otras conversaciones",
+    "uploadingStatus": "Cargando",
+    "processingStatus": "Procesando",
+    "completedStatus": "Listo",
+    "failedStatus": "Error",
+    "processingFailedMessage": "El procesamiento falló"
+  },
+  "fileList": {
+    "header": "Archivos ({{count}})",
+    "noFilesAttached": "No hay archivos adjuntos",
+    "uploadFilesToUse": "Carga archivos para usarlos en esta conversación",
+    "removeFileTooltip": "Quitar archivo",
+    "confirmRemoveTitle": "Quitar archivo",
+    "confirmRemoveMessage": "¿Seguro que quieres quitar \"{{filename}}\"? Esto eliminará el archivo tanto del servidor como de esta conversación. Esta acción no se puede deshacer."
+  },
+  "documentDisplay": {
+    "generatedDocument": "Documento generado",
+    "loadingPreview": "Cargando vista previa...",
+    "openPreviewTooltip": "Abrir vista previa",
+    "downloadDocumentTooltip": "Descargar documento",
+    "noSheetDataFound": "No se encontraron datos de hoja.",
+    "csvRowsPreviewMessage": "Mostrando las primeras 25 de {{count}} filas; descarga el archivo completo.",
+    "noDataFound": "No se encontraron datos.",
+    "previewUnavailable": "La vista previa no está disponible para este formato. Usa descargar para abrirlo localmente.",
+    "previewUnavailableShort": "Vista previa no disponible"
+  },
+  "imageDisplay": {
+    "generatedImageTitle": "Imagen generada; haz clic para ampliar",
+    "generatedImageAlt": "Imagen generada",
+    "downloadImageTooltip": "Descargar imagen",
+    "viewFullSizeTooltip": "Ver tamaño completo",
+    "showPrompt": "Mostrar prompt",
+    "hidePrompt": "Ocultar prompt",
+    "promptLabel": "Prompt"
+  },
+  "videoDisplay": {
+    "downloadVideoTooltip": "Descargar video",
+    "viewFullSizeTooltip": "Ver tamaño completo",
+    "showPrompt": "Mostrar prompt",
+    "hidePrompt": "Ocultar prompt",
+    "promptLabel": "Prompt"
+  },
+  "audio": {
+    "button": {
+      "audioPlayingTitle": "Audio reproduciéndose...",
+      "voiceEnabledTitle": "Voz activada - Haz clic para desactivar",
+      "enableVoiceTitle": "Haz clic para activar respuestas de voz",
+      "playingLabel": "Reproduciendo...",
+      "voiceOnLabel": "Voz activada",
+      "enableVoiceLabel": "Activar voz"
+    },
+    "player": {
+      "audioFileTooLargePlaceholder": "Archivo de audio demasiado grande ({{sizeMB}} MB > límite de {{maxMB}} MB)",
+      "largeAudioWarning": "Archivo de audio grande ({{sizeMB}} MB); puede tardar en cargarse",
+      "invalidBase64Error": "Datos de audio base64 no válidos",
+      "loadFailureError": "No se pudo cargar el audio",
+      "playbackFailureError": "Error de reproducción",
+      "pauseTitle": "Pausar",
+      "playTitle": "Reproducir",
+      "pauseAriaLabel": "Pausar audio",
+      "playAriaLabel": "Reproducir audio"
+    }
+  },
+  "modelPicker": {
+    "searchPlaceholder": "Buscar modelos…",
+    "searchAriaLabel": "Buscar modelos",
+    "noModelsMatch": "Ningún modelo coincide con \"{{query}}\"",
+    "modelCountHint": "{{filtered}} de {{total}} modelos",
+    "selectModel": "Seleccionar modelo"
+  },
+  "skillPicker": {
+    "noSkillsAvailable": "No hay habilidades disponibles para este adaptador.",
+    "loadingLabel": "Cargando habilidades...",
+    "noMatchingSkills": "No hay habilidades que coincidan con \"{{query}}\".",
+    "noMatchingSkillsGeneric": "No hay habilidades coincidentes.",
+    "listboxLabel": "Habilidades disponibles"
+  },
+  "message": {
+    "edit": {
+      "willRegenerateHint": "Se regenerará la respuesta"
+    },
+    "copyImageLabel": "Copiar imagen al portapapeles",
+    "copyLabel": "Copiar al portapapeles",
+    "feedback": {
+      "good": "Buena respuesta",
+      "poor": "Mala respuesta",
+      "thanks": "¡Gracias!"
+    },
+    "editAriaLabel": "Editar mensaje",
+    "regenerateTitle": "Regenerar respuesta",
+    "regenerateAriaLabel": "Regenerar respuesta",
+    "thread": {
+      "continueDiscussionTitle": "Continuar esta conversación con el contexto de la respuesta actual",
+      "continueDiscussionAriaLabel": "Continuar esta conversación con el contexto de la respuesta actual",
+      "continueLabel": "Continuar",
+      "replyCount_one": "{{count}} respuesta",
+      "replyCount_other": "{{count}} respuestas",
+      "clearTitle": "Borrar respuestas",
+      "clearAriaLabel": "Borrar respuestas",
+      "hideRepliesAriaLabel": "Ocultar respuestas",
+      "hideRepliesLabel": "Ocultar respuestas",
+      "placeholder": "Responder en el hilo...",
+      "skillsHint": "Usar una habilidad",
+      "skillsHintAriaLabel": "Mostrar habilidades disponibles (o escribe una barra inclinada)",
+      "removeSkillAriaLabel": "Quitar habilidad del hilo",
+      "sendMessageTitle": "Enviar mensaje del hilo",
+      "selectModelTitle": "Seleccionar modelo para este hilo",
+      "limitReachedGuest": "Alcanzaste el límite de invitado de {{count}} mensajes por hilo. Inicia sesión para continuar este hilo.",
+      "limitReachedUser": "Este hilo alcanzó el límite de {{count}} mensajes. Inicia una nueva conversación para más seguimientos.",
+      "signInForHigherLimits": "Inicia sesión para límites más altos",
+      "signInPromptMessage": "Inicia sesión para desbloquear límites de mensajes más altos y continuar este hilo."
+    },
+    "confirmation": {
+      "clearRepliesTitle": "Borrar respuestas",
+      "clearRepliesMessage": "¿Seguro que quieres borrar estas respuestas? Esto elimina el hilo secundario del backend sin eliminar la conversación principal."
+    }
+  },
+  "messageList": {
+    "emptyStateHeading": "Tus mensajes aparecerán aquí.",
+    "emptyStateSubheading": "Inicia la conversación enviando un prompt abajo."
+  },
+  "voice": {
+    "browserNotSupported": "El reconocimiento de voz no es compatible con este navegador. Prueba Chrome, Edge o Safari.",
+    "error": {
+      "noSpeech": "No se detectó voz. Inténtalo de nuevo.",
+      "audioCapture": "Acceso al micrófono denegado. Permite el acceso al micrófono e inténtalo de nuevo.",
+      "notAllowed": "Acceso al micrófono no permitido. Activa los permisos del micrófono.",
+      "network": "Se produjo un error de red. Comprueba tu conexión.",
+      "generic": "Error de reconocimiento de voz: {{error}}",
+      "startFailed": "No se pudo iniciar el reconocimiento de voz. Inténtalo de nuevo."
+    }
+  },
+  "agent": {
+    "error": {
+      "singleAdapterMissing": "El modo de adaptador único requiere que agentMode.defaultAdapterId coincida con un id de adaptador en orbitchat.yaml.",
+      "configurationFailed": "No se pudo configurar este agente.",
+      "authenticationFailed": "No pudimos cargar este agente. Puede que no exista o que no tengas acceso.",
+      "notFound": "No se encontró este agente en el servidor. Elige otro agente.",
+      "loadFailed": "No se puede cargar la descripción del agente en este momento."
+    }
+  }
+}

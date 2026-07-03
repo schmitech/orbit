@@ -43,7 +43,7 @@
       "titleDisabled": "L'agent ne peut pas être changé une fois la conversation commencée"
     },
     "newConversation": {
-      "button": "Nouvelle",
+      "button": "Nouvelle conversation",
       "tooltipCanStart": "Démarrer une nouvelle conversation",
       "tooltipGuestLimited": "Limite de conversations invité atteinte. Connectez-vous pour plus de conversations.",
       "tooltipCannotStart": "Terminez votre conversation actuelle avant d'en démarrer une nouvelle."
@@ -51,7 +51,7 @@
     "empty": {
       "configuringAgent": "Configuration de votre agent…"
     },
-    "newChatTitle": "Nouvelle",
+    "newChatTitle": "Nouvelle discussion",
     "updatedAt": "Mis à jour {{time}}",
     "docked": {
       "placeholder": "Démarrer un nouveau sujet..."
@@ -74,7 +74,7 @@
       "label": "Langue"
     },
     "chat": {
-      "heading": "Préférences"
+      "heading": "Préférences de discussion"
     },
     "soundEffects": {
       "label": "Effets sonores",
@@ -97,8 +97,8 @@
       "title": "Sélectionner un agent"
     },
     "deleteAllConversations": {
-      "title": "Tout effacer",
-      "button": "Tout effacer"
+      "title": "Supprimer toutes les conversations",
+      "button": "Supprimer les conversations"
     },
     "navAriaLabel": "Barre latérale des conversations",
     "adapterConfigureFailed": "Échec de la configuration de l'adaptateur",
@@ -260,7 +260,7 @@
     "retryButton": "Réessayer"
   },
   "confirmationModal": {
-    "loadingLabel": "Effacement..."
+    "loadingLabel": "Effacement en cours..."
   },
   "appHeader": {
     "homeLinkAriaLabel": "Aller à la page d'accueil",
@@ -358,7 +358,7 @@
     "openPreviewTooltip": "Ouvrir l'aperçu",
     "downloadDocumentTooltip": "Télécharger le document",
     "noSheetDataFound": "Aucune donnée de feuille trouvée.",
-    "csvRowsPreviewMessage": "Affichage des 25 premières lignes sur {{count}} — téléchargez pour le fichier complet.",
+    "csvRowsPreviewMessage": "Affichage des 25 premières lignes sur {{count}} — téléchargez le fichier complet.",
     "noDataFound": "Aucune donnée trouvée.",
     "previewUnavailable": "L'aperçu n'est pas disponible pour ce format. Téléchargez-le pour l'ouvrir localement.",
     "previewUnavailableShort": "Aperçu indisponible"
@@ -395,7 +395,7 @@
       "loadFailureError": "Échec du chargement de l'audio",
       "playbackFailureError": "Échec de la lecture",
       "pauseTitle": "Pause",
-      "playTitle": "Lecture",
+      "playTitle": "Lire",
       "pauseAriaLabel": "Mettre l'audio en pause",
       "playAriaLabel": "Lire l'audio"
     }
@@ -422,7 +422,7 @@
     "copyLabel": "Copier dans le presse-papiers",
     "feedback": {
       "good": "Bonne réponse",
-      "poor": "Mauvaise réponse",
+      "poor": "Réponse insatisfaisante",
       "thanks": "Merci!"
     },
     "editAriaLabel": "Modifier le message",
