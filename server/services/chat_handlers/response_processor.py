@@ -234,7 +234,8 @@ class ResponseProcessor:
         backend: str,
         processing_time: float,
         retrieved_docs: Optional[list] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        regenerate_of_message_id: Optional[str] = None
     ) -> tuple[str, Optional[str]]:
         """
         Complete post-processing of a chat response.
@@ -256,6 +257,9 @@ class ResponseProcessor:
             backend: Backend/provider used
             processing_time: Pipeline processing time
             model: Actual model used for this request
+            regenerate_of_message_id: Optional id of an existing assistant message to
+                overwrite in place (regenerate or edit+regenerate), instead of storing
+                a new turn — the paired user turn is resolved and updated server-side
 
         Returns:
             Tuple of (processed_response_text, assistant_message_id)
@@ -293,7 +297,8 @@ class ResponseProcessor:
                 adapter_name=adapter_name,
                 user_id=user_id,
                 api_key=api_key,
-                metadata=metadata
+                metadata=metadata,
+                regenerate_of_message_id=regenerate_of_message_id
             )
 
         # Check for conversation limit warning and inject AFTER storage (display only)

@@ -91,6 +91,9 @@ interface ChatRequest {
   target_language?: string;  // Target language for translation
   model?: string;  // Optional model override
   skill?: string;  // Optional skill to invoke
+  regenerate_of_message_id?: string;  // Optional id of an existing assistant message to
+                                       // overwrite in place (regenerate/edit+regenerate),
+                                       // instead of storing this request as a new turn
 }
 
 // File-related interfaces
@@ -1346,7 +1349,8 @@ export class ApiClient {
     sourceLanguage?: string,
     targetLanguage?: string,
     model?: string,
-    skill?: string
+    skill?: string,
+    regenerateOfMessageId?: string
   ): ChatRequest {
     const request: ChatRequest = {
       messages: [
@@ -1387,6 +1391,9 @@ export class ApiClient {
     if (skill) {
       request.skill = skill;
     }
+    if (regenerateOfMessageId) {
+      request.regenerate_of_message_id = regenerateOfMessageId;
+    }
     return request;
   }
 
@@ -1404,7 +1411,8 @@ export class ApiClient {
     targetLanguage?: string,
     abortSignal?: AbortSignal,
     model?: string,
-    skill?: string
+    skill?: string,
+    regenerateOfMessageId?: string
   ): AsyncGenerator<StreamResponse> {
     try {
       // Add timeout to the fetch request
@@ -1436,7 +1444,8 @@ export class ApiClient {
             sourceLanguage,
             targetLanguage,
             model,
-            skill
+            skill,
+            regenerateOfMessageId
           )),
         }),
         signal: controller.signal
@@ -2119,7 +2128,8 @@ export async function* streamChat(
   targetLanguage?: string,
   abortSignal?: AbortSignal,
   model?: string,
-  skill?: string
+  skill?: string,
+  regenerateOfMessageId?: string
 ): AsyncGenerator<StreamResponse> {
   if (!defaultClient) {
     throw new Error('API not configured. Please call configureApi() with your server URL before using any API functions.');
@@ -2139,7 +2149,8 @@ export async function* streamChat(
     targetLanguage,
     abortSignal,
     model,
-    skill
+    skill,
+    regenerateOfMessageId
   );
 }
 

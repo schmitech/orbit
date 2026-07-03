@@ -64,7 +64,8 @@ export interface ApiClient {
     sourceLanguage?: string,
     targetLanguage?: string,
     model?: string,
-    skill?: string
+    skill?: string,
+    regenerateOfMessageId?: string
   ): AsyncGenerator<StreamResponse>;
   createThread?(messageId: string, sessionId: string): Promise<{
     thread_id: string;
@@ -195,7 +196,8 @@ export interface ApiFunctions {
     sourceLanguage?: string,
     targetLanguage?: string,
     model?: string,
-    skill?: string
+    skill?: string,
+    regenerateOfMessageId?: string
   ) => AsyncGenerator<StreamResponse>;
   ApiClient: new (config: { apiUrl: string; sessionId?: string | null; adapterName?: string | null }) => ApiClient;
   stopChat?: (sessionId: string, requestId: string) => Promise<boolean>;
@@ -351,7 +353,8 @@ function createProxyApi(): ApiFunctions {
         sourceLanguage?: string,
         targetLanguage?: string,
         model?: string,
-        skill?: string
+        skill?: string,
+        regenerateOfMessageId?: string
       ): AsyncGenerator<StreamResponse> {
         const requestBody: Record<string, unknown> = {
           messages: [{ role: 'user', content: message }],
@@ -372,6 +375,7 @@ function createProxyApi(): ApiFunctions {
         if (targetLanguage) requestBody.target_language = targetLanguage;
         if (model) requestBody.model = model;
         if (skill) requestBody.skill = skill;
+        if (regenerateOfMessageId) requestBody.regenerate_of_message_id = regenerateOfMessageId;
 
         const response = await fetch('/api/v1/chat', {
           method: 'POST',
@@ -752,7 +756,8 @@ function createProxyApi(): ApiFunctions {
       sourceLanguage?: string,
       targetLanguage?: string,
       model?: string,
-      skill?: string
+      skill?: string,
+      regenerateOfMessageId?: string
     ): AsyncGenerator<StreamResponse> {
       if (!defaultAdapterName) {
         throw new Error('Adapter name is required');
@@ -771,7 +776,8 @@ function createProxyApi(): ApiFunctions {
         sourceLanguage,
         targetLanguage,
         model,
-        skill
+        skill,
+        regenerateOfMessageId
       );
     },
     stopChat: async (sessionId: string, requestId: string): Promise<boolean> => {

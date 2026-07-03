@@ -387,6 +387,12 @@ class RouteConfigurator:
             tts_voice: Optional[str] = None  # Voice for TTS (e.g., "alloy", "echo" for OpenAI)
             source_language: Optional[str] = None  # Source language for translation
             target_language: Optional[str] = None  # Target language for translation
+            # Optional id of an existing assistant message to overwrite in place
+            # (regenerate or edit+regenerate), instead of storing this request as a new turn.
+            # The paired user turn is resolved and updated server-side (see
+            # ChatHistoryService.add_conversation_turn), so no separate user message id
+            # needs to be tracked or sent by the client.
+            regenerate_of_message_id: Optional[str] = None
 
         class OpenAIChatCompletionRequest(BaseModel):
             model: Optional[str] = None
@@ -421,6 +427,7 @@ class RouteConfigurator:
                 "target_language": getattr(chat_request, "target_language", None),
                 "requested_model": getattr(chat_request, "model", None),
                 "skill": getattr(chat_request, "skill", None),
+                "regenerate_of_message_id": getattr(chat_request, "regenerate_of_message_id", None),
             }
 
             return last_user_message, payload

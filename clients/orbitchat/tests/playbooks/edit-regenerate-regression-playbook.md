@@ -290,31 +290,170 @@ Fail indicators:
 - A loading spinner appears briefly.
 - The user message content changes unexpectedly.
 
-## Scenario 9: Edit Button Visibility and Placement
+## Scenario 9: Cursor Position While Editing
 
-Purpose: Confirm the edit button appears correctly on hover and is not visible otherwise.
+Purpose: Verify the caret stays where the user clicked/typed instead of jumping to the
+end of the text on every keystroke.
+
+> **Regression note:** an earlier bug combined the focus/cursor-placement effect with the
+> textarea auto-resize effect on the same dependency array, so every content change
+> (auto-resize recalculation) also re-ran the cursor-reset logic. Keep these two `useEffect`
+> hooks on separate dependency arrays (cursor placement depending only on `isEditing`,
+> auto-resize depending on `[isEditing, editContent]`).
 
 Steps:
 
-1. Create a new conversation with at least two exchanges (two user messages, two assistant responses).
-2. Move the mouse away from the message list entirely.
-3. Slowly hover over the first user message bubble.
-4. Move the mouse away again.
-5. Hover over the second user message bubble.
-6. Hover over an assistant message bubble.
+1. Create a new conversation and send:
+
+   ```text
+   The quick brown fox jumps over the lazy dog
+   ```
+
+2. Wait for the assistant response to finish.
+3. Click the edit (pencil) button on the user message.
+4. Click in the **middle** of the text (e.g., between "quick" and "brown").
+5. Type a few characters (e.g., `XXX`).
 
 Pass criteria:
 
-- The edit (pencil) button is invisible when the mouse is not over a user message.
-- The edit button appears to the **left** of the user bubble when hovering.
-- The button disappears when moving the mouse away.
-- No edit button appears on assistant messages at any point.
+- The caret stays at the position where you clicked and typed; text is inserted there.
+- The textarea still auto-resizes as content grows.
 
 Fail indicators:
 
-- The edit button is always visible (not hidden when not hovering).
-- The edit button appears on the wrong side or overlaps the bubble content.
-- The edit button appears on assistant messages.
+- The caret jumps to the end of the textarea after any typed character.
+- Typing in the middle of existing text is effectively impossible because the cursor keeps resetting.
+
+## Scenario 10: Regenerate a Non-Final (Earlier) Turn
+
+Purpose: Confirm that regenerating an assistant response that is **not** the last turn
+in the conversation keeps its original position in the conversation, instead of jumping
+to the end after later turns.
+
+> **Regression note (server):** the server-side fix for the regenerate/edit
+> duplicate-turn bug (chat_history_service.py) originally stamped a fresh `timestamp`
+> on the replaced user/assistant rows. Since conversation history is ordered by
+> timestamp, regenerating an earlier turn moved it to the end of the session, silently
+> reordering the whole conversation on the next reload. The fix stopped touching the
+> timestamp on replace.
+>
+> **Regression note (client):** `appendToLastMessage` and `updateLastAssistantMessage`
+> (chatStore.ts) originally targeted whichever message was *last* in the conversation's
+> in-memory array, not the specific message actually streaming. That's only correct when
+> the streaming message genuinely is the last one — regenerating a non-final turn leaves
+> a different, already-completed message last, so streamed text was silently dropped
+> (the regenerated bubble stayed empty) and/or misattributed to the wrong message. The
+> fix threads the target `assistantMessageId` through both helpers and the streaming
+> buffer instead of relying on array position. There is no unit-test harness for
+> chatStore.ts (`npm test` only covers plain `.js` proxy/CLI tests, not the Zustand
+> store), so this scenario is the only regression coverage for that fix — don't skip it.
+
+Steps:
+
+1. Create a new conversation.
+2. Send:
+
+   ```text
+   Give me one color.
+   ```
+
+3. Wait for completion.
+4. Send a second message:
+
+   ```text
+   Give me one animal.
+   ```
+
+5. Wait for completion. The conversation now has two exchanges.
+6. Use the regenerate response action on the **first** assistant message (the color
+   answer), not the most recent one.
+7. **While it is streaming**, watch both assistant bubbles — don't wait for completion
+   before checking.
+8. Wait for completion.
+9. Reload the page.
+
+Pass criteria:
+
+- While streaming, the regenerated (first) bubble fills in with new content, and the
+  second exchange's answer ("Dog." or similar) remains visible and unchanged throughout.
+- Before and after reload, the order is: color question, regenerated color answer,
+  animal question, animal answer — the regenerated turn stays **first**.
+- The animal exchange is untouched and does not move, and its content is not blanked,
+  duplicated, or overwritten at any point.
+- No duplicate turns appear.
+
+Fail indicators:
+
+- The first (regenerating) bubble stays empty/blank once streaming finishes.
+- The second exchange's assistant message disappears, goes blank, or gets overwritten
+  with the first turn's regenerated content while the first turn is streaming.
+- A reload restores both messages correctly (content is fine in the database) but the
+  live UI was wrong during/after the regenerate action — this indicates the bug is in
+  chatStore.ts's client-side message targeting, not server-side persistence.
+- After reload, the regenerated color turn appears **after** the animal exchange
+  instead of before it.
+- A duplicate color question/answer pair appears anywhere in the conversation.
+
+## Scenario 11: Edit a Non-Final (Earlier) Turn
+
+Purpose: Confirm that editing a user message that is **not** the last turn keeps every
+later exchange intact — distinct from Scenario 10, which only exercises regenerate.
+
+> **Regression note:** `editMessageAndRegenerate`'s array splice replaced the edited user
+> message and its old assistant reply (`messageIndex` and `messageIndex + 1`) but never
+> re-appended anything after that point — unlike `regenerateResponse`, which correctly
+> preserves `...conv.messages.slice(messageIndex + 1)`. Editing any turn that wasn't the
+> last one silently truncated the entire rest of the conversation from local state the
+> instant the edit was submitted (before any streaming even started). A reload masked
+> it, because `syncConversationsWithBackend` reloads from the server, which was never
+> affected — server-side persistence for this turn was already correct. The fix appends
+> `...conv.messages.slice(tailStartIndex)` after the replacement.
+
+Steps:
+
+1. Create a new conversation.
+2. Send:
+
+   ```text
+   Give me one color.
+   ```
+
+3. Wait for completion.
+4. Send a second message:
+
+   ```text
+   Give me one animal.
+   ```
+
+5. Wait for completion. The conversation now has two exchanges.
+6. Click the edit (pencil) button on the **first** user message (the color question)
+   and change it to:
+
+   ```text
+   Give me one supercolor.
+   ```
+
+7. Submit the edit. **Immediately** (don't wait for streaming to finish) check whether
+   the second exchange (animal question + answer) is still visible.
+8. Wait for completion.
+9. Reload the page.
+
+Pass criteria:
+
+- The second exchange (animal question + answer) remains visible the entire time —
+  immediately after submitting the edit, while the first turn streams, and after
+  completion.
+- After reload, both exchanges are present and in order: edited color question,
+  regenerated color answer, animal question, animal answer.
+- No duplicate turns appear.
+
+Fail indicators:
+
+- The second exchange disappears from the UI as soon as the edit is submitted (before
+  or during streaming), even though a reload correctly restores it — this confirms the
+  bug is the client-side array-splice truncation in `editMessageAndRegenerate`, not a
+  server-side persistence issue.
+- After reload, the animal exchange is missing, duplicated, or reordered.
 
 ## Local Storage Spot Check
 
@@ -341,6 +480,7 @@ During every scenario, watch for errors related to:
 - `stopStreaming`
 - `Edit-regenerate`
 - `Maximum update depth exceeded`
+- `setSelectionRange`
 
 Pass criteria:
 
@@ -354,6 +494,6 @@ Mark the update as passing only if:
 
 - `npm run lint` passes.
 - `npm run build` passes.
-- Scenarios 1 through 9 pass.
+- Scenarios 1 through 11 pass.
 - Reload behavior is correct after edit/regenerate.
 - No cancelled-stream text appears in a regenerated assistant message.

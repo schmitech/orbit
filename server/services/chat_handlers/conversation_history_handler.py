@@ -112,7 +112,8 @@ class ConversationHistoryHandler:
         adapter_name: str,
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        regenerate_of_message_id: Optional[str] = None
     ) -> tuple[Optional[Any], Optional[Any]]:
         """
         Store a conversation turn in chat history.
@@ -125,6 +126,9 @@ class ConversationHistoryHandler:
             user_id: Optional user identifier
             api_key: Optional API key
             metadata: Optional metadata to store
+            regenerate_of_message_id: Optional id of an existing assistant message to
+                overwrite in place (regenerate or edit+regenerate), instead of storing
+                a new turn — the paired user turn is resolved and updated server-side
 
         Returns:
             Tuple of (user_message_id, assistant_message_id)
@@ -150,7 +154,8 @@ class ConversationHistoryHandler:
                 assistant_response=assistant_response,
                 user_id=user_id,
                 api_key=api_key,
-                metadata=metadata
+                metadata=metadata,
+                regenerate_of_message_id=regenerate_of_message_id
             )
 
             logger.debug(f"Stored conversation turn for session {session_id} (threading={has_retrieved_docs})")

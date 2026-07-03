@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create, type StoreApi } from 'zustand';
 import { getApi, ApiClient } from '../apiClient';
 import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '../types';
 import { FileUploadService } from '../services/fileService';
@@ -32,7 +32,7 @@ import { debouncedSaveToLocalStorage } from './chatStore.persistence';
 // Streaming content buffer — batches rapid updates to prevent "Maximum update depth exceeded"
 // errors when rendering complex content like mermaid diagrams (~30fps)
 const STREAMING_BATCH_DELAY = 32; // ms
-const streamingBuffer: Map<string, { content: string; timeoutId: ReturnType<typeof setTimeout> | null }> = new Map();
+const streamingBuffer: Map<string, { content: string; timeoutId: ReturnType<typeof setTimeout> | null; messageId?: string }> = new Map();
 
 // Stream control state for stop functionality
 let activeAbortController: AbortController | null = null;
@@ -54,17 +54,21 @@ const flushStreamingBuffer = (
 
   if (buffer.content) {
     const contentToAppend = buffer.content;
+    const targetMessageId = buffer.messageId;
     buffer.content = '';
 
     setState(state => ({
       conversations: state.conversations.map(conv => {
         if (conv.id !== conversationId) return conv;
         const messages = [...conv.messages];
-        const lastMessage = messages[messages.length - 1];
-        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
-          messages[messages.length - 1] = {
-            ...lastMessage,
-            content: lastMessage.content + contentToAppend,
+        const targetIdx = targetMessageId
+          ? messages.findIndex(m => m.id === targetMessageId)
+          : messages.length - 1;
+        const targetMessage = targetIdx !== -1 ? messages[targetIdx] : undefined;
+        if (targetMessage && targetMessage.role === 'assistant' && targetMessage.isStreaming) {
+          messages[targetIdx] = {
+            ...targetMessage,
+            content: targetMessage.content + contentToAppend,
           };
         }
         return { ...conv, messages, updatedAt: new Date() };
@@ -79,14 +83,20 @@ const flushStreamingBuffer = (
 const updateLastAssistantMessage = (
   state: ChatState,
   conversationId: string,
-  updater: (msg: Message) => Partial<Message>
+  updater: (msg: Message) => Partial<Message>,
+  messageId?: string
 ): Partial<ChatState> => ({
   conversations: state.conversations.map(conv => {
     if (conv.id !== conversationId) return conv;
     const messages = [...conv.messages];
-    const lastIdx = messages.length - 1;
-    if (messages[lastIdx]?.role === 'assistant') {
-      messages[lastIdx] = { ...messages[lastIdx], ...updater(messages[lastIdx]) };
+    // Target the specific streaming message by id when known — e.g. regenerating a
+    // non-final turn leaves a different, already-completed message last in the array,
+    // so "last message" would silently misattribute audio/image/video/document fields.
+    const targetIdx = messageId
+      ? messages.findIndex(m => m.id === messageId)
+      : messages.length - 1;
+    if (targetIdx !== -1 && messages[targetIdx]?.role === 'assistant') {
+      messages[targetIdx] = { ...messages[targetIdx], ...updater(messages[targetIdx]) };
     }
     return { ...conv, messages, updatedAt: new Date() };
   }),
@@ -131,7 +141,7 @@ interface ExtendedChatState extends ChatState {
   deleteThread: (conversationId: string, parentMessageId: string, threadId: string) => Promise<void>;
   sendMessage: (content: string, fileIds?: string[], threadId?: string, model?: string, skill?: string) => Promise<void>;
   createThread: (messageId: string, sessionId: string) => Promise<void>;
-  appendToLastMessage: (content: string, conversationId?: string) => void;
+  appendToLastMessage: (content: string, conversationId?: string, messageId?: string) => void;
   regenerateResponse: (messageId: string, model?: string) => Promise<void>;
   editMessageAndRegenerate: (messageId: string, newContent: string, model?: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
@@ -152,7 +162,226 @@ interface ExtendedChatState extends ChatState {
   loadFeedbackForConversation: (sessionId: string) => Promise<void>;
 }
 
+
+async function _runStreamIntoMessage(
+  get: () => ExtendedChatState,
+  set: StoreApi<ExtendedChatState>['setState'],
+  assistantMessageId: string,
+  conversationId: string,
+  content: string,
+  attachmentIds: string[],
+  model: string | undefined,
+  logLabel: 'regenerate' | 'edit-regenerate',
+  regenerateOfMessageId?: string
+): Promise<void> {
+  let receivedAnyText = false;
+  const abortController = new AbortController();
+  activeAbortController = abortController;
+  activeStreamConversationId = conversationId;
+  activeRequestId = null;
+
+  try {
+    const currentConversation = get().conversations.find(conv => conv.id === conversationId);
+    if (!currentConversation) throw new Error('Conversation not found');
+    if (!currentConversation.adapterName) {
+      throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
+    }
+
+    activeStreamSessionId = currentConversation.sessionId;
+
+    if (currentConversation.sessionId) {
+      const api = await getApi();
+      api.configureApi(
+        resolveApiUrl(currentConversation.apiUrl),
+        currentConversation.sessionId,
+        currentConversation.adapterName
+      );
+    }
+
+    const api = await getApi();
+    const { returnAudio, ttsVoice, language } = getAudioSettings(currentConversation);
+
+    for await (const response of api.streamChat(
+      content,
+      true,
+      attachmentIds.length > 0 ? attachmentIds : undefined,
+      undefined,
+      undefined,
+      undefined,
+      language,
+      returnAudio,
+      ttsVoice,
+      undefined,
+      undefined,
+      model,
+      undefined,
+      regenerateOfMessageId
+    )) {
+      if (response.request_id && !activeRequestId) {
+        activeRequestId = response.request_id;
+        debugLog(`[chatStore] >>> CAPTURED request_id for ${logLabel} stop: ${response.request_id}`);
+      }
+
+      if (response.text) {
+        const sanitizedText = sanitizeMessageContent(response.text);
+        if (sanitizedText) {
+          get().appendToLastMessage(sanitizedText, conversationId, assistantMessageId);
+          receivedAnyText = true;
+        } else if (response.text.length > 100) {
+          debugWarn('[chatStore] Filtered out potential base64 audio data from regenerated message content');
+        }
+      }
+
+      if (response.audio && response.done) {
+        set((state: ExtendedChatState) =>
+          updateLastAssistantMessage(state, conversationId, () => ({
+            audio: response.audio,
+            audioFormat: response.audioFormat || 'mp3',
+          }), assistantMessageId)
+        );
+      }
+
+      if (response.image && response.done) {
+        receivedAnyText = true;
+        set((state: ExtendedChatState) =>
+          updateLastAssistantMessage(state, conversationId, () => ({
+            image: response.image,
+            imageFormat: response.image_format || 'png',
+            imageRevisedPrompt: response.image_revised_prompt,
+            imageUrl: response.image_url,
+          }), assistantMessageId)
+        );
+      }
+
+      if ((response.video || response.video_url) && response.done) {
+        receivedAnyText = true;
+        set((state: ExtendedChatState) =>
+          updateLastAssistantMessage(state, conversationId, () => ({
+            video: response.video,
+            videoFormat: response.video_format || 'mp4',
+            videoRevisedPrompt: response.video_revised_prompt,
+            videoUrl: response.video_url,
+          }), assistantMessageId)
+        );
+      }
+
+      if ((response.document || response.document_url) && response.done) {
+        receivedAnyText = true;
+        set((state: ExtendedChatState) =>
+          updateLastAssistantMessage(state, conversationId, () => ({
+            document: response.document,
+            documentFormat: response.document_format || 'pdf',
+            documentRevisedPrompt: response.document_revised_prompt,
+            documentUrl: response.document_url,
+          }), assistantMessageId)
+        );
+      }
+
+      if (response.done) {
+        const threadingInfo = response.threading;
+        if (threadingInfo?.supports_threading) {
+          set((state: ExtendedChatState) => ({
+            conversations: state.conversations.map(conv => {
+              if (conv.id !== conversationId) return conv;
+              return {
+                ...conv,
+                messages: conv.messages.map(msg =>
+                  msg.id === assistantMessageId
+                    ? { ...msg, supportsThreading: true, databaseMessageId: threadingInfo.message_id }
+                    : msg
+                ),
+                updatedAt: new Date(),
+              };
+            }),
+          }));
+        }
+
+        if (response.assistant_message_id) {
+          set((state: ExtendedChatState) => ({
+            conversations: state.conversations.map(conv => {
+              if (conv.id !== conversationId) return conv;
+              return {
+                ...conv,
+                messages: conv.messages.map(msg =>
+                  msg.id === assistantMessageId && !msg.databaseMessageId
+                    ? { ...msg, databaseMessageId: response.assistant_message_id }
+                    : msg
+                ),
+                updatedAt: new Date(),
+              };
+            }),
+          }));
+        }
+
+        break;
+      }
+    }
+
+    if (!receivedAnyText && !abortController.signal.aborted) {
+      get().appendToLastMessage(
+        'No response received from the server. Please try again later.',
+        conversationId,
+        assistantMessageId
+      );
+    }
+  } catch (error) {
+    const isAbortError =
+      error instanceof Error &&
+      (error.name === 'AbortError' ||
+        error.message === 'Stream cancelled by user' ||
+        error.message.includes('aborted'));
+
+    if (isAbortError) {
+      debugLog(`[chatStore] ${logLabel === 'edit-regenerate' ? 'Edit-regenerate' : 'Regeneration'} stream was cancelled by user`);
+      receivedAnyText = true;
+    } else {
+      logError(`${logLabel === 'edit-regenerate' ? 'Edit-regenerate' : 'Regenerate'} API error:`, error);
+      let errorMessage = 'Sorry, there was an error regenerating the response.';
+      if (error instanceof Error) {
+        if (error.message.startsWith('Server error:')) {
+          errorMessage = error.message.substring('Server error: '.length);
+        } else if (
+          error.message.includes('Could not connect') ||
+          error.message.includes('timed out')
+        ) {
+          errorMessage = error.message;
+        }
+      }
+      get().appendToLastMessage(errorMessage, conversationId, assistantMessageId);
+    }
+  }
+
+  activeAbortController = null;
+  activeRequestId = null;
+  activeStreamSessionId = null;
+  activeStreamConversationId = null;
+
+  flushStreamingBuffer(conversationId, set);
+
+  set((state: ExtendedChatState) => {
+    const updatedConversations = state.conversations.map(conv =>
+      conv.id === conversationId
+        ? {
+            ...conv,
+            messages: conv.messages.map(msg =>
+              msg.id === assistantMessageId ? { ...msg, isStreaming: false } : msg
+            ),
+            updatedAt: new Date(),
+          }
+        : conv
+    );
+    const currentConv = updatedConversations.find(conv => conv.id === state.currentConversationId);
+    return {
+      conversations: updatedConversations,
+      isLoading: currentConv
+        ? currentConv.messages.some(msg => msg.role === 'assistant' && msg.isStreaming)
+        : false,
+    };
+  });
+}
+
 export const useChatStore = create<ExtendedChatState>((set, get) => ({
+
   conversations: [],
   currentConversationId: null,
   isLoading: false,
@@ -791,7 +1020,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           if (response.text) {
             const sanitizedText = sanitizeMessageContent(response.text);
             if (sanitizedText) {
-              get().appendToLastMessage(sanitizedText, streamingConversationId);
+              get().appendToLastMessage(sanitizedText, streamingConversationId, assistantMessageId);
               receivedAnyText = true;
             } else if (response.text.length > 100) {
               debugWarn('[chatStore] Filtered out potential base64 audio data from message content');
@@ -803,7 +1032,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               updateLastAssistantMessage(state, streamingConversationId!, () => ({
                 audio: response.audio,
                 audioFormat: response.audioFormat || 'mp3',
-              }))
+              }), assistantMessageId)
             );
           }
 
@@ -815,7 +1044,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 imageFormat: response.image_format || 'png',
                 imageRevisedPrompt: response.image_revised_prompt,
                 imageUrl: response.image_url,
-              }))
+              }), assistantMessageId)
             );
           }
 
@@ -827,7 +1056,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 videoFormat: response.video_format || 'mp4',
                 videoRevisedPrompt: response.video_revised_prompt,
                 videoUrl: response.video_url,
-              }))
+              }), assistantMessageId)
             );
           }
 
@@ -839,7 +1068,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 documentFormat: response.document_format || 'pdf',
                 documentRevisedPrompt: response.document_revised_prompt,
                 documentUrl: response.document_url,
-              }))
+              }), assistantMessageId)
             );
           }
 
@@ -888,7 +1117,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         if (!receivedAnyText && !abortController.signal.aborted) {
           get().appendToLastMessage(
             'No response received from the server. Please try again later.',
-            streamingConversationId
+            streamingConversationId,
+            assistantMessageId
           );
         }
       } catch (error) {
@@ -914,7 +1144,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               errorMessage = error.message;
             }
           }
-          get().appendToLastMessage(errorMessage, streamingConversationId);
+          get().appendToLastMessage(errorMessage, streamingConversationId, assistantMessageId);
         }
       }
 
@@ -1003,7 +1233,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }
   },
 
-  appendToLastMessage: (content: string, conversationId?: string) => {
+  appendToLastMessage: (content: string, conversationId?: string, messageId?: string) => {
     const sanitizedContent = sanitizeMessageContent(content);
     if (!sanitizedContent && content) {
       debugWarn('[chatStore] Filtered out base64 audio data from message content');
@@ -1019,9 +1249,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     if (existing) {
       existing.content += finalContent;
+      existing.messageId = messageId;
       if (existing.timeoutId) clearTimeout(existing.timeoutId);
     } else {
-      streamingBuffer.set(bufferKey, { content: finalContent, timeoutId: null });
+      streamingBuffer.set(bufferKey, { content: finalContent, timeoutId: null, messageId });
     }
 
     const flushBuffer = () => {
@@ -1029,6 +1260,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       if (!buffer || !buffer.content) return;
 
       const contentToAppend = buffer.content;
+      const targetMessageId = buffer.messageId;
       buffer.content = '';
       buffer.timeoutId = null;
 
@@ -1036,11 +1268,16 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         conversations: state.conversations.map(conv => {
           if (conv.id !== targetConversationId) return conv;
           const messages = [...conv.messages];
-          const lastMessage = messages[messages.length - 1];
-          if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
-            messages[messages.length - 1] = {
-              ...lastMessage,
-              content: lastMessage.content + contentToAppend,
+          // Target the specific streaming message by id when known — "last message"
+          // is wrong when regenerating a non-final turn (see updateLastAssistantMessage).
+          const targetIdx = targetMessageId
+            ? messages.findIndex(m => m.id === targetMessageId)
+            : messages.length - 1;
+          const targetMessage = targetIdx !== -1 ? messages[targetIdx] : undefined;
+          if (targetMessage && targetMessage.role === 'assistant' && targetMessage.isStreaming) {
+            messages[targetIdx] = {
+              ...targetMessage,
+              content: targetMessage.content + contentToAppend,
             };
           }
           return { ...conv, messages, updatedAt: new Date() };
@@ -1114,207 +1351,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       regeneratingConversationId = state.currentConversationId;
       if (!regeneratingConversationId) throw new Error('No conversation selected');
 
-      let receivedAnyText = false;
-      const abortController = new AbortController();
-      activeAbortController = abortController;
-      activeStreamConversationId = regeneratingConversationId;
-      activeRequestId = null;
-
-      try {
-        const currentConversation = get().conversations.find(conv => conv.id === regeneratingConversationId);
-        if (!currentConversation) throw new Error('Conversation not found');
-        if (!currentConversation.adapterName) {
-          throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
-        }
-
-        activeStreamSessionId = currentConversation.sessionId;
-
-        if (currentConversation.sessionId) {
-          const api = await getApi();
-          api.configureApi(
-            resolveApiUrl(currentConversation.apiUrl),
-            currentConversation.sessionId,
-            currentConversation.adapterName
-          );
-        }
-
-        const api = await getApi();
-        const { returnAudio, ttsVoice, language } = getAudioSettings(currentConversation);
-
-        for await (const response of api.streamChat(
-          userMessage.content,
-          true,
-          attachmentIds.length > 0 ? attachmentIds : undefined,
-          undefined,
-          undefined,
-          undefined,
-          language,
-          returnAudio,
-          ttsVoice,
-          undefined,
-          undefined,
-          model
-        )) {
-          if (response.request_id && !activeRequestId) {
-            activeRequestId = response.request_id;
-            debugLog(`[chatStore] >>> CAPTURED request_id for regenerate stop: ${response.request_id}`);
-          }
-
-          if (response.text) {
-            const sanitizedText = sanitizeMessageContent(response.text);
-            if (sanitizedText) {
-              get().appendToLastMessage(sanitizedText, regeneratingConversationId);
-              receivedAnyText = true;
-            } else if (response.text.length > 100) {
-              debugWarn('[chatStore] Filtered out potential base64 audio data from regenerated message content');
-            }
-          }
-
-          if (response.audio && response.done) {
-            set(state =>
-              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
-                audio: response.audio,
-                audioFormat: response.audioFormat || 'mp3',
-              }))
-            );
-          }
-
-          if (response.image && response.done) {
-            receivedAnyText = true;
-            set(state =>
-              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
-                image: response.image,
-                imageFormat: response.image_format || 'png',
-                imageRevisedPrompt: response.image_revised_prompt,
-                imageUrl: response.image_url,
-              }))
-            );
-          }
-
-          if ((response.video || response.video_url) && response.done) {
-            receivedAnyText = true;
-            set(state =>
-              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
-                video: response.video,
-                videoFormat: response.video_format || 'mp4',
-                videoRevisedPrompt: response.video_revised_prompt,
-                videoUrl: response.video_url,
-              }))
-            );
-          }
-
-          if ((response.document || response.document_url) && response.done) {
-            receivedAnyText = true;
-            set(state =>
-              updateLastAssistantMessage(state, regeneratingConversationId!, () => ({
-                document: response.document,
-                documentFormat: response.document_format || 'pdf',
-                documentRevisedPrompt: response.document_revised_prompt,
-                documentUrl: response.document_url,
-              }))
-            );
-          }
-
-          if (response.done) {
-            const threadingInfo = response.threading;
-            if (threadingInfo?.supports_threading) {
-              set(state => ({
-                conversations: state.conversations.map(conv => {
-                  if (conv.id !== regeneratingConversationId) return conv;
-                  return {
-                    ...conv,
-                    messages: conv.messages.map(msg =>
-                      msg.id === newAssistantMessageId
-                        ? { ...msg, supportsThreading: true, databaseMessageId: threadingInfo.message_id }
-                        : msg
-                    ),
-                    updatedAt: new Date(),
-                  };
-                }),
-              }));
-            }
-
-            if (response.assistant_message_id) {
-              set(state => ({
-                conversations: state.conversations.map(conv => {
-                  if (conv.id !== regeneratingConversationId) return conv;
-                  return {
-                    ...conv,
-                    messages: conv.messages.map(msg =>
-                      msg.id === newAssistantMessageId && !msg.databaseMessageId
-                        ? { ...msg, databaseMessageId: response.assistant_message_id }
-                        : msg
-                    ),
-                    updatedAt: new Date(),
-                  };
-                }),
-              }));
-            }
-
-            break;
-          }
-        }
-
-        if (!receivedAnyText && !abortController.signal.aborted) {
-          get().appendToLastMessage(
-            'No response received from the server. Please try again later.',
-            regeneratingConversationId
-          );
-        }
-      } catch (error) {
-        const isAbortError =
-          error instanceof Error &&
-          (error.name === 'AbortError' ||
-            error.message === 'Stream cancelled by user' ||
-            error.message.includes('aborted'));
-
-        if (isAbortError) {
-          debugLog('[chatStore] Regeneration stream was cancelled by user');
-          receivedAnyText = true;
-        } else {
-          logError('Regenerate API error:', error);
-          let errorMessage = 'Sorry, there was an error regenerating the response.';
-          if (error instanceof Error) {
-            if (error.message.startsWith('Server error:')) {
-              errorMessage = error.message.substring('Server error: '.length);
-            } else if (
-              error.message.includes('Could not connect') ||
-              error.message.includes('timed out')
-            ) {
-              errorMessage = error.message;
-            }
-          }
-          get().appendToLastMessage(errorMessage, regeneratingConversationId);
-        }
-      }
-
-      activeAbortController = null;
-      activeRequestId = null;
-      activeStreamSessionId = null;
-      activeStreamConversationId = null;
-
-      flushStreamingBuffer(regeneratingConversationId, set);
-
-      set(state => {
-        const updatedConversations = state.conversations.map(conv =>
-          conv.id === regeneratingConversationId
-            ? {
-                ...conv,
-                messages: conv.messages.map(msg =>
-                  msg.id === newAssistantMessageId ? { ...msg, isStreaming: false } : msg
-                ),
-                updatedAt: new Date(),
-              }
-            : conv
-        );
-        const currentConv = updatedConversations.find(conv => conv.id === state.currentConversationId);
-        return {
-          conversations: updatedConversations,
-          isLoading: currentConv
-            ? currentConv.messages.some(msg => msg.role === 'assistant' && msg.isStreaming)
-            : false,
-        };
-      });
+      await _runStreamIntoMessage(
+        get,
+        set,
+        newAssistantMessageId,
+        regeneratingConversationId,
+        userMessage.content,
+        attachmentIds,
+        model,
+        'regenerate',
+        previousAssistantMessage.databaseMessageId
+      );
     } catch (error) {
       logError('Regenerate error:', error);
       set(state => ({
@@ -1355,6 +1402,16 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
       const newAssistantMessageId = generateUniqueMessageId('assistant');
 
+      // Preserve the previous assistant reply's databaseMessageId (if any) so the
+      // server can overwrite that turn in place instead of storing a duplicate —
+      // the server resolves and updates the paired (edited) user turn on its own.
+      const previousAssistantMessage = currentConv.messages[messageIndex + 1];
+      const hasAssistantReply = previousAssistantMessage?.role === 'assistant';
+      // The edited user message and its (old) assistant reply occupy messageIndex and
+      // messageIndex + 1 — everything after that must be preserved, or editing a
+      // non-final turn silently truncates the rest of the conversation.
+      const tailStartIndex = hasAssistantReply ? messageIndex + 2 : messageIndex + 1;
+
       set(state => ({
         conversations: state.conversations.map(conv =>
           conv.id === state.currentConversationId
@@ -1369,7 +1426,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     role: 'assistant' as const,
                     timestamp: new Date(),
                     isStreaming: true,
+                    supportsThreading: hasAssistantReply ? previousAssistantMessage.supportsThreading : undefined,
+                    databaseMessageId: hasAssistantReply ? previousAssistantMessage.databaseMessageId : undefined,
+                    threadInfo: hasAssistantReply ? previousAssistantMessage.threadInfo : undefined,
+                    threadId: hasAssistantReply ? previousAssistantMessage.threadId : undefined,
+                    parentMessageId: hasAssistantReply ? previousAssistantMessage.parentMessageId : undefined,
+                    isThreadMessage: hasAssistantReply ? previousAssistantMessage.isThreadMessage : undefined,
                   },
+                  ...conv.messages.slice(tailStartIndex),
                 ],
                 updatedAt: new Date(),
               }
@@ -1380,206 +1444,19 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }));
 
       editingConversationId = state.currentConversationId;
+      if (!editingConversationId) throw new Error('No conversation selected');
 
-      let receivedAnyText = false;
-      const abortController = new AbortController();
-      activeAbortController = abortController;
-      activeStreamConversationId = editingConversationId;
-      activeRequestId = null;
-
-      try {
-        const currentConversation = get().conversations.find(conv => conv.id === editingConversationId);
-        if (!currentConversation) throw new Error('Conversation not found');
-        if (!currentConversation.adapterName) {
-          throw new Error('Adapter not configured for this conversation. Please select an adapter first.');
-        }
-
-        activeStreamSessionId = currentConversation.sessionId;
-
-        if (currentConversation.sessionId) {
-          const api = await getApi();
-          api.configureApi(
-            resolveApiUrl(currentConversation.apiUrl),
-            currentConversation.sessionId,
-            currentConversation.adapterName
-          );
-        }
-
-        const api = await getApi();
-        const { returnAudio, ttsVoice, language } = getAudioSettings(currentConversation);
-
-        for await (const response of api.streamChat(
-          newContent,
-          true,
-          attachmentIds.length > 0 ? attachmentIds : undefined,
-          undefined,
-          undefined,
-          undefined,
-          language,
-          returnAudio,
-          ttsVoice,
-          undefined,
-          undefined,
-          model
-        )) {
-          if (response.request_id && !activeRequestId) {
-            activeRequestId = response.request_id;
-            debugLog(`[chatStore] >>> CAPTURED request_id for edit-regenerate stop: ${response.request_id}`);
-          }
-
-          if (response.text) {
-            const sanitizedText = sanitizeMessageContent(response.text);
-            if (sanitizedText) {
-              get().appendToLastMessage(sanitizedText, editingConversationId);
-              receivedAnyText = true;
-            }
-          }
-
-          if (response.audio && response.done) {
-            set(state =>
-              updateLastAssistantMessage(state, editingConversationId!, () => ({
-                audio: response.audio,
-                audioFormat: response.audioFormat || 'mp3',
-              }))
-            );
-          }
-
-          if (response.image && response.done) {
-            receivedAnyText = true;
-            set(state =>
-              updateLastAssistantMessage(state, editingConversationId!, () => ({
-                image: response.image,
-                imageFormat: response.image_format || 'png',
-                imageRevisedPrompt: response.image_revised_prompt,
-                imageUrl: response.image_url,
-              }))
-            );
-          }
-
-          if ((response.video || response.video_url) && response.done) {
-            receivedAnyText = true;
-            set(state =>
-              updateLastAssistantMessage(state, editingConversationId!, () => ({
-                video: response.video,
-                videoFormat: response.video_format || 'mp4',
-                videoRevisedPrompt: response.video_revised_prompt,
-                videoUrl: response.video_url,
-              }))
-            );
-          }
-
-          if ((response.document || response.document_url) && response.done) {
-            receivedAnyText = true;
-            set(state =>
-              updateLastAssistantMessage(state, editingConversationId!, () => ({
-                document: response.document,
-                documentFormat: response.document_format || 'pdf',
-                documentRevisedPrompt: response.document_revised_prompt,
-                documentUrl: response.document_url,
-              }))
-            );
-          }
-
-          if (response.done) {
-            const threadingInfo = response.threading;
-            if (threadingInfo?.supports_threading) {
-              set(state => ({
-                conversations: state.conversations.map(conv => {
-                  if (conv.id !== editingConversationId) return conv;
-                  return {
-                    ...conv,
-                    messages: conv.messages.map(msg =>
-                      msg.id === newAssistantMessageId
-                        ? { ...msg, supportsThreading: true, databaseMessageId: threadingInfo.message_id }
-                        : msg
-                    ),
-                    updatedAt: new Date(),
-                  };
-                }),
-              }));
-            }
-
-            if (response.assistant_message_id) {
-              set(state => ({
-                conversations: state.conversations.map(conv => {
-                  if (conv.id !== editingConversationId) return conv;
-                  return {
-                    ...conv,
-                    messages: conv.messages.map(msg =>
-                      msg.id === newAssistantMessageId && !msg.databaseMessageId
-                        ? { ...msg, databaseMessageId: response.assistant_message_id }
-                        : msg
-                    ),
-                    updatedAt: new Date(),
-                  };
-                }),
-              }));
-            }
-
-            break;
-          }
-        }
-
-        if (!receivedAnyText && !abortController.signal.aborted) {
-          get().appendToLastMessage(
-            'No response received from the server. Please try again later.',
-            editingConversationId
-          );
-        }
-      } catch (error) {
-        const isAbortError =
-          error instanceof Error &&
-          (error.name === 'AbortError' ||
-            error.message === 'Stream cancelled by user' ||
-            error.message.includes('aborted'));
-
-        if (isAbortError) {
-          debugLog('[chatStore] Edit-regenerate stream was cancelled by user');
-          receivedAnyText = true;
-        } else {
-          logError('Edit-regenerate API error:', error);
-          let errorMessage = 'Sorry, there was an error regenerating the response.';
-          if (error instanceof Error) {
-            if (error.message.startsWith('Server error:')) {
-              errorMessage = error.message.substring('Server error: '.length);
-            } else if (
-              error.message.includes('Could not connect') ||
-              error.message.includes('timed out')
-            ) {
-              errorMessage = error.message;
-            }
-          }
-          get().appendToLastMessage(errorMessage, editingConversationId);
-        }
-      }
-
-      activeAbortController = null;
-      activeRequestId = null;
-      activeStreamSessionId = null;
-      activeStreamConversationId = null;
-
-      flushStreamingBuffer(editingConversationId, set);
-
-      set(state => {
-        const updatedConversations = state.conversations.map(conv =>
-          conv.id === editingConversationId
-            ? {
-                ...conv,
-                messages: conv.messages.map(msg =>
-                  msg.id === newAssistantMessageId ? { ...msg, isStreaming: false } : msg
-                ),
-                updatedAt: new Date(),
-              }
-            : conv
-        );
-        const currentConv = updatedConversations.find(conv => conv.id === state.currentConversationId);
-        return {
-          conversations: updatedConversations,
-          isLoading: currentConv
-            ? currentConv.messages.some(msg => msg.role === 'assistant' && msg.isStreaming)
-            : false,
-        };
-      });
+      await _runStreamIntoMessage(
+        get,
+        set,
+        newAssistantMessageId,
+        editingConversationId,
+        newContent,
+        attachmentIds,
+        model,
+        'edit-regenerate',
+        hasAssistantReply ? previousAssistantMessage.databaseMessageId : undefined
+      );
 
       // Persist the edited branch so a reload doesn't revert to pre-edit messages
       debouncedSaveToLocalStorage(get);

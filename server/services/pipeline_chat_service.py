@@ -570,6 +570,7 @@ class PipelineChatService:
         target_language: Optional[str] = None,
         requested_model: Optional[str] = None,
         skill: Optional[str] = None,
+        regenerate_of_message_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process a chat message using the pipeline architecture.
@@ -652,6 +653,7 @@ class PipelineChatService:
                 processing_time=result.processing_time,
                 retrieved_docs=result.retrieved_docs,
                 model=model,
+                regenerate_of_message_id=regenerate_of_message_id,
             )
 
             audio_data, audio_format_str = await self._maybe_generate_full_audio(
@@ -714,6 +716,7 @@ class PipelineChatService:
         cancel_event: Optional[asyncio.Event] = None,
         requested_model: Optional[str] = None,
         skill: Optional[str] = None,
+        regenerate_of_message_id: Optional[str] = None,
     ):
         """
         Process a chat message with streaming response using the pipeline architecture.
@@ -833,6 +836,17 @@ class PipelineChatService:
                          or context.document)):
                 return
 
+            # A stop request may arrive after the generation has already finished
+            # naturally (stream_completed=True) but before the client stops reading.
+            # Persisting this turn would let it leak into the next request's context
+            # via get_context(session_id, ...), so skip storage entirely once cancelled.
+            if cancel_event and cancel_event.is_set():
+                logger.debug(
+                    f"[PIPELINE_CHAT_SERVICE] Skipping post-stream persistence for "
+                    f"cancelled request: session={session_id}"
+                )
+                return
+
             async for chunk in self._process_post_stream(
                 final_state=final_state,
                 context=context,
@@ -845,6 +859,7 @@ class PipelineChatService:
                 return_audio=return_audio,
                 tts_voice=tts_voice,
                 language=language,
+                regenerate_of_message_id=regenerate_of_message_id,
             ):
                 yield chunk
 
@@ -880,6 +895,7 @@ class PipelineChatService:
         return_audio: Optional[bool],
         tts_voice: Optional[str],
         language: Optional[str],
+        regenerate_of_message_id: Optional[str] = None,
     ):
         """
         Finalize a completed stream: store the response, emit optional warning and
@@ -900,6 +916,7 @@ class PipelineChatService:
             processing_time=context.processing_time,
             retrieved_docs=context.retrieved_docs,
             model=model,
+            regenerate_of_message_id=regenerate_of_message_id,
         )
 
         warning = await self.conversation_handler.check_limit_warning(session_id, adapter_name)

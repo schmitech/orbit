@@ -65,6 +65,34 @@ describe('streamChat — model, skill, and media response fields', () => {
       expect(body.model).toBeUndefined();
       expect(body.skill).toBeUndefined();
     });
+
+    it('should include regenerate_of_message_id in request body when provided', async () => {
+      global.fetch = vi.fn().mockResolvedValue(makeStreamResponse([{ response: 'Hi', done: true }]));
+
+      for await (const _ of client.streamChat(
+        'hello', true, undefined, undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+        'assistant-msg-123'
+      )) {
+        // consume
+      }
+
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      const body = JSON.parse(opts.body);
+      expect(body.regenerate_of_message_id).toBe('assistant-msg-123');
+    });
+
+    it('should omit regenerate_of_message_id when not provided', async () => {
+      global.fetch = vi.fn().mockResolvedValue(makeStreamResponse([{ response: 'Hi', done: true }]));
+
+      for await (const _ of client.streamChat('hello')) {
+        // consume
+      }
+
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      const body = JSON.parse(opts.body);
+      expect(body.regenerate_of_message_id).toBeUndefined();
+    });
   });
 
   describe('image response fields', () => {

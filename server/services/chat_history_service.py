@@ -684,6 +684,95 @@ class ChatHistoryService:
             logger.error(f"Error adding message to history: {str(e)}")
             raise
     
+    async def _replace_message_content(
+        self, session_id: str, message_id: str, role: str, content: str
+    ) -> bool:
+        """
+        Overwrite an existing message's content in place (used for regenerate/edit,
+        so re-sending a turn updates the original row instead of appending a new one).
+
+        Confirms the message exists (scoped to session_id and role) before writing, so
+        the "found" result doesn't depend on update_one's modified-count semantics — a
+        same-value $set can report zero rows modified even though the row was matched,
+        which would otherwise be misread as "not found" and trigger a duplicate insert.
+        Deliberately leaves the original timestamp untouched: bumping it to "now" would
+        move a non-final turn's row to the end of session-ordered history, corrupting
+        conversation order on the next reload or context build.
+
+        Args:
+            session_id: Session the message must belong to — prevents a caller-supplied
+                message_id from overwriting a message in a different session
+            message_id: The database id of the message to overwrite
+            role: Expected role of the message ("user" or "assistant"), used as a filter
+                so an id never overwrites a message of the wrong role
+            content: The new message text
+
+        Returns:
+            True if a matching message was found (and updated)
+        """
+        if not self.enabled or not message_id:
+            return False
+        try:
+            query = {"_id": message_id, "session_id": session_id, "role": role}
+            existing = await self.database_service.find_one(self.collection_name, query)
+            if not existing:
+                logger.warning(
+                    f"{role} message_id={message_id} not found in session {session_id}; "
+                    f"cannot replace in place"
+                )
+                return False
+
+            await self.database_service.update_one(
+                self.collection_name,
+                query,
+                {"$set": {
+                    "content": content,
+                    "token_count": self._estimate_token_count(content),
+                }}
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error replacing {role} message {message_id}: {str(e)}")
+            return False
+
+    async def replace_assistant_message(self, session_id: str, message_id: str, content: str) -> bool:
+        """Overwrite an existing assistant message's content in place (regenerate)."""
+        return await self._replace_message_content(session_id, message_id, "assistant", content)
+
+    async def replace_user_message(self, session_id: str, message_id: str, content: str) -> bool:
+        """Overwrite an existing user message's content in place (edit)."""
+        return await self._replace_message_content(session_id, message_id, "user", content)
+
+    async def _find_preceding_user_message_id(
+        self, session_id: str, assistant_message_id: str
+    ) -> Optional[str]:
+        """
+        Find the id of the user message that immediately precedes a given assistant
+        message in a session, so an edit+regenerate can update that user turn's text
+        in place without the client having to separately track its database id.
+        """
+        try:
+            assistant_msg = await self.database_service.find_one(
+                self.collection_name,
+                {"_id": assistant_message_id, "session_id": session_id, "role": "assistant"}
+            )
+            if not assistant_msg:
+                return None
+
+            candidates = await self.database_service.find_many(
+                self.collection_name,
+                {"session_id": session_id, "timestamp": {"$lte": assistant_msg["timestamp"]}},
+                sort=[("timestamp", -1)],
+                limit=5,
+            )
+            for msg in candidates:
+                if msg.get("role") == "user" and str(msg.get("_id")) != assistant_message_id:
+                    return str(msg["_id"])
+            return None
+        except Exception as e:
+            logger.error(f"Error finding preceding user message for {assistant_message_id}: {str(e)}")
+            return None
+
     async def add_conversation_turn(
         self,
         session_id: str,
@@ -691,11 +780,19 @@ class ChatHistoryService:
         assistant_response: str,
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        regenerate_of_message_id: Optional[str] = None
     ) -> Tuple[Optional[Any], Optional[Any]]:
         """
-        Add a complete conversation turn (user message + assistant response)
-        
+        Add a complete conversation turn (user message + assistant response).
+
+        If regenerate_of_message_id is provided (regenerate, or edit+regenerate),
+        overwrite that existing assistant message's content in place — and also
+        overwrite its paired user message's content, so an edited prompt replaces the
+        original turn rather than appearing as a second, duplicate turn. Falls back to
+        a normal insert if the referenced assistant message can't be found (e.g.
+        stale/cleared history).
+
         Args:
             session_id: Session identifier
             user_message: User's message
@@ -703,13 +800,27 @@ class ChatHistoryService:
             user_id: Optional user identifier
             api_key: Optional API key
             metadata: Optional metadata to store
-            
+            regenerate_of_message_id: Optional id of an existing assistant message to
+                overwrite in place, instead of storing a new turn
+
         Returns:
             Tuple of (user_message_id, assistant_message_id)
         """
         if not self.enabled:
             return None, None
-        
+
+        if regenerate_of_message_id:
+            if await self.replace_assistant_message(session_id, regenerate_of_message_id, assistant_response):
+                preceding_user_id = await self._find_preceding_user_message_id(
+                    session_id, regenerate_of_message_id
+                )
+                if preceding_user_id:
+                    await self.replace_user_message(session_id, preceding_user_id, user_message)
+                await self._cleanup_excess_messages(session_id)
+                return preceding_user_id, regenerate_of_message_id
+            # Assistant message not found in this session — fall through to a normal
+            # insert below (also guards against a cross-session/forged message id).
+
         # Add user message (no idempotency key — dedup via content-based message_hash)
         user_msg_id = await self.add_message(
             session_id=session_id,

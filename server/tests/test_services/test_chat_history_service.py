@@ -648,3 +648,174 @@ async def test_get_context_messages_empty_session(chat_history_services):
 
   assert context == []
   assert token_count == 0
+
+
+@pytest.mark.asyncio
+async def test_regenerate_replaces_assistant_message_in_place(chat_history_services):
+  """A regenerate (regenerate_of_message_id set) must overwrite the existing
+  assistant turn instead of inserting a new user+assistant pair — otherwise
+  clicking "regenerate" duplicates the turn in chat_history, and the duplicate
+  reappears in the UI on reload via get_conversation_history."""
+  chat_history = chat_history_services['chat_history']
+  backend_type = chat_history_services['config']['internal_services']['backend']['type']
+  session_id = f"session_{generate_id(backend_type)}"
+
+  user_msg_id, assistant_msg_id = await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="Give me a one-paragraph summary of WebSockets.",
+    assistant_response="WebSockets are a protocol that enables persistent, full-duplex communication.",
+  )
+  assert user_msg_id is not None
+  assert assistant_msg_id is not None
+
+  regen_user_id, regen_assistant_id = await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="Give me a one-paragraph summary of WebSockets.",
+    assistant_response="WebSockets are a communication protocol that upgrades an initial HTTP request.",
+    regenerate_of_message_id=assistant_msg_id,
+  )
+
+  # No new rows inserted — both the existing user and assistant rows are reused.
+  assert regen_user_id == user_msg_id
+  assert regen_assistant_id == assistant_msg_id
+
+  history = await chat_history.get_conversation_history(session_id)
+  assert len(history) == 2, f"Expected exactly one user+assistant pair, got {len(history)}: {history}"
+  roles = [m['role'] for m in history]
+  assert roles == ["user", "assistant"]
+  assert history[1]['content'] == "WebSockets are a communication protocol that upgrades an initial HTTP request."
+
+
+@pytest.mark.asyncio
+async def test_edit_and_regenerate_replaces_both_messages_in_place(chat_history_services):
+  """Editing a user message and regenerating (regenerate_of_message_id set, and the
+  user text itself changed) must overwrite BOTH the original user and assistant rows
+  in place — not just skip re-inserting the user row with its stale text — otherwise
+  chat_history ends up with an old prompt paired against the new response, or a
+  second duplicate turn, on reload."""
+  chat_history = chat_history_services['chat_history']
+  backend_type = chat_history_services['config']['internal_services']['backend']['type']
+  session_id = f"session_{generate_id(backend_type)}"
+
+  user_msg_id, assistant_msg_id = await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="Give me three colors.",
+    assistant_response="Red, green, blue.",
+  )
+
+  edit_user_id, edit_assistant_id = await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="Give me three fruits.",
+    assistant_response="Apple, banana, cherry.",
+    regenerate_of_message_id=assistant_msg_id,
+  )
+
+  # No new rows inserted — both existing rows are reused and updated.
+  assert edit_user_id == user_msg_id
+  assert edit_assistant_id == assistant_msg_id
+
+  history = await chat_history.get_conversation_history(session_id)
+  assert len(history) == 2, f"Expected exactly one user+assistant pair, got {len(history)}: {history}"
+  assert history[0]['content'] == "Give me three fruits."
+  assert history[1]['content'] == "Apple, banana, cherry."
+
+
+@pytest.mark.asyncio
+async def test_regenerate_of_unknown_message_id_falls_back_to_insert(chat_history_services):
+  """If the referenced assistant message doesn't exist (e.g. stale/cleared history),
+  regenerate must fall back to a normal insert rather than silently losing the turn."""
+  chat_history = chat_history_services['chat_history']
+  backend_type = chat_history_services['config']['internal_services']['backend']['type']
+  session_id = f"session_{generate_id(backend_type)}"
+
+  user_msg_id, assistant_msg_id = await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="Give me three colors.",
+    assistant_response="Red, green, blue.",
+    regenerate_of_message_id="nonexistent-message-id",
+  )
+
+  assert user_msg_id is not None
+  assert assistant_msg_id is not None
+
+  history = await chat_history.get_conversation_history(session_id)
+  assert len(history) == 2
+  assert history[1]['content'] == "Red, green, blue."
+
+
+@pytest.mark.asyncio
+async def test_regenerate_cannot_target_message_in_another_session(chat_history_services):
+  """A regenerate_of_message_id belonging to a different session must not be
+  overwritten — otherwise one session's caller could pass an id from another
+  session (guessed, leaked, or forged) and corrupt that unrelated conversation."""
+  chat_history = chat_history_services['chat_history']
+  backend_type = chat_history_services['config']['internal_services']['backend']['type']
+  session_a = f"session_{generate_id(backend_type)}"
+  session_b = f"session_{generate_id(backend_type)}"
+
+  _, assistant_msg_id_a = await chat_history.add_conversation_turn(
+    session_id=session_a,
+    user_message="What is the capital of France?",
+    assistant_response="Paris.",
+  )
+
+  # session_b regenerates using session_a's assistant message id.
+  regen_user_id, regen_assistant_id = await chat_history.add_conversation_turn(
+    session_id=session_b,
+    user_message="What is the capital of Italy?",
+    assistant_response="Rome.",
+    regenerate_of_message_id=assistant_msg_id_a,
+  )
+
+  # session_a's turn must be untouched.
+  history_a = await chat_history.get_conversation_history(session_a)
+  assert len(history_a) == 2
+  assert history_a[0]['content'] == "What is the capital of France?"
+  assert history_a[1]['content'] == "Paris."
+
+  # session_b must have fallen back to a normal insert of its own new turn, not
+  # silently disappear or overwrite session_a's row.
+  assert regen_user_id is not None
+  assert regen_assistant_id is not None
+  assert regen_assistant_id != assistant_msg_id_a
+  history_b = await chat_history.get_conversation_history(session_b)
+  assert len(history_b) == 2
+  assert history_b[0]['content'] == "What is the capital of Italy?"
+  assert history_b[1]['content'] == "Rome."
+
+
+@pytest.mark.asyncio
+async def test_regenerate_of_non_final_turn_preserves_conversation_order(chat_history_services):
+  """Regenerating an earlier (non-final) turn must not reorder it after later turns —
+  get_conversation_history sorts by timestamp, so bumping the replaced rows' timestamp
+  to "now" would move them past subsequent messages and corrupt branch order on the
+  next reload or context build."""
+  chat_history = chat_history_services['chat_history']
+  backend_type = chat_history_services['config']['internal_services']['backend']['type']
+  session_id = f"session_{generate_id(backend_type)}"
+
+  _, first_assistant_id = await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="Give me one color.",
+    assistant_response="Blue.",
+  )
+  await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="Give me one animal.",
+    assistant_response="Dog.",
+  )
+
+  # Regenerate the FIRST (non-final) turn.
+  await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="Give me one color.",
+    assistant_response="Green.",
+    regenerate_of_message_id=first_assistant_id,
+  )
+
+  history = await chat_history.get_conversation_history(session_id)
+  assert len(history) == 4, f"Expected 4 messages (no duplicate insert), got {len(history)}: {history}"
+  contents = [m['content'] for m in history]
+  assert contents == ["Give me one color.", "Green.", "Give me one animal.", "Dog."], (
+    "Regenerating the first turn should not move it after the second turn"
+  )
