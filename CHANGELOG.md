@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.8.1] - 2026-07-03
+
+### Bug Fixes & Technical Improvements
+- **Regenerate/Edit Flow**: Fixed regenerate and edit-regenerate persistence bugs so cancelled streams no longer leak into the next request, existing turns are updated in place instead of duplicated, and the frontend/server/Node API all target the correct message and turn IDs during regeneration.
+
 ## [2.8.0] - 2026-07-01
 
 ### Core System Updates
