@@ -898,6 +898,20 @@
   }
 
   function switchTab(id) {
+    if (activeTab === "settings" && id !== "settings" && settingsEditorsAreDirty()) {
+      confirmAction({
+        title: "Unsaved Changes",
+        message: "You have unsaved changes in this category. Discard them?",
+        confirmLabel: "Discard",
+        isDanger: true,
+        onConfirm: function () {
+          destroyAllSettingsEditors();
+          switchTab(id);
+        }
+      });
+      return;
+    }
+
     // Disconnect monitoring when leaving overview
     if (activeTab === "overview" && id !== "overview") {
       disconnectMetricsWs();
@@ -906,6 +920,10 @@
     // Destroy adapter editor when leaving adapters tab
     if (activeTab === "adapters" && id !== "adapters") {
       if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
+    }
+    // Destroy settings section editors when leaving settings tab
+    if (activeTab === "settings" && id !== "settings") {
+      destroyAllSettingsEditors();
     }
     activeTab = id;
     document.querySelectorAll(".topbar-nav-link").forEach(function (b) {
@@ -4414,13 +4432,26 @@
   // ==================================================================
   // TAB: Settings (Ace Editor — YAML, split into config.yaml sections)
   // ==================================================================
-  var settingsOriginal = "";
-  var settingsEditor = null; // Ace editor instance
-  var selectedSettingsSection = null; // top-level config.yaml key, or "__raw__"
+  var settingsEditors = {}; // key -> { editor, original } for every section rendered in the active category
+  var selectedSettingsCategory = null; // category group label, or "Advanced"
   var cachedSettingsSections = null; // [{key, line_count}, ...]
 
+  function destroyAllSettingsEditors() {
+    Object.keys(settingsEditors).forEach(function (key) {
+      settingsEditors[key].editor.destroy();
+    });
+    settingsEditors = {};
+  }
+
+  function settingsEditorsAreDirty() {
+    return Object.keys(settingsEditors).some(function (key) {
+      var st = settingsEditors[key];
+      return !!st && st.editor.getValue() !== st.original;
+    });
+  }
+
   // Grouping + display copy for known top-level config.yaml keys. Any key not
-  // listed here still appears, under "Other" — so a new key added to
+  // listed here still appears, under "Imports/Other" — so a new key added to
   // config.yaml is never hidden, just uncategorized until this list catches up.
   var SETTINGS_GROUPS = [
     { label: "General & Performance", keys: ["general", "performance", "language_detection", "clock_service"] },
@@ -4429,7 +4460,7 @@
     { label: "Retrieval & Files", keys: ["composite_retrieval", "autocomplete", "files"] },
     { label: "Reliability & Messaging", keys: ["fault_tolerance", "messages"] },
     { label: "Logging & Monitoring", keys: ["logging", "monitoring"] },
-    { label: "Imports", keys: ["import"] },
+    { label: "Imports/Other", keys: ["import"] },
   ];
   var SETTINGS_TITLES = {
     general: "General", performance: "Performance", language_detection: "Language Detection",
@@ -4452,7 +4483,7 @@
 
   async function renderSettings(container) {
     clear(container);
-    if (settingsEditor) { settingsEditor.destroy(); settingsEditor = null; }
+    destroyAllSettingsEditors();
 
     if (!cachedSettingsSections) {
       container.appendChild(skeleton());
@@ -4467,131 +4498,143 @@
       return;
     }
 
-    var layout = el("div", { className: "tab-stacked-layout settings-view" });
-    container.appendChild(layout);
-
-    // ----- Nav panel: grouped list of config.yaml sections -----
-    var leftPanel = el("div", { className: "panel settings-view__nav" });
-    layout.appendChild(leftPanel);
-    leftPanel.appendChild(el("h2", { style: "margin:0 0 var(--sp-1)" }, "Settings"));
-    leftPanel.appendChild(el("p", { className: "muted", style: "margin:0 0 var(--sp-3)" },
-      "config.yaml, split by top-level section. Imported files (adapters, inference, etc.) have their own tabs."
-    ));
-
-    var nav = el("nav", { className: "settings-section-nav", "aria-label": "Config sections" });
-    leftPanel.appendChild(nav);
+    var wrap = el("div", { className: "settings-view" });
+    container.appendChild(wrap);
 
     var sectionByKey = {};
     cachedSettingsSections.forEach(function (s) { sectionByKey[s.key] = s; });
     var knownKeys = cachedSettingsSections.map(function (s) { return s.key; });
     var groupedKeys = {};
     var groups = SETTINGS_GROUPS
-      .map(function (g) { return { label: g.label, keys: g.keys.filter(function (k) { return knownKeys.indexOf(k) !== -1; }) }; })
-      .filter(function (g) { return g.keys.length; });
+      .map(function (g) { return { label: g.label, keys: g.keys.filter(function (k) { return knownKeys.indexOf(k) !== -1; }) }; });
     groups.forEach(function (g) { g.keys.forEach(function (k) { groupedKeys[k] = true; }); });
     var otherKeys = knownKeys.filter(function (k) { return !groupedKeys[k]; });
-    if (otherKeys.length) groups.push({ label: "Other", keys: otherKeys });
+    if (otherKeys.length) {
+      var importsGroup = groups.filter(function (g) { return g.label === "Imports/Other"; })[0];
+      if (importsGroup) {
+        importsGroup.keys = importsGroup.keys.concat(otherKeys);
+      } else {
+        groups.push({ label: "Imports/Other", keys: otherKeys });
+      }
+    }
+    groups.push({ label: "Advanced", keys: ["__raw__"] });
 
-    function addNavItem(group, key, title, metaText) {
-      var btn = el("button", {
-        type: "button",
-        className: "settings-section-item",
-        dataset: { key: key },
-        title: metaText,
-        "aria-current": "false",
-      }, title);
-      btn.addEventListener("click", function () { selectSection(key); });
-      group.appendChild(btn);
+    // ----- Category tab bar -----
+    var tabBar = el("div", { className: "settings-category-tabs", role: "tablist", "aria-label": "Settings categories" });
+    wrap.appendChild(tabBar);
+
+    var body = el("div", { className: "settings-category-body" });
+    wrap.appendChild(body);
+
+    function findGroup(label) {
+      return groups.filter(function (g) { return g.label === label; })[0] || null;
     }
 
-    groups.forEach(function (g) {
-      nav.appendChild(el("div", { className: "settings-section-group-label" }, g.label));
-      var groupRow = el("div", { className: "settings-section-group" });
-      nav.appendChild(groupRow);
-      g.keys.forEach(function (key) {
-        addNavItem(groupRow, key, settingsSectionTitle(key), settingsLineLabel(sectionByKey[key].line_count));
+    function categoryIsDirty(label) {
+      var g = findGroup(label);
+      if (!g) return false;
+      return g.keys.some(function (key) {
+        var st = settingsEditors[key];
+        return !!st && st.editor.getValue() !== st.original;
       });
-    });
+    }
 
-    nav.appendChild(el("div", { className: "settings-section-group-label" }, "Advanced"));
-    var advancedRow = el("div", { className: "settings-section-group" });
-    nav.appendChild(advancedRow);
-    addNavItem(advancedRow, "__raw__", "Raw File", "The full config.yaml");
-
-    // ----- Detail panel: editor + actions -----
-    var detailPanel = el("div", { className: "panel settings-view__detail" });
-    layout.appendChild(detailPanel);
-
-    function markActive(key) {
-      nav.querySelectorAll(".settings-section-item").forEach(function (btn) {
-        var isActive = btn.dataset.key === key;
+    function markActiveTab() {
+      tabBar.querySelectorAll(".settings-category-tab").forEach(function (btn) {
+        var isActive = btn.dataset.label === selectedSettingsCategory;
         btn.classList.toggle("active", isActive);
-        btn.setAttribute("aria-current", isActive ? "true" : "false");
+        btn.setAttribute("aria-selected", isActive ? "true" : "false");
       });
     }
 
-    function isDirty() {
-      return !!settingsEditor && settingsEditor.getValue() !== settingsOriginal;
-    }
-
-    function selectSection(key) {
-      if (key === selectedSettingsSection) return;
-      if (isDirty()) {
+    function selectCategory(label) {
+      if (label === selectedSettingsCategory) return;
+      if (categoryIsDirty(selectedSettingsCategory)) {
         confirmAction({
           title: "Unsaved Changes",
-          message: "You have unsaved changes. Discard them?",
+          message: "You have unsaved changes in this category. Discard them?",
           confirmLabel: "Discard",
           isDanger: true,
           onConfirm: function () {
-            selectedSettingsSection = key;
-            markActive(key);
-            renderDetail(key);
+            selectedSettingsCategory = label;
+            markActiveTab();
+            renderBody(label);
           }
         });
         return;
       }
-      selectedSettingsSection = key;
-      markActive(key);
-      renderDetail(key);
+      selectedSettingsCategory = label;
+      markActiveTab();
+      renderBody(label);
     }
 
-    function renderDetail(key) {
-      clear(detailPanel);
-      if (settingsEditor) { settingsEditor.destroy(); settingsEditor = null; }
+    groups.forEach(function (g) {
+      var btn = el("button", {
+        type: "button",
+        role: "tab",
+        className: "settings-category-tab",
+        dataset: { label: g.label },
+        "aria-selected": "false",
+      }, g.label);
+      btn.addEventListener("click", function () { selectCategory(g.label); });
+      tabBar.appendChild(btn);
+    });
 
+    function renderBody(label) {
+      clear(body);
+      destroyAllSettingsEditors();
+      var g = findGroup(label);
+      if (!g) return;
+      if (!g.keys.length) {
+        body.appendChild(el("div", { className: "empty-state" },
+          el("strong", null, "No sections in this category"),
+          el("p", null, "This config file does not currently define any sections for " + label + ".")
+        ));
+        return;
+      }
+      g.keys.forEach(function (key) { body.appendChild(renderSectionBlock(key)); });
+    }
+
+    function renderSectionBlock(key) {
       var isRaw = key === "__raw__";
       var titleText = isRaw ? "Raw File" : settingsSectionTitle(key);
 
+      var block = el("div", { className: "panel settings-section-block" });
+
       var headerRow = el("div", { style: "display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-2)" });
       headerRow.appendChild(el("h3", { style: "margin:0" }, titleText));
-      headerRow.appendChild(el("span", { className: "adapter-file-badge" }, "config.yaml"));
-      detailPanel.appendChild(headerRow);
+      block.appendChild(headerRow);
+
+      var metaEl = el("p", { className: "muted settings-section-block__meta" },
+        isRaw ? "" : settingsLineLabel(sectionByKey[key] ? sectionByKey[key].line_count : 0)
+      );
 
       if (isRaw) {
-        detailPanel.appendChild(el("p", { className: "muted", style: "margin:0 0 var(--sp-3)" },
+        block.appendChild(el("p", { className: "muted", style: "margin:0 0 var(--sp-2)" },
           "The entire file, for structural changes the section editors can't make — reordering keys or adding a new top-level section."
         ));
       }
+      block.appendChild(metaEl);
 
       var banner = el("div", { className: "settings-banner", style: "display:none", role: "status" });
-      detailPanel.appendChild(banner);
+      block.appendChild(banner);
 
-      var editorWrap = el("div", { className: "adapter-ace-wrap" });
-      detailPanel.appendChild(editorWrap);
+      var editorWrap = el("div", { className: "settings-ace-wrap" });
+      block.appendChild(editorWrap);
 
       var btnRow = el("div", { style: "display:flex;gap:var(--sp-3);margin-top:var(--sp-3)" });
       var saveBtn = el("button", { className: "btn btn--primary", disabled: "true" }, "Save");
       var reloadBtn = el("button", { className: "btn btn--neutral" }, "Reload from Disk");
       btnRow.appendChild(saveBtn);
       btnRow.appendChild(reloadBtn);
-      detailPanel.appendChild(btnRow);
+      block.appendChild(btnRow);
 
       ace.config.set("basePath", "/static");
       ace.config.set("modePath", "/static");
       ace.config.set("themePath", "/static");
       ace.config.set("workerPath", "/static");
 
-      settingsEditor = ace.edit(editorWrap, {
+      var editor = ace.edit(editorWrap, {
         mode: "ace/mode/yaml",
         theme: "ace/theme/tomorrow",
         fontSize: 15,
@@ -4605,12 +4648,21 @@
         highlightSelectedWord: true,
         showFoldWidgets: true,
         displayIndentGuides: true,
+        minLines: 4,
+        maxLines: 40,
         scrollPastEnd: 0.2,
       });
       ace.config.loadModule("ace/ext/searchbox", function () {});
+      var editorState = { editor: editor, original: "" };
+      settingsEditors[key] = editorState;
 
-      settingsEditor.session.on("change", function () {
-        saveBtn.disabled = settingsEditor.getValue() === settingsOriginal;
+      function isCurrentEditor() {
+        return settingsEditors[key] === editorState;
+      }
+
+      editor.session.on("change", function () {
+        if (!isCurrentEditor()) return;
+        saveBtn.disabled = editor.getValue() === editorState.original;
       });
 
       var endpoint = isRaw ? ENDPOINTS.config : (ENDPOINTS.configSections + "/" + encodeURIComponent(key));
@@ -4618,21 +4670,24 @@
       async function loadContent() {
         try {
           var data = await api("GET", endpoint);
-          settingsOriginal = data.content;
-          settingsEditor.setValue(data.content, -1);
-          settingsEditor.getSession().getUndoManager().reset();
+          if (!isCurrentEditor()) return;
+          editorState.original = data.content;
+          editor.setValue(data.content, -1);
+          metaEl.textContent = settingsLineLabel(editor.getValue().split("\n").length);
+          editor.getSession().getUndoManager().reset();
           saveBtn.disabled = true;
           banner.style.display = "none";
         } catch (err) {
-          showError("Failed to load: " + err.message);
+          if (isCurrentEditor()) showError("Failed to load: " + err.message);
         }
       }
 
       saveBtn.addEventListener("click", async function () {
         saveBtn.disabled = true;
         try {
-          await api("PUT", endpoint, { content: settingsEditor.getValue() });
-          settingsOriginal = settingsEditor.getValue();
+          await api("PUT", endpoint, { content: editor.getValue() });
+          if (!isCurrentEditor()) return;
+          editorState.original = editor.getValue();
           banner.textContent = isRaw
             ? "Config saved. Go to the Ops tab to restart the server for changes to take effect."
             : "'" + titleText + "' saved. Go to the Ops tab to restart the server for changes to take effect.";
@@ -4640,22 +4695,20 @@
           setTimeout(function () { banner.style.display = "none"; }, 5000);
           if (!isRaw) {
             var sec = sectionByKey[key];
-            if (sec) {
-              sec.line_count = settingsEditor.getValue().split("\n").length;
-              var metaEl = nav.querySelector('[data-key="' + key + '"] .settings-section-item__meta');
-              if (metaEl) metaEl.textContent = settingsLineLabel(sec.line_count);
-            }
-          } else {
-            cachedSettingsSections = null; // raw edits may add/remove/reorder sections
+            if (sec) sec.line_count = editor.getValue().split("\n").length;
           }
+          metaEl.textContent = settingsLineLabel(editor.getValue().split("\n").length);
+          if (isRaw) cachedSettingsSections = null; // raw edits may add/remove/reorder sections
         } catch (err) {
-          showError("Save failed: " + err.message);
-          saveBtn.disabled = settingsEditor.getValue() === settingsOriginal;
+          if (isCurrentEditor()) {
+            showError("Save failed: " + err.message);
+            saveBtn.disabled = editor.getValue() === editorState.original;
+          }
         }
       });
 
       reloadBtn.addEventListener("click", function () {
-        var dirty = settingsEditor.getValue() !== settingsOriginal;
+        var dirty = editor.getValue() !== editorState.original;
         if (dirty) {
           confirmAction({
             title: "Reload",
@@ -4674,14 +4727,15 @@
       });
 
       loadContent();
+      return block;
     }
 
-    var validKeys = knownKeys.concat(["__raw__"]);
-    if (!selectedSettingsSection || validKeys.indexOf(selectedSettingsSection) === -1) {
-      selectedSettingsSection = knownKeys.length ? knownKeys[0] : "__raw__";
+    var validCategories = groups.map(function (g) { return g.label; });
+    if (!selectedSettingsCategory || validCategories.indexOf(selectedSettingsCategory) === -1) {
+      selectedSettingsCategory = groups.length ? groups[0].label : null;
     }
-    markActive(selectedSettingsSection);
-    renderDetail(selectedSettingsSection);
+    markActiveTab();
+    renderBody(selectedSettingsCategory);
   }
 
   // ==================================================================
