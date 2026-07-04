@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.8.2] - 2026-07-04
+
+### Core System Updates
+- **Authentication**: Added optional external identity provider support on top of local username/password auth, with config-driven OIDC providers and updated auth references.
+- **Admin SSO**: Fixed Entra SSO admin-auth issues and aligned API key collection resolution with the configured MongoDB layout.
+
+### Chat-app & UI Improvements
+- **Settings Editor**: Split the admin Settings tab into sectioned category editors with a raw-file fallback, then refined the category layout and save/reload controls.
+- **Admin Controls**: Polished action buttons in the admin panel with icon-based save/reload/cancel controls and improved header text readability.
+
+### Bug Fixes & Technical Improvements
+- **PostgreSQL Startup**: Prevented startup migration deadlocks in the PostgreSQL service by separating read helpers from transactional writes.
+- **Metrics Routing**: Fixed metrics route labels and request totals so parameterized endpoints are normalized correctly and dashboard counts stay accurate.
+
 ## [2.8.1] - 2026-07-03
 
 ### Bug Fixes & Technical Improvements
