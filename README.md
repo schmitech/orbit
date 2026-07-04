@@ -144,7 +144,7 @@ teams across industries are trying to solve with AI — with a short demo as pro
 <details>
 <summary><strong>Let business teams answer their own data questions</strong></summary>
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/745a0635-fe17-432b-9b36-c7b22adcdfcc" controls muted playsinline width="80%"></video>
+  <video src="https://github.com/user-attachments/assets/4af9005e-a9c9-4f37-8f6a-84d86e6f6dde" controls muted playsinline width="80%"></video>
   <br />
   <em>No SQL and no ticket queue: ask in plain English, and ORBIT generates the query, runs it against your database, and charts the result in chat.</em>
 </p>
