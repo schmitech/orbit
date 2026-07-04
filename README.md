@@ -109,7 +109,7 @@ Then open the admin dashboard at **[http://localhost:3000/admin](http://localhos
 | **A2A peer protocol** | [Google Agent-to-Agent](https://google.github.io/A2A/) support — discovery via `/.well-known/agent.json` and task delegation over JSON-RPC. [Guide](docs/a2a-protocol.md). |
 | **Media generation** | Image, video, PDF, Word, Excel, PowerPoint, CSV, and markdown generation adapters in the same chat flow. |
 | **Voice (STT/TTS)** | OpenAI, Whisper, Google, Gemini, ElevenLabs, Coqui, and more. |
-| **Production controls** | API keys, RBAC, per-key routing, rate limits, token quotas, moderation, circuit breakers, fallback routing, metrics, audit logs, and hot adapter reloads. |
+| **Production controls** | API keys, RBAC, SSO via Entra ID & Auth0 (OIDC), per-key routing, rate limits, token quotas, moderation, circuit breakers, fallback routing, metrics, audit logs, and hot adapter reloads. |
 | **Config-first** | Define adapters, providers, datasources, prompts, and guardrails in YAML — no application code. |
 
 📚 Deep dive: [Docs index](docs/README.md) · [Adapter guide](docs/adapters/adapters.md) · [Configuration](docs/configuration.md) · [Cookbook](docs/cookbook/README.md)
@@ -271,6 +271,7 @@ The core idea: an **adapter** maps an API key or route to a model, prompt, retri
 | **NL data access** | [SQL retriever architecture](docs/sql-retriever-architecture.md) · [Intent SQL RAG](docs/intent-sql-rag-system.md) |
 | **MCP agents** | [MCP agent guide](docs/adapters/mcp-agent.md) |
 | **Production ops** | [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) · [Deployment](docs/cookbook/orbit-server-production-deployment.md) |
+| **Auth & SSO** | [Authentication guide](docs/authentication.md) — built-in users, Entra ID & Auth0 |
 | **Cookbook** | [Recipe index](docs/cookbook/README.md) |
 
 ---
