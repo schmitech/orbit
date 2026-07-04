@@ -170,6 +170,7 @@ For power users and contributors.
 | [Memory Management](memory_leak_prevention.md) | Prevent memory leaks |
 | [Rate Limiting](rate-limiting-architecture.md) | Rate limiting and throttling architecture |
 | [Datasource Pooling](datasource-pooling.md) | Connection pooling for data sources |
+| [PostgreSQL Startup Lock Troubleshooting](postgres-startup-lock-troubleshooting.md) | Diagnose startup hangs/statement timeouts against a Postgres backend |
 
 ### Protocols & Extensions
 

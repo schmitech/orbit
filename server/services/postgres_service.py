@@ -503,6 +503,8 @@ class PostgresService(DatabaseService):
             cursor = self.connection.cursor()
             cursor.execute(sql, params)
             row = cursor.fetchone()
+            if not self._in_transaction:
+                self.connection.commit()
             if row:
                 return dict(row)
             return None
@@ -513,6 +515,8 @@ class PostgresService(DatabaseService):
             cursor = self.connection.cursor()
             cursor.execute(sql, params)
             rows = cursor.fetchall()
+            if not self._in_transaction:
+                self.connection.commit()
             return [dict(row) for row in rows]
 
     def _table_exists(self, table_name: str) -> bool:
@@ -524,7 +528,10 @@ class PostgresService(DatabaseService):
                 "WHERE table_schema = 'public' AND table_name = %s",
                 (table_name,)
             )
-            return cursor.fetchone() is not None
+            exists = cursor.fetchone() is not None
+            if not self._in_transaction:
+                self.connection.commit()
+            return exists
 
     def _create_table_from_document(self, table_name: str, document: Dict[str, Any]) -> None:
         """

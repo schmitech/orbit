@@ -733,6 +733,21 @@ Example log entry:
 
 Note: The `logs` directory is automatically created when needed and should be added to `.gitignore`.
 
+### Benign gRPC Fork Warnings with `workers > 1`
+
+When `performance.workers` in `config.yaml` is set above `1`, you may occasionally see log lines like this at startup:
+
+```
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1783186897.127984  432192 fork_posix.cc:71] Other threads are currently calling into gRPC, skipping fork() handlers
+```
+
+**Cause**: ORBIT builds the full FastAPI app (including any Gemini or gRPC-backed vector store clients such as Milvus, Qdrant, or Weaviate) once in the main process before uvicorn spawns its worker pool. Uvicorn's "spawn" worker mode is implemented on POSIX via `fork()` followed by `exec()`. If a gRPC client has already started its background threads in the main process by the time the workers are forked, gRPC's fork-safety handlers print this diagnostic once per worker spawned. It depends on init/request timing, so it doesn't happen on every startup.
+
+**Impact**: None — each worker process fully re-initializes after `exec()`, so there's no shared or corrupted gRPC state. This is log noise, not an error.
+
+**To silence it**: Set `performance.workers: 1` in `config.yaml`, or run multiple independent ORBIT processes behind a reverse proxy/load balancer instead of using uvicorn's built-in multi-worker mode.
+
 ---
 
 ## 🔧 Production Deployment
