@@ -2188,7 +2188,7 @@
         "aria-selected": isSelected ? "true" : "false",
       },
         el("td", { className: "selection-col" }, checkbox),
-        el("td", null, u.username),
+        el("td", null, u.email || u.username),
         el("td", null, u.role || ""),
         el("td", null,
           el("span", { className: u.active !== false ? "status-active" : "status-inactive" },
@@ -2248,9 +2248,10 @@
 
     resetCancelBtn.addEventListener("click", closeResetPanel);
 
-    panel.appendChild(el("h2", { className: "detail-title" }, user.username || "User Details"));
+    panel.appendChild(el("h2", { className: "detail-title" }, user.email || user.username || "User Details"));
     panel.appendChild(el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "ID:"), " " + (user.id || "N/A")),
+      el("p", null, el("strong", null, "Username:"), " " + (user.username || "N/A")),
       el("p", null, el("strong", null, "Role:"), " " + (user.role || "N/A")),
       el("p", null, el("strong", null, "Status:"), " ",
         el("span", { className: user.active !== false ? "status-active" : "status-inactive" },

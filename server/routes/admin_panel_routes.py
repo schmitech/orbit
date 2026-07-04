@@ -219,6 +219,10 @@ def create_admin_panel_router() -> APIRouter:
         subject = claims["sub"]
         email = claims.get("email") or claims.get("preferred_username")
         if not sso.is_admin(email, provider, subject):
+            logger.warning(
+                "Admin SSO denied for %s: email=%r subject=%r not on admin_users allowlist",
+                provider, email, subject,
+            )
             return _login_redirect("not_authorized")
 
         auth_service = getattr(request.app.state, "auth_service", None)

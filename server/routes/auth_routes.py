@@ -256,7 +256,9 @@ async def list_users(
                 role=user["role"],
                 active=user["active"],
                 created_at=created_at,
-                last_login=last_login
+                last_login=last_login,
+                provider=user.get("provider"),
+                email=user.get("email")
             ))
         
         return result
