@@ -73,6 +73,7 @@
     adminExport: "/admin/export",
     login: "/admin/login",
     config: "/admin/config",
+    configSections: "/admin/config/sections",
     adapterConfigs: "/admin/adapters/config",
     auditEvents: "/admin/audit/events",
     serverInfo: "/admin/info",
@@ -4411,121 +4412,276 @@
   }
 
   // ==================================================================
-  // TAB: Settings (Ace Editor — YAML)
+  // TAB: Settings (Ace Editor — YAML, split into config.yaml sections)
   // ==================================================================
   var settingsOriginal = "";
   var settingsEditor = null; // Ace editor instance
+  var selectedSettingsSection = null; // top-level config.yaml key, or "__raw__"
+  var cachedSettingsSections = null; // [{key, line_count}, ...]
 
-  function renderSettings(container) {
+  // Grouping + display copy for known top-level config.yaml keys. Any key not
+  // listed here still appears, under "Other" — so a new key added to
+  // config.yaml is never hidden, just uncategorized until this list catches up.
+  var SETTINGS_GROUPS = [
+    { label: "General & Performance", keys: ["general", "performance", "language_detection", "clock_service"] },
+    { label: "Authentication & Security", keys: ["auth", "api_keys", "security"] },
+    { label: "Internal Services & Storage", keys: ["internal_services", "chat_history", "conversation_threading", "prompt_service"] },
+    { label: "Retrieval & Files", keys: ["composite_retrieval", "autocomplete", "files"] },
+    { label: "Reliability & Messaging", keys: ["fault_tolerance", "messages"] },
+    { label: "Logging & Monitoring", keys: ["logging", "monitoring"] },
+    { label: "Imports", keys: ["import"] },
+  ];
+  var SETTINGS_TITLES = {
+    general: "General", performance: "Performance", language_detection: "Language Detection",
+    clock_service: "Clock Service", auth: "Authentication", api_keys: "API Keys", security: "Security",
+    internal_services: "Internal Services", chat_history: "Chat History",
+    conversation_threading: "Conversation Threading", prompt_service: "Prompt Service",
+    composite_retrieval: "Composite Retrieval", autocomplete: "Autocomplete", files: "Files",
+    fault_tolerance: "Fault Tolerance", messages: "Messages", logging: "Logging",
+    monitoring: "Monitoring", import: "Imports",
+  };
+
+  function settingsSectionTitle(key) {
+    if (SETTINGS_TITLES[key]) return SETTINGS_TITLES[key];
+    return key.replace(/_/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+
+  function settingsLineLabel(n) {
+    return n + (n === 1 ? " line" : " lines");
+  }
+
+  async function renderSettings(container) {
     clear(container);
-
-    // Destroy previous editor instance
     if (settingsEditor) { settingsEditor.destroy(); settingsEditor = null; }
 
-    var panel = el("div", { className: "panel", style: "max-width:100%" });
-    panel.appendChild(el("h2", null, "Settings"));
-    panel.appendChild(el("p", { className: "muted" },
-      "Edit the main config.yaml file. Imported files (adapters, inference, etc.) are not shown here. " +
-      "A server restart is required for most changes to take effect."
-    ));
-
-    var banner = el("div", { className: "settings-banner", style: "display:none" },
-      "Config saved. Go to the Ops tab to restart the server for changes to take effect."
-    );
-    panel.appendChild(banner);
-
-    var editorWrap = el("div", { id: "settings-ace-editor", className: "settings-ace-wrap" });
-    panel.appendChild(editorWrap);
-
-    var btnRow = el("div", { style: "display:flex;gap:var(--sp-3);margin-top:var(--sp-3)" });
-    var saveBtn = el("button", { className: "btn btn--primary", disabled: "true" }, "Save");
-    var reloadBtn = el("button", { className: "btn btn--neutral" }, "Reload from Disk");
-    btnRow.appendChild(saveBtn);
-    btnRow.appendChild(reloadBtn);
-    panel.appendChild(btnRow);
-    container.appendChild(panel);
-
-    // Configure Ace to find mode/theme/worker files from static dir
-    ace.config.set("basePath", "/static");
-    ace.config.set("modePath", "/static");
-    ace.config.set("themePath", "/static");
-    ace.config.set("workerPath", "/static");
-
-    // Initialize Ace editor
-    settingsEditor = ace.edit(editorWrap, {
-      mode: "ace/mode/yaml",
-      theme: "ace/theme/tomorrow",
-      fontSize: 15,
-      fontFamily: "var(--font-mono)",
-      showPrintMargin: false,
-      tabSize: 2,
-      useSoftTabs: true,
-      wrap: false,
-      showGutter: true,
-      highlightActiveLine: true,
-      highlightSelectedWord: true,
-      showFoldWidgets: true,
-      displayIndentGuides: true,
-      scrollPastEnd: 0.2,
-    });
-
-    // Enable Cmd-F / Ctrl-F search
-    ace.config.loadModule("ace/ext/searchbox", function () {});
-
-    // Dirty tracking
-    settingsEditor.session.on("change", function () {
-      saveBtn.disabled = settingsEditor.getValue() === settingsOriginal;
-    });
-
-    // Load config from server
-    async function loadConfig() {
+    if (!cachedSettingsSections) {
+      container.appendChild(skeleton());
       try {
-        var data = await api("GET", ENDPOINTS.config);
-        settingsOriginal = data.content;
-        settingsEditor.setValue(data.content, -1); // -1 = move cursor to start
-        settingsEditor.getSession().getUndoManager().reset();
-        saveBtn.disabled = true;
-        banner.style.display = "none";
+        var data = await api("GET", ENDPOINTS.configSections);
+        cachedSettingsSections = data.sections || [];
       } catch (err) {
-        showError("Failed to load config: " + err.message);
+        showError("Failed to load config sections: " + err.message);
+        cachedSettingsSections = [];
       }
+      if (activeTab === "settings") renderSettings(container);
+      return;
     }
 
-    // Save handler
-    saveBtn.addEventListener("click", async function () {
-      saveBtn.disabled = true;
-      try {
-        await api("PUT", ENDPOINTS.config, { content: settingsEditor.getValue() });
-        settingsOriginal = settingsEditor.getValue();
-        banner.style.display = "";
-        setTimeout(function () { banner.style.display = "none"; }, 5000);
-      } catch (err) {
-        showError("Save failed: " + err.message);
-        saveBtn.disabled = settingsEditor.getValue() === settingsOriginal;
-      }
+    var layout = el("div", { className: "tab-stacked-layout settings-view" });
+    container.appendChild(layout);
+
+    // ----- Nav panel: grouped list of config.yaml sections -----
+    var leftPanel = el("div", { className: "panel settings-view__nav" });
+    layout.appendChild(leftPanel);
+    leftPanel.appendChild(el("h2", { style: "margin:0 0 var(--sp-1)" }, "Settings"));
+    leftPanel.appendChild(el("p", { className: "muted", style: "margin:0 0 var(--sp-3)" },
+      "config.yaml, split by top-level section. Imported files (adapters, inference, etc.) have their own tabs."
+    ));
+
+    var nav = el("nav", { className: "settings-section-nav", "aria-label": "Config sections" });
+    leftPanel.appendChild(nav);
+
+    var sectionByKey = {};
+    cachedSettingsSections.forEach(function (s) { sectionByKey[s.key] = s; });
+    var knownKeys = cachedSettingsSections.map(function (s) { return s.key; });
+    var groupedKeys = {};
+    var groups = SETTINGS_GROUPS
+      .map(function (g) { return { label: g.label, keys: g.keys.filter(function (k) { return knownKeys.indexOf(k) !== -1; }) }; })
+      .filter(function (g) { return g.keys.length; });
+    groups.forEach(function (g) { g.keys.forEach(function (k) { groupedKeys[k] = true; }); });
+    var otherKeys = knownKeys.filter(function (k) { return !groupedKeys[k]; });
+    if (otherKeys.length) groups.push({ label: "Other", keys: otherKeys });
+
+    function addNavItem(group, key, title, metaText) {
+      var btn = el("button", {
+        type: "button",
+        className: "settings-section-item",
+        dataset: { key: key },
+        title: metaText,
+        "aria-current": "false",
+      }, title);
+      btn.addEventListener("click", function () { selectSection(key); });
+      group.appendChild(btn);
+    }
+
+    groups.forEach(function (g) {
+      nav.appendChild(el("div", { className: "settings-section-group-label" }, g.label));
+      var groupRow = el("div", { className: "settings-section-group" });
+      nav.appendChild(groupRow);
+      g.keys.forEach(function (key) {
+        addNavItem(groupRow, key, settingsSectionTitle(key), settingsLineLabel(sectionByKey[key].line_count));
+      });
     });
 
-    // Reload handler
-    reloadBtn.addEventListener("click", function () {
-      var dirty = settingsEditor.getValue() !== settingsOriginal;
-      if (dirty) {
+    nav.appendChild(el("div", { className: "settings-section-group-label" }, "Advanced"));
+    var advancedRow = el("div", { className: "settings-section-group" });
+    nav.appendChild(advancedRow);
+    addNavItem(advancedRow, "__raw__", "Raw File", "The full config.yaml");
+
+    // ----- Detail panel: editor + actions -----
+    var detailPanel = el("div", { className: "panel settings-view__detail" });
+    layout.appendChild(detailPanel);
+
+    function markActive(key) {
+      nav.querySelectorAll(".settings-section-item").forEach(function (btn) {
+        var isActive = btn.dataset.key === key;
+        btn.classList.toggle("active", isActive);
+        btn.setAttribute("aria-current", isActive ? "true" : "false");
+      });
+    }
+
+    function isDirty() {
+      return !!settingsEditor && settingsEditor.getValue() !== settingsOriginal;
+    }
+
+    function selectSection(key) {
+      if (key === selectedSettingsSection) return;
+      if (isDirty()) {
         confirmAction({
-          title: "Reload Configuration",
-          message: "You have unsaved changes. Reload from disk and discard them?",
-          confirmLabel: "Discard & Reload",
+          title: "Unsaved Changes",
+          message: "You have unsaved changes. Discard them?",
+          confirmLabel: "Discard",
           isDanger: true,
-          loadingLabel: "Reloading…",
-          onConfirm: async function () {
-            await loadConfig();
-            showStatus("Config reloaded from disk");
-          },
+          onConfirm: function () {
+            selectedSettingsSection = key;
+            markActive(key);
+            renderDetail(key);
+          }
         });
-      } else {
-        loadConfig().then(function () { showStatus("Config reloaded from disk"); });
+        return;
       }
-    });
+      selectedSettingsSection = key;
+      markActive(key);
+      renderDetail(key);
+    }
 
-    loadConfig();
+    function renderDetail(key) {
+      clear(detailPanel);
+      if (settingsEditor) { settingsEditor.destroy(); settingsEditor = null; }
+
+      var isRaw = key === "__raw__";
+      var titleText = isRaw ? "Raw File" : settingsSectionTitle(key);
+
+      var headerRow = el("div", { style: "display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-2)" });
+      headerRow.appendChild(el("h3", { style: "margin:0" }, titleText));
+      headerRow.appendChild(el("span", { className: "adapter-file-badge" }, "config.yaml"));
+      detailPanel.appendChild(headerRow);
+
+      if (isRaw) {
+        detailPanel.appendChild(el("p", { className: "muted", style: "margin:0 0 var(--sp-3)" },
+          "The entire file, for structural changes the section editors can't make — reordering keys or adding a new top-level section."
+        ));
+      }
+
+      var banner = el("div", { className: "settings-banner", style: "display:none", role: "status" });
+      detailPanel.appendChild(banner);
+
+      var editorWrap = el("div", { className: "adapter-ace-wrap" });
+      detailPanel.appendChild(editorWrap);
+
+      var btnRow = el("div", { style: "display:flex;gap:var(--sp-3);margin-top:var(--sp-3)" });
+      var saveBtn = el("button", { className: "btn btn--primary", disabled: "true" }, "Save");
+      var reloadBtn = el("button", { className: "btn btn--neutral" }, "Reload from Disk");
+      btnRow.appendChild(saveBtn);
+      btnRow.appendChild(reloadBtn);
+      detailPanel.appendChild(btnRow);
+
+      ace.config.set("basePath", "/static");
+      ace.config.set("modePath", "/static");
+      ace.config.set("themePath", "/static");
+      ace.config.set("workerPath", "/static");
+
+      settingsEditor = ace.edit(editorWrap, {
+        mode: "ace/mode/yaml",
+        theme: "ace/theme/tomorrow",
+        fontSize: 15,
+        fontFamily: "var(--font-mono)",
+        showPrintMargin: false,
+        tabSize: 2,
+        useSoftTabs: true,
+        wrap: false,
+        showGutter: true,
+        highlightActiveLine: true,
+        highlightSelectedWord: true,
+        showFoldWidgets: true,
+        displayIndentGuides: true,
+        scrollPastEnd: 0.2,
+      });
+      ace.config.loadModule("ace/ext/searchbox", function () {});
+
+      settingsEditor.session.on("change", function () {
+        saveBtn.disabled = settingsEditor.getValue() === settingsOriginal;
+      });
+
+      var endpoint = isRaw ? ENDPOINTS.config : (ENDPOINTS.configSections + "/" + encodeURIComponent(key));
+
+      async function loadContent() {
+        try {
+          var data = await api("GET", endpoint);
+          settingsOriginal = data.content;
+          settingsEditor.setValue(data.content, -1);
+          settingsEditor.getSession().getUndoManager().reset();
+          saveBtn.disabled = true;
+          banner.style.display = "none";
+        } catch (err) {
+          showError("Failed to load: " + err.message);
+        }
+      }
+
+      saveBtn.addEventListener("click", async function () {
+        saveBtn.disabled = true;
+        try {
+          await api("PUT", endpoint, { content: settingsEditor.getValue() });
+          settingsOriginal = settingsEditor.getValue();
+          banner.textContent = isRaw
+            ? "Config saved. Go to the Ops tab to restart the server for changes to take effect."
+            : "'" + titleText + "' saved. Go to the Ops tab to restart the server for changes to take effect.";
+          banner.style.display = "";
+          setTimeout(function () { banner.style.display = "none"; }, 5000);
+          if (!isRaw) {
+            var sec = sectionByKey[key];
+            if (sec) {
+              sec.line_count = settingsEditor.getValue().split("\n").length;
+              var metaEl = nav.querySelector('[data-key="' + key + '"] .settings-section-item__meta');
+              if (metaEl) metaEl.textContent = settingsLineLabel(sec.line_count);
+            }
+          } else {
+            cachedSettingsSections = null; // raw edits may add/remove/reorder sections
+          }
+        } catch (err) {
+          showError("Save failed: " + err.message);
+          saveBtn.disabled = settingsEditor.getValue() === settingsOriginal;
+        }
+      });
+
+      reloadBtn.addEventListener("click", function () {
+        var dirty = settingsEditor.getValue() !== settingsOriginal;
+        if (dirty) {
+          confirmAction({
+            title: "Reload",
+            message: "You have unsaved changes. Reload from disk and discard them?",
+            confirmLabel: "Discard & Reload",
+            isDanger: true,
+            loadingLabel: "Reloading…",
+            onConfirm: async function () {
+              await loadContent();
+              showStatus("Reloaded from disk");
+            },
+          });
+        } else {
+          loadContent().then(function () { showStatus("Reloaded from disk"); });
+        }
+      });
+
+      loadContent();
+    }
+
+    var validKeys = knownKeys.concat(["__raw__"]);
+    if (!selectedSettingsSection || validKeys.indexOf(selectedSettingsSection) === -1) {
+      selectedSettingsSection = knownKeys.length ? knownKeys[0] : "__raw__";
+    }
+    markActive(selectedSettingsSection);
+    renderDetail(selectedSettingsSection);
   }
 
   // ==================================================================
