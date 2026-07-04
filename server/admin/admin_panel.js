@@ -178,6 +178,9 @@
   var ICON_COPY = ["M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2", "M8 2h8a1 1 0 0 1 1 1v1H7V3a1 1 0 0 1 1-1z"];
   var ICON_CHECK = ["M20 6L9 17l-5-5"];
   var ICON_PLUS = ["M12 5v14", "M5 12h14"];
+  var ICON_REFRESH = ["M21 12a9 9 0 1 1-2.64-6.36", "M21 3v6h-6"];
+  var ICON_SAVE = ["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z", "M17 21v-8H7v8", "M7 3v5h8"];
+  var ICON_X = ["M18 6L6 18", "M6 6l12 12"];
   var USERNAME_MIN_LENGTH = 3;
   var USERNAME_MAX_LENGTH = 50;
   var PASSWORD_MIN_LENGTH = 8;
@@ -730,6 +733,45 @@
     }
   }
 
+  function isVisible(node) {
+    if (!node || !node.getClientRects().length) return false;
+    return window.getComputedStyle(node).visibility !== "hidden";
+  }
+
+  function enabledSaveButtons(root) {
+    return Array.prototype.slice.call(root.querySelectorAll('button[aria-label^="Save"]')).filter(function (btn) {
+      return !btn.disabled && isVisible(btn);
+    });
+  }
+
+  function findShortcutSaveButton() {
+    if (document.querySelector(".confirm-dialog")) return null;
+
+    var active = document.activeElement;
+    var node = active && active.nodeType === 1 ? active : null;
+    var scopeSelector = ".settings-section-block, .panel, .admin-create-form, #tab-content";
+
+    while (node && node !== document.body) {
+      if (node.matches && node.matches(scopeSelector)) {
+        var scopedButtons = enabledSaveButtons(node);
+        if (scopedButtons.length) return scopedButtons[0];
+      }
+      node = node.parentElement;
+    }
+
+    var tabContent = document.getElementById("tab-content");
+    if (!tabContent) return null;
+    var tabButtons = enabledSaveButtons(tabContent);
+    return tabButtons.length === 1 ? tabButtons[0] : null;
+  }
+
+  function handleGlobalSaveShortcut(e) {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || String(e.key).toLowerCase() !== "s") return;
+    e.preventDefault();
+    var saveBtn = findShortcutSaveButton();
+    if (saveBtn) saveBtn.click();
+  }
+
   // ------------------------------------------------------------------
   // API helper
   // ------------------------------------------------------------------
@@ -791,6 +833,7 @@
   // ------------------------------------------------------------------
   async function init() {
     try {
+      document.addEventListener("keydown", handleGlobalSaveShortcut, true);
       var resp = await fetch(ENDPOINTS.token);
       if (!resp.ok) {
         window.location.href = ENDPOINTS.login + "?next=/admin";
@@ -2100,8 +2143,18 @@
       autocorrect: "off",
       spellcheck: "false"
     });
-    var changeBtn = el("button", { type: "button" }, "Save Password");
-    var cancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
+    var changeBtn = el("button", {
+      type: "button",
+      className: "btn--icon",
+      "aria-label": "Save password",
+      title: "Save password",
+    }, svgIcon(ICON_SAVE));
+    var cancelBtn = el("button", {
+      className: "secondary btn--icon",
+      type: "button",
+      "aria-label": "Cancel password change",
+      title: "Cancel password change",
+    }, svgIcon(ICON_X));
 
     cancelBtn.addEventListener("click", function () {
       curPwInput.value = "";
@@ -2942,7 +2995,12 @@
     }
     var promptSelect = el("select", null, el("option", { value: "" }, "No persona"));
     fillPromptSelect(promptSelect, cachedPrompts, key.system_prompt_id);
-    var saveBtn = el("button", { type: "button" }, "Save Details");
+    var saveBtn = el("button", {
+      type: "button",
+      className: "btn--icon",
+      "aria-label": "Save details",
+      title: "Save details",
+    }, svgIcon(ICON_SAVE));
     var originalClientName = key.client_name || "";
     var originalAdapterName = key.adapter_name || "";
     var originalPromptId = key.system_prompt_id || "";
@@ -2958,7 +3016,13 @@
       )
     );
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Details");
-    var cancelBtn = el("button", { className: "secondary", type: "button", style: "display:none" }, "Cancel");
+    var cancelBtn = el("button", {
+      className: "secondary btn--icon",
+      type: "button",
+      style: "display:none",
+      "aria-label": "Cancel editing details",
+      title: "Cancel editing details",
+    }, svgIcon(ICON_X));
     saveBtn.style.display = "none";
     function keyDetailsChanged() {
       return clientInput.value.trim() !== originalClientName ||
@@ -3178,7 +3242,7 @@
 
     // Edit form
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Quota");
-    var editForm = el("div", { style: "display:none" });
+    var editForm = el("div", { className: "admin-create-form", style: "display:none" });
 
     var dailyInput = el("input", { type: "number", placeholder: "Daily limit (blank=unlimited)", value: config.daily_limit != null ? config.daily_limit : "" });
     var monthlyInput = el("input", { type: "number", placeholder: "Monthly limit (blank=unlimited)", value: config.monthly_limit != null ? config.monthly_limit : "" });
@@ -3188,7 +3252,12 @@
     var priorityLabel = el("span", null, "Priority: " + (config.throttle_priority || 5));
     priorityInput.addEventListener("input", function () { priorityLabel.textContent = "Priority: " + priorityInput.value; });
 
-    var saveBtn = el("button", { type: "button" }, "Save Quota");
+    var saveBtn = el("button", {
+      type: "button",
+      className: "btn--icon",
+      "aria-label": "Save quota",
+      title: "Save quota",
+    }, svgIcon(ICON_SAVE));
     saveBtn.addEventListener("click", async function () {
       saveBtn.disabled = true;
       try {
@@ -3222,7 +3291,15 @@
     editToggle.addEventListener("click", function () {
       var hidden = editForm.style.display === "none";
       editForm.style.display = hidden ? "block" : "none";
-      editToggle.textContent = hidden ? "Cancel Edit" : "Edit Quota";
+      editToggle.classList.toggle("btn--icon", hidden);
+      editToggle.setAttribute("aria-label", hidden ? "Cancel editing quota" : "Edit quota");
+      editToggle.setAttribute("title", hidden ? "Cancel editing quota" : "Edit quota");
+      clear(editToggle);
+      if (hidden) {
+        editToggle.appendChild(svgIcon(ICON_X));
+      } else {
+        editToggle.appendChild(document.createTextNode("Edit Quota"));
+      }
     });
 
     wrap.appendChild(el("div", { style: "margin-top:var(--sp-2)" }, editToggle));
@@ -3553,7 +3630,12 @@
     var vInput = el("input", { type: "text", value: prompt.version || "1.0", maxlength: "25", readonly: "true", "aria-readonly": "true" });
     var tArea = el("textarea", { rows: "8", maxlength: "25000", readonly: "true", "aria-readonly": "true" }, prompt.prompt || "");
     var tCounter = characterCount(tArea, 25000);
-    var saveBtn = el("button", { type: "button" }, "Save Changes");
+    var saveBtn = el("button", {
+      type: "button",
+      className: "btn--icon",
+      "aria-label": "Save changes",
+      title: "Save changes",
+    }, svgIcon(ICON_SAVE));
     saveBtn.style.display = "none";
     saveBtn.addEventListener("click", function () {
       if (saveBtn.disabled) return;
@@ -3583,7 +3665,13 @@
     );
     var previewWrap = el("div", { className: "prompt-preview-pane" }, editPreview);
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Persona");
-    var cancelBtn = el("button", { className: "secondary", type: "button", style: "display:none" }, "Cancel");
+    var cancelBtn = el("button", {
+      className: "secondary btn--icon",
+      type: "button",
+      style: "display:none",
+      "aria-label": "Cancel editing persona",
+      title: "Cancel editing persona",
+    }, svgIcon(ICON_X));
     function promptHasChanges() {
       return nameInput.value.trim() !== originalName || vInput.value.trim() !== originalVersion || tArea.value !== originalPromptText;
     }
@@ -4259,8 +4347,18 @@
       detailPanel.appendChild(editorWrap);
 
       // Buttons
-      var saveBtn = el("button", { className: "btn btn--primary", disabled: "true" }, "Save");
-      var reloadDiskBtn = el("button", { className: "btn btn--neutral" }, "Reload from Disk");
+      var saveBtn = el("button", {
+        type: "button",
+        className: "btn btn--primary btn--icon",
+        disabled: "true",
+        "aria-label": "Save adapter config",
+        title: "Save adapter config",
+      }, svgIcon(ICON_SAVE));
+      var reloadDiskBtn = el("button", {
+        className: "btn btn--neutral btn--icon",
+        "aria-label": "Reload from disk",
+        title: "Reload from disk",
+      }, svgIcon(ICON_REFRESH));
       var reloadAdapterBtn = el("button", { className: "btn btn--neutral" }, "Reload Adapter");
       var reloadTemplatesBtn = el("button", { className: "btn btn--neutral" }, "Reload Templates");
 
@@ -4623,8 +4721,18 @@
       block.appendChild(editorWrap);
 
       var btnRow = el("div", { style: "display:flex;gap:var(--sp-3);margin-top:var(--sp-3)" });
-      var saveBtn = el("button", { className: "btn btn--primary", disabled: "true" }, "Save");
-      var reloadBtn = el("button", { className: "btn btn--neutral" }, "Reload from Disk");
+      var saveBtn = el("button", {
+        type: "button",
+        className: "btn btn--primary btn--icon",
+        disabled: "true",
+        "aria-label": "Save config section",
+        title: "Save config section",
+      }, svgIcon(ICON_SAVE));
+      var reloadBtn = el("button", {
+        className: "btn btn--neutral btn--icon",
+        "aria-label": "Reload from disk",
+        title: "Reload from disk",
+      }, svgIcon(ICON_REFRESH));
       btnRow.appendChild(saveBtn);
       btnRow.appendChild(reloadBtn);
       block.appendChild(btnRow);

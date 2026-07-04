@@ -183,9 +183,10 @@ textarea {
 
 .topbar p {
   margin: var(--sp-1) 0 0;
-  font-size: var(--text-sm);
-  color: rgba(200, 220, 255, 0.75);
+  font-size: var(--text-md);
+  color: rgba(244, 248, 255, 0.9);
   font-family: var(--font-mono);
+  font-weight: 600;
 }
 
 .topbar-actions {
@@ -723,6 +724,16 @@ button.secondary:hover:not(:disabled) {
 
 button.secondary:active:not(:disabled) {
   background: #cdd6e5;
+}
+
+.btn--icon {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+}
+
+.btn--icon svg {
+  flex: 0 0 auto;
 }
 
 .action-panel button {
@@ -1403,6 +1414,21 @@ tbody tr:nth-child(even) {
   margin: 0;
   color: var(--danger-text);
   font-size: var(--text-sm);
+}
+
+.danger-zone button.danger,
+.danger-zone .inline-form button.danger,
+.detail-action-row button.danger,
+.bulk-action-row button.danger {
+  width: fit-content;
+  min-width: 140px;
+  max-width: 100%;
+  justify-self: start;
+  align-self: flex-start;
+}
+
+.danger-zone .inline-form {
+  align-items: flex-start;
 }
 
 /* ============================================================
