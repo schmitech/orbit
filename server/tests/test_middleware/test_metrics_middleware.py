@@ -32,6 +32,10 @@ def _build_app(metrics_service=None):
     def test_endpoint():
         return {"message": "test"}
 
+    @app.get("/items/{item_id}")
+    def item_endpoint(item_id: str):
+        return {"item_id": item_id}
+
     @app.get("/metrics")
     def metrics_endpoint():
         return {}
@@ -88,6 +92,24 @@ class TestMetricsRecording:
         assert call_kwargs["method"] == "GET"
         assert call_kwargs["status"] == 200
         assert call_kwargs["duration"] >= 0
+
+    def test_record_request_uses_route_template_for_path_parameters(self):
+        svc = _mock_metrics_service(enabled=True)
+        app = _build_app(svc)
+        client = TestClient(app)
+        response = client.get("/items/123")
+        assert response.status_code == 200
+        call_kwargs = svc.record_request.call_args.kwargs
+        assert call_kwargs["endpoint"] == "/items/{item_id}"
+
+    def test_record_request_uses_bounded_label_for_unmatched_route(self):
+        svc = _mock_metrics_service(enabled=True)
+        app = _build_app(svc)
+        client = TestClient(app)
+        response = client.get("/does/not/exist/123")
+        assert response.status_code == 404
+        call_kwargs = svc.record_request.call_args.kwargs
+        assert call_kwargs["endpoint"] == "__unmatched_route__"
 
     def test_record_request_not_called_when_disabled(self):
         svc = _mock_metrics_service(enabled=False)

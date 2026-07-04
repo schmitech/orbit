@@ -1176,12 +1176,13 @@
         backgroundColor: "rgba(10,14,23,0.96)",
         borderColor: "rgba(255,255,255,0.1)",
         borderWidth: 1,
-        titleColor: "#c9d1d9",
-        bodyColor: "#8892a4",
-        padding: 10,
+        titleColor: "#f4f6fa",
+        bodyColor: "#e4e8f0",
+        padding: 16,
         cornerRadius: 6,
-        titleFont: { family: "'JetBrains Mono', monospace", size: 11 },
-        bodyFont: { family: "'JetBrains Mono', monospace", size: 11 }
+        boxPadding: 8,
+        titleFont: { family: "'JetBrains Mono', monospace", size: 18, weight: "500" },
+        bodyFont: { family: "'JetBrains Mono', monospace", size: 17, weight: "400" }
       }
     }
   };

@@ -23,14 +23,14 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         # Start timer (use perf_counter for monotonic timing)
         start_time = time.perf_counter()
         
-        # Attempt to resolve a normalized route template to limit label cardinality
-        route = request.scope.get('route')
-        route_template = getattr(route, 'path', None) or request.url.path
-
         metrics_service = getattr(request.app.state, 'metrics_service', None)
+        # The route is unknown until call_next() runs routing, so the in-progress gauge
+        # can't be labeled per-endpoint without falling back to raw (unbounded) paths.
+        # Do not move this inc() after routing to "recover" per-route granularity.
+        inprogress_endpoint = "__pending_route__"
         if metrics_service and getattr(metrics_service, 'enabled', False):
             try:
-                metrics_service.http_inprogress.labels(method=request.method, endpoint=route_template).inc()
+                metrics_service.http_inprogress.labels(method=request.method, endpoint=inprogress_endpoint).inc()
             except Exception:
                 pass
         try:
@@ -41,6 +41,11 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             status_code = 500
             raise
         finally:
+            # Route matching happens inside call_next(); read the route only after it runs
+            # so parameterized paths are recorded as templates instead of raw URL paths.
+            route = request.scope.get('route')
+            route_template = getattr(route, 'path', None) or "__unmatched_route__"
+
             # Calculate duration
             duration = time.perf_counter() - start_time
             
@@ -56,7 +61,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                     )
                     # Decrement in-progress
                     try:
-                        metrics_service.http_inprogress.labels(method=request.method, endpoint=route_template).dec()
+                        metrics_service.http_inprogress.labels(method=request.method, endpoint=inprogress_endpoint).dec()
                     except Exception:
                         pass
                 except Exception as e:

@@ -208,6 +208,7 @@ class MetricsService:
         }
         
         # Request tracking for rate calculations
+        self.total_requests = 0
         self.request_timestamps = deque(maxlen=1000)
         self.error_timestamps = deque(maxlen=1000)
         self.response_times = deque(maxlen=100)
@@ -354,6 +355,7 @@ class MetricsService:
             
         self.request_counter.labels(method=method, endpoint=endpoint, status=str(status)).inc()
         self.request_duration.labels(method=method, endpoint=endpoint).observe(duration)
+        self.total_requests += 1
         
         # Track for rate calculations
         now = time.time()
@@ -503,7 +505,7 @@ class MetricsService:
                 'uptime_seconds': uptime_seconds
             },
             'requests': {
-                'total': sum(1 for t in self.request_timestamps),
+                'total': self.total_requests,
                 'per_second': round(requests_per_second, 2),
                 'error_rate': round(error_rate, 2),
                 'avg_response_time': round(avg_response_time, 2),
