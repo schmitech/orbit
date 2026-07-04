@@ -52,12 +52,7 @@ class ApiKeyService:
         backend_config = config.get('internal_services', {}).get('backend', {})
         backend_type = backend_config.get('type', 'mongodb')
 
-        # Get collection name based on backend type
-        if backend_type == 'mongodb':
-            mongodb_config = config.get('internal_services', {}).get('mongodb', {})
-            collection_name = mongodb_config.get('apikey_collection') or 'api_keys'
-        else:
-            collection_name = 'api_keys'
+        collection_name = cls._get_api_key_collection_name(config, backend_type)
 
         # Create key based on backend type
         if backend_type == 'mongodb':
@@ -80,6 +75,20 @@ class ApiKeyService:
         # Create hash of the key parts for consistency
         key_string = '|'.join(key_parts)
         return hashlib.md5(key_string.encode()).hexdigest()
+
+    @staticmethod
+    def _get_api_key_collection_name(config: Dict[str, Any], backend_type: str) -> str:
+        """Resolve the API key collection/table name from supported config layouts."""
+        if backend_type != 'mongodb':
+            return 'api_keys'
+
+        internal_mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+        top_level_mongodb_config = config.get('mongodb', {})
+        return (
+            internal_mongodb_config.get('apikey_collection')
+            or top_level_mongodb_config.get('apikey_collection')
+            or 'api_keys'
+        )
     
     @classmethod
     def get_cache_stats(cls) -> Dict[str, Any]:
@@ -115,12 +124,7 @@ class ApiKeyService:
         # Collection/table name for API keys - read from backend-specific config
         backend_type = config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
 
-        if backend_type == 'mongodb':
-            mongodb_config = config.get('internal_services', {}).get('mongodb', {})
-            self.collection_name = mongodb_config.get('apikey_collection') or 'api_keys'
-        else:
-            # SQLite or other backends: use default table name
-            self.collection_name = 'api_keys'
+        self.collection_name = self._get_api_key_collection_name(config, backend_type)
         
         # Initialize state
         self._initialized = False
