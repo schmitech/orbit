@@ -134,7 +134,36 @@ auth:
   # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
   credential_storage: file
 
-# Embedding configuration moved to embeddings.yaml
+  # External identity providers (OIDC / OAuth2). Optional — the built-in
+  # username/password auth above always works. When enabled, ORBIT validates
+  # access-token JWTs presented as `Authorization: Bearer <jwt>` by clients
+  # (e.g. orbitchat) that have already completed the OAuth login. Requires the
+  # 'auth-providers' dependency profile (PyJWT[crypto]).
+  providers:
+    enabled: false                 # Master switch for external-provider bearer-token validation
+    default_role: "user"           # Role assigned to users provisioned on first login
+    # Microsoft Entra ID (Azure AD)
+    entra:
+      enabled: false
+      tenant_id: ${ORBIT_AUTH_ENTRA_TENANT_ID:-}
+      client_id: ${ORBIT_AUTH_ENTRA_CLIENT_ID:-}       # Expected token audience (this app's client id)
+      client_secret: ${ORBIT_AUTH_ENTRA_CLIENT_SECRET:-}  # Optional; only for admin-panel SSO confidential clients
+    # Auth0
+    auth0:
+      enabled: false
+      domain: ${ORBIT_AUTH_AUTH0_DOMAIN:-}             # e.g. your-tenant.us.auth0.com
+      audience: ${ORBIT_AUTH_AUTH0_AUDIENCE:-}         # API identifier = expected token audience
+      client_id: ${ORBIT_AUTH_AUTH0_CLIENT_ID:-}       # Required for admin-panel SSO (id_token audience)
+      client_secret: ${ORBIT_AUTH_AUTH0_CLIENT_SECRET:-}  # Optional; only for admin-panel SSO confidential clients
+
+    # Admin-panel browser SSO (server-side OAuth Authorization Code + PKCE).
+    # Lets admins sign in to /admin with Entra/Auth0 instead of a password.
+    # Register this redirect URI with each provider:
+    #   {base_url or auto-detected}/admin/auth/{entra|auth0}/callback
+    admin_sso:
+      enabled: false
+      base_url: ${ORBIT_ADMIN_BASE_URL:-}   # Optional; overrides auto-detected redirect base (needed behind a proxy)
+      admin_users: []                        # Emails and/or "provider:subject" granted admin at login
 
 api_keys:
   header_name: "X-API-Key"

@@ -10,6 +10,7 @@ import html
 import logging
 from http.cookies import SimpleCookie
 from typing import Dict, Any, Optional
+from urllib.parse import quote
 from fastapi import Request, WebSocket, HTTPException
 from pathlib import Path
 
@@ -38,8 +39,33 @@ def load_login_template() -> str:
     return _login_template_cache
 
 
-def render_login_html(next_path: str = "/admin", error_message: Optional[str] = None) -> str:
-    """Render the login template."""
+def _render_sso_block(next_path: str, sso_providers: Optional[Dict[str, str]]) -> str:
+    """Build the 'or continue with' block of provider sign-in buttons."""
+    if not sso_providers:
+        return ""
+    next_q = quote(next_path, safe="")
+    buttons = []
+    for name, label in sso_providers.items():
+        href = f"/admin/auth/{html.escape(name, quote=True)}/login?next={next_q}"
+        buttons.append(
+            f'<a class="sso-button" href="{href}">Sign in with {html.escape(label)}</a>'
+        )
+    return (
+        '<div class="sso-divider"><span>or continue with</span></div>'
+        f'<div class="sso-buttons">{"".join(buttons)}</div>'
+    )
+
+
+def render_login_html(
+    next_path: str = "/admin",
+    error_message: Optional[str] = None,
+    sso_providers: Optional[Dict[str, str]] = None,
+) -> str:
+    """Render the login template.
+
+    sso_providers maps enabled provider name -> display label; when provided,
+    a set of SSO sign-in buttons is rendered below the password form.
+    """
     template = load_login_template()
     error_block = ""
     if error_message:
@@ -51,7 +77,30 @@ def render_login_html(next_path: str = "/admin", error_message: Optional[str] = 
         template
         .replace("{{NEXT_PATH}}", html.escape(next_path, quote=True))
         .replace("{{ERROR_BLOCK}}", error_block)
+        .replace("{{SSO_BLOCK}}", _render_sso_block(next_path, sso_providers))
     )
+
+
+def get_sso_service(request: Request):
+    """Lazily build and cache the admin SSO service on app.state (None if disabled)."""
+    app = request.app
+    if hasattr(app.state, "admin_sso_service"):
+        return app.state.admin_sso_service
+
+    svc = None
+    try:
+        config = getattr(app.state, "config", {}) or {}
+        providers = config.get("auth", {}).get("providers", {})
+        if providers.get("admin_sso", {}).get("enabled"):
+            from services.admin_sso_service import AdminSSOService
+            built = AdminSSOService(providers)
+            svc = built if built.enabled else None
+    except Exception as e:
+        logger.error("Failed to initialize admin SSO service: %s", e)
+        svc = None
+
+    app.state.admin_sso_service = svc
+    return svc
 
 
 async def get_admin_user(request: Request) -> Optional[Dict[str, Any]]:

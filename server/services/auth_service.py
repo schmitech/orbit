@@ -64,7 +64,12 @@ class AuthService:
         # Default admin configuration
         self.default_admin_username = config.get('auth', {}).get('default_admin_username', 'admin')
         self.default_admin_password = config.get('auth', {}).get('default_admin_password', 'admin123')
-        
+
+        # External identity provider (OIDC) configuration - built in initialize()
+        self._oidc = None
+        self._oidc_enabled = False
+        self._oidc_default_role = 'user'
+
         # Initialize state
         self._initialized = False
         self.users_collection = None
@@ -87,12 +92,35 @@ class AuthService:
         
         # Create default admin user if it doesn't exist
         await self._create_default_admin()
-        
+
+        # Set up external identity providers (Entra ID, Auth0) if enabled
+        self._initialize_oidc()
+
         # Set initialized flag
         self._initialized = True
-        
+
         logger.info("Authentication Service initialized successfully")
-    
+
+    def _initialize_oidc(self) -> None:
+        """Build the external identity provider validator if configured.
+
+        Fails fast (raises) when providers are enabled but misconfigured or the
+        PyJWT dependency is missing, since the operator explicitly opted in.
+        """
+        providers_config = self.config.get('auth', {}).get('providers', {})
+        if not providers_config.get('enabled'):
+            return
+
+        from services.oidc_validator import OIDCValidator
+        validator = OIDCValidator(providers_config)
+        if not validator.enabled:
+            logger.warning("auth.providers.enabled is true but no provider is enabled")
+            return
+
+        self._oidc = validator
+        self._oidc_enabled = True
+        self._oidc_default_role = providers_config.get('default_role', 'user')
+
     def _hash_password(self, password: str, salt: Optional[bytes] = None) -> Tuple[bytes, bytes]:
         """
         Hash a password using PBKDF2-SHA256
@@ -204,6 +232,8 @@ class AuthService:
             "active": user.get("active", True),
             "created_at": user.get("created_at"),
             "last_login": user.get("last_login"),
+            "provider": user.get("provider"),
+            "email": user.get("email"),
         }
     
     async def _create_default_admin(self) -> None:
@@ -295,38 +325,19 @@ class AuthService:
             if not user.get("active", True):
                 logger.warning(f"Login attempt for inactive user: {username}")
                 return False, None, None
-            
+
+            # External users authenticate only through their identity provider
+            if user.get("provider"):
+                logger.warning(f"Password login attempt for external user: {username}")
+                return False, None, None
+
             # Verify password
             if not self._verify_password(password, user["password"]):
                 logger.warning(f"Invalid password for user: {username}")
                 return False, None, None
-            
-            # Create session token
-            # Use cryptographically secure random token generation
-            token = secrets.token_hex(32)
-            
-            # Calculate expiration
-            expires = datetime.now(UTC) + timedelta(hours=self.session_duration_hours)
-            
-            # Create session document
-            session_doc = {
-                "token": token,
-                "user_id": user["_id"],
-                "username": username,
-                "expires": expires,
-                "created_at": datetime.now(UTC)
-            }
-            
-            # Insert session
-            await self.database.insert_one(self.sessions_collection_name, session_doc)
-            
-            # Update last login
-            await self.database.update_one(
-                self.users_collection_name,
-                {"_id": user["_id"]},
-                {"$set": {"last_login": datetime.now(UTC)}}
-            )
-            
+
+            token = await self.create_session(user)
+
             logger.debug(f"User {username} logged in successfully")
             return True, token, self._user_info(user)
 
@@ -339,7 +350,52 @@ class AuthService:
         except Exception as e:
             logger.error(f"Unexpected error authenticating user {username}: {str(e)}")
             return False, None, None
-    
+
+    async def create_session(self, user: Dict[str, Any]) -> str:
+        """Mint a session token for an already-authenticated user.
+
+        Used both by password login and by SSO (where the identity is verified
+        by an external provider rather than a local password).
+        """
+        token = secrets.token_hex(32)
+        session_doc = {
+            "token": token,
+            "user_id": user["_id"],
+            "username": user["username"],
+            "expires": datetime.now(UTC) + timedelta(hours=self.session_duration_hours),
+            "created_at": datetime.now(UTC),
+        }
+        await self.database.insert_one(self.sessions_collection_name, session_doc)
+        await self.database.update_one(
+            self.users_collection_name,
+            {"_id": user["_id"]},
+            {"$set": {"last_login": datetime.now(UTC)}}
+        )
+        return token
+
+    async def set_role(self, user_id: str, role: str) -> bool:
+        """Set a user's role. Used to promote allowlisted SSO users to admin."""
+        if role not in {"user", "admin"}:
+            logger.warning(f"Rejected set_role for invalid role: {role}")
+            return False
+        try:
+            user_id_converted = await self.database.ensure_id_is_object_id(user_id)
+            result = await self.database.update_one(
+                self.users_collection_name,
+                {"_id": user_id_converted},
+                {"$set": {"role": role}}
+            )
+            return bool(result)
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error setting role for {user_id}: {str(e)}")
+            return False
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error setting role for {user_id}: {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error setting role for {user_id}: {str(e)}")
+            return False
+
     def _ensure_utc_datetime(self, dt):
         """
         Ensure a datetime is timezone-aware (UTC)
@@ -367,6 +423,20 @@ class AuthService:
         Returns:
             Tuple of (is_valid, user_info)
         """
+        # External-provider JWTs carry two dots; opaque session tokens (hex)
+        # carry none. Route JWT-shaped tokens to OIDC validation when enabled;
+        # everything else uses the database-backed session path below.
+        if self._oidc_enabled and token.count(".") == 2:
+            ok, claims = await self._oidc.validate(token)
+            if not ok:
+                return False, None
+            user = await self._find_or_create_external_user(
+                claims["provider"], claims["external_id"], claims.get("email")
+            )
+            if not user or not user.get("active", True):
+                return False, None
+            return True, self._user_info(user)
+
         try:
             # Find session
             session = await self.database.find_one(
@@ -420,15 +490,20 @@ class AuthService:
         Returns:
             True if successful, False otherwise
         """
+        # External-provider JWTs are stateless - there is no local session row
+        # to delete. Logout is a no-op success; the client discards the token.
+        if self._oidc_enabled and token.count(".") == 2:
+            return True
+
         try:
             result = await self.database.delete_one(
                 self.sessions_collection_name,
                 {"token": token}
             )
-            
+
             if result:
                 logger.debug("User logged out successfully")
-            
+
             return result
             
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
@@ -469,7 +544,12 @@ class AuthService:
             
             if not user:
                 return False
-            
+
+            # External users have no local password to change
+            if user.get("provider"):
+                logger.warning(f"Password change attempt for external user: {user['username']}")
+                return False
+
             # Verify old password
             if not self._verify_password(old_password, user["password"]):
                 logger.warning(f"Invalid old password for user: {user['username']}")
@@ -567,7 +647,82 @@ class AuthService:
         except Exception as e:
             logger.error(f"Unexpected error creating user {username}: {str(e)}")
             return None
-    
+
+    async def _find_or_create_external_user(
+        self, provider: str, external_id: str, email: Optional[str], role: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Look up a JIT-provisioned external user, creating one on first sight.
+
+        The stored username is ``"{provider}:{external_id}"`` which is unique per
+        subject, so this reuses the existing UNIQUE(username) index. External
+        users get a random unusable password (they authenticate only via their
+        provider). The creation role defaults to the configured provider default;
+        callers (e.g. admin SSO) may pass an explicit role. The role is assigned
+        at creation and never overwritten on subsequent logins here, so ORBIT-side
+        role changes are preserved.
+        """
+        create_role = role or self._oidc_default_role
+        username = f"{provider}:{external_id}"
+        try:
+            user = await self.database.find_one(
+                self.users_collection_name, {"username": username}
+            )
+            if user:
+                # Respect deactivation - do not silently reactivate on re-login.
+                return user
+
+            user_doc = {
+                "username": username,
+                "password": self._hash_and_encode(secrets.token_hex(32)),
+                "role": create_role,
+                "active": True,
+                "provider": provider,
+                "external_id": external_id,
+                "email": email,
+                "created_at": datetime.now(UTC),
+                "last_login": datetime.now(UTC),
+            }
+            try:
+                user_id = await self.database.insert_one(self.users_collection_name, user_doc)
+                user_doc["_id"] = user_id
+                logger.info(f"Provisioned external user: {username} (provider={provider})")
+                return user_doc
+            except DatabaseDuplicateKeyError:
+                # Concurrent first-login created the row; fetch the winner.
+                return await self.database.find_one(
+                    self.users_collection_name, {"username": username}
+                )
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error provisioning external user {username}: {str(e)}")
+            return None
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error provisioning external user {username}: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error provisioning external user {username}: {str(e)}")
+            return None
+
+    async def provision_sso_user(
+        self, provider: str, external_id: str, email: Optional[str], is_admin: bool
+    ) -> Optional[Dict[str, Any]]:
+        """Provision (or fetch) an SSO user and reconcile admin role.
+
+        Called by the admin-panel SSO callback after the id_token is validated
+        and the admin allowlist is checked. Creates the user with the right role
+        on first login, and promotes an existing user to admin when they are on
+        the allowlist. Returns the user document (including ``_id``) or None.
+        """
+        role = "admin" if is_admin else self._oidc_default_role
+        user = await self._find_or_create_external_user(provider, external_id, email, role=role)
+        if not user:
+            return None
+
+        # Promote an existing (previously non-admin) user now on the allowlist.
+        if is_admin and user.get("role") != "admin":
+            if await self.set_role(str(user["_id"]), "admin"):
+                user["role"] = "admin"
+        return user
+
     async def list_users(self, filter_query: Optional[Dict[str, Any]] = None, limit: int = 100, offset: int = 0) -> list:
         """
         List all users with optional filtering and pagination

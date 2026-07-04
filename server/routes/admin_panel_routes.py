@@ -5,8 +5,10 @@ Serves a vanilla HTML/CSS/JS admin panel at /admin,
 with integrated login, logout, and export endpoints.
 """
 
+import base64
 import json
 import logging
+import secrets
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, Form, HTTPException
@@ -14,7 +16,14 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from pathlib import Path
 from urllib.parse import quote
 
-from routes.auth_helpers import get_admin_user, render_login_html
+from routes.auth_helpers import get_admin_user, get_sso_service, render_login_html
+
+# User-facing messages for /admin/login?error=<code>
+_SSO_ERROR_MESSAGES = {
+    "sso_unavailable": "SSO sign-in is not available.",
+    "sso_failed": "SSO sign-in failed. Please try again.",
+    "not_authorized": "Your account is not authorized for admin access.",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -80,14 +89,23 @@ def create_admin_panel_router() -> APIRouter:
 
     # ----- Login -----
 
+    def _sso_providers(request: Request) -> Optional[Dict[str, str]]:
+        """Enabled SSO provider -> label, for rendering login buttons."""
+        sso = get_sso_service(request)
+        return sso.provider_labels() if sso else None
+
     @router.get("/admin/login", response_class=HTMLResponse)
-    async def get_admin_login(request: Request, next: str = "/admin"):
+    async def get_admin_login(request: Request, next: str = "/admin", error: Optional[str] = None):
         """Render the admin login page."""
         next_path = next if next and next.startswith("/") else "/admin"
         user_info = await get_admin_user(request)
         if user_info:
             return RedirectResponse(url=next_path, status_code=303)
-        return HTMLResponse(content=render_login_html(next_path=next_path))
+        return HTMLResponse(content=render_login_html(
+            next_path=next_path,
+            error_message=_SSO_ERROR_MESSAGES.get(error),
+            sso_providers=_sso_providers(request),
+        ))
 
     @router.post("/admin/login")
     async def post_admin_login(
@@ -109,7 +127,8 @@ def create_admin_panel_router() -> APIRouter:
             return HTMLResponse(
                 content=render_login_html(
                     next_path=next if next and next.startswith("/") else "/admin",
-                    error_message="Invalid admin username or password."
+                    error_message="Invalid admin username or password.",
+                    sso_providers=_sso_providers(request),
                 ),
                 status_code=401
             )
@@ -125,6 +144,106 @@ def create_admin_panel_router() -> APIRouter:
             samesite="lax",
             max_age=int(getattr(auth_service, "session_duration_hours", 12) * 3600)
         )
+        return response
+
+    # ----- SSO (external identity providers) -----
+
+    def _login_redirect(error: Optional[str] = None):
+        """Redirect back to the login page, optionally with an error code."""
+        url = "/admin/login" + (f"?error={error}" if error else "")
+        resp = RedirectResponse(url=url, status_code=303)
+        resp.delete_cookie("admin_sso_flow", path="/admin")
+        return resp
+
+    @router.get("/admin/auth/{provider}/login")
+    async def admin_sso_login(request: Request, provider: str, next: str = "/admin"):
+        """Begin an SSO login: redirect to the provider's authorize endpoint."""
+        sso = get_sso_service(request)
+        if not sso or not sso.provider_enabled(provider):
+            return _login_redirect("sso_unavailable")
+
+        next_path = next if next and next.startswith("/") else "/admin"
+        redirect_uri = sso.redirect_uri(provider, str(request.base_url))
+        auth_url, state, code_verifier, nonce = sso.build_authorize_url(provider, redirect_uri)
+
+        flow = json.dumps({
+            "provider": provider, "state": state,
+            "verifier": code_verifier, "nonce": nonce, "next": next_path,
+        })
+        response = RedirectResponse(url=auth_url, status_code=303)
+        response.set_cookie(
+            "admin_sso_flow",
+            base64.urlsafe_b64encode(flow.encode("utf-8")).decode("ascii"),
+            httponly=True,
+            secure=request.url.scheme == "https",
+            samesite="lax",
+            max_age=300,
+            path="/admin",
+        )
+        return response
+
+    @router.get("/admin/auth/{provider}/callback")
+    async def admin_sso_callback(
+        request: Request,
+        provider: str,
+        code: Optional[str] = None,
+        state: Optional[str] = None,
+        error: Optional[str] = None,
+    ):
+        """Complete an SSO login: validate the id_token and mint a session cookie."""
+        sso = get_sso_service(request)
+        if not sso or not sso.provider_enabled(provider):
+            return _login_redirect("sso_unavailable")
+
+        raw = request.cookies.get("admin_sso_flow")
+        if error or not code or not state or not raw:
+            return _login_redirect("sso_failed")
+
+        try:
+            flow = json.loads(base64.urlsafe_b64decode(raw.encode("ascii")).decode("utf-8"))
+        except Exception:
+            return _login_redirect("sso_failed")
+
+        if flow.get("provider") != provider or not secrets.compare_digest(str(flow.get("state", "")), state):
+            return _login_redirect("sso_failed")
+
+        redirect_uri = sso.redirect_uri(provider, str(request.base_url))
+        tokens = await sso.exchange_code(provider, code, flow.get("verifier", ""), redirect_uri)
+        if not tokens or not tokens.get("id_token"):
+            return _login_redirect("sso_failed")
+
+        claims = await sso.validate_id_token(provider, tokens["id_token"], flow.get("nonce", ""))
+        if not claims:
+            return _login_redirect("sso_failed")
+
+        subject = claims["sub"]
+        email = claims.get("email") or claims.get("preferred_username")
+        if not sso.is_admin(email, provider, subject):
+            return _login_redirect("not_authorized")
+
+        auth_service = getattr(request.app.state, "auth_service", None)
+        if not auth_service:
+            raise HTTPException(status_code=503, detail="Authentication service not available")
+
+        user = await auth_service.provision_sso_user(provider, subject, email, is_admin=True)
+        if not user or not user.get("active", True) or user.get("role") != "admin":
+            return _login_redirect("not_authorized")
+
+        token = await auth_service.create_session(user)
+
+        destination = flow.get("next") or "/admin"
+        if not destination.startswith("/"):
+            destination = "/admin"
+        response = RedirectResponse(url=destination, status_code=303)
+        response.set_cookie(
+            "dashboard_token",
+            token,
+            httponly=True,
+            secure=request.url.scheme == "https",
+            samesite="lax",
+            max_age=int(getattr(auth_service, "session_duration_hours", 12) * 3600),
+        )
+        response.delete_cookie("admin_sso_flow", path="/admin")
         return response
 
     # ----- Panel -----

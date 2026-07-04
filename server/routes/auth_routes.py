@@ -65,6 +65,8 @@ class UserResponse(BaseModel):
     active: bool
     created_at: Optional[str] = None
     last_login: Optional[str] = None
+    provider: Optional[str] = None
+    email: Optional[str] = None
 
 
 class UserByUsernameResponse(BaseModel):

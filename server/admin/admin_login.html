@@ -129,6 +129,47 @@
             outline: 2px solid rgba(56, 189, 248, 0.85);
             outline-offset: 3px;
         }
+        .sso-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 22px 0 6px;
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+        .sso-divider::before,
+        .sso-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: rgba(148, 163, 184, 0.22);
+        }
+        .sso-buttons {
+            display: grid;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .sso-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 48px;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            background: rgba(15, 23, 42, 0.72);
+            color: var(--text);
+            font: inherit;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .sso-button:hover {
+            border-color: rgba(56, 189, 248, 0.5);
+            background: rgba(56, 189, 248, 0.08);
+        }
+        .sso-button:focus-visible {
+            outline: 2px solid rgba(56, 189, 248, 0.85);
+            outline-offset: 3px;
+        }
     </style>
 </head>
 <body>
@@ -162,6 +203,7 @@
             </label>
             <button type="submit">Sign In</button>
         </form>
+        {{SSO_BLOCK}}
     </main>
     <script>
         const passwordInput = document.getElementById('password');

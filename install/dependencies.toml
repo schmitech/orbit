@@ -214,6 +214,15 @@ dependencies = [
 ]
 
 # ============================================================================
+# AUTH-PROVIDERS - External identity provider validation (Entra ID, Auth0)
+# ============================================================================
+[profiles.auth-providers]
+description = "External identity provider (OIDC) token validation for Entra ID and Auth0"
+dependencies = [
+    "PyJWT[crypto]>=2.10.0",  # JWT verification + PyJWKClient (JWKS) for Entra/Auth0 access tokens
+]
+
+# ============================================================================
 # CLOUD-SERVICES - Cloud platform services (AWS, Azure, GCP, IBM)
 # ============================================================================
 [profiles.cloud-services]
@@ -258,6 +267,7 @@ extends = [
     "vector-stores",
     "databases",
     "files",
+    "auth-providers",
 ]
 dependencies = []
 

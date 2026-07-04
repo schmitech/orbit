@@ -45,21 +45,29 @@ CREATE TABLE IF NOT EXISTS users (
     role TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
-    last_login TEXT
+    last_login TEXT,
+    provider TEXT,
+    external_id TEXT,
+    email TEXT
 )
 ```
 
 **Fields:**
 - `id` (TEXT, PK): Unique user ID (UUID)
-- `username` (TEXT, UNIQUE): Username for login
-- `password` (TEXT): Hashed password (PBKDF2)
+- `username` (TEXT, UNIQUE): Username for login. For externally-authenticated users this is the synthetic `"{provider}:{external_id}"` key (e.g. `entra:<sub>`, `auth0:<sub>`)
+- `password` (TEXT): Hashed password (PBKDF2). Externally-authenticated users store a random unusable hash — they can only sign in through their identity provider
 - `role` (TEXT): User role (e.g., "admin", "user")
 - `active` (INTEGER): Whether user is active (1=active, 0=inactive)
 - `created_at` (TEXT): ISO format timestamp of account creation
 - `last_login` (TEXT): ISO format timestamp of last login
+- `provider` (TEXT): External identity provider that authenticated the user (`entra` or `auth0`); `NULL` for built-in username/password users
+- `external_id` (TEXT): The provider's immutable subject (`sub`) claim; `NULL` for built-in users
+- `email` (TEXT): Email/`preferred_username` claim captured from the provider (for display/audit); `NULL` for built-in users
 
 **Indexes:**
 - `idx_users_username` on `username`
+
+> **External identity providers.** The `provider`, `external_id`, and `email` columns support just-in-time provisioning of users who authenticate via Microsoft Entra ID or Auth0 (see `docs/authentication.md`). They are nullable and added to pre-existing databases automatically by the additive-column migration on startup (`_migrate_table_schema`). Uniqueness of external users is enforced through the existing `UNIQUE(username)` index using the `provider:external_id` username.
 
 ---
 
@@ -699,6 +707,9 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.2** (2026-07-03): External identity provider support
+  - Added `users.provider`, `users.external_id`, and `users.email` (all nullable) for JIT-provisioned Entra ID / Auth0 users
+  - Applied to existing databases via the additive-column migration on startup
 - **v1.1** (2026-05-26): Audit schema updates
   - `audit_logs.backend` renamed to `audit_logs.provider`
   - Added `audit_logs.model`

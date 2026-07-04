@@ -2,7 +2,9 @@
 
 ## Overview
 
-ORBIT's authentication leverages PBKDF2-SHA256 (600k iterations) for password security and cryptographically secure bearer tokens for session management. The modular architecture integrates MongoDB for persistent session storage, implements role-based access control (RBAC), and provides both programmatic and CLI interfaces for comprehensive user lifecycle management. 
+ORBIT's authentication leverages PBKDF2-SHA256 (600k iterations) for password security and cryptographically secure bearer tokens for session management. The modular architecture integrates MongoDB for persistent session storage, implements role-based access control (RBAC), and provides both programmatic and CLI interfaces for comprehensive user lifecycle management.
+
+In addition to this built-in username/password system, ORBIT can **validate access tokens issued by external identity providers** — Microsoft Entra ID (Azure AD) and Auth0 — presented as bearer tokens. This lets browser clients such as `orbitchat` sign users in via OAuth 2.0 / OIDC and call the ORBIT API with the resulting JWT, while the built-in admin/CLI login continues to work unchanged. See [External Identity Providers](#external-identity-providers-oidc).
 
 ## Architecture
 
@@ -755,6 +757,232 @@ internal_services:
     database_name: "orbit"
 ```
 
+## External Identity Providers (OIDC)
+
+ORBIT can validate access tokens issued by **Microsoft Entra ID** and **Auth0** on top of the built-in username/password system. This is a **validation-only** integration: the client (e.g. `orbitchat`) performs the OAuth 2.0 Authorization Code + PKCE login and sends the resulting access token to ORBIT as `Authorization: Bearer <jwt>`. ORBIT verifies the JWT and maps it to a local user. ORBIT itself never initiates an OAuth flow — there is no CLI browser login.
+
+### How it works
+
+The bearer token presented on every request is inspected by `AuthService.validate_token()`:
+
+- **Opaque session tokens** (issued by `orbit login`, 64 hex characters, no dots) → validated against the database `sessions` table as before.
+- **JWTs** (external-provider access tokens, always contain two dots) → routed to the OIDC validator when `auth.providers.enabled` is true.
+
+For a JWT, ORBIT:
+
+1. Reads the unverified `iss` claim only to select the matching provider (routing).
+2. Fetches the provider's signing key from its JWKS endpoint (cached in memory) and fully verifies the token: **RS256** signature, `iss`, `aud`, and `exp` (60s leeway). `sub` is required.
+3. **Just-in-time provisions** a local user on first login, keyed by subject. The stored username is `"{provider}:{sub}"` (e.g. `entra:00000000-...` or `auth0|abc123`), with the email captured for display. On later logins the existing user is reused.
+4. Returns the same user context (`id`, `username`, `role`, `active`) as a normal login, so RBAC, admin routes, and audit logging all work identically.
+
+Any invalid, expired, mis-issued, or wrong-audience token is rejected (401) — the validator fails closed and never raises.
+
+Notes:
+- **Role assignment**: a JIT-provisioned user receives `auth.providers.default_role` **at creation only**. Roles are managed in ORBIT thereafter (e.g. promote to admin via `orbit user ...`) and are **not** overwritten on subsequent logins.
+- **External users cannot password-login**: they have no usable local password. `orbit login` and `change-password` reject them.
+- **Deactivation is honored**: deactivating a JIT-provisioned user blocks re-login; it is not silently reactivated.
+
+### Installation
+
+The OIDC libraries are not part of the default install. Add the `auth-providers` profile:
+
+```bash
+./install/setup.sh --profile auth-providers   # installs PyJWT[crypto]
+```
+
+If `auth.providers.enabled` is true but the profile is not installed, the server **fails fast at startup** with an install hint.
+
+### Configuration
+
+In `config/config.yaml`, under the `auth:` block:
+
+```yaml
+auth:
+  # ... existing username/password settings ...
+  providers:
+    enabled: false                 # Master switch for external-provider validation
+    default_role: "user"           # Role assigned to users provisioned on first login
+    entra:
+      enabled: false
+      tenant_id: ${ORBIT_AUTH_ENTRA_TENANT_ID:-}
+      client_id: ${ORBIT_AUTH_ENTRA_CLIENT_ID:-}   # Expected token audience
+    auth0:
+      enabled: false
+      domain: ${ORBIT_AUTH_AUTH0_DOMAIN:-}          # e.g. your-tenant.us.auth0.com
+      audience: ${ORBIT_AUTH_AUTH0_AUDIENCE:-}      # API identifier = expected audience
+```
+
+Secrets are supplied via environment variables:
+
+| Variable | Provider | Purpose |
+|----------|----------|---------|
+| `ORBIT_AUTH_ENTRA_TENANT_ID` | Entra | Directory (tenant) ID — used to build issuer and JWKS URLs |
+| `ORBIT_AUTH_ENTRA_CLIENT_ID` | Entra | Application (client) ID — the expected token `aud` |
+| `ORBIT_AUTH_AUTH0_DOMAIN` | Auth0 | Tenant domain, e.g. `your-tenant.us.auth0.com` |
+| `ORBIT_AUTH_AUTH0_AUDIENCE` | Auth0 | API identifier registered in Auth0 — the expected token `aud` |
+
+Derived endpoints (no configuration needed):
+
+| Provider | Issuer (`iss`) | JWKS |
+|----------|----------------|------|
+| Entra | `https://login.microsoftonline.com/{tenant_id}/v2.0` | `https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys` |
+| Auth0 | `https://{domain}/` | `https://{domain}/.well-known/jwks.json` |
+
+Accepted audience: Auth0 → the configured `audience`; Entra → either the bare `client_id` or `api://{client_id}`.
+
+### Provider setup
+
+**Microsoft Entra ID**
+1. Register an application in Entra ID (Azure AD) → copy the **Application (client) ID** and **Directory (tenant) ID**.
+2. Under **Expose an API**, set the Application ID URI (`api://{client_id}`) and add a scope (e.g. `access_as_user`). The client must request this scope so the issued access token's `aud` targets ORBIT.
+3. Set `ORBIT_AUTH_ENTRA_TENANT_ID` / `ORBIT_AUTH_ENTRA_CLIENT_ID` and enable the provider.
+
+**Auth0**
+1. Create an **API** in Auth0 → its **Identifier** is the audience (`ORBIT_AUTH_AUTH0_AUDIENCE`).
+2. Create/register the SPA application the client uses; note the tenant **domain** (`ORBIT_AUTH_AUTH0_DOMAIN`).
+3. The client requests tokens with `audience` set to the API identifier so the access token's `aud` matches ORBIT.
+
+> **Important — Entra audience caveat.** Entra only issues a token whose `aud` equals your app when the client requests a scope for *your* API (`api://{client_id}/...`). If the client only requests Microsoft Graph scopes (e.g. `User.Read`), it receives a **Graph** access token whose audience is Graph — ORBIT cannot and must not validate that token. Ensure the client (e.g. the `orbitchat` MSAL scopes) requests ORBIT's own API scope, not just Graph scopes.
+
+### Admin Panel SSO
+
+The bearer-token validation above is for API clients that already hold a provider token. ORBIT's **own admin panel** (`/admin`) can additionally offer "Sign in with Microsoft / Auth0" using a **server-side OAuth 2.0 Authorization Code + PKCE** flow. On success it mints the same `dashboard_token` session cookie the username/password login uses, so the rest of the admin panel is unchanged.
+
+**Flow**
+
+1. The login page shows a button per enabled provider linking to `GET /admin/auth/{provider}/login`.
+2. That route generates `state`, a PKCE `code_verifier`/`code_challenge`, and a `nonce`, stashes them in a short-lived httponly cookie (`admin_sso_flow`, ~5 min, `SameSite=Lax`), and redirects to the provider's authorize endpoint.
+3. The provider redirects back to `GET /admin/auth/{provider}/callback`. ORBIT verifies `state`, exchanges the `code` at the token endpoint, and validates the returned **id_token** (RS256 via JWKS, `aud == client_id`, `iss`, `exp`, and matching `nonce`).
+4. The user's email/subject is checked against the **admin allowlist**. If authorized, the user is JIT-provisioned (or promoted) as an `admin` and a `dashboard_token` session cookie is set. Otherwise the login page shows an error.
+
+**Configuration**
+
+```yaml
+auth:
+  providers:
+    entra:
+      enabled: true
+      tenant_id: ${ORBIT_AUTH_ENTRA_TENANT_ID}
+      client_id: ${ORBIT_AUTH_ENTRA_CLIENT_ID}
+      client_secret: ${ORBIT_AUTH_ENTRA_CLIENT_SECRET:-}   # optional (confidential client)
+    auth0:
+      enabled: true
+      domain: ${ORBIT_AUTH_AUTH0_DOMAIN}
+      audience: ${ORBIT_AUTH_AUTH0_AUDIENCE}
+      client_id: ${ORBIT_AUTH_AUTH0_CLIENT_ID}             # required for SSO (id_token audience)
+      client_secret: ${ORBIT_AUTH_AUTH0_CLIENT_SECRET:-}   # optional (confidential client)
+    admin_sso:
+      enabled: true
+      base_url: ${ORBIT_ADMIN_BASE_URL:-}   # optional; set when behind a proxy so the redirect URI is correct
+      admin_users:                          # emails and/or "provider:subject" granted admin at login
+        - "alice@example.com"
+        - "entra:00000000-0000-0000-0000-000000000000"
+```
+
+Additional environment variables: `ORBIT_AUTH_AUTH0_CLIENT_ID`, `ORBIT_AUTH_ENTRA_CLIENT_SECRET`, `ORBIT_AUTH_AUTH0_CLIENT_SECRET`, `ORBIT_ADMIN_BASE_URL`.
+
+- **`client_secret` is optional.** With PKCE alone the flow works as a public client (you can reuse an SPA app registration). Supplying a secret upgrades the code exchange to a confidential client.
+- **Admin access is granted only by `admin_users`.** A matching user is created/promoted to `admin` at login; a non-matching authenticated user is rejected. There's no need for a bootstrap password admin.
+
+**Redirect URI to register** with each provider (must match exactly):
+
+```
+{base_url or auto-detected origin}/admin/auth/entra/callback
+{base_url or auto-detected origin}/admin/auth/auth0/callback
+```
+
+For Auth0, add these to the application's **Allowed Callback URLs**; for Entra, add them as **Web** redirect URIs on the app registration. Set `base_url` when ORBIT sits behind a reverse proxy/TLS terminator so the callback URL matches what was registered.
+
+**Security notes**
+
+- `state` (CSRF), PKCE `code_challenge` (S256), and `nonce` (replay) are all enforced; the flow secrets live only in a short-lived httponly cookie.
+- The id_token is validated against `client_id` as audience (distinct from the API-audience used for bearer access tokens), plus issuer, expiry, and nonce; validation fails closed.
+- Buttons are plain links — no client-side JS SDK is loaded, so the admin panel's Content-Security-Policy is unaffected.
+
+### Consistency with the orbitchat client
+
+Provider names (`entra`, `auth0`) and the token model match the `orbitchat` client, which already implements these logins (MSAL for Entra, `@auth0/auth0-react` for Auth0) and sends the access token as a bearer token. The server maps identity from the validated JWT `sub` claim (the same immutable subject the client uses), so server and client agree on user identity.
+
+### Adding a new provider
+
+Any OpenID Connect provider (Okta, Keycloak, Google, Ping, etc.) can be added with a small, well-contained change. Because both the bearer path and admin SSO are driven by config-selected provider metadata, the work is mostly "teach ORBIT this provider's endpoint URLs." The example below adds a provider named `okta`.
+
+The core assumption to preserve: tokens are **RS256-signed OIDC JWTs** validated against the provider's **JWKS** by `issuer`/`audience`/`exp`/`sub`. Providers that don't fit that model (opaque tokens, non-OIDC OAuth) need more than these steps.
+
+#### 1. Add the endpoint derivation
+
+Both services build their provider metadata from a single helper per provider in `server/services/oidc_validator.py`. Add one for the new provider next to `entra_endpoints()` / `auth0_endpoints()`:
+
+```python
+def okta_endpoints(domain: str) -> Dict[str, str]:
+    domain = domain.rstrip('/')
+    return {
+        "issuer": f"https://{domain}",                       # some Okta orgs use /oauth2/default
+        "jwks_uri": f"https://{domain}/oauth2/v1/keys",
+        "authorize_url": f"https://{domain}/oauth2/v1/authorize",
+        "token_url": f"https://{domain}/oauth2/v1/token",
+    }
+```
+
+> Prefer fetching these from the provider's discovery document (`/.well-known/openid-configuration`) if you don't want to hardcode paths. Keep the four keys (`issuer`, `jwks_uri`, `authorize_url`, `token_url`) — that's the shape both services consume.
+
+#### 2. Register it for bearer validation
+
+In `OIDCValidator.__init__` (`server/services/oidc_validator.py`), add a block mirroring the `entra`/`auth0` ones, and a `_build_okta()` that returns `{issuer, audiences, jwks_client}`:
+
+```python
+okta = providers_config.get('okta', {})
+if okta.get('enabled'):
+    self._providers['okta'] = self._build_okta(okta)
+```
+
+`validate()` needs no change: it already routes by matching the token's `iss` to a registered provider's `issuer`, verifies RS256 against that provider's JWKS, and normalizes claims to `{provider, external_id=sub, email}`. Provisioning, the `provider:sub` username scheme, and the `validate_token` shape-branch are all provider-agnostic.
+
+#### 3. (Optional) Register it for admin panel SSO
+
+In `AdminSSOService.__init__` (`server/services/admin_sso_service.py`), add the same enable-check calling `self._build(okta_cfg, okta_endpoints(...), label="Okta")`. `build_authorize_url` / `exchange_code` / `validate_id_token` / `is_admin` are generic and need no change. The login route `/admin/auth/{provider}/login` accepts any provider name the service knows, and the login page renders a button for each via `provider_labels()`.
+
+#### 4. Add config keys
+
+Extend `auth.providers` in `config/config.yaml`:
+
+```yaml
+auth:
+  providers:
+    okta:
+      enabled: false
+      domain: ${ORBIT_AUTH_OKTA_DOMAIN:-}          # e.g. dev-12345.okta.com
+      audience: ${ORBIT_AUTH_OKTA_AUDIENCE:-}      # bearer-path access-token audience
+      client_id: ${ORBIT_AUTH_OKTA_CLIENT_ID:-}    # admin-SSO id_token audience
+      client_secret: ${ORBIT_AUTH_OKTA_CLIENT_SECRET:-}  # optional (confidential SSO client)
+```
+
+Use the `${VAR:-}` optional form so a disabled provider produces no startup warnings, and document the new env vars in `env.example`.
+
+#### 5. Test it
+
+Mirror `server/tests/test_auth/test_external_auth.py` and `test_admin_sso.py`: sign tokens with a local RSA keypair and monkeypatch the provider's `PyJWKClient.get_signing_key_from_jwt` to return the test public key — no network. Cover a valid token (provisions `okta:<sub>`), wrong audience, bad signature, expired, and missing `sub`.
+
+#### Checklist
+
+| Step | File | Required for |
+|------|------|--------------|
+| `*_endpoints()` helper | `server/services/oidc_validator.py` | both |
+| `__init__` enable-block + `_build_*` | `server/services/oidc_validator.py` | bearer validation |
+| `__init__` enable-block | `server/services/admin_sso_service.py` | admin SSO (optional) |
+| `auth.providers.<name>` block | `config/config.yaml` | both |
+| env vars | `env.example` | both |
+| tests | `server/tests/test_auth/` | both |
+
+What you do **not** touch: `AuthService.validate_token` (routes by `iss`), the `provider:sub` provisioning, `auth_dependencies.py`, any route, or the login-page template — they're all provider-agnostic by design.
+
+### Security notes
+
+- Signatures are verified with **RS256 only** (no algorithm downgrade, no `none`).
+- `exp`, `iss`, `aud`, and `sub` are all required; tokens missing any are rejected.
+- Signing keys are fetched from JWKS over TLS and cached; the blocking fetch runs off the event loop.
+- Identity is taken **only** from the verified JWT — the `X-User-ID` header is used for chat-history attribution, never for authorization.
+
 ## Implementation Details
 
 ### Service Layer (AuthService)
@@ -764,12 +992,14 @@ Located in `server/services/auth_service.py`
 #### Key Methods:
 
 - `authenticate_user()`: Validate credentials and create session
-- `validate_token()`: Check token validity and return user info
+- `validate_token()`: Check token validity and return user info (routes JWTs to OIDC validation — see [External Identity Providers](#external-identity-providers-oidc))
 - `change_password()`: Update password with verification
 - `reset_user_password()`: Admin password reset without verification
 - `create_user()`: Create new user account
 - `delete_user()`: Remove user and all sessions
 - `list_users()`: Get all user accounts
+
+External-provider (OIDC) token verification lives in `server/services/oidc_validator.py` (`OIDCValidator`), built by `AuthService` during `initialize()` when `auth.providers.enabled` is set.
 
 #### Security Features:
 

@@ -136,7 +136,10 @@ class SQLiteService(DatabaseService):
                     role TEXT NOT NULL,
                     active INTEGER NOT NULL DEFAULT 1,
                     created_at TEXT NOT NULL,
-                    last_login TEXT
+                    last_login TEXT,
+                    provider TEXT,
+                    external_id TEXT,
+                    email TEXT
                 )
             ''',
             'sessions': '''
