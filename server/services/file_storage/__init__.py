@@ -17,6 +17,8 @@ from .s3_storage import S3Storage
 from .azure_blob_storage import AzureBlobStorage
 from .gcs_storage import GcsStorage
 from .factory import create_storage_backend
+from .encryption import FileEncryptor, FileEncryptionError
+from .encrypted_storage import EncryptedFileStorageBackend
 
 __all__ = [
     'FileStorageBackend',
@@ -25,4 +27,7 @@ __all__ = [
     'AzureBlobStorage',
     'GcsStorage',
     'create_storage_backend',
+    'FileEncryptor',
+    'FileEncryptionError',
+    'EncryptedFileStorageBackend',
 ]

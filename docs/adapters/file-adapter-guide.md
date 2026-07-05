@@ -551,6 +551,48 @@ export GOOGLE_CLOUD_PROJECT=my-gcp-project
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # or rely on Workload Identity / gcloud
 ```
 
+### Encryption at rest
+
+For sensitive or classified content, file bytes and the storage backend's
+metadata sidecar can be encrypted at rest with AES-256-GCM, independent of
+which storage backend (filesystem/S3/Azure/GCS) is selected. This is opt-in
+per adapter, not global — only adapters that need it pay the cost.
+
+1. Generate a 32-byte key and set it as an env var:
+   ```bash
+   python -c "import secrets, base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
+   export ORBIT_FILE_ENCRYPTION_KEY=<generated-key>
+   ```
+2. Enable encryption globally in `config/config.yaml`:
+   ```yaml
+   files:
+     encryption:
+       enabled: true
+   ```
+3. Mark the adapters that require encrypted storage in `config/adapters.yaml`:
+   ```yaml
+   capabilities:
+     requires_encryption: true
+   ```
+
+Uploads through a `requires_encryption: true` adapter are encrypted before
+they reach the storage backend; other adapters are unaffected and continue to
+store plaintext. Reads (`GET /api/files/{id}/content`, reprocessing) decrypt
+transparently based on how the file was originally stored, so changing an
+adapter's `requires_encryption` setting later does not break reads of
+previously-uploaded files.
+
+If `capabilities.requires_encryption: true` is set but `files.encryption.enabled`
+is `false` (or the key is missing/invalid), uploads through that adapter fail
+loudly rather than silently falling back to plaintext.
+
+> **Scope:** this encrypts file bytes and the storage-backend metadata sidecar
+> only. Extracted content (OCR/vision descriptions, audio transcriptions) that
+> lands in the database's `uploaded_files.metadata_json` field, and chunk text
+> indexed into the vector store, are **not** encrypted by this feature. Do not
+> rely on it alone for content where the extracted/indexed text itself is
+> classified.
+
 ## Metadata Store
 
 File metadata is stored in the main backend database (SQLite `orbit.db` or MongoDB, configured via `internal_services.backend` in `config.yaml`):
@@ -662,9 +704,18 @@ files:
 - ✅ All formats supported (PPTX, XLSX, VTT via python-pptx, openpyxl, webvtt-py)
 - ⚠️ Docling provides more advanced features (OCR, layout understanding) for complex documents
 
+### Encryption at Rest
+
+For sensitive/classified content, see [Storage Backends → Encryption at rest](#encryption-at-rest)
+above — per-adapter opt-in encryption (AES-256-GCM) of file bytes and the
+storage metadata sidecar.
+
 ## Future Enhancements
 
 - [x] Cloud storage backends (AWS S3, MinIO, Azure Blob, Google Cloud Storage)
+- [x] Per-adapter file encryption at rest (file bytes + metadata sidecar)
+- [ ] Encrypt extracted content (`uploaded_files.metadata_json`) and vector-store chunk text
+- [ ] Cloud KMS / envelope encryption and key rotation
 - [ ] Advanced chunking (structure-aware, table-aware)
 - [ ] Multi-document analysis
 - [ ] Streaming processing for large files

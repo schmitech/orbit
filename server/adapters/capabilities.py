@@ -44,6 +44,7 @@ class AdapterCapabilities:
     supports_file_ids: bool = False  # Can filter by file_ids
     supports_session_tracking: bool = False  # Needs session_id
     requires_api_key_validation: bool = False  # Needs api_key for ownership validation
+    requires_encryption: bool = False  # Files must be encrypted at rest (files.encryption.enabled must be true)
     supports_threading: bool = False  # Supports conversation threading on retrieved datasets
     supports_language_filtering: bool = False  # Can filter/boost by detected language
     supports_autocomplete: bool = False  # Provides autocomplete suggestions from nl_examples
@@ -114,6 +115,7 @@ class AdapterCapabilities:
             supports_file_ids=capabilities_config.get('supports_file_ids', False),
             supports_session_tracking=capabilities_config.get('supports_session_tracking', False),
             requires_api_key_validation=capabilities_config.get('requires_api_key_validation', False),
+            requires_encryption=capabilities_config.get('requires_encryption', False),
             supports_threading=capabilities_config.get('supports_threading', False),
             supports_language_filtering=capabilities_config.get('supports_language_filtering', False),
             supports_autocomplete=capabilities_config.get('supports_autocomplete', False),

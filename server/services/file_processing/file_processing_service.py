@@ -21,7 +21,9 @@ from services.file_processing.magika_detector import (
     canonicalize_label,
     canonicalize_mime_type,
 )
-from services.file_storage import FileStorageBackend, create_storage_backend
+from services.file_storage import (
+    FileStorageBackend, create_storage_backend, FileEncryptor, EncryptedFileStorageBackend,
+)
 from services.file_metadata.metadata_store import FileMetadataStore
 
 logger = logging.getLogger(__name__)
@@ -80,6 +82,7 @@ class FileProcessingService:
 
         # Initialize components
         self.storage = self._init_storage()
+        self.encrypted_storage = self._init_encrypted_storage(files_config)
         self.metadata_store = FileMetadataStore(config=config)
         self.processor_registry = FileProcessorRegistry(config=config)
         self.chunker = self._init_chunker()
@@ -218,6 +221,21 @@ class FileProcessingService:
     def _init_storage(self) -> FileStorageBackend:
         """Initialize storage backend (filesystem, s3/minio, or azure)."""
         return create_storage_backend(self.config)
+
+    def _init_encrypted_storage(self, files_config: Dict[str, Any]) -> Optional[EncryptedFileStorageBackend]:
+        """
+        Initialize the encrypted storage wrapper if files.encryption.enabled is true.
+
+        Wraps self.storage (same backend/bucket/root) so encrypted and plaintext
+        uploads share the same underlying location. Fails loudly if enabled but
+        the key is missing/invalid, matching the fail-fast convention used for
+        cloud bucket/container verification.
+        """
+        encryption_config = files_config.get('encryption', {})
+        if not encryption_config.get('enabled', False):
+            return None
+        encryptor = FileEncryptor.from_env()
+        return EncryptedFileStorageBackend(self.storage, encryptor)
     
     def _init_chunker(self):
         """Initialize chunking strategy."""
@@ -531,6 +549,87 @@ class FileProcessingService:
         logger.debug(f"Using default STT provider '{self.default_audio_provider}' for api_key: {api_key[:8]}...")
         return self.default_audio_provider
 
+    async def _requires_encryption_for_api_key(self, api_key: str) -> bool:
+        """
+        Check whether the adapter associated with this API key requires
+        encrypted file storage (capabilities.requires_encryption).
+
+        Args:
+            api_key: The API key to lookup
+
+        Returns:
+            True if the adapter declares requires_encryption; False when there
+            is nothing to resolve (no app_state/adapter_manager/api_key_service,
+            or the API key has no associated adapter).
+
+        Note:
+            Deliberately does NOT catch exceptions from the lookup calls
+            themselves (get_adapter_for_api_key / get_adapter_config). Unlike
+            the vision/STT provider lookups this mirrors, defaulting to False
+            on a transient failure here would silently store a classified
+            adapter's upload in plaintext. A genuine lookup failure must fail
+            the upload, not fail open.
+        """
+        if not (self.app_state and hasattr(self.app_state, 'adapter_manager')):
+            return False
+        adapter_manager = self.app_state.adapter_manager
+
+        if not hasattr(self.app_state, 'api_key_service'):
+            return False
+        api_key_service = self.app_state.api_key_service
+
+        adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
+        if not adapter_name:
+            return False
+
+        adapter_config = adapter_manager.get_adapter_config(adapter_name)
+        if not adapter_config:
+            return False
+
+        from adapters.capabilities import AdapterCapabilities
+        capabilities = AdapterCapabilities.from_config(adapter_config)
+        return capabilities.requires_encryption
+
+    def _select_storage_for_upload(self, requires_encryption: bool) -> FileStorageBackend:
+        """
+        Pick the storage backend to use for a new upload based on whether the
+        adapter requires encryption. Fails loudly if encryption is required but
+        files.encryption.enabled is false — a classified upload must never
+        silently fall back to plaintext storage.
+        """
+        if not requires_encryption:
+            return self.storage
+        if self.encrypted_storage is None:
+            raise ValueError(
+                "This adapter requires encrypted file storage (capabilities.requires_encryption) "
+                "but files.encryption.enabled is false. Set files.encryption.enabled: true and "
+                "ORBIT_FILE_ENCRYPTION_KEY before uploading through this adapter."
+            )
+        return self.encrypted_storage
+
+    def _select_storage_for_read(self, file_info: Dict[str, Any]) -> FileStorageBackend:
+        """
+        Pick the storage backend to use for reading back a previously-stored
+        file, based on the persisted 'encrypted' flag recorded at upload time
+        (not the adapter's current capability, so reads stay correct even if
+        the adapter's config changes later).
+
+        Raises:
+            ValueError: If the file was stored encrypted but files.encryption
+                is no longer enabled/configured. Must fail loudly rather than
+                silently returning raw ciphertext through the plaintext path.
+        """
+        was_encrypted = bool((file_info.get('metadata') or {}).get('encrypted', False))
+        if not was_encrypted:
+            return self.storage
+        if self.encrypted_storage is None:
+            raise ValueError(
+                "This file was stored with encryption enabled, but files.encryption "
+                "is not currently configured (enabled: false or missing "
+                "ORBIT_FILE_ENCRYPTION_KEY). Cannot decrypt this file's contents."
+            )
+        return self.encrypted_storage
+
     async def quick_upload(
         self,
         file_data: bytes,
@@ -560,15 +659,18 @@ class FileProcessingService:
         
         # Store file
         storage_key = f"{api_key}/{file_id}/{filename}"
+        requires_encryption = await self._requires_encryption_for_api_key(api_key)
         metadata = {
             'filename': filename,
             'mime_type': mime_type,
             'file_size': len(file_data),
             'upload_time': datetime.now(UTC).isoformat(),
+            'encrypted': requires_encryption,
         }
-        
-        await self.storage.put_file(file_data, storage_key, metadata)
-        
+
+        storage = self._select_storage_for_upload(requires_encryption)
+        await storage.put_file(file_data, storage_key, metadata)
+
         # Record in metadata store with status 'processing'
         await self.metadata_store.record_file_upload(
             file_id=file_id,
@@ -580,7 +682,7 @@ class FileProcessingService:
             storage_type='vector',
             metadata=metadata,
         )
-        
+
         # Set status to processing
         await self.metadata_store.update_processing_status(file_id, 'processing')
         
@@ -806,15 +908,18 @@ class FileProcessingService:
             
             # 2. Store file
             storage_key = f"{api_key}/{file_id}/{filename}"
+            requires_encryption = await self._requires_encryption_for_api_key(api_key)
             metadata = {
                 'filename': filename,
                 'mime_type': mime_type,
                 'file_size': len(file_data),
                 'upload_time': datetime.now(UTC).isoformat(),
+                'encrypted': requires_encryption,
             }
-            
-            await self.storage.put_file(file_data, storage_key, metadata)
-            
+
+            storage = self._select_storage_for_upload(requires_encryption)
+            await storage.put_file(file_data, storage_key, metadata)
+
             # 3. Record in metadata store
             await self.metadata_store.record_file_upload(
                 file_id=file_id,
@@ -1240,7 +1345,8 @@ class FileProcessingService:
             raise PermissionError("Access denied")
         
         storage_key = file_info['storage_key']
-        return await self.storage.get_file(storage_key)
+        storage = self._select_storage_for_read(file_info)
+        return await storage.get_file(storage_key)
     
     async def delete_file(self, file_id: str, api_key: str) -> bool:
         """Delete file and all associated chunks from vector store, storage, and metadata store."""
@@ -1341,7 +1447,8 @@ class FileProcessingService:
         logger.info(f"Re-processing file {file_id} ({filename}, {mime_type})")
 
         # Reload the original bytes from storage
-        file_data = await self.storage.get_file(storage_key)
+        storage = self._select_storage_for_read(file_info)
+        file_data = await storage.get_file(storage_key)
 
         # Remove previously-extracted chunks so re-processing does not duplicate them
         await self._delete_file_chunks(file_id, api_key)

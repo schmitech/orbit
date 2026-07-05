@@ -27,6 +27,7 @@ adapters:
       supports_file_ids: true            # Accepts file_ids parameter to filter by specific files
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: true  # Validates file ownership via API key
+      requires_encryption: false         # Set true to require encrypted file storage (files.encryption.enabled must be true)
       optional_parameters:
         - "file_ids"
         - "api_key"

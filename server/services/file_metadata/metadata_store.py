@@ -434,11 +434,16 @@ class FileMetadataStore:
 
     async def update_file_metadata(self, file_id: str, metadata: Dict[str, Any]) -> bool:
         """
-        Update file metadata JSON field.
+        Merge fields into the file's metadata JSON field.
+
+        Merges `metadata` into whatever is already stored (new keys win on
+        conflict) rather than replacing the field outright, so partial updates
+        (e.g. recording a processing error) don't clobber fields recorded at
+        upload time such as `encrypted`.
 
         Args:
             file_id: File identifier
-            metadata: Metadata dictionary to store
+            metadata: Metadata fields to merge in
 
         Returns:
             True if successful
@@ -446,10 +451,20 @@ class FileMetadataStore:
         await self._ensure_initialized()
 
         try:
+            existing = await self._db_service.find_one('uploaded_files', {'_id': file_id})
+            existing_metadata = {}
+            if existing and existing.get('metadata_json'):
+                try:
+                    existing_metadata = json.loads(existing['metadata_json'])
+                except (json.JSONDecodeError, TypeError):
+                    existing_metadata = {}
+
+            merged_metadata = {**existing_metadata, **metadata}
+
             result = await self._db_service.update_one(
                 'uploaded_files',
                 {'_id': file_id},
-                {'$set': {'metadata_json': json.dumps(metadata)}}
+                {'$set': {'metadata_json': json.dumps(merged_metadata)}}
             )
             return result
         except Exception as e:

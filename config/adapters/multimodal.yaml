@@ -15,7 +15,7 @@ adapters:
     embedding_provider: "openai"
     embedding_model: "text-embedding-3-small"
     vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
-    stt_provider: "xai"               # STT provider for audio transcription (see stt.yaml) - local, free!
+    stt_provider: "openai"               # STT provider for audio transcription (see stt.yaml) - local, free!
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
     allowed_models:
@@ -70,6 +70,7 @@ adapters:
       supports_file_ids: true            # Accepts file_ids parameter for filtering
       supports_session_tracking: true    # Uses session_id for tracking
       requires_api_key_validation: true  # Validates file ownership via API key
+      requires_encryption: false         # Set true to require encrypted file storage (files.encryption.enabled must be true)
       skip_when_no_files: true           # Skip retrieval when file_ids is empty
       optional_parameters:
         - "file_ids"
@@ -130,6 +131,7 @@ adapters:
       supports_file_ids: true
       supports_session_tracking: true
       requires_api_key_validation: true
+      requires_encryption: false         # Set true to require encrypted file storage (files.encryption.enabled must be true)
       skip_when_no_files: true
       optional_parameters:
         - "file_ids"
@@ -202,6 +204,7 @@ adapters:
       supports_file_ids: true            # Accepts audio file uploads
       supports_session_tracking: true
       requires_api_key_validation: true  # Validates file ownership
+      requires_encryption: false         # Set true to require encrypted file storage (files.encryption.enabled must be true)
       skip_when_no_files: true           # Skip retrieval when no files
       optional_parameters:
         - "file_ids"
@@ -285,6 +288,7 @@ adapters:
       supports_file_ids: true
       supports_session_tracking: true
       requires_api_key_validation: true
+      requires_encryption: false         # Set true to require encrypted file storage (files.encryption.enabled must be true)
       skip_when_no_files: true
       optional_parameters:
         - "file_ids"
