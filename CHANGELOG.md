@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.8.3] - 2026-07-05
+
+### Core System Updates
+- **File Storage**: Added pluggable cloud storage backends for file uploads and generated media, with filesystem, S3, MinIO, Azure, and GCS support selected through `files.storage_backend`.
+- **File Encryption**: Added AES-256-GCM encryption at rest for file bytes and metadata sidecars, then extended it to vector-store chunk text and extracted content.
+
+### Documentation & Configuration
+- **File Guides**: Added an AWS S3 file storage setup guide and updated comparison guides with file-management and encryption details.
+
 ## [2.8.2] - 2026-07-04
 
 ### Core System Updates

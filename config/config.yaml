@@ -514,6 +514,17 @@ files:
     #   GOOGLE_APPLICATION_CREDENTIALS env, gcloud user creds, or Workload Identity on GCP.
     # credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS:-}"  # service-account JSON key file
 
+  # File encryption at rest (AES-256-GCM) — for sensitive/classified content.
+  # Opt-in per adapter via capabilities.requires_encryption: true (see adapters.yaml).
+  # Encrypts file bytes and the storage backend's metadata sidecar only — not
+  # extracted text stored in the database or chunk text indexed in the vector store.
+  encryption:
+    enabled: false
+    # Generate a key with:
+    #   python -c "import secrets, base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
+    # Reference the env var only — never inline the key here.
+    # Key is read from ORBIT_FILE_ENCRYPTION_KEY (see env.example).
+
   # Default processing settings (can be overridden per adapter)
   default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive"
   # Recommended: "recursive" - works best for all file types (PDF, DOCX, CSV, TXT, HTML, JSON, images, audio)
