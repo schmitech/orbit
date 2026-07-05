@@ -33,6 +33,7 @@ Where LiteLLM normalizes *how you call models*, ORBIT focuses on *what data mode
 | **Semantic Caching** | Embedding-based semantic cache with configurable similarity threshold | Not applicable — ORBIT caches data results, not LLM responses |
 | **Cost Tracking** | Built-in per-provider cost tracking with team/user budgets and a spend dashboard | Not built-in — use an observability tool or audit log post-processing |
 | **Web Search** | Routes to providers with native search (Perplexity, Gemini with grounding, etc.) | Two modes: provider-native grounding and decoupled external search (DuckDuckGo, Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity) feeding any LLM |
+| **File Storage & Encryption** | No general file-upload storage abstraction — `/rag/ingest` selects a RAG *backend* (S3, OpenSearch Serverless, Bedrock Knowledge Base); S3 objects can use AWS KMS encryption (`s3_encryption_key_id`), cloud/S3-specific | Pluggable storage backends (local, S3, MinIO/SeaweedFS, Azure Blob, GCS) with native, backend-agnostic AES-256-GCM file encryption, opt-in per adapter — no KMS dependency required |
 | **Deployment** | Python SDK or containerized proxy; Terraform modules for AWS/GCP; Helm charts | Python server; Docker Compose; shell wrapper (`bin/orbit.sh`) |
 | **Python SDK** | Yes — `litellm.completion()` usable directly in code without a proxy | No standalone SDK — interaction is via the OpenAI-compatible HTTP API |
 
@@ -95,6 +96,7 @@ ORBIT operates on both sides: it is an **MCP client** (connecting to external MC
 - **Voice pipelines**: Per-adapter STT/TTS, fully local pipelines (Whisper + Coqui), and WebSocket real-time audio streaming go well beyond LiteLLM's passthrough to audio provider endpoints.
 - **MCP server exposure**: ORBIT can serve as an MCP tool server for other agents and clients, not just consume MCP tools.
 - **Air-gapped deployments**: Built-in audit logging, local voice pipelines, and no mandatory external service dependencies make ORBIT suitable for environments where data cannot leave the deployment boundary.
+- **File storage & encryption**: LiteLLM has no general uploaded-file storage abstraction — its `/rag/ingest` endpoint selects a RAG backend (S3, OpenSearch Serverless, Bedrock Knowledge Base) rather than managing user file uploads, and encryption there is AWS KMS on S3 objects specifically. ORBIT treats file storage as a first-class, pluggable layer (local/S3/MinIO/Azure/GCS) with its own backend-agnostic AES-256-GCM encryption, opt-in per adapter, requiring no cloud KMS.
 
 ---
 

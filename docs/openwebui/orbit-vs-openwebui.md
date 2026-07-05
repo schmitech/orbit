@@ -27,6 +27,8 @@ This document compares **ORBIT** (Open Retrieval-Based Inference Toolkit) and **
 | **Retrieval Caching** | Retrieval re-executed per prompt | **Conversation Threading**: cached dataset reuse across follow-ups (Redis/SQLite + TTL) |
 | **Traffic Control** | Rate limiting and connection pooling; no per-user token quotas | Per-key token quotas, sliding window rate limits, datasource connection pooling |
 | **Voice & Audio** | STT/TTS via configured providers; no real-time WebSocket streaming | STT + TTS per adapter; WebSocket real-time streaming; OpenAI Realtime API; fully local pipelines (Whisper + Coqui/vLLM, no API cost) |
+| **File Storage Backends** | Pluggable via `STORAGE_PROVIDER`: local (default), S3 (+ S3-compatible), GCS, Azure Blob | Pluggable via `files.storage_backend`: local (default), S3, MinIO/SeaweedFS (S3-compatible), Azure Blob, GCS — comparable backend coverage |
+| **File Encryption at Rest** | Not available — application-level file encryption is an open feature request ([#16112](https://github.com/open-webui/open-webui/issues/16112), [#17437](https://github.com/open-webui/open-webui/issues/17437)); only DB-level SQLCipher is supported today | Native AES-256-GCM, opt-in per adapter — covers uploaded file bytes, storage metadata, and indexed vector-store chunk content, on any storage backend |
 | **Extensibility** | Plugin system for pipelines; core architecture changes require forking | New adapters and data connectors added via YAML and a clear design pattern — no core changes needed |
 | **Plugin/Middleware System** | Pluggable embedding, reranking, retrieval, and pipeline filters | Decoupled providers for Inference, Embeddings, Reranking, STT, TTS, Search |
 
@@ -132,6 +134,12 @@ In practice this means:
 *   **Swappable at every layer**: Inference, embeddings, reranking, STT, TTS, vector stores, and search backends are all independently replaceable. As better models emerge or your infrastructure changes, you update a provider setting rather than rewriting application logic.
 
 This makes ORBIT a durable platform investment: the architecture adapts to changing models, data sources, and business requirements without accumulating technical debt.
+
+### 11. Native File Encryption at Rest
+
+Both projects support the same set of pluggable file storage backends — local disk, AWS S3 (or S3-compatible stores), Google Cloud Storage, and Azure Blob — so storage flexibility is comparable. Where they diverge is encryption: Open WebUI has no application-level encryption for uploaded files today (it's tracked as an open feature request; only database-level SQLCipher is supported), so files sit in plaintext on whichever backend is configured.
+
+ORBIT ships native AES-256-GCM file encryption, opt-in per adapter via `capabilities.requires_encryption` — no cloud KMS dependency, no separate infrastructure. It covers not just the raw uploaded bytes but the storage backend's metadata sidecar and the text/metadata indexed into the vector store for RAG, so retrieval still works (embeddings are computed from plaintext before encryption) while the data at rest — on any backend — stays encrypted. See the [File Encryption guide](../adapters/file-adapter-guide.md#encryption-at-rest).
 
 ---
 

@@ -724,7 +724,7 @@ extracted content.
 - [x] Cloud storage backends (AWS S3, MinIO, Azure Blob, Google Cloud Storage)
 - [x] Per-adapter file encryption at rest (file bytes + metadata sidecar)
 - [x] Encrypt vector-store chunk text and chunk-level extracted content
-- [ ] Cloud KMS / envelope encryption and key rotation
+- [ ] Cloud KMS / envelope encryption and key rotation — see [File Encryption Roadmap](file-encryption-roadmap.md)
 - [ ] Advanced chunking (structure-aware, table-aware)
 - [ ] Multi-document analysis
 - [ ] Streaming processing for large files
