@@ -49,6 +49,22 @@ ORBIT is a single API gateway that puts production controls in front of any AI m
 
 ---
 
+## 🏗️ Architecture
+
+<table align="center">
+  <tr>
+    <td align="center" width="600">
+      <a href="https://github.com/schmitech/orbit">
+        <img src="https://github.com/user-attachments/assets/773e5837-6bbb-460d-b980-906974d2980f" alt="ORBIT Logo" width="600"/>
+      </a>
+      <br />
+      <em>Every request flows through the ORBIT gateway, gets authenticated and routed by an adapter, and lands on the right provider — REST, OpenAI-compatible, MCP, or A2A in; inference, RAG, structured data, tools, or generation out.</em>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## 🚀 Quick Start
 
 > [!WARNING]
@@ -227,33 +243,6 @@ teams across industries are trying to solve with AI — with a short demo as pro
   <br /><em>Sub-conversation threading and document caching for faster retrieval.</em>
 </p>
 </details>
-
----
-
-## 🏗️ Architecture
-
-```text
-Client / Chat UI  |  OpenAI SDK  |  MCP agent  |  A2A peer agent
-                           |
-                           v
-              ORBIT API  (REST · OpenAI-compat · MCP · A2A)
-                           |
-      +--> API keys, auth, quotas, rate limits, metrics, audit logs
-      |
-      +--> Adapter router
-             +--> Passthrough chat
-             +--> File and vector RAG
-             +--> SQL / NoSQL / DuckDB / Athena
-             +--> REST / GraphQL / Elasticsearch
-             +--> MCP tool agents
-             +--> Web search
-             +--> Image / video / document generation
-      |
-      v
-Inference, embedding, reranking, vision, STT, TTS, and moderation providers
-```
-
-The core idea: an **adapter** maps an API key or route to a model, prompt, retriever, datasource, provider override, and capabilities. That makes ORBIT practical for many specialized assistants without a new backend for each.
 
 ---
 
