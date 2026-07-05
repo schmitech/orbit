@@ -6,8 +6,10 @@ and end-to-end opt-in behavior through FileProcessingService via the
 per-adapter `requires_encryption` capability.
 """
 
+import json
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -21,6 +23,8 @@ from services.file_storage.encryption import FileEncryptor, FileEncryptionError
 from services.file_storage.encrypted_storage import EncryptedFileStorageBackend
 from services.file_storage.filesystem_storage import FilesystemStorage
 from services.file_processing.file_processing_service import FileProcessingService
+from services.file_processing.chunking import Chunk
+from retrievers.implementations.file.file_retriever import FileVectorRetriever
 
 TEST_KEY_B64 = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="  # 32 raw bytes, base64-encoded
 OTHER_KEY_B64 = "ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA="  # different 32-byte key
@@ -421,3 +425,173 @@ async def test_read_fails_loudly_when_encrypted_file_has_no_decryptor(tmp_path, 
         service.metadata_store.close()
         from services.file_metadata.metadata_store import FileMetadataStore
         FileMetadataStore.reset_instance()
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: vector-store chunk text + chunk metadata encryption
+# ---------------------------------------------------------------------------
+
+def test_encrypt_chunk_metadata_envelope_round_trips(tmp_path, monkeypatch):
+    """_encrypt_chunk_metadata replaces chunk.metadata with an envelope that,
+    once decrypted, reproduces the original dict exactly."""
+    service, _ = _build_service(tmp_path, encryption_enabled=True, monkeypatch=monkeypatch)
+    chunks = [
+        Chunk(chunk_id="c1", file_id="f1", text="hello", chunk_index=0,
+              metadata={"image_description": "a cat", "chunk_start": 0}),
+    ]
+    service._encrypt_chunk_metadata(chunks, requires_encryption=True)
+
+    envelope = chunks[0].metadata
+    assert envelope["encrypted"] is True
+    decrypted = service._file_encryptor.decrypt(bytes.fromhex(envelope["payload"]), b"c1")
+    assert json.loads(decrypted) == {"image_description": "a cat", "chunk_start": 0}
+
+
+def test_encrypt_chunk_metadata_noop_when_not_required(tmp_path, monkeypatch):
+    service, _ = _build_service(tmp_path, encryption_enabled=True, monkeypatch=monkeypatch)
+    chunks = [Chunk(chunk_id="c1", file_id="f1", text="hello", chunk_index=0, metadata={"a": 1})]
+    service._encrypt_chunk_metadata(chunks, requires_encryption=False)
+    assert chunks[0].metadata == {"a": 1}
+
+
+def test_encrypt_chunk_metadata_fails_loudly_without_encryptor(tmp_path, monkeypatch):
+    service, _ = _build_service(tmp_path, encryption_enabled=False, monkeypatch=monkeypatch)
+    chunks = [Chunk(chunk_id="c1", file_id="f1", text="hello", chunk_index=0, metadata={"a": 1})]
+    with pytest.raises(ValueError, match="requires encrypted file storage"):
+        service._encrypt_chunk_metadata(chunks, requires_encryption=True)
+
+
+def _make_retriever(encryption_enabled, monkeypatch):
+    if encryption_enabled:
+        monkeypatch.setenv("ORBIT_FILE_ENCRYPTION_KEY", TEST_KEY_B64)
+    return FileVectorRetriever(config={'files': {'encryption': {'enabled': encryption_enabled}}})
+
+
+@pytest.mark.asyncio
+async def test_index_file_chunks_encrypts_documents_not_embeddings(monkeypatch):
+    """Embeddings are computed from plaintext; only the stored document text
+    handed to add_vectors is ciphertext."""
+    retriever = _make_retriever(encryption_enabled=True, monkeypatch=monkeypatch)
+    retriever.initialized = True
+
+    async def embed_query(text):
+        assert text in ("plaintext chunk one", "plaintext chunk two")
+        return [0.1, 0.2, 0.3]
+    retriever.embed_query = embed_query
+
+    mock_store = AsyncMock()
+    mock_store.add_vectors = AsyncMock(return_value=True)
+    retriever._default_store = mock_store
+
+    chunks = [
+        Chunk(chunk_id="c1", file_id="f1", text="plaintext chunk one", chunk_index=0,
+              metadata={"encrypted": True, "payload": "aa"}),
+        Chunk(chunk_id="c2", file_id="f1", text="plaintext chunk two", chunk_index=1,
+              metadata={"encrypted": True, "payload": "bb"}),
+    ]
+
+    result = await retriever.index_file_chunks(
+        file_id="f1", chunks=chunks, collection_name="col",
+        encryptor=retriever._encryptor,
+    )
+
+    assert result is True
+    call_args = mock_store.add_vectors.call_args
+    documents = call_args[1]['documents']
+    assert documents[0] != "plaintext chunk one"
+    assert documents[1] != "plaintext chunk two"
+    # Ciphertext round-trips back to the original plaintext with the right AAD
+    assert retriever._encryptor.decrypt(bytes.fromhex(documents[0]), b"c1") == b"plaintext chunk one"
+    assert retriever._encryptor.decrypt(bytes.fromhex(documents[1]), b"c2") == b"plaintext chunk two"
+
+
+@pytest.mark.asyncio
+async def test_index_file_chunks_plaintext_when_no_encryptor():
+    retriever = FileVectorRetriever(config={'files': {}})
+    retriever.initialized = True
+
+    async def embed_query(text):
+        return [0.1, 0.2, 0.3]
+    retriever.embed_query = embed_query
+
+    mock_store = AsyncMock()
+    mock_store.add_vectors = AsyncMock(return_value=True)
+    retriever._default_store = mock_store
+
+    chunks = [Chunk(chunk_id="c1", file_id="f1", text="plain text", chunk_index=0, metadata={})]
+    await retriever.index_file_chunks(file_id="f1", chunks=chunks, collection_name="col", encryptor=None)
+
+    call_args = mock_store.add_vectors.call_args
+    assert call_args[1]['documents'][0] == "plain text"
+
+
+@pytest.mark.asyncio
+async def test_format_results_decrypts_content_and_file_metadata(monkeypatch):
+    """_format_results must transparently decrypt both the chunk content and
+    the chunk-metadata envelope (image_description etc.) for encrypted chunks."""
+    retriever = _make_retriever(encryption_enabled=True, monkeypatch=monkeypatch)
+    encryptor = retriever._encryptor
+    aad = b"chunk_1"
+
+    encrypted_content = encryptor.encrypt(b"the secret content", aad).hex()
+    original_chunk_meta = {"image_description": "a classified diagram"}
+    encrypted_meta_envelope = {
+        "encrypted": True,
+        "payload": encryptor.encrypt(json.dumps(original_chunk_meta).encode(), aad).hex(),
+    }
+
+    results = [{
+        'id': 'chunk_1',
+        'content': encrypted_content,
+        'score': 0.95,
+        'metadata': {'file_id': 'file_1', 'chunk_index': 0, 'encrypted': True,
+                     'payload': encrypted_meta_envelope['payload']},
+        'chunk_metadata': {
+            'chunk_id': 'chunk_1', 'file_id': 'file_1',
+            'chunk_metadata': encrypted_meta_envelope,
+        },
+    }]
+
+    formatted = retriever._format_results(results)
+
+    assert len(formatted) == 1
+    assert formatted[0]['content'] == "the secret content"
+    assert formatted[0]['file_metadata']['chunk_metadata'] == original_chunk_meta
+
+
+@pytest.mark.asyncio
+async def test_format_results_fails_loudly_without_encryptor():
+    """A chunk marked encrypted but no encryptor configured must raise, never
+    silently return ciphertext into the LLM context."""
+    retriever = FileVectorRetriever(config={'files': {}})
+    assert retriever._encryptor is None
+
+    results = [{
+        'id': 'chunk_1',
+        'content': 'deadbeef',
+        'score': 0.9,
+        'metadata': {'file_id': 'file_1', 'chunk_index': 0, 'encrypted': True},
+    }]
+
+    with pytest.raises(ValueError, match="Cannot decrypt chunk content"):
+        retriever._format_results(results)
+
+
+@pytest.mark.asyncio
+async def test_format_results_swapped_chunk_ciphertext_fails_to_decrypt(monkeypatch):
+    """Ciphertext produced for one chunk_id must not decrypt under another's
+    id — AAD binding prevents cross-chunk ciphertext substitution."""
+    retriever = _make_retriever(encryption_enabled=True, monkeypatch=monkeypatch)
+    encryptor = retriever._encryptor
+
+    ciphertext_for_chunk_a = encryptor.encrypt(b"chunk A content", b"chunk_a").hex()
+
+    results = [{
+        'id': 'chunk_b',  # different chunk id than the ciphertext was bound to
+        'content': ciphertext_for_chunk_a,
+        'score': 0.9,
+        'metadata': {'file_id': 'file_1', 'chunk_index': 0, 'encrypted': True},
+    }]
+
+    with pytest.raises(FileEncryptionError):
+        retriever._format_results(results)

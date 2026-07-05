@@ -5,11 +5,13 @@ Retriever for querying uploaded files using vector stores.
 Supports semantic search over chunked document content.
 """
 
+import json
 import logging
 from typing import Dict, Any, List, Optional
 
 from retrievers.base.abstract_vector_retriever import AbstractVectorRetriever
 from services.file_metadata.metadata_store import FileMetadataStore
+from services.file_storage.encryption import FileEncryptionError, FileEncryptor
 from vector_stores.base.store_manager import StoreManager
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,13 @@ class FileVectorRetriever(AbstractVectorRetriever):
         files_config = self.config.get('files', {})
         self.collection_prefix = adapter_config.get('collection_prefix') or \
                                 files_config.get('default_collection_prefix', 'files_')
+
+        # Encryptor for decrypting chunk text/metadata encrypted at index time
+        # (see FileProcessingService._init_file_encryptor for the write side).
+        # Built independently here since query requests don't go through
+        # FileProcessingService.
+        encryption_config = files_config.get('encryption', {})
+        self._encryptor = FileEncryptor.from_env() if encryption_config.get('enabled', False) else None
 
         # Initialize store manager for vector operations
         self.store_manager = None
@@ -399,58 +408,107 @@ class FileVectorRetriever(AbstractVectorRetriever):
             logger.error(f"Error searching collection {collection_name}: {e}")
             return []
     
+    def _decrypt_chunk_metadata_envelope(self, envelope: Any, aad: bytes) -> Any:
+        """
+        Decrypt a chunk-metadata envelope ({"encrypted": True, "payload": hex})
+        back into the original per-chunk metadata dict (image_description,
+        image_text, transcribed_text, etc.). Returns `envelope` unchanged if
+        it isn't an encrypted envelope.
+        """
+        if not isinstance(envelope, dict) or not envelope.get('encrypted'):
+            return envelope
+        decrypted = self._encryptor.decrypt(bytes.fromhex(envelope['payload']), aad)
+        return json.loads(decrypted.decode('utf-8'))
+
     def _format_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Format search results with file metadata."""
         formatted = []
-        
+
         for result in results:
             # Get file info from chunk metadata
-            file_id = result.get('metadata', {}).get('file_id')
+            vector_metadata = result.get('metadata', {})
+            file_id = vector_metadata.get('file_id')
             if file_id:
+                chunk_id = result.get('id')
+                content = result.get('content', result.get('text', ''))
+
+                if vector_metadata.get('encrypted'):
+                    if self._encryptor is None:
+                        raise ValueError(
+                            "This file's chunks were indexed with encryption enabled, but "
+                            "files.encryption is not currently configured (enabled: false or "
+                            "missing ORBIT_FILE_ENCRYPTION_KEY). Cannot decrypt chunk content."
+                        )
+                    aad = chunk_id.encode('utf-8')
+                    try:
+                        content = self._encryptor.decrypt(bytes.fromhex(content), aad).decode('utf-8')
+                    except FileEncryptionError as e:
+                        raise FileEncryptionError(f"Failed to decrypt chunk {chunk_id}: {e}") from e
+
                 formatted_item = {
-                    'content': result.get('content', result.get('text', '')),
+                    'content': content,
                     'metadata': {
-                        'chunk_id': result.get('id'),
+                        'chunk_id': chunk_id,
                         'file_id': file_id,
-                        'chunk_index': result.get('metadata', {}).get('chunk_index'),
+                        'chunk_index': vector_metadata.get('chunk_index'),
                         'confidence': result.get('score', 0.0),
                     }
                 }
-                
-                # Add file metadata
+
+                # Add file metadata, decrypting the per-chunk metadata envelope if present
                 if 'chunk_metadata' in result:
-                    formatted_item['file_metadata'] = result['chunk_metadata']
-                
+                    file_metadata = dict(result['chunk_metadata'])
+                    if vector_metadata.get('encrypted') and isinstance(file_metadata.get('chunk_metadata'), dict):
+                        file_metadata['chunk_metadata'] = self._decrypt_chunk_metadata_envelope(
+                            file_metadata['chunk_metadata'], chunk_id.encode('utf-8')
+                        )
+                    formatted_item['file_metadata'] = file_metadata
+
                 formatted.append(formatted_item)
-        
+
         return formatted
     
-    async def index_file_chunks(self, file_id: str, chunks: List, collection_name: str) -> bool:
+    async def index_file_chunks(
+        self, file_id: str, chunks: List, collection_name: str, encryptor: Optional[FileEncryptor] = None
+    ) -> bool:
         """
         Index file chunks into vector store.
-        
+
         Args:
             file_id: File identifier
             chunks: List of Chunk objects
             collection_name: Collection name
-            
+            encryptor: If provided, chunk text is encrypted (AES-256-GCM,
+                AAD-bound to chunk_id) before being stored as the vector
+                store's document/content field. Embeddings are always
+                computed from the plaintext chunk text first.
+
         Returns:
             True if successful
         """
         if not self._default_store or not chunks:
             return False
-        
+
         try:
-            # Generate embeddings for chunks
+            # Generate embeddings for chunks (always from plaintext)
             chunk_texts = [chunk.text for chunk in chunks]
             embeddings = []
-            
+
             for text in chunk_texts:
                 embedding = await self.embed_query(text)
                 embeddings.append(embedding)
-            
+
             # Prepare data for vector store
             ids = [chunk.chunk_id for chunk in chunks]
+
+            # Only the stored document/content text is encrypted — embeddings
+            # above were already computed from the original plaintext.
+            if encryptor is not None:
+                chunk_texts = [
+                    encryptor.encrypt(text.encode('utf-8'), chunk_id.encode('utf-8')).hex()
+                    for text, chunk_id in zip(chunk_texts, ids)
+                ]
+
             metadata = []
             
             for chunk in chunks:

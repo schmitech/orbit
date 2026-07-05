@@ -5,6 +5,7 @@ Main service for processing uploaded files: extraction, chunking, and storage pr
 """
 
 import asyncio
+import json
 import logging
 import uuid
 import hashlib
@@ -82,7 +83,11 @@ class FileProcessingService:
 
         # Initialize components
         self.storage = self._init_storage()
-        self.encrypted_storage = self._init_encrypted_storage(files_config)
+        self._file_encryptor = self._init_file_encryptor(files_config)
+        self.encrypted_storage = (
+            EncryptedFileStorageBackend(self.storage, self._file_encryptor)
+            if self._file_encryptor else None
+        )
         self.metadata_store = FileMetadataStore(config=config)
         self.processor_registry = FileProcessorRegistry(config=config)
         self.chunker = self._init_chunker()
@@ -222,20 +227,19 @@ class FileProcessingService:
         """Initialize storage backend (filesystem, s3/minio, or azure)."""
         return create_storage_backend(self.config)
 
-    def _init_encrypted_storage(self, files_config: Dict[str, Any]) -> Optional[EncryptedFileStorageBackend]:
+    def _init_file_encryptor(self, files_config: Dict[str, Any]) -> Optional[FileEncryptor]:
         """
-        Initialize the encrypted storage wrapper if files.encryption.enabled is true.
+        Initialize the shared FileEncryptor if files.encryption.enabled is true.
 
-        Wraps self.storage (same backend/bucket/root) so encrypted and plaintext
-        uploads share the same underlying location. Fails loudly if enabled but
-        the key is missing/invalid, matching the fail-fast convention used for
-        cloud bucket/container verification.
+        Used both to build self.encrypted_storage (file bytes + metadata
+        sidecar) and to encrypt indexed chunk text/metadata. Fails loudly if
+        enabled but the key is missing/invalid, matching the fail-fast
+        convention used for cloud bucket/container verification.
         """
         encryption_config = files_config.get('encryption', {})
         if not encryption_config.get('enabled', False):
             return None
-        encryptor = FileEncryptor.from_env()
-        return EncryptedFileStorageBackend(self.storage, encryptor)
+        return FileEncryptor.from_env()
     
     def _init_chunker(self):
         """Initialize chunking strategy."""
@@ -630,6 +634,36 @@ class FileProcessingService:
             )
         return self.encrypted_storage
 
+    def _encrypt_chunk_metadata(self, chunks: List[Chunk], requires_encryption: bool) -> None:
+        """
+        Envelope-encrypt each chunk's metadata dict in place (mirrors
+        EncryptedFileStorageBackend's sidecar envelope: {"encrypted": True,
+        "payload": <hex>}), AAD-bound to the chunk's id.
+
+        Mutates `chunks` so both downstream consumers — vector-store indexing
+        (which spreads chunk.metadata into the stored metadata payload) and
+        metadata_store.record_chunk (which persists chunk.metadata verbatim
+        into file_chunks.chunk_metadata) — see the same ciphertext. This
+        covers extracted content (image_description, image_text,
+        transcribed_text) that would otherwise be duplicated in plaintext
+        alongside the encrypted chunk text.
+
+        Raises:
+            ValueError: If requires_encryption but no encryptor is configured.
+        """
+        if not requires_encryption:
+            return
+        if self._file_encryptor is None:
+            raise ValueError(
+                "This adapter requires encrypted file storage (capabilities.requires_encryption) "
+                "but files.encryption.enabled is false. Set files.encryption.enabled: true and "
+                "ORBIT_FILE_ENCRYPTION_KEY before uploading through this adapter."
+            )
+        for chunk in chunks:
+            aad = chunk.chunk_id.encode('utf-8')
+            payload = self._file_encryptor.encrypt(json.dumps(chunk.metadata).encode('utf-8'), aad)
+            chunk.metadata = {'encrypted': True, 'payload': payload.hex()}
+
     async def quick_upload(
         self,
         file_data: bytes,
@@ -723,11 +757,18 @@ class FileProcessingService:
                 # Chunk content
                 chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
 
+                # Encrypt chunk metadata if this file was stored encrypted (data-driven,
+                # not the adapter's current capability — mirrors _select_storage_for_read).
+                file_info = await self.metadata_store.get_file_info(file_id)
+                requires_encryption = bool((file_info or {}).get('metadata', {}).get('encrypted', False))
+                self._encrypt_chunk_metadata(chunks, requires_encryption)
+
                 # Index chunks into vector store
                 index_result = await self._index_chunks_in_vector_store(
                     file_id=file_id,
                     api_key=api_key,
-                    chunks=chunks
+                    chunks=chunks,
+                    requires_encryption=requires_encryption,
                 )
 
             # Extract collection info
@@ -942,12 +983,14 @@ class FileProcessingService:
 
             # 6. Chunk content
             chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
+            self._encrypt_chunk_metadata(chunks, requires_encryption)
 
             # 7. Index chunks into vector store
             index_result = await self._index_chunks_in_vector_store(
                 file_id=file_id,
                 api_key=api_key,
-                chunks=chunks
+                chunks=chunks,
+                requires_encryption=requires_encryption,
             )
 
             # Extract collection info
@@ -1262,7 +1305,8 @@ class FileProcessingService:
         self,
         file_id: str,
         api_key: str,
-        chunks: List[Chunk]
+        chunks: List[Chunk],
+        requires_encryption: bool = False
     ) -> Optional[tuple]:
         """
         Index chunks into vector store with provider-aware collection naming.
@@ -1271,6 +1315,10 @@ class FileProcessingService:
             file_id: File identifier
             api_key: API key
             chunks: List of chunks to index
+            requires_encryption: If True, chunk text is encrypted (AES-256-GCM,
+                AAD-bound to chunk_id) before being stored as the vector
+                store's document/content field. Embeddings are always
+                computed from the original plaintext beforehand.
 
         Returns:
             Tuple of (collection_name, embedding_provider, embedding_dimensions) if successful, None otherwise
@@ -1319,7 +1367,8 @@ class FileProcessingService:
             success = await retriever.index_file_chunks(
                 file_id=file_id,
                 chunks=chunks,
-                collection_name=collection_name
+                collection_name=collection_name,
+                encryptor=self._file_encryptor if requires_encryption else None,
             )
 
             if success:

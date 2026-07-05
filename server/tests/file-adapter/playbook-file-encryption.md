@@ -23,11 +23,15 @@ file adapter, ORBIT runs at `http://localhost:3000`.
 
 ## Scope reminder
 
-Encryption covers **file bytes and the storage backend's metadata sidecar**
-only. Extracted content (OCR/vision descriptions, audio transcriptions) that
-lands in the database's `uploaded_files.metadata_json`, and chunk text indexed
-into the vector store, are **not** encrypted by this feature — don't rely on
-it alone for content where the extracted/indexed text itself is classified.
+Encryption covers **file bytes, the storage backend's metadata sidecar,
+indexed vector-store chunk text, and chunk-level extracted content**
+(OCR/vision descriptions, audio transcriptions — duplicated into each
+chunk's metadata). Embeddings are always computed from the original
+plaintext, so semantic search is unaffected; only the stored document/content
+text and `file_chunks.chunk_metadata` become ciphertext. The one remaining
+plaintext-at-rest field, `uploaded_files.metadata_json`, never actually holds
+extracted content (only upload bookkeeping and processing errors), so there's
+nothing further to encrypt there.
 
 ---
 
@@ -280,25 +284,66 @@ If you have an admin/inspection endpoint or direct DB access, confirm:
 - Any size shown for the raw stored object is the **ciphertext** size (original
   size + 28 bytes of nonce/tag overhead) — this is expected, not a bug.
 
+### S10. Retrieval decrypts chunk text and extracted content transparently
+
+This is the key end-to-end check for the vector-store side of encryption.
+
+1. Upload a text/PDF file through the `classified-docs` adapter, and (if
+   vision/audio providers are configured) an image or audio file too, so
+   `image_description`/`transcribed_text` get exercised.
+2. Ask a question in the same session that should retrieve content from that
+   file (e.g. "what does the uploaded document say about X?").
+3. Confirm the model's answer correctly reflects the file's content — proving
+   embeddings were computed on plaintext (search works) and the retrieved
+   chunk text was decrypted before being handed to the LLM.
+4. Inspect the vector store directly and confirm the stored document/content
+   field is ciphertext, not the original text. For Chroma:
+   ```bash
+   python3 -c "
+   import chromadb
+   client = chromadb.PersistentClient(path='./chroma_data')  # adjust to your configured path
+   collection = client.get_collection('<collection_name_from_startup_logs>')
+   result = collection.get(limit=1, include=['documents', 'metadatas'])
+   print('document:', result['documents'][0])
+   print('metadata:', result['metadatas'][0])
+   "
+   ```
+   Confirm `document` is not human-readable plaintext, and `metadata` contains
+   `encrypted: true` plus a `payload` field (the encrypted chunk metadata
+   envelope) instead of a plaintext `image_description`/`transcribed_text`.
+5. Repeat for a file uploaded through a non-`requires_encryption` adapter and
+   confirm its stored document/metadata in the vector store is plaintext,
+   exactly as before this feature existed.
+6. **Failure mode:** stop ORBIT, disable `files.encryption.enabled` (or unset
+   `ORBIT_FILE_ENCRYPTION_KEY`), restart, and re-ask the same question against
+   the classified file's collection. Confirm retrieval **fails with a clear
+   decryption error** rather than returning ciphertext into the LLM context.
+
 ---
 
 ## 7. Run the automated checks
 
 ```bash
 ruff check server/services/file_storage/ server/services/file_metadata/metadata_store.py \
-  server/services/file_processing/file_processing_service.py server/adapters/capabilities.py
+  server/services/file_processing/file_processing_service.py server/adapters/capabilities.py \
+  server/retrievers/implementations/file/file_retriever.py
 cd server && ../venv/bin/python -m pytest tests/file-adapter/test_file_encryption.py \
   tests/file-adapter/test_file_storage.py tests/file-adapter/test_cloud_storage.py \
-  tests/test_adapters/test_adapter_capabilities.py -v
+  tests/file-adapter/test_file_retriever.py tests/test_adapters/test_adapter_capabilities.py -v
 ```
 
 Expect all green: `test_file_encryption.py` covers the `FileEncryptor`
 primitive (round-trip, tamper detection, wrong key, AAD binding/ciphertext-swap
 protection, missing/invalid key), the `EncryptedFileStorageBackend` contract,
-and `FileProcessingService`-level opt-in behavior (per-adapter encryption,
+`FileProcessingService`-level opt-in behavior (per-adapter encryption,
 fail-loud on missing config, fail-closed on lookup errors, metadata-merge
-durability). The filesystem/cloud-storage/capabilities regression suites
-should show no behavior change for anything that doesn't opt into encryption.
+durability), and the vector-store side (`index_file_chunks` encrypts stored
+document text while embedding plaintext, `_format_results` decrypts content
+and the chunk-metadata envelope, fail-loud when a chunk is marked encrypted
+but no decryptor is configured, AAD rejects ciphertext swapped between
+chunks). The filesystem/cloud-storage/capabilities/file-retriever regression
+suites should show no behavior change for anything that doesn't opt into
+encryption.
 
 ---
 
@@ -334,3 +379,26 @@ should show no behavior change for anything that doesn't opt into encryption.
   plaintext:** confirm you're looking at the `classified-docs` adapter's
   upload, not the plain adapter's — encryption is per-adapter, not global to
   the bucket.
+- **RAG answers come back empty or wrong for an encrypted file, but upload/
+  download work fine (S10):** embeddings must be computed from plaintext
+  before encryption — check `index_file_chunks` in `file_retriever.py`
+  computes `embeddings` from `chunk_texts` *before* the `chunk_texts` list is
+  overwritten with ciphertext. If search returns nothing relevant, the
+  embedding step likely ran against ciphertext instead.
+- **Retrieval returns raw ciphertext into the chat response instead of a
+  clear error (S10 failure-mode step):** this is a regression of the fail-loud
+  check in `FileVectorRetriever._format_results` — a chunk marked
+  `encrypted: true` in vector-store metadata must raise if
+  `self._encryptor` is `None`, never fall through to returning ciphertext as
+  `content`.
+- **Vector store's stored document/metadata for an encrypted file is
+  readable plaintext:** check `index_file_chunks` is actually receiving a
+  non-`None` `encryptor` argument — trace back to
+  `_index_chunks_in_vector_store` in `file_processing_service.py`, which only
+  passes one when `requires_encryption` is true for that upload.
+- **`image_description`/`transcribed_text` show up in plaintext in the DB's
+  `file_chunks.chunk_metadata` column for an encrypted file:** check
+  `FileProcessingService._encrypt_chunk_metadata` is called (and mutates
+  `chunk.metadata` in place) *before* both `_index_chunks_in_vector_store`
+  and the `metadata_store.record_chunk` loop — if it runs after either, one
+  of the two persisted copies will still be plaintext.

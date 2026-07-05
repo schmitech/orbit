@@ -586,12 +586,20 @@ If `capabilities.requires_encryption: true` is set but `files.encryption.enabled
 is `false` (or the key is missing/invalid), uploads through that adapter fail
 loudly rather than silently falling back to plaintext.
 
-> **Scope:** this encrypts file bytes and the storage-backend metadata sidecar
-> only. Extracted content (OCR/vision descriptions, audio transcriptions) that
-> lands in the database's `uploaded_files.metadata_json` field, and chunk text
-> indexed into the vector store, are **not** encrypted by this feature. Do not
-> rely on it alone for content where the extracted/indexed text itself is
-> classified.
+**What's covered:** the same `requires_encryption` flag also covers the RAG
+pipeline, not just raw storage — indexed chunk *text* in the vector store,
+and extracted content (OCR/vision descriptions, audio transcriptions) that
+gets duplicated into each chunk's metadata, are both encrypted at rest too.
+Embeddings are always computed from the original plaintext before encryption,
+so semantic search is unaffected; only the stored document/content text and
+the DB's `file_chunks.chunk_metadata` column become ciphertext. Retrieval
+decrypts both transparently — the LLM still sees plaintext context.
+
+> **Scope:** the one remaining plaintext-at-rest surface is
+> `uploaded_files.metadata_json` (per-file upload bookkeeping and processing
+> errors) — this field never actually holds extracted content in the first
+> place (it's stored per-chunk, not per-file), so there's nothing further to
+> encrypt there.
 
 ## Metadata Store
 
@@ -707,14 +715,15 @@ files:
 ### Encryption at Rest
 
 For sensitive/classified content, see [Storage Backends → Encryption at rest](#encryption-at-rest)
-above — per-adapter opt-in encryption (AES-256-GCM) of file bytes and the
-storage metadata sidecar.
+above — per-adapter opt-in encryption (AES-256-GCM) covering file bytes, the
+storage metadata sidecar, indexed vector-store chunk text, and chunk-level
+extracted content.
 
 ## Future Enhancements
 
 - [x] Cloud storage backends (AWS S3, MinIO, Azure Blob, Google Cloud Storage)
 - [x] Per-adapter file encryption at rest (file bytes + metadata sidecar)
-- [ ] Encrypt extracted content (`uploaded_files.metadata_json`) and vector-store chunk text
+- [x] Encrypt vector-store chunk text and chunk-level extracted content
 - [ ] Cloud KMS / envelope encryption and key rotation
 - [ ] Advanced chunking (structure-aware, table-aware)
 - [ ] Multi-document analysis
