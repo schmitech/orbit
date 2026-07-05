@@ -13,7 +13,7 @@ The File Adapter System enables uploading, processing, and querying various file
   - Vector stores for unstructured documents (PDF, DOCX, TXT, HTML, images with OCR)
   - DuckDB for structured data (CSV, Parquet) with SQL-like queries
 - **Semantic Search**: Natural language queries over file content
-- **Storage Backend**: Filesystem (with S3-compatible abstraction for future migration)
+- **Pluggable Storage Backends**: Local filesystem (default), AWS S3 / S3-compatible (MinIO, SeaweedFS), Azure Blob Storage, and Google Cloud Storage
 
 ## Architecture
 
@@ -207,8 +207,9 @@ Configure the file adapter in `config/adapters.yaml`:
   adapter: "file"
   
   config:
-    # Storage
-    storage_backend: "filesystem"
+    # Storage (the active backend is selected globally via files.storage_backend
+    # in config.yaml — see "Storage Backends" below. storage_root applies to the
+    # filesystem backend.)
     storage_root: "./uploads"
     max_file_size: 52428800  # 50MB
     
@@ -417,16 +418,137 @@ Files can be referenced in chat queries:
 
 The system resolves file references and queries appropriate collections.
 
-## Storage Abstraction
+## Storage Backends
 
-The system uses a pluggable storage backend:
+Uploaded files (and generated media) are stored through a pluggable storage
+backend. The backend is selected globally by `files.storage_backend` in
+`config/config.yaml`:
 
-- **FilesystemStorage** (current): Local filesystem storage
-- **S3Storage** (future): S3-compatible storage (MinIO, AWS S3, etc.)
+| Backend        | `storage_backend` value | Backing store                          |
+|----------------|-------------------------|----------------------------------------|
+| Filesystem     | `filesystem` (default)  | Local directory (`storage_root`)       |
+| AWS S3         | `s3`                    | An S3 bucket                           |
+| S3-compatible  | `minio`                 | MinIO / SeaweedFS / any S3-compatible store |
+| Azure Blob     | `azure`                 | An Azure Blob container                |
+| Google Cloud   | `gcs`                   | A Google Cloud Storage bucket          |
 
-To switch backends, update configuration:
+All backends share the same object layout — the file plus a JSON metadata
+sidecar (`{filename}.metadata.json`) under `{api_key}/{file_id}/`. Switching
+backends requires no application or adapter changes; the file metadata index
+(`uploaded_files`/`file_chunks`) remains in the main backend database regardless
+of where the file bytes live.
+
+> **Note:** The backend is chosen globally. The `storage_backend` key that
+> appears in individual adapter configs is documentation-only — all adapters use
+> the backend configured under `files:` in `config.yaml`.
+
+### Cloud dependencies
+
+The S3, Azure, and GCS backends require the `cloud-services` dependency profile:
+
+```bash
+./install/setup.sh --profile cloud-services
+```
+
+This installs `boto3` (S3/MinIO), `azure-storage-blob` + `azure-identity`
+(Azure), and `google-cloud-storage` (GCS). The default filesystem backend needs
+no extra dependencies. Cloud SDKs are imported lazily, so they are only required
+when a cloud backend is actually selected.
+
+> The bucket / container must **already exist** — ORBIT does not create it. The
+> backend verifies access at startup and fails loudly if the bucket/container is
+> missing or credentials are invalid.
+
+### Filesystem (default)
+
 ```yaml
-storage_backend: "s3"  # instead of "filesystem"
+files:
+  storage_backend: "filesystem"
+  storage_root: "./uploads"   # root directory for uploaded files
+```
+
+### AWS S3 / S3-compatible (MinIO)
+
+```yaml
+files:
+  storage_backend: "s3"        # use "minio" for MinIO / S3-compatible stores
+  s3:
+    bucket: "${ORBIT_S3_BUCKET}"
+    prefix: "${ORBIT_S3_PREFIX:-}"              # optional key prefix within the bucket
+    region: "${AWS_REGION:-us-east-1}"
+    endpoint_url: "${ORBIT_S3_ENDPOINT_URL:-}"  # set for MinIO / S3-compatible stores
+    # Omit credentials to use the boto3 default chain (env vars / instance role / SSO):
+    # access_key_id: "${AWS_ACCESS_KEY_ID:-}"
+    # secret_access_key: "${AWS_SECRET_ACCESS_KEY:-}"
+```
+
+- Setting `storage_backend: "minio"` (or providing an `endpoint_url`) enables
+  path-style addressing, which most MinIO deployments require.
+- Credentials are optional in config — when omitted, boto3 resolves them from the
+  standard chain (environment variables, EC2/ECS instance role, SSO, etc.).
+
+### Azure Blob
+
+```yaml
+files:
+  storage_backend: "azure"
+  azure:
+    container: "${ORBIT_AZURE_CONTAINER}"
+    prefix: "${ORBIT_AZURE_PREFIX:-}"           # optional blob-name prefix
+    connection_string: "${AZURE_STORAGE_CONNECTION_STRING:-}"
+    # Or identity-based auth (managed identity / Entra) instead of a connection string:
+    # account_url: "${AZURE_STORAGE_ACCOUNT_URL:-}"
+    # account_key: "${AZURE_STORAGE_ACCOUNT_KEY:-}"  # omit to use DefaultAzureCredential
+```
+
+Authentication precedence: `connection_string` → `account_url` + `account_key`
+→ `account_url` + `DefaultAzureCredential` (managed identity / Entra).
+
+### Google Cloud Storage
+
+```yaml
+files:
+  storage_backend: "gcs"
+  gcs:
+    bucket: "${ORBIT_GCS_BUCKET}"
+    prefix: "${ORBIT_GCS_PREFIX:-}"             # optional object-name prefix
+    project: "${GOOGLE_CLOUD_PROJECT:-}"        # optional; inferred from credentials if omitted
+    # Omit credentials_path to use Application Default Credentials (ADC):
+    # credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS:-}"  # service-account JSON key file
+```
+
+Authentication precedence: `credentials_path` (service-account JSON) →
+Application Default Credentials (ADC) — `GOOGLE_APPLICATION_CREDENTIALS`, `gcloud`
+user credentials, or Workload Identity / the metadata server on GCP. The
+service account needs object read/write plus `storage.buckets.get` on the bucket
+(the startup access check calls `get_bucket`).
+
+### Environment variables
+
+All cloud settings use `${VAR}` interpolation, so secrets live in the environment
+(or `.env`), never in the YAML. See `env.example` for the full list. Typical S3
+setup:
+
+```bash
+export ORBIT_S3_BUCKET=my-orbit-uploads
+export AWS_REGION=us-east-1
+export AWS_ACCESS_KEY_ID=...        # or rely on an instance role
+export AWS_SECRET_ACCESS_KEY=...
+```
+
+Typical Azure setup:
+
+```bash
+export ORBIT_AZURE_CONTAINER=orbit-uploads
+export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net"
+```
+
+Typical GCS setup:
+
+```bash
+export ORBIT_GCS_BUCKET=my-orbit-uploads
+export GOOGLE_CLOUD_PROJECT=my-gcp-project
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # or rely on Workload Identity / gcloud
 ```
 
 ## Metadata Store
@@ -471,9 +593,10 @@ This prevents the NumPy 2.x compatibility issues that can cause server startup f
 - Format: `{prefix}{api_key}_{timestamp}`
 
 ### Storage
-- Use filesystem for development
-- Plan for S3/MinIO in production
-- Monitor disk usage with large volumes
+- Use the filesystem backend for development; monitor disk usage with large volumes
+- Use S3, MinIO, Azure Blob, or GCS in production for durability and horizontal scaling
+- Prefer instance roles / managed identity over static keys where possible
+- The bucket/container must exist before starting the server (ORBIT does not create it)
 
 ## Troubleshooting
 
@@ -541,7 +664,7 @@ files:
 
 ## Future Enhancements
 
-- [ ] S3/MinIO storage backend
+- [x] Cloud storage backends (AWS S3, MinIO, Azure Blob, Google Cloud Storage)
 - [ ] Advanced chunking (structure-aware, table-aware)
 - [ ] Multi-document analysis
 - [ ] Streaming processing for large files

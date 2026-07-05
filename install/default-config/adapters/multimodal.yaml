@@ -57,7 +57,7 @@ adapters:
     config:
       # File adapter configuration (similar to file-document-qa)
       # Storage configuration
-      storage_backend: "filesystem"  # Future: "s3", "minio"
+      storage_backend: "filesystem"  # Storage backend is selected globally via files.storage_backend in config.yaml (filesystem | s3 | minio | azure)
       storage_root: "./uploads"
       max_file_size: 52428800  # 50MB
 

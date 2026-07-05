@@ -479,9 +479,41 @@ files:
   # NOTE: File metadata (uploaded_files, file_chunks) is now stored in the main backend database
   # configured in internal_services.backend (SQLite or MongoDB), not in a separate files.db
 
-  # Default storage configuration (can be overridden per adapter)
-  storage_root: "./uploads"  # Default root directory for storing uploaded files
-  
+  # Storage backend selection: filesystem | s3 | minio | azure | gcs
+  # Default is local filesystem. Set to s3/minio/azure/gcs to store uploads in the cloud.
+  # Requires the 'cloud-services' dependency profile for s3/minio/azure/gcs.
+  storage_backend: "filesystem"
+  storage_root: "./uploads"  # Root directory for storing uploaded files (filesystem backend)
+
+  # AWS S3 / S3-compatible (MinIO) settings — used when storage_backend is s3 or minio.
+  # The bucket must already exist. Always reference env vars; never inline secrets.
+  s3:
+    bucket: "${ORBIT_S3_BUCKET:-}"
+    prefix: "${ORBIT_S3_PREFIX:-}"                # optional key prefix within the bucket
+    region: "${AWS_REGION:-us-east-1}"
+    endpoint_url: "${ORBIT_S3_ENDPOINT_URL:-}"    # set for MinIO / S3-compatible stores
+    # Omit the credentials below to use the boto3 default chain (env / instance role / SSO):
+    # access_key_id: "${AWS_ACCESS_KEY_ID:-}"
+    # secret_access_key: "${AWS_SECRET_ACCESS_KEY:-}"
+
+  # Azure Blob settings — used when storage_backend is azure. The container must already exist.
+  azure:
+    container: "${ORBIT_AZURE_CONTAINER:-}"
+    prefix: "${ORBIT_AZURE_PREFIX:-}"             # optional blob-name prefix
+    connection_string: "${AZURE_STORAGE_CONNECTION_STRING:-}"
+    # Or identity-based auth (managed identity / Entra) instead of a connection string:
+    # account_url: "${AZURE_STORAGE_ACCOUNT_URL:-}"
+    # account_key: "${AZURE_STORAGE_ACCOUNT_KEY:-}"  # omit to use DefaultAzureCredential
+
+  # Google Cloud Storage settings — used when storage_backend is gcs. The bucket must already exist.
+  gcs:
+    bucket: "${ORBIT_GCS_BUCKET:-}"
+    prefix: "${ORBIT_GCS_PREFIX:-}"               # optional object-name prefix
+    project: "${GOOGLE_CLOUD_PROJECT:-}"          # optional; inferred from credentials if omitted
+    # Omit credentials_path to use Application Default Credentials (ADC):
+    #   GOOGLE_APPLICATION_CREDENTIALS env, gcloud user creds, or Workload Identity on GCP.
+    # credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS:-}"  # service-account JSON key file
+
   # Default processing settings (can be overridden per adapter)
   default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive"
   # Recommended: "recursive" - works best for all file types (PDF, DOCX, CSV, TXT, HTML, JSON, images, audio)

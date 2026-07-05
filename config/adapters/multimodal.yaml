@@ -64,6 +64,7 @@ adapters:
         - "mcp-agent"
         - "web-search-duckduckgo"
         - "Fetch"
+        - "Markdown"
       formatting_style: "clean"          # Clean format (no citations) to prevent LLM citation markers
       supports_threading: false
       supports_file_ids: true            # Accepts file_ids parameter for filtering
@@ -81,13 +82,12 @@ adapters:
       # See docs/adapters/mcp-agent.md#opportunistic-mode.
       mcp_tools: false
       mcp_servers:              # allowlist — keep narrow; every enabled
-        # - "filesystem"           # server's tool schemas are sent on EVERY
         - "business-sample"      # conversational turn, not just tool-using ones
 
     config:
       # File adapter configuration (similar to file-document-qa)
       # Storage configuration
-      storage_backend: "filesystem"  # Future: "s3", "minio"
+      storage_backend: "filesystem"  # Storage backend is selected globally via files.storage_backend in config.yaml (filesystem | s3 | minio | azure)
       storage_root: "./uploads"
       max_file_size: 52428800  # 50MB
 

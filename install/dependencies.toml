@@ -226,11 +226,14 @@ dependencies = [
 # CLOUD-SERVICES - Cloud platform services (AWS, Azure, GCP, IBM)
 # ============================================================================
 [profiles.cloud-services]
-description = "Cloud platform services (AWS, Azure, GCP, IBM Watson)"
+description = "Cloud platform services (AWS, Azure, GCP, IBM Watson) + cloud file storage (S3, Azure Blob)"
 dependencies = [
     "boto3>=1.42.24",
     "azure-ai-inference>=1.0.0b9",
+    "azure-storage-blob>=12.20.0",
+    "azure-identity>=1.17.0",
     "google-cloud-aiplatform>=1.133.0",
+    "google-cloud-storage>=2.18.0",
     "ibm-watsonx-ai>=1.4.11"
 ]
 
@@ -243,6 +246,7 @@ dependencies = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.1.0",
+    "moto>=5.0",
     "black>=26.3.1",
     "flake8>=7.3.0",
     "mypy>=2.1.0",

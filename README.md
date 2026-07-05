@@ -104,6 +104,7 @@ Then open the admin dashboard at **[http://localhost:3000/admin](http://localhos
 | **Natural-language data access** | Plain English → SQL, MongoDB, Elasticsearch DSL, REST, GraphQL across Postgres, MySQL, Oracle, SQL Server, DuckDB, Athena, Supabase, Cassandra, Redis, and composite multi-source answers. |
 | **Vector RAG** | Chroma, Qdrant, Pinecone, Milvus, Weaviate, Marqo, pgvector, FAISS, DuckDB, Redis, Elasticsearch. |
 | **File & multimodal RAG** | PDFs, DOCX, spreadsheets, CSVs, markdown, images, and audio — with cached file context across conversations. |
+| **Pluggable file storage** | Store uploads and generated media on local disk (default) or in the cloud — AWS S3, MinIO / SeaweedFS (S3-compatible), Azure Blob, or Google Cloud Storage — selected with one config key. |
 | **Web search** | Provider-agnostic real-time context via DuckDuckGo (free), Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity — decoupled from synthesis so any LLM can answer. |
 | **MCP tool agents** | Connect MCP servers (filesystem, GitHub, Slack, Postgres, Jira, Notion, and more) over stdio/SSE with bounded, server-side agent loops. |
 | **A2A peer protocol** | [Google Agent-to-Agent](https://google.github.io/A2A/) support — discovery via `/.well-known/agent.json` and task delegation over JSON-RPC. [Guide](docs/a2a-protocol.md). |

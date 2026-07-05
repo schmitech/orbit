@@ -21,7 +21,7 @@ from services.file_processing.magika_detector import (
     canonicalize_label,
     canonicalize_mime_type,
 )
-from services.file_storage.filesystem_storage import FilesystemStorage
+from services.file_storage import FileStorageBackend, create_storage_backend
 from services.file_metadata.metadata_store import FileMetadataStore
 
 logger = logging.getLogger(__name__)
@@ -215,12 +215,9 @@ class FileProcessingService:
         )
         return detector
     
-    def _init_storage(self) -> FilesystemStorage:
-        """Initialize storage backend."""
-        # Get from adapter config first, then global files config, then default
-        storage_root = self.config.get('storage_root') or \
-                      self.config.get('files', {}).get('storage_root', './uploads')
-        return FilesystemStorage(storage_root=storage_root)
+    def _init_storage(self) -> FileStorageBackend:
+        """Initialize storage backend (filesystem, s3/minio, or azure)."""
+        return create_storage_backend(self.config)
     
     def _init_chunker(self):
         """Initialize chunking strategy."""

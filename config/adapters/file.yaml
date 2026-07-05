@@ -33,7 +33,7 @@ adapters:
 
     config:
       # Storage configuration
-      storage_backend: "filesystem"  # Future: "s3", "minio"
+      storage_backend: "filesystem"  # Storage backend is selected globally via files.storage_backend in config.yaml (filesystem | s3 | minio | azure)
       storage_root: "./uploads"
       max_file_size: 104857600  # 100MB (increased for audio files)
       
