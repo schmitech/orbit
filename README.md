@@ -275,18 +275,6 @@ Maintained by [**Remsy Schmilinsky**](https://www.linkedin.com/in/remsy/).
 
 ---
 
-## Star History
-
-<a href="https://star-history.com/#schmitech/orbit&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date" />
-  </picture>
-</a>
-
----
-
 ## License
 
 ORBIT is licensed under the Apache 2.0 License. See [LICENSE](LICENSE) for details.
