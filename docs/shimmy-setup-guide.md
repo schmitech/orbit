@@ -125,8 +125,8 @@ Shimmy automatically discovers models from:
 
 ```bash
 # Download models that work out of the box
-huggingface-cli download microsoft/Phi-3-mini-4k-instruct-gguf --local-dir ./models/
-huggingface-cli download bartowski/Llama-3.2-1B-Instruct-GGUF --local-dir ./models/
+hf download microsoft/Phi-3-mini-4k-instruct-gguf --local-dir ./models/
+hf download bartowski/Llama-3.2-1B-Instruct-GGUF --local-dir ./models/
 ```
 
 ## Configuration in Orbit

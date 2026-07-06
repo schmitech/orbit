@@ -6,7 +6,7 @@ neural TTS engine with 31-language support, expressive voice styles, and built-i
 text chunking. Runs entirely offline using a local model directory.
 
 Model setup:
-    huggingface-cli download Supertone/supertonic-3 --local-dir ./models/supertonic-3
+    hf download Supertone/supertonic-3 --local-dir ./models/supertonic-3
 
 This service provides TTS-only functionality (no STT).
 

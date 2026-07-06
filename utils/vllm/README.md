@@ -19,7 +19,7 @@ Before running vLLM with Hugging Face models, log in to the Hugging Face CLI to 
    ```
 2. Log in to Hugging Face:
    ```bash
-   huggingface-cli login
+   hf login
    ```
    - Paste your access token when prompted. You can get your token from https://huggingface.co/settings/tokens
 

@@ -245,7 +245,7 @@ tts_providers:
     # This downloads all 5 model files (ONNX + config). No --filename flag needed
     # since the default pattern "*" matches everything.
     # Or with the Hugging Face CLI:
-    #   huggingface-cli download Supertone/supertonic-3 --local-dir ./models/supertonic-3
+    #   hf download Supertone/supertonic-3 --local-dir ./models/supertonic-3
     enabled: false
     # Path to the locally downloaded model directory.
     # Set to null to let the package auto-download from Hugging Face on first run.

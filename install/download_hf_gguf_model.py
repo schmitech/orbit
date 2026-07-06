@@ -37,8 +37,8 @@ Model access:
     Public repositories are downloaded without authentication.
     Gated models require a Hugging Face account and token:
       pip install huggingface-hub
-      huggingface-cli login
-      huggingface-cli download "meta-llama/Llama-2-7b-chat-hf"
+      hf login
+      hf download "meta-llama/Llama-2-7b-chat-hf"
 
 Requirements:
     pip install requests tqdm

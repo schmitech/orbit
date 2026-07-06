@@ -491,7 +491,10 @@ inference:
   bitnet:
     enabled: false
     # Mode: "direct" (load model locally) or "api" (connect to BitNet server)
-    mode: "direct"
+    # NOTE: "direct" mode requires a `bitnet` Python package exposing BitNetInference,
+    # which upstream microsoft/BitNet does not provide (see docs/bitnet-setup.md).
+    # Use "api" mode with BitNet's run_inference_server.py instead.
+    mode: "api"
     
     # Direct mode configuration
     model_path: "models/bitnet-b1.58-3B/ggml-model-i2_s.gguf"

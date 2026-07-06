@@ -15,6 +15,10 @@
     "embeddinggemma-300m": {
       "repo_id": "unsloth/embeddinggemma-300m-GGUF",
       "filename": "embeddinggemma-300m-Q4_0.gguf"
+    },
+    "bitnet-2b-4t": {
+      "repo_id": "microsoft/BitNet-b1.58-2B-4T-gguf",
+      "filename": "ggml-model-i2_s.gguf"
     }
   }
 } 

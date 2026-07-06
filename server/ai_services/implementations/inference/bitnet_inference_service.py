@@ -21,7 +21,15 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
         
         # Get configuration
         provider_config = self._extract_provider_config()
-        
+
+        # Mode: "direct" (load model locally) or "api" (connect to BitNet server)
+        self.mode = provider_config.get("mode", "direct")
+
+        # API mode configuration
+        self.base_url = provider_config.get("base_url", "http://localhost:8080")
+        self.api_key = provider_config.get("api_key")
+        self.model_name = provider_config.get("model")
+
         # Model configuration - use values from inference.yaml
         self.model_path = provider_config.get("model_path", "models/bitnet-b1.58-3B/ggml-model-i2_s.gguf")
         self.quant_type = provider_config.get("quant_type", "i2_s")

@@ -21,17 +21,13 @@ BitNet is Microsoft's official inference framework for 1-bit LLMs, offering:
 
 ### Installing BitNet Dependencies
 
-Orbit provides a dedicated BitNet profile that includes the necessary build dependencies:
+Orbit provides a dedicated `bitnet` dependency profile (defined in `install/dependencies.toml`) that includes the necessary build dependencies:
 
 ```bash
-# Install BitNet profile dependencies
-pip install -e .[bitnet]
-
-# Or if using uv
-uv pip install -e .[bitnet]
+./install/setup.sh --profile bitnet
 ```
 
-This will install the build dependencies (cmake, ninja, pybind11) needed for building BitNet from source.
+This installs only the build dependencies (`cmake`, `ninja`, `pybind11`) needed to build BitNet from source — it does **not** install BitNet itself, since `bitnet-cpp` is not published on PyPI. There is no `pip install -e .[bitnet]` extra in this repo; that command will fail.
 
 ### Building BitNet from Source
 
@@ -67,30 +63,37 @@ If available, you can use pre-built binaries:
 pip install bitnet-cpp  # This may not be available yet
 ```
 
+> **Direct mode status:** Orbit's `direct` mode (`server/ai_services/providers/bitnet_base.py`, `bitnet_inference_service.py`) calls `from bitnet import BitNetInference`, expecting an importable `bitnet` Python package with a `BitNetInference` class. The upstream [microsoft/BitNet](https://github.com/microsoft/BitNet) project does not provide this — it's a C++ inference engine (bitnet.cpp) driven via `run_inference.py`/`run_inference_server.py` scripts, not a Python library with this API. As a result, `direct` mode is not currently functional against the real BitNet project. **Use `api` mode** (see below) by running BitNet's own `run_inference_server.py`, which exposes an OpenAI-compatible endpoint that Orbit's `api` mode already talks to correctly.
+
 ## Model Setup
 
 ### Downloading Models
 
-BitNet supports various 1.58-bit quantized models. Download them using:
+BitNet supports various 1.58-bit quantized models. Note that `microsoft/BitNet-b1.58-2B-4T` (no suffix) ships **Safetensors** weights, not GGUF — it will not produce a `.gguf` file on its own. There are two ways to get a working GGUF model:
 
 ```bash
-# Download a pre-quantized model
-huggingface-cli download microsoft/BitNet-b1.58-2B-4T --local-dir models/BitNet-b1.58-2B-4T
+# Option A: download the pre-built GGUF repo directly (ready to use, no conversion needed)
+hf download microsoft/BitNet-b1.58-2B-4T-gguf --local-dir models/BitNet-b1.58-2B-4T-gguf
 
-# Or download the base model and quantize it
-huggingface-cli download microsoft/bitnet-b1.58-2B-4T-bf16 --local-dir models/bitnet-b1.58-2B-4T-bf16
+# Option B: download the bf16 base weights and quantize them yourself
+hf download microsoft/bitnet-b1.58-2B-4T-bf16 --local-dir models/bitnet-b1.58-2B-4T-bf16
+
+# Option C: use Orbit's built-in GGUF downloader (registry entry "bitnet-2b-4t" in install/gguf-models.json)
+./install/setup.sh --download-gguf bitnet-2b-4t
+# NOTE: this places the file flat at models/ggml-model-i2_s.gguf (no subfolder),
+# since the file sits at the repo root — set model_path accordingly if you use this route.
 ```
 
 ### Quantizing Models
 
-To quantize your own models:
+If you went with Option B above, convert and quantize the weights to produce the `.gguf` file:
 
 ```bash
 # Convert from .safetensors to GGUF format
 python utils/convert-helper-bitnet.py models/bitnet-b1.58-2B-4T-bf16
 
-# Set up environment with specific quantization
-python setup_env.py -md models/BitNet-b1.58-2B-4T -q i2_s
+# Set up environment with specific quantization (writes ggml-model-i2_s.gguf into the model dir)
+python setup_env.py -md models/bitnet-b1.58-2B-4T-bf16 -q i2_s
 ```
 
 ## Configuration
@@ -102,7 +105,7 @@ Add BitNet to your `config/inference.yaml`:
 ```yaml
 bitnet:
   mode: "direct"  # or "api"
-  model_path: "models/bitnet-b1.58-3B/ggml-model-i2_s.gguf"
+  model_path: "models/BitNet-b1.58-2B-4T-gguf/ggml-model-i2_s.gguf"
   quant_type: "i2_s"  # or "tl1"
   temperature: 0.7
   max_tokens: 1024
@@ -117,7 +120,7 @@ For local model loading:
 ```yaml
 bitnet:
   mode: "direct"
-  model_path: "models/bitnet-b1.58-3B/ggml-model-i2_s.gguf"
+  model_path: "models/BitNet-b1.58-2B-4T-gguf/ggml-model-i2_s.gguf"
   quant_type: "i2_s"
   use_pretuned: true
   quant_embd: false
@@ -139,7 +142,7 @@ bitnet:
   mode: "api"
   base_url: "http://localhost:8080"
   api_key: null  # Optional
-  model: "bitnet-b1.58-3B"
+  model: "BitNet-b1.58-2B-4T"
   temperature: 0.7
   max_tokens: 1024
 ```
@@ -151,7 +154,7 @@ Full configuration with all BitNet-specific parameters:
 ```yaml
 bitnet:
   mode: "direct"
-  model_path: "models/bitnet-b1.58-3B/ggml-model-i2_s.gguf"
+  model_path: "models/BitNet-b1.58-2B-4T-gguf/ggml-model-i2_s.gguf"
   quant_type: "i2_s"  # Quantization type: i2_s or tl1
   use_pretuned: true  # Use pretuned kernel parameters
   quant_embd: false   # Quantize embeddings to f16
@@ -235,10 +238,10 @@ To use API mode, start the BitNet inference server:
 
 ```bash
 # Start the server
-python run_inference.py -m models/bitnet-b1.58-3B/ggml-model-i2_s.gguf -p "You are a helpful assistant" -cnv
+python run_inference.py -m models/BitNet-b1.58-2B-4T-gguf/ggml-model-i2_s.gguf -p "You are a helpful assistant" -cnv
 
 # Or run as a server
-python run_inference_server.py --model_path models/bitnet-b1.58-3B/ggml-model-i2_s.gguf --port 8080
+python run_inference_server.py --model_path models/BitNet-b1.58-2B-4T-gguf/ggml-model-i2_s.gguf --port 8080
 ```
 
 ## Performance Optimization

@@ -880,10 +880,10 @@ inference:
  
 ```bash
 # First login to Hugging Face
-huggingface-cli login
+hf login
  
 # Then download the restricted model
-huggingface-cli download google/gemma-3-4b-it-qat-q4_0-gguf --local-dir gguf
+hf download google/gemma-3-4b-it-qat-q4_0-gguf --local-dir gguf
 ```
  
 Make sure you've accepted the model's license terms on the Hugging Face website before downloading.
