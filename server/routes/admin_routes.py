@@ -9,10 +9,10 @@ This module contains all admin-related endpoints including:
 
 import logging
 import asyncio
+import importlib
 import re
 import uuid
 import yaml
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -472,6 +472,28 @@ async def delete_api_key(
     return {"status": "success", "message": "API key deleted"}
 
 
+def _supports_template_reload(adapter_instance, adapter_config: dict) -> bool:
+    """Whether an adapter's implementation exposes reload_templates().
+
+    Checks the live instance when cached; otherwise resolves the implementation
+    class from config without instantiating it, so uncached adapters report
+    accurately instead of always False.
+    """
+    if adapter_instance is not None:
+        return hasattr(adapter_instance, 'reload_templates')
+
+    implementation_path = (adapter_config or {}).get('implementation')
+    if not implementation_path or '.' not in implementation_path:
+        return False
+    try:
+        module_path, class_name = implementation_path.rsplit('.', 1)
+        module = importlib.import_module(module_path)
+        adapter_class = getattr(module, class_name)
+        return hasattr(adapter_class, 'reload_templates')
+    except Exception:
+        return False
+
+
 @admin_router.get("/adapters/capabilities", dependencies=[Depends(admin_auth_check)])
 async def get_adapter_capabilities(
     request: Request,
@@ -494,7 +516,7 @@ async def get_adapter_capabilities(
                 "name": adapter_name,
                 "adapter_type": (adapter_config or {}).get("adapter"),
                 "cached": bool(adapter_instance),
-                "supports_template_reload": bool(adapter_instance and hasattr(adapter_instance, 'reload_templates')),
+                "supports_template_reload": _supports_template_reload(adapter_instance, adapter_config),
             })
 
         return {"adapters": capabilities}
@@ -574,16 +596,12 @@ def _find_adapter_file(adapters_dir: Path, adapter_name: str):
     return None, ""
 
 
-def _backup_and_write(file_path: Path, new_content: str) -> str:
-    """Create .bak backup and write new content. Returns backup path string."""
-    backup_path = file_path.with_suffix(".yaml.bak")
-    shutil.copy2(file_path, backup_path)
-    logger.info("Adapter config backup created at %s", backup_path)
+def _write_adapter_config(file_path: Path, new_content: str) -> None:
+    """Write new adapter config content to disk."""
     file_path.write_text(new_content, encoding="utf-8")
     logger.info("Adapter config updated: %s", file_path)
     from config.config_manager import clear_config_cache
     clear_config_cache()
-    return str(backup_path.resolve())
 
 
 @admin_router.get("/adapters/config", dependencies=[Depends(admin_auth_check)])
@@ -688,10 +706,9 @@ async def save_adapter_entry(
 
     new_lines = lines[:start] + new_block.split("\n") + lines[end:]
     new_content = "\n".join(new_lines)
-    backup = _backup_and_write(file_path, new_content)
+    _write_adapter_config(file_path, new_content)
     return {
         "message": f"Adapter '{adapter_name}' saved. Use 'Reload Adapter' to apply changes.",
-        "backup": backup,
     }
 
 
@@ -732,7 +749,7 @@ async def toggle_adapter_enabled(
         lines.insert(start + 1, f"{indent}enabled: {enabled_str}")
 
     new_content = "\n".join(lines)
-    backup = _backup_and_write(file_path, new_content)
+    _write_adapter_config(file_path, new_content)
 
     state = "enabled" if enabled else "disabled"
 
@@ -771,7 +788,6 @@ async def toggle_adapter_enabled(
     return {
         "message": message,
         "enabled": enabled,
-        "backup": backup,
         "reload_summary": reload_summary,
         "reload_error": reload_error,
     }
@@ -797,7 +813,7 @@ async def save_adapter_config_file(
     request: Request,
     body: dict = Body(...)
 ):
-    """Validate, back up, and write an adapter config file."""
+    """Validate and write an adapter config file."""
     _validate_adapter_filename(filename)
 
     content = body.get("content")
@@ -813,10 +829,9 @@ async def save_adapter_config_file(
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail=f"Adapter file not found: {filename}")
 
-    backup = _backup_and_write(file_path, content)
+    _write_adapter_config(file_path, content)
     return {
         "message": f"Adapter config '{filename}' saved. Use 'Reload Adapter' to apply changes.",
-        "backup": backup,
     }
 
 
@@ -1575,11 +1590,10 @@ async def update_config(
     body: dict = Body(...)
 ):
     """
-    Validate, back up, and write new config.yaml content.
+    Validate and write new config.yaml content.
 
-    Accepts {"content": "<yaml string>"}. Validates YAML syntax,
-    creates a .bak backup, then writes the new content. A server
-    restart is required for most changes to take effect.
+    Accepts {"content": "<yaml string>"}. Validates YAML syntax, then writes
+    the new content. A server restart is required for most changes to take effect.
     """
     content = body.get("content")
     if content is None:
@@ -1595,11 +1609,6 @@ async def update_config(
     if not config_path.is_file():
         raise HTTPException(status_code=404, detail=f"Config file not found: {config_path}")
 
-    # Back up current file
-    backup_path = config_path.with_suffix('.yaml.bak')
-    shutil.copy2(config_path, backup_path)
-    logger.info("Config backup created at %s", backup_path)
-
     # Write new content
     config_path.write_text(content, encoding='utf-8')
     logger.info("Config file updated at %s", config_path)
@@ -1610,7 +1619,6 @@ async def update_config(
 
     return {
         "message": "Config saved. A server restart is required for changes to take effect.",
-        "backup": str(backup_path.resolve())
     }
 
 
@@ -1754,10 +1762,6 @@ async def update_config_section(request: Request, key: str, body: dict = Body(..
             detail=f"Saving section '{key}' would change the config file's top-level structure.",
         )
 
-    backup_path = config_path.with_suffix('.yaml.bak')
-    shutil.copy2(config_path, backup_path)
-    logger.info("Config backup created at %s", backup_path)
-
     config_path.write_text(new_content, encoding='utf-8')
     logger.info("Config section '%s' updated at %s", key, config_path)
 
@@ -1766,7 +1770,6 @@ async def update_config_section(request: Request, key: str, body: dict = Body(..
 
     return {
         "message": f"'{key}' section saved. A server restart is required for changes to take effect.",
-        "backup": str(backup_path.resolve())
     }
 
 

@@ -914,7 +914,7 @@
       ),
       nav,
       el("div", { className: "topbar-actions" },
-        el("span", null, currentUser ? currentUser.role : ""),
+        el("span", null, currentUser ? (currentUser.email || currentUser.username) : ""),
         logoutBtn
       )
     );
@@ -2324,6 +2324,7 @@
     panel.appendChild(el("h2", { className: "detail-title" }, user.email || user.username || "User Details"));
     panel.appendChild(el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "ID:"), " " + (user.id || "N/A")),
+      el("p", null, el("strong", null, "Email:"), " " + (user.email || "N/A")),
       el("p", null, el("strong", null, "Username:"), " " + (user.username || "N/A")),
       el("p", null, el("strong", null, "Role:"), " " + (user.role || "N/A")),
       el("p", null, el("strong", null, "Status:"), " ",
@@ -4150,10 +4151,14 @@
     // Destroy previous editor
     if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
 
-    // Lazy-load adapter file listing
-    if (!cachedAdapterFiles) {
+    // Lazy-load adapter file listing and capability metadata (needed to know
+    // which adapters support template reload)
+    if (!cachedAdapterFiles || !cachedAdapterCapabilities) {
       container.appendChild(skeleton());
-      loadAdapterFiles().then(function () {
+      Promise.all([
+        cachedAdapterFiles ? Promise.resolve(cachedAdapterFiles) : loadAdapterFiles(),
+        cachedAdapterCapabilities ? Promise.resolve(cachedAdapterCapabilities) : loadAdapterCapabilities(),
+      ]).then(function () {
         if (activeTab === "adapters") renderAdapters(container);
       });
       return;
@@ -4360,15 +4365,22 @@
         "aria-label": "Reload from disk",
         title: "Reload from disk",
       }, svgIcon(ICON_REFRESH));
-      var reloadAdapterBtn = el("button", { className: "btn btn--neutral" }, "Reload Adapter");
-      var reloadTemplatesBtn = el("button", { className: "btn btn--neutral" }, "Reload Templates");
+      // Template reload only applies to adapters whose implementation exposes
+      // reload_templates() (intent/composite retrievers) — driven by the backend
+      // capability flag so this stays correct as new adapter types are added.
+      var adapterCap = (cachedAdapterCapabilities || []).find(function (c) { return c.name === a.name; });
+      var supportsTemplateReload = !!(adapterCap && adapterCap.supports_template_reload);
+      var reloadTemplatesBtn = supportsTemplateReload
+        ? el("button", { className: "btn btn--neutral" }, "Reload Templates")
+        : null;
 
       var btnRow = el("div", { style: "display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-3)" });
       btnRow.appendChild(saveBtn);
       btnRow.appendChild(reloadDiskBtn);
-      btnRow.appendChild(el("span", { className: "ops-action-divider" }));
-      btnRow.appendChild(reloadAdapterBtn);
-      btnRow.appendChild(reloadTemplatesBtn);
+      if (reloadTemplatesBtn) {
+        btnRow.appendChild(el("span", { className: "ops-action-divider" }));
+        btnRow.appendChild(reloadTemplatesBtn);
+      }
       detailPanel.appendChild(btnRow);
 
       // Initialise Ace
@@ -4414,7 +4426,7 @@
         }
       }
 
-      // Save handler — saves just this adapter's block back into its file
+      // Save handler — saves just this adapter's block back into its file, then hot-reloads it
       saveBtn.addEventListener("click", async function () {
         saveBtn.disabled = true;
         try {
@@ -4423,18 +4435,12 @@
           // Refresh adapter list
           await loadAdapterFiles();
           renderAdapterRows(searchInput.value);
-          // Show banner
           clear(banner);
-          var reloadNowBtn = el("button", { className: "btn btn--neutral", style: "margin-left:var(--sp-3);padding:var(--sp-1) var(--sp-2);font-size:var(--text-xs)" }, "Reload Now");
-          reloadNowBtn.addEventListener("click", function () {
-            doReloadAdapter();
-          });
-          banner.appendChild(el("span", null, "Saved. Reload adapter to apply changes. "));
-          banner.appendChild(reloadNowBtn);
-          banner.style.display = "";
-          showStatus("Adapter '" + a.name + "' saved");
+          banner.style.display = "none";
+          await doReloadAdapter();
         } catch (err) {
           showError("Save failed: " + err.message);
+        } finally {
           saveBtn.disabled = adapterEditor.getValue() === adapterOriginal;
         }
       });
@@ -4458,51 +4464,38 @@
         }
       });
 
-      // Reload adapter (hot-swap via existing endpoint)
+      // Reload adapter (hot-swap via existing endpoint) \u2014 triggered automatically after save
       async function doReloadAdapter() {
-        withButton(reloadAdapterBtn, async function () {
+        await withButton(saveBtn, async function () {
           var path = ENDPOINTS.reloadAdapters + "/async?adapter_name=" + encodeURIComponent(a.name);
           var started = await api("POST", path);
-          var job = await waitForAdminJob(started.job_id, "Reloading adapter\u2026");
+          await waitForAdminJob(started.job_id, "Reloading adapter\u2026");
           await loadAdapterCapabilities();
-          banner.style.display = "none";
-          showStatus("Adapter '" + a.name + "' reloaded");
+          showStatus("Adapter '" + a.name + "' saved and reloaded");
         });
       }
-      reloadAdapterBtn.addEventListener("click", function () {
-        confirmAction({
-          title: "Reload Adapter",
-          message: "Reload adapter '" + a.name + "' from the current config on disk?",
-          confirmLabel: "Reload",
-          loadingLabel: "Reloading\u2026",
-          onConfirm: doReloadAdapter,
-        });
-      });
 
       // Reload templates
-      reloadTemplatesBtn.addEventListener("click", function () {
-        var cap = (cachedAdapterCapabilities || []).find(function (c) { return c.name === a.name; });
-        if (cap && !cap.supports_template_reload) {
-          showError("This adapter does not support template reloading.");
-          return;
-        }
-        if (cap && !cap.cached) {
-          showError("Adapter must be cached (loaded) before templates can be reloaded. Send a query to it first.");
-          return;
-        }
-        confirmAction({
-          title: "Reload Templates",
-          message: "Reload templates for adapter '" + a.name + "'?",
-          confirmLabel: "Reload",
-          loadingLabel: "Reloading\u2026",
-          onConfirm: async function () {
-            var path = ENDPOINTS.reloadTemplates + "/async?adapter_name=" + encodeURIComponent(a.name);
-            var started = await api("POST", path);
-            await waitForAdminJob(started.job_id, "Reloading templates\u2026");
-            showStatus("Templates reloaded for '" + a.name + "'");
+      if (reloadTemplatesBtn) {
+        reloadTemplatesBtn.addEventListener("click", function () {
+          if (!adapterCap.cached) {
+            showError("Adapter must be cached (loaded) before templates can be reloaded. Send a query to it first.");
+            return;
           }
+          confirmAction({
+            title: "Reload Templates",
+            message: "Reload templates for adapter '" + a.name + "'?",
+            confirmLabel: "Reload",
+            loadingLabel: "Reloading\u2026",
+            onConfirm: async function () {
+              var path = ENDPOINTS.reloadTemplates + "/async?adapter_name=" + encodeURIComponent(a.name);
+              var started = await api("POST", path);
+              await waitForAdminJob(started.job_id, "Reloading templates\u2026");
+              showStatus("Templates reloaded for '" + a.name + "'");
+            }
+          });
         });
-      });
+      }
 
       loadEntry();
     }

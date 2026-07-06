@@ -1952,16 +1952,16 @@ code.plain-code {
   padding: var(--sp-2) var(--sp-3);
   min-height: 36px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  color: var(--ink-muted);
-  background: var(--surface);
+  border: 1px solid var(--neutral-200);
+  color: var(--neutral-text);
+  background: var(--neutral-100);
   font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
-.monitoring-export-btn:hover {
+.monitoring-export-btn:hover:not(:disabled) {
   border-color: var(--brand-500);
   color: var(--brand-600);
   background: var(--brand-50);

@@ -218,6 +218,7 @@ class AuthService:
         return {
             "id": str(user["_id"]),
             "username": user["username"],
+            "email": user.get("email"),
             "role": user.get("role", "user"),
             "active": user.get("active", True),
         }
