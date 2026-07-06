@@ -227,6 +227,7 @@ class MetricsService:
             return False
 
         excluded_exact_paths = {
+            "__unmatched_route__",
             "/",
             "/favicon.ico",
             "/metrics",
