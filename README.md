@@ -122,6 +122,7 @@ Then open the admin dashboard at **[http://localhost:3000/admin](http://localhos
 | **File & multimodal RAG** | PDFs, DOCX, spreadsheets, CSVs, markdown, images, and audio — with cached file context across conversations. |
 | **Pluggable file storage** | Store uploads and generated media on local disk (default) or in the cloud — AWS S3, MinIO / SeaweedFS (S3-compatible), Azure Blob, or Google Cloud Storage — selected with one config key. |
 | **File encryption at rest** | AES-256-GCM encryption for uploaded files, opt-in per adapter — keep classified or regulated documents encrypted on disk or in the cloud without touching adapters that don't need it. |
+| **Cloud secrets management** | Resolve API keys, DB passwords, and connection strings from AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager instead of (or alongside) `.env` — selected with one config key. [Guide](docs/security/secrets-management-setup.md). |
 | **Web search** | Provider-agnostic real-time context via DuckDuckGo (free), Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity — decoupled from synthesis so any LLM can answer. |
 | **MCP tool agents** | Connect MCP servers (filesystem, GitHub, Slack, Postgres, Jira, Notion, and more) over stdio/SSE with bounded, server-side agent loops. |
 | **A2A peer protocol** | [Google Agent-to-Agent](https://google.github.io/A2A/) support — discovery via `/.well-known/agent.json` and task delegation over JSON-RPC. [Guide](docs/a2a-protocol.md). |

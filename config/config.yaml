@@ -165,7 +165,7 @@ auth:
     admin_sso:
       enabled: false
       base_url: ${ORBIT_ADMIN_BASE_URL:-}   # Optional; overrides auto-detected redirect base (needed behind a proxy)
-      admin_users: []                        # Emails and/or "provider:subject" granted admin at login
+      admin_users: [] # Emails and/or "provider:subject" granted admin at login
 
 api_keys:
   header_name: "X-API-Key"
@@ -653,6 +653,33 @@ monitoring:
     memory_threshold: 85          # Alert when memory > 85%
     error_rate_threshold: 5       # Alert when error rate > 5%
     response_time_threshold: 5000 # Alert when avg response time > 5000ms
+
+secrets_management:
+  # Where ${VAR_NAME} placeholders throughout this config are resolved from.
+  # Cloud providers are consulted FIRST for each name; if a name isn't found
+  # there, resolution falls back to .env / process environment, then to any
+  # ${VAR:-default}. This stops a stale local .env value from silently
+  # shadowing a hardened secret.
+  #   env   - .env / process environment only (default, no extra setup)
+  #   aws   - AWS Secrets Manager
+  #   azure - Azure Key Vault
+  #   gcp   - GCP Secret Manager
+  # Requires the 'secrets-management' dependency profile for aws/azure/gcp:
+  #   ./install/setup.sh --profile secrets-management
+  #
+  # NOTE: the connection settings below always resolve from plain os.environ —
+  # the backend doesn't exist yet while it's being constructed.
+  provider: "${ORBIT_SECRETS_PROVIDER:-env}"
+
+  aws:
+    region: "${AWS_REGION:-us-east-1}"
+    endpoint_url: "${ORBIT_SECRETS_AWS_ENDPOINT_URL:-}"   # optional, e.g. LocalStack
+
+  azure:
+    vault_url: "${AZURE_KEY_VAULT_URL:-}"                 # e.g. https://your-vault.vault.azure.net/
+
+  gcp:
+    project: "${GOOGLE_CLOUD_PROJECT:-}"
 
 security:
   # CORS (Cross-Origin Resource Sharing) configuration

@@ -24,6 +24,13 @@ _resolved_presets: Dict[str, str] = {}
 _import_cache: Dict[str, Tuple[int, Dict[str, Any]]] = {}
 _ENV_VAR_RE = re.compile(r'\$\{([^}]+)\}')
 
+# Cached secrets backend (AWS Secrets Manager / Azure Key Vault / GCP Secret
+# Manager). Persists across config reloads to avoid re-authenticating to the
+# cloud provider on every admin-triggered adapter reload; only cleared by
+# clear_config_cache() for a full reset (e.g. in tests).
+_secrets_backend: Any = None
+_secrets_backend_initialized = False
+
 
 def load_config(config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Load configuration from shared config.yaml file"""
@@ -36,7 +43,7 @@ def load_config(config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
 
 def clear_config_cache() -> None:
     """Clear the module-level loaded config singleton."""
-    global _config
+    global _config, _secrets_backend, _secrets_backend_initialized
     with _config_lock:
         _config = None
         _resolved_presets.clear()
@@ -45,6 +52,8 @@ def clear_config_cache() -> None:
         # (e.g. adapters/multimodal.yaml) would otherwise be masked by the unchanged
         # parent's cache entry.
         _import_cache.clear()
+        _secrets_backend = None
+        _secrets_backend_initialized = False
 
 
 def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -68,8 +77,14 @@ def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[Dict[s
                 # Process imports (like adapters.yaml)
                 config = _process_imports(config, os.path.dirname(path))
 
+                # Resolve just secrets_management.* from plain os.environ, then
+                # build the secrets backend it describes (if any), before
+                # resolving the rest of the config's ${VAR} placeholders.
+                config = _resolve_secrets_subtree(config)
+                secrets_backend = _get_secrets_backend(config)
+
                 # Process environment variables
-                config = _process_env_vars(config)
+                config = _process_env_vars(config, secrets_backend)
 
                 # Fail fast if required secrets are absent
                 _validate_required_config(config)
@@ -279,12 +294,71 @@ def _validate_cors_config(config: Dict[str, Any]) -> None:
         )
 
 
-def _process_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_secrets_subtree(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve config['secrets_management'] from plain os.environ only.
+
+    This is a bootstrap pass: the connection settings that describe how to
+    reach a cloud secrets backend (region, vault URL, project) can never
+    themselves come from that backend, since it doesn't exist yet.
+    """
+    secrets_management = config.get('secrets_management')
+    if not isinstance(secrets_management, dict):
+        return config
+
+    def plain_env_sub(value):
+        if not isinstance(value, str) or '${' not in value:
+            return value
+
+        def _sub(match):
+            inner = match.group(1)
+            if ':-' in inner:
+                env_var_name, default_value = inner.split(':-', 1)
+                env_value = os.environ.get(env_var_name)
+                return env_value if env_value else default_value
+            return os.environ.get(inner, "")
+
+        return _ENV_VAR_RE.sub(_sub, value)
+
+    def walk(d):
+        return {k: (walk(v) if isinstance(v, dict) else plain_env_sub(v)) for k, v in d.items()}
+
+    config['secrets_management'] = walk(secrets_management)
+    return config
+
+
+def _get_secrets_backend(config: Dict[str, Any]):
+    """Instantiate (or reuse) the configured secrets backend.
+
+    Never raises: any construction failure (missing SDK, bad credentials,
+    unreachable service) is logged as a warning and treated as "no backend",
+    falling back to os.environ-only resolution exactly as before this
+    feature existed.
+    """
+    global _secrets_backend, _secrets_backend_initialized
+    if _secrets_backend_initialized:
+        return _secrets_backend
+
+    try:
+        from services.secrets import create_secrets_backend
+        _secrets_backend = create_secrets_backend(config)
+    except Exception as e:
+        logger.warning(f"Failed to initialize secrets backend, falling back to environment variables only: {e}")
+        _secrets_backend = None
+
+    _secrets_backend_initialized = True
+    return _secrets_backend
+
+
+def _process_env_vars(config: Dict[str, Any], secrets_backend: Any = None) -> Dict[str, Any]:
     """Process environment variables in config values
 
     Supports two formats:
     - ${ENV_VAR_NAME} - Required variable, logs warning if not found
     - ${ENV_VAR_NAME:-default} - Optional variable with default value
+
+    If a secrets_backend is provided, each name is looked up there first;
+    only names it doesn't have fall through to os.environ, then to the
+    default value (if any).
     """
     def replace_env_vars(value):
         if not isinstance(value, str):
@@ -292,19 +366,32 @@ def _process_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
 
         def _sub(match):
             inner = match.group(1)
-
-            if ':-' in inner:
+            has_default = ':-' in inner
+            if has_default:
                 env_var_name, default_value = inner.split(':-', 1)
+            else:
+                env_var_name, default_value = inner, None
+
+            if secrets_backend is not None:
+                try:
+                    secret_value = secrets_backend.get_secret(env_var_name)
+                except Exception as e:
+                    logger.warning(f"Secrets backend lookup failed for '{env_var_name}', falling back to environment: {e}")
+                    secret_value = None
+                if secret_value:
+                    return secret_value
+
+            if has_default:
                 env_value = os.environ.get(env_var_name)
                 if env_value is not None and env_value != "":
                     return env_value
                 return default_value
 
-            env_value = os.environ.get(inner)
+            env_value = os.environ.get(env_var_name)
             if env_value is not None:
                 return env_value
 
-            logger.warning(f"Environment variable {inner} not found")
+            logger.warning(f"Environment variable {env_var_name} not found")
             return ""
 
         if '${' in value:

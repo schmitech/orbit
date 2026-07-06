@@ -370,6 +370,36 @@ files:
   default_collection_prefix: "files_"
 ```
 
+## Secrets Management
+
+Controls where `${VAR_NAME}` placeholders used throughout `config/*.yaml` are resolved from. The default (`env`) resolves from `.env` / the process environment, exactly as before this feature existed. Setting `provider` to `aws`, `azure`, or `gcp` additionally resolves each placeholder as a secret of the same name in that cloud provider — the provider is consulted first, and only names it doesn't have fall back to `.env`/environment, then to any `${VAR:-default}`. This means no existing `config/*.yaml` file needs to change to adopt a cloud provider; only the resolution source changes.
+
+```yaml
+secrets_management:
+  provider: "env"                      # env, aws, azure, gcp
+
+  aws:
+    region: "us-east-1"
+    endpoint_url: ""                   # optional, e.g. LocalStack for testing
+
+  azure:
+    vault_url: ""                      # e.g. https://your-vault.vault.azure.net/
+
+  gcp:
+    project: ""
+```
+
+Cloud providers require the `secrets-management` dependency profile:
+
+```bash
+./install/setup.sh --profile secrets-management
+```
+
+Notes:
+- **Naming**: each `${VAR_NAME}` is looked up as a secret of the exact same name (AWS Secrets Manager, GCP Secret Manager), except Azure Key Vault, which disallows underscores in secret names — `DATASOURCE_POSTGRES_PASSWORD` is looked up there as `DATASOURCE-POSTGRES-PASSWORD`.
+- **Failure handling**: if the backend can't be reached at startup, or an individual secret lookup fails, ORBIT logs a warning and falls back to `.env`/environment rather than crashing.
+- **Caching**: resolved secrets are cached in-memory for the life of the process to avoid repeated cloud API calls on every admin-triggered config reload.
+
 ## Security Configuration
 
 ### CORS

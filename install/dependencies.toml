@@ -239,6 +239,17 @@ dependencies = [
 ]
 
 # ============================================================================
+# SECRETS-MANAGEMENT - Cloud secrets managers (AWS, Azure, GCP)
+# ============================================================================
+[profiles.secrets-management]
+description = "Cloud secrets management (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager)"
+extends = ["cloud-services"]
+dependencies = [
+    "azure-keyvault-secrets>=4.8.0",
+    "google-cloud-secret-manager>=2.20.0"
+]
+
+# ============================================================================
 # DEVELOPMENT - Development and testing tools
 # ============================================================================
 [profiles.development]
