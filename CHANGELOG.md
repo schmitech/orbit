@@ -8,6 +8,11 @@
 
 ### Documentation & Configuration
 - **File Guides**: Added an AWS S3 file storage setup guide and updated comparison guides with file-management and encryption details.
+- **Architecture Diagram**: Refreshed the README architecture section with the revised diagram and centered caption layout.
+- **Project Cleanup**: Removed the star history chart to simplify and declutter the project presentation.
+
+### Chat-app & UI Improvements
+- **Admin Panel**: Polished the admin panel with adapter auto-reload after save, capability-aware template reload visibility, and UI fixes for the overview export button, topbar user identity display, and user email fields.
 
 ## [2.8.2] - 2026-07-04
 
