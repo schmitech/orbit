@@ -55,7 +55,7 @@ ORBIT is a single API gateway that puts production controls in front of any AI m
   <tr>
     <td align="center" width="600">
       <a href="https://github.com/schmitech/orbit">
-        <img src="https://github.com/user-attachments/assets/773e5837-6bbb-460d-b980-906974d2980f" alt="ORBIT Logo" width="600"/>
+        <img src="https://github.com/user-attachments/assets/f0b60d9d-6bf4-48c1-8dc9-48315d137da9" alt="ORBIT Logo" width="600"/>
       </a>
       <br />
       <em>Every request flows through the ORBIT gateway, gets authenticated and routed by an adapter, and lands on the right provider — REST, OpenAI-compatible, MCP, or A2A in; inference, RAG, structured data, tools, or generation out.</em>
