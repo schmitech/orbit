@@ -312,6 +312,10 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
         draft-07 annotations. Gemini's Pydantic model uses extra=forbid so
         any unknown key raises a ValidationError. We strip them recursively
         so nested property schemas are also cleaned.
+
+        'additionalProperties' is also unsupported by Gemini's Schema type —
+        the google-genai SDK round-trips it to 'additional_properties' when
+        serializing, which the API then rejects as an unknown field.
         """
         if not isinstance(schema, dict):
             return schema
@@ -319,6 +323,8 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
         for k, v in schema.items():
             if k.startswith("$"):
                 continue  # drop $schema, $id, $defs, $ref meta-fields
+            if k == "additionalProperties":
+                continue  # unsupported by Gemini's Schema type
             if isinstance(v, dict):
                 v = GeminiInferenceService._strip_schema_meta(v)
             elif isinstance(v, list):
