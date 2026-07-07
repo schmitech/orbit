@@ -143,6 +143,11 @@ internal_services:
   redis:
     enabled: false
 
+  # DISABLED - No caching provider; quota/throttling and autocomplete caching fall back to in-memory/no-op
+  cache:
+    enabled: false
+    provider: "sqlite"  # sqlite | redis | memcached
+
 # Keep chat history for conversation context
 chat_history:
   enabled: true
@@ -193,6 +198,20 @@ monitoring:
     memory_threshold: 85          # Alert when memory > 85%
     error_rate_threshold: 5       # Alert when error rate > 5%
     response_time_threshold: 5000 # Alert when avg response time > 5000ms
+
+secrets_management:
+  # Where ${VAR_NAME} placeholders are resolved from: env (default), aws, azure, or gcp
+  provider: "${ORBIT_SECRETS_PROVIDER:-env}"
+
+  aws:
+    region: "${AWS_REGION:-us-east-1}"
+    endpoint_url: "${ORBIT_SECRETS_AWS_ENDPOINT_URL:-}"
+
+  azure:
+    vault_url: "${AZURE_KEY_VAULT_URL:-}"
+
+  gcp:
+    project: "${GOOGLE_CLOUD_PROJECT:-}"
 
 security:
   cors:
