@@ -53,7 +53,7 @@ ORBIT is a single API gateway that puts production controls in front of any AI m
 
 <table align="center">
   <tr>
-    <td align="center" width="600">
+    <td align="center" width="800">
       <a href="https://github.com/schmitech/orbit">
         <img src="https://github.com/user-attachments/assets/f0b60d9d-6bf4-48c1-8dc9-48315d137da9" alt="ORBIT Logo" width="600"/>
       </a>
@@ -262,9 +262,8 @@ teams across industries are trying to solve with AI — with a short demo as pro
 | **Adapters & RAG** | [Adapters overview](docs/adapters/adapters.md) · [File adapter](docs/adapters/file-adapter-guide.md) |
 | **NL data access** | [SQL retriever architecture](docs/sql-retriever-architecture.md) · [Intent SQL RAG](docs/intent-sql-rag-system.md) |
 | **MCP agents** | [MCP agent guide](docs/adapters/mcp-agent.md) |
-| **Production ops** | [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) · [Deployment](docs/cookbook/orbit-server-production-deployment.md) |
+| **Production ops** | [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
 | **Auth & SSO** | [Authentication guide](docs/authentication.md) — built-in users, Entra ID & Auth0 |
-| **Cookbook** | [Recipe index](docs/cookbook/README.md) |
 
 ---
 
