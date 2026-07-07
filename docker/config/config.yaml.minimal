@@ -183,6 +183,7 @@ files:
   processing:
     docling_enabled: false
     markitdown_enabled: false
+    ai_document_enabled: false
     processor_priority: "docling"
 
 monitoring:

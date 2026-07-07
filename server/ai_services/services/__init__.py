@@ -44,6 +44,11 @@ from .vision_service import (
     create_vision_service
 )
 
+from .ocr_service import (
+    OcrService,
+    create_ocr_service
+)
+
 from .audio_service import (
     AudioService,
     AudioResult,
@@ -78,6 +83,10 @@ __all__ = [
     'VisionService',
     'VisionResult',
     'create_vision_service',
+
+    # OCR
+    'OcrService',
+    'create_ocr_service',
 
     # Audio
     'AudioService',

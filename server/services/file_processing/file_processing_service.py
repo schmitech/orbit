@@ -448,6 +448,14 @@ class FileProcessingService:
             logger.debug(f"Could not access live config from adapter manager, using startup snapshot: {e}")
         return self.config
 
+    def _ai_ocr_is_priority(self) -> bool:
+        """Whether the AI OCR processor is enabled and set as the priority processor."""
+        processing = self.config.get('files', {}).get('processing', {})
+        return (
+            processing.get('ai_document_enabled', False)
+            and processing.get('processor_priority') == 'ai_document'
+        )
+
     async def _create_vision_service(self, vision_provider: str) -> Any:
         """
         Create (or fetch the cached) vision service for the given provider.
@@ -1069,8 +1077,10 @@ class FileProcessingService:
         vision_prompt: Optional[str] = None
     ) -> tuple[str, Dict[str, Any]]:
         """Extract text and metadata from file."""
-        # Check if this is an image file
-        if self.enable_vision and mime_type.startswith('image/'):
+        # Check if this is an image file. When the AI OCR processor is the active
+        # priority processor, let images fall through to it (via the registry)
+        # instead of the generic vision path.
+        if self.enable_vision and mime_type.startswith('image/') and not self._ai_ocr_is_priority():
             return await self._extract_image_content(
                 file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt
             )

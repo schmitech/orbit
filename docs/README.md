@@ -116,6 +116,7 @@ Connect ORBIT to your data.
 | Guide | Description |
 |-------|-------------|
 | [File Processing](file-adapter-guide.md) | PDF, DOCX, CSV, images, audio support |
+| [AI/LLM Document OCR](ai-document-ocr.md) | LLM-based OCR for scanned PDFs and images (Mistral / vision providers) |
 | [Chunking Architecture](chunking/chunking-architecture.md) | Document chunking and embedding strategies |
 | [Chunking Safeguards](chunking/chunking_safeguards.md) | Safety considerations for document processing |
 

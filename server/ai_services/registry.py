@@ -157,6 +157,20 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
     ], config=config, config_section='visions', default_enabled=False)
 
 
+def register_ocr_services(config: Dict[str, Any] = None) -> None:
+    # Default to False — if ocr.yaml is not imported, no OCR services should register
+    _register_services(ServiceType.OCR, 'ai_services.implementations.ocr', [
+        ("mistral", "MistralOcrService", "Mistral OCR"),
+        ("openai", "OpenAIOcrService", "OpenAI"),
+        ("gemini", "GeminiOcrService", "Gemini"),
+        ("anthropic", "AnthropicOcrService", "Anthropic"),
+        ("cohere", "CohereOcrService", "Cohere"),
+        ("ollama", "OllamaOcrService", "Ollama"),
+        ("vllm", "VLLMOcrService", "vLLM"),
+        ("llama_cpp", "LlamaCppOcrService", "Llama.cpp"),
+    ], config=config, config_section='ocr', default_enabled=False)
+
+
 def register_audio_services(config: Dict[str, Any] = None) -> None:
     """Register audio services. Both TTS and STT must be globally disabled to skip all."""
     if config:
@@ -253,6 +267,7 @@ def register_all_services(config: Dict[str, Any] = None) -> None:
         register_moderation_services()
         register_reranking_services(config)
         register_vision_services(config)
+        register_ocr_services(config)
         register_image_generation_services(config)
         register_video_generation_services(config)
         register_audio_services(config)

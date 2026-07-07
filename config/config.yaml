@@ -10,6 +10,7 @@ import:
   - "moderators.yaml"
   - "guardrails.yaml"
   - "vision.yaml"
+  - "ocr.yaml"
   - "image.yaml"
   - "video.yaml"
   - "document.yaml"
@@ -592,11 +593,19 @@ files:
     # Default: false (opt-in)
     markitdown_enabled: true
 
+    # AI/LLM-based OCR processor configuration
+    # Third universal processor that offloads OCR for PDFs and images to an LLM
+    # inference service (Mistral native OCR, or OpenAI/Gemini/Anthropic vision).
+    # Provider/model are configured in ocr.yaml; see the ai_document block below.
+    # Default: false (opt-in)
+    ai_document_enabled: false
+
     # Processor priority when multiple universal processors are enabled
     # Determines which processor is tried first for overlapping MIME types
-    # Options: "docling" (default), "markitdown", "native"
+    # Options: "docling" (default), "markitdown", "ai_document", "native"
     # - docling: Try Docling first (advanced document understanding)
     # - markitdown: Try MarkItDown first (clean markdown conversion)
+    # - ai_document: Try AI/LLM OCR first (requires ai_document_enabled + ocr.yaml)
     # - native: Only use native Python processors (no universal processors)
     processor_priority: "markitdown"
 
@@ -604,6 +613,20 @@ files:
     markitdown:
       # Enable third-party plugins (default: false for security)
       enable_plugins: false
+
+    # AI/LLM OCR options (used when ai_document_enabled is true)
+    ai_document:
+      # OCR provider — must also be enabled in ocr.yaml
+      # mistral | openai | gemini | anthropic | cohere | ollama | vllm | llama_cpp
+      provider: "mistral"
+      # Optional model override; if null, uses the provider's model from ocr.yaml
+      model: null
+      # Cap PDF pages sent to vision-backed providers (Mistral native OCR ignores this)
+      max_pages: 50
+      # Rasterization DPI for vision-backed PDF OCR (higher = sharper, slower)
+      dpi: 150
+      # Optional custom OCR prompt for vision-backed providers (null = default OCR prompt)
+      prompt: null
 
     # Magika upload inspection
     # Verifies uploaded content against the declared MIME type before processing

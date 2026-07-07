@@ -39,6 +39,7 @@ class FileProcessorRegistry:
         # Universal processor settings
         docling_enabled = processing_config.get('docling_enabled', True)
         markitdown_enabled = processing_config.get('markitdown_enabled', False)
+        ai_document_enabled = processing_config.get('ai_document_enabled', False)
         processor_priority = processing_config.get('processor_priority', 'docling')
 
         # MarkItDown specific config
@@ -47,14 +48,21 @@ class FileProcessorRegistry:
 
         # Register universal processors based on priority
         # First registered processor gets priority for overlapping MIME types
-        if processor_priority == 'markitdown':
+        if processor_priority == 'ai_document':
+            # AI/LLM OCR first, then local processors as fallback
+            self._register_ai_document(ai_document_enabled)
+            self._register_docling(docling_enabled)
+            self._register_markitdown(markitdown_enabled, enable_plugins)
+        elif processor_priority == 'markitdown':
             # MarkItDown first, Docling as fallback
             self._register_markitdown(markitdown_enabled, enable_plugins)
             self._register_docling(docling_enabled)
+            self._register_ai_document(ai_document_enabled)
         else:
             # Docling first (default), MarkItDown as fallback
             self._register_docling(docling_enabled)
             self._register_markitdown(markitdown_enabled, enable_plugins)
+            self._register_ai_document(ai_document_enabled)
 
         # Register native format-specific processors as final fallback
         self._register_native_processors()
@@ -82,6 +90,18 @@ class FileProcessorRegistry:
                 logger.debug(f"MarkItDownProcessor not available: {e}")
         else:
             logger.debug("MarkItDown processor is disabled in configuration")
+
+    def _register_ai_document(self, enabled: bool):
+        """Register the AI/LLM OCR processor if enabled."""
+        if enabled:
+            try:
+                from .ai_document_processor import AIDocumentProcessor
+                self.register(AIDocumentProcessor(enabled=True, config=self.config))
+                logger.info("Registered AIDocumentProcessor (LLM-based OCR for PDFs and images)")
+            except ImportError as e:
+                logger.debug(f"AIDocumentProcessor not available: {e}")
+        else:
+            logger.debug("AI document processor is disabled in configuration")
 
     def _register_native_processors(self):
         

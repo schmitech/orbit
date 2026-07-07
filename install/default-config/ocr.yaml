@@ -1,0 +1,52 @@
+# AI/LLM-based document OCR configuration
+#
+# Powers the "ai_document" universal processor (see files.processing in
+# config.yaml), a third option alongside Docling and MarkItDown. It offloads
+# OCR for PDFs and images to an LLM inference service.
+#
+# Two kinds of backends:
+#   - mistral: native OCR endpoint (client.ocr) — ingests a PDF/image directly.
+#   - openai / gemini / anthropic / ...: "vision-backed" — PDF pages are
+#     rasterized to images and sent through the provider's vision model.
+#     These reuse the per-provider settings from vision.yaml (visions:), so the
+#     entries below only need an `enabled` flag to gate registration.
+#
+# The active provider is selected by files.processing.ai_document.provider.
+# NOTE: that provider must also be `enabled: true` here to be registered.
+
+ocr:
+  provider: "mistral"   # Informational default; actual selection lives in files.processing.ai_document.provider
+
+  # Mistral native OCR (dedicated endpoint, PDF/image-direct)
+  mistral:
+    enabled: false
+    api_key: ${MISTRAL_API_KEY}
+    model: "mistral-ocr-latest"
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 120000    # 120 seconds (OCR of multi-page PDFs can be slow)
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  # Vision-backed providers — reuse settings from vision.yaml (visions:).
+  # Enable the one you set as files.processing.ai_document.provider.
+  openai:
+    enabled: false
+  gemini:
+    enabled: false
+  anthropic:
+    enabled: false
+  cohere:
+    enabled: false
+  ollama:
+    enabled: false
+  vllm:
+    enabled: false
+  llama_cpp:
+    enabled: false

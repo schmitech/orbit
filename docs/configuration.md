@@ -27,6 +27,7 @@ import:
   - "moderators.yaml"      # Content moderation
   - "guardrails.yaml"      # Safety guardrails
   - "vision.yaml"          # Vision/image processing
+  - "ocr.yaml"             # AI/LLM-based document OCR
   - "image.yaml"           # Image generation
   - "video.yaml"           # Video generation
   - "document.yaml"        # Document processing
@@ -611,12 +612,22 @@ files:
     # at startup (docling is then lazily initialized only when actually needed)
     docling_enabled: false             # Docling document processor (advanced document understanding)
     markitdown_enabled: true           # MarkItDown processor (Microsoft's document-to-markdown converter)
+    ai_document_enabled: false         # AI/LLM OCR processor for PDFs and images (see ocr.yaml)
     # Processor priority when multiple universal processors are enabled:
     # which processor is tried first for overlapping MIME types
-    processor_priority: "markitdown"   # docling, markitdown, native
+    processor_priority: "markitdown"   # docling, markitdown, ai_document, native
     
     markitdown:
       enable_plugins: false            # Third-party plugins (disabled by default for security)
+
+    # AI/LLM OCR options (used when ai_document_enabled is true).
+    # Provider credentials/models live in ocr.yaml; these tune the processor.
+    ai_document:
+      provider: "mistral"              # mistral | openai | gemini | anthropic | cohere | ollama | vllm | llama_cpp
+      model: null                      # Optional model override; null = provider's model from ocr.yaml
+      max_pages: 50                    # Cap PDF pages sent to vision-backed providers (Mistral OCR ignores)
+      dpi: 150                         # Rasterization DPI for vision-backed PDF OCR
+      prompt: null                     # Optional custom OCR prompt for vision-backed providers
 
     # Magika upload inspection - verifies uploaded content against the
     # declared MIME type before processing
@@ -1123,6 +1134,53 @@ visions:
     enabled: true
     api_key: ${COHERE_API_KEY}
     model: "c4ai-aya-vision-32b"
+```
+
+## OCR Configuration (ocr.yaml)
+
+Powers the `ai_document` universal file processor — a third option alongside Docling and MarkItDown that offloads OCR for **PDFs and images** to an LLM inference service. Enable it with `files.processing.ai_document_enabled: true` and select the active provider with `files.processing.ai_document.provider` (see [File Processing](#chunking-and-processing)).
+
+Two kinds of backend:
+
+- **Mistral OCR** (`mistral`) — the dedicated `client.ocr` endpoint. Ingests a PDF or image directly and returns per-page markdown; no page rasterization.
+- **Vision-backed** (`openai`, `gemini`, `anthropic`, `cohere`, `ollama`, `vllm`, `llama_cpp`) — PDF pages are rasterized to images (via `pypdfium2`) and sent through the provider's vision model, reusing the per-provider settings from `vision.yaml`. Single-frame images are OCR'd directly; multi-frame images (multi-page TIFF, animated GIF) are split frame-by-frame and OCR'd page-by-page like a PDF.
+
+Both backends handle **PDFs and images only** — other document formats (DOCX, PPTX, XLSX, HTML, CSV, …) already carry extractable text and continue to flow to Docling / MarkItDown / native processors. The `max_pages` limit caps PDF pages and image frames for vision-backed providers (Mistral native OCR ignores it).
+
+> **Note:** The provider you set as `ai_document.provider` must also be `enabled: true` here — registration is gated by this flag. Vision-backed entries only need `enabled`; their model/API key come from `vision.yaml`. When `files.processing.ai_document.model` is set, it overrides the vision provider's model for OCR only.
+
+```yaml
+ocr:
+  provider: "mistral"                  # Informational default; actual selection is files.processing.ai_document.provider
+
+  # Mistral native OCR (dedicated endpoint, PDF/image-direct)
+  mistral:
+    enabled: true
+    api_key: ${MISTRAL_API_KEY}
+    model: "mistral-ocr-latest"
+    timeout:
+      connect: 15000
+      total: 120000                    # OCR of multi-page PDFs can be slow
+    retry:
+      enabled: true
+      max_retries: 3
+
+  # Vision-backed providers — reuse settings from vision.yaml (visions:).
+  # Enable the one you set as files.processing.ai_document.provider.
+  openai:
+    enabled: false
+  gemini:
+    enabled: false
+  anthropic:
+    enabled: false
+  cohere:
+    enabled: false
+  ollama:
+    enabled: false
+  vllm:
+    enabled: false
+  llama_cpp:
+    enabled: false
 ```
 
 ## Text-to-Speech Configuration (tts.yaml)
