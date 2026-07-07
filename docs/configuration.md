@@ -17,6 +17,7 @@ The main `config.yaml` imports specialized configuration files:
 ```yaml
 import:
   - "ollama.yaml"          # Ollama-specific inference settings
+  - "llama_cpp.yaml"       # llama.cpp local model settings
   - "adapters.yaml"        # Retriever adapter definitions
   - "inference.yaml"       # LLM inference providers
   - "datasources.yaml"     # Database connections
@@ -26,8 +27,12 @@ import:
   - "moderators.yaml"      # Content moderation
   - "guardrails.yaml"      # Safety guardrails
   - "vision.yaml"          # Vision/image processing
+  - "image.yaml"           # Image generation
+  - "video.yaml"           # Video generation
+  - "document.yaml"        # Document processing
   - "tts.yaml"             # Text-to-speech
   - "stt.yaml"             # Speech-to-text
+  - "mcp_client.yaml"      # MCP client integration
 ```
 
 ## Core Configuration Sections
@@ -42,6 +47,7 @@ general:
     port: 3443                    # HTTPS port
     cert_file: "./cert.pem"       # SSL certificate path
     key_file: "./key.pem"         # SSL private key path
+    key_password: ${ORBIT_TLS_KEY_PASSWORD}  # Optional passphrase for encrypted private key
   session_id:
     header_name: "X-Session-ID"   # Session ID header name
     required: true                # Whether session ID is required
@@ -55,6 +61,28 @@ performance:
   workers: 4                          # Number of worker processes
   keep_alive_timeout: 30              # Keep-alive timeout in seconds
   adapter_preload_timeout: 120        # Max time to wait for adapter initialization (seconds)
+
+  # GZip compression for responses (opt-in)
+  # Compresses responses larger than minimum_size bytes.
+  # Streaming endpoints are automatically excluded to preserve word-by-word streaming.
+  compression:
+    enabled: false                    # Enable for bandwidth optimization
+    minimum_size: 2048                # Minimum response size in bytes to compress
+    excluded_paths:                   # Paths excluded from compression
+      - "/v1/chat"                    # SSE streaming endpoint
+      - "/ws"                         # WebSocket endpoints
+      - "/mcp"                        # MCP protocol endpoints
+
+  # ETag caching for GET requests (opt-in)
+  # Returns 304 Not Modified for unchanged responses.
+  # Recommended for read-heavy REST API deployments.
+  etag_caching:
+    enabled: false                    # Enable if clients implement ETag caching
+    excluded_paths:
+      - "/v1/chat"
+      - "/ws"
+      - "/mcp"
+
   thread_pools:
     # Total pool capacity is per worker. Defaults: 140 threads per worker,
     # or up to 560 threads when workers is 4.
@@ -110,15 +138,15 @@ language_detection:
 ```yaml
 fault_tolerance:
   circuit_breaker:
-    failure_threshold: 5              # Failures before circuit opens
-    recovery_timeout: 30              # Seconds before attempting recovery
-    success_threshold: 3              # Successes to close circuit
-    timeout: 30                       # Operation timeout
-    max_recovery_timeout: 300.0       # Maximum recovery timeout
+    failure_threshold: 5              # Consecutive failures before circuit opens
+    recovery_timeout: 30              # Base recovery wait in seconds (exponential backoff applied)
+    success_threshold: 3              # Consecutive successes in HALF_OPEN before closing
+    max_recovery_timeout: 300.0       # Backoff ceiling in seconds
     enable_exponential_backoff: true  # Enable exponential backoff
+    max_half_open_calls: 1            # Max concurrent probes allowed while HALF_OPEN
   execution:
-    strategy: "all"                   # "all", "first_success", "best_effort"
-    timeout: 35                       # Execution timeout
+    strategy: "all"                   # Only "all" is currently implemented; first_success/best_effort are planned
+    timeout: 35                       # Total operation timeout per adapter call (30% init, 70% query)
     max_retries: 3                    # Maximum retry attempts
     retry_delay: 1                    # Delay between retries
 ```
@@ -131,8 +159,41 @@ auth:
   default_admin_username: admin
   default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
   pbkdf2_iterations: 600000
-  # Credential storage: "keyring" (system keychain) or "file" (~/.orbit/.env)
-  credential_storage: file
+  # Credential storage: "keyring" (system keychain, default) or "file" (~/.orbit/.env)
+  credential_storage: keyring
+```
+
+#### External Identity Providers (OIDC / OAuth2)
+
+Optional integration with Microsoft Entra ID (Azure AD) and Auth0. The built-in username/password auth above always works. When enabled, ORBIT validates access-token JWTs presented as `Authorization: Bearer <jwt>` by clients that have already completed the OAuth login. Requires the `auth-providers` dependency profile (`PyJWT[crypto]`).
+
+```yaml
+auth:
+  providers:
+    enabled: false                    # Master switch for external-provider bearer-token validation
+    default_role: "user"              # Role assigned to users provisioned on first login
+    # Microsoft Entra ID (Azure AD)
+    entra:
+      enabled: false
+      tenant_id: ${ORBIT_AUTH_ENTRA_TENANT_ID:-}
+      client_id: ${ORBIT_AUTH_ENTRA_CLIENT_ID:-}          # Expected token audience
+      client_secret: ${ORBIT_AUTH_ENTRA_CLIENT_SECRET:-}  # Optional; only for admin-panel SSO confidential clients
+    # Auth0
+    auth0:
+      enabled: false
+      domain: ${ORBIT_AUTH_AUTH0_DOMAIN:-}                # e.g. your-tenant.us.auth0.com
+      audience: ${ORBIT_AUTH_AUTH0_AUDIENCE:-}            # API identifier = expected token audience
+      client_id: ${ORBIT_AUTH_AUTH0_CLIENT_ID:-}          # Required for admin-panel SSO
+      client_secret: ${ORBIT_AUTH_AUTH0_CLIENT_SECRET:-}  # Optional; only for admin-panel SSO confidential clients
+
+    # Admin-panel browser SSO (server-side OAuth Authorization Code + PKCE).
+    # Lets admins sign in to /admin with Entra/Auth0 instead of a password.
+    # Register this redirect URI with each provider:
+    #   {base_url or auto-detected}/admin/auth/{entra|auth0}/callback
+    admin_sso:
+      enabled: false
+      base_url: ${ORBIT_ADMIN_BASE_URL:-}  # Optional; overrides auto-detected redirect base (needed behind a proxy)
+      admin_users: []                      # Emails and/or "provider:subject" granted admin at login
 ```
 
 ### API Key Management
@@ -157,7 +218,7 @@ clock_service:
 ```yaml
 prompt_service:
   cache:
-    ttl_seconds: 3600          # How long to cache prompts in Redis
+    ttl_seconds: 3600          # How long to cache prompts (1 hour)
 ```
 
 ### Messages
@@ -224,9 +285,88 @@ chat_history:
 ```yaml
 conversation_threading:
   enabled: true
-  dataset_ttl_hours: 24              # TTL for stored datasets
-  storage_backend: "sqlite"          # redis, sqlite, mongodb
-  redis_key_prefix: "thread_dataset:"
+  dataset_ttl_hours: 24              # Global default TTL for stored datasets
+  # "cache" uses the configured cache provider (internal_services.cache.provider).
+  # sqlite/mongodb/postgres store thread datasets directly in the application
+  # database instead of the cache. Fallback order when using the cache: cache -> database.
+  storage_backend: "sqlite"          # cache, sqlite, mongodb, postgres
+  cache_key_prefix: "thread_dataset:"
+```
+
+### Autocomplete
+
+Query suggestions based on intent template `nl_examples`:
+
+```yaml
+autocomplete:
+  enabled: true                      # Master switch - when false, /v1/autocomplete returns empty results
+
+  # Query matching settings
+  min_query_length: 3                # Minimum characters before fetching suggestions
+  max_suggestions: 10                # Server-side ceiling; endpoint and UI request smaller values within this cap
+
+  # Caching configuration
+  cache:
+    # Use the configured cache provider (internal_services.cache.provider) for
+    # distributed caching, recommended for multi-instance deployments.
+    # Falls back to in-memory cache if the cache service is unavailable.
+    use_cache: false
+    ttl_seconds: 1800                # 30 minutes - templates rarely change
+    cache_key_prefix: "autocomplete:"
+
+  # Fuzzy matching configuration
+  fuzzy_matching:
+    enabled: true                    # Enable fuzzy/approximate string matching
+    # Algorithm options:
+    # - substring: Exact substring matching (fastest, no typo tolerance)
+    # - levenshtein: Edit distance (handles typos, moderate speed)
+    # - jaro_winkler: Optimized for short strings and prefixes (good for typos)
+    algorithm: "jaro_winkler"
+    # Minimum similarity score (0.0-1.0) to include a suggestion
+    # Recommended: 0.7 for levenshtein, 0.8 for jaro_winkler
+    threshold: 0.75
+    # Maximum candidates to fuzzy-rank after cheap relevance prefiltering
+    max_candidates: 250
+```
+
+### Composite Retrieval
+
+Template selection for the Composite Intent Retriever. Improves accuracy when routing queries across multiple intent adapters by combining embedding similarity, optional reranking, and string similarity:
+
+```yaml
+composite_retrieval:
+  # Two-stage retrieval with reranking
+  # Uses the configured reranker (from rerankers.yaml) to re-score top candidates
+  reranking:
+    enabled: false                   # Enable reranker stage for better semantic understanding
+    provider: "anthropic"            # Reranker provider from rerankers.yaml (anthropic, cohere, openai, etc.)
+    top_candidates: 10               # Number of embedding candidates to pass to reranker
+    weight: 0.4                      # Weight for reranker score in final combined score
+
+  # String similarity scoring - adds lexical matching to complement semantic embeddings
+  string_similarity:
+    enabled: true
+    algorithm: "jaro_winkler"        # jaro_winkler, levenshtein, ratio
+    weight: 0.2                      # Weight for string similarity in final combined score
+    compare_fields:                  # Template fields to compare against query
+      - "description"
+      - "nl_examples"
+    min_threshold: 0.3               # Minimum string similarity to consider (0.0-1.0)
+    aggregation: "max"               # Aggregate multiple field scores: max, avg, weighted_avg
+
+  # Combined scoring formula:
+  # final_score = (embedding_weight * emb) + (rerank_weight * rerank) + (string_weight * str_sim)
+  # Weights should sum to 1.0 for normalized scoring
+  scoring:
+    embedding_weight: 0.4            # Weight for embedding similarity (base retrieval)
+    normalize_scores: true           # Normalize all scores to 0-1 before combining
+    tie_breaker: "embedding"         # embedding, reranker, string_similarity
+
+  # Performance settings
+  performance:
+    parallel_rerank: true            # Rerank candidates in parallel batches
+    cache_rerank_results: true       # Cache reranking results for repeated queries
+    cache_ttl_seconds: 300           # TTL for reranking cache (5 minutes)
 ```
 
 ### Monitoring
@@ -239,9 +379,7 @@ monitoring:
     time_window: 300                 # Seconds of historical data (5 min)
     prometheus:
       enabled: true                  # Enable /metrics endpoint
-    dashboard:
-      enabled: true                  # Enable /dashboard web UI
-      websocket_update_interval: 5   # WebSocket update frequency
+    websocket_update_interval: 5     # Seconds between WebSocket updates
   alerts:
     cpu_threshold: 90
     memory_threshold: 85
@@ -253,24 +391,44 @@ monitoring:
 
 ### Backend Database
 
+Choose between `sqlite` (no installation required), `mongodb`, or `postgres` (require a running server):
+
 ```yaml
 internal_services:
   backend:
-    type: "sqlite"                   # sqlite or mongodb
+    type: "sqlite"                   # sqlite, mongodb, or postgres
     sqlite:
-      database_path: "orbit.db"      # SQLite file path
+      database_path: "orbit.db"      # SQLite file path (relative to project root)
+    postgres:
+      host: ${INTERNAL_SERVICES_POSTGRES_HOST}
+      port: ${INTERNAL_SERVICES_POSTGRES_PORT}
+      database: ${INTERNAL_SERVICES_POSTGRES_DB}
+      username: ${INTERNAL_SERVICES_POSTGRES_USERNAME}
+      password: ${INTERNAL_SERVICES_POSTGRES_PASSWORD}
+      sslmode: ${INTERNAL_SERVICES_POSTGRES_SSLMODE}
 ```
 
 ### Audit Trail
+
+Stores conversation audit logs for compliance and analytics:
 
 ```yaml
 internal_services:
   audit:
     enabled: true
-    storage_backend: "database"      # elasticsearch, sqlite, mongodb, database
+    # "database" means use the same backend as internal_services.backend.type
+    storage_backend: "database"      # elasticsearch, sqlite, mongodb, postgres, database
     collection_name: "audit_logs"
-    compress_responses: false        # Gzip compression for response field
-    clear_on_startup: true           # WARNING: Deletes all logs on startup
+    # Gzip compression for the response field (saves storage, reduces I/O).
+    # Set to false for debugging/testing to see plain text responses.
+    compress_responses: true
+    clear_on_startup: false          # WARNING: true deletes ALL audit logs on startup
+    # Admin & auth event auditing (opt-in). Records mutations on /admin/*
+    # and /auth/* endpoints (user CRUD, API-key management, config changes,
+    # login/logout, etc.) into a separate collection/table.
+    admin_events:
+      enabled: true
+      collection_name: "audit_admin_logs"
 ```
 
 ### MongoDB
@@ -289,18 +447,78 @@ internal_services:
     prompts_collection: system_prompts
 ```
 
+### Cache Provider
+
+Cache provider selection applies to all caching consumers (rate limiting, quotas, prompt cache, autocomplete, query burst cache, thread datasets, and more). Switch backends by changing `provider` and enabling the matching block below; no other config needs to change.
+
+- `sqlite` - zero-config default; no external service, persists across restarts
+- `redis` - best for multi-instance deployments needing shared/distributed caching
+- `memcached` - lighter-weight alternative to Redis for single-purpose caching
+
+```yaml
+internal_services:
+  cache:
+    # Master switch. When false, NO cache provider is created at all.
+    # Dependent features (quota/throttling hard limits, autocomplete distributed
+    # cache, query burst cache, cache-backed conversation threading) fall back
+    # to in-memory/no-op behavior and log a warning.
+    enabled: false
+    provider: "sqlite"               # sqlite | redis | memcached
+    clear_cache_on_startup: true
+    # Query burst cache - absorbs repeated identical queries (e.g. user clicking retry)
+    query_cache:
+      enabled: false
+      ttl: 30                        # Seconds to cache identical query results
+      max_memory_entries: 100        # In-memory fallback when the cache provider is unavailable
+```
+
+### SQLite Cache
+
+Default cache provider. No external service required; a good fit for single-instance self-hosted deployments. Uses its own database file, separate from the application database, so cache write volume doesn't contend with application data. Slower than Redis/Memcached under high write throughput since every write is a disk-backed transaction.
+
+```yaml
+internal_services:
+  sqlite_cache:
+    enabled: true
+    database_path: "orbit_cache.db"
+    ttl: 3600                        # 1 hour
+```
+
 ### Redis
 
 ```yaml
 internal_services:
   redis:
-    enabled: true
+    enabled: false
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
     username: ${INTERNAL_SERVICES_REDIS_USERNAME}
     password: ${INTERNAL_SERVICES_REDIS_PASSWORD}
     use_ssl: false
+    ttl: 3600                        # 1 hour
+    # Connection pool settings
+    max_connections: 20
+    socket_connect_timeout: 5
+    socket_timeout: 5
+    retry_on_timeout: true
+    # Resilience settings
+    health_check_interval: 30
+    max_consecutive_failures: 5
+    circuit_recovery_timeout: 30
+```
+
+### Memcached
+
+Lighter-weight alternative to Redis. Requires the `memcached` dependency profile (`./install/setup.sh --profile memcached`). Note: no selective cache invalidation (no key pattern matching) and no TTL introspection, which are inherent Memcached protocol limitations.
+
+```yaml
+internal_services:
+  memcached:
+    enabled: false
+    host: ${INTERNAL_SERVICES_MEMCACHED_HOST}
+    port: 11211
+    pool_size: 20
     ttl: 3600                        # 1 hour
 ```
 
@@ -318,54 +536,136 @@ internal_services:
 
 ## File Processing Configuration
 
+Global defaults for all file adapters. Individual adapters in `adapters.yaml` can override these settings.
+
+> **Note:** File metadata (`uploaded_files`, `file_chunks`) is stored in the main backend database configured in `internal_services.backend`, not in a separate `files.db`.
+
+### File Storage
+
+Uploaded files are stored on the local filesystem by default. Set `storage_backend` to `s3`, `minio`, `azure`, or `gcs` to store uploads in the cloud instead. Cloud backends require the `cloud-services` dependency profile.
+
 ```yaml
 files:
-  # Default storage settings
-  storage_root: "./uploads"
-  
-  # Default chunking settings
+  # Storage backend selection: filesystem | s3 | minio | azure | gcs
+  storage_backend: "filesystem"
+  storage_root: "./uploads"            # Root directory for uploaded files (filesystem backend)
+
+  # AWS S3 / S3-compatible (MinIO) settings - used when storage_backend is s3 or minio.
+  # The bucket must already exist. Always reference env vars; never inline secrets.
+  s3:
+    bucket: "${ORBIT_S3_BUCKET:-}"
+    prefix: "${ORBIT_S3_PREFIX:-}"                # Optional key prefix within the bucket
+    region: "${AWS_REGION:-us-east-1}"
+    endpoint_url: "${ORBIT_S3_ENDPOINT_URL:-}"    # Set for MinIO / S3-compatible stores
+    # Omit the credentials below to use the boto3 default chain (env / instance role / SSO):
+    # access_key_id: "${AWS_ACCESS_KEY_ID:-}"
+    # secret_access_key: "${AWS_SECRET_ACCESS_KEY:-}"
+
+  # Azure Blob settings - used when storage_backend is azure. The container must already exist.
+  azure:
+    container: "${ORBIT_AZURE_CONTAINER:-}"
+    prefix: "${ORBIT_AZURE_PREFIX:-}"             # Optional blob-name prefix
+    connection_string: "${AZURE_STORAGE_CONNECTION_STRING:-}"
+    # Or identity-based auth (managed identity / Entra) instead of a connection string:
+    # account_url: "${AZURE_STORAGE_ACCOUNT_URL:-}"
+    # account_key: "${AZURE_STORAGE_ACCOUNT_KEY:-}"  # Omit to use DefaultAzureCredential
+
+  # Google Cloud Storage settings - used when storage_backend is gcs. The bucket must already exist.
+  gcs:
+    bucket: "${ORBIT_GCS_BUCKET:-}"
+    prefix: "${ORBIT_GCS_PREFIX:-}"               # Optional object-name prefix
+    project: "${GOOGLE_CLOUD_PROJECT:-}"          # Optional; inferred from credentials if omitted
+    # Omit credentials_path to use Application Default Credentials (ADC):
+    #   GOOGLE_APPLICATION_CREDENTIALS env, gcloud user creds, or Workload Identity on GCP.
+    # credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS:-}"  # Service-account JSON key file
+```
+
+### File Encryption at Rest
+
+AES-256-GCM encryption for sensitive/classified content. Opt-in per adapter via `capabilities.requires_encryption: true` (see `adapters.yaml`). Encrypts file bytes and the storage backend's metadata sidecar only, not extracted text stored in the database or chunk text indexed in the vector store.
+
+```yaml
+files:
+  encryption:
+    enabled: false
+    # Generate a key with:
+    #   python -c "import secrets, base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
+    # The key is read from the ORBIT_FILE_ENCRYPTION_KEY environment variable (see env.example).
+    # Reference the env var only - never inline the key in config.
+```
+
+### Chunking and Processing
+
+```yaml
+files:
+  # Default chunking settings (can be overridden per adapter)
+  # Recommended: "recursive" - works best for all file types and respects
+  # document structure (paragraphs -> sentences -> words)
   default_chunking_strategy: "recursive"   # fixed, semantic, token, recursive
-  default_chunk_size: 2048
-  default_chunk_overlap: 200
+  default_chunk_size: 2048                 # Characters for fixed/semantic, tokens for token/recursive
+  default_chunk_overlap: 200               # Overlap between chunks
   
   # Processor configuration
   processing:
-    docling_enabled: true              # Enable Docling document processor
-    markitdown_enabled: true           # Enable MarkItDown processor
-    processor_priority: "docling"      # docling, markitdown, native
+    # Set docling_enabled to false to prevent outbound connections to HuggingFace
+    # at startup (docling is then lazily initialized only when actually needed)
+    docling_enabled: false             # Docling document processor (advanced document understanding)
+    markitdown_enabled: true           # MarkItDown processor (Microsoft's document-to-markdown converter)
+    # Processor priority when multiple universal processors are enabled:
+    # which processor is tried first for overlapping MIME types
+    processor_priority: "markitdown"   # docling, markitdown, native
     
     markitdown:
-      enable_plugins: false            # Third-party plugins (security)
+      enable_plugins: false            # Third-party plugins (disabled by default for security)
+
+    # Magika upload inspection - verifies uploaded content against the
+    # declared MIME type before processing
+    magika:
+      enabled: false
+      enforcement: "block"
+      prediction_mode: "HIGH_CONFIDENCE"
+      allow_generic_text_fallback: false
+      allow_generic_binary_fallback: false
+      log_detection_details: true
     
     csv:
-      full_data_row_threshold: 200     # Include all rows below this threshold
-      max_preview_rows: 5
-      max_column_width: 50
-      max_columns_full: 15
+      full_data_row_threshold: 200     # Include all rows below this threshold (0 = always summary mode)
+      max_preview_rows: 5              # Sample rows shown in summary mode
+      max_column_width: 50             # Max characters per column value before truncation
+      max_columns_full: 15             # Max columns shown in detail
     
     json:
-      full_data_item_threshold: 200
+      full_data_item_threshold: 200    # Include all array items below this threshold (0 = always summary mode)
       max_array_preview_items: 3
       max_schema_depth: 4
       max_string_length: 100
       max_object_keys: 20
   
-  # Tokenizer configuration
-  tokenizer: null                      # character, gpt2, tiktoken
-  use_tokens: false
+  # Tokenizer configuration (requires chonkie library for advanced tokenizers)
+  tokenizer: null                      # character (default), gpt2, tiktoken
+  use_tokens: false                    # Use token-based chunking for the fixed strategy
   
   # Strategy-specific options
   chunking_options:
-    model_name: null                   # Sentence-transformer model
-    use_advanced: false                # Advanced semantic chunking
-    chunk_size_tokens: null
+    # Semantic chunking options
+    model_name: null                   # Optional sentence-transformer model (e.g., "all-MiniLM-L6-v2")
+    use_advanced: false                # Advanced semantic chunking (requires sentence-transformers)
+    chunk_size_tokens: null            # Optional token-based chunk size limit for semantic chunks
+
+    # Recursive chunking options
     min_characters_per_chunk: 24
-    threshold: 0.8                     # Similarity threshold
-    similarity_window: 3
+
+    # Advanced semantic chunking options (when use_advanced: true)
+    threshold: 0.8                     # Similarity threshold (0-1) for semantic boundary detection
+    similarity_window: 3               # Sentences to consider for similarity calculation
     min_sentences_per_chunk: 1
     min_characters_per_sentence: 24
+    skip_window: 0                     # Groups to skip when merging (0 = disabled)
+    filter_window: 5                   # Window length for Savitzky-Golay filter (requires scipy)
+    filter_polyorder: 3                # Polynomial order for Savitzky-Golay filter
+    filter_tolerance: 0.2              # Tolerance for Savitzky-Golay filter
   
-  # Vector store defaults
+  # Vector store defaults (can be overridden per adapter)
   default_vector_store: "chroma"
   default_collection_prefix: "files_"
 ```
@@ -442,10 +742,12 @@ security:
 
 ### Rate Limiting
 
+The configured cache provider (`internal_services.cache.provider`) enforces limits atomically. If the cache service is disabled or an operation fails, a per-worker in-memory fixed-window fallback is used. With `workers > 1`, the aggregate fallback ceiling can be up to `limit * workers`.
+
 ```yaml
 security:
   rate_limiting:
-    enabled: true                      # Requires Redis
+    enabled: false                     # Master switch
     trust_proxy_headers: false         # Only enable behind trusted proxy
     trusted_proxies: []                # List of trusted proxy IPs/CIDRs
     
@@ -468,28 +770,43 @@ security:
 
 ### Throttling
 
+Executes before rate limiting. Delays requests progressively instead of rejecting them:
+
 ```yaml
 security:
   throttling:
-    enabled: true
+    enabled: false                     # Master switch
     
+    # Default quotas for API keys (can be overridden per-key)
     default_quotas:
       daily_limit: 10000
       monthly_limit: 100000
     
     delay:
-      min_ms: 100
-      max_ms: 5000
+      min_ms: 100                      # Minimum delay when throttling starts
+      max_ms: 5000                     # Maximum delay before quota rejection
       curve: "exponential"             # linear or exponential
       threshold_percent: 70            # Start throttling at 70% quota
     
+    # Priority-based delay multipliers (priority 1-10)
     priority_multipliers:
       1: 0.5                           # Premium: half delay
       5: 1.0                           # Standard: normal delay
       10: 2.0                          # Low priority: double delay
     
-    redis_key_prefix: "quota:"
-    usage_sync_interval_seconds: 60
+    # Paths to exclude from throttling
+    exclude_paths: []
+    
+    cache_key_prefix: "quota:"
+    usage_sync_interval_seconds: 60    # Sync cache usage to database
+    
+    # Response headers
+    headers:
+      delay: "X-Throttle-Delay"
+      daily_remaining: "X-Quota-Daily-Remaining"
+      monthly_remaining: "X-Quota-Monthly-Remaining"
+      daily_reset: "X-Quota-Daily-Reset"
+      monthly_reset: "X-Quota-Monthly-Reset"
 ```
 
 ### Request Limits & Error Handling
@@ -500,7 +817,7 @@ security:
     max_body_size_mb: 10
   
   error_handling:
-    expose_details: true               # Set false in production
+    expose_details: false              # Set true only for development/debugging
 ```
 
 ## Vector Stores Configuration (stores.yaml)
@@ -1032,6 +1349,12 @@ datasources:
 
 | Variable | Description |
 |:---|:---|
+| `INTERNAL_SERVICES_POSTGRES_HOST` | PostgreSQL host (backend database) |
+| `INTERNAL_SERVICES_POSTGRES_PORT` | PostgreSQL port (backend database) |
+| `INTERNAL_SERVICES_POSTGRES_DB` | PostgreSQL database name (backend database) |
+| `INTERNAL_SERVICES_POSTGRES_USERNAME` | PostgreSQL username (backend database) |
+| `INTERNAL_SERVICES_POSTGRES_PASSWORD` | PostgreSQL password (backend database) |
+| `INTERNAL_SERVICES_POSTGRES_SSLMODE` | PostgreSQL SSL mode (backend database) |
 | `INTERNAL_SERVICES_MONGODB_HOST` | MongoDB host |
 | `INTERNAL_SERVICES_MONGODB_PORT` | MongoDB port |
 | `INTERNAL_SERVICES_MONGODB_USERNAME` | MongoDB username |
@@ -1044,6 +1367,7 @@ datasources:
 | `INTERNAL_SERVICES_ELASTICSEARCH_NODE` | Elasticsearch node URL |
 | `INTERNAL_SERVICES_ELASTICSEARCH_USERNAME` | Elasticsearch username |
 | `INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD` | Elasticsearch password |
+| `INTERNAL_SERVICES_MEMCACHED_HOST` | Memcached host |
 
 ### Data Sources
 
@@ -1072,11 +1396,43 @@ datasources:
 | `DATASOURCE_REDIS_PORT` | Redis port |
 | `DATASOURCE_REDIS_PASSWORD` | Redis password |
 
+### File Storage
+
+| Variable | Description |
+|:---|:---|
+| `ORBIT_S3_BUCKET` | S3 bucket for file uploads |
+| `ORBIT_S3_PREFIX` | Optional S3 key prefix |
+| `ORBIT_S3_ENDPOINT_URL` | S3 endpoint URL (for MinIO / S3-compatible stores) |
+| `AWS_REGION` | AWS region (S3 and Secrets Manager) |
+| `ORBIT_AZURE_CONTAINER` | Azure Blob container for file uploads |
+| `ORBIT_AZURE_PREFIX` | Optional Azure blob-name prefix |
+| `AZURE_STORAGE_CONNECTION_STRING` | Azure Storage connection string |
+| `ORBIT_GCS_BUCKET` | Google Cloud Storage bucket for file uploads |
+| `ORBIT_GCS_PREFIX` | Optional GCS object-name prefix |
+| `ORBIT_FILE_ENCRYPTION_KEY` | Base64-encoded AES-256 key for file encryption at rest |
+
+### Secrets Management
+
+| Variable | Description |
+|:---|:---|
+| `ORBIT_SECRETS_PROVIDER` | Secrets provider: env, aws, azure, gcp |
+| `ORBIT_SECRETS_AWS_ENDPOINT_URL` | Optional AWS Secrets Manager endpoint (e.g. LocalStack) |
+| `AZURE_KEY_VAULT_URL` | Azure Key Vault URL |
+
 ### Authentication
 
 | Variable | Description |
 |:---|:---|
 | `ORBIT_DEFAULT_ADMIN_PASSWORD` | Default admin password |
+| `ORBIT_TLS_KEY_PASSWORD` | Passphrase for encrypted TLS private key |
+| `ORBIT_AUTH_ENTRA_TENANT_ID` | Microsoft Entra ID tenant ID |
+| `ORBIT_AUTH_ENTRA_CLIENT_ID` | Microsoft Entra ID client ID |
+| `ORBIT_AUTH_ENTRA_CLIENT_SECRET` | Microsoft Entra ID client secret (admin-panel SSO) |
+| `ORBIT_AUTH_AUTH0_DOMAIN` | Auth0 tenant domain |
+| `ORBIT_AUTH_AUTH0_AUDIENCE` | Auth0 API identifier (token audience) |
+| `ORBIT_AUTH_AUTH0_CLIENT_ID` | Auth0 client ID (admin-panel SSO) |
+| `ORBIT_AUTH_AUTH0_CLIENT_SECRET` | Auth0 client secret (admin-panel SSO) |
+| `ORBIT_ADMIN_BASE_URL` | Base URL override for admin-panel SSO redirects |
 
 ## Best Practices
 
@@ -1085,7 +1441,7 @@ datasources:
 - Enable HTTPS in production
 - Configure specific CORS origins (not `*`)
 - Set `expose_details: false` in production error handling
-- Enable rate limiting with Redis
+- Enable rate limiting (backed by the configured cache provider)
 
 ### Performance
 - Configure appropriate thread pool sizes
@@ -1112,6 +1468,6 @@ datasources:
 | Configuration not found | Check file paths and permissions |
 | Environment variable not resolved | Verify variable is set and uses `${VAR}` syntax |
 | HTTPS not working | Verify certificate paths and permissions |
-| Rate limiting not working | Ensure Redis is enabled and connected |
+| Rate limiting not working | Ensure the cache service (`internal_services.cache`) is enabled and connected |
 | Adapter initialization timeout | Increase `adapter_preload_timeout` in performance section |
 | Vector store connection failed | Check store configuration in `stores.yaml` |
