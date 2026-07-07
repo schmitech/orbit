@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.9.0] - 2026-07-07
+
+### Core System Updates
+- **Cache Providers**: Added pluggable cache providers with SQLite, Redis, and Memcached backends, plus a master `cache.enabled` switch to fully disable caching when needed.
+- **Cloud Secrets**: Added pluggable cloud secrets management with environment, AWS, Azure, and GCP-backed resolution.
+- **Gemini Tool Calling**: Fixed Gemini MCP tool schemas by stripping unsupported `additionalProperties` fields.
+- **Rate Limiting**: Fixed throttling middleware behavior and preserved correct limit enforcement.
+
+### Chat-app & UI Improvements
+- **Admin Panel**: Polished the admin panel with adapter auto-reload after save, capability-aware template reload visibility, export-button contrast fixes, topbar user identity display, and a dedicated email field in the Users panel.
+- **Model/Config Docs**: Updated BitNet settings and instructions.
+
+### Bug Fixes & Technical Improvements
+- **Dashboard Latency**: Excluded unmatched routes from dashboard latency calculations.
+
+### Documentation & Configuration
+- **Configuration Docs**: Synced `configuration.md` with the current `config.yaml`.
+- **Release Note**: Captured the `ORBIT v2.8.3` patch release update in this changelog cycle.
+
 ## [2.8.3] - 2026-07-05
 
 ### Core System Updates
