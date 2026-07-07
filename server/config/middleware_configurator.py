@@ -20,6 +20,17 @@ from typing import Dict, Any, List
 _logger = logging.getLogger(__name__)
 
 
+def _cache_provider_enabled(config: Dict[str, Any]) -> bool:
+    """True if the master switch and the configured cache provider's own flag are both on."""
+    from services.cache_backends import get_provider_config, is_cache_master_enabled
+    from utils.config_utils import is_true_value
+
+    if not is_cache_master_enabled(config):
+        return False
+    _, provider_config = get_provider_config(config)
+    return is_true_value(provider_config.get('enabled', False))
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """
     Middleware to add security headers to all responses.
@@ -262,7 +273,8 @@ class MiddlewareConfigurator:
         """
         Configure rate limiting middleware for abuse prevention.
 
-        Only active when security.rate_limiting.enabled is true and Redis is enabled.
+        Only active when security.rate_limiting.enabled is true and a cache
+        provider is enabled (internal_services.cache).
         """
         security_config = config.get('security', {}) or {}
         rate_limit_config = security_config.get('rate_limiting', {}) or {}
@@ -271,11 +283,10 @@ class MiddlewareConfigurator:
             _logger.debug("Rate limiting middleware is disabled in configuration")
             return
 
-        redis_config = config.get('internal_services', {}).get('redis', {}) or {}
-        if not redis_config.get('enabled', False):
+        if not _cache_provider_enabled(config):
             _logger.warning(
-                "Rate limiting is enabled but Redis is disabled. "
-                "Rate limiting requires Redis - middleware will not be active."
+                "Cache is disabled - please enable caching (internal_services.cache.enabled) to use "
+                "rate limiting. Middleware will not be active."
             )
             return
 
@@ -294,7 +305,7 @@ class MiddlewareConfigurator:
         Configure throttle middleware for quota-based request delays.
 
         Executes before rate limiting. Only active when security.throttling.enabled
-        is true and Redis is enabled.
+        is true and a cache provider is enabled (internal_services.cache).
         """
         security_config = config.get('security', {}) or {}
         throttle_config = security_config.get('throttling', {}) or {}
@@ -303,11 +314,10 @@ class MiddlewareConfigurator:
             _logger.debug("Throttle middleware is disabled in configuration")
             return
 
-        redis_config = config.get('internal_services', {}).get('redis', {}) or {}
-        if not redis_config.get('enabled', False):
+        if not _cache_provider_enabled(config):
             _logger.warning(
-                "Throttling is enabled but Redis is disabled. "
-                "Throttling requires Redis - middleware will not be active."
+                "Cache is disabled - please enable caching (internal_services.cache.enabled) to use "
+                "throttling. Middleware will not be active."
             )
             return
 
