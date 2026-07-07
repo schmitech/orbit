@@ -296,7 +296,17 @@ class ServiceFactory:
     
     async def _initialize_cache_service(self, app: FastAPI) -> None:
         """Initialize the configured cache provider (Redis, Memcached, SQLite, ...) if enabled."""
-        from services.cache_backends import create_cache_service, get_provider_config
+        from services.cache_backends import create_cache_service, get_provider_config, is_cache_master_enabled
+
+        if not is_cache_master_enabled(self.config):
+            app.state.cache_service = None
+            logger.warning(
+                "Caching is disabled (internal_services.cache.enabled=false) - no cache service will be "
+                "created. Dependent features (quota/throttling hard limits, autocomplete distributed cache, "
+                "query burst cache, cache-backed conversation threading) will fall back to in-memory/no-op "
+                "behavior. Set internal_services.cache.enabled to true to use these features."
+            )
+            return
 
         provider_name, provider_config = get_provider_config(self.config)
         provider_enabled = is_true_value(provider_config.get('enabled', False))
@@ -362,7 +372,10 @@ class ServiceFactory:
         if not cache_service or not cache_service.enabled:
             app.state.quota_service = None
             app.state.quota_background_tasks = None
-            logger.warning("Quota Service requires a cache service - throttling will be disabled")
+            logger.warning(
+                "Cache is disabled - please enable caching (internal_services.cache.enabled) to use "
+                "quota/throttling enforcement. Throttling will be disabled."
+            )
             return
 
         try:

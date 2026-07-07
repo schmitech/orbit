@@ -30,7 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from .base import CacheProvider, CircuitBreaker
+from .base import CacheProvider, CircuitBreaker, is_cache_master_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class SqliteCacheProvider(CacheProvider):
 
         self.config = config
         self.sqlite_config = config.get('internal_services', {}).get('sqlite_cache', {})
-        self.enabled = self.sqlite_config.get('enabled', False)
+        self.enabled = is_cache_master_enabled(config) and self.sqlite_config.get('enabled', False)
         self.database_path = self.sqlite_config.get('database_path', 'orbit_cache.db')
         self.default_ttl = int(self.sqlite_config.get('ttl', 3600))
 

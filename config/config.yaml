@@ -357,6 +357,13 @@ internal_services:
   #   redis     - best for multi-instance deployments needing shared/distributed caching
   #   memcached - lighter-weight alternative to Redis for single-purpose caching
   cache:
+    # Master switch. When false, NO cache provider is created at all - no
+    # connection pool, no cache database file - regardless of `provider` below.
+    # Dependent features (quota/throttling hard limits, autocomplete distributed
+    # cache, query burst cache, cache-backed conversation threading) fall back
+    # to in-memory/no-op behavior and log a warning. Use for light deployments
+    # that don't need caching.
+    enabled: false
     provider: "sqlite"  # sqlite | redis | memcached
     # Cache startup behavior
     clear_cache_on_startup: true

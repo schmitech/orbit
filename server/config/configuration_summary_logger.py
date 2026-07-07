@@ -201,16 +201,19 @@ class ConfigurationSummaryLogger:
             use_cache_service = is_true_value(cache_config.get('use_cache', True))
             cache_ttl = cache_config.get('ttl_seconds', 1800)
 
-            from services.cache_backends import get_provider_config
+            from services.cache_backends import get_provider_config, is_cache_master_enabled
             provider_name, provider_config = get_provider_config(self.config)
-            provider_enabled = is_true_value(provider_config.get('enabled', False))
+            provider_enabled = is_cache_master_enabled(self.config) and is_true_value(provider_config.get('enabled', False))
 
             if use_cache_service and not provider_enabled:
                 self.logger.warning(
                     f"  Cache: distributed caching configured but the cache service "
                     f"({provider_name}) is DISABLED - falling back to Memory (TTL: {cache_ttl}s)"
                 )
-                self.logger.warning("    WARNING: Autocomplete requires a cache service for distributed caching")
+                self.logger.warning(
+                    "    WARNING: Cache is disabled - please enable caching (internal_services.cache.enabled) "
+                    "to use autocomplete's distributed cache"
+                )
             else:
                 self.logger.info(
                     f"  Cache: {provider_name if use_cache_service else 'Memory'} (TTL: {cache_ttl}s)"

@@ -22,6 +22,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+
+def is_cache_master_enabled(config: Dict[str, Any]) -> bool:
+    """Master switch: internal_services.cache.enabled. Defaults to True (current behavior)."""
+    from utils.config_utils import is_true_value
+
+    return is_true_value(config.get('internal_services', {}).get('cache', {}).get('enabled', True))
+
+
 # Cache key patterns cleared on startup / full flush, shared by all providers.
 APPLICATION_CACHE_PATTERNS = [
     ("prompt:*", "prompt cache"),

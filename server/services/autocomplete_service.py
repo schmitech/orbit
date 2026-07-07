@@ -308,8 +308,8 @@ class AutocompleteService:
         cache_available = cache_service is not None and getattr(cache_service, 'enabled', False)
         if self.enabled and self.use_cache_service and not cache_available:
             logger.warning(
-                "Autocomplete service is configured to use distributed caching but the cache "
-                "service is disabled. Falling back to in-memory cache (not suitable for "
+                "Cache is disabled - please enable caching (internal_services.cache.enabled) to use "
+                "autocomplete's distributed cache. Falling back to in-memory cache (not suitable for "
                 "distributed deployments)."
             )
 

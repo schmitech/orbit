@@ -140,7 +140,10 @@ class QuotaService:
 
         # Verify a cache service is available
         if not self.cache_service or not self.cache_service.enabled:
-            logger.warning("QuotaService requires a cache service - service will be limited")
+            logger.warning(
+                "Cache is disabled - please enable caching (internal_services.cache.enabled) to use "
+                "quota/throttling enforcement. QuotaService will be disabled."
+            )
             self.enabled = False
             self.initialized = True
             return

@@ -25,7 +25,7 @@ try:
 except ImportError:
     AIOMCACHE_AVAILABLE = False
 
-from .base import CacheProvider, CircuitBreaker
+from .base import CacheProvider, CircuitBreaker, is_cache_master_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,9 @@ class MemcachedCacheProvider(CacheProvider):
 
         self.config = config
         self.memcached_config = config.get('internal_services', {}).get('memcached', {})
-        self.enabled = self.memcached_config.get('enabled', False) and AIOMCACHE_AVAILABLE
+        self.enabled = (
+            is_cache_master_enabled(config) and self.memcached_config.get('enabled', False) and AIOMCACHE_AVAILABLE
+        )
         self.client: Optional["aiomcache.Client"] = None
         self.initialized = False
         self.default_ttl = int(self.memcached_config.get('ttl', 3600))

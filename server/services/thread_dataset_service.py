@@ -126,7 +126,10 @@ class ThreadDatasetService:
                 if self.cache_service.enabled:
                     logger.debug(f"✓ ThreadDatasetService: cache storage enabled (key prefix: {self.cache_key_prefix})")
                 else:
-                    logger.warning("ThreadDatasetService: cache service created but not yet enabled (will be initialized later)")
+                    logger.warning(
+                        "Cache is disabled - please enable caching (internal_services.cache.enabled) to use "
+                        "cache-backed conversation threading. Will fall back to database storage."
+                    )
             except Exception as e:
                 logger.warning(f"Failed to initialize cache service: {e}. Will fall back to database storage if the cache doesn't become available.")
 

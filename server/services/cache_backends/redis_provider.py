@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import redis.asyncio as redis
 
-from .base import CacheProvider, CircuitBreaker
+from .base import CacheProvider, CircuitBreaker, is_cache_master_enabled
 
 # Optional Redis imports - service will gracefully handle missing dependency
 try:
@@ -133,7 +133,9 @@ class RedisCacheProvider(CacheProvider):
         self.config = config
 
         self.redis_config = config.get('internal_services', {}).get('redis', {})
-        self.enabled = self.redis_config.get('enabled', False) and REDIS_AVAILABLE
+        self.enabled = (
+            is_cache_master_enabled(config) and self.redis_config.get('enabled', False) and REDIS_AVAILABLE
+        )
         self.client: Optional[redis.Redis] = None
         self.initialized = False
 
@@ -245,7 +247,7 @@ class RedisCacheProvider(CacheProvider):
 
         try:
             redis_config = self.config.get("internal_services", {}).get("redis", {})
-            if not redis_config.get("enabled", False):
+            if not is_cache_master_enabled(self.config) or not redis_config.get("enabled", False):
                 logger.warning("Redis is not enabled in configuration")
                 self.enabled = False
                 self.client = None
