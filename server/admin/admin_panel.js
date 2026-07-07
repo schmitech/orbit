@@ -72,7 +72,6 @@
     shutdown: "/admin/shutdown",
     adminExport: "/admin/export",
     login: "/admin/login",
-    config: "/admin/config",
     configSections: "/admin/config/sections",
     adapterConfigs: "/admin/adapters/config",
     auditEvents: "/admin/audit/events",
@@ -4525,7 +4524,7 @@
   // TAB: Settings (Ace Editor — YAML, split into config.yaml sections)
   // ==================================================================
   var settingsEditors = {}; // key -> { editor, original } for every section rendered in the active category
-  var selectedSettingsCategory = null; // category group label, or "Advanced"
+  var selectedSettingsCategory = null; // currently selected category group label
   var cachedSettingsSections = null; // [{key, line_count}, ...]
 
   function destroyAllSettingsEditors() {
@@ -4542,26 +4541,29 @@
     });
   }
 
-  // Grouping + display copy for known top-level config.yaml keys. Any key not
-  // listed here still appears, under "Imports/Other" — so a new key added to
-  // config.yaml is never hidden, just uncategorized until this list catches up.
+  // Grouping + display copy for known top-level config.yaml keys. A key that
+  // isn't listed here still shows up, under "Uncategorized" — so a new key
+  // added to config.yaml is never hidden, just uncategorized until this list
+  // catches up. "import" is deliberately excluded: it's a list of included
+  // files, not an editable settings section.
+  var SETTINGS_HIDDEN_KEYS = ["import"];
   var SETTINGS_GROUPS = [
     { label: "General & Performance", keys: ["general", "performance", "language_detection", "clock_service"] },
-    { label: "Authentication & Security", keys: ["auth", "api_keys", "security"] },
+    { label: "Authentication & Security", keys: ["auth", "api_keys", "security", "secrets_management"] },
     { label: "Internal Services & Storage", keys: ["internal_services", "chat_history", "conversation_threading", "prompt_service"] },
     { label: "Retrieval & Files", keys: ["composite_retrieval", "autocomplete", "files"] },
     { label: "Reliability & Messaging", keys: ["fault_tolerance", "messages"] },
     { label: "Logging & Monitoring", keys: ["logging", "monitoring"] },
-    { label: "Imports/Other", keys: ["import"] },
   ];
   var SETTINGS_TITLES = {
     general: "General", performance: "Performance", language_detection: "Language Detection",
     clock_service: "Clock Service", auth: "Authentication", api_keys: "API Keys", security: "Security",
+    secrets_management: "Secrets Management",
     internal_services: "Internal Services", chat_history: "Chat History",
     conversation_threading: "Conversation Threading", prompt_service: "Prompt Service",
     composite_retrieval: "Composite Retrieval", autocomplete: "Autocomplete", files: "Files",
     fault_tolerance: "Fault Tolerance", messages: "Messages", logging: "Logging",
-    monitoring: "Monitoring", import: "Imports",
+    monitoring: "Monitoring",
   };
 
   function settingsSectionTitle(key) {
@@ -4595,25 +4597,39 @@
 
     var sectionByKey = {};
     cachedSettingsSections.forEach(function (s) { sectionByKey[s.key] = s; });
-    var knownKeys = cachedSettingsSections.map(function (s) { return s.key; });
+    var knownKeys = cachedSettingsSections
+      .map(function (s) { return s.key; })
+      .filter(function (k) { return SETTINGS_HIDDEN_KEYS.indexOf(k) === -1; });
     var groupedKeys = {};
     var groups = SETTINGS_GROUPS
-      .map(function (g) { return { label: g.label, keys: g.keys.filter(function (k) { return knownKeys.indexOf(k) !== -1; }) }; });
+      .map(function (g) { return { label: g.label, keys: g.keys.filter(function (k) { return knownKeys.indexOf(k) !== -1; }) }; })
+      .filter(function (g) { return g.keys.length > 0; });
     groups.forEach(function (g) { g.keys.forEach(function (k) { groupedKeys[k] = true; }); });
     var otherKeys = knownKeys.filter(function (k) { return !groupedKeys[k]; });
     if (otherKeys.length) {
-      var importsGroup = groups.filter(function (g) { return g.label === "Imports/Other"; })[0];
-      if (importsGroup) {
-        importsGroup.keys = importsGroup.keys.concat(otherKeys);
-      } else {
-        groups.push({ label: "Imports/Other", keys: otherKeys });
-      }
+      groups.push({ label: "Uncategorized", keys: otherKeys });
     }
-    groups.push({ label: "Advanced", keys: ["__raw__"] });
 
-    // ----- Category tab bar -----
-    var tabBar = el("div", { className: "settings-category-tabs", role: "tablist", "aria-label": "Settings categories" });
-    wrap.appendChild(tabBar);
+    if (!groups.length) {
+      wrap.appendChild(el("div", { className: "empty-state" },
+        el("strong", null, "No settings sections found"),
+        el("p", null, "config.yaml does not currently define any recognized top-level sections.")
+      ));
+      return;
+    }
+
+    // ----- Category dropdown -----
+    var picker = el("div", { className: "settings-category-picker" });
+    var pickerLabel = el("label", { htmlFor: "settings-category-select" }, "Category");
+    var select = el("select", { id: "settings-category-select", "aria-label": "Settings category" });
+    groups.forEach(function (g) {
+      select.appendChild(el("option", { value: g.label },
+        g.label + " (" + g.keys.length + (g.keys.length === 1 ? " section" : " sections") + ")"
+      ));
+    });
+    picker.appendChild(pickerLabel);
+    picker.appendChild(select);
+    wrap.appendChild(picker);
 
     var body = el("div", { className: "settings-category-body" });
     wrap.appendChild(body);
@@ -4631,45 +4647,26 @@
       });
     }
 
-    function markActiveTab() {
-      tabBar.querySelectorAll(".settings-category-tab").forEach(function (btn) {
-        var isActive = btn.dataset.label === selectedSettingsCategory;
-        btn.classList.toggle("active", isActive);
-        btn.setAttribute("aria-selected", isActive ? "true" : "false");
-      });
-    }
-
-    function selectCategory(label) {
-      if (label === selectedSettingsCategory) return;
+    select.addEventListener("change", function () {
+      var nextLabel = select.value;
+      if (nextLabel === selectedSettingsCategory) return;
       if (categoryIsDirty(selectedSettingsCategory)) {
+        select.value = selectedSettingsCategory; // revert until the user confirms
         confirmAction({
           title: "Unsaved Changes",
           message: "You have unsaved changes in this category. Discard them?",
           confirmLabel: "Discard",
           isDanger: true,
           onConfirm: function () {
-            selectedSettingsCategory = label;
-            markActiveTab();
-            renderBody(label);
+            selectedSettingsCategory = nextLabel;
+            select.value = nextLabel;
+            renderBody(nextLabel);
           }
         });
         return;
       }
-      selectedSettingsCategory = label;
-      markActiveTab();
-      renderBody(label);
-    }
-
-    groups.forEach(function (g) {
-      var btn = el("button", {
-        type: "button",
-        role: "tab",
-        className: "settings-category-tab",
-        dataset: { label: g.label },
-        "aria-selected": "false",
-      }, g.label);
-      btn.addEventListener("click", function () { selectCategory(g.label); });
-      tabBar.appendChild(btn);
+      selectedSettingsCategory = nextLabel;
+      renderBody(nextLabel);
     });
 
     function renderBody(label) {
@@ -4677,19 +4674,11 @@
       destroyAllSettingsEditors();
       var g = findGroup(label);
       if (!g) return;
-      if (!g.keys.length) {
-        body.appendChild(el("div", { className: "empty-state" },
-          el("strong", null, "No sections in this category"),
-          el("p", null, "This config file does not currently define any sections for " + label + ".")
-        ));
-        return;
-      }
       g.keys.forEach(function (key) { body.appendChild(renderSectionBlock(key)); });
     }
 
     function renderSectionBlock(key) {
-      var isRaw = key === "__raw__";
-      var titleText = isRaw ? "Raw File" : settingsSectionTitle(key);
+      var titleText = settingsSectionTitle(key);
 
       var block = el("div", { className: "panel settings-section-block" });
 
@@ -4698,14 +4687,8 @@
       block.appendChild(headerRow);
 
       var metaEl = el("p", { className: "muted settings-section-block__meta" },
-        isRaw ? "" : settingsLineLabel(sectionByKey[key] ? sectionByKey[key].line_count : 0)
+        settingsLineLabel(sectionByKey[key] ? sectionByKey[key].line_count : 0)
       );
-
-      if (isRaw) {
-        block.appendChild(el("p", { className: "muted", style: "margin:0 0 var(--sp-2)" },
-          "The entire file, for structural changes the section editors can't make — reordering keys or adding a new top-level section."
-        ));
-      }
       block.appendChild(metaEl);
 
       var banner = el("div", { className: "settings-banner", style: "display:none", role: "status" });
@@ -4767,7 +4750,7 @@
         saveBtn.disabled = editor.getValue() === editorState.original;
       });
 
-      var endpoint = isRaw ? ENDPOINTS.config : (ENDPOINTS.configSections + "/" + encodeURIComponent(key));
+      var endpoint = ENDPOINTS.configSections + "/" + encodeURIComponent(key);
 
       async function loadContent() {
         try {
@@ -4790,17 +4773,12 @@
           await api("PUT", endpoint, { content: editor.getValue() });
           if (!isCurrentEditor()) return;
           editorState.original = editor.getValue();
-          banner.textContent = isRaw
-            ? "Config saved. Go to the Ops tab to restart the server for changes to take effect."
-            : "'" + titleText + "' saved. Go to the Ops tab to restart the server for changes to take effect.";
+          banner.textContent = "'" + titleText + "' saved. Go to the Ops tab to restart the server for changes to take effect.";
           banner.style.display = "";
           setTimeout(function () { banner.style.display = "none"; }, 5000);
-          if (!isRaw) {
-            var sec = sectionByKey[key];
-            if (sec) sec.line_count = editor.getValue().split("\n").length;
-          }
+          var sec = sectionByKey[key];
+          if (sec) sec.line_count = editor.getValue().split("\n").length;
           metaEl.textContent = settingsLineLabel(editor.getValue().split("\n").length);
-          if (isRaw) cachedSettingsSections = null; // raw edits may add/remove/reorder sections
         } catch (err) {
           if (isCurrentEditor()) {
             showError("Save failed: " + err.message);
@@ -4834,9 +4812,9 @@
 
     var validCategories = groups.map(function (g) { return g.label; });
     if (!selectedSettingsCategory || validCategories.indexOf(selectedSettingsCategory) === -1) {
-      selectedSettingsCategory = groups.length ? groups[0].label : null;
+      selectedSettingsCategory = groups[0].label;
     }
-    markActiveTab();
+    select.value = selectedSettingsCategory;
     renderBody(selectedSettingsCategory);
   }
 

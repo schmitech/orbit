@@ -1831,6 +1831,15 @@ code.plain-code {
     min-width: 0;
     flex: 1;
   }
+
+  .settings-category-picker {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-category-picker select {
+    width: 100%;
+  }
 }
 
 /* ============================================================
@@ -2500,49 +2509,31 @@ code.plain-code {
   font-size: var(--text-sm);
 }
 
-/* Settings view — category tabs across the top, each category rendering
-   every one of its config.yaml sections as its own titled editor block
-   stacked below (no side nav, no chip scatter) */
+/* Settings view — a category dropdown up top, rendering every one of the
+   selected category's config.yaml sections as its own titled editor block
+   stacked below (no side nav, no chip scatter; scales as categories grow) */
 .settings-view {
   display: flex;
   flex-direction: column;
 }
 
-.settings-category-tabs {
+.settings-category-picker {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1);
-  border-bottom: 1px solid var(--border);
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+  padding-bottom: var(--sp-4);
   margin-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--border);
 }
 
-.settings-category-tab {
-  padding: var(--sp-2) var(--sp-3);
-  margin-bottom: -1px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
+.settings-category-picker label {
+  flex-shrink: 0;
 }
 
-.settings-category-tabs .settings-category-tab:hover:not(:disabled) {
-  background: var(--brand-50);
-  color: var(--ink);
-}
-
-.settings-category-tab.active {
-  color: var(--brand-600);
-  border-bottom-color: var(--brand-500);
-}
-
-.settings-category-tabs .settings-category-tab.active:hover:not(:disabled) {
-  background: var(--brand-50);
-  color: var(--brand-600);
+.settings-category-picker select {
+  width: auto;
+  min-width: 280px;
 }
 
 .settings-category-body {
