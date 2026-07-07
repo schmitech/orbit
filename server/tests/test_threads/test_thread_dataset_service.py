@@ -58,7 +58,7 @@ async def dataset_service():
             'enabled': True,
             'dataset_ttl_hours': 24,
             'storage_backend': 'database',  # Use database for testing (no Redis required)
-            'redis_key_prefix': 'thread_dataset:'
+            'cache_key_prefix': 'thread_dataset:'
         }
     }
 

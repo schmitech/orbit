@@ -159,34 +159,13 @@ def create_metrics_router() -> APIRouter:
                 except Exception as e:
                     logger.warning(f"Error getting datasource pool stats: {e}")
 
-                # Get Redis health and connection pool statistics
+                # Get cache service health statistics (key name kept as redis_health for the dashboard)
                 try:
-                    redis_service = getattr(websocket.app.state, 'redis_service', None)
-                    if redis_service:
-                        redis_data: Dict[str, Any] = {
-                            'enabled': getattr(redis_service, 'enabled', False),
-                            'initialized': getattr(redis_service, 'initialized', False),
-                        }
-                        cb = getattr(redis_service, '_circuit_breaker', None)
-                        if cb:
-                            redis_data['circuit_breaker'] = {
-                                'state': getattr(cb, '_state', 'unknown'),
-                                'failure_count': getattr(cb, '_failure_count', 0),
-                                'max_failures': getattr(cb, '_max_failures', 5),
-                            }
-                        client = getattr(redis_service, 'client', None)
-                        if client:
-                            pool = getattr(client, 'connection_pool', None)
-                            if pool:
-                                redis_data['pool'] = {
-                                    'max_connections': getattr(pool, 'max_connections', 0),
-                                    'created_connections': getattr(pool, '_created_connections', 0),
-                                    'available_connections': len(getattr(pool, '_available_connections', [])),
-                                    'in_use_connections': len(getattr(pool, '_in_use_connections', [])),
-                                }
-                        data['redis_health'] = redis_data
+                    cache_service = getattr(websocket.app.state, 'cache_service', None)
+                    if cache_service:
+                        data['redis_health'] = cache_service.get_health_stats()
                 except Exception as e:
-                    logger.debug(f"Error getting Redis health stats: {e}")
+                    logger.debug(f"Error getting cache service health stats: {e}")
 
                 # Pipeline step metrics
                 try:

@@ -404,32 +404,18 @@ class TestRateLimitMiddlewareClientIP:
 
 @pytest.fixture
 def mock_redis_service():
-    """Create a mock Redis service with counter tracking."""
+    """Create a mock cache service with counter tracking backing increment_with_ttl."""
     mock_service = Mock()
     mock_service.enabled = True
     mock_service.initialized = True
 
     counters = {}
 
-    async def mock_script_call(keys, args):
-        minute_key, hour_key = keys
-        minute_limit = int(args[2])
-        hour_limit = int(args[3])
-        counters[minute_key] = counters.get(minute_key, 0) + 1
-        minute_count = counters[minute_key]
-        if minute_count > minute_limit:
-            return [0, minute_count, 0]
+    async def mock_increment_with_ttl(key, ttl, amount=1):
+        counters[key] = counters.get(key, 0) + amount
+        return counters[key]
 
-        counters[hour_key] = counters.get(hour_key, 0) + 1
-        hour_count = counters[hour_key]
-        if hour_count > hour_limit:
-            return [0, minute_count, hour_count]
-
-        return [1, minute_count, hour_count]
-
-    mock_script = AsyncMock(side_effect=mock_script_call)
-    mock_service.client = Mock()
-    mock_service.client.register_script = Mock(return_value=mock_script)
+    mock_service.increment_with_ttl = AsyncMock(side_effect=mock_increment_with_ttl)
     mock_service._counters = counters
 
     return mock_service
@@ -440,7 +426,7 @@ class TestRateLimitMiddlewareWithRedis:
 
     @pytest.fixture
     def mock_redis_service(self):
-        """Create a mock Redis service with counter tracking."""
+        """Create a mock cache service with counter tracking backing increment_with_ttl."""
         mock_service = Mock()
         mock_service.enabled = True
         mock_service.initialized = True
@@ -448,28 +434,11 @@ class TestRateLimitMiddlewareWithRedis:
         # Track counters for testing
         counters = {}
 
-        async def mock_script_call(keys, args):
-            """Mock registered Lua script execution - atomic INCR with EXPIRE."""
-            minute_key, hour_key = keys
-            minute_limit = int(args[2])
-            hour_limit = int(args[3])
-            counters[minute_key] = counters.get(minute_key, 0) + 1
-            minute_count = counters[minute_key]
-            if minute_count > minute_limit:
-                return [0, minute_count, 0]
+        async def mock_increment_with_ttl(key, ttl, amount=1):
+            counters[key] = counters.get(key, 0) + amount
+            return counters[key]
 
-            counters[hour_key] = counters.get(hour_key, 0) + 1
-            hour_count = counters[hour_key]
-            if hour_count > hour_limit:
-                return [0, minute_count, hour_count]
-
-            return [1, minute_count, hour_count]
-
-        # Create a mock registered script that behaves like a callable
-        mock_script = AsyncMock(side_effect=mock_script_call)
-
-        mock_service.client = Mock()
-        mock_service.client.register_script = Mock(return_value=mock_script)
+        mock_service.increment_with_ttl = AsyncMock(side_effect=mock_increment_with_ttl)
         mock_service._counters = counters  # Expose for testing
 
         return mock_service
@@ -495,7 +464,7 @@ class TestRateLimitMiddlewareWithRedis:
             return {"message": "test"}
         
         # Inject mock redis service
-        app.state.redis_service = mock_redis_service
+        app.state.cache_service = mock_redis_service
         
         client = TestClient(app)
         response = client.get("/test")
@@ -531,7 +500,7 @@ class TestRateLimitMiddlewareWithRedis:
         def test_endpoint():
             return {"message": "test"}
         
-        app.state.redis_service = mock_redis_service
+        app.state.cache_service = mock_redis_service
         
         client = TestClient(app)
         
@@ -573,7 +542,7 @@ class TestRateLimitMiddlewareWithRedis:
         def test_endpoint():
             return {"message": "test"}
         
-        app.state.redis_service = mock_redis_service
+        app.state.cache_service = mock_redis_service
         
         client = TestClient(app)
         
@@ -614,7 +583,7 @@ class TestRateLimitMiddlewareWithRedis:
         def test_endpoint():
             return {"message": "test"}
 
-        app.state.redis_service = mock_redis_service
+        app.state.cache_service = mock_redis_service
 
         client = TestClient(app)
         headers = {"X-API-Key": "test-api-key-123"}
@@ -652,7 +621,7 @@ class TestRateLimitMiddlewareWithRedis:
         def test_endpoint():
             return {"message": "test"}
 
-        app.state.redis_service = mock_redis_service
+        app.state.cache_service = mock_redis_service
 
         client = TestClient(app)
 
@@ -693,15 +662,13 @@ class TestRateLimitMiddlewareRedisFailure:
         def test_endpoint():
             return {"message": "test"}
 
-        # Create a mock Redis service that raises errors when script is called
-        mock_script = AsyncMock(side_effect=Exception("Redis connection error"))
+        # Create a mock cache service that raises errors when incrementing
         mock_service = Mock()
         mock_service.enabled = True
         mock_service.initialized = True
-        mock_service.client = Mock()
-        mock_service.client.register_script = Mock(return_value=mock_script)
+        mock_service.increment_with_ttl = AsyncMock(side_effect=Exception("Redis connection error"))
 
-        app.state.redis_service = mock_service
+        app.state.cache_service = mock_service
 
         client = TestClient(app)
 
@@ -735,7 +702,7 @@ class TestRateLimitMiddlewareRedisFailure:
         mock_service.initialized = False
         mock_service.initialize = AsyncMock(side_effect=Exception("Failed to connect"))
         
-        app.state.redis_service = mock_service
+        app.state.cache_service = mock_service
         
         client = TestClient(app)
         
@@ -769,7 +736,7 @@ class TestRateLimitMiddlewareRemainingHeader:
         def test_endpoint():
             return {"ok": True}
 
-        app.state.redis_service = mock_redis_service
+        app.state.cache_service = mock_redis_service
 
         client = TestClient(app)
         for _ in range(3):
@@ -846,11 +813,13 @@ class TestRateLimitMiddlewareTrustProxyWarning:
 
 
 class TestRateLimitMiddlewareConcurrencySafety:
-    """Regression tests for shared script state invalidation."""
+    """Regression tests for correct counting when increment_with_ttl is called per-window."""
 
     @pytest.mark.asyncio
-    async def test_check_rate_limit_uses_local_script_reference(self):
-        """A concurrent invalidation of _incr_script should not break the current request."""
+    async def test_check_rate_limit_combines_independent_increment_calls(self):
+        """_check_rate_limit issues one increment_with_ttl call per window (minute, hour) and
+        should combine their results correctly even if a concurrent caller is also incrementing
+        the same keys between the two calls."""
         app = FastAPI()
         config = {
             'security': {
@@ -865,22 +834,16 @@ class TestRateLimitMiddlewareConcurrencySafety:
         mock_service = Mock()
         mock_service.enabled = True
         mock_service.initialized = True
-        mock_service.client = Mock()
 
-        class ScriptThatInvalidatesMiddleware:
-            def __init__(self, target_middleware):
-                self._middleware = target_middleware
-                self._calls = 0
+        calls = {"count": 0}
 
-            async def __call__(self, keys, args):
-                self._calls += 1
-                if self._calls == 1:
-                    # Simulate another request invalidating shared state mid-check.
-                    self._middleware._incr_script = None
-                return [1, self._calls, self._calls]
+        async def mock_increment_with_ttl(key, ttl, amount=1):
+            calls["count"] += 1
+            # Simulate a concurrent request also incrementing counters between calls -
+            # each call still just returns its own key's new count.
+            return calls["count"]
 
-        script = ScriptThatInvalidatesMiddleware(middleware)
-        mock_service.client.register_script = Mock(return_value=script)
+        mock_service.increment_with_ttl = AsyncMock(side_effect=mock_increment_with_ttl)
 
         allowed, remaining, limit, _ = await middleware._check_rate_limit(
             mock_service,
@@ -893,3 +856,4 @@ class TestRateLimitMiddlewareConcurrencySafety:
         assert allowed is True
         assert remaining == 9
         assert limit == 10
+        assert mock_service.increment_with_ttl.call_count == 2

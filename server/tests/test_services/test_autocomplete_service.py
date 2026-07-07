@@ -43,9 +43,9 @@ def enabled_config():
             'min_query_length': 3,
             'max_suggestions': 5,
             'cache': {
-                'use_redis': False,
+                'use_cache': False,
                 'ttl_seconds': 300,
-                'redis_key_prefix': 'test_autocomplete:'
+                'cache_key_prefix': 'test_autocomplete:'
             },
             'fuzzy_matching': {
                 'enabled': False,
@@ -76,7 +76,7 @@ def fuzzy_levenshtein_config():
             'min_query_length': 3,
             'max_suggestions': 5,
             'cache': {
-                'use_redis': False,
+                'use_cache': False,
                 'ttl_seconds': 300
             },
             'fuzzy_matching': {
@@ -98,7 +98,7 @@ def fuzzy_jaro_winkler_config():
             'min_query_length': 3,
             'max_suggestions': 5,
             'cache': {
-                'use_redis': False,
+                'use_cache': False,
                 'ttl_seconds': 300
             },
             'fuzzy_matching': {
@@ -120,9 +120,9 @@ def redis_enabled_config():
             'min_query_length': 3,
             'max_suggestions': 5,
             'cache': {
-                'use_redis': True,
+                'use_cache': True,
                 'ttl_seconds': 1800,
-                'redis_key_prefix': 'autocomplete:'
+                'cache_key_prefix': 'autocomplete:'
             },
             'fuzzy_matching': {
                 'enabled': False,
@@ -329,11 +329,11 @@ class TestAutocompleteServiceInitialization:
         """Test initialization with Redis caching."""
         service = AutocompleteService(
             redis_enabled_config,
-            redis_service=mock_redis_service
+            cache_service=mock_redis_service
         )
-        assert service.use_redis_cache is True
+        assert service.use_cache_service is True
         assert service.cache_ttl == 1800
-        assert service.redis_key_prefix == 'autocomplete:'
+        assert service.cache_key_prefix == 'autocomplete:'
 
     def test_default_config_values(self):
         """Test default configuration values when config is minimal."""
@@ -475,7 +475,7 @@ class TestAutocompleteServiceCaching:
             'autocomplete': {
                 'enabled': True,
                 'cache': {
-                    'use_redis': False,
+                    'use_cache': False,
                     'ttl_seconds': 1  # 1 second TTL for testing
                 }
             }
@@ -503,7 +503,7 @@ class TestAutocompleteServiceCaching:
         """Test Redis cache stores examples."""
         service = AutocompleteService(
             redis_enabled_config,
-            redis_service=mock_redis_service
+            cache_service=mock_redis_service
         )
 
         await service._set_cached_examples("test-adapter", sample_nl_examples)
@@ -524,7 +524,7 @@ class TestAutocompleteServiceCaching:
 
         service = AutocompleteService(
             redis_enabled_config,
-            redis_service=mock_redis_service
+            cache_service=mock_redis_service
         )
 
         cached = await service._get_cached_examples("test-adapter")
@@ -539,7 +539,7 @@ class TestAutocompleteServiceCaching:
 
         service = AutocompleteService(
             redis_enabled_config,
-            redis_service=mock_redis_service
+            cache_service=mock_redis_service
         )
 
         cached = await service._get_cached_examples("test-adapter")

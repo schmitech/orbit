@@ -6,7 +6,7 @@ This service provides query autocomplete suggestions based on nl_examples
 from intent adapter templates.
 
 Features:
-- Redis caching for distributed deployments (with in-memory fallback)
+- Distributed caching via the configured cache provider (with in-memory fallback)
 - Fuzzy matching algorithms: substring, Levenshtein, Jaro-Winkler
 - Uses fast C libraries (Levenshtein, jarowinkler) when available
 - Falls back to pure Python implementations if C libraries not installed
@@ -253,9 +253,9 @@ class AutocompleteService:
           min_query_length: 3
           max_suggestions: 5
           cache:
-            use_redis: true
+            use_cache: true
             ttl_seconds: 1800
-            redis_key_prefix: "autocomplete:"
+            cache_key_prefix: "autocomplete:"
           fuzzy_matching:
             enabled: true
             algorithm: "jaro_winkler"
@@ -267,7 +267,7 @@ class AutocompleteService:
         self,
         config: Dict[str, Any],
         adapter_manager=None,
-        redis_service=None
+        cache_service=None
     ):
         """
         Initialize the autocomplete service.
@@ -275,11 +275,11 @@ class AutocompleteService:
         Args:
             config: Application configuration
             adapter_manager: Reference to DynamicAdapterManager for adapter access
-            redis_service: Optional RedisService for distributed caching
+            cache_service: Optional cache provider (Redis, Memcached, ...) for distributed caching
         """
         self.config = config
         self.adapter_manager = adapter_manager
-        self.redis_service = redis_service
+        self.cache_service = cache_service
 
         # Autocomplete configuration
         autocomplete_config = config.get('autocomplete', {})
@@ -289,9 +289,9 @@ class AutocompleteService:
 
         # Cache configuration
         cache_config = autocomplete_config.get('cache', {})
-        self.use_redis_cache = cache_config.get('use_redis', True)
+        self.use_cache_service = cache_config.get('use_cache', True)
         self.cache_ttl = cache_config.get('ttl_seconds', 1800)  # 30 minutes
-        self.redis_key_prefix = cache_config.get('redis_key_prefix', 'autocomplete:')
+        self.cache_key_prefix = cache_config.get('cache_key_prefix', 'autocomplete:')
 
         # Fuzzy matching configuration
         fuzzy_config = autocomplete_config.get('fuzzy_matching', {})
@@ -304,12 +304,13 @@ class AutocompleteService:
         self._memory_cache: Dict[str, tuple] = {}
         self._adapter_fetch_locks: Dict[str, asyncio.Lock] = {}
 
-        # Check if Redis is available when Redis caching is requested
-        redis_available = redis_service is not None and getattr(redis_service, 'enabled', False)
-        if self.enabled and self.use_redis_cache and not redis_available:
+        # Check if a cache service is available when distributed caching is requested
+        cache_available = cache_service is not None and getattr(cache_service, 'enabled', False)
+        if self.enabled and self.use_cache_service and not cache_available:
             logger.warning(
-                "Autocomplete service is configured to use Redis caching but Redis is disabled. "
-                "Falling back to in-memory cache (not suitable for distributed deployments)."
+                "Autocomplete service is configured to use distributed caching but the cache "
+                "service is disabled. Falling back to in-memory cache (not suitable for "
+                "distributed deployments)."
             )
 
         # Log initialization with library status
@@ -322,18 +323,18 @@ class AutocompleteService:
 
         logger.debug(
             f"AutocompleteService initialized: enabled={self.enabled}, "
-            f"redis_cache={self.use_redis_cache}, fuzzy={self.fuzzy_enabled} "
+            f"distributed_cache={self.use_cache_service}, fuzzy={self.fuzzy_enabled} "
             f"({self.fuzzy_algorithm}, threshold={self.fuzzy_threshold})"
             + (f", libs=[{', '.join(lib_status)}]" if lib_status else "")
         )
 
-    def _get_redis_key(self, adapter_name: str) -> str:
-        """Generate Redis cache key for an adapter's nl_examples."""
-        return f"{self.redis_key_prefix}{adapter_name}"
+    def _get_cache_key(self, adapter_name: str) -> str:
+        """Generate cache key for an adapter's nl_examples."""
+        return f"{self.cache_key_prefix}{adapter_name}"
 
     async def _get_cached_examples(self, adapter_name: str) -> Optional[List[str]]:
         """
-        Get cached nl_examples from Redis or memory cache.
+        Get cached nl_examples from the cache service or memory cache.
 
         Args:
             adapter_name: Name of the adapter
@@ -341,17 +342,17 @@ class AutocompleteService:
         Returns:
             Cached examples list or None if not cached/expired
         """
-        # Try Redis first if enabled and available
-        if self.use_redis_cache and self.redis_service and self.redis_service.enabled:
+        # Try the cache service first if enabled and available
+        if self.use_cache_service and self.cache_service and self.cache_service.enabled:
             try:
-                redis_key = self._get_redis_key(adapter_name)
-                cached_json = await self.redis_service.get(redis_key)
+                cache_key = self._get_cache_key(adapter_name)
+                cached_json = await self.cache_service.get(cache_key)
                 if cached_json:
                     examples = json.loads(cached_json)
-                    logger.debug(f"Redis cache hit for autocomplete: {adapter_name}")
+                    logger.debug(f"Cache hit for autocomplete: {adapter_name}")
                     return examples
             except Exception as e:
-                logger.warning(f"Redis cache read error for {adapter_name}: {e}")
+                logger.warning(f"Cache read error for {adapter_name}: {e}")
 
         # Fallback to memory cache
         if adapter_name in self._memory_cache:
@@ -367,24 +368,24 @@ class AutocompleteService:
 
     async def _set_cached_examples(self, adapter_name: str, examples: List[str]) -> None:
         """
-        Cache nl_examples in Redis and/or memory cache.
+        Cache nl_examples in the cache service and/or memory cache.
 
         Args:
             adapter_name: Name of the adapter
             examples: List of nl_example strings to cache
         """
-        # Store in Redis if enabled and available
-        if self.use_redis_cache and self.redis_service and self.redis_service.enabled:
+        # Store in the cache service if enabled and available
+        if self.use_cache_service and self.cache_service and self.cache_service.enabled:
             try:
-                redis_key = self._get_redis_key(adapter_name)
-                await self.redis_service.set(
-                    redis_key,
+                cache_key = self._get_cache_key(adapter_name)
+                await self.cache_service.set(
+                    cache_key,
                     json.dumps(examples),
                     ttl=self.cache_ttl
                 )
-                logger.debug(f"Cached {len(examples)} examples in Redis for {adapter_name}")
+                logger.debug(f"Cached {len(examples)} examples for {adapter_name}")
             except Exception as e:
-                logger.warning(f"Redis cache write error for {adapter_name}: {e}")
+                logger.warning(f"Cache write error for {adapter_name}: {e}")
 
         # Always update memory cache as fallback
         self._memory_cache[adapter_name] = (time.time(), examples)
@@ -490,14 +491,14 @@ class AutocompleteService:
         lock_key: Optional[str] = None
         distributed_lock_acquired = False
 
-        if self.use_redis_cache and self.redis_service and getattr(self.redis_service, 'client', None):
-            lock_key = f"lock:{self.redis_key_prefix}{adapter_name}"
+        if self.use_cache_service and self.cache_service and self.cache_service.enabled:
+            lock_key = f"lock:{self.cache_key_prefix}{adapter_name}"
             try:
-                distributed_lock_acquired = bool(
-                    await self.redis_service.client.set(lock_key, "1", nx=True, ex=10)
+                distributed_lock_acquired = await self.cache_service.set_if_not_exists(
+                    lock_key, "1", ttl=10
                 )
             except Exception as e:
-                logger.warning(f"Redis lock acquisition error for {adapter_name}: {e}")
+                logger.warning(f"Cache lock acquisition error for {adapter_name}: {e}")
                 distributed_lock_acquired = True
 
             if not distributed_lock_acquired:
@@ -560,9 +561,9 @@ class AutocompleteService:
         finally:
             if distributed_lock_acquired and lock_key:
                 try:
-                    await self.redis_service.delete(lock_key)
+                    await self.cache_service.delete(lock_key)
                 except Exception as e:
-                    logger.warning(f"Redis lock release error for {adapter_name}: {e}")
+                    logger.warning(f"Cache lock release error for {adapter_name}: {e}")
 
         return examples
 
@@ -851,40 +852,28 @@ class AutocompleteService:
             if adapter_name in self._memory_cache:
                 del self._memory_cache[adapter_name]
 
-            # Also invalidate in Redis
-            if self.use_redis_cache and self.redis_service and self.redis_service.enabled:
+            # Also invalidate in the cache service
+            if self.use_cache_service and self.cache_service and self.cache_service.enabled:
                 try:
-                    redis_key = self._get_redis_key(adapter_name)
-                    await self.redis_service.delete(redis_key)
+                    cache_key = self._get_cache_key(adapter_name)
+                    await self.cache_service.delete(cache_key)
                 except Exception as e:
-                    logger.warning(f"Failed to invalidate Redis cache for {adapter_name}: {e}")
+                    logger.warning(f"Failed to invalidate cache for {adapter_name}: {e}")
 
             logger.debug(f"Invalidated autocomplete cache for {adapter_name}")
         else:
             # Invalidate all
             self._memory_cache.clear()
 
-            # Clear Redis cache (scan for keys with prefix)
-            if self.use_redis_cache and self.redis_service and self.redis_service.enabled:
+            # Clear distributed cache (pattern-based on Redis, full flush on Memcached)
+            if self.use_cache_service and self.cache_service and self.cache_service.enabled:
                 try:
-                    # Use the redis client directly for pattern deletion
-                    if self.redis_service.client:
-                        cursor = 0
-                        keys_deleted = 0
-                        while True:
-                            cursor, keys = await self.redis_service.client.scan(
-                                cursor,
-                                match=f"{self.redis_key_prefix}*",
-                                count=100
-                            )
-                            if keys:
-                                await self.redis_service.delete(*keys)
-                                keys_deleted += len(keys)
-                            if cursor == 0:
-                                break
-                        if keys_deleted > 0:
-                            logger.debug(f"Deleted {keys_deleted} autocomplete cache keys from Redis")
+                    deleted = await self.cache_service.clear_by_pattern(
+                        f"{self.cache_key_prefix}*", "autocomplete cache"
+                    )
+                    if deleted:
+                        logger.debug(f"Cleared autocomplete cache keys from cache service ({deleted})")
                 except Exception as e:
-                    logger.warning(f"Failed to clear Redis autocomplete cache: {e}")
+                    logger.warning(f"Failed to clear autocomplete cache: {e}")
 
             logger.debug("Invalidated all autocomplete caches")

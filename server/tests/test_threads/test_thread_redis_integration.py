@@ -38,7 +38,7 @@ from services.thread_service import ThreadService
 from services.thread_dataset_service import ThreadDatasetService
 from services.sqlite_service import SQLiteService
 from services.chat_history_service import ChatHistoryService
-from services.redis_service import RedisService
+from services.cache_backends.redis_provider import RedisCacheProvider as RedisService
 from utils.id_utils import generate_id
 
 # Load environment variables from .env file in project root
@@ -114,8 +114,8 @@ async def redis_test_services():
         'conversation_threading': {
             'enabled': True,
             'dataset_ttl_hours': 1,
-            'storage_backend': 'redis',  # Use Redis for dataset storage
-            'redis_key_prefix': 'test_thread_dataset:'  # Use test prefix
+            'storage_backend': 'cache',  # Use the configured cache provider for dataset storage
+            'cache_key_prefix': 'test_thread_dataset:'  # Use test prefix
         },
         'chat_history': {
             'enabled': True,
@@ -141,7 +141,7 @@ async def redis_test_services():
     await thread_dataset_service.initialize()
 
     # Verify Redis is actually being used
-    if thread_dataset_service.storage_backend != 'redis' or not thread_dataset_service.redis_service.enabled:
+    if thread_dataset_service.storage_backend != 'cache' or not thread_dataset_service.cache_service.enabled:
         pytest.skip("Redis storage not enabled in ThreadDatasetService")
 
     # Initialize chat history service (with thread_dataset_service)
@@ -167,7 +167,7 @@ async def redis_test_services():
     # Cleanup: Delete all test keys from Redis
     try:
         # Get all test keys
-        test_prefix = config['conversation_threading']['redis_key_prefix']
+        test_prefix = config['conversation_threading']['cache_key_prefix']
         cursor = 0
         while True:
             cursor, keys = await redis_service.client.scan(cursor, match=f"{test_prefix}*", count=100)

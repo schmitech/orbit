@@ -224,6 +224,15 @@ dependencies = [
 ]
 
 # ============================================================================
+# MEMCACHED - Lightweight alternative cache provider to Redis
+# ============================================================================
+[profiles.memcached]
+description = "Memcached cache provider (lightweight alternative to Redis)"
+dependencies = [
+    "aiomcache>=0.8.2",
+]
+
+# ============================================================================
 # CLOUD-SERVICES - Cloud platform services (AWS, Azure, GCP, IBM)
 # ============================================================================
 [profiles.cloud-services]
@@ -284,6 +293,7 @@ extends = [
     "databases",
     "files",
     "auth-providers",
+    "memcached",
 ]
 dependencies = []
 

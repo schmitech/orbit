@@ -490,10 +490,14 @@ inference:
   bitnet:
     enabled: false
     # Mode: "direct" (load model locally) or "api" (connect to BitNet server)
-    mode: "direct"
+    # NOTE: "direct" mode requires a `bitnet` Python package exposing BitNetInference,
+    # which upstream microsoft/BitNet does not provide (see docs/bitnet-setup.md).
+    # Use "api" mode with BitNet's run_inference_server.py instead.
+    mode: "api"
     
     # Direct mode configuration
-    model_path: "models/bitnet-b1.58-3B/ggml-model-i2_s.gguf"
+    # To get GGUF file run: ./install/setup.sh --download-gguf bitnet-2b-4t
+    model_path: "models/ggml-model-i2_s.gguf"
     quant_type: "i2_s"  # Quantization type: i2_s or tl1
     use_pretuned: true  # Use pretuned kernel parameters
     quant_embd: false   # Quantize embeddings to f16

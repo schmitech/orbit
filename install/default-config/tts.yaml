@@ -132,7 +132,7 @@ tts_providers:
     # vLLM-served audio models (e.g., Orpheus TTS)
     # Serves audio models via vLLM's OpenAI-compatible API
     # Example: vllm serve canopylabs/orpheus-3b-0.1-ft --dtype auto --quantization fp8
-    enabled: true
+    enabled: false
     host: "localhost"
     port: 8000
     # TTS configuration

@@ -61,7 +61,7 @@ async def test_services():
             'enabled': True,
             'dataset_ttl_hours': 24,
             'storage_backend': 'database',
-            'redis_key_prefix': 'thread_dataset:'
+            'cache_key_prefix': 'thread_dataset:'
         },
         'chat_history': {
             'enabled': True,

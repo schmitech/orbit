@@ -16,7 +16,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 SERVER_DIR = SCRIPT_DIR.parent.parent
 sys.path.append(str(SERVER_DIR))
 
-from services.redis_service import RedisService
+from services.cache_backends.redis_provider import RedisCacheProvider as RedisService
 
 # Load environment variables from .env file in project root
 env_path = PROJECT_ROOT / '.env'

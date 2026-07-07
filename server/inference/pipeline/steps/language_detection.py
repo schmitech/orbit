@@ -571,7 +571,7 @@ class LanguageDetectionStep(PipelineStep):
 
     async def _get_session_language(self, context: ProcessingContext) -> Optional[str]:
         """Get previously detected language from session storage."""
-        # Skip Redis lookup if stickiness is disabled
+        # Skip cache lookup if stickiness is disabled
         if not self.enable_stickiness:
             return None
 
@@ -579,23 +579,23 @@ class LanguageDetectionStep(PipelineStep):
             return getattr(context, 'detected_language', None) or None
 
         try:
-            # Try to get from Redis service if available
-            if self.container.has('redis_service'):
-                redis_service = self.container.get('redis_service')
-                if redis_service and redis_service.enabled:
+            # Try to get from the cache service if available
+            if self.container.has('cache_service'):
+                cache_service = self.container.get('cache_service')
+                if cache_service and cache_service.enabled:
                     key = self._session_language_key(context.session_id)
-                    data = await redis_service.get_json(key)
+                    data = await cache_service.get_json(key)
                     if data and data.get('language'):
                         return data.get('language')
         except Exception as e:
-            logger.debug(f"Could not retrieve session language from Redis: {e}")
+            logger.debug(f"Could not retrieve session language from cache: {e}")
 
         # Fallback to context metadata
         return context.metadata.get('last_detected_language') or getattr(context, 'detected_language', None) or None
 
     async def _save_session_language(self, context: ProcessingContext, result: DetectionResult) -> None:
         """Save detected language to session storage for persistence."""
-        # Skip Redis storage if stickiness is disabled
+        # Skip cache storage if stickiness is disabled
         if not self.enable_stickiness:
             return
 
@@ -603,9 +603,9 @@ class LanguageDetectionStep(PipelineStep):
             return
 
         try:
-            if self.container.has('redis_service'):
-                redis_service = self.container.get('redis_service')
-                if redis_service and redis_service.enabled:
+            if self.container.has('cache_service'):
+                cache_service = self.container.get('cache_service')
+                if cache_service and cache_service.enabled:
                     key = self._session_language_key(context.session_id)
                     data = {
                         'language': result.language,
@@ -613,12 +613,12 @@ class LanguageDetectionStep(PipelineStep):
                         'method': result.method
                     }
                     # Set with TTL of 1 hour to match session duration
-                    await redis_service.store_json(key, data, ttl=3600)
+                    await cache_service.store_json(key, data, ttl=3600)
         except Exception as e:
-            logger.debug(f"Could not save session language to Redis: {e}")
+            logger.debug(f"Could not save session language to cache: {e}")
 
     def _session_language_key(self, session_id: str) -> str:
-        """Build a Redis-safe key for persisted language detection state."""
+        """Build a cache-safe key for persisted language detection state."""
         safe_id = urllib.parse.quote(str(session_id), safe='')
         return f"lang_detect:{safe_id}"
 

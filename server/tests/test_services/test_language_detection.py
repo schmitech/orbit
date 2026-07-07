@@ -797,7 +797,7 @@ class TestRedisServiceIntegration:
     def detector_with_redis(self, mock_redis_service):
         """Create a detector with Redis service registered."""
         container = MockContainer()
-        container.register('redis_service', mock_redis_service)
+        container.register('cache_service', mock_redis_service)
         return LanguageDetectionStep(container), mock_redis_service
 
     @pytest.mark.asyncio

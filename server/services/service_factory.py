@@ -50,7 +50,7 @@ class ServiceFactory:
         try:
             logger.debug(f"Starting service initialization - chat_history_enabled={self.chat_history_enabled}")
 
-            # Initialize core services (MongoDB, Redis)
+            # Initialize core services (database, cache service)
             await self._initialize_core_services(app)
 
             # Initialize full mode services
@@ -80,13 +80,13 @@ class ServiceFactory:
         # Initialize database service if needed
         await self._initialize_database_if_needed(app, auth_enabled)
 
-        # Initialize Redis service if enabled
-        await self._initialize_redis_service(app)
+        # Initialize cache service (Redis, Memcached, ...) if enabled
+        await self._initialize_cache_service(app)
 
-        # Initialize thread dataset service (shared instance, requires Redis to be initialized first)
+        # Initialize thread dataset service (shared instance, requires cache service to be initialized first)
         await self._initialize_thread_dataset_service(app)
 
-        # Initialize quota service for rate throttling (requires Redis)
+        # Initialize quota service for rate throttling (requires a cache service)
         await self._initialize_quota_service(app)
 
         # Initialize authentication service (requires database to be initialized first)
@@ -199,7 +199,7 @@ class ServiceFactory:
         chat_history_service = getattr(app.state, 'chat_history_service', None)
         moderator_service = getattr(app.state, 'moderator_service', None)
         clock_service = getattr(app.state, 'clock_service', None)
-        redis_service = getattr(app.state, 'redis_service', None)
+        cache_service = getattr(app.state, 'cache_service', None)
         adapter_manager = getattr(app.state, 'adapter_manager', None)
 
         # Use pipeline-based chat service (now the default)
@@ -217,7 +217,7 @@ class ServiceFactory:
             reranker_service=getattr(app.state, 'reranker_service', None),
             prompt_service=getattr(app.state, 'prompt_service', None),
             clock_service=clock_service,
-            redis_service=redis_service,
+            cache_service=cache_service,
             adapter_manager=adapter_manager,  # Pass shared adapter manager for reload support
             audit_service=audit_service,  # Pass audit service for audit trail storage
             database_service=database_service,  # Pass shared database service for thread operations
@@ -294,42 +294,36 @@ class ServiceFactory:
             logger.error(f"Failed to initialize shared database service: {str(e)}")
             raise
     
-    async def _initialize_redis_service(self, app: FastAPI) -> None:
-        """Initialize Redis service if enabled."""
-        redis_enabled = is_true_value(self.config.get('internal_services', {}).get('redis', {}).get('enabled', False))
-        if redis_enabled:
-            from services.redis_service import RedisService
-            
-            # Get Redis configuration
-            redis_config = self.config.get('internal_services', {}).get('redis', {})
-            
-            # Log Redis configuration details
-            logger.debug("Redis configuration:")
-            logger.debug(f"  Host: {redis_config.get('host', 'localhost')}")
-            logger.debug(f"  Port: {redis_config.get('port', 6379)}")
-            logger.debug(f"  SSL: {'enabled' if is_true_value(redis_config.get('use_ssl', False)) else 'disabled'}")
-            logger.debug(f"  Username: {'set' if redis_config.get('username') else 'not set'}")
-            logger.debug(f"  Password: {'set' if redis_config.get('password') else 'not set'}")
-            
-            # Validate required Redis configuration
-            if not redis_config.get('host'):
-                logger.error("Redis host is not configured")
-                app.state.redis_service = None
+    async def _initialize_cache_service(self, app: FastAPI) -> None:
+        """Initialize the configured cache provider (Redis, Memcached, SQLite, ...) if enabled."""
+        from services.cache_backends import create_cache_service, get_provider_config
+
+        provider_name, provider_config = get_provider_config(self.config)
+        provider_enabled = is_true_value(provider_config.get('enabled', False))
+
+        if not provider_enabled:
+            app.state.cache_service = None
+            logger.debug(f"Cache service ({provider_name}) is disabled in configuration")
+            return
+
+        logger.debug(f"Cache provider configuration ({provider_name}):")
+        if provider_config.get('host'):
+            logger.debug(f"  Host: {provider_config.get('host')}")
+            logger.debug(f"  Port: {provider_config.get('port')}")
+        elif provider_config.get('database_path'):
+            logger.debug(f"  Database path: {provider_config.get('database_path')}")
+
+        app.state.cache_service = create_cache_service(self.config)
+        logger.info(f"Initializing cache service ({provider_name})...")
+        try:
+            if await app.state.cache_service.initialize():
+                logger.info(f"Cache service ({provider_name}) initialized successfully")
             else:
-                app.state.redis_service = RedisService(self.config)
-                logger.info("Initializing Redis service...")
-                try:
-                    if await app.state.redis_service.initialize():
-                        logger.info("Redis service initialized successfully")
-                    else:
-                        logger.warning("Redis service initialization failed - service will be disabled")
-                        app.state.redis_service = None
-                except Exception as e:
-                    logger.error(f"Failed to initialize Redis service: {str(e)}")
-                    app.state.redis_service = None
-        else:
-            app.state.redis_service = None
-            logger.debug("Redis service is disabled in configuration")
+                logger.warning(f"Cache service ({provider_name}) initialization failed - service will be disabled")
+                app.state.cache_service = None
+        except Exception as e:
+            logger.error(f"Failed to initialize cache service ({provider_name}): {str(e)}")
+            app.state.cache_service = None
     
     async def _initialize_thread_dataset_service(self, app: FastAPI) -> None:
         """Initialize Thread Dataset Service (shared instance for all services)."""
@@ -339,9 +333,9 @@ class ServiceFactory:
         if threading_enabled:
             from services.thread_dataset_service import ThreadDatasetService
             logger.debug("Creating shared ThreadDatasetService instance...")
-            # Pass the already-initialized redis_service to avoid creating duplicate instances
-            redis_service = getattr(app.state, 'redis_service', None)
-            app.state.thread_dataset_service = ThreadDatasetService(self.config, redis_service=redis_service)
+            # Pass the already-initialized cache_service to avoid creating duplicate instances
+            cache_service = getattr(app.state, 'cache_service', None)
+            app.state.thread_dataset_service = ThreadDatasetService(self.config, cache_service=cache_service)
             try:
                 await app.state.thread_dataset_service.initialize()
                 logger.debug("ThreadDatasetService initialized successfully")
@@ -363,12 +357,12 @@ class ServiceFactory:
             logger.debug("Quota Service disabled (throttling not enabled)")
             return
 
-        # Throttling requires Redis
-        redis_service = getattr(app.state, 'redis_service', None)
-        if not redis_service or not redis_service.enabled:
+        # Throttling requires a cache service
+        cache_service = getattr(app.state, 'cache_service', None)
+        if not cache_service or not cache_service.enabled:
             app.state.quota_service = None
             app.state.quota_background_tasks = None
-            logger.warning("Quota Service requires Redis - throttling will be disabled")
+            logger.warning("Quota Service requires a cache service - throttling will be disabled")
             return
 
         try:
@@ -382,7 +376,7 @@ class ServiceFactory:
             app.state.quota_service = QuotaService(
                 self.config,
                 database_service=database_service,
-                redis_service=redis_service
+                cache_service=cache_service
             )
             await app.state.quota_service.initialize()
 
@@ -454,12 +448,12 @@ class ServiceFactory:
     async def _initialize_prompt_service(self, app: FastAPI) -> None:
         """Initialize Prompt Service."""
         from services.prompt_service import PromptService
-        # Pass the already-initialized redis_service to avoid creating duplicate instances
-        redis_service = getattr(app.state, 'redis_service', None)
+        # Pass the already-initialized cache_service to avoid creating duplicate instances
+        cache_service = getattr(app.state, 'cache_service', None)
         app.state.prompt_service = PromptService(
             self.config,
             database_service=app.state.database_service,
-            redis_service=redis_service
+            cache_service=cache_service
         )
         logger.debug("Initializing Prompt Service...")
         try:

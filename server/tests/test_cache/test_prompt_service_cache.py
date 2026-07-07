@@ -61,7 +61,7 @@ async def test_prompt_service_caches_prompts_by_id():
             "general": {},
         },
         database_service=fake_mongo,
-        redis_service=fake_redis,
+        cache_service=fake_redis,
     )
 
     await service.initialize()

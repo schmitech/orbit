@@ -13,7 +13,7 @@ import os
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, server_dir)
 
-from services.redis_service import RedisService
+from services.cache_backends.redis_provider import RedisCacheProvider as RedisService
 
 
 @pytest.fixture
@@ -164,7 +164,7 @@ def test_redis_cache_stats():
     stats = RedisService.get_cache_stats()
     assert stats['total_cached_instances'] == 1
     assert len(stats['cached_configurations']) == 1
-    assert 'Redis service instances cached' in stats['memory_info']
+    assert 'Redis provider instances cached' in stats['memory_info']
 
 
 def test_redis_clear_cache():

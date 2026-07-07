@@ -261,7 +261,7 @@ class InferenceServer:
         
         Services initialized include:
         - MongoDB service for data persistence
-        - Redis service for caching
+        - Cache service (Redis, Memcached, ...) for caching
         - API key service for authentication
         - Prompt service for system prompts
         - Retriever service for document retrieval
@@ -343,9 +343,9 @@ class InferenceServer:
         if hasattr(app.state, 'mongodb_service'):
             add_shutdown_task(app.state.mongodb_service, 'MongoDB Service')
 
-        # Close Redis service
-        if hasattr(app.state, 'redis_service'):
-            add_shutdown_task(app.state.redis_service, 'Redis Service')
+        # Close cache service
+        if hasattr(app.state, 'cache_service'):
+            add_shutdown_task(app.state.cache_service, 'Cache Service')
 
         # Close Metrics service
         if hasattr(app.state, 'metrics_service'):

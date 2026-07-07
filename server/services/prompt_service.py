@@ -15,12 +15,8 @@ from datetime import datetime, UTC
 from bson import ObjectId
 import re
 
+from services.cache_backends import CacheProvider, create_cache_service, get_provider_config
 from services.database_service import DatabaseService
-
-try:  # Optional Redis dependency
-    from services.redis_service import RedisService
-except Exception:  # pragma: no cover - Redis optional, fallback to disabled caching
-    RedisService = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +27,7 @@ class PromptService:
         self,
         config: Dict[str, Any],
         database_service: Optional[DatabaseService] = None,
-        redis_service: Optional[RedisService] = None,
+        cache_service: Optional[CacheProvider] = None,
     ):
         """Initialize the prompt service with configuration"""
         self.config = config
@@ -52,57 +48,55 @@ class PromptService:
             # SQLite or other backends: use default table name
             self.collection_name = 'system_prompts'
 
-        # Redis caching support
-        self.redis_service = redis_service
+        # Cache service support (Redis, Memcached, ...)
+        self.cache_service = cache_service
         self.prompt_cache_ttl = (
             config.get('prompt_service', {})
             .get('cache', {})
             .get('ttl_seconds')
         )
 
-        # Fall back to Redis default TTL if not specified, or use 1 hour as default
+        # Fall back to the cache provider's default TTL if not specified, or use 1 hour as default
         if self.prompt_cache_ttl is None:
-            redis_config = config.get('internal_services', {}).get('redis', {})
-            self.prompt_cache_ttl = redis_config.get('ttl', 3600)  # Default: 1 hour
+            _, provider_config = get_provider_config(config)
+            self.prompt_cache_ttl = provider_config.get('ttl', 3600)  # Default: 1 hour
 
-        if self.redis_service is None and RedisService is not None:
-            redis_config = config.get('internal_services', {}).get('redis', {})
-            if redis_config.get('enabled'):
-                try:
-                    self.redis_service = RedisService(config)
-                    logger.debug("Redis service instance created for prompt caching")
-                except Exception as exc:  # pragma: no cover - defensive guard if Redis unavailable
-                    logger.warning(f"Failed to initialize RedisService for prompt caching: {exc}")
-                    self.redis_service = None
-                    logger.debug("  → Continuing without Redis cache support")
-            else:
-                logger.debug("Redis caching disabled in configuration (internal_services.redis.enabled=false)")
-        elif self.redis_service is None:
-            logger.debug("Redis caching unavailable (Redis module not installed)")
-        
+        if self.cache_service is None:
+            try:
+                candidate = create_cache_service(config)
+                if candidate.enabled:
+                    self.cache_service = candidate
+                    logger.debug("Cache service instance created for prompt caching")
+                else:
+                    logger.debug("Cache service disabled in configuration for prompt caching")
+            except Exception as exc:  # pragma: no cover - defensive guard if backend unavailable
+                logger.warning(f"Failed to initialize cache service for prompt caching: {exc}")
+                self.cache_service = None
+                logger.debug("  → Continuing without cache support")
+
     async def initialize(self) -> None:
         """Initialize the service"""
         await self.database.initialize()
-        
+
         # Create index on name field for faster lookups
         await self.database.create_index(self.collection_name, "name", unique=True)
         logger.info("Created unique index on name field")
-        
+
         logger.info("Prompt Service initialized successfully")
 
-        if self.redis_service:
+        if self.cache_service:
             try:
-                await self.redis_service.initialize()
-                logger.debug("✓ Prompt caching via Redis ENABLED")
+                await self.cache_service.initialize()
+                logger.debug("✓ Prompt caching ENABLED")
                 if self.prompt_cache_ttl:
                     logger.debug(f"  → Cache TTL: {self.prompt_cache_ttl} seconds ({self.prompt_cache_ttl/60:.1f} minutes)")
                 else:
                     logger.debug("  → Cache TTL: No expiration (persistent cache)")
                 logger.debug("  → Cache keys format: prompt:<ObjectId>")
             except Exception as exc:
-                logger.warning(f"✗ Disabling prompt caching due to Redis initialization error: {exc}")
-                self.redis_service = None
-                logger.debug("  → Prompts will be fetched from MongoDB on every request")
+                logger.warning(f"✗ Disabling prompt caching due to cache service initialization error: {exc}")
+                self.cache_service = None
+                logger.debug("  → Prompts will be fetched from the database on every request")
 
     def _get_cache_key(self, prompt_id: Union[ObjectId, str]) -> str:
         """Build a cache key for the given prompt identifier."""
@@ -133,7 +127,7 @@ class PromptService:
             # Check if a prompt with this name already exists
             existing = await self.database.find_one(self.collection_name, {"name": name})
             if existing:
-                if self.redis_service:
+                if self.cache_service:
                     await self.clear_prompt_cache(existing["_id"])
 
                 # Update the existing prompt instead of creating a new one
@@ -177,10 +171,10 @@ class PromptService:
             prompt_id_str = str(prompt_id)
             cache_key = self._get_cache_key(prompt_id_str)
 
-            # Redis cache lookup
-            if self.redis_service:
-                logger.debug(f"Checking Redis cache for prompt {cache_key} (ID: {prompt_id_str})")
-                cached_value = await self.redis_service.get(cache_key)
+            # Cache lookup
+            if self.cache_service:
+                logger.debug(f"Checking cache for prompt {cache_key} (ID: {prompt_id_str})")
+                cached_value = await self.cache_service.get(cache_key)
                 if cached_value:
                     try:
                         cached_prompt = json.loads(cached_value)
@@ -210,13 +204,12 @@ class PromptService:
             logger.debug(f"Looking up prompt with ID: {prompt_id_str}")
 
             # Stampede protection: acquire a lock so only one request rebuilds this cache entry
-            if self.redis_service:
+            if self.cache_service:
                 lock_key = f"lock:{cache_key}"
                 try:
-                    # Try to acquire lock (SET NX with 10s TTL)
-                    lock_acquired = await self.redis_service.client.set(
-                        lock_key, "1", nx=True, ex=10
-                    ) if self.redis_service.client else True
+                    lock_acquired = await self.cache_service.set_if_not_exists(
+                        lock_key, "1", ttl=10
+                    )
                 except Exception:
                     lock_acquired = True  # Proceed without lock on error
 
@@ -224,7 +217,7 @@ class PromptService:
                     # Another request is rebuilding; briefly wait and retry cache
                     import asyncio
                     await asyncio.sleep(0.1)
-                    cached_value = await self.redis_service.get(cache_key)
+                    cached_value = await self.cache_service.get(cache_key)
                     if cached_value:
                         try:
                             return json.loads(cached_value)
@@ -242,7 +235,7 @@ class PromptService:
                 preview = prompt_text[:100] + '...' if len(prompt_text) > 100 else prompt_text
                 logger.debug(f"Prompt content preview: {preview}")
 
-                if self.redis_service and prompt:
+                if self.cache_service and prompt:
                     try:
                         serializable_prompt = dict(prompt)
                         # Convert ObjectId to string
@@ -253,17 +246,17 @@ class PromptService:
                             if isinstance(value, datetime):
                                 serializable_prompt[key] = value.isoformat()
                         cache_data = json.dumps(serializable_prompt)
-                        cache_result = await self.redis_service.set(
+                        cache_result = await self.cache_service.set(
                             cache_key,
                             cache_data,
                             ttl=self.prompt_cache_ttl,
                         )
                         if cache_result:
                             ttl_msg = f"TTL: {self.prompt_cache_ttl}s" if self.prompt_cache_ttl else "no expiry"
-                            logger.debug(f"✓ Cached prompt {cache_key} to Redis ({len(cache_data)} bytes, {ttl_msg})")
+                            logger.debug(f"✓ Cached prompt {cache_key} ({len(cache_data)} bytes, {ttl_msg})")
                             logger.debug(f"  → Prompt '{prompt.get('name')}' v{prompt.get('version')} now available in cache")
                         else:
-                            logger.warning(f"✗ Failed to cache prompt {cache_key} - Redis set returned False")
+                            logger.warning(f"✗ Failed to cache prompt {cache_key} - cache set returned False")
                     except Exception as exc:
                         logger.warning(f"Failed to cache prompt {cache_key}: {exc}")
                         logger.debug("  → Cache write failed, but prompt still returned from MongoDB")
@@ -343,10 +336,10 @@ class PromptService:
             # Convert to string for consistency across backends
             prompt_id_str = str(prompt_id)
 
-            # Clear from cache if Redis is enabled (invalidate on update)
-            if self.redis_service:
+            # Clear from cache if a cache service is enabled (invalidate on update)
+            if self.cache_service:
                 cache_key = self._get_cache_key(prompt_id_str)
-                cache_deleted = await self.redis_service.delete(cache_key)
+                cache_deleted = await self.cache_service.delete(cache_key)
                 if cache_deleted:
                     logger.debug(f"✓ Invalidated cache for prompt {cache_key} due to update")
                 else:
@@ -416,11 +409,11 @@ class PromptService:
             prompt_id_str = str(prompt_id)
 
             # Clear from cache if Redis is enabled
-            if self.redis_service:
+            if self.cache_service:
                 cache_key = self._get_cache_key(prompt_id_str)
-                cache_deleted = await self.redis_service.delete(cache_key)
+                cache_deleted = await self.cache_service.delete(cache_key)
                 if cache_deleted:
-                    logger.debug(f"✓ Cleared prompt {cache_key} from Redis cache")
+                    logger.debug(f"✓ Cleared prompt {cache_key} from cache")
 
             # Use original prompt_id (database service handles backend-specific format)
             return await self.database.delete_one(self.collection_name, {"_id": prompt_id})
@@ -439,18 +432,18 @@ class PromptService:
             Dictionary with cache statistics
         """
         stats = {
-            "redis_enabled": self.redis_service is not None,
+            "redis_enabled": self.cache_service is not None,
             "cache_ttl": self.prompt_cache_ttl,
         }
 
-        if self.redis_service and prompt_id:
+        if self.cache_service and prompt_id:
             cache_key = self._get_cache_key(prompt_id)
             stats["cache_key"] = cache_key
-            stats["is_cached"] = await self.redis_service.exists(cache_key)
+            stats["is_cached"] = await self.cache_service.exists(cache_key)
             if stats["is_cached"]:
-                ttl = await self.redis_service.ttl(cache_key)
+                ttl = await self.cache_service.ttl(cache_key)
                 stats["ttl_remaining"] = ttl if ttl > 0 else "no expiry"
-                cached_value = await self.redis_service.get(cache_key)
+                cached_value = await self.cache_service.get(cache_key)
                 if cached_value:
                     stats["cache_size_bytes"] = len(cached_value)
                     try:
@@ -464,7 +457,7 @@ class PromptService:
 
     async def clear_prompt_cache(self, prompt_id: Optional[Union[ObjectId, str]] = None) -> bool:
         """
-        Clear prompt(s) from Redis cache
+        Clear prompt(s) from the cache
 
         Args:
             prompt_id: Optional specific prompt to clear, or None to clear all
@@ -472,14 +465,14 @@ class PromptService:
         Returns:
             True if successful, False otherwise
         """
-        if not self.redis_service:
-            logger.debug("Redis cache not available - nothing to clear")
+        if not self.cache_service:
+            logger.debug("Cache service not available - nothing to clear")
             return False
 
         try:
             if prompt_id:
                 cache_key = self._get_cache_key(prompt_id)
-                deleted = await self.redis_service.delete(cache_key)
+                deleted = await self.cache_service.delete(cache_key)
                 if deleted:
                     logger.debug(f"✓ Cleared prompt {cache_key} from cache")
                 else:

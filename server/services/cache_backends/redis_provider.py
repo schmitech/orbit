@@ -1,20 +1,20 @@
 """
-Redis Service
-============
+Redis Cache Provider
+====================
 
-This service provides a shared Redis client for caching and other Redis-related functionality.
-It can be used by multiple services to avoid duplicating Redis connection logic.
-
-Features connection pooling, circuit breaker pattern for resilience, and pipeline support.
+Redis-backed implementation of CacheProvider. Features connection pooling,
+circuit breaker pattern for resilience, and pipeline support.
 """
 
-import logging
-import time
-from typing import Dict, Any, Optional, List
-import json
-import redis.asyncio as redis
-import threading
 import hashlib
+import json
+import logging
+import threading
+from typing import Any, Dict, List, Optional, Tuple
+
+import redis.asyncio as redis
+
+from .base import CacheProvider, CircuitBreaker
 
 # Optional Redis imports - service will gracefully handle missing dependency
 try:
@@ -25,68 +25,72 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Lua script used for atomic single-counter increment-with-ttl-on-create.
+_INCREMENT_WITH_TTL_SCRIPT = """
+local amount = tonumber(ARGV[2])
+local count = redis.call('INCRBY', KEYS[1], amount)
+if count == amount then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count
+"""
 
-class CircuitBreaker:
-    """Simple circuit breaker to avoid permanently disabling Redis on transient failures."""
-
-    def __init__(self, max_failures: int = 5, recovery_timeout: int = 30):
-        self._max_failures = max_failures
-        self._recovery_timeout = recovery_timeout
-        self._failure_count = 0
-        self._last_failure_time: float = 0
-        self._state = "closed"  # closed = healthy, open = tripped
-        self._lock = threading.Lock()
-
-    @property
-    def is_open(self) -> bool:
-        with self._lock:
-            if self._state == "open":
-                # Check if recovery timeout has elapsed
-                if time.monotonic() - self._last_failure_time >= self._recovery_timeout:
-                    self._state = "half_open"
-                    logger.info("Circuit breaker entering half-open state, will attempt recovery")
-                    return False
-                return True
-            return False
-
-    def record_success(self) -> None:
-        with self._lock:
-            if self._state == "half_open":
-                logger.info("Circuit breaker recovered, closing circuit")
-            self._failure_count = 0
-            self._state = "closed"
-
-    def record_failure(self) -> None:
-        with self._lock:
-            self._failure_count += 1
-            self._last_failure_time = time.monotonic()
-            if self._failure_count >= self._max_failures:
-                if self._state != "open":
-                    logger.warning(
-                        f"Circuit breaker opened after {self._failure_count} consecutive failures. "
-                        f"Will retry after {self._recovery_timeout}s"
-                    )
-                self._state = "open"
+# Lua script for atomic multi-counter check-and-increment: KEYS[1..n] are the
+# counters; ARGV holds (ttl, limit) pairs per counter (limit=-1 means unlimited)
+# followed by a trailing amount. Reads every counter first (so the response
+# always has a count for all of them, even when one is rejected), checks
+# current+amount against each limit, and only increments any of them if none
+# would exceed their limit. Returns {exceeded_index, count1, count2, ...}
+# where exceeded_index is 0 if none exceeded (counts are the post-increment
+# values) or the 1-based index of the first exceeded counter (counts are the
+# pre-increment values observed for ALL counters, not just the failed one).
+_CHECK_AND_INCREMENT_SCRIPT = """
+local n = #KEYS
+local amount = tonumber(ARGV[2 * n + 1])
+local counts = {}
+local exceeded = 0
+for i = 1, n do
+    local limit = tonumber(ARGV[(i - 1) * 2 + 2])
+    local current = tonumber(redis.call('GET', KEYS[i]) or '0')
+    counts[i] = current
+    if exceeded == 0 and limit >= 0 and current + amount > limit then
+        exceeded = i
+    end
+end
+if exceeded > 0 then
+    return {exceeded, unpack(counts)}
+end
+local newcounts = {}
+for i = 1, n do
+    local ttl = tonumber(ARGV[(i - 1) * 2 + 1])
+    local newcount = redis.call('INCRBY', KEYS[i], amount)
+    if newcount == amount then
+        redis.call('EXPIRE', KEYS[i], ttl)
+    end
+    newcounts[i] = newcount
+end
+return {0, unpack(newcounts)}
+"""
 
 
-class RedisService:
-    """Service for Redis operations with graceful fallback if Redis is unavailable"""
+class RedisCacheProvider(CacheProvider):
+    """Cache provider backed by Redis, with graceful fallback if Redis is unavailable."""
 
     # Singleton pattern implementation
-    _instances: Dict[str, 'RedisService'] = {}
+    _instances: Dict[str, 'RedisCacheProvider'] = {}
     _lock = threading.Lock()
 
     def __new__(cls, config: Dict[str, Any]):
-        """Create or return existing Redis service instance based on configuration"""
+        """Create or return existing Redis provider instance based on configuration"""
         cache_key = cls._create_cache_key(config)
 
         with cls._lock:
             if cache_key not in cls._instances:
                 instance = super().__new__(cls)
                 cls._instances[cache_key] = instance
-                logger.debug(f"Created new Redis service instance for: {cache_key}")
+                logger.debug(f"Created new Redis cache provider instance for: {cache_key}")
             else:
-                logger.debug(f"Reusing existing Redis service instance for: {cache_key}")
+                logger.debug(f"Reusing existing Redis cache provider instance for: {cache_key}")
             return cls._instances[cache_key]
 
     @classmethod
@@ -94,7 +98,6 @@ class RedisService:
         """Create a cache key based on Redis configuration"""
         redis_config = config.get('internal_services', {}).get('redis', {})
 
-        # Create key from connection parameters
         key_parts = [
             redis_config.get('host', 'localhost'),
             str(redis_config.get('port', 6379)),
@@ -103,50 +106,44 @@ class RedisService:
             str(redis_config.get('use_ssl', False))
         ]
 
-        # Create hash of the key parts for consistency
         key_string = '|'.join(key_parts)
         return hashlib.md5(key_string.encode()).hexdigest()
 
     @classmethod
     def get_cache_stats(cls) -> Dict[str, Any]:
-        """Get statistics about cached Redis service instances"""
+        """Get statistics about cached Redis provider instances"""
         with cls._lock:
             return {
                 'total_cached_instances': len(cls._instances),
                 'cached_configurations': list(cls._instances.keys()),
-                'memory_info': f"{len(cls._instances)} Redis service instances cached"
+                'memory_info': f"{len(cls._instances)} Redis provider instances cached"
             }
 
     @classmethod
     def clear_cache(cls) -> None:
-        """Clear all cached Redis service instances (mainly for testing)"""
+        """Clear all cached Redis provider instances (mainly for testing)"""
         with cls._lock:
             cls._instances.clear()
-            logger.debug("Cleared Redis service cache")
+            logger.debug("Cleared Redis cache provider cache")
 
     def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize the Redis service with configuration
-
-        Args:
-            config: Application configuration
-        """
-        # Avoid re-initialization if this instance was already initialized
         if hasattr(self, '_singleton_initialized'):
             return
 
         self.config = config
 
-        # Redis configuration
         self.redis_config = config.get('internal_services', {}).get('redis', {})
         self.enabled = self.redis_config.get('enabled', False) and REDIS_AVAILABLE
         self.client: Optional[redis.Redis] = None
         self.initialized = False
 
-        # Default TTL (7 days)
-        self.default_ttl = 60 * 60 * 24 * 7
+        self.default_ttl = 60 * 60 * 24 * 7  # 7 days
 
-        # Circuit breaker for resilience (replaces permanent self.enabled = False)
+        self._increment_script = None
+        self._increment_script_client = None
+        self._check_and_increment_script = None
+        self._check_and_increment_script_client = None
+
         max_failures = self.redis_config.get('max_consecutive_failures', 5)
         recovery_timeout = self.redis_config.get('circuit_recovery_timeout', 30)
         self._circuit_breaker = CircuitBreaker(
@@ -154,7 +151,6 @@ class RedisService:
             recovery_timeout=recovery_timeout
         )
 
-        # Initialize Redis client if enabled
         if self.enabled:
             try:
                 self._initialize_redis()
@@ -162,7 +158,6 @@ class RedisService:
                 logger.error(f"Failed to initialize Redis: {str(e)}")
                 self.enabled = False
 
-        # Mark as initialized to prevent re-initialization
         self._singleton_initialized = True
 
     def _initialize_redis(self) -> None:
@@ -172,9 +167,7 @@ class RedisService:
         Raises:
             Exception: If Redis client initialization fails
         """
-        # Extract configuration values
         host = self.redis_config.get('host', 'localhost')
-        # Clean host if it includes port
         if host and ':' in host:
             host = host.split(':')[0]
 
@@ -183,25 +176,21 @@ class RedisService:
         password = self.redis_config.get('password')
         username = self.redis_config.get('username')
 
-        # Handle boolean config values
         use_ssl_value = self.redis_config.get('use_ssl', False)
         if isinstance(use_ssl_value, str):
             use_ssl = use_ssl_value.lower() in ('true', 'yes', '1')
         else:
             use_ssl = bool(use_ssl_value)
 
-        # Update default TTL from config if provided
         if 'ttl' in self.redis_config:
             self.default_ttl = int(self.redis_config['ttl'])
 
-        # Connection pool parameters
         max_connections = int(self.redis_config.get('max_connections', 20))
         socket_connect_timeout = int(self.redis_config.get('socket_connect_timeout', 5))
         socket_timeout = int(self.redis_config.get('socket_timeout', 5))
         retry_on_timeout = self.redis_config.get('retry_on_timeout', True)
         health_check_interval = int(self.redis_config.get('health_check_interval', 30))
 
-        # Build connection pool kwargs
         pool_kwargs = {
             'host': host,
             'port': port,
@@ -214,11 +203,9 @@ class RedisService:
             'health_check_interval': health_check_interval,
         }
 
-        # Add username if provided
         if username and username != "null" and username.strip():
             pool_kwargs['username'] = username
 
-        # Add password if provided
         if password and password != "null" and password.strip():
             pool_kwargs['password'] = password
 
@@ -227,7 +214,6 @@ class RedisService:
             pool_kwargs['ssl_cert_reqs'] = None
             pool_kwargs['ssl_ca_certs'] = None  # Don't verify SSL cert for Redis Cloud
 
-        # Create connection pool and Redis client
         try:
             connection_pool = redis.ConnectionPool(**pool_kwargs)
             self.client = redis.Redis(connection_pool=connection_pool)
@@ -265,16 +251,17 @@ class RedisService:
                 self.client = None
                 return False
 
-            # Test connection
             if not self.client:
                 self._initialize_redis()
 
             await self.client.ping()
             logger.info("Successfully connected to Redis")
 
-            # Clear application cache on startup to prevent orphaned/stale data
-            # This is configurable via clear_cache_on_startup (defaults to True)
-            if redis_config.get("clear_cache_on_startup", True):
+            cache_config = self.config.get("internal_services", {}).get("cache", {})
+            clear_on_startup = cache_config.get(
+                "clear_cache_on_startup", redis_config.get("clear_cache_on_startup", True)
+            )
+            if clear_on_startup:
                 await self.clear_all_application_cache()
             else:
                 logger.debug("Cache clearing on startup is disabled")
@@ -289,9 +276,84 @@ class RedisService:
             self.initialized = False
             return False
 
-    async def _clear_prompt_cache_on_startup(self) -> None:
-        """Clear all prompt cache keys on server startup (deprecated, use clear_all_application_cache)"""
-        await self._clear_keys_by_pattern("prompt:*", "prompt cache")
+    def _ensure_increment_script(self):
+        """Register the increment-with-ttl Lua script once for the current client."""
+        if self._increment_script is not None and self._increment_script_client is self.client:
+            return self._increment_script
+
+        if not self.client:
+            return None
+
+        try:
+            self._increment_script = self.client.register_script(_INCREMENT_WITH_TTL_SCRIPT)
+            self._increment_script_client = self.client
+        except Exception as e:
+            logger.warning(f"Failed to register increment-with-ttl Lua script: {e}")
+            self._increment_script = None
+            self._increment_script_client = None
+
+        return self._increment_script
+
+    def _ensure_check_and_increment_script(self):
+        """Register the check-and-increment Lua script once for the current client."""
+        if (
+            self._check_and_increment_script is not None
+            and self._check_and_increment_script_client is self.client
+        ):
+            return self._check_and_increment_script
+
+        if not self.client:
+            return None
+
+        try:
+            self._check_and_increment_script = self.client.register_script(_CHECK_AND_INCREMENT_SCRIPT)
+            self._check_and_increment_script_client = self.client
+        except Exception as e:
+            logger.warning(f"Failed to register check-and-increment Lua script: {e}")
+            self._check_and_increment_script = None
+            self._check_and_increment_script_client = None
+
+        return self._check_and_increment_script
+
+    async def check_and_increment(
+        self,
+        checks: List[Tuple[str, str, int, Optional[int]]],
+        amount: int = 1,
+    ) -> Tuple[Dict[str, int], Optional[str]]:
+        if not checks:
+            return {}, None
+
+        if not self._is_available():
+            return await super().check_and_increment(checks, amount)
+
+        try:
+            script = self._ensure_check_and_increment_script()
+            if script is None:
+                return await super().check_and_increment(checks, amount)
+
+            names = [name for name, _key, _ttl, _limit in checks]
+            keys = [key for _name, key, _ttl, _limit in checks]
+            args: List[int] = []
+            for _name, _key, ttl, limit in checks:
+                args.append(ttl)
+                args.append(-1 if limit is None else limit)
+            args.append(amount)
+
+            result = await script(keys=keys, args=args)
+            exceeded_index = int(result[0])
+            counts = {name: int(count) for name, count in zip(names, result[1:])}
+            self._circuit_breaker.record_success()
+
+            if exceeded_index == 0:
+                return counts, None
+            return counts, names[exceeded_index - 1]
+
+        except Exception as e:
+            logger.error(f"Error in check_and_increment in Redis: {str(e)}")
+            self._check_and_increment_script = None
+            self._check_and_increment_script_client = None
+            self._handle_redis_error("check_and_increment", e)
+            return await super().check_and_increment(checks, amount)
 
     async def _clear_keys_by_pattern(self, pattern: str, description: str) -> int:
         """
@@ -328,58 +390,12 @@ class RedisService:
             logger.warning(f"Failed to clear {description} on startup: {str(e)}")
             return 0
 
-    async def clear_all_application_cache(self) -> Dict[str, int]:
-        """
-        Clear all application-related cache keys on startup to prevent orphaned data.
-
-        Returns:
-            Dictionary mapping cache type to number of keys deleted
-        """
+    async def clear_by_pattern(self, pattern: str, description: str = "") -> int:
         if not self._is_available():
-            logger.debug("Redis not available, skipping cache clearing")
-            return {}
-
-        # Define all application cache patterns that should be cleared on startup
-        cache_patterns = [
-            ("prompt:*", "prompt cache"),
-            ("session:*", "session data"),
-            ("thread:*", "thread data"),
-            ("thread_dataset:*", "thread dataset data"),
-            ("rate_limit:*", "rate limit data"),
-            ("cache:*", "general cache"),
-            ("qcache:*", "query burst cache"),
-            ("temp:*", "temporary data"),
-        ]
-
-        results = {}
-        total_cleared = 0
-
-        for pattern, description in cache_patterns:
-            try:
-                deleted = await self._clear_keys_by_pattern(pattern, description)
-                results[description] = deleted
-                total_cleared += deleted
-            except Exception as e:
-                logger.warning(f"Error clearing {description}: {str(e)}")
-                results[description] = 0
-
-        if total_cleared > 0:
-            logger.info(f"Cleared {total_cleared} total cache entries from Redis on startup")
-        else:
-            logger.debug("No cache entries found to clear on startup")
-
-        return results
+            return 0
+        return await self._clear_keys_by_pattern(pattern, description or pattern)
 
     async def get(self, key: str) -> Optional[str]:
-        """
-        Get a value from Redis
-
-        Args:
-            key: The key to retrieve
-
-        Returns:
-            The value or None if not found or Redis is disabled
-        """
         if not self._is_available():
             return None
 
@@ -399,17 +415,6 @@ class RedisService:
             return None
 
     async def set(self, key: str, value: str, ttl: Optional[int] = None) -> bool:
-        """
-        Set a value in Redis
-
-        Args:
-            key: The key to set
-            value: The value to store
-            ttl: Time-to-live in seconds, or None to use default TTL
-
-        Returns:
-            True if successful, False otherwise
-        """
         if not self._is_available():
             return False
 
@@ -430,7 +435,6 @@ class RedisService:
             return False
 
     async def delete(self, *keys: str) -> int:
-        """Delete one or more keys"""
         if not self._is_available():
             return 0
 
@@ -450,15 +454,6 @@ class RedisService:
             return 0
 
     async def exists(self, key: str) -> bool:
-        """
-        Check if a key exists in Redis
-
-        Args:
-            key: The key to check
-
-        Returns:
-            True if key exists, False otherwise
-        """
         if not self._is_available():
             return False
 
@@ -472,7 +467,6 @@ class RedisService:
             return False
 
     async def ttl(self, key: str) -> int:
-        """Get remaining TTL for a key"""
         if not self._is_available():
             return -2
 
@@ -486,7 +480,6 @@ class RedisService:
             return -2
 
     async def expire(self, key: str, seconds: int) -> bool:
-        """Set expiration time for a key"""
         if not self._is_available():
             return False
 
@@ -499,20 +492,100 @@ class RedisService:
             self._handle_redis_error("expire", e)
             return False
 
-    async def lpush(self, key: str, *values: str) -> int:
-        """
-        Push values onto the head of a list
+    async def mget(self, *keys: str) -> List[Optional[str]]:
+        if not self._is_available() or not keys:
+            return [None] * len(keys)
 
-        Args:
-            key: The list key
-            *values: Values to push
+        try:
+            result = await self.client.mget(*keys)
+            self._circuit_breaker.record_success()
+            return result
+        except Exception as e:
+            logger.error(f"Error in mget for {len(keys)} keys: {str(e)}")
+            self._handle_redis_error("mget", e)
+            return [None] * len(keys)
 
-        Returns:
-            Length of the list after push, or 0 if Redis is disabled
-        """
+    async def mset(self, mapping: Dict[str, str]) -> bool:
+        if not self._is_available() or not mapping:
+            return False
+
+        try:
+            await self.client.mset(mapping)
+            self._circuit_breaker.record_success()
+            return True
+        except Exception as e:
+            logger.error(f"Error in mset for {len(mapping)} keys: {str(e)}")
+            self._handle_redis_error("mset", e)
+            return False
+
+    async def set_if_not_exists(self, key: str, value: str, ttl: int) -> bool:
+        if not self._is_available():
+            return False
+
+        try:
+            result = await self.client.set(key, value, nx=True, ex=ttl)
+            self._circuit_breaker.record_success()
+            return bool(result)
+        except Exception as e:
+            logger.error(f"Error in set_if_not_exists for key {key} in Redis: {str(e)}")
+            self._handle_redis_error("set_if_not_exists", e)
+            return False
+
+    async def increment_with_ttl(self, key: str, ttl: int, amount: int = 1) -> int:
         if not self._is_available():
             return 0
 
+        try:
+            script = self._ensure_increment_script()
+            if script is None:
+                # Fallback without Lua: not perfectly atomic across INCR+EXPIRE, but
+                # only reached if script registration itself failed.
+                count = await self.client.incrby(key, amount)
+                if count == amount:
+                    await self.client.expire(key, ttl)
+                self._circuit_breaker.record_success()
+                return count
+
+            count = await script(keys=[key], args=[ttl, amount])
+            self._circuit_breaker.record_success()
+            return int(count)
+        except Exception as e:
+            logger.error(f"Error in increment_with_ttl for key {key} in Redis: {str(e)}")
+            self._increment_script = None
+            self._increment_script_client = None
+            self._handle_redis_error("increment_with_ttl", e)
+            return 0
+
+    def get_health_stats(self) -> Dict[str, Any]:
+        stats: Dict[str, Any] = {
+            "provider": "redis",
+            "enabled": self.enabled,
+            "initialized": self.initialized,
+            "circuit_breaker": {
+                "state": self._circuit_breaker.state,
+                "failure_count": self._circuit_breaker.failure_count,
+                "max_failures": self._circuit_breaker.max_failures,
+            },
+        }
+        if self.client is not None:
+            try:
+                pool = self.client.connection_pool
+                stats["pool"] = {
+                    "max_connections": pool.max_connections,
+                    "created_connections": getattr(pool, "_created_connections", 0),
+                    "available_connections": len(getattr(pool, "_available_connections", [])),
+                    "in_use_connections": len(getattr(pool, "_in_use_connections", [])),
+                }
+            except Exception:
+                pass
+        return stats
+
+    # Redis-specific extras (list operations). Not part of the CacheProvider interface -
+    # no current production caller needs these across other backends.
+
+    async def lpush(self, key: str, *values: str) -> int:
+        if not self._is_available():
+            return 0
         try:
             result = await self.client.lpush(key, *values)
             self._circuit_breaker.record_success()
@@ -523,19 +596,8 @@ class RedisService:
             return 0
 
     async def rpush(self, key: str, *values: str) -> bool:
-        """
-        Push values onto the tail of a list
-
-        Args:
-            key: The list key
-            *values: Values to push
-
-        Returns:
-            True if successful, False otherwise
-        """
         if not self._is_available():
             return False
-
         try:
             await self.client.rpush(key, *values)
             self._circuit_breaker.record_success()
@@ -546,20 +608,8 @@ class RedisService:
             return False
 
     async def lrange(self, key: str, start: int, end: int) -> List[str]:
-        """
-        Get a range of elements from a list
-
-        Args:
-            key: The list key
-            start: Start index
-            end: End index
-
-        Returns:
-            List of elements, or empty list if Redis is disabled
-        """
         if not self._is_available():
             return []
-
         try:
             result = await self.client.lrange(key, start, end)
             self._circuit_breaker.record_success()
@@ -569,72 +619,16 @@ class RedisService:
             self._handle_redis_error("lrange", e)
             return []
 
-    async def store_json(self, key: str, data: Dict[str, Any], ttl: Optional[int] = None) -> bool:
-        """
-        Store JSON data in Redis
-
-        Args:
-            key: The key to store data under
-            data: The data to store
-            ttl: Time-to-live in seconds, or None to use default TTL
-
-        Returns:
-            True if successful, False otherwise
-        """
-        if not self._is_available():
-            return False
-
-        try:
-            json_data = json.dumps(data)
-            return await self.set(key, json_data, ttl)
-        except Exception as e:
-            logger.error(f"Error storing JSON data in Redis: {str(e)}")
-            return False
-
-    async def get_json(self, key: str) -> Optional[Dict[str, Any]]:
-        """
-        Get JSON data from Redis
-
-        Args:
-            key: The key to retrieve
-
-        Returns:
-            The parsed JSON data, or None if not found or Redis is disabled
-        """
-        if not self._is_available():
-            return None
-
-        try:
-            data = await self.get(key)
-            if data:
-                return json.loads(data)
-            return None
-        except Exception as e:
-            logger.error(f"Error getting JSON data from Redis: {str(e)}")
-            return None
-
     async def store_list_json(self, key: str, data_list: List[Dict[str, Any]], ttl: Optional[int] = None) -> bool:
-        """
-        Store a list of JSON objects in Redis as a list, using a pipeline for atomicity.
-
-        Args:
-            key: The key to store the list under
-            data_list: List of dictionaries to store
-            ttl: Time-to-live in seconds, or None to use default TTL
-
-        Returns:
-            True if successful, False otherwise
-        """
+        """Store a list of JSON objects in Redis as a list, using a pipeline for atomicity."""
         if not self._is_available():
             return False
 
         try:
-            # Convert each dictionary to JSON string
             json_strings = [json.dumps(item) for item in data_list]
             ttl_to_use = ttl if ttl is not None else self.default_ttl
 
             if json_strings:
-                # Use pipeline for atomic delete + rpush + expire
                 async with self.client.pipeline(transaction=True) as pipe:
                     pipe.delete(key)
                     pipe.rpush(key, *json_strings)
@@ -651,17 +645,6 @@ class RedisService:
             return False
 
     async def get_list_json(self, key: str, start: int = 0, end: int = -1) -> List[Dict[str, Any]]:
-        """
-        Get a list of JSON objects from Redis
-
-        Args:
-            key: The key to retrieve
-            start: Start index
-            end: End index (-1 for all elements)
-
-        Returns:
-            List of parsed JSON data, or empty list if not found or Redis is disabled
-        """
         if not self._is_available():
             return []
 
@@ -672,57 +655,9 @@ class RedisService:
             logger.error(f"Error getting list of JSON from Redis: {str(e)}")
             return []
 
-    async def mget(self, *keys: str) -> List[Optional[str]]:
-        """
-        Get multiple keys in a single round-trip.
-
-        Args:
-            *keys: Keys to retrieve
-
-        Returns:
-            List of values (None for missing keys)
-        """
-        if not self._is_available() or not keys:
-            return [None] * len(keys)
-
-        try:
-            result = await self.client.mget(*keys)
-            self._circuit_breaker.record_success()
-            return result
-        except Exception as e:
-            logger.error(f"Error in mget for {len(keys)} keys: {str(e)}")
-            self._handle_redis_error("mget", e)
-            return [None] * len(keys)
-
-    async def mset(self, mapping: Dict[str, str]) -> bool:
-        """
-        Set multiple keys in a single round-trip.
-
-        Args:
-            mapping: Dictionary of key-value pairs to set
-
-        Returns:
-            True if successful, False otherwise
-        """
-        if not self._is_available() or not mapping:
-            return False
-
-        try:
-            await self.client.mset(mapping)
-            self._circuit_breaker.record_success()
-            return True
-        except Exception as e:
-            logger.error(f"Error in mset for {len(mapping)} keys: {str(e)}")
-            self._handle_redis_error("mset", e)
-            return False
-
     async def close(self) -> None:
         """Close Redis connection pool"""
         if self.client:
             await self.client.aclose()
             self.client = None
             self.initialized = False
-
-    async def aclose(self) -> None:
-        """Alias for close() to maintain compatibility"""
-        await self.close()

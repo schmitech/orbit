@@ -282,13 +282,13 @@ async def test_cache_exceptions_are_logged(caplog):
     mock_redis = AsyncMock()
     mock_redis.get_json = AsyncMock(side_effect=ConnectionError("redis down"))
     mock_redis.store_json = AsyncMock(side_effect=ConnectionError("redis down"))
-    svc.redis_service = mock_redis
+    svc.cache_service = mock_redis
 
     with caplog.at_level(logging.DEBUG, logger="services.pipeline_chat_service"):
         result = await svc._get_cached_response("test_key")
         assert result is None
-        assert "Failed to read query cache from Redis" in caplog.text
+        assert "Failed to read query cache from cache service" in caplog.text
 
         caplog.clear()
         await svc._store_cached_response("test_key", {"response": "hello"})
-        assert "Failed to store query cache in Redis" in caplog.text
+        assert "Failed to store query cache in cache service" in caplog.text

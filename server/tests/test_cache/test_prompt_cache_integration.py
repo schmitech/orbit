@@ -161,7 +161,7 @@ async def prompt_service(prompt_service_config, mock_mongodb, mock_redis):
     service = PromptService(
         config=prompt_service_config,
         database_service=mock_mongodb,
-        redis_service=mock_redis
+        cache_service=mock_redis
     )
     await service.initialize()
     return service
@@ -389,7 +389,7 @@ async def test_cache_disabled_scenario(prompt_service_config, mock_mongodb):
     service = PromptService(
         config=disabled_redis_config,
         database_service=mock_mongodb,
-        redis_service=None
+        cache_service=None
     )
     await service.initialize()
 

@@ -195,11 +195,11 @@ class RouteConfigurator:
                 # Initialize autocomplete service if not already initialized
                 from services.autocomplete_service import AutocompleteService
                 adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-                redis_service = getattr(request.app.state, 'redis_service', None)
+                cache_service = getattr(request.app.state, 'cache_service', None)
                 autocomplete_service = AutocompleteService(
                     request.app.state.config,
                     adapter_manager=adapter_manager,
-                    redis_service=redis_service
+                    cache_service=cache_service
                 )
                 request.app.state.autocomplete_service = autocomplete_service
             return request.app.state.autocomplete_service

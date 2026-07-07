@@ -2,8 +2,9 @@
 Quota Service
 =============
 
-This service manages API key quotas with Redis caching and database persistence.
-Handles daily/monthly quota tracking, usage increments, and period resets.
+This service manages API key quotas with cache-backed counters and database
+persistence. Handles daily/monthly quota tracking, usage increments, and period
+resets.
 """
 
 import logging
@@ -22,128 +23,26 @@ class QuotaService:
     """
     Service for managing API key quotas.
 
-    Uses Redis for real-time usage tracking with periodic sync to database
-    for durability. Handles:
+    Uses the configured cache service for real-time usage tracking with periodic
+    sync to database for durability. Handles:
     - Quota retrieval and caching
     - Usage increments and tracking
     - Period resets (daily/monthly)
     - Database synchronization
+
+    Usage tracking and hard-limit enforcement both go through the cache
+    provider's check_and_increment(), which is atomic across the daily and
+    monthly counters on backends with multi-key transactions (Redis, SQLite).
+    Memcached has no such primitive and falls back to a best-effort
+    check-then-increment with a small race window on concurrent requests near
+    the limit - see CacheProvider.check_and_increment.
     """
 
     # Singleton pattern implementation
     _instances: Dict[str, 'QuotaService'] = {}
     _lock = threading.Lock()
 
-    # Lua script for atomic quota increment with TTL
-    # Returns [daily_count, monthly_count, daily_ttl_remaining, monthly_ttl_remaining]
-    _QUOTA_INCREMENT_SCRIPT = """
-    local daily_key = KEYS[1]
-    local monthly_key = KEYS[2]
-    local daily_ttl = tonumber(ARGV[1])
-    local monthly_ttl = tonumber(ARGV[2])
-    local timestamp = tonumber(ARGV[3])
-    local last_request_key = KEYS[3]
-
-    -- Increment daily counter
-    local daily_count = redis.call('INCR', daily_key)
-    if daily_count == 1 then
-        redis.call('EXPIRE', daily_key, daily_ttl)
-    end
-    local daily_ttl_remaining = redis.call('TTL', daily_key)
-
-    -- Increment monthly counter
-    local monthly_count = redis.call('INCR', monthly_key)
-    if monthly_count == 1 then
-        redis.call('EXPIRE', monthly_key, monthly_ttl)
-    end
-    local monthly_ttl_remaining = redis.call('TTL', monthly_key)
-
-    -- Update last request timestamp
-    redis.call('SET', last_request_key, timestamp, 'EX', monthly_ttl)
-
-    return {daily_count, monthly_count, daily_ttl_remaining, monthly_ttl_remaining}
-    """
-
-    # Lua script for atomic hard-limit check and increment.
-    # Limit args use -1 to represent unlimited. Returns:
-    # [daily_count, monthly_count, daily_ttl_remaining, monthly_ttl_remaining, exceeded]
-    # exceeded: 0=not exceeded, 1=daily, 2=monthly
-    _QUOTA_CHECK_AND_INCREMENT_SCRIPT = """
-    local daily_key = KEYS[1]
-    local monthly_key = KEYS[2]
-    local daily_ttl = tonumber(ARGV[1])
-    local monthly_ttl = tonumber(ARGV[2])
-    local timestamp = tonumber(ARGV[3])
-    local daily_limit = tonumber(ARGV[4])
-    local monthly_limit = tonumber(ARGV[5])
-    local last_request_key = KEYS[3]
-
-    local daily_count = tonumber(redis.call('GET', daily_key) or '0')
-    local monthly_count = tonumber(redis.call('GET', monthly_key) or '0')
-
-    if daily_limit >= 0 and daily_count >= daily_limit then
-        local daily_ttl_remaining = redis.call('TTL', daily_key)
-        local monthly_ttl_remaining = redis.call('TTL', monthly_key)
-        return {
-            daily_count,
-            monthly_count,
-            daily_ttl_remaining,
-            monthly_ttl_remaining,
-            1
-        }
-    end
-
-    if monthly_limit >= 0 and monthly_count >= monthly_limit then
-        local daily_ttl_remaining = redis.call('TTL', daily_key)
-        local monthly_ttl_remaining = redis.call('TTL', monthly_key)
-        return {
-            daily_count,
-            monthly_count,
-            daily_ttl_remaining,
-            monthly_ttl_remaining,
-            2
-        }
-    end
-
-    daily_count = redis.call('INCR', daily_key)
-    if daily_count == 1 then
-        redis.call('EXPIRE', daily_key, daily_ttl)
-    end
-    local daily_ttl_remaining = redis.call('TTL', daily_key)
-
-    monthly_count = redis.call('INCR', monthly_key)
-    if monthly_count == 1 then
-        redis.call('EXPIRE', monthly_key, monthly_ttl)
-    end
-    local monthly_ttl_remaining = redis.call('TTL', monthly_key)
-
-    redis.call('SET', last_request_key, timestamp, 'EX', monthly_ttl)
-
-    return {daily_count, monthly_count, daily_ttl_remaining, monthly_ttl_remaining, 0}
-    """
-
-    # Lua script to get current usage without incrementing
-    _QUOTA_GET_SCRIPT = """
-    local daily_key = KEYS[1]
-    local monthly_key = KEYS[2]
-    local last_request_key = KEYS[3]
-
-    local daily_count = redis.call('GET', daily_key)
-    local monthly_count = redis.call('GET', monthly_key)
-    local daily_ttl = redis.call('TTL', daily_key)
-    local monthly_ttl = redis.call('TTL', monthly_key)
-    local last_request = redis.call('GET', last_request_key)
-
-    return {
-        daily_count or 0,
-        monthly_count or 0,
-        daily_ttl,
-        monthly_ttl,
-        last_request or 0
-    }
-    """
-
-    def __new__(cls, config: Dict[str, Any], database_service=None, redis_service=None):
+    def __new__(cls, config: Dict[str, Any], database_service=None, cache_service=None):
         """Create or return existing QuotaService instance based on configuration"""
         cache_key = cls._create_cache_key(config)
 
@@ -160,13 +59,14 @@ class QuotaService:
     def _create_cache_key(cls, config: Dict[str, Any]) -> str:
         """Create a cache key based on configuration"""
         throttle_config = config.get('security', {}).get('throttling', {})
-        redis_config = config.get('internal_services', {}).get('redis', {})
+        from services.cache_backends import get_provider_config
+        _, provider_config = get_provider_config(config)
 
         key_parts = [
-            redis_config.get('host', 'localhost'),
-            str(redis_config.get('port', 6379)),
-            str(redis_config.get('db', 0)),
-            throttle_config.get('redis_key_prefix', 'quota:')
+            provider_config.get('host', provider_config.get('database_path', 'localhost')),
+            str(provider_config.get('port', '')),
+            str(provider_config.get('db', 0)),
+            throttle_config.get('cache_key_prefix', 'quota:')
         ]
 
         key_string = '|'.join(key_parts)
@@ -179,14 +79,14 @@ class QuotaService:
             cls._instances.clear()
             logger.debug("Cleared QuotaService cache")
 
-    def __init__(self, config: Dict[str, Any], database_service=None, redis_service=None):
+    def __init__(self, config: Dict[str, Any], database_service=None, cache_service=None):
         """
         Initialize the Quota Service.
 
         Args:
             config: Application configuration
             database_service: Database service for persistence
-            redis_service: Redis service for caching
+            cache_service: Cache provider (Redis, Memcached, ...) for usage counters
         """
         # Avoid re-initialization if this instance was already initialized
         if hasattr(self, '_singleton_initialized'):
@@ -194,7 +94,7 @@ class QuotaService:
 
         self.config = config
         self.database_service = database_service
-        self.redis_service = redis_service
+        self.cache_service = cache_service
         self.initialized = False
 
         # Extract throttling configuration
@@ -208,8 +108,8 @@ class QuotaService:
         self.default_daily_limit = default_quotas.get('daily_limit', 10000)
         self.default_monthly_limit = default_quotas.get('monthly_limit', 100000)
 
-        # Redis key configuration
-        self.redis_key_prefix = self.throttle_config.get('redis_key_prefix', 'quota:')
+        # Cache key configuration
+        self.cache_key_prefix = self.throttle_config.get('cache_key_prefix', 'quota:')
 
         # Sync configuration
         self.sync_interval = self.throttle_config.get('usage_sync_interval_seconds', 60)
@@ -219,18 +119,12 @@ class QuotaService:
         self._cache_ttl = 300  # 5 minutes cache for quota configs
         self._cache_timestamps: Dict[str, float] = {}
 
-        # Registered Lua scripts (initialized lazily when Redis is available)
-        self._increment_script = None
-        self._check_and_increment_script = None
-        self._get_script = None
-        self._scripts_registered_client = None
-
         # Mark as initialized
         self._singleton_initialized = True
 
         if self.enabled:
             logger.info(
-                f"QuotaService initialized: prefix={self.redis_key_prefix}, "
+                f"QuotaService initialized: prefix={self.cache_key_prefix}, "
                 f"default_daily={self.default_daily_limit}, "
                 f"default_monthly={self.default_monthly_limit}"
             )
@@ -244,58 +138,33 @@ class QuotaService:
             self.initialized = True
             return
 
-        # Verify Redis is available
-        if not self.redis_service or not self.redis_service.enabled:
-            logger.warning("QuotaService requires Redis - service will be limited")
+        # Verify a cache service is available
+        if not self.cache_service or not self.cache_service.enabled:
+            logger.warning("QuotaService requires a cache service - service will be limited")
             self.enabled = False
             self.initialized = True
             return
 
-        # Ensure Redis is initialized
-        if not self.redis_service.initialized:
-            await self.redis_service.initialize()
+        # Ensure the cache service is initialized
+        if not self.cache_service.initialized:
+            await self.cache_service.initialize()
 
         self.initialized = True
         logger.info("QuotaService fully initialized")
 
-    def _register_lua_scripts(self) -> None:
-        """Register Lua scripts with Redis client for efficient execution."""
-        if not self.redis_service or not self.redis_service.client:
-            return
-
-        try:
-            client = self.redis_service.client
-            self._increment_script = client.register_script(
-                self._QUOTA_INCREMENT_SCRIPT
-            )
-            self._check_and_increment_script = client.register_script(
-                self._QUOTA_CHECK_AND_INCREMENT_SCRIPT
-            )
-            self._get_script = client.register_script(
-                self._QUOTA_GET_SCRIPT
-            )
-            self._scripts_registered_client = client
-            logger.debug("Registered quota Lua scripts with Redis")
-        except Exception as e:
-            logger.warning(f"Failed to register Lua scripts: {e}")
-            self._increment_script = None
-            self._check_and_increment_script = None
-            self._get_script = None
-            self._scripts_registered_client = None
-
     def _get_daily_key(self, api_key: str) -> str:
-        """Get Redis key for daily usage counter"""
+        """Get cache key for daily usage counter"""
         today = datetime.now(timezone.utc).strftime('%Y%m%d')
-        return f"{self.redis_key_prefix}{api_key}:daily:{today}"
+        return f"{self.cache_key_prefix}{api_key}:daily:{today}"
 
     def _get_monthly_key(self, api_key: str) -> str:
-        """Get Redis key for monthly usage counter"""
+        """Get cache key for monthly usage counter"""
         month = datetime.now(timezone.utc).strftime('%Y%m')
-        return f"{self.redis_key_prefix}{api_key}:monthly:{month}"
+        return f"{self.cache_key_prefix}{api_key}:monthly:{month}"
 
     def _get_last_request_key(self, api_key: str) -> str:
-        """Get Redis key for last request timestamp"""
-        return f"{self.redis_key_prefix}{api_key}:last_request"
+        """Get cache key for last request timestamp"""
+        return f"{self.cache_key_prefix}{api_key}:last_request"
 
     def _calculate_daily_ttl(self) -> int:
         """Calculate TTL for daily counter (seconds until end of day + buffer)"""
@@ -394,24 +263,10 @@ class QuotaService:
         Returns:
             Tuple of (daily_used, monthly_used, daily_reset_in_seconds, monthly_reset_in_seconds)
         """
-        if not self.enabled or not self.redis_service or not self.redis_service.enabled:
-            return (0, 0, 86400, 2592000)
-
-        if not self.redis_service.client:
-            logger.warning("Redis client not initialized, skipping quota increment")
+        if not self.enabled or not self.cache_service or not self.cache_service.enabled:
             return (0, 0, 86400, 2592000)
 
         try:
-            # Re-register scripts if client has changed (e.g. after reconnection)
-            current_client = self.redis_service.client
-            if self._increment_script is None or self._scripts_registered_client is not current_client:
-                self._register_lua_scripts()
-
-            increment_script = self._increment_script
-            if increment_script is None:
-                logger.warning("Lua scripts not registered, skipping quota increment")
-                return (0, 0, 86400, 2592000)
-
             daily_key = self._get_daily_key(api_key)
             monthly_key = self._get_monthly_key(api_key)
             last_request_key = self._get_last_request_key(api_key)
@@ -420,24 +275,29 @@ class QuotaService:
             monthly_ttl = self._calculate_monthly_ttl()
             timestamp = int(time.time())
 
-            result = await increment_script(
-                keys=[daily_key, monthly_key, last_request_key],
-                args=[daily_ttl, monthly_ttl, timestamp]
+            # Both counters increment together atomically on backends that support
+            # multi-key transactions (Redis, SQLite); no limits here so nothing
+            # can be rejected - see CacheProvider.check_and_increment.
+            counts, _ = await self.cache_service.check_and_increment([
+                ("daily", daily_key, daily_ttl, None),
+                ("monthly", monthly_key, monthly_ttl, None),
+            ])
+            # Best-effort metadata write, intentionally outside the atomic
+            # counter transaction - losing it under a rare partial failure
+            # doesn't affect quota correctness.
+            await self.cache_service.set(last_request_key, str(timestamp), monthly_ttl)
+
+            daily_ttl_remaining = await self.cache_service.ttl(daily_key)
+            monthly_ttl_remaining = await self.cache_service.ttl(monthly_key)
+
+            return (
+                counts.get("daily", 0),
+                counts.get("monthly", 0),
+                daily_ttl_remaining if daily_ttl_remaining > 0 else daily_ttl,
+                monthly_ttl_remaining if monthly_ttl_remaining > 0 else monthly_ttl,
             )
 
-            daily_count = int(result[0])
-            monthly_count = int(result[1])
-            daily_ttl_remaining = int(result[2]) if result[2] > 0 else daily_ttl
-            monthly_ttl_remaining = int(result[3]) if result[3] > 0 else monthly_ttl
-
-            return (daily_count, monthly_count, daily_ttl_remaining, monthly_ttl_remaining)
-
         except Exception as e:
-            # Invalidate scripts so they're re-registered on next call
-            self._increment_script = None
-            self._check_and_increment_script = None
-            self._get_script = None
-            self._scripts_registered_client = None
             logger.warning(f"Failed to increment quota usage: {e}")
             return (0, 0, 86400, 2592000)
 
@@ -464,23 +324,10 @@ class QuotaService:
                 exceeded_type
             ) where exceeded_type is "daily", "monthly", or None.
         """
-        if not self.enabled or not self.redis_service or not self.redis_service.enabled:
-            return (0, 0, 86400, 2592000, None)
-
-        if not self.redis_service.client:
-            logger.warning("Redis client not initialized, skipping quota check")
+        if not self.enabled or not self.cache_service or not self.cache_service.enabled:
             return (0, 0, 86400, 2592000, None)
 
         try:
-            current_client = self.redis_service.client
-            if self._check_and_increment_script is None or self._scripts_registered_client is not current_client:
-                self._register_lua_scripts()
-
-            check_and_increment_script = self._check_and_increment_script
-            if check_and_increment_script is None:
-                logger.warning("Lua scripts not registered, skipping quota check")
-                return (0, 0, 86400, 2592000, None)
-
             daily_key = self._get_daily_key(api_key)
             monthly_key = self._get_monthly_key(api_key)
             last_request_key = self._get_last_request_key(api_key)
@@ -488,40 +335,36 @@ class QuotaService:
             daily_ttl = self._calculate_daily_ttl()
             monthly_ttl = self._calculate_monthly_ttl()
             timestamp = int(time.time())
-            daily_limit_arg = -1 if daily_limit is None else int(daily_limit)
-            monthly_limit_arg = -1 if monthly_limit is None else int(monthly_limit)
 
-            result = await check_and_increment_script(
-                keys=[daily_key, monthly_key, last_request_key],
-                args=[
-                    daily_ttl,
-                    monthly_ttl,
-                    timestamp,
-                    daily_limit_arg,
-                    monthly_limit_arg
-                ]
-            )
+            # Atomic on backends with multi-key transactions (Redis, SQLite):
+            # both limits are checked and both counters incremented as a single
+            # transaction, so no request can be double-counted or slip through
+            # right at the limit boundary. Memcached lacks that primitive and
+            # falls back to a best-effort check-then-increment - see
+            # CacheProvider.check_and_increment for the documented tradeoff.
+            counts, exceeded = await self.cache_service.check_and_increment([
+                ("daily", daily_key, daily_ttl, daily_limit),
+                ("monthly", monthly_key, monthly_ttl, monthly_limit),
+            ])
 
-            daily_count = int(result[0])
-            monthly_count = int(result[1])
-            daily_ttl_remaining = int(result[2]) if result[2] > 0 else daily_ttl
-            monthly_ttl_remaining = int(result[3]) if result[3] > 0 else monthly_ttl
-            exceeded = int(result[4])
-            exceeded_type = {1: 'daily', 2: 'monthly'}.get(exceeded)
+            daily_ttl_remaining = await self.cache_service.ttl(daily_key)
+            monthly_ttl_remaining = await self.cache_service.ttl(monthly_key)
+
+            if exceeded is None:
+                # Best-effort metadata write, intentionally outside the atomic
+                # counter transaction - losing it under a rare partial failure
+                # doesn't affect quota correctness.
+                await self.cache_service.set(last_request_key, str(timestamp), monthly_ttl)
 
             return (
-                daily_count,
-                monthly_count,
-                daily_ttl_remaining,
-                monthly_ttl_remaining,
-                exceeded_type
+                counts.get("daily", 0),
+                counts.get("monthly", 0),
+                daily_ttl_remaining if daily_ttl_remaining > 0 else daily_ttl,
+                monthly_ttl_remaining if monthly_ttl_remaining > 0 else monthly_ttl,
+                exceeded,
             )
 
         except Exception as e:
-            self._increment_script = None
-            self._check_and_increment_script = None
-            self._get_script = None
-            self._scripts_registered_client = None
             logger.warning(f"Failed to check quota usage: {e}")
             return (0, 0, 86400, 2592000, None)
 
@@ -535,77 +378,37 @@ class QuotaService:
         Returns:
             Dict with usage statistics
         """
-        if not self.enabled or not self.redis_service or not self.redis_service.enabled:
-            return {
-                'daily_used': 0,
-                'monthly_used': 0,
-                'daily_reset_at': self._calculate_daily_reset_timestamp(),
-                'monthly_reset_at': self._calculate_monthly_reset_timestamp(),
-                'last_request_at': None
-            }
+        empty_usage = {
+            'daily_used': 0,
+            'monthly_used': 0,
+            'daily_reset_at': self._calculate_daily_reset_timestamp(),
+            'monthly_reset_at': self._calculate_monthly_reset_timestamp(),
+            'last_request_at': None
+        }
 
-        if not self.redis_service.client:
-            logger.warning("Redis client not initialized, returning empty usage")
-            return {
-                'daily_used': 0,
-                'monthly_used': 0,
-                'daily_reset_at': self._calculate_daily_reset_timestamp(),
-                'monthly_reset_at': self._calculate_monthly_reset_timestamp(),
-                'last_request_at': None
-            }
+        if not self.enabled or not self.cache_service or not self.cache_service.enabled:
+            return empty_usage
 
         try:
-            # Re-register scripts if client has changed (e.g. after reconnection)
-            current_client = self.redis_service.client
-            if self._get_script is None or self._scripts_registered_client is not current_client:
-                self._register_lua_scripts()
-
-            get_script = self._get_script
-            if get_script is None:
-                logger.warning("Lua scripts not registered, returning empty usage")
-                return {
-                    'daily_used': 0,
-                    'monthly_used': 0,
-                    'daily_reset_at': self._calculate_daily_reset_timestamp(),
-                    'monthly_reset_at': self._calculate_monthly_reset_timestamp(),
-                    'last_request_at': None
-                }
-
             daily_key = self._get_daily_key(api_key)
             monthly_key = self._get_monthly_key(api_key)
             last_request_key = self._get_last_request_key(api_key)
 
-            result = await get_script(
-                keys=[daily_key, monthly_key, last_request_key],
-                args=[]
+            daily_str, monthly_str, last_request_str = await self.cache_service.mget(
+                daily_key, monthly_key, last_request_key
             )
 
-            daily_used = int(result[0]) if result[0] else 0
-            monthly_used = int(result[1]) if result[1] else 0
-            last_request = float(result[4]) if result[4] else None
-
             return {
-                'daily_used': daily_used,
-                'monthly_used': monthly_used,
+                'daily_used': int(daily_str) if daily_str else 0,
+                'monthly_used': int(monthly_str) if monthly_str else 0,
                 'daily_reset_at': self._calculate_daily_reset_timestamp(),
                 'monthly_reset_at': self._calculate_monthly_reset_timestamp(),
-                'last_request_at': last_request
+                'last_request_at': float(last_request_str) if last_request_str else None
             }
 
         except Exception as e:
-            # Invalidate scripts so they're re-registered on next call
-            self._increment_script = None
-            self._check_and_increment_script = None
-            self._get_script = None
-            self._scripts_registered_client = None
             logger.warning(f"Failed to get quota usage: {e}")
-            return {
-                'daily_used': 0,
-                'monthly_used': 0,
-                'daily_reset_at': self._calculate_daily_reset_timestamp(),
-                'monthly_reset_at': self._calculate_monthly_reset_timestamp(),
-                'last_request_at': None
-            }
+            return empty_usage
 
     async def update_quota_config(
         self,
@@ -676,11 +479,7 @@ class QuotaService:
         Returns:
             True if reset successfully, False otherwise
         """
-        if not self.redis_service or not self.redis_service.enabled:
-            return False
-
-        if not self.redis_service.client:
-            logger.warning("Redis client not initialized, cannot reset usage")
+        if not self.cache_service or not self.cache_service.enabled:
             return False
 
         try:
@@ -696,7 +495,7 @@ class QuotaService:
                 keys_to_delete.append(self._get_last_request_key(api_key))
 
             if keys_to_delete:
-                await self.redis_service.client.delete(*keys_to_delete)
+                await self.cache_service.delete(*keys_to_delete)
 
             logger.info(
                 f"Reset {period} usage for API key: "
@@ -749,13 +548,13 @@ class QuotaService:
 
     async def sync_usage_to_database(self) -> int:
         """
-        Sync all Redis usage counters to database for persistence.
+        Sync all cached usage counters to database for persistence.
 
         Returns:
             Number of keys synced
         """
         # This is a placeholder for future implementation
-        # Would scan Redis for quota keys and persist to database
+        # Would scan cache for quota keys and persist to database
         logger.debug("Usage sync to database called (not yet implemented)")
         return 0
 

@@ -198,19 +198,23 @@ class ConfigurationSummaryLogger:
             self.logger.info(f"  Max suggestions: {autocomplete_config.get('max_suggestions', 5)}")
 
             cache_config = autocomplete_config.get('cache', {})
-            use_redis = is_true_value(cache_config.get('use_redis', True))
+            use_cache_service = is_true_value(cache_config.get('use_cache', True))
             cache_ttl = cache_config.get('ttl_seconds', 1800)
 
-            redis_config = self.config.get('internal_services', {}).get('redis', {}) or {}
-            redis_enabled = is_true_value(redis_config.get('enabled', False))
+            from services.cache_backends import get_provider_config
+            provider_name, provider_config = get_provider_config(self.config)
+            provider_enabled = is_true_value(provider_config.get('enabled', False))
 
-            if use_redis and not redis_enabled:
+            if use_cache_service and not provider_enabled:
                 self.logger.warning(
-                    f"  Cache: Redis configured but Redis is DISABLED - falling back to Memory (TTL: {cache_ttl}s)"
+                    f"  Cache: distributed caching configured but the cache service "
+                    f"({provider_name}) is DISABLED - falling back to Memory (TTL: {cache_ttl}s)"
                 )
-                self.logger.warning("    WARNING: Autocomplete requires Redis for distributed caching")
+                self.logger.warning("    WARNING: Autocomplete requires a cache service for distributed caching")
             else:
-                self.logger.info(f"  Cache: {'Redis' if use_redis else 'Memory'} (TTL: {cache_ttl}s)")
+                self.logger.info(
+                    f"  Cache: {provider_name if use_cache_service else 'Memory'} (TTL: {cache_ttl}s)"
+                )
 
             fuzzy_config = autocomplete_config.get('fuzzy_matching', {})
             fuzzy_enabled = is_true_value(fuzzy_config.get('enabled', False))

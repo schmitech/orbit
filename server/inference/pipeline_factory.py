@@ -49,7 +49,7 @@ class PipelineFactory:
         logger_service=None,
         adapter_manager=None,
         clock_service=None,
-        redis_service=None,
+        cache_service=None,
         database_service=None,
         thread_dataset_service=None
     ) -> ServiceContainer:
@@ -65,7 +65,7 @@ class PipelineFactory:
             logger_service: Optional logger service
             adapter_manager: Optional dynamic adapter manager
             clock_service: Optional clock service
-            redis_service: Optional Redis service for session persistence
+            cache_service: Optional cache provider (Redis, Memcached, ...) for session persistence
             database_service: Optional database service (SQLite/MongoDB)
             thread_dataset_service: Optional thread dataset service
 
@@ -109,10 +109,10 @@ class PipelineFactory:
         if clock_service:
             container.register_singleton('clock_service', clock_service)
 
-        # Register Redis service for session persistence (language stickiness, etc.)
-        if redis_service:
-            container.register_singleton('redis_service', redis_service)
-            logger.info("Registered Redis service for session persistence")
+        # Register cache service for session persistence (language stickiness, etc.)
+        if cache_service:
+            container.register_singleton('cache_service', cache_service)
+            logger.info("Registered cache service for session persistence")
 
         # Register database service for thread operations
         if database_service:
@@ -189,7 +189,7 @@ class PipelineFactory:
         logger_service=None,
         adapter_manager=None,
         clock_service=None,
-        redis_service=None,
+        cache_service=None,
         database_service=None,
         thread_dataset_service=None,
         pipeline_type: str = "standard"
@@ -209,7 +209,7 @@ class PipelineFactory:
             logger_service: Optional logger service
             adapter_manager: Optional dynamic adapter manager
             clock_service: Optional clock service
-            redis_service: Optional Redis service for session persistence
+            cache_service: Optional cache provider (Redis, Memcached, ...) for session persistence
             database_service: Optional database service (SQLite/MongoDB)
             thread_dataset_service: Optional thread dataset service
             pipeline_type: Type of pipeline to create (default: "standard")
@@ -226,7 +226,7 @@ class PipelineFactory:
             logger_service=logger_service,
             adapter_manager=adapter_manager,
             clock_service=clock_service,
-            redis_service=redis_service,
+            cache_service=cache_service,
             database_service=database_service,
             thread_dataset_service=thread_dataset_service
         )

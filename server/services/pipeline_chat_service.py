@@ -41,7 +41,7 @@ class PipelineChatService:
     def __init__(self, config: Dict[str, Any], logger_service,
                  chat_history_service=None, moderator_service=None,
                  retriever=None, reranker_service=None, prompt_service=None, clock_service=None,
-                 redis_service=None, adapter_manager=None, audit_service=None,
+                 cache_service=None, adapter_manager=None, audit_service=None,
                  database_service=None, thread_dataset_service=None,
                  file_processing_service=None):
         """
@@ -56,7 +56,7 @@ class PipelineChatService:
             reranker_service: Optional reranker service
             prompt_service: Optional prompt service
             clock_service: Optional clock service
-            redis_service: Optional Redis service for session persistence
+            cache_service: Optional cache provider (Redis, Memcached, ...) for session persistence
             adapter_manager: Optional shared adapter manager (uses app.state.adapter_manager).
             audit_service: Optional audit service for audit trail storage.
             database_service: Optional database service (SQLite/MongoDB) for thread operations.
@@ -68,7 +68,7 @@ class PipelineChatService:
         self.chat_history_service = chat_history_service
         self.moderator_service = moderator_service
         self.clock_service = clock_service
-        self.redis_service = redis_service
+        self.cache_service = cache_service
         self.audit_service = audit_service
         self.file_processing_service = file_processing_service
 
@@ -93,7 +93,7 @@ class PipelineChatService:
             logger_service=logger_service,
             adapter_manager=adapter_manager,
             clock_service=self.clock_service,
-            redis_service=self.redis_service,
+            cache_service=self.cache_service,
             database_service=database_service,
             thread_dataset_service=thread_dataset_service
         )
@@ -101,7 +101,7 @@ class PipelineChatService:
         self._init_handlers(adapter_manager)
         self._pipeline_initialized = False
 
-        query_cache_config = config.get('internal_services', {}).get('redis', {}).get('query_cache', {})
+        query_cache_config = config.get('internal_services', {}).get('cache', {}).get('query_cache', {})
         self._query_cache_enabled = query_cache_config.get('enabled', True)
         self._query_cache_ttl = int(query_cache_config.get('ttl', 30))
         self._query_cache_max_memory = int(query_cache_config.get('max_memory_entries', 100))
@@ -276,18 +276,18 @@ class PipelineChatService:
         return f"qcache:{hashlib.sha256(key_data.encode()).hexdigest()[:32]}"
 
     async def _get_cached_response(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        """Return cached query result from Redis or in-memory fallback."""
+        """Return cached query result from the cache service or in-memory fallback."""
         if not self._query_cache_enabled:
             return None
 
-        if self.redis_service:
+        if self.cache_service:
             try:
-                cached = await self.redis_service.get_json(cache_key)
+                cached = await self.cache_service.get_json(cache_key)
                 if cached:
-                    logger.debug(f"Query cache HIT (Redis): {cache_key[:20]}")
+                    logger.debug(f"Query cache HIT (cache service): {cache_key[:20]}")
                     return cached
             except Exception:
-                logger.debug("Failed to read query cache from Redis", exc_info=True)
+                logger.debug("Failed to read query cache from cache service", exc_info=True)
 
         entry = self._memory_cache.get(cache_key)
         if entry:
@@ -300,15 +300,15 @@ class PipelineChatService:
         return None
 
     async def _store_cached_response(self, cache_key: str, result: Dict[str, Any]) -> None:
-        """Store query result in Redis and in-memory cache."""
+        """Store query result in the cache service and in-memory cache."""
         if not self._query_cache_enabled or 'error' in result:
             return
 
-        if self.redis_service:
+        if self.cache_service:
             try:
-                await self.redis_service.store_json(cache_key, result, ttl=self._query_cache_ttl)
+                await self.cache_service.store_json(cache_key, result, ttl=self._query_cache_ttl)
             except Exception:
-                logger.debug("Failed to store query cache in Redis", exc_info=True)
+                logger.debug("Failed to store query cache in cache service", exc_info=True)
 
         now = time.monotonic()
         if len(self._memory_cache) >= self._query_cache_max_memory:
@@ -329,20 +329,20 @@ class PipelineChatService:
         memory_query_entries = len(self._memory_cache)
         self._memory_cache.clear()
 
-        redis_query_entries = 0
-        if self.redis_service and hasattr(self.redis_service, "_clear_keys_by_pattern"):
+        cache_query_entries = 0
+        if self.cache_service:
             try:
-                redis_query_entries = await self.redis_service._clear_keys_by_pattern(
+                cache_query_entries = await self.cache_service.clear_by_pattern(
                     "qcache:*",
                     "query burst cache",
                 )
             except Exception:
-                logger.debug("Failed to clear Redis query cache after prompt cache invalidation", exc_info=True)
+                logger.debug("Failed to clear query cache after prompt cache invalidation", exc_info=True)
 
         return {
             "prompt_entries": prompt_entries,
             "memory_query_entries": memory_query_entries,
-            "redis_query_entries": redis_query_entries,
+            "cache_query_entries": cache_query_entries,
         }
 
     # -------------------------------------------------------------------------

@@ -68,7 +68,7 @@ language_detection:
 
 performance:
   workers: 4
-  # Rate-limit fallback note: when Redis is disabled or unavailable,
+  # Rate-limit fallback note: when the cache service is disabled or unavailable,
   # each worker enforces its own in-memory fixed-window counters. With
   # workers > 1, the aggregate fallback ceiling can be up to limit * workers.
   keep_alive_timeout: 30
@@ -100,6 +100,8 @@ performance:
       - "/mcp"      # MCP protocol endpoints
 
   thread_pools:
+    # Total capacity is the sum of these pools per worker. With workers=4
+    # and the defaults below, peak pool capacity is 140 per worker / 560 total.
     io_workers: 50              # Up from 10
     cpu_workers: 30             # CPU-bound tasks
     inference_workers: 20       # Model inference
@@ -132,7 +134,7 @@ auth:
   # Credential storage method: "keyring" (default) or "file"
   # - keyring: Uses system keychain (macOS Keychain, Linux Secret Service)
   # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
-  credential_storage: file
+  credential_storage: keyring
 
   # External identity providers (OIDC / OAuth2). Optional — the built-in
   # username/password auth above always works. When enabled, ORBIT validates
@@ -163,7 +165,7 @@ auth:
     admin_sso:
       enabled: false
       base_url: ${ORBIT_ADMIN_BASE_URL:-}   # Optional; overrides auto-detected redirect base (needed behind a proxy)
-      admin_users: []                        # Emails and/or "provider:subject" granted admin at login
+      admin_users: [] # Emails and/or "provider:subject" granted admin at login
 
 api_keys:
   header_name: "X-API-Key"
@@ -171,7 +173,7 @@ api_keys:
 
 prompt_service:
   cache:
-    ttl_seconds: 3600  # 1 hour - how long to cache prompts in Redis
+    ttl_seconds: 3600  # 1 hour - how long to cache prompts
 
 logging:
   level: "INFO"
@@ -327,7 +329,7 @@ internal_services:
     # Clear audit logs on server startup
     # WARNING: This will delete ALL audit logs when the server starts
     # Use with caution - only recommended for development/testing environments
-    clear_on_startup: true
+    clear_on_startup: false
     # Admin & auth event auditing (opt-in). Records mutations on /admin/*
     # and /auth/* endpoints (user CRUD, API-key management, config changes,
     # login/logout, etc.) into a separate collection/table.
@@ -345,6 +347,35 @@ internal_services:
     sessions_collection: sessions
     apikey_collection: api_keys
     prompts_collection: system_prompts
+
+  # Cache provider selection — applies to all caching consumers (rate limiting,
+  # quotas, prompt cache, autocomplete, query burst cache, thread datasets, ...).
+  # Switch backends by changing `provider` and enabling the matching block below;
+  # no other config needs to change. To add a new backend, see
+  # server/services/cache_backends/factory.py.
+  #   sqlite    - zero-config default; no external service, persists across restarts
+  #   redis     - best for multi-instance deployments needing shared/distributed caching
+  #   memcached - lighter-weight alternative to Redis for single-purpose caching
+  cache:
+    provider: "sqlite"  # sqlite | redis | memcached
+    # Cache startup behavior
+    clear_cache_on_startup: true
+    # Query burst cache — absorbs repeated identical queries (e.g. user clicking retry)
+    query_cache:
+      enabled: false
+      ttl: 30                      # seconds to cache identical query results
+      max_memory_entries: 100      # in-memory fallback when the cache provider is unavailable
+
+  # SQLite cache — default provider. No external service required; a good fit for
+  # single-instance self-hosted deployments. Uses its own database file, separate
+  # from internal_services.backend.sqlite (the application database), so cache
+  # write volume doesn't contend with application data.
+  # Note: slower than Redis/Memcached under high write throughput (e.g. per-request
+  # rate limiting) since every write is a disk-backed transaction.
+  sqlite_cache:
+    enabled: true
+    database_path: "orbit_cache.db"
+    ttl: 3600  # 1 hour
 
   redis:
     enabled: false
@@ -364,13 +395,17 @@ internal_services:
     health_check_interval: 30
     max_consecutive_failures: 5
     circuit_recovery_timeout: 30
-    # Cache startup behavior
-    clear_cache_on_startup: true
-    # Query burst cache — absorbs repeated identical queries (e.g. user clicking retry)
-    query_cache:
-      enabled: false
-      ttl: 30                      # seconds to cache identical query results
-      max_memory_entries: 100      # in-memory fallback when Redis unavailable
+
+  # Memcached — lighter-weight alternative to Redis. Requires the 'memcached'
+  # dependency profile: ./install/setup.sh --profile memcached
+  # Note: no selective cache invalidation (no key pattern matching) and no TTL
+  # introspection — inherent Memcached protocol limitations, not a bug.
+  memcached:
+    enabled: false
+    host: ${INTERNAL_SERVICES_MEMCACHED_HOST}
+    port: 11211
+    pool_size: 20
+    ttl: 3600  # 1 hour
 
 chat_history:
   enabled: true
@@ -389,8 +424,11 @@ chat_history:
 conversation_threading:
   enabled: true
   dataset_ttl_hours: 24  # Global default TTL for stored datasets
-  storage_backend: "sqlite"  # redis, sqlite, mongodb, postgres (fallback order: redis -> database)
-  redis_key_prefix: "thread_dataset:"
+  # "cache" uses the configured cache provider (internal_services.cache.provider).
+  # sqlite/mongodb/postgres store thread datasets directly in the application
+  # database instead of the cache. Fallback order when using the cache: cache -> database.
+  storage_backend: "sqlite"  # cache, sqlite, mongodb, postgres
+  cache_key_prefix: "thread_dataset:"
 
 # Autocomplete configuration for query suggestions based on intent template nl_examples
 autocomplete:
@@ -402,11 +440,12 @@ autocomplete:
 
   # Caching configuration
   cache:
-    # Use Redis for distributed caching (recommended for multi-instance deployments)
-    # Falls back to in-memory cache if Redis is unavailable
-    use_redis: false
+    # Use the configured cache provider (internal_services.cache.provider) for
+    # distributed caching, recommended for multi-instance deployments.
+    # Falls back to in-memory cache if the cache service is unavailable.
+    use_cache: false
     ttl_seconds: 1800  # 30 minutes - templates rarely change
-    redis_key_prefix: "autocomplete:"
+    cache_key_prefix: "autocomplete:"
 
   # Fuzzy matching configuration
   fuzzy_matching:
@@ -537,7 +576,7 @@ files:
     # When disabled, docling will not be initialized until actually needed (lazy initialization)
     # PDF layout uses RT-DETR (PyTorch + torchvision). Intel macOS only gets PyPI torch up to 2.2.x; use files profile / setup.sh for matching pins.
     # Default: true (enabled)
-    docling_enabled: true
+    docling_enabled: false
 
     # MarkItDown processor configuration (Microsoft's document-to-markdown converter)
     # Set to true to enable MarkItDown as an alternative/fallback document processor
@@ -562,7 +601,7 @@ files:
     # Magika upload inspection
     # Verifies uploaded content against the declared MIME type before processing
     magika:
-      enabled: true
+      enabled: false
       enforcement: "block"
       prediction_mode: "HIGH_CONFIDENCE"
       allow_generic_text_fallback: false
@@ -750,13 +789,14 @@ security:
   error_handling:
     # Never expose detailed errors in production
     # Set to true only for development/debugging
-    expose_details: true
+    expose_details: false
 
   # Rate limiting configuration
-  # Redis provides strict distributed enforcement. If Redis is disabled or a
-  # Redis operation fails, a per-worker in-memory fixed-window fallback is used.
+  # The configured cache provider (internal_services.cache.provider) enforces
+  # limits atomically. If the cache service is disabled or an operation fails,
+  # a per-worker in-memory fixed-window fallback is used.
   rate_limiting:
-    enabled: false                    # Master switch
+    enabled: false # Master switch
 
     # Proxy header trust configuration
     # SECURITY: Only enable trust_proxy_headers when behind a trusted reverse proxy
@@ -798,7 +838,7 @@ security:
   # Throttling configuration (executes BEFORE rate limiting)
   # Delays requests progressively instead of rejecting them
   throttling:
-    enabled: false                    # Master switch for throttling
+    enabled: false # Master switch for throttling
 
     # Default quotas for API keys (can be overridden per-key)
     default_quotas:
@@ -822,9 +862,9 @@ security:
     # Paths to exclude from throttling
     exclude_paths: []
 
-    # Redis configuration
-    redis_key_prefix: "quota:"
-    usage_sync_interval_seconds: 60  # Sync Redis usage to database
+    # Cache key configuration
+    cache_key_prefix: "quota:"
+    usage_sync_interval_seconds: 60  # Sync cache usage to database
 
     # Response headers
     headers:

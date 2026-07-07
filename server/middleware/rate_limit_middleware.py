@@ -1,7 +1,7 @@
 """
 Rate Limiting Middleware
 
-Protects API endpoints from abuse and DDoS attacks using Redis-backed
+Protects API endpoints from abuse and DDoS attacks using cache-backed
 fixed window rate limiting. Supports dual-key limiting (IP + API key).
 
 Features:
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class InMemoryRateLimiter:
-    """In-memory fixed-window rate limiter used as fallback when Redis is unavailable."""
+    """In-memory fixed-window rate limiter used as fallback when the cache service is unavailable."""
 
     def __init__(self, cleanup_interval: int = 300):
         self._windows: Dict[str, Tuple[int, int]] = {}  # key -> (count, window_minute)
@@ -64,36 +64,11 @@ class InMemoryRateLimiter:
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    Redis-backed rate limiting middleware.
+    Cache-backed rate limiting middleware.
 
     Uses fixed window counters to track request rates per IP address
-    and per API key. Only active when Redis is enabled.
+    and per API key. Only active when a cache service is enabled.
     """
-
-    # Lua script for atomic fixed-window limit checks across minute and hour
-    # windows in a single Redis round trip. Returns:
-    # [allowed, minute_count, hour_count].
-    _CHECK_LIMITS_SCRIPT = """
-local minute_count = redis.call('INCR', KEYS[1])
-if minute_count == 1 then
-    redis.call('EXPIRE', KEYS[1], ARGV[1])
-end
-
-if minute_count > tonumber(ARGV[3]) then
-    return {0, minute_count, 0}
-end
-
-local hour_count = redis.call('INCR', KEYS[2])
-if hour_count == 1 then
-    redis.call('EXPIRE', KEYS[2], ARGV[2])
-end
-
-if hour_count > tonumber(ARGV[4]) then
-    return {0, minute_count, hour_count}
-end
-
-return {1, minute_count, hour_count}
-"""
 
     def __init__(self, app, config: Dict[str, Any]):
         """
@@ -145,12 +120,7 @@ return {1, minute_count, hour_count}
         api_keys_config = config.get('api_keys', {}) or {}
         self.api_key_header = api_keys_config.get('header_name', 'X-API-Key')
 
-        # Registered Lua script (initialized lazily when Redis is available)
-        self._incr_script = None
-        self._script_registered_client = None
-        self._script_registration_lock = threading.Lock()
-
-        # In-memory fallback rate limiter (activates when Redis is unavailable)
+        # In-memory fallback rate limiter (activates when the cache service is unavailable)
         self._fallback_limiter = InMemoryRateLimiter()
 
         logger.info(
@@ -196,57 +166,30 @@ return {1, minute_count, hour_count}
         """
         return path_is_excluded(request.url.path, self.exclude_paths)
 
-    def _register_lua_script(self, redis_service) -> None:
-        """Register Lua script with Redis client for efficient execution."""
-        if not redis_service or not redis_service.client:
-            return
-
-        try:
-            client = redis_service.client
-            self._incr_script = client.register_script(
-                self._CHECK_LIMITS_SCRIPT
-            )
-            self._script_registered_client = client
-            logger.debug("Registered rate limit Lua script with Redis")
-        except Exception as e:
-            logger.warning(f"Failed to register Lua script: {e}")
-            self._incr_script = None
-            self._script_registered_client = None
-
     def _hash_identifier(self, prefix: str, identifier: str) -> str:
         """Hash API keys before including them in rate-limit storage keys."""
         if prefix == "apikey":
             return hashlib.sha256(identifier.encode()).hexdigest()[:16]
         return identifier
 
-    def _ensure_lua_script(self, redis_service, current_client):
-        """Register the Lua script once for the current Redis client."""
-        if self._incr_script is not None and self._script_registered_client is current_client:
-            return self._incr_script
-
-        with self._script_registration_lock:
-            if self._incr_script is None or self._script_registered_client is not current_client:
-                self._register_lua_script(redis_service)
-            return self._incr_script
-    
     async def _check_rate_limit(
         self,
-        redis_service,
+        cache_service,
         identifier: str,
         limit_per_minute: int,
         limit_per_hour: int,
         prefix: str
     ) -> Tuple[bool, int, int, int]:
         """
-        Check rate limit for an identifier using Redis fixed window.
-        
+        Check rate limit for an identifier using a cache-backed fixed window.
+
         Args:
-            redis_service: The Redis service instance
+            cache_service: The cache provider instance (Redis, Memcached, ...)
             identifier: The rate limit key identifier (IP or API key)
             limit_per_minute: Maximum requests per minute
             limit_per_hour: Maximum requests per hour
             prefix: Key prefix ("ip" or "apikey")
-            
+
         Returns:
             Tuple of (is_allowed, remaining, limit, reset_timestamp)
         """
@@ -254,42 +197,33 @@ return {1, minute_count, hour_count}
         current_minute = current_time // 60
         current_hour = current_time // 3600
         storage_identifier = self._hash_identifier(prefix, identifier)
-        
-        # Redis keys for minute and hour windows
+
         minute_key = f"ratelimit:{prefix}:min:{current_minute}:{storage_identifier}"
         hour_key = f"ratelimit:{prefix}:hr:{current_hour}:{storage_identifier}"
 
         try:
-            # Re-register script if client has changed (e.g. after reconnection)
-            current_client = redis_service.client if redis_service else None
-            incr_script = self._ensure_lua_script(redis_service, current_client)
-            if incr_script is None:
-                logger.warning("Lua script not registered, allowing request")
-                return True, limit_per_minute, limit_per_minute, current_time + 60
+            minute_count = await cache_service.increment_with_ttl(minute_key, 60)
+            if minute_count <= 0:
+                # increment_with_ttl() returns 0 on a cache error/outage rather than
+                # raising - treat that the same as an exception so we fail over to
+                # the in-memory limiter instead of reading it as "0 requests so far".
+                raise RuntimeError("Cache increment returned a non-positive count")
 
-            allowed, minute_count, hour_count = await incr_script(
-                keys=[minute_key, hour_key],
-                args=[60, 3600, limit_per_minute, limit_per_hour]
-            )
-
-            minute_count = int(minute_count)
-            hour_count = int(hour_count)
-
-            if not int(allowed) and minute_count > limit_per_minute:
-                # Minute limit exceeded
+            if minute_count > limit_per_minute:
                 reset_time = (current_minute + 1) * 60
-                remaining = 0
-                return False, remaining, limit_per_minute, reset_time
+                return False, 0, limit_per_minute, reset_time
 
-            if not int(allowed) and hour_count > limit_per_hour:
-                # Hour limit exceeded
+            hour_count = await cache_service.increment_with_ttl(hour_key, 3600)
+            if hour_count <= 0:
+                raise RuntimeError("Cache increment returned a non-positive count")
+
+            if hour_count > limit_per_hour:
                 reset_time = (current_hour + 1) * 3600
-                remaining = 0
-                return False, remaining, limit_per_hour, reset_time
+                return False, 0, limit_per_hour, reset_time
 
             # Calculate remaining (use the more restrictive limit)
             minute_remaining = limit_per_minute - minute_count
-            hour_remaining   = limit_per_hour   - hour_count
+            hour_remaining = limit_per_hour - hour_count
 
             # Use minute window for reset time (more relevant for clients)
             remaining = max(0, min(minute_remaining, hour_remaining))
@@ -298,10 +232,7 @@ return {1, minute_count, hour_count}
             return True, remaining, limit_per_minute, reset_time
 
         except Exception as e:
-            # Invalidate script so it's re-registered on next call
-            self._incr_script = None
-            self._script_registered_client = None
-            logger.warning(f"Redis rate limit check failed, using in-memory fallback: {e}")
+            logger.warning(f"Cache-backed rate limit check failed, using in-memory fallback: {e}")
             # Fall back to in-memory rate limiter instead of fail-open
             allowed, remaining = self._fallback_limiter.is_allowed(
                 f"{prefix}:{storage_identifier}", limit_per_minute
@@ -360,10 +291,10 @@ return {1, minute_count, hour_count}
         if self._should_skip_rate_limit(request):
             return await call_next(request)
         
-        # Check if Redis service is available
-        redis_service = getattr(request.app.state, 'redis_service', None)
-        if not redis_service or not redis_service.enabled:
-            # Redis not available — use in-memory fallback instead of passing through
+        # Check if a cache service is available
+        cache_service = getattr(request.app.state, 'cache_service', None)
+        if not cache_service or not cache_service.enabled:
+            # Cache service not available — use in-memory fallback instead of passing through
             client_ip = self._get_client_ip(request)
             allowed, remaining = self._fallback_limiter.is_allowed(
                 f"ip:{client_ip}", self.ip_requests_per_minute
@@ -376,36 +307,36 @@ return {1, minute_count, hour_count}
                 )
             response = await call_next(request)
             return response
-        
-        # Ensure Redis is initialized
-        if not redis_service.initialized:
+
+        # Ensure the cache service is initialized
+        if not cache_service.initialized:
             try:
-                await redis_service.initialize()
+                await cache_service.initialize()
             except Exception as e:
-                logger.warning(f"Failed to initialize Redis for rate limiting: {e}")
+                logger.warning(f"Failed to initialize cache service for rate limiting: {e}")
                 return await call_next(request)
-        
+
         # Extract identifiers
         client_ip = self._get_client_ip(request)
         api_key = request.headers.get(self.api_key_header)
-        
+
         # Check IP rate limit
         ip_allowed, ip_remaining, ip_limit, ip_reset = await self._check_rate_limit(
-            redis_service,
+            cache_service,
             client_ip,
             self.ip_requests_per_minute,
             self.ip_requests_per_hour,
             "ip"
         )
-        
+
         if not ip_allowed:
             logger.warning(f"Rate limit exceeded for IP: {client_ip}")
             return self._rate_limited_response(ip_limit, ip_remaining, ip_reset)
-        
+
         # If API key is present, also check API key limit
         if api_key:
             key_allowed, key_remaining, key_limit, key_reset = await self._check_rate_limit(
-                redis_service,
+                cache_service,
                 api_key,
                 self.api_key_requests_per_minute,
                 self.api_key_requests_per_hour,
