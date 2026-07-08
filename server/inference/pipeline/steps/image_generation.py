@@ -54,7 +54,7 @@ class ImageGenerationStep(PipelineStep):
 
         # Refine prompt using conversation history or retrieved context if available
         prompt = context.message
-        logger.info(
+        logger.debug(
             "Image generation context: context_messages=%d, formatted_context_len=%d",
             len(context.context_messages),
             len(context.formatted_context),
