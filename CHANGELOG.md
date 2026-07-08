@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.9.1] - 2026-07-08
+
+### Core System Updates
+- **Audio Generation**: Added an audio generation skill with file-backed TTS output, persistent download support, and threaded API/client wiring.
+- **OCR Pipeline**: Added AI/LLM-based OCR with Mistral-native and vision-backed paths, configurable via the file-processing priority chain.
+- **Admin Panel**: Replaced settings tabs with a dropdown and added missing `secrets_management` and cache sections to the minimal Docker config.
+- **Tooling & Safety**: Fixed Gemini MCP schema handling by stripping unsupported `additionalProperties`, and tightened rate-limiting middleware behavior.
+
+### orbitchat
+- **Audio UX**: Improved audio playback controls and user-pill feedback states.
+- **orbitchat**: Published orbitchat 3.11.2 and added audio-related generation support in the client.
+
+### Bug Fixes & Technical Improvements
+- **Generator/Adapter Flow**: Added context-aware rewriting for audio generation and fixed prompt handling across generation skills.
+
+### Documentation & Configuration
+- **Docs Sync**: Updated configuration documentation to match the current config schema.
+- **Cleanup**: Removed outdated recipe docs.
+
 ## [2.9.0] - 2026-07-07
 
 ### Core System Updates
