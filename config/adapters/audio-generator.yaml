@@ -7,8 +7,13 @@ adapters:
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    tts_provider: "openai"    # Optional adapter override; omit to use config/tts.yaml's default provider
-
+    tts_provider: "gemini"    # Optional adapter override; omit to use config/tts.yaml's default provider
+    rewrite_provider: "openai"  # Text LLM used to resolve "summarize this", "explain simply", etc.
+                                 # against conversation history before speaking. Only used when
+                                 # invoked mid-conversation with context; one-shot calls (e.g. curl)
+                                 # with no history speak the input message verbatim.
+    rewrite_model: "gpt-5.4-mini"  # Optional: specific model on rewrite_provider (defaults to
+                                   # that provider's configured default model)
     capabilities:
       expose_as_skill: true
       skill_name: "Audio"
