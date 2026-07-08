@@ -20,9 +20,9 @@
 <p align="center">
   <a href="#-quick-start"><strong>Quick Start</strong></a>
   &nbsp;•&nbsp;
-  <a href="#-features"><strong>Features</strong></a>
+  <a href="#-demos"><strong>Demos</strong></a>
   &nbsp;•&nbsp;
-  <a href="#-use-cases"><strong>Use Cases</strong></a>
+  <a href="#-features"><strong>Features</strong></a>
   &nbsp;•&nbsp;
   <a href="docs/tutorial.md"><strong>Tutorial</strong></a>
   &nbsp;•&nbsp;
@@ -33,7 +33,7 @@
 
 ## What is ORBIT?
 
-ORBIT is a single API gateway that puts production controls in front of any AI model and connects it to your private data. Point one OpenAI-compatible `/v1/chat` endpoint at local or cloud models, ask natural-language questions over your databases and documents, and give models controlled access to tools — all behind API keys, quotas, rate limits, and audit logs you host yourself.
+ORBIT is a self-hosted AI gateway that lets you chat with private data through one OpenAI-compatible endpoint. Put it in front of local or cloud models, connect files, SQL, NoSQL, vector stores, APIs, and tools, then operate everything from an admin panel with keys, quotas, prompts, metrics, and audit logs.
 
 **Reach for ORBIT when you need to:**
 
@@ -44,8 +44,109 @@ ORBIT is a single API gateway that puts production controls in front of any AI m
 - 🧪 Prototype locally, then keep the same architecture in production
 
 > Comparisons: [ORBIT vs. Open WebUI](docs/openwebui/orbit-vs-openwebui.md) · [ORBIT vs. LiteLLM](docs/litellm/orbit-vs-litellm.md)
->
-> ⭐ If ORBIT is useful to you, a star helps more developers find it.
+
+---
+
+## 🎬 See It Work
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/301f2b5a-b1e2-4a1e-8567-aadd14bac713" controls muted playsinline width="80%"></video>
+  <br />
+  <em>Upload private files, ask questions in chat, and keep the whole workflow behind your own gateway.</em>
+</p>
+
+---
+
+## 🚀 Quick Start
+
+Install the latest stable release, then start ORBIT locally.
+
+```bash
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.9.1/orbit-2.9.1.tar.gz
+tar -xzf orbit-2.9.1.tar.gz && cd orbit-2.9.1
+./install/setup.sh        # add --wizard for interactive setup
+./bin/orbit.sh start
+```
+
+Open the admin panel:
+
+| URL | Login |
+| :--- | :--- |
+| [http://localhost:3000/admin](http://localhost:3000/admin) | `admin` / `admin123` |
+
+Verify the gateway:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: local-test' \
+  -d '{"messages": [{"role": "user", "content": "Summarize ORBIT in one sentence."}], "stream": false}'
+```
+
+Open a browser chat client:
+
+```bash
+npx orbitchat --api-url http://localhost:3000 --api-key default-key --open
+```
+
+What you should see: the server responds through the OpenAI-compatible `/v1/chat` endpoint, the admin panel shows live health and adapters, and OrbitChat opens a local chat UI.
+
+For a Docker-based local demo with Ollama, use the development compose stack:
+
+```bash
+git clone https://github.com/schmitech/orbit.git
+cd orbit/docker
+docker compose up -d
+```
+
+The first Docker run can take a few minutes while the local model is downloaded.
+
+> [!WARNING]
+> Docker from `main` is for local evaluation and development. For production installs, use the latest stable release tarball from [GitHub Releases](https://github.com/schmitech/orbit/releases).
+
+More setup paths: [Docker Guide](docker/README.md) · [Tutorial](docs/tutorial.md) · [Windows native install](install/windows.md)
+
+If ORBIT saves you setup time, a GitHub star helps other developers find it.
+
+---
+
+## 🎯 Demos
+
+Pick the path closest to what you want to build.
+
+| Demo | What it shows | Run it |
+| :--- | :--- | :--- |
+| **Chat with private files** | Upload PDFs, spreadsheets, and images, then query them in one thread. | [Tutorial](docs/tutorial/chat-with-files.md) |
+| **Ask SQL questions in English** | Generate and run safe parameterized queries over a sample HR database. | [Tutorial](docs/tutorial/sql-database-sqlite.md) |
+| **Operate the gateway** | Create personas and API keys, inspect adapters, watch metrics, and audit changes from `/admin`. | [First chat](docs/tutorial/first-chat.md) |
+
+<details open>
+<summary><strong>Chat with private files</strong></summary>
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/301f2b5a-b1e2-4a1e-8567-aadd14bac713" controls muted playsinline width="80%"></video>
+  <br />
+  <em>Analysts stop hunting across files: upload PDFs, spreadsheets, and images, then query them together in one thread with context cached across the conversation.</em>
+</p>
+</details>
+
+<details>
+<summary><strong>Ask SQL questions in English</strong></summary>
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/4af9005e-a9c9-4f37-8f6a-84d86e6f6dde" controls muted playsinline width="80%"></video>
+  <br />
+  <em>No SQL and no ticket queue: ask in plain English, and ORBIT generates the query, runs it against your database, and charts the result in chat.</em>
+</p>
+</details>
+
+<details>
+<summary><strong>Operate the gateway from the admin panel</strong></summary>
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/f85fb880-9f76-471a-8875-a16d615c3aa8" controls muted playsinline width="80%"></video>
+  <br />
+  <em>Monitor health, latency, tokens, sessions, adapters, and logs from one dashboard behind API keys, quotas, and rate limits.</em>
+</p>
+</details>
 
 ---
 
@@ -62,52 +163,6 @@ ORBIT is a single API gateway that puts production controls in front of any AI m
     </td>
   </tr>
 </table>
-
----
-
-## 🚀 Quick Start
-
-> [!WARNING]
-> **Do not clone and deploy the `main` branch in production.**
-> Use the latest stable release tarball from
-> [GitHub Releases](https://github.com/schmitech/orbit/releases) instead.
-> The `main` branch is intended for development and testing and may include
-> unreleased changes.
-
-**Latest stable release tarball** (Linux/macOS):
-
-```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.9.1/orbit-2.9.1.tar.gz
-tar -xzf orbit-2.9.1.tar.gz && cd orbit-2.9.1
-./install/setup.sh        # add --wizard for interactive setup
-./bin/orbit.sh start
-```
-
-**Docker Compose from `main`** — for local development/testing with Ollama and a
-lightweight local model:
-
-```bash
-git clone https://github.com/schmitech/orbit.git
-cd orbit/docker
-docker compose up -d
-# NVIDIA GPU: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-```
-
-**Windows (native):** see the [Windows installation guide](install/windows.md).
-
-**Verify the gateway:**
-
-```bash
-curl -X POST http://localhost:3000/v1/chat \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: default-key' \
-  -H 'X-Session-ID: local-test' \
-  -d '{"messages": [{"role": "user", "content": "Summarize ORBIT in one sentence."}], "stream": false}'
-```
-
-Then open the admin dashboard at **[http://localhost:3000/admin](http://localhost:3000/admin)** (`admin` / `admin123`) for metrics, latency, sessions, adapters, logs, and health.
-
-📖 Full setup: [Docker Guide](docker/README.md) · [Tutorial](docs/tutorial.md)
 
 ---
 
@@ -131,14 +186,13 @@ Then open the admin dashboard at **[http://localhost:3000/admin](http://localhos
 | **Production controls** | API keys, RBAC, SSO via Entra ID & Auth0 (OIDC), per-key routing, rate limits, token quotas, moderation, circuit breakers, fallback routing, metrics, audit logs, and hot adapter reloads. |
 | **Config-first** | Define adapters, providers, datasources, prompts, and guardrails in YAML — no application code. |
 
-📚 Deep dive: [Docs index](docs/README.md) · [Adapter guide](docs/adapters/adapters.md) · [Configuration](docs/configuration.md) · [Cookbook](docs/cookbook/README.md)
+📚 Deep dive: [Docs index](docs/README.md) · [Adapter guide](docs/adapters/adapters.md) · [Configuration](docs/configuration.md)
 
 ---
 
-## 💡 Use Cases
+## 💡 More Use Cases
 
-Same gateway, different jobs. Each use case below maps to a recurring pain that
-teams across industries are trying to solve with AI — with a short demo as proof.
+Same gateway, different jobs. ORBIT is useful anywhere a team needs private data access, controlled model routing, and operational visibility behind one API.
 
 | Business outcome | Who feels the pain | What it replaces |
 | :--- | :--- | :--- |
@@ -152,24 +206,6 @@ teams across industries are trying to solve with AI — with a short demo as pro
 | **In-flow content generation** | Marketing, e-learning, communications | Slow, fragmented media-production tooling |
 
 <details open>
-<summary><strong>Turn scattered documents into instant answers</strong></summary>
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/301f2b5a-b1e2-4a1e-8567-aadd14bac713" controls muted playsinline width="80%"></video>
-  <br />
-  <em>Analysts stop hunting across files: upload PDFs, spreadsheets, and images, then query them together in one thread with context cached across the conversation.</em>
-</p>
-</details>
-
-<details>
-<summary><strong>Let business teams answer their own data questions</strong></summary>
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/4af9005e-a9c9-4f37-8f6a-84d86e6f6dde" controls muted playsinline width="80%"></video>
-  <br />
-  <em>No SQL and no ticket queue: ask in plain English, and ORBIT generates the query, runs it against your database, and charts the result in chat.</em>
-</p>
-</details>
-
-<details>
 <summary><strong>Cut incident response time by searching logs in plain English</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/e7fd2834-e438-4ac1-9173-0c0d56ca562b" controls muted playsinline width="80%"></video>
@@ -208,15 +244,6 @@ teams across industries are trying to solve with AI — with a short demo as pro
   <video src="https://github.com/user-attachments/assets/565275fa-8f54-4bd6-94de-3fb27a66a5ab" controls muted playsinline width="80%"></video>
   <br />
   <em>Meet data-residency and compliance rules: run local llama.cpp/Ollama models so sensitive PII never leaves your environment.</em>
-</p>
-</details>
-
-<details>
-<summary><strong>Govern and audit every AI interaction</strong></summary>
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/f85fb880-9f76-471a-8875-a16d615c3aa8" controls muted playsinline width="80%"></video>
-  <br />
-  <em>End shadow AI: monitor health, latency, tokens, sessions, adapters, and logs from one dashboard — behind API keys, quotas, and rate limits.</em>
 </p>
 </details>
 
