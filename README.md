@@ -126,7 +126,7 @@ Then open the admin dashboard at **[http://localhost:3000/admin](http://localhos
 | **Web search** | Provider-agnostic real-time context via DuckDuckGo (free), Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity — decoupled from synthesis so any LLM can answer. |
 | **MCP tool agents** | Connect MCP servers (filesystem, GitHub, Slack, Postgres, Jira, Notion, and more) over stdio/SSE with bounded, server-side agent loops. |
 | **A2A peer protocol** | [Google Agent-to-Agent](https://google.github.io/A2A/) support — discovery via `/.well-known/agent.json` and task delegation over JSON-RPC. [Guide](docs/a2a-protocol.md). |
-| **Media generation** | Image, video, PDF, Word, Excel, PowerPoint, CSV, and markdown generation adapters in the same chat flow. |
+| **Media generation** | Image, video, audio (TTS), PDF, Word, Excel, PowerPoint, CSV, and markdown generation adapters in the same chat flow. |
 | **Voice (STT/TTS)** | OpenAI, Whisper, Google, Gemini, ElevenLabs, Coqui, and more. |
 | **Production controls** | API keys, RBAC, SSO via Entra ID & Auth0 (OIDC), per-key routing, rate limits, token quotas, moderation, circuit breakers, fallback routing, metrics, audit logs, and hot adapter reloads. |
 | **Config-first** | Define adapters, providers, datasources, prompts, and guardrails in YAML — no application code. |
