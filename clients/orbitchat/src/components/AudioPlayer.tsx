@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Play, Pause, Volume2, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { debugError, debugLog } from '../utils/debug';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface AudioPlayerProps {
   audio?: string;  // Base64-encoded audio data (inline return_audio TTS)
@@ -35,6 +36,7 @@ function mimeTypeForFormat(audioFormat: string): string {
  */
 export function AudioPlayer({ audio, audioUrl, audioFormat = 'mp3', autoPlay = false, maxSizeMB = 10, downloadFilename }: AudioPlayerProps) {
   const { t } = useTranslation();
+  const { isDark } = useTheme();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -264,7 +266,7 @@ export function AudioPlayer({ audio, audioUrl, audioFormat = 'mp3', autoPlay = f
           ⚠️ {sizeWarning}
         </div>
       )}
-      <div className="flex items-center gap-3 rounded-md border border-gray-300 bg-white px-3 py-2 dark:border-[#4a4b54] dark:bg-[#343541]">
+      <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-white/80 px-3 py-2 dark:border-[#3b3c49] dark:bg-white/5">
         {/* Hidden audio element */}
         <audio
           ref={audioRef}
@@ -307,9 +309,12 @@ export function AudioPlayer({ audio, audioUrl, audioFormat = 'mp3', autoPlay = f
           disabled={isLoading || !duration}
           className="flex-1 cursor-pointer accent-gray-600 dark:accent-[#bfc2cd]"
           style={{
-            background: duration
-              ? `linear-gradient(to right, rgb(75 85 99) 0%, rgb(75 85 99) ${(currentTime / duration) * 100}%, rgb(229 231 235) ${(currentTime / duration) * 100}%, rgb(229 231 235) 100%)`
-              : 'rgb(229 231 235)'
+            background: (() => {
+              const filled = isDark ? 'rgb(191 194 205)' : 'rgb(75 85 99)';
+              const unfilled = isDark ? 'rgba(255 255 255 / 0.12)' : 'rgb(229 231 235)';
+              const pct = duration ? (currentTime / duration) * 100 : 0;
+              return `linear-gradient(to right, ${filled} 0%, ${filled} ${pct}%, ${unfilled} ${pct}%, ${unfilled} 100%)`;
+            })()
           }}
         />
         <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">

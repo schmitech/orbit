@@ -187,28 +187,28 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
   };
 
   return (
-    <div className="flex items-center gap-0.5 mt-0.5">
+    <div className="mt-0.5 flex items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0]">
       <button
         onClick={() => handleClick('up')}
         disabled={isLoading}
-        className={`rounded-md p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-[#6e6e80] hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
+        className={`rounded-md p-1.5 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
         title={t('message.feedback.good')}
         aria-label={t('message.feedback.good')}
       >
-        <ThumbsUp className="h-3.5 w-3.5" />
+        <ThumbsUp className="h-4 w-4" />
       </button>
       <button
         onClick={() => handleClick('down')}
         disabled={isLoading}
-        className={`rounded-md p-1.5 hover:bg-gray-100 dark:hover:bg-[#3c3f4a] transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-[#6e6e80] hover:text-gray-700 dark:hover:text-[#ececf1]'}`}
+        className={`rounded-md p-1.5 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
         title={t('message.feedback.poor')}
         aria-label={t('message.feedback.poor')}
       >
-        <ThumbsDown className="h-3.5 w-3.5" />
+        <ThumbsDown className="h-4 w-4" />
       </button>
       {showAcknowledgement && (
-        <span className="ml-1 inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 animate-fadeIn dark:bg-emerald-500/15 dark:text-emerald-300">
-          <Check className="h-3 w-3" />
+        <span className="ml-1 inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
+          <Check className="h-3.5 w-3.5" />
           {t('message.feedback.thanks')}
         </span>
       )}
@@ -456,7 +456,7 @@ export function Message({
 
   const bubbleClasses = isAssistant
     ? 'message-bubble message-bubble-assistant min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
-    : 'message-bubble message-bubble-user relative inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 pr-10 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]';
+    : 'message-bubble message-bubble-user relative inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] border border-black/[0.06] bg-[#f4f4f4] px-4 py-3 pr-10 text-[#111827] shadow-[0_1px_2px_rgba(16,24,40,0.06)] dark:border-white/[0.08] dark:bg-[#303030] dark:text-[#f5f5f5] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]';
 
   const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';
 
@@ -964,7 +964,7 @@ export function Message({
                 setEditContent(message.content || '');
                 setIsEditing(true);
               }}
-              className="absolute top-1/2 -translate-y-1/2 right-2 rounded-md p-1 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white transition-colors"
+              className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-black/[0.06] hover:text-gray-900 active:scale-90 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
               title={t('message.editAriaLabel')}
               aria-label={t('message.editAriaLabel')}
             >
