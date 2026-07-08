@@ -154,7 +154,7 @@ teams across industries are trying to solve with AI — with a short demo as pro
 <details open>
 <summary><strong>Turn scattered documents into instant answers</strong></summary>
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/bc85d24a-72dd-4a71-8c3d-017e5fadd219" controls muted playsinline width="80%"></video>
+  <video src="https://github.com/user-attachments/assets/301f2b5a-b1e2-4a1e-8567-aadd14bac713" controls muted playsinline width="80%"></video>
   <br />
   <em>Analysts stop hunting across files: upload PDFs, spreadsheets, and images, then query them together in one thread with context cached across the conversation.</em>
 </p>
