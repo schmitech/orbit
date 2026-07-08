@@ -42,10 +42,12 @@ npm install -g orbitchat
 Point it at your running server and an API key:
 
 ```bash
-orbitchat --api-url http://localhost:3000 --api-key orbit_YOUR_KEY --open
+ORBIT_ADAPTER_KEYS='{"simple-chat":"orbit_YOUR_KEY"}' orbitchat --open
 ```
 
-That opens a browser against a local proxy (default `http://localhost:5173`). You can also run it against multiple adapters at once or as a proxy-only layer for your own UI — see [`clients/orbitchat/README.md`](../../clients/orbitchat/README.md) for the full option reference, `orbitchat.yaml` config, and the HTTP contract for custom frontends.
+That starts a local proxy and opens the browser at `http://localhost:5173`. The JSON maps an adapter ID to its ORBIT API key; OrbitChat keeps the real key in the proxy and the browser sends only the adapter name.
+
+You can map multiple adapters the same way, or define richer names, descriptions, and backend URLs in `orbitchat.yaml` — see [`clients/orbitchat/README.md`](../../clients/orbitchat/README.md) for the full option reference, config format, and HTTP contract for custom frontends.
 
 > The **admin panel** at `/admin` is for configuration (keys, prompts, adapters, settings). **`orbitchat`** is for actually *chatting* with an adapter to test it. You'll use both.
 

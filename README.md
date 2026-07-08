@@ -87,7 +87,7 @@ curl -X POST http://localhost:3000/v1/chat \
 Open a browser chat client:
 
 ```bash
-npx orbitchat --api-url http://localhost:3000 --api-key default-key --open
+ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat --open
 ```
 
 What you should see: the server responds through the OpenAI-compatible `/v1/chat` endpoint, the admin panel shows live health and adapters, and OrbitChat opens a local chat UI.

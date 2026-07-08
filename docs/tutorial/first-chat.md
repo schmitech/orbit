@@ -21,7 +21,7 @@ Open `http://localhost:3000/admin`, sign in, then go to **Prompts / Personas**.
 ### 2. Chat
 
 ```bash
-orbitchat --api-url http://localhost:3000 --api-key orbit_YOUR_KEY --open
+ORBIT_ADAPTER_KEYS='{"simple-chat":"orbit_YOUR_KEY"}' orbitchat --open
 ```
 
 Ask it anything. **If you get a response, the stack is working.** If not, skip down to [Troubleshooting](troubleshooting.md) before going further.

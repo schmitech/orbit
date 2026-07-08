@@ -32,7 +32,7 @@ Then go to **API Keys** → **+ Create**:
 ### 4. Start chatting
 
 ```bash
-orbitchat --api-url http://localhost:3000 --api-key YOUR_API_KEY --open
+ORBIT_ADAPTER_KEYS='{"intent-sql-sqlite-hr":"orbit_YOUR_KEY"}' orbitchat --open
 ```
 
 Try:

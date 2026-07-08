@@ -65,7 +65,7 @@ Then go to **API Keys** → **+ Create**:
 Start OrbitChat with the key:
 
 ```bash
-orbitchat --api-url http://localhost:3000 --api-key orbit_YOUR_KEY --open
+ORBIT_ADAPTER_KEYS='{"simple-chat-with-files":"orbit_YOUR_KEY"}' orbitchat --open
 ```
 
 In the message box, type `/` to open the skill picker, choose `Image`, then send a prompt such as:
