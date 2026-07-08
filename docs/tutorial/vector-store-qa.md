@@ -47,12 +47,14 @@ Configured in `config/adapters/qa.yaml`:
 
 ### Create an API key
 
-```bash
-./bin/orbit.sh key create \
-  --adapter qa-vector-chroma \
-  --name "City Assistant" \
-  --prompt-file ./examples/prompts/examples/city/city-assistant-normal-prompt.txt
-```
+Open `http://localhost:3000/admin` and create a persona under **Prompts / Personas** using the text from `./examples/prompts/examples/city/city-assistant-normal-prompt.txt`.
+
+Then go to **API Keys** → **+ Create**:
+
+1. Choose `qa-vector-chroma` as the adapter.
+2. Name the key `City Assistant`.
+3. Select the city persona you just created.
+4. Save the key and copy the `orbit_…` value shown once.
 
 **Tip:** If answers come back "I don't have information about that," lower `confidence_threshold` incrementally (try 0.2, then 0.15). Thresholds behave consistently across Chroma, Qdrant, FAISS, and Milvus as of 2.6.4.
 

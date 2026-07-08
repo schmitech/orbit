@@ -51,14 +51,14 @@ When an API key is bound to `simple-chat-with-files`, that key can invoke `Image
 
 ## Create an API key
 
-```bash
-./bin/orbit.sh key create \
-  --adapter simple-chat-with-files \
-  --name "File Chat with Image Skill" \
-  --prompt-text "You are a helpful multimodal assistant."
-```
+Open `http://localhost:3000/admin` and create a persona under **Prompts / Personas** with the prompt `You are a helpful multimodal assistant.`.
 
-Copy the `orbit_...` key that is printed.
+Then go to **API Keys** → **+ Create**:
+
+1. Choose `simple-chat-with-files` as the adapter.
+2. Name the key `File Chat with Image Skill`.
+3. Select the persona you just created.
+4. Save the key and copy the `orbit_…` value shown once.
 
 ## Try it from OrbitChat
 

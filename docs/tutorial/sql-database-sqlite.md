@@ -20,13 +20,14 @@ ORBIT preloads intent templates at startup, so a restart picks them up:
 
 ### 3. Create an API key for the HR adapter
 
-```bash
-./bin/orbit.sh key create \
-  --adapter intent-sql-sqlite-hr \
-  --name "HR Chatbot" \
-  --prompt-file ./examples/prompts/hr-assistant-prompt.txt \
-  --prompt-name "HR Assistant"
-```
+Open `http://localhost:3000/admin` and create a persona under **Prompts / Personas** using the text from `./examples/prompts/hr-assistant-prompt.txt`.
+
+Then go to **API Keys** → **+ Create**:
+
+1. Choose `intent-sql-sqlite-hr` as the adapter.
+2. Name the key `HR Chatbot`.
+3. Select the `HR Assistant` persona.
+4. Save the key and copy the `orbit_…` value shown once.
 
 ### 4. Start chatting
 

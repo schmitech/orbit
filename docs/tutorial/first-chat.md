@@ -4,18 +4,19 @@ Before touching any data source, let's confirm the full request path works end-t
 
 ### 1. Create an API key
 
-```bash
-./bin/orbit.sh login --username admin --password admin123
+Open `http://localhost:3000/admin`, sign in, then go to **Prompts / Personas**.
 
-./bin/orbit.sh key create \
-  --adapter simple-chat \
-  --name "First Chat" \
-  --prompt-text "You are a friendly assistant."
-```
+1. Create a persona with the prompt `You are a friendly assistant.`.
+2. Go to **API Keys** → **+ Create**.
+3. Pick `simple-chat` as the adapter.
+4. Name the key `First Chat` and select the persona you just created.
+5. Save the key and copy the `orbit_…` value shown once.
 
-Copy the `orbit_…` key that's printed.
-
-> Prefer clicking? Open `http://localhost:3000/admin` → **API Keys** → **+ Create**, pick `simple-chat` as the adapter, paste a prompt, and save. The key is shown once — copy it immediately.
+<p align="center">
+  <video src="./first-chat-admin-panel-placeholder.mp4" controls muted playsinline width="80%"></video>
+  <br />
+  <em>Placeholder video: record the admin-panel flow for creating a persona and API key here.</em>
+</p>
 
 ### 2. Chat
 

@@ -63,19 +63,14 @@ The Agent Retriever extends the intent pattern with *tool execution*. Instead of
 
 ### Create an API key
 
-```bash
-./bin/orbit.sh key create \
-  --adapter intent-agent-example \
-  --name "Agent Assistant" \
-  --prompt-file ./examples/intent-templates/agent-template/agent-assistant-prompt.md \
-  --prompt-name "Agent Assistant"
-```
+Open `http://localhost:3000/admin` and create a persona under **Prompts / Personas** using the text from `./examples/intent-templates/agent-template/agent-assistant-prompt.md`.
 
-Or use the helper script:
+Then go to **API Keys** → **+ Create**:
 
-```bash
-./utils/scripts/generate-sample-api-keys.sh --adapter intent-agent-example
-```
+1. Choose `intent-agent-example` as the adapter.
+2. Name the key `Agent Assistant`.
+3. Select the `Agent Assistant` persona.
+4. Save the key and copy the `orbit_…` value shown once.
 
 ### Try it
 

@@ -38,12 +38,16 @@ adapters:
 
 ### Create an API key
 
-```bash
-./bin/orbit.sh key create \
-  --adapter composite-multi-source \
-  --name "Multi-Source Explorer" \
-  --prompt-text "You are a data assistant that can query multiple databases. Answer questions using the retrieved data."
-```
+Open `http://localhost:3000/admin` and create a persona under **Prompts / Personas** with the prompt:
+
+`You are a data assistant that can query multiple databases. Answer questions using the retrieved data.`
+
+Then go to **API Keys** → **+ Create**:
+
+1. Choose `composite-multi-source` as the adapter.
+2. Name the key `Multi-Source Explorer`.
+3. Select the persona you just created.
+4. Save the key and copy the `orbit_…` value shown once.
 
 ### See routing in action
 
