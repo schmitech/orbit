@@ -10,6 +10,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from ..base import PipelineStep, ProcessingContext
+from ._utils import get_rewrite_prompt_config
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class VideoGenerationStep(PipelineStep):
             return context
 
         prompt = context.message
-        logger.info(
+        logger.debug(
             "Video generation context: context_messages=%d, formatted_context_len=%d",
             len(context.context_messages),
             len(context.formatted_context),
@@ -144,7 +145,16 @@ class VideoGenerationStep(PipelineStep):
             logger.warning("No llm_provider available — skipping prompt rewrite for video generation")
             return context.message
 
-        recent_msgs = context.context_messages[-6:] if context.context_messages else []
+        prompt_cfg = get_rewrite_prompt_config(self.container, 'video')
+        template = prompt_cfg.get('template')
+        if not template:
+            logger.warning("No 'video' rewrite template in config/rewriters-prompts.yaml — skipping prompt rewrite")
+            return context.message
+        max_tokens = prompt_cfg.get('max_tokens', 300)
+        temperature = prompt_cfg.get('temperature', 0.3)
+        history_limit = prompt_cfg.get('history_limit', 6)
+
+        recent_msgs = context.context_messages[-history_limit:] if context.context_messages else []
         if recent_msgs and recent_msgs[-1].get('role') == 'user' and recent_msgs[-1].get('content', '').strip() == context.message.strip():
             recent_msgs = recent_msgs[:-1]
 
@@ -158,24 +168,18 @@ class VideoGenerationStep(PipelineStep):
         history_text = "\n".join(history) if history else "No prior conversation."
         context_text = f"\nRetrieved Data/Context:\n{context.formatted_context}\n" if context.formatted_context else ""
 
-        rewrite_prompt = (
-            "You are an expert at writing prompts for AI video generators.\n"
-            "Your task: rewrite the user's request into a single, standalone, richly descriptive video generation prompt.\n\n"
-            "Rules:\n"
-            "1. Always enrich the prompt with visual detail: subjects, actions, setting, art style, lighting, mood, camera movement, and pacing.\n"
-            "2. If the user's message is vague or uses references like 'Make a video of it' or 'Animate this', resolve those references "
-            "using the conversation history or retrieved data below.\n"
-            "3. Describe motion and time — what happens, in what order, how the camera moves.\n"
-            "4. Even if the user already wrote a descriptive prompt, enrich it further — always improve quality.\n"
-            "5. Output ONLY the final prompt. No preamble, no explanation, no quotes.\n\n"
-            f"Conversation History:\n{history_text}\n"
-            f"{context_text}"
-            f"User request: {context.message}\n"
-            "Video prompt:"
-        )
+        try:
+            rewrite_prompt = template.format(
+                history_text=history_text,
+                context_text=context_text,
+                message=context.message,
+            )
+        except (KeyError, IndexError) as e:
+            logger.warning(f"Malformed 'video' rewrite template in config/rewriters-prompts.yaml: {e}")
+            return context.message
 
         try:
-            rewritten = await llm_provider.generate(rewrite_prompt, max_tokens=300, temperature=0.3)
+            rewritten = await llm_provider.generate(rewrite_prompt, max_tokens=max_tokens, temperature=temperature)
             rewritten = rewritten.strip()
             for quote in ('"', "'"):
                 if rewritten.startswith(quote) and rewritten.endswith(quote) and len(rewritten) > 2:

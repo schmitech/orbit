@@ -17,6 +17,7 @@ import:
   - "tts.yaml"
   - "stt.yaml"
   - "mcp_client.yaml"
+  - "rewriters-prompts.yaml"
 
 general:
   port: 3000
@@ -94,7 +95,7 @@ performance:
   # Returns 304 Not Modified for unchanged responses
   # Recommended for read-heavy REST API deployments, less useful for chat-focused use
   etag_caching:
-    enabled: false  # Disabled by default - enable if clients implement ETag caching
+    enabled: true  # Disabled by default - enable if clients implement ETag caching
     excluded_paths:
       - "/v1/chat"  # SSE streaming endpoint
       - "/ws"       # WebSocket endpoints
@@ -364,13 +365,13 @@ internal_services:
     # cache, query burst cache, cache-backed conversation threading) fall back
     # to in-memory/no-op behavior and log a warning. Use for light deployments
     # that don't need caching.
-    enabled: false
+    enabled: true
     provider: "sqlite"  # sqlite | redis | memcached
     # Cache startup behavior
     clear_cache_on_startup: true
     # Query burst cache — absorbs repeated identical queries (e.g. user clicking retry)
     query_cache:
-      enabled: false
+      enabled: true
       ttl: 30                      # seconds to cache identical query results
       max_memory_entries: 100      # in-memory fallback when the cache provider is unavailable
 
@@ -451,7 +452,7 @@ autocomplete:
     # Use the configured cache provider (internal_services.cache.provider) for
     # distributed caching, recommended for multi-instance deployments.
     # Falls back to in-memory cache if the cache service is unavailable.
-    use_cache: false
+    use_cache: true
     ttl_seconds: 1800  # 30 minutes - templates rarely change
     cache_key_prefix: "autocomplete:"
 
@@ -826,7 +827,7 @@ security:
   # limits atomically. If the cache service is disabled or an operation fails,
   # a per-worker in-memory fixed-window fallback is used.
   rate_limiting:
-    enabled: false # Master switch
+    enabled: true # Master switch
 
     # Proxy header trust configuration
     # SECURITY: Only enable trust_proxy_headers when behind a trusted reverse proxy
@@ -868,7 +869,7 @@ security:
   # Throttling configuration (executes BEFORE rate limiting)
   # Delays requests progressively instead of rejecting them
   throttling:
-    enabled: false # Master switch for throttling
+    enabled: true # Master switch for throttling
 
     # Default quotas for API keys (can be overridden per-key)
     default_quotas:

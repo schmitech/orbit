@@ -19,6 +19,7 @@ from datetime import date
 from typing import Optional, Dict, Any, List
 
 from ..base import PipelineStep, ProcessingContext
+from ._utils import get_rewrite_prompt_config
 
 logger = logging.getLogger(__name__)
 
@@ -229,13 +230,21 @@ class DocumentGenerationStep(PipelineStep):
             ", ".join(label for label, _ in providers),
         )
 
-        config = self.container.get_or_none('config') or {}
-        llm_cfg = config.get('document_generation', {}).get('llm', {})
-        max_tokens = llm_cfg.get('max_tokens', 2000)
-        temperature = llm_cfg.get('temperature', 0.3)
-        history_limit = llm_cfg.get('history_limit', 6)
+        prompt_cfg = get_rewrite_prompt_config(self.container, 'document')
 
-        prompt = self._build_spec_prompt(context, fmt, history_limit=history_limit)
+        # document.yaml's document_generation.llm settings predate the externalized prompt
+        # config and remain authoritative when set, so existing overrides (e.g. a larger
+        # max_tokens budget for big reports) aren't silently shadowed by rewriters-prompts.yaml.
+        config = self.container.get_or_none('config') or {}
+        llm_override = config.get('document_generation', {}).get('llm', {})
+        max_tokens = llm_override.get('max_tokens', prompt_cfg.get('max_tokens', 2000))
+        temperature = llm_override.get('temperature', prompt_cfg.get('temperature', 0.3))
+        history_limit = llm_override.get('history_limit', prompt_cfg.get('history_limit', 6))
+
+        prompt = self._build_spec_prompt(context, fmt, prompt_cfg, history_limit=history_limit)
+        if prompt is None:
+            logger.warning("Malformed 'document' rewrite config — using fallback document spec")
+            return self._fallback_spec(context)
 
         for label, llm_provider in providers:
             try:
@@ -299,8 +308,15 @@ class DocumentGenerationStep(PipelineStep):
                     i += 1
         return tables
 
-    def _build_spec_prompt(self, context: ProcessingContext, fmt: str, history_limit: int = 6) -> str:
-        """Build the LLM prompt asking for a JSON document spec from history + context."""
+    def _build_spec_prompt(
+        self, context: ProcessingContext, fmt: str, prompt_cfg: Dict[str, Any], history_limit: int = 6
+    ) -> Optional[str]:
+        """Build the LLM prompt asking for a JSON document spec from history + context.
+
+        Format hints, rules, section schema, and the overall template are externalized in
+        config/rewriters-prompts.yaml (rewriters.document); only the per-format branching and
+        markdown-table pre-extraction logic stay here. Returns None if the config is malformed.
+        """
         recent_msgs = context.context_messages[-history_limit:] if context.context_messages else []
         if (recent_msgs and recent_msgs[-1].get('role') == 'user'
                 and recent_msgs[-1].get('content', '').strip() == context.message.strip()):
@@ -319,37 +335,17 @@ class DocumentGenerationStep(PipelineStep):
         )
 
         display_author = self._author_display()
-
-        format_hints: Dict[str, str] = {
-            'pdf': (
-                'a structured report with sections, paragraphs, tables, and optional charts. '
-                'Use a "chart" object in a section when visualising trends, comparisons, or '
-                'distributions would be clearer than a table alone.'
-            ),
-            'docx': (
-                'a Word document with headings, paragraphs, tables, and optional charts. '
-                'Use a "chart" object in a section when visualising data would aid comprehension.'
-            ),
-            'xlsx': (
-                'a spreadsheet where every section with structured data uses the "table" key '
-                '(a 2-D array, first row = column headers). '
-                'Never put tabular data in "body" text. Numeric cell values must be plain numbers.'
-            ),
-            'pptx': (
-                'a presentation where each section becomes a slide with a title, bullet points, '
-                'tables, and optional charts. Use a "chart" object when visualising data would '
-                'make the slide deck clearer.'
-            ),
-            'md': 'a Markdown document with headings, paragraphs, bullet lists, and pipe tables',
-            'csv': (
-                'a CSV export where every section with structured data uses the "table" key '
-                '(a 2-D array, first row = column headers). '
-                'Only include tabular data — omit "body" and "bullet_points". '
-                'Numeric cell values must be plain numbers.'
-            ),
-        }
-        hint = format_hints.get(fmt, 'a structured document')
         today = date.today().isoformat()
+
+        template = prompt_cfg.get('template')
+        format_hints = prompt_cfg.get('format_hints', {})
+        rules_by_key = prompt_cfg.get('rules', {})
+        section_schema_cfg = prompt_cfg.get('section_schema', {})
+        if not template or not format_hints or not rules_by_key or not section_schema_cfg:
+            logger.warning("Incomplete 'document' rewrite config in config/rewriters-prompts.yaml")
+            return None
+
+        hint = format_hints.get(fmt, format_hints.get('default', 'a structured document'))
 
         # For xlsx and pptx: pre-parse markdown tables from conversation history so the LLM
         # receives structured data directly rather than having to re-extract it from prose.
@@ -364,84 +360,35 @@ class DocumentGenerationStep(PipelineStep):
                 pre_extracted = "\n" + "\n".join(lines) + "\n"
 
         if fmt == 'xlsx':
-            rules = (
-                "Rules:\n"
-                "1. Use the conversation history, pre-extracted table data, and any data/context "
-                "to populate real content. Do NOT invent placeholder data when real data is available.\n"
-                "2. For xlsx, sections that contain table data need only a \"heading\" and \"table\" — "
-                "\"body\" and \"bullet_points\" are optional and should be brief if present.\n"
-                "3. EVERY markdown table or data grid found in the conversation history or context "
-                "MUST appear as a \"table\" 2-D array in the JSON. Do not summarise it as prose.\n"
-                "4. Numeric cell values must be bare numbers (no surrounding quotes).\n"
-                "5. Output ONLY the JSON object. No extra text before or after.\n"
-            )
+            rules_key = 'xlsx'
         elif fmt == 'pptx':
-            rules = (
-                "Rules:\n"
-                "1. Use the conversation history, pre-extracted table data, and any data/context "
-                "to populate real content. Do NOT invent placeholder data when real data is available.\n"
-                "2. Every section becomes one slide. Use \"heading\" as the slide title, \"body\" for "
-                "a brief paragraph, and \"bullet_points\" for a list. Tables get their own slide.\n"
-                "3. EVERY markdown table or data grid found in the conversation history or context "
-                "MUST appear as a \"table\" 2-D array in the JSON — not as bullet points or body text.\n"
-                "4. Optionally include a chart object when visualising trends or comparisons adds value. "
-                "Charts get their own slide.\n"
-                "   chart.type: bar | line | pie | area | composed\n"
-                "   chart.labels: array of category labels\n"
-                "   chart.datasets: array of {label, data[], type?, yAxisId?} objects\n"
-                "   Use composed when mixing bar and line series or when two series have very different scales.\n"
-                "   For composed: set datasets[].type to 'bar' or 'line', and datasets[].yAxisId to 'left' or 'right'.\n"
-                "5. Output ONLY the JSON object. No extra text before or after.\n"
-            )
+            rules_key = 'pptx'
         elif fmt in ('pdf', 'docx'):
-            rules = (
-                "Rules:\n"
-                "1. Use the conversation history and any data/context to populate real content.\n"
-                "2. Every section must have at least a heading and either body text or bullet_points.\n"
-                "3. Include a table only when the data has rows and columns; omit the table key otherwise.\n"
-                "4. Optionally include a chart object when visualising trends or comparisons adds value.\n"
-                "   chart.type: bar | line | pie | area | composed\n"
-                "   chart.labels: array of category labels\n"
-                "   chart.datasets: array of {label, data[], type?, yAxisId?} objects\n"
-                "   Use composed when mixing bar and line series or when two series have very different scales.\n"
-                "   For composed: set datasets[].type to 'bar' or 'line', and datasets[].yAxisId to 'left' or 'right'.\n"
-                "5. A section may have both a table and a chart, or just one, or neither.\n"
-                "6. Output ONLY the JSON object. No extra text before or after.\n"
-            )
+            rules_key = 'pdf_docx'
         else:
-            rules = (
-                "Rules:\n"
-                "1. Use the conversation history and any data/context to populate real content.\n"
-                "2. Every section must have at least a heading and either body text or bullet_points.\n"
-                "3. Include a table only when the data has rows and columns; omit the table key otherwise.\n"
-                "4. Output ONLY the JSON object. No extra text before or after.\n"
-            )
+            rules_key = 'default'
+        rules = rules_by_key.get(rules_key, rules_by_key.get('default', ''))
 
-        section_schema = (
-            '{"heading": "...", "body": "...", '
-            '"bullet_points": ["..."], '
-            '"table": [["col1", "col2"], ["val1", "val2"]]'
-        )
+        section_schema = section_schema_cfg.get('base', '')
         if fmt in ('pdf', 'docx', 'pptx'):
-            section_schema += (
-                ', "chart": {"type": "bar|line|pie|area", "title": "...", '
-                '"labels": ["A", "B", "C"], '
-                '"datasets": [{"label": "Series 1", "data": [1, 2, 3]}]}'
-            )
+            section_schema += section_schema_cfg.get('chart_suffix', '')
         section_schema += '}'
 
-        return (
-            f"You are a document structure designer. Generate {hint}.\n"
-            "Output ONLY a valid JSON object — no markdown code fences, no explanation.\n\n"
-            "Required JSON schema:\n"
-            f'{{"title": "...", "sections": [{section_schema}], '
-            f'"metadata": {{"author": "{display_author}", "date": "{today}"}}}}\n\n'
-            f"{rules}\n"
-            f"Conversation History:\n{history_text}\n"
-            f"{pre_extracted}"
-            f"{context_text}"
-            f"User request: {context.message}"
-        )
+        try:
+            return template.format(
+                format_hint=hint,
+                section_schema=section_schema,
+                display_author=display_author,
+                today=today,
+                rules=rules,
+                history_text=history_text,
+                pre_extracted=pre_extracted,
+                context_text=context_text,
+                message=context.message,
+            )
+        except (KeyError, IndexError) as e:
+            logger.warning(f"Malformed 'document' rewrite template in config/rewriters-prompts.yaml: {e}")
+            return None
 
     def _fallback_spec(self, context: ProcessingContext) -> dict:
         """Last-resort spec used when LLM spec generation fails for every provider.

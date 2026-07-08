@@ -15,6 +15,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from ..base import PipelineStep, ProcessingContext
+from ._utils import get_rewrite_prompt_config
 
 logger = logging.getLogger(__name__)
 
@@ -144,11 +145,14 @@ class AudioGenerationStep(PipelineStep):
             logger.warning("No llm_provider available — speaking the raw message for audio generation")
             return context.message
 
-        config = self.container.get_or_none('config') or {}
-        llm_cfg = config.get('audio_generation', {}).get('llm', {})
-        max_tokens = llm_cfg.get('max_tokens', 800)
-        temperature = llm_cfg.get('temperature', 0.3)
-        history_limit = llm_cfg.get('history_limit', 6)
+        prompt_cfg = get_rewrite_prompt_config(self.container, 'audio')
+        template = prompt_cfg.get('template')
+        if not template:
+            logger.warning("No 'audio' rewrite template in config/rewriters-prompts.yaml — speaking the raw message")
+            return context.message
+        max_tokens = prompt_cfg.get('max_tokens', 800)
+        temperature = prompt_cfg.get('temperature', 0.3)
+        history_limit = prompt_cfg.get('history_limit', 6)
 
         recent_msgs = context.context_messages[-history_limit:] if context.context_messages else []
         if recent_msgs and recent_msgs[-1].get('role') == 'user' and recent_msgs[-1].get('content', '').strip() == context.message.strip():
@@ -164,25 +168,15 @@ class AudioGenerationStep(PipelineStep):
         history_text = "\n".join(history) if history else "No prior conversation."
         context_text = f"\nRetrieved Data/Context:\n{context.formatted_context}\n" if context.formatted_context else ""
 
-        rewrite_prompt = (
-            "You are preparing text to be read aloud by a text-to-speech engine.\n"
-            "Your task: fulfil the user's request using the conversation history and data/context "
-            "below, and output ONLY the resulting text to be spoken.\n\n"
-            "Rules:\n"
-            "1. If the request references prior conversation or data (e.g. 'summarize this', "
-            "'explain this in simple terms', 'read this back to me'), resolve it using the "
-            "history/context and produce the actual spoken content — not a restatement of the request.\n"
-            "2. Write in natural, spoken sentence flow. No markdown, no headings, no bullet lists, "
-            "no code blocks, no citation markers — a TTS engine will read exactly what you output.\n"
-            "3. If the request is already self-contained plain text with nothing to resolve from "
-            "context, return it as-is (lightly cleaned up if it contains formatting artifacts).\n"
-            "4. Keep it concise — this will be heard, not read.\n"
-            "5. Output ONLY the final text. No preamble, no explanation, no quotes.\n\n"
-            f"Conversation History:\n{history_text}\n"
-            f"{context_text}"
-            f"User request: {context.message}\n"
-            "Text to speak:"
-        )
+        try:
+            rewrite_prompt = template.format(
+                history_text=history_text,
+                context_text=context_text,
+                message=context.message,
+            )
+        except (KeyError, IndexError) as e:
+            logger.warning(f"Malformed 'audio' rewrite template in config/rewriters-prompts.yaml: {e}")
+            return context.message
 
         try:
             rewritten = await llm_provider.generate(rewrite_prompt, max_tokens=max_tokens, temperature=temperature)

@@ -10,6 +10,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from ..base import PipelineStep, ProcessingContext
+from ._utils import get_rewrite_prompt_config
 
 logger = logging.getLogger(__name__)
 
@@ -150,9 +151,18 @@ class ImageGenerationStep(PipelineStep):
             logger.warning("No llm_provider available — skipping prompt rewrite for image generation")
             return context.message
 
-        # Cap history to last 6 turns to avoid blowing the context window.
+        prompt_cfg = get_rewrite_prompt_config(self.container, 'image')
+        template = prompt_cfg.get('template')
+        if not template:
+            logger.warning("No 'image' rewrite template in config/rewriters-prompts.yaml — skipping prompt rewrite")
+            return context.message
+        max_tokens = prompt_cfg.get('max_tokens', 300)
+        temperature = prompt_cfg.get('temperature', 0.3)
+        history_limit = prompt_cfg.get('history_limit', 6)
+
+        # Cap history to avoid blowing the context window.
         # Exclude the current message if it happens to be the last entry.
-        recent_msgs = context.context_messages[-6:] if context.context_messages else []
+        recent_msgs = context.context_messages[-history_limit:] if context.context_messages else []
         if recent_msgs and recent_msgs[-1].get('role') == 'user' and recent_msgs[-1].get('content', '').strip() == context.message.strip():
             recent_msgs = recent_msgs[:-1]
 
@@ -166,28 +176,18 @@ class ImageGenerationStep(PipelineStep):
         history_text = "\n".join(history) if history else "No prior conversation."
         context_text = f"\nRetrieved Data/Context:\n{context.formatted_context}\n" if context.formatted_context else ""
 
-        rewrite_prompt = (
-            "You are an expert at writing prompts for AI image generators.\n"
-            "Your task: rewrite the user's request into a single, standalone, richly descriptive image generation prompt.\n\n"
-            "Rules:\n"
-            "1. Always enrich the prompt with visual detail: subjects, actions, setting, art style, lighting, mood, and composition.\n"
-            "2. If the user's message is vague or uses references like 'Draw it' or 'Visualize this', resolve those references "
-            "using the conversation history or retrieved data below.\n"
-            "3. If the message references data, numbers, or a chart, describe a visually compelling infographic or data visualization.\n"
-            "4. Even if the user already wrote a descriptive prompt, enrich it further — always improve quality.\n"
-            "5. Output ONLY the final prompt. No preamble, no explanation, no quotes.\n"
-            "6. TEXT ACCURACY: If the image must display readable text (labels, titles, captions, numbers, table headers), "
-            "copy each string EXACTLY as it appears in the source data — correct spelling, correct capitalisation. "
-            "Spell out every word carefully. AI image generators hallucinate text; being explicit prevents misspellings. "
-            "Example: write 'the label reads \"Workforce\"' not 'a workforce label'.\n\n"
-            f"Conversation History:\n{history_text}\n"
-            f"{context_text}"
-            f"User request: {context.message}\n"
-            "Image prompt:"
-        )
+        try:
+            rewrite_prompt = template.format(
+                history_text=history_text,
+                context_text=context_text,
+                message=context.message,
+            )
+        except (KeyError, IndexError) as e:
+            logger.warning(f"Malformed 'image' rewrite template in config/rewriters-prompts.yaml: {e}")
+            return context.message
 
         try:
-            rewritten = await llm_provider.generate(rewrite_prompt, max_tokens=300, temperature=0.3)
+            rewritten = await llm_provider.generate(rewrite_prompt, max_tokens=max_tokens, temperature=temperature)
             rewritten = rewritten.strip()
             # Strip surrounding quotes the LLM sometimes adds
             for quote in ('"', "'"):

@@ -10,6 +10,7 @@ Covers:
 """
 
 import base64
+import functools
 import io
 import json
 import os
@@ -18,11 +19,25 @@ import types
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import yaml
 from pypdf import PdfReader
 
 # Add server directory to path (same pattern as test_inference_bug_fixes.py)
 _server_dir = os.path.join(os.path.dirname(__file__), '..', '..')
 sys.path.insert(0, _server_dir)
+
+
+@functools.lru_cache(maxsize=1)
+def _load_test_config():
+    """Load the real config/rewriters-prompts.yaml so tests exercise the actual production
+    prompts (issue #279: prompts are no longer hardcoded in Python)."""
+    path = os.path.join(_server_dir, '..', 'config', 'rewriters-prompts.yaml')
+    with open(path) as f:
+        return yaml.safe_load(f)
+
+
+TEST_CONFIG = _load_test_config()
+DOCUMENT_PROMPT_CFG = TEST_CONFIG['rewriters']['document']
 
 # Pre-register 'inference' as a namespace package to skip its heavy __init__.py
 if 'inference' not in sys.modules:
@@ -91,11 +106,11 @@ def _make_container(adapter_type: str = "document_generation",
     container.has.side_effect = lambda key: key in ("adapter_manager", "llm_provider", "config")
     container.get.side_effect = lambda key: (
         adapter_manager if key == "adapter_manager" else
-        llm_provider if key == "llm_provider" else {}
+        llm_provider if key == "llm_provider" else TEST_CONFIG
     )
     container.get_or_none.side_effect = lambda key: (
         llm_provider if key == "llm_provider" else
-        {} if key == "config" else None
+        TEST_CONFIG if key == "config" else None
     )
     return container
 
@@ -444,10 +459,10 @@ class TestDocumentGenerationStepProcess:
         container.has.side_effect = lambda k: k in ("adapter_manager", "llm_provider", "config")
         container.get.side_effect = lambda k: (
             adapter_manager if k == "adapter_manager" else
-            working_provider if k == "llm_provider" else {}
+            working_provider if k == "llm_provider" else TEST_CONFIG
         )
         container.get_or_none.side_effect = lambda k: (
-            working_provider if k == "llm_provider" else {} if k == "config" else None
+            working_provider if k == "llm_provider" else TEST_CONFIG if k == "config" else None
         )
 
         step = self.StepClass(container)
@@ -483,7 +498,7 @@ class TestDocumentGenerationStepProcess:
             adapter_manager if k == "adapter_manager" else llm_provider
         )
         container.get_or_none.side_effect = lambda k: (
-            llm_provider if k == "llm_provider" else {} if k == "config" else None
+            llm_provider if k == "llm_provider" else TEST_CONFIG if k == "config" else None
         )
 
         step = self.StepClass(container)
@@ -521,8 +536,8 @@ class TestDocumentGenerationStepProcess:
 
         container = MagicMock()
         container.has.side_effect = lambda k: k in ("adapter_manager", "config")
-        container.get.side_effect = lambda k: adapter_manager if k == "adapter_manager" else {}
-        container.get_or_none.side_effect = lambda k: {} if k == "config" else None
+        container.get.side_effect = lambda k: adapter_manager if k == "adapter_manager" else TEST_CONFIG
+        container.get_or_none.side_effect = lambda k: TEST_CONFIG if k == "config" else None
 
         step = self.StepClass(container)
         ctx = ProcessingContext(adapter_name="pdf-generator", message="Make a report")
@@ -576,7 +591,7 @@ class TestDocumentGenerationStepProcess:
         )
         step = self.StepClass(_make_container(document_format="pdf"))
 
-        prompt = step._build_spec_prompt(ctx, "pdf")
+        prompt = step._build_spec_prompt(ctx, "pdf", DOCUMENT_PROMPT_CFG)
 
         assert '"chart"' in prompt
         assert "chart.type: bar | line | pie | area" in prompt
@@ -590,7 +605,7 @@ class TestDocumentGenerationStepProcess:
         )
         step = self.StepClass(_make_container(document_format="pptx"))
 
-        prompt = step._build_spec_prompt(ctx, "pptx")
+        prompt = step._build_spec_prompt(ctx, "pptx", DOCUMENT_PROMPT_CFG)
 
         assert '"chart"' in prompt
         assert "Charts get their own slide" in prompt
@@ -605,7 +620,7 @@ class TestDocumentGenerationStepProcess:
         )
         step = self.StepClass(_make_container(document_format="xlsx"))
 
-        prompt = step._build_spec_prompt(ctx, "xlsx")
+        prompt = step._build_spec_prompt(ctx, "xlsx", DOCUMENT_PROMPT_CFG)
 
         assert '"chart"' not in prompt
         assert "chart.type" not in prompt

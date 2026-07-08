@@ -17,6 +17,7 @@ import:
   - "tts.yaml"
   - "stt.yaml"
   - "mcp_client.yaml"
+  - "rewriters-prompts.yaml"
 
 general:
   port: 3000

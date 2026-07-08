@@ -1,0 +1,151 @@
+# Rewrite Prompts for Generation Skills
+#
+# Externalized LLM prompts used by the image/video/audio/document generation
+# pipeline steps (server/inference/pipeline/steps/{image,video,audio,document}_generation.py)
+# to turn a user's request + conversation history/context into the actual
+# content to generate. Selected via each generation adapter's `rewrite_provider`
+# / `rewrite_model` config keys.
+#
+# Loaded once at startup as part of the main config tree (imported by config.yaml)
+# and cached for the process lifetime, same as tts.yaml/image.yaml/etc. Edit this
+# file and restart the server (or POST /admin/reload-adapters) to pick up changes.
+#
+# Each `template` string uses Python str.format() placeholders — {name} — and is the
+# only value actually passed through .format(); literal braces inside a `template`
+# itself must therefore be doubled ({{ and }}). Everything substituted INTO a
+# template (format_hints, rules, section_schema, history_text, etc.) is inserted
+# verbatim and must use single, un-doubled braces.
+
+rewriters:
+  image:
+    max_tokens: 300
+    temperature: 0.3
+    history_limit: 6
+    template: |
+      You are an expert at writing prompts for AI image generators.
+      Your task: rewrite the user's request into a single, standalone, richly descriptive image generation prompt.
+
+      Rules:
+      1. Always enrich the prompt with visual detail: subjects, actions, setting, art style, lighting, mood, and composition.
+      2. If the user's message is vague or uses references like 'Draw it' or 'Visualize this', resolve those references using the conversation history or retrieved data below.
+      3. If the message references data, numbers, or a chart, describe a visually compelling infographic or data visualization.
+      4. Even if the user already wrote a descriptive prompt, enrich it further — always improve quality.
+      5. Output ONLY the final prompt. No preamble, no explanation, no quotes.
+      6. TEXT ACCURACY: If the image must display readable text (labels, titles, captions, numbers, table headers), copy each string EXACTLY as it appears in the source data — correct spelling, correct capitalisation. Spell out every word carefully. AI image generators hallucinate text; being explicit prevents misspellings. Example: write 'the label reads "Workforce"' not 'a workforce label'.
+
+      Conversation History:
+      {history_text}
+      {context_text}User request: {message}
+      Image prompt:
+
+  video:
+    max_tokens: 300
+    temperature: 0.3
+    history_limit: 6
+    template: |
+      You are an expert at writing prompts for AI video generators.
+      Your task: rewrite the user's request into a single, standalone, richly descriptive video generation prompt.
+
+      Rules:
+      1. Always enrich the prompt with visual detail: subjects, actions, setting, art style, lighting, mood, camera movement, and pacing.
+      2. If the user's message is vague or uses references like 'Make a video of it' or 'Animate this', resolve those references using the conversation history or retrieved data below.
+      3. Describe motion and time — what happens, in what order, how the camera moves.
+      4. Even if the user already wrote a descriptive prompt, enrich it further — always improve quality.
+      5. Output ONLY the final prompt. No preamble, no explanation, no quotes.
+
+      Conversation History:
+      {history_text}
+      {context_text}User request: {message}
+      Video prompt:
+
+  audio:
+    max_tokens: 800
+    temperature: 0.3
+    history_limit: 6
+    template: |
+      You are preparing text to be read aloud by a text-to-speech engine.
+      Your task: fulfil the user's request using the conversation history and data/context below, and output ONLY the resulting text to be spoken.
+
+      Rules:
+      1. If the request references prior conversation or data (e.g. 'summarize this', 'explain this in simple terms', 'read this back to me'), resolve it using the history/context and produce the actual spoken content — not a restatement of the request.
+      2. Write in natural, spoken sentence flow. No markdown, no headings, no bullet lists, no code blocks, no citation markers — a TTS engine will read exactly what you output.
+      3. If the request is already self-contained plain text with nothing to resolve from context, return it as-is (lightly cleaned up if it contains formatting artifacts).
+      4. Keep it concise — this will be heard, not read.
+      5. Output ONLY the final text. No preamble, no explanation, no quotes.
+
+      Conversation History:
+      {history_text}
+      {context_text}User request: {message}
+      Text to speak:
+
+  document:
+    # These three are fallback defaults only — config/document.yaml's
+    # document_generation.llm.* settings take precedence when set (they predate this
+    # file and may already be customized, e.g. a larger max_tokens for big reports).
+    max_tokens: 4000
+    temperature: 0.3
+    history_limit: 6
+    format_hints:
+      pdf: 'a structured report with sections, paragraphs, tables, and optional charts. Use a "chart" object in a section when visualising trends, comparisons, or distributions would be clearer than a table alone.'
+      docx: 'a Word document with headings, paragraphs, tables, and optional charts. Use a "chart" object in a section when visualising data would aid comprehension.'
+      xlsx: 'a spreadsheet where every section with structured data uses the "table" key (a 2-D array, first row = column headers). Never put tabular data in "body" text. Numeric cell values must be plain numbers.'
+      pptx: 'a presentation where each section becomes a slide with a title, bullet points, tables, and optional charts. Use a "chart" object when visualising data would make the slide deck clearer.'
+      md: 'a Markdown document with headings, paragraphs, bullet lists, and pipe tables'
+      csv: 'a CSV export where every section with structured data uses the "table" key (a 2-D array, first row = column headers). Only include tabular data — omit "body" and "bullet_points". Numeric cell values must be plain numbers.'
+      default: 'a structured document'
+    rules:
+      xlsx: |
+        Rules:
+        1. Use the conversation history, pre-extracted table data, and any data/context to populate real content. Do NOT invent placeholder data when real data is available.
+        2. For xlsx, sections that contain table data need only a "heading" and "table" — "body" and "bullet_points" are optional and should be brief if present.
+        3. EVERY markdown table or data grid found in the conversation history or context MUST appear as a "table" 2-D array in the JSON. Do not summarise it as prose.
+        4. Numeric cell values must be bare numbers (no surrounding quotes).
+        5. Output ONLY the JSON object. No extra text before or after.
+      pptx: |
+        Rules:
+        1. Use the conversation history, pre-extracted table data, and any data/context to populate real content. Do NOT invent placeholder data when real data is available.
+        2. Every section becomes one slide. Use "heading" as the slide title, "body" for a brief paragraph, and "bullet_points" for a list. Tables get their own slide.
+        3. EVERY markdown table or data grid found in the conversation history or context MUST appear as a "table" 2-D array in the JSON — not as bullet points or body text.
+        4. Optionally include a chart object when visualising trends or comparisons adds value. Charts get their own slide.
+           chart.type: bar | line | pie | area | composed
+           chart.labels: array of category labels
+           chart.datasets: array of {label, data[], type?, yAxisId?} objects
+           Use composed when mixing bar and line series or when two series have very different scales.
+           For composed: set datasets[].type to 'bar' or 'line', and datasets[].yAxisId to 'left' or 'right'.
+        5. Output ONLY the JSON object. No extra text before or after.
+      pdf_docx: |
+        Rules:
+        1. Use the conversation history and any data/context to populate real content.
+        2. Every section must have at least a heading and either body text or bullet_points.
+        3. Include a table only when the data has rows and columns; omit the table key otherwise.
+        4. Optionally include a chart object when visualising trends or comparisons adds value.
+           chart.type: bar | line | pie | area | composed
+           chart.labels: array of category labels
+           chart.datasets: array of {label, data[], type?, yAxisId?} objects
+           Use composed when mixing bar and line series or when two series have very different scales.
+           For composed: set datasets[].type to 'bar' or 'line', and datasets[].yAxisId to 'left' or 'right'.
+        5. A section may have both a table and a chart, or just one, or neither.
+        6. Output ONLY the JSON object. No extra text before or after.
+      default: |
+        Rules:
+        1. Use the conversation history and any data/context to populate real content.
+        2. Every section must have at least a heading and either body text or bullet_points.
+        3. Include a table only when the data has rows and columns; omit the table key otherwise.
+        4. Output ONLY the JSON object. No extra text before or after.
+    section_schema:
+      # These two are substituted as plain VALUES (not re-formatted), so braces
+      # here are literal — not doubled. Closing brace is appended in code after
+      # the optional chart_suffix.
+      base: '{"heading": "...", "body": "...", "bullet_points": ["..."], "table": [["col1", "col2"], ["val1", "val2"]]'
+      chart_suffix: ', "chart": {"type": "bar|line|pie|area", "title": "...", "labels": ["A", "B", "C"], "datasets": [{"label": "Series 1", "data": [1, 2, 3]}]}'
+    template: |
+      You are a document structure designer. Generate {format_hint}.
+      Output ONLY a valid JSON object — no markdown code fences, no explanation.
+
+      Required JSON schema:
+      {{"title": "...", "sections": [{section_schema}], "metadata": {{"author": "{display_author}", "date": "{today}"}}}}
+
+      {rules}
+      Conversation History:
+      {history_text}
+      {pre_extracted}{context_text}User request: {message}
