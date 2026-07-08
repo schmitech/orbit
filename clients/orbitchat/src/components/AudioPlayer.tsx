@@ -1,22 +1,39 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { Play, Pause, Volume2 } from 'lucide-react';
+import { Play, Pause, Volume2, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { debugError, debugLog } from '../utils/debug';
 
 interface AudioPlayerProps {
-  audio: string;  // Base64-encoded audio data
+  audio?: string;  // Base64-encoded audio data (inline return_audio TTS)
+  audioUrl?: string;  // Persistent server-side URL (generated audio-skill output)
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
   autoPlay?: boolean;  // Auto-play when component mounts
   maxSizeMB?: number;  // Maximum audio size in MB (default: 10MB)
+  downloadFilename?: string;  // Filename to use when downloading; enables the download button
+}
+
+function mimeTypeForFormat(audioFormat: string): string {
+  return audioFormat === 'mp3' ? 'audio/mpeg' :
+    audioFormat === 'wav' ? 'audio/wav' :
+    audioFormat === 'ogg' ? 'audio/ogg' :
+    audioFormat === 'opus' ? 'audio/opus' :
+    audioFormat === 'webm' ? 'audio/webm' :
+    `audio/${audioFormat}`;
 }
 
 /**
- * AudioPlayer component for playing TTS audio responses
+ * AudioPlayer component for playing TTS audio responses.
  *
- * Converts base64-encoded audio data to a playable audio element
- * with play/pause controls and a progress bar.
+ * Accepts either:
+ *  - `audio` (base64) — inline data from the return_audio/tts_voice chat flow.
+ *  - `audioUrl` — a persistent server-side URL (e.g. from the "Audio" generation
+ *    skill), fetched via JS so the Express proxy can inject the API key,
+ *    mirroring ImageDisplay/VideoDisplay/DocumentDisplay.
+ *
+ * Renders play/pause controls and a progress bar; optionally a download
+ * button when `downloadFilename` is provided.
  */
-export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxSizeMB = 10 }: AudioPlayerProps) {
+export function AudioPlayer({ audio, audioUrl, audioFormat = 'mp3', autoPlay = false, maxSizeMB = 10, downloadFilename }: AudioPlayerProps) {
   const { t } = useTranslation();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -25,12 +42,13 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
 
-  // Convert base64 to blob and create object URL
+  // Decode base64 inline audio into a playable blob URL
   useEffect(() => {
     if (!audio) return;
 
-    let audioUrl: string | null = null;
+    let objectUrl: string | null = null;
     let isMounted = true;
 
     const loadAudio = async () => {
@@ -65,25 +83,18 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        // Determine MIME type
-        const mimeType = audioFormat === 'mp3' ? 'audio/mpeg' :
-                        audioFormat === 'wav' ? 'audio/wav' :
-                        audioFormat === 'ogg' ? 'audio/ogg' :
-                        audioFormat === 'opus' ? 'audio/opus' :
-                        audioFormat === 'webm' ? 'audio/webm' :
-                        `audio/${audioFormat}`;
+        const mimeType = mimeTypeForFormat(audioFormat);
 
         // Create blob and object URL
         const audioBlob = new Blob([bytes], { type: mimeType });
-        audioUrl = URL.createObjectURL(audioBlob);
+        objectUrl = URL.createObjectURL(audioBlob);
 
-        if (!isMounted || !audioRef.current) {
-          // Component unmounted before we could set the src
-          if (audioUrl) URL.revokeObjectURL(audioUrl);
+        if (!isMounted) {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
           return;
         }
 
-        audioRef.current.src = audioUrl;
+        setResolvedSrc(objectUrl);
         setIsLoading(false);
 
         debugLog('[AudioPlayer] Audio loaded successfully', {
@@ -91,14 +102,6 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
           mimeType,
           size: audioBlob.size
         });
-
-        // Auto-play if enabled
-        if (autoPlay && audioRef.current) {
-          audioRef.current.play().catch(err => {
-            debugError('[AudioPlayer] Auto-play failed:', err);
-            // Auto-play might be blocked by browser policy - this is expected behavior
-          });
-        }
       } catch (err) {
         debugError('[AudioPlayer] Failed to load audio:', err);
         if (isMounted) {
@@ -113,11 +116,74 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
     // Cleanup: revoke object URL when component unmounts
     return () => {
       isMounted = false;
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [audio, audioFormat, autoPlay, maxSizeMB, t]);
+  }, [audio, audioFormat, maxSizeMB, t]);
+
+  // Fetch a persistent audioUrl (generated audio-skill output) into a playable blob URL
+  useEffect(() => {
+    if (audio || !audioUrl) return;
+
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    const loadAudio = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const adapterName =
+          typeof window !== 'undefined'
+            ? window.localStorage.getItem('chat-adapter-name')
+            : null;
+
+        const res = await fetch(audioUrl, {
+          headers: adapterName ? { 'X-Adapter-Name': adapterName } : {},
+        });
+
+        if (!res.ok) {
+          throw new Error(`Server returned ${res.status}`);
+        }
+        if (cancelled) return;
+
+        const bytes = await res.arrayBuffer();
+        if (cancelled) return;
+
+        const audioBlob = new Blob([bytes], { type: mimeTypeForFormat(audioFormat) });
+        objectUrl = URL.createObjectURL(audioBlob);
+
+        setResolvedSrc(objectUrl);
+        setIsLoading(false);
+      } catch (err) {
+        debugError('[AudioPlayer] Failed to fetch audio from', audioUrl, err);
+        if (!cancelled) {
+          setError(t('audio.player.loadFailureError'));
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadAudio();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [audio, audioUrl, audioFormat, t]);
+
+  // Auto-play once a source resolves
+  useEffect(() => {
+    if (autoPlay && resolvedSrc && audioRef.current) {
+      audioRef.current.play().catch(err => {
+        debugError('[AudioPlayer] Auto-play failed:', err);
+        // Auto-play might be blocked by browser policy - this is expected behavior
+      });
+    }
+  }, [autoPlay, resolvedSrc]);
 
   // Update duration when metadata is loaded
   const handleLoadedMetadata = () => {
@@ -164,6 +230,15 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
     setCurrentTime(time);
   };
 
+  // Download the currently resolved audio blob
+  const handleDownload = () => {
+    if (!resolvedSrc) return;
+    const a = document.createElement('a');
+    a.href = resolvedSrc;
+    a.download = downloadFilename || `generated-audio.${audioFormat}`;
+    a.click();
+  };
+
   // Format time (seconds) as MM:SS
   const formatTime = (seconds: number): string => {
     if (!isFinite(seconds)) return '0:00';
@@ -193,6 +268,7 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
         {/* Hidden audio element */}
         <audio
           ref={audioRef}
+          src={resolvedSrc ?? undefined}
           onLoadedMetadata={handleLoadedMetadata}
           onTimeUpdate={handleTimeUpdate}
           onPlay={handlePlay}
@@ -241,8 +317,17 @@ export function AudioPlayer({ audio, audioFormat = 'mp3', autoPlay = false, maxS
         </span>
       </div>
 
-        {/* Audio icon */}
-        <Volume2 className="h-4 w-4 text-gray-500 dark:text-[#bfc2cd]" />
+        {/* Download button (only when a filename is provided, e.g. generated-audio skill output) */}
+        {downloadFilename && (
+          <button
+            onClick={handleDownload}
+            disabled={isLoading || !resolvedSrc}
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-50 dark:bg-[#4a4b54] dark:hover:bg-[#565869]"
+            title={t('audio.player.downloadAudioTooltip')}
+          >
+            <Download className="h-4 w-4 text-gray-700 dark:text-[#ececf1]" />
+          </button>
+        )}
       </div>
     </div>
   );

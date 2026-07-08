@@ -277,6 +277,17 @@ async function _runStreamIntoMessage(
         );
       }
 
+      if (response.generated_audio_url && response.done) {
+        receivedAnyText = true;
+        set((state: ExtendedChatState) =>
+          updateLastAssistantMessage(state, conversationId, () => ({
+            generatedAudioFormat: response.generated_audio_format || 'mp3',
+            generatedAudioRevisedPrompt: response.generated_audio_revised_prompt,
+            generatedAudioUrl: response.generated_audio_url,
+          }), assistantMessageId)
+        );
+      }
+
       if (response.done) {
         const threadingInfo = response.threading;
         if (threadingInfo?.supports_threading) {
@@ -1068,6 +1079,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 documentFormat: response.document_format || 'pdf',
                 documentRevisedPrompt: response.document_revised_prompt,
                 documentUrl: response.document_url,
+              }), assistantMessageId)
+            );
+          }
+
+          if (response.generated_audio_url && response.done) {
+            receivedAnyText = true;
+            set(state =>
+              updateLastAssistantMessage(state, streamingConversationId!, () => ({
+                generatedAudioFormat: response.generated_audio_format || 'mp3',
+                generatedAudioRevisedPrompt: response.generated_audio_revised_prompt,
+                generatedAudioUrl: response.generated_audio_url,
               }), assistantMessageId)
             );
           }

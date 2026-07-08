@@ -13,7 +13,7 @@ from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, MCPAgentStep, FetchStep, WebSearchStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, AudioGenerationStep, MCPAgentStep, FetchStep, WebSearchStep
 
 logger = logging.getLogger(__name__)
 
@@ -406,13 +406,16 @@ class InferencePipelineBuilder:
         # Document generation — executes instead of LLM for document_generation adapters
         steps.append(DocumentGenerationStep(container))
 
+        # Audio generation — executes instead of LLM for audio_generation adapters
+        steps.append(AudioGenerationStep(container))
+
         # Fetch — executes instead of LLM for fetch adapters
         steps.append(FetchStep(container))
 
         # Web search — retrieves external search results as context for LLM synthesis
         steps.append(WebSearchStep(container))
 
-        # LLM inference is always needed (skips image/video/document/fetch generation adapters)
+        # LLM inference is always needed (skips image/video/document/audio/fetch generation adapters)
         steps.append(LLMInferenceStep(container))
         
         # Response validation only if moderator service is available

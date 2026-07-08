@@ -52,6 +52,7 @@ adapters:
       available_skills:
         - "Image"
         - "Video"
+        - "Audio"
         - "PDF"
         - "Word"
         - "Excel"

@@ -579,6 +579,9 @@ class StreamingHandler:
         document_url: Optional[str] = None,
         document_format: Optional[str] = None,
         document_revised_prompt: Optional[str] = None,
+        generated_audio_url: Optional[str] = None,
+        generated_audio_format: Optional[str] = None,
+        generated_audio_revised_prompt: Optional[str] = None,
     ) -> str:
         """
         Build the final done chunk with all metadata.
@@ -644,6 +647,13 @@ class StreamingHandler:
             done_chunk["document_format"] = document_format or "pdf"
             if document_revised_prompt:
                 done_chunk["document_revised_prompt"] = document_revised_prompt
+
+        # Include generated (TTS-skill) audio URL if present (bytes are never sent inline)
+        if generated_audio_url:
+            done_chunk["generated_audio_url"] = generated_audio_url
+            done_chunk["generated_audio_format"] = generated_audio_format or "mp3"
+            if generated_audio_revised_prompt:
+                done_chunk["generated_audio_revised_prompt"] = generated_audio_revised_prompt
 
         done_json = json.dumps(done_chunk)
 

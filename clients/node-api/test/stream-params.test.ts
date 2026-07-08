@@ -165,6 +165,28 @@ describe('streamChat — model, skill, and media response fields', () => {
     });
   });
 
+  describe('generated audio response fields', () => {
+    it('should forward generated_audio fields from done chunk', async () => {
+      const doneChunk = {
+        done: true,
+        generated_audio_url: 'https://storage.example.com/speech.mp3',
+        generated_audio_format: 'mp3',
+        generated_audio_revised_prompt: 'Hello, world!'
+      };
+      global.fetch = vi.fn().mockResolvedValue(makeStreamResponse([doneChunk]));
+
+      const results = [];
+      for await (const chunk of client.streamChat('say hello, world!')) {
+        results.push(chunk);
+      }
+
+      const done = results.find(r => r.done);
+      expect(done?.generated_audio_url).toBe('https://storage.example.com/speech.mp3');
+      expect(done?.generated_audio_format).toBe('mp3');
+      expect(done?.generated_audio_revised_prompt).toBe('Hello, world!');
+    });
+  });
+
   describe('assistant_message_id field', () => {
     it('should forward assistant_message_id from done chunk', async () => {
       const doneChunk = { done: true, assistant_message_id: 'msg-db-id-123' };

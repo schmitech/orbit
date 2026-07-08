@@ -249,6 +249,40 @@ class PipelineChatService:
         except Exception as e:
             logger.warning(f"Failed to persist generated document: {e}")
 
+    async def _persist_generated_audio(self, context: ProcessingContext) -> None:
+        """Save generated audio bytes to filesystem and set context.generated_audio_url."""
+        if not context.generated_audio or not self.file_processing_service:
+            return
+        import uuid
+        import base64 as _base64
+        try:
+            file_id = str(uuid.uuid4())
+            fmt = context.generated_audio_format or "mp3"
+            filename = f"generated_{file_id}.{fmt}"
+            mime_type = f"audio/{fmt}"
+            audio_bytes = _base64.b64decode(context.generated_audio)
+            api_key = context.api_key or "_generated"
+            storage_key = f"{api_key}/{file_id}/{filename}"
+
+            await self.file_processing_service.storage.put_file(
+                file_data=audio_bytes,
+                key=storage_key,
+                metadata={"filename": filename, "mime_type": mime_type,
+                          "file_size": len(audio_bytes), "generated": True}
+            )
+            await self.file_processing_service.metadata_store.record_file_upload(
+                file_id=file_id, api_key=api_key, filename=filename,
+                mime_type=mime_type, file_size=len(audio_bytes),
+                storage_key=storage_key, storage_type="raw",
+                metadata={"generated": True, "format": fmt, "session_id": context.session_id or ""}
+            )
+            await self.file_processing_service.metadata_store.update_processing_status(
+                file_id=file_id, status="completed"
+            )
+            context.generated_audio_url = f"/api/files/{file_id}/content"
+        except Exception as e:
+            logger.warning(f"Failed to persist generated audio: {e}")
+
     # -------------------------------------------------------------------------
     # Query burst cache helpers
     # -------------------------------------------------------------------------
@@ -663,6 +697,7 @@ class PipelineChatService:
             await self._persist_generated_image(context)
             await self._persist_generated_video(context)
             await self._persist_generated_document(context)
+            await self._persist_generated_audio(context)
 
             final_result = self.response_processor.build_result(
                 response=processed_response,
@@ -684,6 +719,9 @@ class PipelineChatService:
                 document_url=context.document_url,
                 document_format=context.document_format,
                 document_revised_prompt=context.document_revised_prompt,
+                generated_audio_url=context.generated_audio_url,
+                generated_audio_format=context.generated_audio_format,
+                generated_audio_revised_prompt=context.generated_audio_revised_prompt,
             )
 
             if cache_key and not audio_data:
@@ -944,6 +982,7 @@ class PipelineChatService:
         await self._persist_generated_image(context)
         await self._persist_generated_video(context)
         await self._persist_generated_document(context)
+        await self._persist_generated_audio(context)
 
         yield self.streaming_handler.build_done_chunk(
             state=final_state,
@@ -961,4 +1000,7 @@ class PipelineChatService:
             document_url=context.document_url,
             document_format=context.document_format,
             document_revised_prompt=context.document_revised_prompt,
+            generated_audio_url=context.generated_audio_url,
+            generated_audio_format=context.generated_audio_format,
+            generated_audio_revised_prompt=context.generated_audio_revised_prompt,
         )

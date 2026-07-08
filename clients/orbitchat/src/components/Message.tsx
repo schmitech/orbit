@@ -830,6 +830,14 @@ export function Message({
                   adapterName={currentConversation?.adapterName}
                 />
               )}
+              {reply.generatedAudioUrl && replyIsAssistant && !reply.isStreaming && (
+                <AudioPlayer
+                  audioUrl={reply.generatedAudioUrl}
+                  audioFormat={reply.generatedAudioFormat}
+                  downloadFilename={`generated-audio.${reply.generatedAudioFormat || 'mp3'}`}
+                  autoPlay={false}
+                />
+              )}
             </div>
             {replyIsAssistant && !reply.isStreaming && getEnableFeedbackButtons() && (
               <ThreadReplyFeedback reply={reply} />
@@ -939,6 +947,15 @@ export function Message({
               documentFormat={message.documentFormat}
               revisedPrompt={message.documentRevisedPrompt}
               adapterName={currentConversation?.adapterName}
+            />
+          )}
+
+          {message.generatedAudioUrl && isAssistant && !message.isStreaming && (
+            <AudioPlayer
+              audioUrl={message.generatedAudioUrl}
+              audioFormat={message.generatedAudioFormat}
+              downloadFilename={`generated-audio.${message.generatedAudioFormat || 'mp3'}`}
+              autoPlay={false}
             />
           )}
           {!isAssistant && onEdit && !isEditing && (

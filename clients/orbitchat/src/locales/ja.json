@@ -397,7 +397,8 @@
       "pauseTitle": "一時停止",
       "playTitle": "再生",
       "pauseAriaLabel": "音声を一時停止",
-      "playAriaLabel": "音声を再生"
+      "playAriaLabel": "音声を再生",
+      "downloadAudioTooltip": "音声をダウンロード"
     }
   },
   "modelPicker": {

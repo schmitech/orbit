@@ -112,6 +112,12 @@ class ProcessingContext:
     document_revised_prompt: Optional[str] = None  # title / final prompt used
     document_url: Optional[str] = None        # persistent server-side URL after storage
 
+    # Audio generation output (TTS-as-skill; distinct from return_audio/tts_voice inline chat TTS)
+    generated_audio: Optional[str] = None            # base64-encoded generated speech audio
+    generated_audio_format: Optional[str] = None     # "mp3", "wav", etc.
+    generated_audio_revised_prompt: Optional[str] = None  # text that was spoken
+    generated_audio_url: Optional[str] = None        # persistent server-side URL after storage
+
     def has_error(self) -> bool:
         """Check if the context has an error."""
         return self.is_blocked or self.error is not None

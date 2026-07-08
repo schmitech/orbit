@@ -28,6 +28,9 @@ export interface StreamResponse {
   document_format?: string;  // Document format (pdf, docx, xlsx, pptx)
   document_revised_prompt?: string;  // Title / final prompt used
   document_url?: string;  // Persistent server-side URL for refresh
+  generated_audio_url?: string;  // Persistent server-side URL for generated (TTS-skill) audio
+  generated_audio_format?: string;  // Generated audio format (mp3, wav, etc.)
+  generated_audio_revised_prompt?: string;  // Text that was spoken
   assistant_message_id?: string;  // Database message ID for feedback
   threading?: {  // Optional threading metadata
     supports_threading: boolean;
@@ -307,6 +310,9 @@ function parseSseDataLine(line: string): StreamResponse | null {
       document_format: data.document_format,
       document_revised_prompt: data.document_revised_prompt,
       document_url: data.document_url,
+      generated_audio_url: data.generated_audio_url,
+      generated_audio_format: data.generated_audio_format,
+      generated_audio_revised_prompt: data.generated_audio_revised_prompt,
       assistant_message_id: data.assistant_message_id,
       threading: data.threading
     };
@@ -441,6 +447,9 @@ function createProxyApi(): ApiFunctions {
             document_format: data.document_format,
             document_revised_prompt: data.document_revised_prompt,
             document_url: data.document_url,
+            generated_audio_url: data.generated_audio_url,
+            generated_audio_format: data.generated_audio_format,
+            generated_audio_revised_prompt: data.generated_audio_revised_prompt,
             assistant_message_id: data.assistant_message_id,
             threading: data.threading
           };

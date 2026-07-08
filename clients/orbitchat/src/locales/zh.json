@@ -397,7 +397,8 @@
       "pauseTitle": "暂停",
       "playTitle": "播放",
       "pauseAriaLabel": "暂停音频",
-      "playAriaLabel": "播放音频"
+      "playAriaLabel": "播放音频",
+      "downloadAudioTooltip": "下载音频"
     }
   },
   "modelPicker": {

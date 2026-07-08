@@ -397,7 +397,8 @@
       "pauseTitle": "Pause",
       "playTitle": "Play",
       "pauseAriaLabel": "Pause audio",
-      "playAriaLabel": "Play audio"
+      "playAriaLabel": "Play audio",
+      "downloadAudioTooltip": "Download audio"
     }
   },
   "modelPicker": {

@@ -341,6 +341,9 @@ class ResponseProcessor:
         document_url: Optional[str] = None,
         document_format: Optional[str] = None,
         document_revised_prompt: Optional[str] = None,
+        generated_audio_url: Optional[str] = None,
+        generated_audio_format: Optional[str] = None,
+        generated_audio_revised_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Build the final result dictionary.
@@ -418,6 +421,13 @@ class ResponseProcessor:
             result["document_format"] = document_format or "pdf"
             if document_revised_prompt:
                 result["document_revised_prompt"] = document_revised_prompt
+
+        # Add generated (TTS-skill) audio URL if present
+        if generated_audio_url:
+            result["generated_audio_url"] = generated_audio_url
+            result["generated_audio_format"] = generated_audio_format or "mp3"
+            if generated_audio_revised_prompt:
+                result["generated_audio_revised_prompt"] = generated_audio_revised_prompt
 
         return result
     

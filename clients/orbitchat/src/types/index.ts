@@ -40,6 +40,9 @@ export interface Message {
   documentFormat?: string;  // Document format (pdf, docx, xlsx, pptx)
   documentRevisedPrompt?: string;  // Title / final prompt used
   documentUrl?: string;  // Persistent server-side URL (survives page refresh)
+  generatedAudioFormat?: string;  // Generated (TTS-skill) audio format (mp3, wav, etc.)
+  generatedAudioRevisedPrompt?: string;  // Text that was spoken
+  generatedAudioUrl?: string;  // Persistent server-side URL (survives page refresh)
   threadInfo?: ThreadInfo;
   supportsThreading?: boolean;
   databaseMessageId?: string;  // Database message ID from server (used for thread creation and feedback)

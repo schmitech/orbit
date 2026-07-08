@@ -9,6 +9,7 @@ NO_LLM_ADAPTER_TYPES = frozenset({
     'image_generation',
     'video_generation',
     'document_generation',
+    'audio_generation',
     'mcp_agent',
     'fetch',
     'openai_realtime',

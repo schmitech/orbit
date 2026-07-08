@@ -1,0 +1,28 @@
+# Dedicated audio generation adapter — converts text to speech via the configured TTS provider.
+# Handled by AudioGenerationStep; LLMInferenceStep is skipped for this adapter type.
+adapters:
+  - name: "audio-generator"
+    enabled: true
+    type: "audio_generation"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    tts_provider: "openai"    # Optional adapter override; omit to use config/tts.yaml's default provider
+
+    capabilities:
+      expose_as_skill: true
+      skill_name: "Audio"
+      skill_description: "Convert text into natural-sounding speech and get a downloadable audio file"
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"
+        - "tts_voice"
+
+    config:
+      storage_backend: "filesystem"
+      storage_root: "./uploads"

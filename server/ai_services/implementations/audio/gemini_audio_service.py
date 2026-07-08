@@ -195,6 +195,9 @@ class GeminiAudioService(AudioService, GoogleBaseService):
             )
 
             if not hasattr(response, 'candidates') or not response.candidates:
+                block_reason = getattr(getattr(response, 'prompt_feedback', None), 'block_reason', None)
+                if block_reason:
+                    raise ValueError(f"No candidates returned from Gemini (blocked: {block_reason})")
                 raise ValueError("No candidates returned from Gemini")
 
             candidate = response.candidates[0]

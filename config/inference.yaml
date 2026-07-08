@@ -329,7 +329,7 @@ inference:
     enabled: true
     api_key: ${MISTRAL_API_KEY}
     api_base: "https://api.mistral.ai/v1"
-    model: "mistral-small-latest"
+    model: "mistral-small-2603"
     context_window: 32768  # Mistral Small supports 32K context
     temperature: 0.1
     top_p: 0.8

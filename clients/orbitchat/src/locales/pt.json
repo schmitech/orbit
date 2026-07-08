@@ -397,7 +397,8 @@
       "pauseTitle": "Pausar",
       "playTitle": "Reproduzir",
       "pauseAriaLabel": "Pausar áudio",
-      "playAriaLabel": "Reproduzir áudio"
+      "playAriaLabel": "Reproduzir áudio",
+      "downloadAudioTooltip": "Baixar áudio"
     }
   },
   "modelPicker": {
