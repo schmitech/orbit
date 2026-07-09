@@ -14,6 +14,8 @@
 
 ### Bug Fixes & Technical Improvements
 - **Generator/Adapter Flow**: Added context-aware rewriting for audio generation and fixed prompt handling across generation skills.
+- **Admin Tables**: Stabilized selectable-row checkbox behavior in admin tables to prevent first-selection jitter, with fixed checkbox sizing and refined custom checkbox states.
+- **API Key Logging**: Consolidated redundant API key masking logic in admin routes into a shared `mask_api_key` utility, restored info-level audit logging for API key deletion, and ensured record identifiers are masked before logging (they can resolve to raw API keys).
 
 ### Documentation & Configuration
 - **Docs Sync**: Updated configuration documentation to match the current config schema.
