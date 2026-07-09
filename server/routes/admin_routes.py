@@ -28,6 +28,7 @@ from models.schema import (
     ApiKeyUsage, ApiKeyQuotaResponse,
 )
 from config.config_manager import reload_adapters_config
+from utils.text_utils import mask_api_key
 
 # Import auth dependencies
 from routes.auth_dependencies import check_admin_or_api_key, require_admin
@@ -214,7 +215,7 @@ async def create_api_key(
     )
     
     # Log with masked API key
-    masked_api_key = f"***{api_key_response['api_key'][-4:]}" if api_key_response.get('api_key') else "***"
+    masked_api_key = mask_api_key(api_key_response.get('api_key'), show_last=True, prefix="***")
     
     # Log creation with appropriate identifier
     if api_key_data.adapter_name:
@@ -291,7 +292,7 @@ async def list_api_keys(
             key_dict = {
                 "_id": record_id,   # legacy — admin_panel.js depends on this
                 "id": record_id,    # canonical
-                "api_key": f"***{key['api_key'][-4:]}" if key.get("api_key") else "***",
+                "api_key": mask_api_key(key.get("api_key"), show_last=True, prefix="***"),
                 "adapter_name": key.get("adapter_name"),
                 "client_name": key.get("client_name"),
                 "notes": key.get("notes"),
@@ -384,7 +385,7 @@ async def get_api_key_status(
     status = await api_key_service.get_api_key_status_by_id(api_key_id)
     if not status.get("exists"):
         status = await api_key_service.get_api_key_status(api_key_id)
-    logger.debug(f"Checked status for API key identifier: {api_key_id}")
+    logger.debug(f"Checked status for API key identifier: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
     return status
 
 
@@ -409,8 +410,8 @@ async def rename_api_key(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to rename API key")
 
-    masked_new = f"***{new_api_key[-4:]}" if new_api_key else "***"
-    logger.info(f"Renamed API key {api_key_id} to {masked_new}")
+    masked_new = mask_api_key(new_api_key, show_last=True, prefix="***")
+    logger.info(f"Renamed API key {mask_api_key(api_key_id, show_last=True, prefix='***')} to {masked_new}")
     return {"status": "success", "message": "API key renamed successfully", "new_api_key_masked": masked_new}
 
 
@@ -438,7 +439,7 @@ async def update_api_key(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update API key")
 
-    logger.info(f"Updated API key metadata for: {api_key_id}")
+    logger.info(f"Updated API key metadata for: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
     return {"status": "success", "message": "API key updated successfully"}
 
 
@@ -453,7 +454,7 @@ async def deactivate_api_key(
     if not success:
         raise HTTPException(status_code=404, detail="API key not found")
 
-    logger.info(f"Deactivated API key: {api_key_id}")
+    logger.info(f"Deactivated API key: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
     return {"status": "success", "message": "API key deactivated"}
 
 
@@ -468,7 +469,7 @@ async def delete_api_key(
     if not success:
         raise HTTPException(status_code=404, detail="API key not found")
 
-    logger.info(f"Deleted API key: {api_key_id}")
+    logger.info(f"Deleted API key: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
     return {"status": "success", "message": "API key deleted"}
 
 
@@ -901,7 +902,7 @@ async def get_api_key_quota(
                 throttle_delay_ms = int(100 + (5000 - 100) * (normalized ** 2))
 
     # Mask API key for response
-    masked_key = f"***{api_key[-4:]}" if len(api_key) >= 4 else "***"
+    masked_key = mask_api_key(api_key, show_last=True, prefix="***")
 
     return ApiKeyQuotaResponse(
         api_key_masked=masked_key,
@@ -1034,7 +1035,7 @@ async def get_quota_usage_report(
             quota_config = await quota_service.get_quota_config(api_key)
 
             # Mask API key
-            masked_key = f"***{api_key[-4:]}" if len(api_key) >= 4 else "***"
+            masked_key = mask_api_key(api_key, show_last=True, prefix="***")
 
             report.append({
                 "api_key_masked": masked_key,

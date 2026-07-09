@@ -201,28 +201,30 @@ def sanitize_error_message(message: str) -> str:
     return sanitized
 
 
-def mask_api_key(api_key: str, show_last: bool = False, num_chars: int = 4) -> str:
+def mask_api_key(api_key: str, show_last: bool = False, num_chars: int = 4, prefix: str = "...") -> str:
     """
     Mask an API key for secure logging.
-    
+
     Args:
         api_key: The API key to mask
         show_last: If True, show the last num_chars of the key, otherwise show the first num_chars
         num_chars: Number of characters to show
-        
+        prefix: String used in place of the masked characters, and as the fallback
+            when the key is missing or too short to mask
+
     Returns:
         A masked version of the API key
     """
     if not api_key:
-        return "None"
-        
+        return "None" if prefix == "..." else prefix
+
     if len(api_key) <= num_chars:
-        return "****"
-        
+        return "****" if prefix == "..." else prefix
+
     if show_last:
-        return f"...{api_key[-num_chars:]}"
+        return f"{prefix}{api_key[-num_chars:]}"
     else:
-        return f"{api_key[:num_chars]}..."
+        return f"{api_key[:num_chars]}{prefix}"
 
 
 def simple_fix_text(text: str) -> str:
