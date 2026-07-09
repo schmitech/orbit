@@ -45,6 +45,9 @@ Run with the project venv activated.
   # Copy MongoDB -> SQLite (upsert into SQLite)
   python sync_auth_backends.py --direction mongo-to-sqlite
 
+  # Copy PostgreSQL -> SQLite (upsert into SQLite)
+  python sync_auth_backends.py --direction postgres-to-sqlite
+
   # Copy SQLite -> SQLite (upsert into destination SQLite)
   python sync_auth_backends.py --direction sqlite-to-sqlite \
       --source-db ./orbit.db.bak --dest-db ./orbit.db
@@ -774,6 +777,122 @@ def sync_sqlite_to_postgres(
     print(f"  api_keys: inserted={inserted} updated={updated} unchanged={unchanged}")
 
 
+# --- PostgreSQL -> SQLite ----------------------------------------------------
+
+def sync_postgres_to_sqlite(pg_conn, sqlite_conn: sqlite3.Connection, dry_run: bool, delete_missing: bool) -> None:
+    print("== Syncing system_prompts: PostgreSQL -> SQLite ==")
+    postgres_prompts = read_postgres_prompts(pg_conn)
+    sqlite_prompts = {
+        r["name"]: r
+        for r in sqlite_conn.execute("SELECT * FROM system_prompts").fetchall()
+        if r["name"]
+    }
+
+    # Map PostgreSQL prompt id -> SQLite prompt id for api_keys.system_prompt_id rewrite.
+    prompt_id_map: Dict[str, str] = {}
+    inserted = updated = unchanged = 0
+
+    for p in postgres_prompts:
+        name = p.get("name")
+        if not name:
+            continue
+        existing = sqlite_prompts.get(name)
+        source_id = p.get("id")
+        if existing:
+            if source_id:
+                prompt_id_map[source_id] = existing["id"]
+            changed = any(
+                f in p and not values_equal(existing[f], p.get(f))
+                for f in PROMPT_FIELDS if f in existing.keys()
+            )
+            if not changed:
+                unchanged += 1
+                continue
+            print(f"  UPDATE prompt '{name}'")
+            upsert_sqlite_prompt(sqlite_conn, existing, p, dry_run)
+            updated += 1
+        else:
+            new_id = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+            print(f"  INSERT prompt '{name}' (id={new_id})")
+            doc = dict(p)
+            doc["_sqlite_id"] = new_id
+            upsert_sqlite_prompt(sqlite_conn, None, doc, dry_run)
+            if source_id:
+                prompt_id_map[source_id] = new_id
+            inserted += 1
+
+    if delete_missing:
+        postgres_names = {p.get("name") for p in postgres_prompts}
+        for name, row in sqlite_prompts.items():
+            if name not in postgres_names:
+                print(f"  DELETE prompt '{name}' (not in PostgreSQL)")
+                if not dry_run:
+                    sqlite_conn.execute("DELETE FROM system_prompts WHERE id = ?", (row["id"],))
+    print(f"  prompts: inserted={inserted} updated={updated} unchanged={unchanged}")
+
+    print("== Syncing api_keys: PostgreSQL -> SQLite ==")
+    postgres_keys = read_postgres_api_keys(pg_conn)
+    sqlite_keys = {
+        r["api_key"]: r
+        for r in sqlite_conn.execute("SELECT * FROM api_keys").fetchall()
+        if r["api_key"]
+    }
+
+    inserted = updated = unchanged = 0
+    for k in postgres_keys:
+        api_key = k.get("api_key")
+        if not api_key:
+            continue
+
+        doc = dict(k)
+        source_prompt_id = k.get("system_prompt_id")
+        if source_prompt_id:
+            translated = prompt_id_map.get(source_prompt_id)
+            if translated:
+                doc["system_prompt_id"] = translated
+            else:
+                print(f"  WARN api_key {api_key[:8]}... references unknown system_prompt_id {source_prompt_id}")
+                doc["system_prompt_id"] = None
+
+        existing = sqlite_keys.get(api_key)
+        source_id = k.get("id")
+        doc["_sqlite_id"] = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+
+        if existing:
+            changed = False
+            for f in API_KEY_FIELDS:
+                if f not in doc or f not in existing.keys():
+                    continue
+                sv = existing[f]
+                dv = doc.get(f)
+                if f in ("active", "quota_throttle_enabled"):
+                    if (bool(sv) if sv is not None else None) != to_bool(dv):
+                        changed = True
+                        break
+                elif not values_equal(sv, dv):
+                    changed = True
+                    break
+            if not changed:
+                unchanged += 1
+                continue
+            print(f"  UPDATE api_key {api_key[:8]}...")
+            upsert_sqlite_api_key(sqlite_conn, existing, doc, dry_run)
+            updated += 1
+        else:
+            print(f"  INSERT api_key {api_key[:8]}... (id={doc['_sqlite_id']})")
+            upsert_sqlite_api_key(sqlite_conn, None, doc, dry_run)
+            inserted += 1
+
+    if delete_missing:
+        postgres_apikeys = {k.get("api_key") for k in postgres_keys}
+        for apikey, row in sqlite_keys.items():
+            if apikey not in postgres_apikeys:
+                print(f"  DELETE api_key {apikey[:8]}... (not in PostgreSQL)")
+                if not dry_run:
+                    sqlite_conn.execute("DELETE FROM api_keys WHERE id = ?", (row["id"],))
+    print(f"  api_keys: inserted={inserted} updated={updated} unchanged={unchanged}")
+
+
 # --- SQLite -> SQLite --------------------------------------------------------
 
 def sync_sqlite_to_sqlite(
@@ -905,7 +1024,9 @@ def _looks_like_uuid(value: str) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sync api_keys and system_prompts between auth backends.")
-    parser.add_argument("--direction", required=True, choices=["sqlite-to-mongo", "mongo-to-sqlite", "sqlite-to-sqlite", "sqlite-to-postgres"],
+    parser.add_argument("--direction", required=True,
+                        choices=["sqlite-to-mongo", "mongo-to-sqlite", "sqlite-to-sqlite",
+                                 "sqlite-to-postgres", "postgres-to-sqlite"],
                         help="Copy direction. Destination is upserted from source.")
     parser.add_argument("-d", "--db", default=str(DEFAULT_DB),
                         help=(
@@ -986,6 +1107,36 @@ def main() -> int:
         except Exception:
             pg_conn.rollback()
             raise
+        finally:
+            conn.close()
+            pg_conn.close()
+    elif args.direction == "postgres-to-sqlite":
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as e:
+            print(f"ERROR importing psycopg: {e}", file=sys.stderr)
+            return 2
+
+        pg_config = build_postgres_config(args.postgres_db)
+        safe_host = f"{pg_config['host']}:{pg_config['port']}/{pg_config['dbname']}"
+
+        print(f"PostgreSQL: {safe_host}")
+        print(f"SQLite:     {db_path}")
+        print(f"Direction: {args.direction}{' (DRY RUN)' if args.dry_run else ''}")
+        print()
+
+        try:
+            pg_conn = psycopg.connect(**pg_config, row_factory=dict_row)
+        except Exception as e:
+            print(f"ERROR connecting to PostgreSQL: {e}", file=sys.stderr)
+            return 2
+
+        conn = open_sqlite(db_path)
+        try:
+            sync_postgres_to_sqlite(pg_conn, conn, args.dry_run, args.delete_missing)
+            if not args.dry_run:
+                conn.commit()
         finally:
             conn.close()
             pg_conn.close()
