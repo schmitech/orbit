@@ -5,6 +5,7 @@ Shared utilities for sentence splitting and tokenization.
 """
 
 import logging
+import re
 from typing import List, Optional, Union
 
 # Protocol is available in typing from Python 3.8+, but use typing_extensions for compatibility
@@ -174,3 +175,71 @@ def _split_sentences_python(
             sentences.append(current)
 
     return sentences
+
+
+def split_by_regex(
+    text: str,
+    pattern: str,
+    include_delim: Optional[str] = "next",
+    min_characters_per_segment: int = 1
+) -> List[str]:
+    """
+    Split text at every regex match, unlike split_sentences which only matches
+    literal delimiter strings.
+
+    Args:
+        text: Text to split
+        pattern: Regex pattern identifying the split boundary (e.g. a markdown
+            header line)
+        include_delim: "next" keeps the matched text at the start of the
+            following segment (default; correct for headers, which should
+            begin their section), "prev" appends it to the end of the
+            preceding segment, None drops the matched text entirely
+        min_characters_per_segment: Segments shorter than this are merged into
+            the following segment
+
+    Returns:
+        List of text segments
+    """
+    if not text:
+        return []
+
+    matches = list(re.finditer(pattern, text))
+    if not matches:
+        return [text]
+
+    pieces = []
+    prev_end = 0
+    for m in matches:
+        start, end = m.start(), m.end()
+        if include_delim == "prev":
+            pieces.append(text[prev_end:end])
+            prev_end = end
+        elif include_delim == "next":
+            if start > prev_end:
+                pieces.append(text[prev_end:start])
+            prev_end = start
+        else:
+            if start > prev_end:
+                pieces.append(text[prev_end:start])
+            prev_end = end
+    pieces.append(text[prev_end:])
+    pieces = [p for p in pieces if p]
+
+    # Merge segments shorter than the minimum into the following segment
+    merged = []
+    carry = ""
+    for p in pieces:
+        candidate = carry + p
+        if len(candidate) < min_characters_per_segment:
+            carry = candidate
+        else:
+            merged.append(candidate)
+            carry = ""
+    if carry:
+        if merged:
+            merged[-1] += carry
+        else:
+            merged.append(carry)
+
+    return merged

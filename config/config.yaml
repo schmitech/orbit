@@ -596,7 +596,7 @@ files:
     # Key is read from ORBIT_FILE_ENCRYPTION_KEY (see env.example).
 
   # Default processing settings (can be overridden per adapter)
-  default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive"
+  default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive", "markdown_header"
   # Recommended: "recursive" - works best for all file types (PDF, DOCX, CSV, TXT, HTML, JSON, images, audio)
   # Respects document structure (paragraphs → sentences → words) while handling structured data
   default_chunk_size: 2048  # Default chunk size (characters for fixed/semantic, tokens for token/recursive)

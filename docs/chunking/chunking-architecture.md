@@ -154,6 +154,30 @@ chunks = chunker.chunk_text(text, file_id, metadata)
 - No required dependencies (character tokenizer fallback)
 - Balanced complexity: more sophisticated than fixed, simpler than advanced semantic
 
+#### MarkdownHeaderChunker
+```python
+from services.file_processing.chunking import MarkdownHeaderChunker
+
+chunker = MarkdownHeaderChunker(chunk_size=2048, min_characters_per_chunk=24)
+chunks = chunker.chunk_text(markdown_text, file_id, metadata)
+```
+
+**Best for:**
+- Content converted to markdown by MarkItDown/Docling (PDF, DOCX, HTML, etc.)
+- Documents with `#`/`##`/`###` headers where sections should stay intact
+- Mixed markdown content where header-less regions should still chunk sensibly
+
+**Characteristics:**
+- Subclass of `RecursiveChunker` — reuses the same recursion, merge, and
+  token-aware sizing logic, with an added **header level** ahead of paragraphs:
+  headers → paragraphs → sentences → words
+- Oversized sections recurse into paragraph/sentence/word splitting exactly
+  like `RecursiveChunker`
+- Header-less text degrades to identical output as `RecursiveChunker`
+- Adds `section_header` and `header_level` to chunk metadata when a chunk
+  begins with a header line
+- No required dependencies (same fallback chain as `RecursiveChunker`)
+
 ### Dependencies and Fallback Behavior
 
 All chunkers work **without any dependencies** thanks to graceful fallback:
@@ -324,23 +348,25 @@ chunks = chunker.chunk_markdown(markdown_content, metadata)
 | **SemanticChunker** | PDFs, DOCX, natural language | Sentences | Sentence boundaries | Medium | Optional (sentence-transformers) | ✅ |
 | **TokenChunker** | All text types, LLM context | Tokens | None | Fast | Optional (tokenizers) | ✅ |
 | **RecursiveChunker** ⭐ | **All file types (default)** | Tokens/Characters | Hierarchical (paragraphs→sentences→words) | Medium | None | ✅ |
+| **MarkdownHeaderChunker** | Markdown-converted docs (MarkItDown/Docling output) | Tokens/Characters | Hierarchical (headers→paragraphs→sentences→words) | Medium | None | ✅ |
 
 ⭐ **Recommended default** - Works best across all file types (PDF, DOCX, CSV, TXT, HTML, JSON, images, audio)
 
 ### Detailed Strategy Comparison
 
-| Feature | FixedSize | Semantic | Token | Recursive |
-|---------|-----------|----------|-------|-----------|
-| **Works for CSV/JSON** | ✅ | ⚠️ | ✅ | ✅ |
-| **Works for PDF/DOCX** | ✅ | ✅ | ✅ | ✅ |
-| **Respects sentences** | ❌ | ✅ | ❌ | ✅ |
-| **Respects paragraphs** | ❌ | ⚠️ | ❌ | ✅ |
-| **Token-aware** | Optional | Optional | ✅ | ✅ |
-| **LLM context accuracy** | ⚠️/✅ | ✅ | ✅ | ✅ |
-| **Complexity** | Low | Medium/High | Low | Medium |
-| **Speed** | Fast | Medium | Fast | Medium |
-| **Required deps** | None | Optional | Optional | None |
-| **Default recommended** | ❌ | ❌ | ❌ | ✅ |
+| Feature | FixedSize | Semantic | Token | Recursive | MarkdownHeader |
+|---------|-----------|----------|-------|-----------|----------------|
+| **Works for CSV/JSON** | ✅ | ⚠️ | ✅ | ✅ | ✅ |
+| **Works for PDF/DOCX** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Respects sentences** | ❌ | ✅ | ❌ | ✅ | ✅ |
+| **Respects paragraphs** | ❌ | ⚠️ | ❌ | ✅ | ✅ |
+| **Respects headers** | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **Token-aware** | Optional | Optional | ✅ | ✅ | ✅ |
+| **LLM context accuracy** | ⚠️/✅ | ✅ | ✅ | ✅ | ✅ |
+| **Complexity** | Low | Medium/High | Low | Medium | Medium |
+| **Speed** | Fast | Medium | Fast | Medium | Medium |
+| **Required deps** | None | Optional | Optional | None | None |
+| **Default recommended** | ❌ | ❌ | ❌ | ✅ | ❌ |
 
 ## System Comparison Table
 
@@ -348,12 +374,12 @@ chunks = chunker.chunk_markdown(markdown_content, metadata)
 |---------|---------------|---------------------|
 | **Unit** | Characters/Sentences/Tokens | Tokens |
 | **Structure** | Flat/Hierarchical | Hierarchical (tree) |
-| **Awareness** | Sentence/paragraph/words | Markdown headers |
+| **Awareness** | Sentence/paragraph/words/headers | Markdown headers |
 | **Output** | `Chunk` dataclass | Dictionary |
 | **Use Case** | Uploaded files | Scraped web pages |
-| **Strategies** | Fixed, Semantic, Token, Recursive | Markdown structure |
+| **Strategies** | Fixed, Semantic, Token, Recursive, MarkdownHeader | Markdown structure |
 | **Size Trigger** | Always chunks | Only if > max_tokens |
-| **Hierarchy** | Optional (RecursiveChunker) | H1 > H2 > H3... |
+| **Hierarchy** | Optional (Recursive, MarkdownHeader) | H1 > H2 > H3... |
 | **Adapter** | File Adapter | Firecrawl Adapter |
 
 ## When to Use Which Strategy?
@@ -388,6 +414,12 @@ chunks = chunker.chunk_markdown(markdown_content, metadata)
 - ✅ Want best balance of structure awareness and simplicity
 - ✅ Processing PDFs, DOCX, CSV, TXT, HTML, JSON, images, audio
 - ✅ Default choice for general-purpose file processing
+
+#### Use MarkdownHeaderChunker When:
+- ✅ Files are processed via MarkItDown/Docling and come out as markdown with `#`/`##`/`###` headers
+- ✅ Sections should stay attached to their header (avoid a header ending up in a different chunk than its content)
+- ✅ Want the same paragraph/sentence/word fallback behavior as RecursiveChunker for oversized sections or header-less text
+- ❌ Not useful for content without markdown headers (behaves identically to RecursiveChunker in that case)
 
 ### Use Web Content Chunking When:
 - ✅ Scraping web pages with Firecrawl
@@ -500,6 +532,11 @@ chunk = {
 │ - 2048 tokens       │                                   │
 │ - Hierarchical      │                                   │
 │ - Default strategy  │                                   │
+│                     │                                   │
+│ MarkdownHeaderChunker│                                  │
+│ - 2048 tokens       │                                   │
+│ - Header-aware      │                                   │
+│ - Extends Recursive │                                   │
 │                     │                                   │
 ├─────────────────────┴───────────────────────────────────┤
 │                                                          │
@@ -639,8 +676,8 @@ if chunker.should_chunk(markdown):
 
 ```yaml
 files:
-  default_chunking_strategy: "recursive"  # Recommended default
-  default_chunk_size: 2048  # Tokens (for recursive/token), characters (for fixed/semantic)
+  default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive" (recommended), "markdown_header"
+  default_chunk_size: 2048  # Tokens (for recursive/token/markdown_header), characters (for fixed/semantic)
   default_chunk_overlap: 200
 
   # Optional tokenizer configuration
@@ -649,7 +686,7 @@ files:
 
   # Strategy-specific options
   chunking_options:
-    # Recursive chunking options
+    # Recursive / markdown_header chunking options
     min_characters_per_chunk: 24
 
     # Semantic chunking options

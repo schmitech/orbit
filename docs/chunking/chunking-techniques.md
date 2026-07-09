@@ -1,183 +1,26 @@
-# 15 Chunking Techniques
+# Chunking Techniques — Implementation Status
 
-## 1. Fixed Chunking
+This document tracks a broader toolkit of text-chunking techniques against what ORBIT actually implements today. For the strategies ORBIT ships, see `docs/chunking/chunking-architecture.md` and `server/services/file_processing/chunking/`.
 
-Fixed chunking is the most straightforward way to process text by cutting it into a predetermined size of fixed chunks of text; only size matters, and any structure to the text or meaning is ignored.
+## Implemented
 
-```python
-def fixed_chunking(text, chunk_size=1000):
-    """Split text into fixed-size chunks"""
-    chunks = []
-    for i in range(0, len(text), chunk_size):
-        chunk = text[i:i + chunk_size]
-        chunks.append(chunk)
-    return chunks
+| # | Technique | ORBIT Equivalent |
+|---|-----------|------------------|
+| 1 | Fixed Chunking | `FixedSizeChunker` (`fixed_chunker.py`) — character or token-based fixed-size splitting |
+| 2 | Overlapping Chunking | `overlap` parameter on `FixedSizeChunker`, `TokenChunker`, and `SemanticChunker` |
+| 3 | Semantic Chunking | `SemanticChunker` simple mode (`semantic_chunker.py`) — sentence-grouped chunks |
+| 4 | Recursive Character Chunking | `RecursiveChunker` (`recursive_chunker.py`) — paragraphs → sentences → words |
+| 6 | Advanced Semantic Chunking | `SemanticChunker` advanced mode — sentence-transformer similarity + Savitzky-Golay filtering. Note: this uses embedding similarity rather than the NER/entity-overlap approach below, but serves the same purpose (semantically coherent chunks) |
+| 8 | Paragraph Chunking | Covered by `RecursiveChunker`'s paragraph level (first rule in `RecursiveRules.default()`), and by `MarkdownHeaderChunker`'s paragraph fallback |
+| 10 | Token Based Chunking | `TokenChunker` (`token_chunker.py`), plus token-based mode (`use_tokens=True`) on `FixedSizeChunker` |
+| 11 | Document Structure-Aware Chunking | `MarkdownHeaderChunker` (`markdown_header_chunker.py`) — splits on markdown headers (H1-H6) before falling back to paragraphs/sentences/words |
+| 12 | Sliding Window Chunking | Achieved via the `overlap` parameter on `FixedSizeChunker`/`TokenChunker` (fixed step, fixed window) |
 
-# Usage
-text = "Your long document text here..."
-chunks = fixed_chunking(text, chunk_size=500)
-```
+## Pending
 
-**What it does:** It cuts the text into equally sized chunks based on the character count of the text, completely ignoring both language boundaries based on sentences and the resulting semantic meaning of the sentences.
+### 5. Agentic Chunking
 
-### When to consider this technique
-
-- Prototyping and testing purposes, quickly and easily.
-- When time/speed is greater than any kind of quality processing.
-- To process simple applications where one does not care about retaining the context in the sentence being chunked.
-- Large scale batch processing where one cares to have consistent chunking.
-
-**Pros:** Fast, simple, and predictable sizing of chunks.
-
-**Cons:** Breaks sentences, destroys semantic coherence.
-
----
-
-## 2. Overlapping Chunking
-
-This approach generates chunks that share a text portion at their edges, allowing important context to be retained in adjacent chunks.
-
-```python
-def overlapping_chunking(text, chunk_size=1000, overlap=200):
-    """Split text with overlapping windows"""
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = start + chunk_size
-        chunk = text[start:end]
-        chunks.append(chunk)
-        if end >= len(text):
-            break
-        start = end - overlap
-    return chunks
-
-# Usage
-chunks = overlapping_chunking(text, chunk_size=800, overlap=150)
-```
-
-**What it does:** It generates chunks that share a portion of text at the edges, allowing for essential context to be repeated on each chunk edge.
-
-### When to use
-
-- In RAG systems where the context must be repeated across multiple chunks
-- In search applications, if you believe the response could span across two boundary chunks
-- Document Q&A systems
-- When you don't want to lose essential context at the split across chunks
-
-**Pros:** Provides context across chunks, minimizes information loss through the chunk boundaries as it will have the same text.
-
-**Cons:** Increased footprint, increased information being processed (should process the same data point multiple times).
-
----
-
-## 3. Semantic Chunking
-
-Semantic chunking utilizes NLP methods to recognize meaningful breaks in a text (typically at sentence or paragraph boundaries).
-
-```python
-import nltk
-from nltk.tokenize import sent_tokenize
-
-def semantic_chunking(text, max_chunk_size=1000):
-    """Split text at sentence boundaries while respecting size limits"""
-    sentences = sent_tokenize(text)
-    chunks = []
-    current_chunk = ""
-    for sentence in sentences:
-        if len(current_chunk + sentence) <= max_chunk_size:
-            current_chunk += sentence + " "
-        else:
-            if current_chunk:
-                chunks.append(current_chunk.strip())
-            current_chunk = sentence + " "
-    if current_chunk:
-        chunks.append(current_chunk.strip())
-    return chunks
-
-# Usage
-chunks = semantic_chunking(text, max_chunk_size=600)
-```
-
-**What it does:** Preserves the natural boundaries in the language by splitting the chunks on sentences (while keeping to target chunk sizes).
-
-### When to use
-
-- General purpose text processing where readability matters
-- Education content processing (for students)
-- News article processing
-- Content processing where sentence integrity matters
-
-**Pros:** Preserves sentence integrity, more readable chunks.
-
-**Cons:** Variable chunk sizes, needs sentence detection after splitting.
-
----
-
-## 4. Recursive Character Chunking
-
-This sophisticated method attempts latent splits in a preferred order to put one split as a last resort.
-
-```python
-import re
-
-def recursive_character_chunking(text, chunk_size=1000, separators=None):
-    """Recursively split text using different separators"""
-    if separators is None:
-        separators = ["\n\n", "\n", ". ", " ", ""]
-
-    def _split_text(text, separators, chunk_size):
-        if len(text) <= chunk_size:
-            return [text]
-        for separator in separators:
-            if separator in text:
-                parts = text.split(separator)
-                chunks = []
-                current_chunk = ""
-                for part in parts:
-                    test_chunk = current_chunk + separator + part if current_chunk else part
-                    if len(test_chunk) <= chunk_size:
-                        current_chunk = test_chunk
-                    else:
-                        if current_chunk:
-                            chunks.append(current_chunk)
-                        current_chunk = part
-                if current_chunk:
-                    chunks.append(current_chunk)
-                # Recursively split large chunks
-                final_chunks = []
-                for chunk in chunks:
-                    if len(chunk) > chunk_size:
-                        final_chunks.extend(_split_text(chunk, separators[1:], chunk_size))
-                    else:
-                        final_chunks.append(chunk)
-                return final_chunks
-        # If no separator works, split by characters
-        return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
-
-    return _split_text(text, separators, chunk_size)
-
-# Usage
-chunks = recursive_character_chunking(text, chunk_size=800)
-```
-
-**What it does:** Tries to split text at the natural boundaries (paragraphs, sentences, words) and uses character split as a last resort.
-
-### When to use
-
-- If you are processing high-quality text and find it important to retain some structure
-- If your document/text contains mixed content (e.g., structured and unstructured)
-- For professional/official document processing
-- If you want to achieve the best balance between directed chunk size and coherence of meaning
-
-**Pros:** Intelligent split sequence, preserves document structure.
-
-**Cons:** More complex to set up and slower to process.
-
----
-
-## 5. Agentic Chunking
-
-This method employs AI models or rule-based systems to intelligently determine content-based split locations.
+Uses AI models or rule-based systems to intelligently determine content-based split locations.
 
 ```python
 from transformers import pipeline
@@ -215,8 +58,7 @@ chunks = agentic_chunking(text, max_chunk_size=700)
 
 **What it does:** Uses machine learning models that learn from content to intelligently determine likely chunk boundaries where topics change or according to content structure.
 
-### When to use
-
+**When to use:**
 - Processing high-value content where quality is paramount
 - When processing a complex document with multiple topics
 - When you have processing resources for AI
@@ -228,65 +70,9 @@ chunks = agentic_chunking(text, max_chunk_size=700)
 
 ---
 
-## 6. Advanced Semantic Chunking
+### 7. Context Enriched Chunking
 
-This method integrates multiple NLP capabilities (such as named entity recognition, topic modeling, and syntactic analysis) to produce rather sophisticated chunking.
-
-```python
-import spacy
-
-def advanced_semantic_chunking(text, max_chunk_size=1000, similarity_threshold=0.5):
-    """Advanced chunking using multiple NLP features"""
-    nlp = spacy.load("en_core_web_sm")
-    doc = nlp(text)
-    sentences = [sent.text for sent in doc.sents]
-    chunks = []
-    current_chunk = []
-    current_entities = set()
-    for i, sentence in enumerate(sentences):
-        sent_doc = nlp(sentence)
-        sent_entities = {ent.label_ for ent in sent_doc.ents}
-        # Calculate entity overlap with current chunk
-        if current_entities:
-            overlap = len(current_entities.intersection(sent_entities)) / len(current_entities)
-        else:
-            overlap = 1.0
-        chunk_text = " ".join(current_chunk + [sentence])
-        # Start new chunk if low similarity or size exceeded
-        if overlap < similarity_threshold or len(chunk_text) > max_chunk_size:
-            if current_chunk:
-                chunks.append(" ".join(current_chunk))
-            current_chunk = [sentence]
-            current_entities = sent_entities
-        else:
-            current_chunk.append(sentence)
-            current_entities.update(sent_entities)
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
-    return chunks
-
-# Example
-chunks = advanced_semantic_chunking(text, max_chunk_size=800)
-```
-
-**What it does:** Analyzes named entities, topics, and semantic relationships to form chunks that encapsulate semantic coherence and entity connections.
-
-### When to use
-
-- Professional document review
-- Processing legal or medical documentation
-- Processing research manuscripts
-- When the relationships of entities are significant for your usage
-
-**Pros:** Maintains semantic coherence and entity connections, better quality chunks.
-
-**Cons:** Due to multiple or advanced NLP libraries and processing overheads, very resource and processor intensive.
-
----
-
-## 7. Context Enriched Chunking
-
-This method provides some metadata and context information for each chunk making it more usable and searchable.
+Provides some metadata and context information for each chunk making it more usable and searchable.
 
 ```python
 import hashlib
@@ -326,8 +112,7 @@ chunks = context_enriched_chunking(text, chunk_size=600, document_metadata=metad
 
 **What it does:** Creates chunks with rich metadata including positional information, contextual information, and processing statistics to support improved retrieval and analysis.
 
-### When to use
-
+**When to use:**
 - RAG systems with a need for rich provenance
 - Document management systems
 - Auditing and versioning systems
@@ -339,72 +124,9 @@ chunks = context_enriched_chunking(text, chunk_size=600, document_metadata=metad
 
 ---
 
-## 8. Paragraph Chunking
+### 9. Recursive Sentence Chunking
 
-This approach honors paragraph structure and clusters similar paragraphs together with maximum size restrictions.
-
-```python
-import re
-from nltk.tokenize import sent_tokenize
-
-def paragraph_chunking(text, max_chunk_size=1000):
-    """Split text at paragraph boundaries"""
-    # Split by paragraph breaks (double newlines)
-    paragraphs = re.split(r'\n\s*\n', text)
-    chunks = []
-    current_chunk = ""
-    for paragraph in paragraphs:
-        paragraph = paragraph.strip()
-        if not paragraph:
-            continue
-        test_chunk = current_chunk + "\n\n" + paragraph if current_chunk else paragraph
-        if len(test_chunk) <= max_chunk_size:
-            current_chunk = test_chunk
-        else:
-            if current_chunk:
-                chunks.append(current_chunk)
-            # If single paragraph is too large, split it further
-            if len(paragraph) > max_chunk_size:
-                sentences = sent_tokenize(paragraph)
-                temp_chunk = ""
-                for sentence in sentences:
-                    if len(temp_chunk + sentence) <= max_chunk_size:
-                        temp_chunk += sentence + " "
-                    else:
-                        if temp_chunk:
-                            chunks.append(temp_chunk.strip())
-                        temp_chunk = sentence + " "
-                if temp_chunk:
-                    chunks.append(temp_chunk.strip())
-                current_chunk = ""
-            else:
-                current_chunk = paragraph
-    if current_chunk:
-        chunks.append(current_chunk)
-    return chunks
-
-# Usage
-chunks = paragraph_chunking(text, max_chunk_size=800)
-```
-
-**What it does:** Preserves paragraph structure by splitting at natural paragraph boundaries while honoring size restrictions.
-
-### When to use
-
-- Structured documents (e.g. articles, reports, books)
-- Content where paragraph structure has meaning
-- Educational materials and documentation
-- Blog posts and other web content processing
-
-**Pros:** Preserves document structure and logical flow of the document.
-
-**Cons:** Inconsistency in chunk size may result in very small chunks or very large chunks.
-
----
-
-## 9. Recursive Sentence Chunking
-
-This strategy places a priority on sentence boundaries, and recursively processes any content that cannot fit size-wise.
+This strategy places a priority on sentence boundaries, and recursively processes any content that cannot fit size-wise. Distinct from `RecursiveChunker`, which prioritizes paragraphs first — this technique starts at the sentence level and falls back to clause-level splitting (on `,`/`;`) for a single sentence too long to fit.
 
 ```python
 import re
@@ -458,8 +180,7 @@ chunks = recursive_sentence_chunking(text, max_chunk_size=700, min_chunk_size=50
 
 **What it does:** Intelligent text handling by prioritizing sentence boundaries and recursive processing of anything that cannot fit size-wise, with fallback strategies for complex sentences.
 
-### When to use
-
+**When to use:**
 - When you need high quality text processing when the integrity of sentences is important
 - Academic/technical documents
 - Legal documents
@@ -471,191 +192,7 @@ chunks = recursive_sentence_chunking(text, max_chunk_size=700, min_chunk_size=50
 
 ---
 
-## 10. Token Based Chunking
-
-This method divides the text into text chunks based on token count and not character count, which is critical for any application involving language models.
-
-```python
-import tiktoken
-
-def token_based_chunking(text, max_tokens=1000, model="gpt-3.5-turbo", overlap_tokens=0):
-    """Split text based on token count for LLM processing"""
-    try:
-        encoding = tiktoken.encoding_for_model(model)
-    except Exception:
-        encoding = tiktoken.get_encoding("cl100k_base")  # Default encoding
-    tokens = encoding.encode(text)
-    chunks = []
-    start = 0
-    while start < len(tokens):
-        end = start + max_tokens
-        chunk_tokens = tokens[start:end]
-        chunk_text = encoding.decode(chunk_tokens)
-        chunks.append({
-            'text': chunk_text,
-            'token_count': len(chunk_tokens),
-            'start_token': start,
-            'end_token': min(end, len(tokens))
-        })
-        if end >= len(tokens):
-            break
-        start = end - overlap_tokens if overlap_tokens > 0 else end
-    return chunks
-
-# Alternative: Simple token counting without tiktoken
-def simple_token_chunking(text, max_tokens=1000):
-    """Simple approximation of token-based chunking"""
-    max_chars = max_tokens * 4  # Rough approximation: 1 token ≈ 4 characters
-    return fixed_chunking(text, chunk_size=max_chars)
-
-# Usage
-chunks = token_based_chunking(text, max_tokens=500, model="gpt-4")
-```
-
-**What it does:** It chunks your text based on how actual language models interpret token structure and limits so that you can create text based on their window context.
-
-### When to use
-
-- Integrating directly with OpenAI or other LLM APIs
-- Creating RAG systems using LLM token-limited models
-- Reducing cost with token-based pricing models
-- Creating your own model with precise control of the input size
-
-**Pros:** Perfect integration for LLMs, precise token control and cost effective.
-
-**Cons:** Must use tokenization libraries and then implement them differently for each model.
-
----
-
-## 11. Document Structure-Aware Chunking
-
-This method takes advantage of a document's structure, such as headers, sections, and any form of markup in order to build coherent chunks that follow the document's hierarchy.
-
-```python
-import re
-from typing import List, Dict
-
-def document_structure_chunking(text: str, max_chunk_size: int = 1000) -> List[Dict]:
-    """Chunk text based on document structure markers"""
-    structure_markers = [
-        (r'^# .+', 'h1'),           # Markdown H1
-        (r'^## .+', 'h2'),          # Markdown H2
-        (r'^### .+', 'h3'),        # Markdown H3
-        (r'^\d+\.\s+', 'numbered'), # Numbered sections
-        (r'^\* .+', 'bullet'),      # Bullet points
-        (r'\n\n', 'paragraph')      # Paragraph breaks
-    ]
-    chunks = []
-    lines = text.split('\n')
-    current_chunk = []
-    current_level = None
-    for line in lines:
-        line_type = None
-        for pattern, level in structure_markers:
-            if re.match(pattern, line):
-                line_type = level
-                break
-        if line_type and line_type in ['h1', 'h2', 'h3', 'numbered']:
-            if current_chunk and len('\n'.join(current_chunk)) > 50:
-                chunks.append({
-                    'text': '\n'.join(current_chunk).strip(),
-                    'structure_level': current_level,
-                    'char_count': len('\n'.join(current_chunk))
-                })
-            current_chunk = [line]
-            current_level = line_type
-        else:
-            current_chunk.append(line)
-        if len('\n'.join(current_chunk)) > max_chunk_size:
-            if len(current_chunk) > 1:
-                chunks.append({
-                    'text': '\n'.join(current_chunk[:-1]).strip(),
-                    'structure_level': current_level,
-                    'char_count': len('\n'.join(current_chunk[:-1]))
-                })
-                current_chunk = [current_chunk[-1]]
-    if current_chunk:
-        chunks.append({
-            'text': '\n'.join(current_chunk).strip(),
-            'structure_level': current_level,
-            'char_count': len('\n'.join(current_chunk))
-        })
-    return chunks
-
-# Usage
-chunks = document_structure_chunking(text, max_chunk_size=800)
-```
-
-**What it does:** It takes advantage of the document structure such as headers, labelled sections, and markup, in order to build meaningful chunks that follow the logical structure of the content.
-
-### When to use
-
-- When processing structured documents such as technical manuals, wikis, and documentation
-- When processing content with markup such as Markdown or HTML
-- When processing academic papers and research documents
-- When processing a legal document that has labelled sections
-- When processing any content in which hierarchy is important to the understanding of the document text
-
-**Pros:** Built-in logical document flow, preserves contextual relationship, effective for structured content.
-
-**Cons:** Relies on structured input, has variable size chunks, less effective for unstructured text.
-
----
-
-## 12. Sliding Window Chunking
-
-This method utilizes a systematic sliding window technique to create chunks, guaranteeing uniform coverage of the entire document.
-
-```python
-def sliding_window_chunking(text: str, window_size: int = 1000, step_size: int = 500):
-    """Create chunks using a sliding window approach"""
-    chunks = []
-    text_length = len(text)
-    position = 0
-    chunk_id = 0
-    while position < text_length:
-        end_position = min(position + window_size, text_length)
-        chunk_text = text[position:end_position]
-        if end_position < text_length:
-            last_space = chunk_text.rfind(' ')
-            if last_space > window_size * 0.8:
-                chunk_text = chunk_text[:last_space]
-                end_position = position + last_space
-        chunks.append({
-            'text': chunk_text,
-            'chunk_id': chunk_id,
-            'start_pos': position,
-            'end_pos': end_position,
-            'window_size': len(chunk_text),
-            'overlap_with_previous': max(0, (position + window_size) - end_position) if chunk_id > 0 else 0
-        })
-        position += step_size
-        chunk_id += 1
-        if end_position >= text_length:
-            break
-    return chunks
-
-# Usage
-chunks = sliding_window_chunking(text, window_size=800, step_size=400)
-```
-
-**What it does:** Systematically moves a fixed-size window across the text, while keeping steps consistent to guarantee predictable overlaps and comprehensive coverage.
-
-### When to use
-
-- Systematic text analyses where uniform coverage is important
-- Textual features with time-series-like analysis
-- Research applications where statistical consistency is important
-- When you want to know exactly where overlaps will occur
-- Large-scale text processing where uniformity matters
-
-**Pros:** Predictable and systematic, consistent coverage, adequate for statistical analyses, predictable overlap.
-
-**Cons:** May not respect sentence boundaries, may create spontaneous splitting of segments, overhead of computational processing when you make steps small.
-
----
-
-## 13. Hierarchical Chunking
+### 13. Hierarchical Chunking
 
 This advanced output provides hierarchical chunks at various levels of granularity to enable multi-scale analysis and retrieval of text.
 
@@ -727,8 +264,7 @@ hierarchy = hierarchical_chunking(text, levels=[1500, 800, 400])
 
 **What it does:** Provides numerous levels of chunks with parent-child relationships to allow both broad context but also fine-grained detail in one system.
 
-### When to use
-
+**When to use:**
 - Your analysis of documents is complex and requires multiple levels of detail
 - You are working with a multi-scale search system (able to query for broad overview and more specific detail)
 - You are designing a summarization system that requires context at a hierarchical level
@@ -741,7 +277,7 @@ hierarchy = hierarchical_chunking(text, levels=[1500, 800, 400])
 
 ---
 
-## 14. Density-Based Chunking
+### 14. Density-Based Chunking
 
 This method evaluates information density and fullness within text so that comparable density sections can be clustered together.
 
@@ -800,8 +336,7 @@ chunks = density_based_chunking(text, target_density=0.6, max_chunk_size=800)
 
 **What it does:** Evaluates the information density of segments of text and clusters text with similar densities, ensuring text diversity in replication and consistency in meeting information density characteristic.
 
-### When to use
-
+**When to use:**
 - When dealing with mixed text density
 - For academic and technical documents that have both dense and sparse sections
 - When curating content that you care about density and fullness
@@ -814,7 +349,7 @@ chunks = density_based_chunking(text, target_density=0.6, max_chunk_size=800)
 
 ---
 
-## 15. Adaptive Threshold Chunking
+### 15. Adaptive Threshold Chunking
 
 This technique dynamically adjusts chunking thresholds based on content characteristics and context.
 
@@ -890,8 +425,7 @@ chunks = adaptive_threshold_chunking(text, base_chunk_size=800, adaptation_facto
 
 **What it does:** Adapts the chunk size dynamically, dependent on richness of content (e.g., complexity, sentence structure, and other textual characteristics), so that chunks are optimally sized for the content.
 
-### When to use
-
+**When to use:**
 - When processing various content types in a single pipeline
 - When the content complexity varies widely from one document to the next
 - In adaptive systems where content types may be unknown
@@ -904,30 +438,24 @@ chunks = adaptive_threshold_chunking(text, base_chunk_size=800, adaptation_facto
 
 ---
 
+## Suggested Implementation Sequence
+
+Ordered by effort-to-value ratio, given ORBIT's existing chunker infrastructure (`TextChunker` base class, `RecursiveRules`/`RecursiveLevel` hierarchical splitting, and the `chunking_strategy` if/elif dispatch in `file_processing_service.py:_init_chunker`):
+
+1. **Context Enriched Chunking (7)** — Lowest effort, highest immediate value. No new chunker class needed: `Chunk.metadata` already exists on every strategy, so this is a post-processing pass applied after any existing chunker runs (add `preceding_context`/`following_context`/word counts into `metadata`). Works across all 5 current strategies at once instead of being its own strategy.
+2. **Recursive Sentence Chunking (9)** — Medium effort. Same pattern used for `MarkdownHeaderChunker`: a thin `RecursiveChunker` subclass with a custom `RecursiveRules` that puts sentences ahead of paragraphs, plus a clause-level (`,`/`;`) fallback level for the rare oversized single sentence. No changes to the base `RecursiveChunker` needed beyond what already exists.
+3. **Hierarchical Chunking (13)** — Medium-high effort, biggest design decision of the pending set. The current `Chunk` dataclass and `chunk_index` model a flat list, not a tree — this needs either a new output shape (parent/child chunk IDs in metadata) or a wrapper that runs the same chunker at multiple `chunk_size` values and links results by containment. Worth scoping deliberately before starting, since it's the one technique that doesn't fit the existing single-chunker/single-output contract.
+4. **Density-Based Chunking (14)** — Medium effort, uncertain ROI. Straightforward to implement as a standalone chunker (lexical diversity + word length heuristic), but the "when to use" cases are narrower (mixed-density academic/technical text) and the density heuristic itself is unproven relative to ORBIT's current retrieval quality bar. Prototype and evaluate before committing to production use.
+5. **Adaptive Threshold Chunking (15)** — Higher effort, narrow benefit over `RecursiveChunker`'s existing size/merge logic. The complexity-scoring formula needs tuning per content type, which cuts against ORBIT's "works out of the box, no required deps" design principle for the other chunkers.
+6. **Agentic Chunking (5)** — Highest cost, lowest priority. Requires a classifier or LLM call per sentence, which is slow and expensive at file-upload scale (ORBIT already has an LLM inference pipeline, but running it per-sentence during chunking would be a very different cost profile than the current chunkers, all of which are dependency-optional and run in milliseconds). Only worth it if a specific customer need for topic-aware chunking outweighs the added latency/cost.
+
 ## Choosing the Right Chunking Strategy
 
-The selection of chunking techniques depends on a variety of factors.
-
-- **For RAG systems:** The best retrieval quality outcomes will be seen from using Overlapping Chunking, Context Enriched Chunking, or Hierarchical Chunking.
-
-- **For LLM integrated applications:** When using an API, Token Based Chunking provides a standard chunking technique that is optimal for minimizing costs associated with tokens.
-
-- **For document analysis:** To obtain the highest quality results, the best chunking techniques are Advanced Semantic Chunking, Agentic Chunking, or Document Structure Aware Chunking.
-
-- **For simpler applications:** Simple applications can make use of Fixed Chunking or Semantic Chunking to achieve decent quality without introducing too much complexity.
-
-- **For structured content:** If your content is of some structured form, the ability of paragraph chunking, recursive character chunking, or document structure aware chunking to maintain structure is more effective.
-
-- **For research and analysis:** The systematic aspect of Hierarchical Chunking, Density-Based Chunking, or Sliding Window Chunking has its value in qualitative research and analysis.
-
-- **For adaptive systems:** Adaptive Threshold Chunking handles a diverse set of content types intelligently.
+- **For RAG systems:** Context Enriched Chunking or Hierarchical Chunking give the best retrieval-quality upside among the pending techniques; Overlapping Chunking (already implemented) covers most of what's needed today.
+- **For LLM integrated applications:** Token Based Chunking (already implemented as `TokenChunker`) remains the standard for minimizing token costs.
+- **For document analysis:** Advanced Semantic Chunking (already implemented as `SemanticChunker` advanced mode) and Document Structure-Aware Chunking (already implemented as `MarkdownHeaderChunker`) cover the highest-quality cases; Agentic Chunking is the only one left unimplemented here, and it's the most expensive.
+- **For structured content:** Paragraph Chunking and Recursive Character Chunking (already implemented) cover most structured/mixed content; Document Structure-Aware Chunking adds markdown-header awareness on top.
+- **For research and analysis:** Hierarchical Chunking and Density-Based Chunking remain pending and are the ones to prioritize for multi-scale or density-sensitive analysis use cases.
+- **For adaptive systems:** Adaptive Threshold Chunking is pending and the lowest-priority item for this use case today.
 
 It is important to remember that chunking is often the basis of your NLP pipeline; time spent determining the correct type of chunk and setting it up properly for your specific use case is well worth the cost and effort when you consider potential downstream applications.
-
-Despite the current context or task, there is a chunking approach that belongs to the modern-day NLP toolkit, and which is the best fit for your specific situation depends on the context-type and desired qualities related to the output (quality, performance, computational resources, and type of content). With the variety of approaches, the future of your text-processing tasks is not limited.
-
----
-
-*Source: The Ultimate Text Chunking Toolkit: 15 Methods with Python Code | by Harish K | Data Science Collective | Medium*
-
-https://medium.com/data-science-collective/the-ultimate-text-chunking-toolkit-15-methods-with-python-code-9ef9d8f6a898

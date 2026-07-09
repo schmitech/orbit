@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional, Union, Literal
 from dataclasses import dataclass
 
 from .base_chunker import TextChunker, Chunk
-from .utils import split_sentences, TokenizerProtocol
+from .utils import split_sentences, split_by_regex, TokenizerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +24,13 @@ class RecursiveLevel:
         delimiters: List of delimiters to split on (e.g., ["\n\n"] for paragraphs)
         include_delim: Whether to include delimiter in chunk ("prev", "next", or None)
         whitespace: If True, split on whitespace instead of delimiters
+        regex: If set, split on every match of this pattern instead of literal
+            delimiters (e.g. markdown header lines)
     """
     delimiters: Optional[List[str]] = None
     include_delim: Optional[Literal["prev", "next"]] = "prev"
     whitespace: bool = False
+    regex: Optional[str] = None
 
 
 class RecursiveRules:
@@ -133,6 +136,15 @@ class RecursiveChunker(TextChunker):
             words_per_chunk = max(1, int(self.chunk_size / 1.3))
             # Rejoin with spaces for proper reconstruction
             return [' '.join(splits[i:i+words_per_chunk]) for i in range(0, len(splits), words_per_chunk)]
+
+        if level.regex:
+            # Split on every regex match (e.g. markdown headers)
+            return split_by_regex(
+                text,
+                pattern=level.regex,
+                include_delim=level.include_delim,
+                min_characters_per_segment=self.min_characters_per_chunk
+            )
 
         if level.delimiters:
             # Use improved sentence splitting for delimiters

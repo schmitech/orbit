@@ -9,6 +9,7 @@ from .fixed_chunker import FixedSizeChunker
 from .semantic_chunker import SemanticChunker
 from .token_chunker import TokenChunker
 from .recursive_chunker import RecursiveChunker, RecursiveRules, RecursiveLevel
+from .markdown_header_chunker import MarkdownHeaderChunker
 
 __all__ = [
     'TextChunker',
@@ -19,4 +20,5 @@ __all__ = [
     'RecursiveChunker',
     'RecursiveRules',
     'RecursiveLevel',
+    'MarkdownHeaderChunker',
 ]

@@ -14,7 +14,7 @@ from datetime import datetime, UTC
 
 from services.file_processing.processor_registry import FileProcessorRegistry
 from services.file_processing.chunking import (
-    FixedSizeChunker, SemanticChunker, TokenChunker, RecursiveChunker, Chunk
+    FixedSizeChunker, SemanticChunker, TokenChunker, RecursiveChunker, MarkdownHeaderChunker, Chunk
 )
 from services.file_processing.magika_detector import (
     FileValidationError,
@@ -313,6 +313,16 @@ class FileProcessingService:
                 tokenizer=tokenizer
             )
             logger.debug(f"  Recursive chunker configured: min_characters_per_chunk={min_characters}")
+            return chunker
+        elif strategy == 'markdown_header':
+            # Markdown-header-aware recursive chunking
+            min_characters = chunking_options.get('min_characters_per_chunk', 24)
+            chunker = MarkdownHeaderChunker(
+                chunk_size=chunk_size,
+                min_characters_per_chunk=min_characters,
+                tokenizer=tokenizer
+            )
+            logger.debug(f"  Markdown header chunker configured: min_characters_per_chunk={min_characters}")
             return chunker
         else:
             # Fixed-size chunking (default)
