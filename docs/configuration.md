@@ -388,6 +388,35 @@ monitoring:
     response_time_threshold: 5000
 ```
 
+## Message Queue (Async Ingestion)
+
+Broker-native async surface (MQ-style request/response). When enabled, ORBIT runs as a message-queue **consumer**: it reads request messages off a broker queue, runs each through the same inference pipeline as the HTTP surfaces, and publishes a response envelope back to the message's `reply_to` (correlated by `correlation_id`). Use it for decoupled, batch-style workloads instead of synchronous HTTP calls. Disabled by default; requires the `messaging` dependency profile (`./install/setup.sh --profile messaging`). See the [Message Queue Protocol](server.md#message-queue-async-protocol) for the message contract and worker usage.
+
+> **Auth note:** this path bypasses the HTTP middleware stack (CORS, rate limiting, audit). A valid ORBIT API key — in the message body (`api_key`) or an AMQP header (`x-api-key`) — is required whenever the API-key service is active, and the consumer resolves the adapter and system prompt from it exactly like `/v1/chat`.
+
+```yaml
+messaging:
+  enabled: false
+  provider: "rabbitmq"                 # rabbitmq
+  # true  = run the consumer in-process as a server background task
+  # false = run it only via the standalone `orbit worker` command
+  run_in_server: false
+  rabbitmq:
+    url: ${MESSAGING_RABBITMQ_URL}      # amqp://user:pass@host:5672/vhost
+    requests_queue: "orbit.requests"    # queue ORBIT consumes requests from
+    results_queue: "orbit.results"      # default reply target when a message has no reply_to
+    dead_letter_queue: "orbit.dlq"      # unparseable/failed deliveries land here
+    prefetch: 8                         # max unacked messages in flight (backpressure)
+    durable: true
+```
+
+Run the consumer one of two ways (not both against the same queue):
+
+- **Standalone worker** (`run_in_server: false`): `./bin/orbit.sh worker --config config.yaml` — scales/deploys independently of the web server.
+- **In-process** (`run_in_server: true`): started inside the server process on `./bin/orbit.sh start`.
+
+Failed deliveries are handled by severity: business failures (missing/invalid key, empty message, pipeline error) publish a `status: "failed"` envelope and ack, so the caller always gets an answer; only unparseable messages and unexpected exceptions are dead-lettered (`dead_letter_queue`) for inspection/retry.
+
 ## Internal Services
 
 ### Backend Database
@@ -1476,6 +1505,12 @@ datasources:
 | `ORBIT_SECRETS_PROVIDER` | Secrets provider: env, aws, azure, gcp |
 | `ORBIT_SECRETS_AWS_ENDPOINT_URL` | Optional AWS Secrets Manager endpoint (e.g. LocalStack) |
 | `AZURE_KEY_VAULT_URL` | Azure Key Vault URL |
+
+### Message Queue
+
+| Variable | Description |
+|:---|:---|
+| `MESSAGING_RABBITMQ_URL` | RabbitMQ AMQP connection URL for the message-queue (async) surface |
 
 ### Authentication
 

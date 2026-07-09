@@ -24,7 +24,7 @@ from bin.orbit.utils.exceptions import OrbitError, AuthenticationError, NetworkE
 
 # Import all commands
 from bin.orbit.commands.server import (
-    ServerStartCommand, ServerStopCommand, ServerRestartCommand, ServerStatusCommand
+    ServerStartCommand, ServerStopCommand, ServerRestartCommand, ServerStatusCommand, WorkerCommand
 )
 from bin.orbit.commands.auth import (
     LoginCommand, LogoutCommand, RegisterCommand, MeCommand, AuthStatusCommand
@@ -264,6 +264,11 @@ Report issues at: https://github.com/schmitech/orbit/issues
         status_cmd = ServerStatusCommand(self._get_server_service(), self.formatter)
         status_cmd.add_arguments(status_parser)
         status_parser.set_defaults(func=lambda args, cmd=status_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
+        worker_parser = subparsers.add_parser('worker', help='Run the ORBIT message-queue (MQ) worker')
+        worker_cmd = WorkerCommand(self._get_server_service(), self.formatter)
+        worker_cmd.add_arguments(worker_parser)
+        worker_parser.set_defaults(func=lambda args, cmd=worker_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
     
     def _add_auth_commands(self, subparsers):
         """Add authentication commands."""

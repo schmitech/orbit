@@ -28,6 +28,7 @@ Where LiteLLM normalizes *how you call models*, ORBIT focuses on *what data mode
 | **Observability** | Third-party integrations: Langfuse, MLflow, Helicone, Lunary | Built-in audit log (every request, response, and key operation persisted internally) |
 | **MCP Support** | Connects to MCP tool servers; functions as a central MCP endpoint | Server-side MCP orchestration (stdio + SSE); ORBIT also *exposes* its own MCP server for downstream clients |
 | **Agent-to-Agent (A2A)** | Supports A2A invocation with LangGraph, Vertex AI Agent Engine | Native A2A protocol support for multi-agent workflows |
+| **Async / Message-Queue Ingestion** | HTTP proxy/SDK; async jobs via OpenAI Batches API passthrough (submit/poll); no message-broker consumer | **Broker-native MQ surface** (RabbitMQ/AMQP): ORBIT runs as a queue consumer — publish requests to a queue, responses land on a results queue, fully decoupled from HTTP, with at-least-once delivery |
 | **Configuration** | YAML-first proxy config + admin UI dashboard | YAML-first declarative config; no GUI required |
 | **Voice & Audio** | Routes to audio provider endpoints (STT/TTS passthrough) | STT + TTS per adapter; WebSocket real-time streaming; OpenAI Realtime API; fully local pipelines (Whisper + Coqui/vLLM) |
 | **Semantic Caching** | Embedding-based semantic cache with configurable similarity threshold | Not applicable — ORBIT caches data results, not LLM responses |
@@ -97,6 +98,7 @@ ORBIT operates on both sides: it is an **MCP client** (connecting to external MC
 - **MCP server exposure**: ORBIT can serve as an MCP tool server for other agents and clients, not just consume MCP tools.
 - **Air-gapped deployments**: Built-in audit logging, local voice pipelines, and no mandatory external service dependencies make ORBIT suitable for environments where data cannot leave the deployment boundary.
 - **File storage & encryption**: LiteLLM has no general uploaded-file storage abstraction — its `/rag/ingest` endpoint selects a RAG backend (S3, OpenSearch Serverless, Bedrock Knowledge Base) rather than managing user file uploads, and encryption there is AWS KMS on S3 objects specifically. ORBIT treats file storage as a first-class, pluggable layer (local/S3/MinIO/Azure/GCS) with its own backend-agnostic AES-256-GCM encryption, opt-in per adapter, requiring no cloud KMS.
+- **Broker-native async ingestion**: ORBIT can run as a RabbitMQ consumer — clients publish requests to a queue and read responses off a results queue, fully decoupled from synchronous HTTP, with at-least-once delivery and dead-lettering. LiteLLM is an HTTP proxy/SDK: async work goes through the OpenAI Batches API (submit/poll), not a message broker. ORBIT's MQ path runs the same pipeline as `/v1/chat`, so retrieval/adapter behavior is identical.
 
 ---
 

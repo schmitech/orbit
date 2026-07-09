@@ -398,6 +398,107 @@ These endpoints are enabled by default in development. Set `ENVIRONMENT=producti
 ```
 - **See documentation**: [MCP Protocol](mcp_protocol.md)
 
+### Message Queue (Async) Protocol
+
+In addition to the synchronous HTTP surfaces (REST, OpenAI-compatible, A2A, MCP), ORBIT can run as a **message-queue consumer** for decoupled, batch-style workloads. Instead of making a blocking HTTP call, a client **publishes a request message** to a broker queue; ORBIT consumes it, runs it through the same inference pipeline, and **publishes a response envelope** back to the message's `reply_to` (correlated by `correlation_id`).
+
+This surface is **disabled by default** and requires the optional messaging dependency profile:
+
+```bash
+./install/setup.sh --profile messaging   # installs aio-pika (RabbitMQ client)
+```
+
+> **Note:** The MQ path bypasses the HTTP middleware stack (CORS, rate limiting, audit, security headers). Authentication is enforced by the consumer itself — a valid ORBIT API key (in the message body or an AMQP header) is required whenever the API-key service is active, exactly as on the HTTP surfaces.
+
+#### Configuration (`config.yaml`)
+
+```yaml
+messaging:
+  enabled: false                # master switch
+  provider: "rabbitmq"          # rabbitmq
+  run_in_server: false          # true = consumer runs inside the server process;
+                                # false = run it via the standalone `orbit worker` command
+  rabbitmq:
+    url: ${MESSAGING_RABBITMQ_URL}      # amqp://user:pass@host:5672/vhost
+    requests_queue: "orbit.requests"    # queue ORBIT consumes requests from
+    results_queue: "orbit.results"      # default reply target when a message has no reply_to
+    dead_letter_queue: "orbit.dlq"      # unparseable/failed deliveries land here
+    prefetch: 8                         # max unacked messages in flight (backpressure)
+    durable: true
+```
+
+#### Running the consumer
+
+Choose **one** of these (running both against the same queue would double-consume):
+
+```bash
+# Standalone worker process (recommended for production; scale/deploy separately)
+./bin/orbit.sh worker --config config.yaml
+
+# ...or in-process: set messaging.run_in_server: true and start the server normally
+./bin/orbit.sh start
+```
+
+#### Message contract
+
+**Request** (JSON body published to `orbit.requests`):
+```json
+{
+  "id": "client-supplied-id",
+  "message": "Your message here",
+  "api_key": "orbit_abcd1234",
+  "adapter": "optional-adapter-override",
+  "session_id": "optional-session-id",
+  "metadata": {}
+}
+```
+The API key may instead be supplied as an AMQP header (`x-api-key`). Set the AMQP `reply_to` and `correlation_id` properties so ORBIT can route and correlate the response.
+
+**Response envelope** (published to the message's `reply_to`, or `results_queue` as a fallback, with the same `correlation_id`):
+```json
+{
+  "id": "client-supplied-id",
+  "status": "completed",
+  "response": "Generated response...",
+  "sources": [],
+  "error": null,
+  "metadata": {}
+}
+```
+Business-level failures (missing/invalid API key, empty message, pipeline error) return an envelope with `"status": "failed"` and a populated `error` — the client always gets an answer. Only **unparseable messages** and **unexpected exceptions** are rejected (no requeue) and routed to the **dead-letter queue** for operational inspection/retry.
+
+#### Minimal client example (aio-pika)
+
+```python
+import asyncio, json, uuid, aio_pika
+
+async def main():
+    conn = await aio_pika.connect_robust("amqp://guest:guest@localhost:5672/")
+    channel = await conn.channel()
+    replies = await channel.declare_queue(exclusive=True)   # temporary reply queue
+
+    corr_id = str(uuid.uuid4())
+    await channel.default_exchange.publish(
+        aio_pika.Message(
+            body=json.dumps({"id": corr_id, "message": "Hello", "api_key": "orbit_abcd1234"}).encode(),
+            correlation_id=corr_id,
+            reply_to=replies.name,
+            content_type="application/json",
+        ),
+        routing_key="orbit.requests",
+    )
+
+    async with replies.iterator() as it:
+        async for msg in it:
+            if msg.correlation_id == corr_id:
+                async with msg.process():
+                    print(json.loads(msg.body))
+                break
+    await conn.close()
+
+asyncio.run(main())
+```
+
 ### Health Check
 - **Endpoint**: `GET /health`
 - **Response**:

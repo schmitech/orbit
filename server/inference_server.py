@@ -298,6 +298,15 @@ class InferenceServer:
         Args:
             app: The FastAPI application containing services
         """
+        # Stop the message consumer first so in-flight messages settle before the
+        # pipeline/services it uses are torn down.
+        message_consumer = getattr(app.state, 'message_consumer', None)
+        if message_consumer is not None:
+            try:
+                await asyncio.wait_for(message_consumer.stop(), timeout=10.0)
+            except Exception as e:
+                logger.error("Error stopping message consumer: %s", e)
+
         # Create a list to collect shutdown tasks
         shutdown_tasks = []
 

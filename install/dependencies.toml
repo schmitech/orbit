@@ -235,6 +235,15 @@ dependencies = [
 ]
 
 # ============================================================================
+# MESSAGING - Broker-native async surface (MQ-style request/response)
+# ============================================================================
+[profiles.messaging]
+description = "Message-queue broker support (RabbitMQ via aio-pika) for the async/batch surface"
+dependencies = [
+    "aio-pika>=10.0.1",
+]
+
+# ============================================================================
 # CLOUD-SERVICES - Cloud platform services (AWS, Azure, GCP, IBM)
 # ============================================================================
 [profiles.cloud-services]
@@ -296,6 +305,7 @@ extends = [
     "files",
     "auth-providers",
     "memcached",
+    "messaging",
 ]
 dependencies = []
 

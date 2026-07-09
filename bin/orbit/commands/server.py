@@ -109,9 +109,48 @@ class ServerRestartCommand(BaseCommand):
         return 0 if success else 1
 
 
+class WorkerCommand(BaseCommand):
+    """Command to run the ORBIT message-queue (MQ) worker in the foreground."""
+
+    def __init__(self, server_service: ServerService, formatter: OutputFormatter):
+        self.server_service = server_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "worker"
+
+    @property
+    def description(self) -> str:
+        return "Run the ORBIT message-queue (MQ) worker in the foreground"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument('--config', type=str, help='Path to configuration file')
+
+    def execute(self, args: argparse.Namespace) -> int:
+        import os
+        import subprocess
+
+        project_root = self.server_service.project_root
+        cmd = ["python", "server/worker_main.py"]
+
+        config_path = getattr(args, 'config', None)
+        if config_path:
+            if not os.path.isabs(config_path):
+                config_path = str(project_root / config_path)
+            cmd.extend(["--config", config_path])
+
+        self.formatter.info("Starting ORBIT MQ worker (Ctrl+C to stop)...")
+        try:
+            return subprocess.run(cmd, cwd=str(project_root)).returncode
+        except KeyboardInterrupt:
+            self.formatter.info("Worker stopped")
+            return 0
+
+
 class ServerStatusCommand(BaseCommand):
     """Command to check ORBIT server status."""
-    
+
     def __init__(self, server_service: ServerService, formatter: OutputFormatter):
         self.server_service = server_service
         self.formatter = formatter

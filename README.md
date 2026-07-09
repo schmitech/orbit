@@ -41,6 +41,7 @@ ORBIT is a self-hosted AI gateway that lets you chat with private data through o
 - 🔀 Route one API contract across local (Ollama, llama.cpp, vLLM) and cloud models
 - 🛠️ Give models scoped access to MCP tools and multi-step agent workflows
 - 🔒 Ship private RAG with auth, quotas, moderation, metrics, and admin controls
+- 📨 Drive inference asynchronously over a message queue for decoupled, batch-style workloads
 - 🧪 Prototype locally, then keep the same architecture in production
 
 > Comparisons: [ORBIT vs. Open WebUI](docs/openwebui/orbit-vs-openwebui.md) · [ORBIT vs. LiteLLM](docs/litellm/orbit-vs-litellm.md)
@@ -159,7 +160,7 @@ Pick the path closest to what you want to build.
         <img src="https://github.com/user-attachments/assets/f0b60d9d-6bf4-48c1-8dc9-48315d137da9" alt="ORBIT Logo" width="600"/>
       </a>
       <br />
-      <em>Every request flows through the ORBIT gateway, gets authenticated and routed by an adapter, and lands on the right provider — REST, OpenAI-compatible, MCP, or A2A in; inference, RAG, structured data, tools, or generation out.</em>
+      <em>Every request flows through the ORBIT gateway, gets authenticated and routed by an adapter, and lands on the right provider — REST, OpenAI-compatible, MCP, A2A, or message queue in; inference, RAG, structured data, tools, or generation out.</em>
     </td>
   </tr>
 </table>
@@ -181,6 +182,7 @@ Pick the path closest to what you want to build.
 | **Web search** | Provider-agnostic real-time context via DuckDuckGo (free), Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity — decoupled from synthesis so any LLM can answer. |
 | **MCP tool agents** | Connect MCP servers (filesystem, GitHub, Slack, Postgres, Jira, Notion, and more) over stdio/SSE with bounded, server-side agent loops. |
 | **A2A peer protocol** | [Google Agent-to-Agent](https://google.github.io/A2A/) support — discovery via `/.well-known/agent.json` and task delegation over JSON-RPC. [Guide](docs/a2a-protocol.md). |
+| **Message-queue (async) surface** | Broker-native RabbitMQ ingestion — publish requests to a queue, ORBIT consumes them through the same pipeline and replies on a results queue. Decoupled, at-least-once, batch/async processing instead of synchronous HTTP. [Guide](docs/server.md#message-queue-async-protocol). |
 | **Media generation** | Image, video, audio (TTS), PDF, Word, Excel, PowerPoint, CSV, and markdown generation adapters in the same chat flow. |
 | **Voice (STT/TTS)** | OpenAI, Whisper, Google, Gemini, ElevenLabs, Coqui, and more. |
 | **Production controls** | API keys, RBAC, SSO via Entra ID & Auth0 (OIDC), per-key routing, rate limits, token quotas, moderation, circuit breakers, fallback routing, metrics, audit logs, and hot adapter reloads. |

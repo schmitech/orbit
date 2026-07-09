@@ -29,6 +29,7 @@ This document compares **ORBIT** (Open Retrieval-Based Inference Toolkit) and **
 | **Voice & Audio** | STT/TTS via configured providers; no real-time WebSocket streaming | STT + TTS per adapter; WebSocket real-time streaming; OpenAI Realtime API; fully local pipelines (Whisper + Coqui/vLLM, no API cost) |
 | **File Storage Backends** | Pluggable via `STORAGE_PROVIDER`: local (default), S3 (+ S3-compatible), GCS, Azure Blob | Pluggable via `files.storage_backend`: local (default), S3, MinIO/SeaweedFS (S3-compatible), Azure Blob, GCS — comparable backend coverage |
 | **File Encryption at Rest** | Not available — application-level file encryption is an open feature request ([#16112](https://github.com/open-webui/open-webui/issues/16112), [#17437](https://github.com/open-webui/open-webui/issues/17437)); only DB-level SQLCipher is supported today | Native AES-256-GCM, opt-in per adapter — covers uploaded file bytes, storage metadata, and indexed vector-store chunk content, on any storage backend |
+| **Async / Message-Queue Ingestion** | HTTP request/response (and WebSocket) only; no broker-native async ingestion | **Broker-native MQ surface** (RabbitMQ): publish requests to a queue, ORBIT consumes them through the same pipeline and replies on a results queue — decoupled, at-least-once batch/async processing beyond synchronous HTTP |
 | **Extensibility** | Plugin system for pipelines; core architecture changes require forking | New adapters and data connectors added via YAML and a clear design pattern — no core changes needed |
 | **Plugin/Middleware System** | Pluggable embedding, reranking, retrieval, and pipeline filters | Decoupled providers for Inference, Embeddings, Reranking, STT, TTS, Search |
 
@@ -140,6 +141,18 @@ This makes ORBIT a durable platform investment: the architecture adapts to chang
 Both projects support the same set of pluggable file storage backends — local disk, AWS S3 (or S3-compatible stores), Google Cloud Storage, and Azure Blob — so storage flexibility is comparable. Where they diverge is encryption: Open WebUI has no application-level encryption for uploaded files today (it's tracked as an open feature request; only database-level SQLCipher is supported), so files sit in plaintext on whichever backend is configured.
 
 ORBIT ships native AES-256-GCM file encryption, opt-in per adapter via `capabilities.requires_encryption` — no cloud KMS dependency, no separate infrastructure. It covers not just the raw uploaded bytes but the storage backend's metadata sidecar and the text/metadata indexed into the vector store for RAG, so retrieval still works (embeddings are computed from plaintext before encryption) while the data at rest — on any backend — stays encrypted. See the [File Encryption guide](../adapters/file-adapter-guide.md#encryption-at-rest).
+
+### 12. Broker-Native Async Ingestion (Message Queue)
+
+Open WebUI is driven entirely over HTTP (and WebSockets) — every request is a synchronous, connected round trip against its backend. There is no way to hand it a queue of work and collect answers later.
+
+ORBIT adds a **broker-native message-queue surface** alongside its HTTP surfaces. Instead of a blocking call, a client **publishes a request message** to a broker queue; ORBIT runs as a **consumer**, processes each message through the *same* inference pipeline as `/v1/chat` (identical adapter, auth, and system-prompt resolution), and **publishes a response envelope** back to the message's `reply_to`, correlated by `correlation_id`. This decouples producers from ORBIT entirely — ideal for batch jobs, spiky/bursty workloads, and fan-out pipelines where callers shouldn't hold a connection open.
+
+Key properties:
+
+*   **RabbitMQ today, pluggable by design** — the broker sits behind a `MessageBroker` abstraction (mirroring ORBIT's cache-backend pattern), so other brokers can be added without touching the consumer logic. Opt-in via the `messaging` dependency profile; disabled by default.
+*   **At-least-once delivery** — the broker only acks a message after the pipeline completes, so an in-flight message survives a worker crash and is redelivered. Unparseable messages and unexpected failures are dead-lettered for inspection, while business failures (bad key, empty message) return a `failed` envelope so callers always get an answer.
+*   **Flexible hosting** — run the consumer as a standalone `orbit worker` process (scale/deploy independently of the web server) or in-process inside the server. See the [Message Queue Protocol](../server.md#message-queue-async-protocol).
 
 ---
 

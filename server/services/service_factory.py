@@ -65,7 +65,10 @@ class ServiceFactory:
             
             # Initialize dependent services (chat service and health service)
             await self._initialize_dependent_services(app)
-            
+
+            # Start the in-process message consumer if configured (requires chat service)
+            await self._initialize_message_consumer(app)
+
             logger.info("All services initialized successfully")
             
         except Exception as e:
@@ -355,6 +358,56 @@ class ServiceFactory:
         else:
             app.state.thread_dataset_service = None
             logger.debug("ThreadDatasetService is disabled (conversation_threading not enabled)")
+
+    def build_message_consumer(self, app: FastAPI):
+        """Construct a MessageConsumerService from initialized app.state services.
+
+        Shared by the in-process path (below) and the standalone worker so the
+        consumer sees the identical pipeline/auth wiring. Returns None when
+        messaging is disabled or its dependencies are unavailable.
+        """
+        from services.message_brokers import is_messaging_enabled, create_message_broker
+        from services.messaging import MessageConsumerService
+
+        if not is_messaging_enabled(self.config):
+            return None
+
+        chat_service = getattr(app.state, 'chat_service', None)
+        if chat_service is None:
+            logger.warning("Messaging enabled but chat service is unavailable - consumer not created")
+            return None
+
+        broker = create_message_broker(self.config)
+        return MessageConsumerService(
+            self.config,
+            broker,
+            chat_service,
+            api_key_service=getattr(app.state, 'api_key_service', None),
+            adapter_manager=getattr(app.state, 'adapter_manager', None),
+        )
+
+    async def _initialize_message_consumer(self, app: FastAPI) -> None:
+        """Start the in-process message consumer when messaging.run_in_server is true."""
+        app.state.message_consumer = None
+
+        messaging_config = self.config.get('messaging', {}) or {}
+        if not is_true_value(messaging_config.get('enabled', False)):
+            logger.debug("Messaging surface disabled")
+            return
+        if not is_true_value(messaging_config.get('run_in_server', False)):
+            logger.info("Messaging enabled but run_in_server is false - use the 'orbit worker' command")
+            return
+
+        try:
+            consumer = self.build_message_consumer(app)
+            if consumer is None:
+                return
+            await consumer.start()
+            app.state.message_consumer = consumer
+            logger.info("In-process message consumer started")
+        except Exception as e:
+            logger.error(f"Failed to start message consumer: {str(e)}")
+            app.state.message_consumer = None
 
     async def _initialize_quota_service(self, app: FastAPI) -> None:
         """Initialize Quota Service for rate throttling."""

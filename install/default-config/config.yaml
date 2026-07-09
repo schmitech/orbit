@@ -416,6 +416,30 @@ internal_services:
     pool_size: 20
     ttl: 3600  # 1 hour
 
+# Broker-native async surface (MQ-style request/response). When enabled, ORBIT
+# consumes request messages off a message broker, runs them through the same
+# inference pipeline as the HTTP surfaces, and publishes response envelopes back
+# to each message's reply_to. Intended for batch/decoupled workloads instead of
+# synchronous HTTP calls. Disabled by default. Requires the 'messaging'
+# dependency profile: ./install/setup.sh --profile messaging
+#
+# NOTE: this path bypasses the HTTP middleware stack (CORS, rate limiting, audit).
+# Auth is enforced in the consumer: a valid ORBIT API key (in the message body or
+# an AMQP header) is required whenever the API-key service is active.
+messaging:
+  enabled: false
+  provider: "rabbitmq"          # rabbitmq
+  # true  = run the consumer in-process as a server background task
+  # false = run it only via the standalone `orbit worker` command
+  run_in_server: false
+  rabbitmq:
+    url: "${MESSAGING_RABBITMQ_URL:-amqp://guest:guest@localhost:5672/}"  # amqp://user:pass@host:5672/vhost
+    requests_queue: "orbit.requests"    # queue ORBIT consumes requests from
+    results_queue: "orbit.results"      # default reply target when a message has no reply_to
+    dead_letter_queue: "orbit.dlq"      # unparseable/failed deliveries land here
+    prefetch: 8                         # max unacked messages in flight (backpressure)
+    durable: true
+
 chat_history:
   enabled: true
   collection_name: "chat_history"
