@@ -13,6 +13,8 @@ What gets cleared (in dependency order):
   5. uploaded_files
   6. chat_history
   7. audit_logs
+  8. audit_admin_logs      (admin action audit trail)
+  9. sessions              (admin login sessions)
 
 Usage
 -----
@@ -41,8 +43,8 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             'Clear chat_history, feedback, conversation_threads, '
-            'thread_datasets, audit_logs, file_chunks, and uploaded_files '
-            'in orbit.db'
+            'thread_datasets, audit_logs, audit_admin_logs, sessions, '
+            'file_chunks, and uploaded_files in orbit.db'
         )
     )
     parser.add_argument(
@@ -95,6 +97,16 @@ def main():
     al_before = cur.fetchone()[0]
     cur.execute('DELETE FROM audit_logs')
 
+    # 8. audit_admin_logs (admin action audit trail)
+    cur.execute('SELECT COUNT(*) FROM audit_admin_logs')
+    aal_before = cur.fetchone()[0]
+    cur.execute('DELETE FROM audit_admin_logs')
+
+    # 9. sessions (admin login sessions)
+    cur.execute('SELECT COUNT(*) FROM sessions')
+    s_before = cur.fetchone()[0]
+    cur.execute('DELETE FROM sessions')
+
     conn.commit()
 
     cur.execute('SELECT COUNT(*) FROM feedback')
@@ -111,6 +123,10 @@ def main():
     ch_after = cur.fetchone()[0]
     cur.execute('SELECT COUNT(*) FROM audit_logs')
     al_after = cur.fetchone()[0]
+    cur.execute('SELECT COUNT(*) FROM audit_admin_logs')
+    aal_after = cur.fetchone()[0]
+    cur.execute('SELECT COUNT(*) FROM sessions')
+    s_after = cur.fetchone()[0]
 
     print(f'feedback: {fb_before} -> {fb_after}.')
     print(f'conversation_threads: {ct_before} -> {ct_after}.')
@@ -119,6 +135,8 @@ def main():
     print(f'uploaded_files: {uf_before} -> {uf_after}.')
     print(f'chat_history: {ch_before} -> {ch_after}.')
     print(f'audit_logs: {al_before} -> {al_after}.')
+    print(f'audit_admin_logs: {aal_before} -> {aal_after}.')
+    print(f'sessions: {s_before} -> {s_after}.')
 
     conn.close()
     print('Done.')
