@@ -138,6 +138,18 @@
     });
   }
 
+  function syncVisibleSelection(selectAllBox, rowCheckboxes, selectedIds, visibleIds) {
+    selectAllBox.checked = visibleIds.length > 0 && visibleIds.every(function (id) {
+      return selectedIds.has(id);
+    });
+    selectAllBox.indeterminate = !selectAllBox.checked && visibleIds.some(function (id) {
+      return selectedIds.has(id);
+    });
+    rowCheckboxes.forEach(function (checkbox) {
+      checkbox.checked = selectedIds.has(checkbox._selectionId);
+    });
+  }
+
   function field(labelText, input, hintText, control) {
     var target = control || input;
     var id = target.id || "field-" + Math.random().toString(36).slice(2, 9);
@@ -226,7 +238,8 @@
   }
 
   function syncBulkActionButton(button, count, label) {
-    button.style.display = count === 0 ? "none" : "";
+    button.style.visibility = count === 0 ? "hidden" : "visible";
+    button.disabled = count === 0;
     button.textContent = "Delete " + count + " " + label;
   }
 
@@ -1871,7 +1884,8 @@
       "aria-label": "Search users"
     });
     var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
-    bulkDeleteBtn.style.display = "none";
+    bulkDeleteBtn.style.visibility = "hidden";
+    bulkDeleteBtn.disabled = true;
     var userPaginator = createPaginator({
       pageSize: ITEMS_PER_PAGE,
       onPageChange: function (pageItems) {
@@ -2208,15 +2222,17 @@
     var selectableUsers = users.filter(function (user) {
       return !selection.currentUserId || user.id !== selection.currentUserId;
     });
+    var selectableUserIds = selectableUsers.map(function (user) { return user.id; });
+    var rowCheckboxes = [];
     var selectAllBox = el("input", {
       type: "checkbox",
       "aria-label": "Select all visible users"
     });
-    selectAllBox.checked = selectableUsers.length > 0 && selectableUsers.every(function (user) {
-      return selection.selectedIds.has(user.id);
+    selectAllBox.checked = selectableUserIds.length > 0 && selectableUserIds.every(function (userId) {
+      return selection.selectedIds.has(userId);
     });
-    selectAllBox.indeterminate = !selectAllBox.checked && selectableUsers.some(function (user) {
-      return selection.selectedIds.has(user.id);
+    selectAllBox.indeterminate = !selectAllBox.checked && selectableUserIds.some(function (userId) {
+      return selection.selectedIds.has(userId);
     });
     selectAllBox.addEventListener("click", function (e) { e.stopPropagation(); });
     selectAllBox.addEventListener("change", function () {
@@ -2225,8 +2241,9 @@
         else selection.selectedIds.delete(user.id);
       });
       selection.onSelectionChange();
-      renderUserTable(wrap, users, filteredEmpty, onSelect, selection);
+      syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, selectableUserIds);
     });
+    table.appendChild(el("colgroup", null, el("col", { className: "selection-col-width" })));
     var thead = el("thead", null,
       el("tr", null,
         el("th", { className: "selection-col" }, selectAllBox),
@@ -2242,6 +2259,7 @@
         type: "checkbox",
         "aria-label": "Select user " + u.username
       });
+      checkbox._selectionId = u.id;
       checkbox.checked = selection.selectedIds.has(u.id);
       if (selection.currentUserId && selection.currentUserId === u.id) {
         checkbox.disabled = true;
@@ -2252,8 +2270,9 @@
         if (checkbox.checked) selection.selectedIds.add(u.id);
         else selection.selectedIds.delete(u.id);
         selection.onSelectionChange();
-        renderUserTable(wrap, users, filteredEmpty, onSelect, selection);
+        syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, selectableUserIds);
       });
+      rowCheckboxes.push(checkbox);
       var tr = el("tr", {
         className: "selectable-row" + (isSelected ? " selected-row" : ""),
         tabindex: "0",
@@ -2503,7 +2522,8 @@
     }, svgIcon(ICON_PLUS), el("span", null, "Create API Key"));
     createLaunchBtn.addEventListener("click", openCreatePanel);
     var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
-    bulkDeleteBtn.style.display = "none";
+    bulkDeleteBtn.style.visibility = "hidden";
+    bulkDeleteBtn.disabled = true;
     listPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
 
     var tableWrap = el("div", null, skeleton());
@@ -2816,15 +2836,17 @@
       return;
     }
     var table = el("table");
+    var keyIds = keys.map(function (key) { return key._id; });
+    var rowCheckboxes = [];
     var selectAllBox = el("input", {
       type: "checkbox",
       "aria-label": "Select all visible API keys"
     });
-    selectAllBox.checked = keys.length > 0 && keys.every(function (key) {
-      return selection.selectedIds.has(key._id);
+    selectAllBox.checked = keyIds.length > 0 && keyIds.every(function (keyId) {
+      return selection.selectedIds.has(keyId);
     });
-    selectAllBox.indeterminate = !selectAllBox.checked && keys.some(function (key) {
-      return selection.selectedIds.has(key._id);
+    selectAllBox.indeterminate = !selectAllBox.checked && keyIds.some(function (keyId) {
+      return selection.selectedIds.has(keyId);
     });
     selectAllBox.addEventListener("click", function (e) { e.stopPropagation(); });
     selectAllBox.addEventListener("change", function () {
@@ -2833,8 +2855,9 @@
         else selection.selectedIds.delete(key._id);
       });
       selection.onSelectionChange();
-      renderKeyTable(wrap, keys, rightPanel, filteredEmpty, selection, reloadKeys);
+      syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, keyIds);
     });
+    table.appendChild(el("colgroup", null, el("col", { className: "selection-col-width" })));
     var thead = el("thead", null,
       el("tr", null,
         el("th", { className: "selection-col" }, selectAllBox),
@@ -2851,14 +2874,16 @@
         type: "checkbox",
         "aria-label": "Select API key " + (k.client_name || k._id || "")
       });
+      checkbox._selectionId = k._id;
       checkbox.checked = selection.selectedIds.has(k._id);
       checkbox.addEventListener("click", function (e) { e.stopPropagation(); });
       checkbox.addEventListener("change", function () {
         if (checkbox.checked) selection.selectedIds.add(k._id);
         else selection.selectedIds.delete(k._id);
         selection.onSelectionChange();
-        renderKeyTable(wrap, keys, rightPanel, filteredEmpty, selection, reloadKeys);
+        syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, keyIds);
       });
+      rowCheckboxes.push(checkbox);
       var tr = el("tr", {
         className: "selectable-row" + (isSelected ? " selected-row" : ""),
         tabindex: "0",
@@ -3396,7 +3421,8 @@
     }, svgIcon(ICON_PLUS), el("span", null, "Create Persona"));
     createLaunchBtn.addEventListener("click", openCreatePanel);
     var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
-    bulkDeleteBtn.style.display = "none";
+    bulkDeleteBtn.style.visibility = "hidden";
+    bulkDeleteBtn.disabled = true;
     listPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
 
     var tableWrap = el("div", null, skeleton());
@@ -3534,15 +3560,17 @@
       return;
     }
     var table = el("table");
+    var promptIds = prompts.map(function (prompt) { return promptIdentifier(prompt); }).filter(Boolean);
+    var rowCheckboxes = [];
     var selectAllBox = el("input", {
       type: "checkbox",
       "aria-label": "Select all visible personas"
     });
-    selectAllBox.checked = prompts.length > 0 && prompts.every(function (prompt) {
-      return selection.selectedIds.has(promptIdentifier(prompt));
+    selectAllBox.checked = promptIds.length > 0 && promptIds.every(function (promptId) {
+      return selection.selectedIds.has(promptId);
     });
-    selectAllBox.indeterminate = !selectAllBox.checked && prompts.some(function (prompt) {
-      return selection.selectedIds.has(promptIdentifier(prompt));
+    selectAllBox.indeterminate = !selectAllBox.checked && promptIds.some(function (promptId) {
+      return selection.selectedIds.has(promptId);
     });
     selectAllBox.addEventListener("click", function (e) { e.stopPropagation(); });
     selectAllBox.addEventListener("change", function () {
@@ -3553,8 +3581,9 @@
         else selection.selectedIds.delete(promptId);
       });
       selection.onSelectionChange();
-      renderPromptTable(wrap, prompts, rightPanel, filteredEmpty, refreshPrompts, selection);
+      syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, promptIds);
     });
+    table.appendChild(el("colgroup", null, el("col", { className: "selection-col-width" })));
     var thead = el("thead", null,
       el("tr", null,
         el("th", { className: "selection-col" }, selectAllBox),
@@ -3571,14 +3600,16 @@
         type: "checkbox",
         "aria-label": "Select persona " + (p.name || promptId || "")
       });
+      checkbox._selectionId = promptId;
       checkbox.checked = selection.selectedIds.has(promptId);
       checkbox.addEventListener("click", function (e) { e.stopPropagation(); });
       checkbox.addEventListener("change", function () {
         if (checkbox.checked) selection.selectedIds.add(promptId);
         else selection.selectedIds.delete(promptId);
         selection.onSelectionChange();
-        renderPromptTable(wrap, prompts, rightPanel, filteredEmpty, refreshPrompts, selection);
+        syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, promptIds);
       });
+      rowCheckboxes.push(checkbox);
       var tr = el("tr", {
         className: "selectable-row" + (isSelected ? " selected-row" : ""),
         tabindex: "0",

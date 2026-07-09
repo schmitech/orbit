@@ -805,6 +805,10 @@ table {
   font-size: var(--text-sm);
 }
 
+col.selection-col-width {
+  width: 42px;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -839,7 +843,7 @@ tbody tr:nth-child(even) {
 
 .selectable-row {
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: none;
 }
 
 .selectable-row:hover {
@@ -848,7 +852,12 @@ tbody tr:nth-child(even) {
 
 .selected-row {
   background: var(--brand-50) !important;
-  box-shadow: inset 3px 0 0 var(--brand-500);
+}
+
+.selected-row > td:first-child {
+  background-image: linear-gradient(to right, var(--brand-500) 0 3px, transparent 3px);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 /* ============================================================
@@ -891,13 +900,79 @@ tbody tr:nth-child(even) {
 
 .selection-col {
   width: 42px;
+  min-width: 42px;
+  max-width: 42px;
   text-align: center;
 }
 
 .selection-col input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  min-width: 18px;
+  max-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  max-height: 18px;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  flex: 0 0 18px;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
   cursor: pointer;
+  transition: none;
+  box-shadow: none;
+}
+
+.selection-col input[type="checkbox"]:hover {
+  border-color: var(--brand-500);
+}
+
+.selection-col input[type="checkbox"]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.selection-col input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.selection-col input[type="checkbox"]:checked {
+  border-color: var(--brand-500);
+  background: var(--brand-500);
+}
+
+.selection-col input[type="checkbox"]:checked::before {
+  content: "";
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.selection-col input[type="checkbox"]:indeterminate {
+  border-color: var(--brand-500);
+  background: var(--brand-500);
+}
+
+.selection-col input[type="checkbox"]:indeterminate::before {
+  content: "";
+  width: 9px;
+  height: 2px;
+  background: #fff;
+  border-radius: 999px;
+}
+
+.selection-col input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .character-count {
@@ -1425,6 +1500,11 @@ tbody tr:nth-child(even) {
   max-width: 100%;
   justify-self: start;
   align-self: flex-start;
+}
+
+.bulk-action-row button.danger {
+  width: 180px;
+  white-space: nowrap;
 }
 
 .danger-zone .inline-form {
