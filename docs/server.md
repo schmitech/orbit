@@ -6,9 +6,9 @@ Follow the main installation guide in the project root:
 
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.2.2/orbit-1.2.2.tar.gz -o orbit-1.2.2.tar.gz
-tar -xzf orbit-1.2.2.tar.gz
-cd orbit-1.2.2
+curl -L https://github.com/schmitech/orbit/releases/download/v2.9.1/orbit-2.9.1.tar.gz -o orbit-2.9.1.tar.gz
+tar -xzf orbit-2.9.1.tar.gz
+cd orbit-2.9.1
 
 # Activate virtual environment
 source venv/bin/activate
@@ -431,11 +431,51 @@ messaging:
 
 Choose **one** of these (running both against the same queue would double-consume):
 
-```bash
-# Standalone worker process (recommended for production; scale/deploy separately)
-./bin/orbit.sh worker --config config.yaml
+**A. Standalone worker (recommended; scale/deploy independently of the web server).**
+The `orbit worker` command has a managed, PID-file-based lifecycle mirroring the server:
 
-# ...or in-process: set messaging.run_in_server: true and start the server normally
+```bash
+# Start in the background (writes logs/worker.pid, logs to logs/worker.log)
+./bin/orbit.sh worker start --config config.yaml
+
+# Check status / stop / restart
+./bin/orbit.sh worker status
+./bin/orbit.sh worker restart --config config.yaml
+./bin/orbit.sh worker stop            # graceful (SIGTERM); add --force for SIGKILL
+
+# Run in the foreground instead (blocks; for dev, or when a supervisor like
+# systemd/Docker manages the process lifecycle itself)
+./bin/orbit.sh worker run --config config.yaml
+```
+
+Options: `worker start --delete-logs`, `worker stop --timeout <s> --force --delete-logs`.
+Run several `worker start` invocations across hosts to scale throughput — RabbitMQ
+distributes messages across all consumers (bounded per worker by `prefetch`).
+
+For production supervision, run the worker in the foreground under systemd (it
+handles daemonization, restart, and logging):
+
+```ini
+[Unit]
+Description=ORBIT MQ Worker
+After=network.target
+
+[Service]
+WorkingDirectory=/path/to/orbit
+ExecStart=/path/to/orbit/bin/orbit.sh worker run --config config.yaml
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**B. In-process.** Set `messaging.run_in_server: true` and start the server normally;
+the consumer runs inside the server process (simplest, but shares the event loop with
+live HTTP traffic, and with `performance.workers > 1` every worker process starts its
+own consumer):
+
+```bash
 ./bin/orbit.sh start
 ```
 

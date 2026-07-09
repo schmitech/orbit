@@ -50,45 +50,18 @@ Create an API key bound to an adapter (as a password admin):
 ```bash
 orbit login --username admin
 orbit key create --adapter my-adapter --name "mq-playbook"
-export API_KEY=orbit_...        # the key printed above
+export ORBIT_API_KEY=orbit_...        # the key printed above
 ```
 
-A small Python publisher used throughout (save as `/tmp/mq_client.py`) — it
-publishes one request and prints the correlated response envelope:
+This playbook uses the bundled test client, [`mq_client.py`](mq_client.py), which
+publishes one request and prints the correlated response envelope. It takes the
+**message** as its positional argument and reads the API key from `$ORBIT_API_KEY`
+(or `--api-key`); the broker defaults to `amqp://guest:guest@localhost:5672/`
+(override with `--url` or `$MESSAGING_RABBITMQ_URL`):
 
-```python
-import asyncio, json, sys, uuid, aio_pika
-
-async def main():
-    api_key = sys.argv[1]
-    text = sys.argv[2] if len(sys.argv) > 2 else "Hello from the queue"
-    url = "amqp://guest:guest@localhost:5672/"
-
-    conn = await aio_pika.connect_robust(url)
-    channel = await conn.channel()
-    replies = await channel.declare_queue(exclusive=True)   # temp reply queue
-
-    corr_id = str(uuid.uuid4())
-    await channel.default_exchange.publish(
-        aio_pika.Message(
-            body=json.dumps({"id": corr_id, "message": text, "api_key": api_key}).encode(),
-            correlation_id=corr_id,
-            reply_to=replies.name,
-            content_type="application/json",
-        ),
-        routing_key="orbit.requests",
-    )
-    print(f"published corr_id={corr_id}, waiting for reply...")
-
-    async with replies.iterator() as it:
-        async for msg in it:
-            if msg.correlation_id == corr_id:
-                async with msg.process():
-                    print(json.dumps(json.loads(msg.body), indent=2))
-                break
-    await conn.close()
-
-asyncio.run(main())
+```bash
+python server/tests/messaging/mq_client.py "Hello from the queue"
+# equivalently: ... "Hello from the queue" --api-key "$ORBIT_API_KEY" --url amqp://...
 ```
 
 The request contract is `{ "id", "message", "api_key", "adapter"?, "session_id"?,
@@ -129,14 +102,16 @@ Export the broker URL and start the server + the worker (two processes):
 
 ```bash
 export MESSAGING_RABBITMQ_URL="amqp://guest:guest@localhost:5672/"
-python3 server/main.py                    # or ./bin/orbit.sh start
-./bin/orbit.sh worker --config config.yaml   # in a second terminal
+python3 server/main.py                        # or ./bin/orbit.sh start
+./bin/orbit.sh worker run --config config.yaml   # in a second terminal (foreground)
+# ...or run it managed in the background: ./bin/orbit.sh worker start --config config.yaml
 ```
 
-Worker log should include
+Worker log (terminal for `worker run`, else `logs/worker.log`) should include
 `RabbitMQ broker connected (requests=orbit.requests, results=orbit.results, dlq=orbit.dlq, prefetch=8)`
 followed by `RabbitMQ broker consuming from orbit.requests` and
-`ORBIT worker running - consuming messages.`
+`ORBIT worker running - consuming messages.` Managed lifecycle:
+`./bin/orbit.sh worker status | stop | restart`.
 
 The three queues (`orbit.requests`, `orbit.results`, `orbit.dlq`) now appear in
 the management UI **Queues** tab, `orbit.requests` marked *durable* with a
@@ -145,7 +120,7 @@ dead-letter policy.
 ## 3. Round-trip a message
 
 ```bash
-venv/bin/python /tmp/mq_client.py "$API_KEY" "What can you help me with?"
+python server/tests/messaging/mq_client.py "What can you help me with?"
 ```
 
 Confirm:
@@ -162,7 +137,7 @@ Confirm the MQ response matches the HTTP surface for the same key/adapter — th
 consumer calls the identical `PipelineChatService.process_chat`:
 
 ```bash
-curl -s -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+curl -s -H "X-API-Key: $ORBIT_API_KEY" -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"What can you help me with?"}]}' \
   http://localhost:3000/v1/chat
 ```
@@ -212,7 +187,7 @@ Publish a body that isn't valid JSON (or isn't a JSON object) — it can't be
 answered, so it must be rejected to the DLQ, not silently dropped:
 
 ```bash
-venv/bin/python - "$API_KEY" <<'PY'
+venv/bin/python - <<'PY'
 import asyncio, aio_pika
 async def main():
     conn = await aio_pika.connect_robust("amqp://guest:guest@localhost:5672/")
@@ -262,11 +237,13 @@ unparseable/crashing messages dead-letter. An **invalid** key behaves the same
 
 ## 8. At-least-once redelivery
 
-Publish a request, then kill the worker (`Ctrl+C`) *before* it finishes (use a
-slow/large prompt, or pause the worker host). Restart the worker and confirm the
-in-flight message is redelivered and processed — because the broker only acks on
-successful handler completion (`message.process()`), an unacked message survives a
-worker crash. (With `prefetch: 8`, at most 8 messages are unacked/at-risk at once.)
+Publish a request, then kill the worker *before* it finishes (use a slow/large
+prompt, or pause the worker host) — `Ctrl+C` if it's a foreground `worker run`, or
+`./bin/orbit.sh worker stop --force` / `kill -9 $(cat logs/worker.pid)` for a
+backgrounded `worker start`. Restart the worker and confirm the in-flight message is
+redelivered and processed — because the broker only acks on successful handler
+completion (`message.process()`), an unacked message survives a worker crash. (With
+`prefetch: 8`, at most 8 messages are unacked/at-risk at once.)
 
 ---
 
@@ -321,21 +298,50 @@ With `messaging.enabled: false` (the default), confirm the server starts normall
 no broker connection is attempted, and none of the queues are declared — the
 surface is fully opt-in and the base install needs no broker.
 
+### M9. Managed worker lifecycle (start / status / stop / restart)
+
+The standalone worker has a PID-file-based lifecycle mirroring the server:
+
+```bash
+./bin/orbit.sh worker start --config config.yaml   # background; writes logs/worker.pid
+./bin/orbit.sh worker status                        # -> "Worker is running (PID ...)"
+./bin/orbit.sh worker restart --config config.yaml  # stop then start
+./bin/orbit.sh worker stop                          # graceful (SIGTERM); --force = SIGKILL
+./bin/orbit.sh worker status                        # -> "Worker is not running"
+```
+
+Confirm:
+- `start` reports a PID, `logs/worker.pid` exists, and `ps -p $(cat logs/worker.pid)`
+  shows a `worker_main.py` process.
+- `stop` terminates it and **removes** the PID file; a second `stop` is a no-op
+  ("Worker is not running").
+- `start` while already running does **not** spawn a second worker ("already running").
+- **restart aborts on a failed stop:** `restart` only proceeds to `start` if `stop`
+  succeeds — if the running worker can't be signalled (e.g. a permission/OS error),
+  the command reports "Restart aborted: failed to stop the running worker" and exits
+  non-zero rather than falsely reporting success (locked in by
+  `test_worker_service.py::TestRestart`).
+
 ---
 
 ## 9. Run the automated checks
 
 ```bash
-ruff check server/services/message_brokers/ server/services/messaging/ server/tests/messaging/test_message_queue.py
-cd server && ../venv/bin/python -m pytest tests/messaging/test_message_queue.py -v
+ruff check server/services/message_brokers/ server/services/messaging/ \
+  server/tests/messaging/test_message_queue.py bin/orbit/services/worker_service.py
+cd server && ../venv/bin/python -m pytest tests/messaging/ -v
 ```
 
-Expect all green: factory selection + unknown-provider rejection, and the full
-consumer matrix (completed/failed envelopes, missing/invalid key, empty message,
-DLQ-propagation on unparseable body and pipeline exception, adapter override,
-system-prompt-id/api-key threading, reply-to fallback, header key, start/stop
-delegation). These run against an in-memory fake broker, so they need **no**
-RabbitMQ or `aio-pika` — they pass in a base install.
+Expect all green across two suites:
+- `test_message_queue.py` — factory selection + unknown-provider rejection, and the
+  full consumer matrix (completed/failed envelopes, missing/invalid key, empty
+  message, DLQ-propagation on unparseable body and pipeline exception, adapter
+  override, system-prompt-id/api-key threading, reply-to fallback, header key,
+  start/stop delegation). Runs against an in-memory fake broker.
+- `test_worker_service.py` — the PID-file worker lifecycle (start / stop / status /
+  restart, SIGTERM→SIGKILL escalation, stale-PID cleanup, restart-aborts-on-failed-stop).
+
+Both need **no** RabbitMQ or `aio-pika` — they pass in a base install.
 
 ---
 
@@ -346,8 +352,8 @@ RabbitMQ or `aio-pika` — they pass in a base install.
   `--config config.yaml` and confirm the path.
 - **Worker exits with "run_in_server is true ... in-process consumer is already
   running":** you set `run_in_server: true` (Part 2) but also launched
-  `orbit worker`. Pick one host — set `run_in_server: false` for the standalone
-  worker, or drop the worker and just start the server.
+  `orbit worker start`/`run`. Pick one host — set `run_in_server: false` for the
+  standalone worker, or drop the worker and just start the server.
 - **`aio-pika is required for RabbitMQ messaging`:** install the `messaging`
   profile (M6). The client is lazy-imported and only needed when messaging is on.
 - **Messages pile up in `orbit.requests` (Ready count climbs):** no consumer is

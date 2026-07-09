@@ -179,6 +179,7 @@ For power users and contributors.
 |-------|-------------|
 | [MCP Protocol](orbit-flow-diagrams.md) | Model Context Protocol integration |
 | [A2A Protocol](a2a-protocol.md) | Agent-to-Agent protocol for peer AI agent orchestration |
+| [Message Queue (Async)](message-queue-architecture.md) | Broker-native RabbitMQ surface for decoupled, batch-style processing |
 | [Reranker Architecture](reranker-architecture.md) | Document reranking for improved accuracy |
 | [Language Detection](language-detection-architecture.md) | Multilingual support |
 | [Conversation Threading](conversation-threading-architecture.md) | Sub-conversations and cached dataset reuse |

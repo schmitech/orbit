@@ -412,7 +412,7 @@ messaging:
 
 Run the consumer one of two ways (not both against the same queue):
 
-- **Standalone worker** (`run_in_server: false`): `./bin/orbit.sh worker --config config.yaml` — scales/deploys independently of the web server.
+- **Standalone worker** (`run_in_server: false`): managed lifecycle via `./bin/orbit.sh worker start | stop | status | restart` (background, PID-tracked), or `./bin/orbit.sh worker run` for a foreground process — scales/deploys independently of the web server.
 - **In-process** (`run_in_server: true`): started inside the server process on `./bin/orbit.sh start`.
 
 Failed deliveries are handled by severity: business failures (missing/invalid key, empty message, pipeline error) publish a `status: "failed"` envelope and ack, so the caller always gets an answer; only unparseable messages and unexpected exceptions are dead-lettered (`dead_letter_queue`) for inspection/retry.

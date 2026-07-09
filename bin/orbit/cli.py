@@ -24,8 +24,10 @@ from bin.orbit.utils.exceptions import OrbitError, AuthenticationError, NetworkE
 
 # Import all commands
 from bin.orbit.commands.server import (
-    ServerStartCommand, ServerStopCommand, ServerRestartCommand, ServerStatusCommand, WorkerCommand
+    ServerStartCommand, ServerStopCommand, ServerRestartCommand, ServerStatusCommand,
+    WorkerRunCommand, WorkerStartCommand, WorkerStopCommand, WorkerRestartCommand, WorkerStatusCommand
 )
+from bin.orbit.services.worker_service import WorkerService
 from bin.orbit.commands.auth import (
     LoginCommand, LogoutCommand, RegisterCommand, MeCommand, AuthStatusCommand
 )
@@ -164,6 +166,12 @@ class OrbitCLI:
         """Get or create server service."""
         self._initialize_server_service()
         return self.server_service
+
+    def _get_worker_service(self) -> WorkerService:
+        """Get or create the MQ worker service (local process management; no server URL)."""
+        if getattr(self, 'worker_service', None) is None:
+            self.worker_service = WorkerService(formatter=self.formatter)
+        return self.worker_service
     
     def _update_command_services(self, cmd: Any, args: argparse.Namespace) -> None:
         """Update command's services if server_url is provided in args."""
@@ -265,10 +273,19 @@ Report issues at: https://github.com/schmitech/orbit/issues
         status_cmd.add_arguments(status_parser)
         status_parser.set_defaults(func=lambda args, cmd=status_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
 
-        worker_parser = subparsers.add_parser('worker', help='Run the ORBIT message-queue (MQ) worker')
-        worker_cmd = WorkerCommand(self._get_server_service(), self.formatter)
-        worker_cmd.add_arguments(worker_parser)
-        worker_parser.set_defaults(func=lambda args, cmd=worker_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+        # MQ worker: managed lifecycle (start/stop/status/restart) + foreground run
+        worker_parser = subparsers.add_parser('worker', help='Manage the ORBIT message-queue (MQ) worker')
+        worker_subparsers = worker_parser.add_subparsers(dest='worker_command', help='Worker operations', required=False)
+        for worker_cmd in (
+            WorkerStartCommand(self._get_worker_service(), self.formatter),
+            WorkerStopCommand(self._get_worker_service(), self.formatter),
+            WorkerRestartCommand(self._get_worker_service(), self.formatter),
+            WorkerStatusCommand(self._get_worker_service(), self.formatter),
+            WorkerRunCommand(self._get_worker_service(), self.formatter),
+        ):
+            sub = worker_subparsers.add_parser(worker_cmd.name, help=worker_cmd.description)
+            worker_cmd.add_arguments(sub)
+            sub.set_defaults(func=lambda args, cmd=worker_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
     
     def _add_auth_commands(self, subparsers):
         """Add authentication commands."""

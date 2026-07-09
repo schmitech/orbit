@@ -13,6 +13,7 @@ from rich.table import Table
 
 from bin.orbit.commands import BaseCommand
 from bin.orbit.services.server_service import ServerService
+from bin.orbit.services.worker_service import WorkerService
 from bin.orbit.utils.output import OutputFormatter
 
 logger = logging.getLogger(__name__)
@@ -109,43 +110,121 @@ class ServerRestartCommand(BaseCommand):
         return 0 if success else 1
 
 
-class WorkerCommand(BaseCommand):
-    """Command to run the ORBIT message-queue (MQ) worker in the foreground."""
+class WorkerRunCommand(BaseCommand):
+    """Run the ORBIT MQ worker in the foreground (for systemd/Docker/dev)."""
 
-    def __init__(self, server_service: ServerService, formatter: OutputFormatter):
-        self.server_service = server_service
+    def __init__(self, worker_service: WorkerService, formatter: OutputFormatter):
+        self.worker_service = worker_service
         self.formatter = formatter
 
     @property
     def name(self) -> str:
-        return "worker"
+        return "run"
 
     @property
     def description(self) -> str:
-        return "Run the ORBIT message-queue (MQ) worker in the foreground"
+        return "Run the MQ worker in the foreground (Ctrl+C to stop)"
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('--config', type=str, help='Path to configuration file')
 
     def execute(self, args: argparse.Namespace) -> int:
-        import os
-        import subprocess
+        return self.worker_service.run_foreground(config_path=args.config)
 
-        project_root = self.server_service.project_root
-        cmd = ["python", "server/worker_main.py"]
 
-        config_path = getattr(args, 'config', None)
-        if config_path:
-            if not os.path.isabs(config_path):
-                config_path = str(project_root / config_path)
-            cmd.extend(["--config", config_path])
+class WorkerStartCommand(BaseCommand):
+    """Start the ORBIT MQ worker as a background process."""
 
-        self.formatter.info("Starting ORBIT MQ worker (Ctrl+C to stop)...")
-        try:
-            return subprocess.run(cmd, cwd=str(project_root)).returncode
-        except KeyboardInterrupt:
-            self.formatter.info("Worker stopped")
-            return 0
+    def __init__(self, worker_service: WorkerService, formatter: OutputFormatter):
+        self.worker_service = worker_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "start"
+
+    @property
+    def description(self) -> str:
+        return "Start the MQ worker in the background"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument('--config', type=str, help='Path to configuration file')
+        parser.add_argument('--delete-logs', action='store_true', help='Delete the worker log before starting')
+
+    def execute(self, args: argparse.Namespace) -> int:
+        success = self.worker_service.start(config_path=args.config, delete_logs=args.delete_logs)
+        return 0 if success else 1
+
+
+class WorkerStopCommand(BaseCommand):
+    """Stop the background ORBIT MQ worker."""
+
+    def __init__(self, worker_service: WorkerService, formatter: OutputFormatter):
+        self.worker_service = worker_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "stop"
+
+    @property
+    def description(self) -> str:
+        return "Stop the background MQ worker"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument('--timeout', type=int, default=30, help='Timeout for graceful shutdown (seconds)')
+        parser.add_argument('--force', action='store_true', help='Force stop (SIGKILL) without graceful shutdown')
+        parser.add_argument('--delete-logs', action='store_true', help='Delete the worker log after stopping')
+
+    def execute(self, args: argparse.Namespace) -> int:
+        success = self.worker_service.stop(timeout=args.timeout, force=args.force, delete_logs=args.delete_logs)
+        return 0 if success else 1
+
+
+class WorkerRestartCommand(BaseCommand):
+    """Restart the background ORBIT MQ worker."""
+
+    def __init__(self, worker_service: WorkerService, formatter: OutputFormatter):
+        self.worker_service = worker_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "restart"
+
+    @property
+    def description(self) -> str:
+        return "Restart the background MQ worker"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument('--config', type=str, help='Path to configuration file')
+        parser.add_argument('--delete-logs', action='store_true', help='Delete the worker log during restart')
+
+    def execute(self, args: argparse.Namespace) -> int:
+        success = self.worker_service.restart(config_path=args.config, delete_logs=args.delete_logs)
+        return 0 if success else 1
+
+
+class WorkerStatusCommand(BaseCommand):
+    """Check whether the background ORBIT MQ worker is running."""
+
+    def __init__(self, worker_service: WorkerService, formatter: OutputFormatter):
+        self.worker_service = worker_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "status"
+
+    @property
+    def description(self) -> str:
+        return "Check MQ worker status"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        pass
+
+    def execute(self, args: argparse.Namespace) -> int:
+        return 0 if self.worker_service.status() else 1
 
 
 class ServerStatusCommand(BaseCommand):

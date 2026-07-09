@@ -9,9 +9,10 @@ the message consumer until interrupted (Ctrl+C / SIGTERM).
 
 Run with `messaging.enabled: true` and `messaging.run_in_server: false` in config.
 
-Usage:
-    python server/worker_main.py [--config CONFIG_PATH]
-    ./bin/orbit.sh worker [--config CONFIG_PATH]
+Usage (prefer the managed CLI, which handles PID tracking and logging):
+    ./bin/orbit.sh worker start [--config CONFIG_PATH]     # background
+    ./bin/orbit.sh worker run   [--config CONFIG_PATH]     # foreground (this entrypoint)
+    python server/worker_main.py [--config CONFIG_PATH]    # foreground, direct
 """
 
 import argparse
