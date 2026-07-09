@@ -157,7 +157,7 @@ Pick the path closest to what you want to build.
   <tr>
     <td align="center" width="800">
       <a href="https://github.com/schmitech/orbit">
-        <img src="https://github.com/user-attachments/assets/f0b60d9d-6bf4-48c1-8dc9-48315d137da9" alt="ORBIT Logo" width="600"/>
+        <img src="https://github.com/user-attachments/assets/b2fcbed3-5c28-4d1a-85bd-edc3b7299f6d" alt="ORBIT Logo" width="600"/>
       </a>
       <br />
       <em>Every request flows through the ORBIT gateway, gets authenticated and routed by an adapter, and lands on the right provider — REST, OpenAI-compatible, MCP, A2A, or message queue in; inference, RAG, structured data, tools, or generation out.</em>
