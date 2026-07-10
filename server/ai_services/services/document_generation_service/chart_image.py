@@ -44,6 +44,19 @@ def _apply_compact_formatter(ax) -> None:
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(_compact_formatter))
 
 
+def _label_rotation(labels: List[str]) -> int:
+    """Pick an x-axis label rotation that avoids overlap.
+
+    Rotating only past 6 categories ignores label *length* — a handful of long
+    labels (e.g. "United Kingdom", "United States") overlap horizontally just
+    as easily as many short ones.
+    """
+    if len(labels) > 6:
+        return 30
+    avg_len = sum(len(label) for label in labels) / max(len(labels), 1)
+    return 30 if avg_len > 8 else 0
+
+
 def render_chart_to_png(
     chart: Dict[str, Any],
     width_px: int = 600,
@@ -133,7 +146,7 @@ def _render_bar(ax, labels: List[str], datasets: List[Dict[str, Any]]) -> None:
         ax.bar(offsets, data, width=bar_width * 0.9,
                label=ds.get("label"), color=COLORS[idx % len(COLORS)])
     ax.set_xticks(list(x_values))
-    ax.set_xticklabels(labels, rotation=30 if n_labels > 6 else 0, ha="right")
+    ax.set_xticklabels(labels, rotation=_label_rotation(labels), ha="right")
     if n_datasets > 1:
         ax.legend()
     ax.grid(axis="y", linestyle="--", alpha=0.5)
@@ -176,7 +189,7 @@ def _render_composed(ax, fig, labels: List[str], datasets: List[Dict[str, Any]])
             bar_left_idx += 1
 
     ax.set_xticks(x_positions)
-    ax.set_xticklabels(labels, rotation=30 if len(labels) > 6 else 0, ha="right")
+    ax.set_xticklabels(labels, rotation=_label_rotation(labels), ha="right")
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     _apply_compact_formatter(ax)
     if ax2:
