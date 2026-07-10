@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.9.2] - 2026-07-09
+
+### Core System Updates
+- **Message Queue**: Added a broker-native RabbitMQ message-queue surface with request/reply envelopes, dead-letter handling, and a worker lifecycle command.
+- **Auth Sync**: Added postgres-to-sqlite auth synchronization so fresh SQLite installs can be rebuilt from PostgreSQL-backed deployments.
+- **Chunking Strategy**: Added a markdown-header-aware chunking strategy to keep sectioned content aligned with its headings.
+
+### Chat-app & UI Improvements
+- **Admin Tables**: Stabilized selectable-row checkbox behavior in admin tables by avoiding full re-renders, fixing dimensions, and refining checkbox styling and focus states.
+- **Architecture Diagram**: Updated the architecture diagram to reflect the new MQ async endpoint.
+
+### Bug Fixes & Technical Improvements
+- **API Key Logging**: Consolidated admin-route API key masking and fixed logging so raw identifiers are no longer emitted.
+- **Default Database**: Updated the default `orbit.db` installation and clear-chat script to include current schema, audit, and session data.
+
+### Documentation & Configuration
+- **Message Queue Docs**: Added message-queue architecture, local setup, and protocol documentation, plus corresponding README and configuration updates.
+- **RBAC Docs**: Added technical documentation for ORBIT's RBAC features and roadmap.
+
 ## [2.9.1] - 2026-07-08
 
 ### Core System Updates
