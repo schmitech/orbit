@@ -15,6 +15,7 @@
 - **API Key Logging**: Consolidated admin-route API key masking and fixed logging so raw identifiers are no longer emitted.
 - **Default Database**: Updated the default `orbit.db` installation and clear-chat script to include current schema, audit, and session data.
 - **Rate Limiting & Throttling**: Fixed middleware that only ever activated with Redis, ignoring the configured cache provider; also removed the redundant `sqlite_cache.enabled` flag, which could override the `cache.enabled` master switch and unexpectedly disable dependent services.
+- **Chart Generation**: Fixed overlapping x-axis labels in generated chart images (PDF/DOCX/PPTX) by rotating labels based on length, not just category count.
 
 ### Documentation & Configuration
 - **Message Queue Docs**: Added message-queue architecture, local setup, and protocol documentation, plus corresponding README and configuration updates.
