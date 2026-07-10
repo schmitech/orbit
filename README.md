@@ -33,7 +33,9 @@
 
 ## What is ORBIT?
 
-ORBIT is a self-hosted AI gateway that lets you chat with private data through one OpenAI-compatible endpoint. Put it in front of local or cloud models, connect files, SQL, NoSQL, vector stores, APIs, and tools, then operate everything from an admin panel with keys, quotas, prompts, metrics, and audit logs.
+ORBIT is a self-hosted AI gateway that lets you chat with private data through one OpenAI-compatible endpoint.
+
+Put it in front of local or cloud models, connect files, SQL, NoSQL, vector stores, APIs, and tools, then operate everything from an admin panel with keys, quotas, prompts, metrics, and audit logs.
 
 **Reach for ORBIT when you need to:**
 
@@ -83,6 +85,12 @@ curl -X POST http://localhost:3000/v1/chat \
   -H 'X-API-Key: default-key' \
   -H 'X-Session-ID: local-test' \
   -d '{"messages": [{"role": "user", "content": "Summarize ORBIT in one sentence."}], "stream": false}'
+```
+
+Install orbitchat:
+
+```bash
+npm install -g orbitchat@latest
 ```
 
 Open a browser chat client:
@@ -172,7 +180,7 @@ Pick the path closest to what you want to build.
 | Capability | What you get |
 | :--- | :--- |
 | **OpenAI-compatible gateway** | One `/v1/chat` interface across local, self-hosted, and cloud providers. |
-| **Model routing (37+ providers)** | Local: Ollama, llama.cpp, vLLM, TensorRT-LLM, Transformers, LM Studio, BitNet. Cloud: OpenAI, Anthropic, Gemini, Bedrock, Vertex, Azure, Groq, Mistral, DeepSeek, xAI, and [many more](docs/configuration.md). |
+| **Model routing (37+ providers)** | Local: Ollama, llama.cpp, vLLM, TensorRT-LLM, Transformers, LM Studio, BitNet. Cloud: OpenAI, Anthropic, Gemini, Bedrock, Vertex, Azure, Groq, Mistral, DeepSeek, xAI, and [many more](config/inference.yaml). |
 | **Natural-language data access** | Plain English → SQL, MongoDB, Elasticsearch DSL, REST, GraphQL across Postgres, MySQL, Oracle, SQL Server, DuckDB, Athena, Supabase, Cassandra, Redis, and composite multi-source answers. |
 | **Vector RAG** | Chroma, Qdrant, Pinecone, Milvus, Weaviate, Marqo, pgvector, FAISS, DuckDB, Redis, Elasticsearch. |
 | **File & multimodal RAG** | PDFs, DOCX, spreadsheets, CSVs, markdown, images, and audio — with cached file context across conversations. |
