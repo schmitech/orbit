@@ -456,7 +456,7 @@ export function Message({
 
   const bubbleClasses = isAssistant
     ? 'message-bubble message-bubble-assistant min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
-    : 'message-bubble message-bubble-user relative inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] border border-black/[0.06] bg-[#f4f4f4] px-4 py-3 pr-10 text-[#111827] shadow-[0_1px_2px_rgba(16,24,40,0.06)] dark:border-white/[0.08] dark:bg-[#303030] dark:text-[#f5f5f5] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]';
+    : 'message-bubble message-bubble-user inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] border border-black/[0.06] bg-[#f4f4f4] px-4 py-3 text-[#111827] shadow-[0_1px_2px_rgba(16,24,40,0.06)] dark:border-white/[0.08] dark:bg-[#2a2a2a] dark:text-[#f5f5f5] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]';
 
   const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';
 
@@ -798,7 +798,7 @@ export function Message({
           <div className={replyIsAssistant ? 'min-w-0 w-full max-w-full' : 'min-w-0 max-w-[85%]'}>
             <div className={replyIsAssistant
               ? 'thread-markdown-wrapper overflow-x-visible text-sm text-[#353740] dark:text-[#ececf1]'
-              : 'thread-markdown-wrapper overflow-x-visible text-sm rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 text-[#111827] dark:bg-[#303030] dark:text-[#f5f5f5]'
+              : 'thread-markdown-wrapper overflow-x-visible text-sm rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 text-[#111827] dark:bg-[#2a2a2a] dark:text-[#f5f5f5]'
             }>
               {replyContent}
               {reply.audio && replyIsAssistant && !reply.isStreaming && (
@@ -851,6 +851,7 @@ export function Message({
   return (
     <div className="group animate-fadeIn min-w-0 w-full px-0">
       <div className="min-w-0 space-y-1">
+        <div className={isAssistant ? undefined : 'flex flex-col items-end'}>
         <div className={bubbleClasses}>
           {isEditing ? (
             <div className="flex flex-col gap-2">
@@ -958,19 +959,36 @@ export function Message({
               autoPlay={false}
             />
           )}
-          {!isAssistant && onEdit && !isEditing && (
+        </div>
+
+        {!isAssistant && !isEditing && (
+          <div className="flex items-center gap-0.5 py-1 text-gray-400 dark:text-[#8e8ea0]">
             <button
-              onClick={() => {
-                setEditContent(message.content || '');
-                setIsEditing(true);
-              }}
-              className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-black/[0.06] hover:text-gray-900 active:scale-90 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
-              title={t('message.editAriaLabel')}
-              aria-label={t('message.editAriaLabel')}
+              onClick={copyToClipboard}
+              className="rounded-md p-1.5 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
+              title={copyLabel}
+              aria-label={copyLabel}
             >
-              <Edit2 className="h-3.5 w-3.5" />
+              {copied
+                ? <Check className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                : <Copy className="h-4 w-4" />
+              }
             </button>
-          )}
+            {onEdit && (
+              <button
+                onClick={() => {
+                  setEditContent(message.content || '');
+                  setIsEditing(true);
+                }}
+                className="rounded-md p-1.5 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
+                title={t('message.editAriaLabel')}
+                aria-label={t('message.editAriaLabel')}
+              >
+                <Edit2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
         </div>
 
         {isAssistant && !message.isStreaming && (
