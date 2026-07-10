@@ -37,6 +37,7 @@ _providers = [
     ('zai_base', 'ZaiBaseService'),
     ('sentence_transformers_base', 'SentenceTransformersBaseService'),
     ('transformers_base', 'TransformersBaseService'),
+    ('airllm_base', 'AirLLMBaseService'),
 ]
 
 for module_name, class_name in _providers:

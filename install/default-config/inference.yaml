@@ -409,6 +409,30 @@ inference:
     do_sample: true
     stream: true
     stop: []
+  airllm:
+    enabled: false
+    # Loads models locally via AirLLM (https://github.com/lyogavin/airllm), which
+    # streams model layers from disk so multi-billion-parameter models can run
+    # on a single GPU at the cost of generation speed. No streaming token
+    # callback is available, so streaming is simulated by chunking.
+    # NOTE: requires Linux + a CUDA GPU. On macOS, airllm uses a different
+    # MLX-only backend (Llama models only) that this integration does not support.
+    model: "garage-bAInd/Platypus2-70B-instruct"  # HuggingFace model ID or local path
+    device: "cuda:0"               # AirLLM currently targets a single CUDA device
+    compression: null             # Options: "4bit", "8bit", null (none)
+    max_seq_len: 4096             # Maximum sequence length (context window)
+    hf_token: null                # Optional HuggingFace token for gated models
+    layer_shards_saving_path: null  # Optional custom path for converted layer shards
+    delete_original: false        # Delete original safetensors after converting to layer shards
+    profiling_mode: false         # Enable AirLLM's internal profiling/timing logs
+    temperature: 0.1
+    top_p: 0.8
+    top_k: -1                     # Set to -1 to disable
+    max_tokens: 512
+    repetition_penalty: 1.0       # Penalty for repeating tokens (1.0 = no penalty)
+    do_sample: true
+    stream: true
+    stop: []
   openrouter:
     enabled: false
     api_key: ${OPENROUTER_API_KEY}

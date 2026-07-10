@@ -203,6 +203,16 @@ dependencies = [
 ]
 
 # ============================================================================
+# AIRLLM - Layer-offloaded inference for large models on limited GPU memory
+# ============================================================================
+[profiles.airllm]
+description = "AirLLM for running large models on a single GPU/CPU via layer offloading (combine with profile torch)"
+dependencies = [
+    "airllm>=2.11.0",
+    "mlx>=0.9.0; sys_platform == 'darwin'",  # airllm imports its MLX backend unconditionally on macOS
+]
+
+# ============================================================================
 # BITNET - BitNet 1.58-bit LLM inference framework
 # ============================================================================
 [profiles.bitnet]

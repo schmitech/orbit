@@ -31,6 +31,7 @@ Available providers:
     - ZaiInferenceService: Z.AI inference
     - TensorRTInferenceService: TensorRT-LLM (NVIDIA) inference
     - TransformersInferenceService: Transformers (Local) inference
+    - AirLLMInferenceService: AirLLM (Local) large-model inference
     - CerebrasInferenceService: Cerebras ultra-fast inference
     - DeepInfraInferenceService: DeepInfra hosted open-model inference
     - LMStudioInferenceService: LM Studio local inference
@@ -79,6 +80,7 @@ _implementations = [
     ('zai_inference_service', 'ZaiInferenceService'),
     ('tensorrt_inference_service', 'TensorRTInferenceService'),
     ('transformers_inference_service', 'TransformersInferenceService'),
+    ('airllm_inference_service', 'AirLLMInferenceService'),
     ('cerebras_inference_service', 'CerebrasInferenceService'),
     ('deepinfra_inference_service', 'DeepInfraInferenceService'),
     ('lmstudio_inference_service', 'LMStudioInferenceService'),
