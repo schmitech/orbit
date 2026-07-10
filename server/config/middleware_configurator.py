@@ -22,13 +22,12 @@ _logger = logging.getLogger(__name__)
 
 def _cache_provider_enabled(config: Dict[str, Any]) -> bool:
     """True if the master switch and the configured cache provider's own flag are both on."""
-    from services.cache_backends import get_provider_config, is_cache_master_enabled
-    from utils.config_utils import is_true_value
+    from services.cache_backends import get_provider_config, is_cache_master_enabled, is_provider_enabled
 
     if not is_cache_master_enabled(config):
         return False
-    _, provider_config = get_provider_config(config)
-    return is_true_value(provider_config.get('enabled', False))
+    provider_name, provider_config = get_provider_config(config)
+    return is_provider_enabled(provider_name, provider_config)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

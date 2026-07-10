@@ -299,7 +299,12 @@ class ServiceFactory:
     
     async def _initialize_cache_service(self, app: FastAPI) -> None:
         """Initialize the configured cache provider (Redis, Memcached, SQLite, ...) if enabled."""
-        from services.cache_backends import create_cache_service, get_provider_config, is_cache_master_enabled
+        from services.cache_backends import (
+            create_cache_service,
+            get_provider_config,
+            is_cache_master_enabled,
+            is_provider_enabled,
+        )
 
         if not is_cache_master_enabled(self.config):
             app.state.cache_service = None
@@ -312,7 +317,7 @@ class ServiceFactory:
             return
 
         provider_name, provider_config = get_provider_config(self.config)
-        provider_enabled = is_true_value(provider_config.get('enabled', False))
+        provider_enabled = is_provider_enabled(provider_name, provider_config)
 
         if not provider_enabled:
             app.state.cache_service = None

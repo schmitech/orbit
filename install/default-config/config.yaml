@@ -382,7 +382,6 @@ internal_services:
   # Note: slower than Redis/Memcached under high write throughput (e.g. per-request
   # rate limiting) since every write is a disk-backed transaction.
   sqlite_cache:
-    enabled: true
     database_path: "orbit_cache.db"
     ttl: 3600  # 1 hour
 

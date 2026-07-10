@@ -201,9 +201,9 @@ class ConfigurationSummaryLogger:
             use_cache_service = is_true_value(cache_config.get('use_cache', True))
             cache_ttl = cache_config.get('ttl_seconds', 1800)
 
-            from services.cache_backends import get_provider_config, is_cache_master_enabled
+            from services.cache_backends import get_provider_config, is_cache_master_enabled, is_provider_enabled
             provider_name, provider_config = get_provider_config(self.config)
-            provider_enabled = is_cache_master_enabled(self.config) and is_true_value(provider_config.get('enabled', False))
+            provider_enabled = is_cache_master_enabled(self.config) and is_provider_enabled(provider_name, provider_config)
 
             if use_cache_service and not provider_enabled:
                 self.logger.warning(

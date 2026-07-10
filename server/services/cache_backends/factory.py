@@ -33,6 +33,14 @@ _PROVIDER_CONFIG_SECTIONS = {
     "sqlite": "sqlite_cache",
 }
 
+# Providers with no external service to opt into (e.g. sqlite - zero-config,
+# no host/credentials to set up) are enabled whenever they're selected via
+# `cache.provider`, gated only by the internal_services.cache.enabled master
+# switch. Providers that talk to an external service (redis, memcached) still
+# require their own section's `enabled: true` so picking them via `provider`
+# doesn't silently start connecting before host/credentials are configured.
+_IMPLICITLY_ENABLED_PROVIDERS = {"sqlite"}
+
 
 def get_provider_config(config: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
     """Resolve the configured provider name and its internal_services config section."""
@@ -41,6 +49,15 @@ def get_provider_config(config: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
     section_name = _PROVIDER_CONFIG_SECTIONS.get(provider_name, provider_name)
     provider_config = config.get('internal_services', {}).get(section_name, {})
     return provider_name, provider_config
+
+
+def is_provider_enabled(provider_name: str, provider_config: Dict[str, Any]) -> bool:
+    """Whether the given provider is enabled, independent of the cache.enabled master switch."""
+    if provider_name in _IMPLICITLY_ENABLED_PROVIDERS:
+        return True
+    from utils.config_utils import is_true_value
+
+    return is_true_value(provider_config.get('enabled', False))
 
 
 def create_cache_service(config: Dict[str, Any]) -> CacheProvider:

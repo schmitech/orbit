@@ -68,7 +68,9 @@ class SqliteCacheProvider(CacheProvider):
 
         self.config = config
         self.sqlite_config = config.get('internal_services', {}).get('sqlite_cache', {})
-        self.enabled = is_cache_master_enabled(config) and self.sqlite_config.get('enabled', False)
+        # Zero-config default backend - no external service to opt into, so it's
+        # enabled whenever selected via cache.provider and the master switch is on.
+        self.enabled = is_cache_master_enabled(config)
         self.database_path = self.sqlite_config.get('database_path', 'orbit_cache.db')
         self.default_ttl = int(self.sqlite_config.get('ttl', 3600))
 
@@ -101,7 +103,9 @@ class SqliteCacheProvider(CacheProvider):
             return True
 
         if not self.enabled:
-            logger.warning("SQLite cache is not enabled in configuration")
+            logger.warning(
+                "Caching is disabled (internal_services.cache.enabled=false) - SQLite cache will not initialize"
+            )
             return False
 
         try:
