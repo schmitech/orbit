@@ -26,6 +26,29 @@ interface TimeGroup {
   conversations: Conversation[];
 }
 
+// ---------------------------------------------------------------------------
+// Conversation card action button (edit / delete)
+// ---------------------------------------------------------------------------
+
+interface CardActionButtonProps {
+  onClick: (e: React.MouseEvent) => void;
+  label: string;
+  hoverClassName: string;
+  icon: React.ReactNode;
+}
+
+function CardActionButton({ onClick, label, hoverClassName, icon }: CardActionButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-lg p-1.5 text-slate-400 transition-colors dark:text-[#6b6f7a] ${hoverClassName}`}
+      aria-label={label}
+    >
+      {icon}
+    </button>
+  );
+}
+
 function getTimeGroupLabel(date: Date, now: Date): string {
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfYesterday = new Date(startOfToday);
@@ -353,20 +376,18 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
               </h3>
               {/* Actions: hidden until hover/focus, then fade in */}
               <div className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover:opacity-100 group-focus-within:opacity-100">
-                <button
+                <CardActionButton
                   onClick={(e) => handleEditStart(e, conversation)}
-                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600 dark:text-[#6b6f7a] dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6]"
-                  aria-label={t('sidebar.conversationCard.editAriaLabel', { title: displayTitle })}
-                >
-                  <Edit2 className="h-3.5 w-3.5" />
-                </button>
-                <button
+                  label={t('sidebar.conversationCard.editAriaLabel', { title: displayTitle })}
+                  hoverClassName="hover:bg-slate-200/80 hover:text-slate-600 dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6]"
+                  icon={<Edit2 className="h-3.5 w-3.5" />}
+                />
+                <CardActionButton
                   onClick={(e) => handleDeleteConversation(e, conversation)}
-                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-100/80 hover:text-red-600 dark:text-[#6b6f7a] dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                  aria-label={t('sidebar.conversationCard.deleteAriaLabel', { title: displayTitle })}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                  label={t('sidebar.conversationCard.deleteAriaLabel', { title: displayTitle })}
+                  hoverClassName="hover:bg-red-100/80 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                  icon={<Trash2 className="h-3.5 w-3.5" />}
+                />
               </div>
             </div>
             {agentLabel && (
