@@ -16,3 +16,8 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+// react-syntax-highlighter ships no type declarations and @types/react-syntax-highlighter
+// is not installed; these ambient modules silence the implicit-any import errors.
+declare module 'react-syntax-highlighter';
+declare module 'react-syntax-highlighter/dist/esm/styles/prism';

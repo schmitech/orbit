@@ -79,7 +79,7 @@ export function AppHeader() {
                   WebkitUserDrag: 'none',
                   ...(logoHeight ? { height: logoHeight } : {}),
                   ...(logoWidth ? { width: logoWidth } : {}),
-                }}
+                } as React.CSSProperties}
               />
             </a>
           )}

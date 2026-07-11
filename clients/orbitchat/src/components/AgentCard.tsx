@@ -35,7 +35,7 @@ export function AgentCard({ adapter, onSelect }: AgentCardProps) {
         <div className="min-w-0">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px] font-semibold text-sky-900 dark:text-sky-300 md:text-base">
+              <p className="truncate text-[15px] font-semibold text-blue-700 dark:text-blue-300 md:text-base">
                 {adapter.name}
               </p>
 

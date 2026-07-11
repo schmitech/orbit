@@ -311,7 +311,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
 
   const renderConversationCard = (conversation: Conversation) => {
     const isActive = currentConversationId === conversation.id;
-    const agentLabel = getConversationAgentLabel(conversation);
+    const agentLabel = isSingleAdapterMode ? null : getConversationAgentLabel(conversation);
     const displayTitle = conversation.title || t('chatInterface.newChatTitle');
 
     return (
@@ -391,7 +391,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
               </div>
             </div>
             {agentLabel && (
-              <span className="inline-flex w-fit max-w-full items-center truncate rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium tracking-wide text-sky-700 dark:bg-sky-400/10 dark:text-sky-300">
+              <span className="block max-w-full truncate text-left text-xs font-medium tracking-wide text-blue-700 dark:text-blue-300">
                 {agentLabel}
               </span>
             )}

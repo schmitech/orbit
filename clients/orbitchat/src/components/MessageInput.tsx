@@ -149,6 +149,10 @@ function getBaseName(name: string): string {
   return name.slice(0, lastDot);
 }
 
+function isFileProcessing(processingStatus?: string): boolean {
+  return !processingStatus || processingStatus === 'processing' || processingStatus === 'uploading';
+}
+
 function prepareClipboardFile(file: File, index: number): File {
   const timestamp = Date.now();
   const originalName = file.name && file.name.trim().length > 0 ? file.name.trim() : `pasted-file`;
@@ -641,15 +645,6 @@ export function MessageInput({
     }
   }, [isUploading, showFileUpload]);
 
-  // Re-open upload area when upload completes (if user wants to upload more)
-  // Only reopen if no files are attached yet (otherwise user probably doesn't need it)
-  useEffect(() => {
-    if (!isUploading && visibleAttachedFiles.length === 0 && !showFileUpload) {
-      // Upload completed and no files attached - could reopen if needed
-      // But we'll keep it closed by default and let user click icon to reopen
-    }
-  }, [isUploading, showFileUpload, visibleAttachedFiles.length]);
-
   const syncFilesWithConversation = useCallback((files: FileAttachment[], targetConversationId?: string | null) => {
     setTimeout(() => {
       let store = useChatStore.getState();
@@ -741,11 +736,7 @@ export function MessageInput({
   const fileSignature = convFiles.length > 0
     ? `${convFiles.length}:${convFiles.map(f => f.file_id).join('|')}`
     : '';
-  const hasFilesStillProcessing = convFiles.some(f =>
-    !f.processing_status ||
-    f.processing_status === 'processing' ||
-    f.processing_status === 'uploading'
-  );
+  const hasFilesStillProcessing = convFiles.some(f => isFileProcessing(f.processing_status));
 
   // Sync and poll file status when switching to a conversation or when files change
   useEffect(() => {
@@ -793,11 +784,7 @@ export function MessageInput({
       }
 
       const currentFiles = currentConv.attachedFiles || [];
-      const stillProcessing = currentFiles.filter(f =>
-        !f.processing_status ||
-        f.processing_status === 'processing' ||
-        f.processing_status === 'uploading'
-      );
+      const stillProcessing = currentFiles.filter(f => isFileProcessing(f.processing_status));
 
       if (stillProcessing.length === 0) {
         debugLog('[MessageInput] All files completed processing, stopping poll');
@@ -1285,22 +1272,24 @@ export function MessageInput({
   }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isGuest, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled, t]);
 
   const adapterInputPlaceholder = getAdapterInputPlaceholder(currentConversation?.adapterName);
-  const basePlaceholder = (hasProcessingFiles || isUploading)
-    ? t('messageInput.placeholder.filesUploading')
-    : adapterInputPlaceholder
-    ? adapterInputPlaceholder
-    : canUseFileUploads
-    ? t('messageInput.placeholder.messageOrbit')
-    : placeholder;
-  const effectivePlaceholder = workspaceMessageLimitReached
-    ? (isGuest
+  let effectivePlaceholder: string | null | undefined;
+  if (workspaceMessageLimitReached) {
+    effectivePlaceholder = isGuest
       ? t('messageInput.placeholder.guestLimitTotal', { count: AppConfig.maxTotalMessages })
-      : t('messageInput.placeholder.workspaceLimitTotal', { count: AppConfig.maxTotalMessages }))
-    : conversationMessageLimitReached
-    ? (isGuest
+      : t('messageInput.placeholder.workspaceLimitTotal', { count: AppConfig.maxTotalMessages });
+  } else if (conversationMessageLimitReached) {
+    effectivePlaceholder = isGuest
       ? t('messageInput.placeholder.guestLimitPerConversation', { count: AppConfig.maxMessagesPerConversation })
-      : t('messageInput.placeholder.conversationLimitReached', { count: AppConfig.maxMessagesPerConversation }))
-    : basePlaceholder;
+      : t('messageInput.placeholder.conversationLimitReached', { count: AppConfig.maxMessagesPerConversation });
+  } else if (hasProcessingFiles || isUploading) {
+    effectivePlaceholder = t('messageInput.placeholder.filesUploading');
+  } else if (adapterInputPlaceholder) {
+    effectivePlaceholder = adapterInputPlaceholder;
+  } else if (canUseFileUploads) {
+    effectivePlaceholder = t('messageInput.placeholder.messageOrbit');
+  } else {
+    effectivePlaceholder = placeholder;
+  }
 
   const limitWarnings: string[] = [];
   if (workspaceMessageLimitReached && AppConfig.maxTotalMessages !== null) {
@@ -1727,9 +1716,7 @@ export function MessageInput({
         {visibleAttachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {visibleAttachedFiles.map((file) => {
-              const isProcessing = !file.processing_status ||
-                file.processing_status === 'processing' ||
-                file.processing_status === 'uploading';
+              const isProcessing = isFileProcessing(file.processing_status);
               const isFailed = file.processing_status === 'failed' || file.processing_status === 'error';
               return (
                 <div

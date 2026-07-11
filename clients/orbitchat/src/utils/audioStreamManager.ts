@@ -376,7 +376,7 @@ class AudioStreamManager {
       // ---------- Try HTMLAudioElement first ----------
       let played = false;
       try {
-        played = await this.playViaAudioElement(audioUrl, chunk, mimeType, cleanup);
+        played = await this.playViaAudioElement(audioUrl, chunk, cleanup);
       } catch {
         played = false;
       }
@@ -426,7 +426,6 @@ class AudioStreamManager {
   private playViaAudioElement(
     audioUrl: string,
     chunk: AudioChunk,
-    mimeType: string,
     cleanup: () => void
   ): Promise<boolean> {
     return new Promise<boolean>((resolve) => {

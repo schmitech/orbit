@@ -25,8 +25,8 @@ const baseConfig = {
 
   // Conversation Limits
   maxConversations: runtimeConfig.limits.conversations.maxConversations,
-  maxMessagesPerConversation: runtimeConfig.limits.conversations.maxMessagesPerConversation,
-  maxMessagesPerThread: runtimeConfig.limits.conversations.maxMessagesPerThread,
+  maxMessagesPerConversation: runtimeConfig.limits.conversations.messagesPerConversation,
+  maxMessagesPerThread: runtimeConfig.limits.conversations.messagesPerThread,
   maxTotalMessages: runtimeConfig.limits.conversations.totalMessages,
 
   // Message Limits

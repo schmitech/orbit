@@ -554,7 +554,9 @@ export function useChatAgentSelection({
   const adapterNotesError = isSingleAdapterMode && !singleAdapterId
     ? missingSingleAdapterMessage
     : currentConversation?.adapterLoadError ??
-      (adapterNotesAsyncError?.conversationId === currentConversation?.id ? adapterNotesAsyncError.message : null);
+      (adapterNotesAsyncError && adapterNotesAsyncError.conversationId === currentConversation?.id
+        ? adapterNotesAsyncError.message
+        : null);
 
   return {
     adapterNotesError,

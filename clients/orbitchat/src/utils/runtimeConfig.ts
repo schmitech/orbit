@@ -264,7 +264,7 @@ function isObject(item: unknown): item is Record<string, unknown> {
 }
 
 /** Recursive deep merge of source into target */
-function deepMerge<T extends Record<string, unknown>>(target: T, source: Record<string, unknown>): T {
+function deepMerge<T extends object>(target: T, source: Record<string, unknown>): T {
   if (!isObject(target) || !isObject(source)) {
     return source as T;
   }
@@ -323,7 +323,7 @@ function parseScopes(raw: string): string[] {
  */
 function buildRuntimeConfig(): RuntimeConfig {
   // Config injected by the Vite plugin (dev + build)
-  const viteConfig = (import.meta.env as Record<string, unknown>).__ORBITCHAT_CONFIG || {};
+  const viteConfig = ((import.meta.env as Record<string, unknown>).__ORBITCHAT_CONFIG || {}) as Record<string, unknown>;
 
   // Config injected by the CLI server at runtime
   const injected = (typeof window !== 'undefined' && window.ORBIT_CHAT_CONFIG) || {};

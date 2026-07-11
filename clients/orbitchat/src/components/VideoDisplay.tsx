@@ -64,8 +64,8 @@ export function VideoDisplay({ video, videoUrl, videoFormat = 'mp4', revisedProm
           if (cancelled) return;
         }
 
-        if (!res?.ok) {
-          console.warn('[VideoDisplay] Server returned', res.status, 'for', videoUrl);
+        if (!res || !res.ok) {
+          console.warn('[VideoDisplay] Server returned', res?.status, 'for', videoUrl);
           return;
         }
         if (cancelled) return;
