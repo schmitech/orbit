@@ -16,6 +16,7 @@
 - **Default Database**: Updated the default `orbit.db` installation and clear-chat script to include current schema, audit, and session data.
 - **Rate Limiting & Throttling**: Fixed middleware that only ever activated with Redis, ignoring the configured cache provider; also removed the redundant `sqlite_cache.enabled` flag, which could override the `cache.enabled` master switch and unexpectedly disable dependent services.
 - **Chart Generation**: Fixed overlapping x-axis labels in generated chart images (PDF/DOCX/PPTX) by rotating labels based on length, not just category count.
+- **Cohere Vision**: Fixed a config key mismatch (`api_base` vs `base_url`) that silently downgraded Cohere vision requests to the v1 API, causing hallucinated image descriptions; also fixed a duplicated `/v2` path segment that caused 404s once the v2 client was correctly selected.
 
 ### Documentation & Configuration
 - **Message Queue Docs**: Added message-queue architecture, local setup, and protocol documentation, plus corresponding README and configuration updates.

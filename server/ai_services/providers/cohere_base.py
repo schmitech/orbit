@@ -92,9 +92,12 @@ class CohereBaseService(ProviderAIService):
         # Initialize Cohere client - use ClientV2 if base_url contains '/v2'
         if '/v2' in self.base_url:
             logger.debug("Using Cohere AsyncClientV2 for v2 API")
+            # AsyncClientV2 already targets v2 paths (e.g. "v2/chat") itself,
+            # so the base_url passed to it must not also include the "/v2" suffix.
+            v2_base_url = self.base_url.rsplit('/v2', 1)[0]
             self.client = cohere.AsyncClientV2(
                 api_key=self.api_key,
-                base_url=self.base_url
+                base_url=v2_base_url
             )
             self.api_version = 'v2'
         else:

@@ -173,7 +173,7 @@ visions:
   cohere:
     enabled: false
     api_key: ${COHERE_API_KEY}
-    api_base: "https://api.cohere.ai/v2"  # Must use v2 API for vision/multimodal support
+    base_url: "https://api.cohere.ai/v2"  # Must use v2 API for vision/multimodal support
     model: "c4ai-aya-vision-32b"  # Cohere's multimodal model
     temperature: 0.0
     max_tokens: 1000
