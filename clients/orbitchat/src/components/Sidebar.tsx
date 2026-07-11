@@ -304,15 +304,31 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
           }
         }}
         onClick={() => handleSelectConversation(conversation.id)}
-        className={`group relative flex w-full cursor-pointer items-center rounded-lg px-3 py-2 text-left text-sm transition-colors duration-100
+        className={`group relative flex w-full cursor-pointer items-center overflow-hidden rounded-xl border px-3 py-2 text-left text-sm transition-all duration-150
           ${
             isActive
-              ? 'bg-slate-100 dark:bg-[#2a2b36]'
-              : 'hover:bg-slate-100/70 dark:hover:bg-[#25262f]'
+              ? 'border-slate-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(248,250,252,0.94))] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_2px_10px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(50,52,65,0.95),rgba(38,39,49,0.92))] dark:shadow-[0_2px_16px_rgba(0,0,0,0.32)]'
+              : 'border-transparent hover:border-slate-200/60 hover:bg-slate-50 dark:hover:border-white/[0.05] dark:hover:bg-[#212228]'
           } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 dark:focus-visible:ring-sky-400/40`}
         aria-current={isActive ? 'true' : undefined}
         aria-label={t('sidebar.conversationCard.openAriaLabel', { title: displayTitle })}
       >
+        {/* Top sheen — matches the glassy surface used on the search field */}
+        {isActive && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.4),rgba(255,255,255,0))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0))]"
+          />
+        )}
+
+        {/* Active-conversation rail — marks which thread you're in, clipped flush to the card's rounded edge */}
+        <span
+          aria-hidden="true"
+          className={`absolute inset-y-0 left-0 w-[3px] transition-opacity duration-150 ${
+            isActive ? 'bg-sky-500 opacity-100 dark:bg-sky-400' : 'opacity-0'
+          }`}
+        />
+
         {editingId === conversation.id ? (
           <input
             type="text"
@@ -325,36 +341,36 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
             }}
             onBlur={() => handleEditSubmit(conversation.id)}
             maxLength={MAX_TITLE_LENGTH}
-            className="flex-1 rounded border border-sky-300 bg-white px-2 py-0.5 text-sm text-[#353740] focus:outline-none focus:ring-2 focus:ring-sky-400/50 dark:border-sky-500/40 dark:bg-[#1a1b1e] dark:text-[#ececf1]"
+            className="relative z-10 flex-1 rounded-lg border border-sky-300 bg-white px-2 py-1 text-sm text-[#353740] focus:outline-none focus:ring-2 focus:ring-sky-400/50 dark:border-sky-500/40 dark:bg-[#1a1b1e] dark:text-[#ececf1]"
             autoFocus
             aria-label={t('sidebar.conversationCard.editInputAriaLabel')}
           />
         ) : (
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex min-w-0 items-center gap-1">
-              <h3 className={`flex-1 truncate text-sm leading-snug ${isActive ? 'font-medium text-slate-900 dark:text-[#ececf1]' : 'font-normal text-slate-700 dark:text-[#c5c8d6]'}`}>
+              <h3 className={`flex-1 truncate text-sm leading-snug tracking-[-0.006em] ${isActive ? 'font-semibold text-slate-900 dark:text-[#ececf1]' : 'font-medium text-slate-700 dark:text-[#c5c8d6]'}`}>
                 {displayTitle}
               </h3>
               {/* Actions: hidden until hover/focus, then fade in */}
               <div className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover:opacity-100 group-focus-within:opacity-100">
                 <button
                   onClick={(e) => handleEditStart(e, conversation)}
-                  className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600 dark:text-[#6b6f7a] dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6]"
+                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600 dark:text-[#6b6f7a] dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6]"
                   aria-label={t('sidebar.conversationCard.editAriaLabel', { title: displayTitle })}
                 >
-                  <Edit2 className="h-3 w-3" />
+                  <Edit2 className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={(e) => handleDeleteConversation(e, conversation)}
-                  className="rounded p-1 text-slate-400 transition-colors hover:bg-red-100/80 hover:text-red-600 dark:text-[#6b6f7a] dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-100/80 hover:text-red-600 dark:text-[#6b6f7a] dark:hover:bg-red-900/30 dark:hover:text-red-400"
                   aria-label={t('sidebar.conversationCard.deleteAriaLabel', { title: displayTitle })}
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
             {agentLabel && (
-              <span className="truncate text-[11px] leading-none text-slate-400 dark:text-[#6b6f7a]">
+              <span className="inline-flex w-fit max-w-full items-center truncate rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium tracking-wide text-sky-700 dark:bg-sky-400/10 dark:text-sky-300">
                 {agentLabel}
               </span>
             )}
@@ -507,7 +523,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
         >
           {filteredConversations.length === 0 ? null : isSearching ? (
             // Flat list when searching (no time groups)
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {filteredConversations.map(renderConversationCard)}
             </div>
           ) : (
@@ -518,7 +534,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
                   <h4 className="sticky top-0 z-10 mb-1 bg-transparent px-1 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 backdrop-blur-sm dark:text-[#6e7490]">
                     {t(`sidebar.timeGroups.${group.label}`)}
                   </h4>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     {group.conversations.map(renderConversationCard)}
                   </div>
                 </section>
