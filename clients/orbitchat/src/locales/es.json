@@ -421,6 +421,7 @@
     },
     "copyImageLabel": "Copiar imagen al portapapeles",
     "copyLabel": "Copiar al portapapeles",
+    "generatedBy": "Generado por {{model}}",
     "feedback": {
       "good": "Buena respuesta",
       "poor": "Mala respuesta",

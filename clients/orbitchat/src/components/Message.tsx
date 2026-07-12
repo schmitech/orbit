@@ -839,6 +839,11 @@ export function Message({
                 />
               )}
             </div>
+            {replyIsAssistant && !reply.isStreaming && reply.model && (
+              <div className="px-1 pt-0.5 text-[11px] text-gray-400 dark:text-[#9a9ab0]">
+                {t('message.generatedBy', { model: reply.model })}
+              </div>
+            )}
             {replyIsAssistant && !reply.isStreaming && getEnableFeedbackButtons() && (
               <ThreadReplyFeedback reply={reply} />
             )}
@@ -846,7 +851,7 @@ export function Message({
         </div>
       );
     });
-  }, [currentConversation?.adapterName, syntaxTheme, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
+  }, [currentConversation?.adapterName, syntaxTheme, t, threadAssistantMarkdownClass, threadReplies, threadUserMarkdownClass]);
 
   return (
     <div className="group animate-fadeIn min-w-0 w-full px-0">
@@ -990,6 +995,12 @@ export function Message({
           </div>
         )}
         </div>
+
+        {isAssistant && !message.isStreaming && message.model && (
+          <div className="px-1 pt-0.5 text-[11px] text-gray-400 dark:text-[#9a9ab0]">
+            {t('message.generatedBy', { model: message.model })}
+          </div>
+        )}
 
         {isAssistant && !message.isStreaming && (
           <div className="py-1 flex flex-nowrap items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0] transition-opacity">

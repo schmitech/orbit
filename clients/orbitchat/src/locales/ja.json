@@ -421,6 +421,7 @@
     },
     "copyImageLabel": "画像をクリップボードにコピー",
     "copyLabel": "クリップボードにコピー",
+    "generatedBy": "{{model}} が生成",
     "feedback": {
       "good": "良い応答",
       "poor": "不十分な応答",

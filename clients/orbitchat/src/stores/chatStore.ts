@@ -909,6 +909,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         role: 'assistant',
         timestamp: new Date(),
         isStreaming: true,
+        model,
       };
 
       if (activeThreadId && threadParentMessage) {
@@ -1353,6 +1354,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     role: 'assistant' as const,
                     timestamp: new Date(),
                     isStreaming: true,
+                    model,
                     supportsThreading: previousAssistantMessage.supportsThreading,
                     databaseMessageId: previousAssistantMessage.databaseMessageId,
                     threadInfo: previousAssistantMessage.threadInfo,
@@ -1448,6 +1450,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                     role: 'assistant' as const,
                     timestamp: new Date(),
                     isStreaming: true,
+                    model,
                     supportsThreading: hasAssistantReply ? previousAssistantMessage.supportsThreading : undefined,
                     databaseMessageId: hasAssistantReply ? previousAssistantMessage.databaseMessageId : undefined,
                     threadInfo: hasAssistantReply ? previousAssistantMessage.threadInfo : undefined,

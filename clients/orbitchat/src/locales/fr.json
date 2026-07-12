@@ -421,6 +421,7 @@
     },
     "copyImageLabel": "Copier l'image dans le presse-papiers",
     "copyLabel": "Copier dans le presse-papiers",
+    "generatedBy": "Généré par {{model}}",
     "feedback": {
       "good": "Bonne réponse",
       "poor": "Réponse insatisfaisante",

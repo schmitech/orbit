@@ -421,6 +421,7 @@
     },
     "copyImageLabel": "将图片复制到剪贴板",
     "copyLabel": "复制到剪贴板",
+    "generatedBy": "由 {{model}} 生成",
     "feedback": {
       "good": "好回复",
       "poor": "回复不佳",

@@ -421,6 +421,7 @@
     },
     "copyImageLabel": "Bild in die Zwischenablage kopieren",
     "copyLabel": "In die Zwischenablage kopieren",
+    "generatedBy": "Generiert von {{model}}",
     "feedback": {
       "good": "Gute Antwort",
       "poor": "Schwache Antwort",

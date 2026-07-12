@@ -1,0 +1,166 @@
+# OrbitChat Configuration
+# All non-secret settings. Secrets (auth credentials, adapter API keys) go in .env
+
+agentMode:
+  mode: "single" # "multi" | "single"
+  defaultAdapterId: "dialoga" # Required when mode is "single"
+
+application:
+  name: "Dialoga"
+  description: |
+    Dialoga is a Canadian AI chatbot built to help people work, learn, and create with Canadian AI models.
+
+    Ask questions, analyze documents, draft content, and explore ideas while keeping your data in Canada.
+
+    Dialoga is designed for users and organizations that want a ChatGPT-like experience with Canadian infrastructure, Canadian data residency, and AI capabilities developed for Canada's needs.
+
+    By using this tool, you agree to the [Terms of Service](https://schmitech.ai/en/dialoga-terms).
+
+  inputPlaceholder: "Ask Dialoga anything..."
+  settingsAboutMsg: "Dialoga is a Canadian AI chatbot using Canadian models while keeping your data in Canada."
+  locale: "en-US"
+  favicon: favicon.svg
+
+# ---- Internationalization ----
+# UI chrome (buttons, labels, menus) can be shown in multiple languages.
+# This does NOT translate admin-authored content (application.name, description,
+# inputPlaceholder, adapter names/descriptions, footer/header text) — those are
+# authored directly in this file in whatever language you want.
+i18n:
+  # Languages to expose in the Settings > Language switcher.
+  # Supported values: "en", "fr". If this list has 1 or fewer entries,
+  # the switcher is hidden entirely.
+  activeLanguages: ["en", "fr"]
+  # Language used when no stored preference or browser language matches.
+  defaultLanguage: "en"
+
+# ---- SEO ----
+seo:
+  includeSitemap: true
+  siteUrl: "http://localhost:5173"
+  alternateSiteUrls:
+    - "https://dialoga.ca"
+  exposeAgentNotes: true
+
+# ---- Debug ----
+debug:
+  consoleDebug: false
+
+# ---- Features ----
+features:
+  enableUpload: true
+  enableAudioOutput: false
+  enableAudioInput: true
+  enableFeedbackButtons: true
+  enableConversationThreads: false
+  enableAutocomplete: false
+
+# ---- Voice ----
+voice:
+  silenceTimeoutMs: 4000
+  recognitionLanguage: ""
+
+# ---- Out of Service ----
+# Set to a message string to show maintenance screen; null to disable
+# outOfServiceMessage: "Out of service for now"
+
+# ---- Usage Limits ----
+limits:
+  files:
+    perConversation: 5
+    maxSizeMB: 50
+    totalFiles: 100
+  conversations:
+    maxConversations: 10
+    messagesPerConversation: 1000
+    messagesPerThread: 1000
+    totalMessages: 10000
+  messages:
+    maxLength: 10000
+
+# ---- Guest Limits (when auth is enabled and user is not signed in) ----
+guestLimits:
+  files:
+    perConversation: 1
+    maxSizeMB: 5
+    totalFiles: 1
+  conversations:
+    maxConversations: 2
+    messagesPerConversation: 5
+    messagesPerThread: 2
+    totalMessages: 10
+  messages:
+    maxLength: 500
+  # Server-side rate limiting for unauthenticated /api/* requests (per IP).
+  # Authenticated users are not rate-limited here (ORBIT server handles that).
+  # File uploads, adapter info, and conversation history endpoints are exempt.
+  rateLimit:
+    enabled: true
+    windowMs: 60000
+    maxRequests: 60
+    chat:
+      windowMs: 60000
+      maxRequests: 10
+
+# ---- Authentication ----
+# Credentials (domain, clientId, audience) go in .env as VITE_AUTH_* vars
+auth:
+  enabled: false
+  provider: "auth0"
+
+# ---- Header ----
+header:
+  enabled: false
+  # Supports HTTPS URL or local file path.
+  # Local file paths can be absolute or relative to orbitchat.yaml.
+  # Example: "./public/logo.png" or "/home/ubuntu/assets/logo.png"
+  # Legacy/fallback logo (used when theme-specific logo is not set)
+  logoUrl: ""
+  # Theme-specific logos (optional)
+  logoUrlLight: "dialoga-light.png"
+  logoUrlDark: "dialoga-dark.png"
+  logoHeight: "4.5rem"
+  logoWidth: "auto"
+  bgColor: ""
+  textColor: ""
+  showBorder: false
+  navLinks:
+    - label: "ORBIT"
+      url: "https://schmitech.ca/orbit"
+    - label: "Contact"
+      url: "https://schmitech.ca/contact"
+    - label: "Privacy"
+      url: "https://schmitech.ca/privacy-policy"
+    - label: "Terms"
+      url: "https://schmitech.ca/en/dialoga-terms"
+
+# ---- Footer ----
+footer:
+  enabled: true
+  text: "Copyright © 2026 Schmitech Inc."
+  bgColor: ""
+  textColor: ""
+  showBorder: false
+  layout: "stacked"
+  align: "center"
+  topPadding: "large"
+  navLinks:
+    - label: "ORBIT"
+      url: "https://schmitech.ca/orbit"
+    - label: "Contact"
+      url: "https://schmitech.ca/contact"
+    - label: "Privacy"
+      url: "https://schmitech.ca/privacy-policy"
+    - label: "Terms"
+      url: "https://schmitech.ca/en/dialoga-terms"
+
+# ---- Adapters (metadata + URLs — API keys go in VITE_ADAPTER_KEYS env var) ----
+# Each adapter must have a unique `id` used to match its API key in VITE_ADAPTER_KEYS.
+# The `name` is a display label and can be changed freely without affecting the key mapping.
+
+adapters:
+  - id: "dialoga"
+    name: "Welcome to Dialoga! / Bienvenue sur Dialoga!"
+    apiUrl: "http://99.79.50.155:3000"
+    description: "Chat, write, code, and analyze files while keeping your data in Canada. / Discutez, rédigez, codez et analysez des fichiers tout en gardant vos données au Canada."
+    inputPlaceholder: "Ask anything / Posez vos questions"

@@ -421,6 +421,7 @@
     },
     "copyImageLabel": "Copiar imagem para a área de transferência",
     "copyLabel": "Copiar para a área de transferência",
+    "generatedBy": "Gerado por {{model}}",
     "feedback": {
       "good": "Boa resposta",
       "poor": "Resposta ruim",

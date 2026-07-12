@@ -280,11 +280,11 @@ export function ChatInterface({
   }, [settings.voiceEnabled]);
 
   const handleSendMessage = (content: string, fileIds?: string[], threadId?: string, skill?: string) => {
-    sendMessage(content, fileIds, threadId, selectedModel ?? undefined, skill);
+    sendMessage(content, fileIds, threadId, selectedModel ?? currentConversation?.adapterInfo?.model ?? undefined, skill);
   };
 
   const handleSendThreadMessage = async (threadId: string, _parentMessageId: string, content: string, skill?: string, model?: string) => {
-    await sendMessage(content, undefined, threadId, model ?? selectedModel ?? undefined, skill);
+    await sendMessage(content, undefined, threadId, model ?? selectedModel ?? currentConversation?.adapterInfo?.model ?? undefined, skill);
   };
 
   const handleStartNewConversation = () => {
@@ -530,8 +530,8 @@ export function ChatInterface({
             <div className="flex flex-1 flex-col min-h-0">
               <MessageList
                 messages={currentConversation.messages}
-                onRegenerate={(messageId) => regenerateResponse(messageId, selectedModel ?? undefined)}
-                onEditMessage={(messageId, newContent) => editMessageAndRegenerate(messageId, newContent, selectedModel ?? undefined)}
+                onRegenerate={(messageId) => regenerateResponse(messageId, selectedModel ?? currentConversation?.adapterInfo?.model ?? undefined)}
+                onEditMessage={(messageId, newContent) => editMessageAndRegenerate(messageId, newContent, selectedModel ?? currentConversation?.adapterInfo?.model ?? undefined)}
                 onStartThread={async (messageId: string, sessionId: string) => {
                   try {
                     await createThread(messageId, sessionId);
