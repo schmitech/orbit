@@ -492,7 +492,12 @@ export function useChatAgentSelection({
   useEffect(() => {
     const loadMissingAdapterInfo = async () => {
       const adapterName = currentConversation?.adapterName;
-      if (adapterInfoLoadedRef.current === adapterName) {
+      // Keyed by conversation id + adapter name (not adapter name alone) so that
+      // creating a new conversation for the same adapter (common in single mode,
+      // where every conversation shares the configured default adapter) still
+      // triggers its own fetch instead of being skipped as "already loaded".
+      const loadKey = currentConversation ? `${currentConversation.id}:${adapterName}` : null;
+      if (!loadKey || adapterInfoLoadedRef.current === loadKey) {
         return;
       }
 
@@ -500,7 +505,7 @@ export function useChatAgentSelection({
         (currentConversation?.adapterInfo && currentConversation.adapterInfo.notes === undefined);
 
       if (adapterName && needsRefresh) {
-        adapterInfoLoadedRef.current = adapterName;
+        adapterInfoLoadedRef.current = loadKey;
         debugLog('[ChatInterface] Loading adapter info - adapterName:', adapterName, 'reason:', !currentConversation?.adapterInfo ? 'missing' : 'notes undefined');
         // Use fetchAdapterInfoForConversation which creates an isolated ApiClient,
         // avoiding mutation of the shared API state that could corrupt active streams.
@@ -514,17 +519,17 @@ export function useChatAgentSelection({
           const isRateLimited = errorMessage.includes('429') || errorMessage.includes('Too Many Requests');
 
           if (isRateLimited && adapterName) {
-            const existingTimer = adapterInfoRetryTimersRef.current.get(adapterName);
+            const existingTimer = adapterInfoRetryTimersRef.current.get(loadKey);
             if (existingTimer) {
               clearTimeout(existingTimer);
             }
             const retryTimer = setTimeout(() => {
-              if (adapterInfoLoadedRef.current === adapterName) {
+              if (adapterInfoLoadedRef.current === loadKey) {
                 adapterInfoLoadedRef.current = null;
               }
-              adapterInfoRetryTimersRef.current.delete(adapterName);
+              adapterInfoRetryTimersRef.current.delete(loadKey);
             }, adapterInfoRateLimitCooldownMs);
-            adapterInfoRetryTimersRef.current.set(adapterName, retryTimer);
+            adapterInfoRetryTimersRef.current.set(loadKey, retryTimer);
             debugWarn(`[ChatInterface] Adapter info request rate-limited; retrying in ${adapterInfoRateLimitCooldownMs / 1000}s`);
           } else {
             adapterInfoLoadedRef.current = null;

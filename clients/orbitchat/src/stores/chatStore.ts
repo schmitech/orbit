@@ -1692,6 +1692,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             debugWarn(`[chatStore] Skipping backend sync for conversation ${conversation.id} - adapter not configured`);
             return null;
           }
+          // Empty conversations (e.g. a freshly created one in single-adapter mode,
+          // which gets an adapterName assigned immediately) never had their session
+          // registered on the backend - fetching history for them 422s.
+          if (conversation.messages.length === 0) return null;
 
           try {
             const apiClient = new api.ApiClient({
