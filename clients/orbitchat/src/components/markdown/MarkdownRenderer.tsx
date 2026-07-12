@@ -15,10 +15,18 @@ import { BLOCK_LEVEL_TAGS, type MarkdownRendererProps } from './types';
 /**
  * Custom link component for ReactMarkdown that opens links in new tabs
  */
-export const MarkdownLink: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement>> = ({
+interface MarkdownLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
+  // Set only when this link is the sole content of its paragraph (e.g. a
+  // citation on its own line) - the full-width card treatment only makes
+  // sense there, never for a URL embedded mid-sentence.
+  standalone?: boolean;
+}
+
+export const MarkdownLink: React.FC<MarkdownLinkProps> = ({
   children,
   href = '',
   className = '',
+  standalone = false,
   ...props
 }) => {
   const childText = React.Children.toArray(children)
@@ -30,7 +38,7 @@ export const MarkdownLink: React.FC<React.AnchorHTMLAttributes<HTMLAnchorElement
   const isBareUrl = Boolean(isHttpLink && childText && normalizeUrlText(childText) === normalizeUrlText(href));
 
   const parsed = isHttpLink ? parseUrl(href) : null;
-  const showCardStyle = Boolean(isBareUrl && parsed);
+  const showCardStyle = Boolean(standalone && isBareUrl && parsed);
   const classes = ['markdown-link', showCardStyle ? 'markdown-link--card' : 'markdown-link--inline', className]
     .filter(Boolean)
     .join(' ');
@@ -214,6 +222,19 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
       if (reactHasBlock || mdastHasBlock) {
         return <>{props.children}</>;
+      }
+
+      // A paragraph whose only content is a single link (e.g. a citation on
+      // its own line) is the one case where the full-width card treatment
+      // reads well; mark it so MarkdownLink knows it's safe to expand.
+      const isSingleStandaloneLink =
+        meaningfulChildren.length === 1 &&
+        React.isValidElement(meaningfulChildren[0]) &&
+        meaningfulChildren[0].type === MarkdownLink;
+
+      if (isSingleStandaloneLink) {
+        const linkChild = meaningfulChildren[0] as React.ReactElement<{ standalone?: boolean }>;
+        return <p {...props}>{React.cloneElement(linkChild, { standalone: true })}</p>;
       }
 
       return <p {...props} />;
