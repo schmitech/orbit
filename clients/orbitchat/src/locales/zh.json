@@ -332,6 +332,8 @@
     "maxTotalFilesError": "所有会话最多允许总计 {{count}} 个文件。请先从其他会话中移除一些文件。",
     "maxTotalFilesGuestLimitMessage": "你已达到访客总计 {{count}} 个文件的限制。登录后可上传更多文件。",
     "adapterNotConfigured": "此会话未配置适配器。请先选择适配器。",
+    "duplicateFileError": "“{{filename}}” 已附加到此会话。",
+    "duplicateFilesError": "{{count}} 个文件已附加到此会话。",
     "disabledAriaLabel": "文件上传已禁用",
     "enabledAriaLabel": "上传文件",
     "dragDropText": "拖放文件或点击浏览",

@@ -332,6 +332,8 @@
     "maxTotalFilesError": "Máximo de {{count}} archivos en total permitidos en todas las conversaciones. Quita primero algunos archivos de otras conversaciones.",
     "maxTotalFilesGuestLimitMessage": "Alcanzaste el límite de invitado de {{count}} archivos en total. Inicia sesión para cargar más archivos.",
     "adapterNotConfigured": "El adaptador no está configurado para esta conversación. Selecciona un adaptador primero.",
+    "duplicateFileError": "\"{{filename}}\" ya está adjunto a esta conversación.",
+    "duplicateFilesError": "{{count}} archivos ya están adjuntos a esta conversación.",
     "disabledAriaLabel": "Carga de archivos desactivada",
     "enabledAriaLabel": "Cargar archivos",
     "dragDropText": "Suelta archivos o haz clic para explorar",

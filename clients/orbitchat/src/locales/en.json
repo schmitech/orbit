@@ -332,6 +332,8 @@
     "maxTotalFilesError": "Maximum {{count}} total files allowed across all conversations. Please remove some files from other conversations first.",
     "maxTotalFilesGuestLimitMessage": "You've reached the guest limit of {{count}} total files. Sign in to upload more files.",
     "adapterNotConfigured": "Adapter not configured for this conversation. Please select an adapter first.",
+    "duplicateFileError": "\"{{filename}}\" is already attached to this conversation.",
+    "duplicateFilesError": "{{count}} files are already attached to this conversation.",
     "disabledAriaLabel": "File upload disabled",
     "enabledAriaLabel": "Upload files",
     "dragDropText": "Drop files or click to browse",

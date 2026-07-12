@@ -259,8 +259,37 @@ export function FileUpload({
       return;
     }
 
+    // Files persist for the whole conversation and get resent with every
+    // message, so re-selecting/re-dropping a file already attached here would
+    // silently create a second entry with a different file_id but the same
+    // name - visually duplicating it in every subsequent sent message.
+    const alreadyAttached = conversation.attachedFiles || [];
+    const duplicateNames: string[] = [];
+    const newFiles = fileArray.filter(file => {
+      const isDuplicate = alreadyAttached.some(
+        f => f.filename === file.name && f.file_size === file.size
+      );
+      if (isDuplicate) {
+        duplicateNames.push(file.name);
+        return false;
+      }
+      return true;
+    });
+
+    if (duplicateNames.length > 0) {
+      onUploadError?.(
+        duplicateNames.length === 1
+          ? t('fileUpload.duplicateFileError', { filename: duplicateNames[0] })
+          : t('fileUpload.duplicateFilesError', { count: duplicateNames.length })
+      );
+    }
+
+    if (newFiles.length === 0) {
+      return;
+    }
+
     const existingUploads = uploadedFilesStoreRef.current.get(activeConversationId) || [];
-    if (existingUploads.length + fileArray.length > maxFiles) {
+    if (existingUploads.length + newFiles.length > maxFiles) {
       const error = t('fileUpload.maxFilesPerConversationError', { count: maxFiles });
       if (getIsAuthConfigured() && !getIsAuthenticated()) {
         useLoginPromptStore.getState().openLoginPrompt(
@@ -276,7 +305,7 @@ export function FileUpload({
         (total, conv) => total + (conv.attachedFiles?.length || 0),
         0
       );
-      const projectedTotal = totalFilesAcrossConversations + fileArray.length;
+      const projectedTotal = totalFilesAcrossConversations + newFiles.length;
       if (projectedTotal > AppConfig.maxTotalFiles) {
         const error = t('fileUpload.maxTotalFilesError', { count: AppConfig.maxTotalFiles });
         if (getIsAuthConfigured() && !getIsAuthenticated()) {
@@ -297,8 +326,8 @@ export function FileUpload({
     const conversationAdapterName = conversation.adapterName;
     const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
 
-    for (let index = 0; index < fileArray.length; index++) {
-      const file = fileArray[index];
+    for (let index = 0; index < newFiles.length; index++) {
+      const file = newFiles[index];
       const abortController = new AbortController();
       abortControllersRef.current.set(file.name, abortController);
       const progressKey = `${activeConversationId}-${file.name}-${Date.now()}-${index}`;

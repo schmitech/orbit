@@ -332,6 +332,8 @@
     "maxTotalFilesError": "すべての会話で合計 {{count}} 個までのファイルが許可されています。先に他の会話からいくつかのファイルを削除してください。",
     "maxTotalFilesGuestLimitMessage": "ゲストの合計ファイル上限 {{count}} 個に達しました。さらにアップロードするにはサインインしてください。",
     "adapterNotConfigured": "この会話のアダプターが設定されていません。先にアダプターを選択してください。",
+    "duplicateFileError": "「{{filename}}」はすでにこの会話に添付されています。",
+    "duplicateFilesError": "{{count}} 件のファイルはすでにこの会話に添付されています。",
     "disabledAriaLabel": "ファイルアップロードは無効です",
     "enabledAriaLabel": "ファイルをアップロード",
     "dragDropText": "ファイルをドロップするかクリックして参照",

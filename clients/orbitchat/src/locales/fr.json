@@ -332,6 +332,8 @@
     "maxTotalFilesError": "Maximum de {{count}} fichiers au total autorisés dans toutes les conversations. Veuillez retirer des fichiers d'autres conversations d'abord.",
     "maxTotalFilesGuestLimitMessage": "Vous avez atteint la limite invité de {{count}} fichiers au total. Connectez-vous pour téléverser plus de fichiers.",
     "adapterNotConfigured": "Aucun adaptateur configuré pour cette conversation. Veuillez sélectionner un adaptateur d'abord.",
+    "duplicateFileError": "« {{filename}} » est déjà joint à cette conversation.",
+    "duplicateFilesError": "{{count}} fichiers sont déjà joints à cette conversation.",
     "disabledAriaLabel": "Téléversement de fichiers désactivé",
     "enabledAriaLabel": "Téléverser des fichiers",
     "dragDropText": "Déposez des fichiers ou cliquez pour parcourir",

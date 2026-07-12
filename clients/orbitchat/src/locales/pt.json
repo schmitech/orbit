@@ -332,6 +332,8 @@
     "maxTotalFilesError": "Máximo de {{count}} arquivos no total permitido em todas as conversas. Remova primeiro alguns arquivos de outras conversas.",
     "maxTotalFilesGuestLimitMessage": "Você atingiu o limite de convidado de {{count}} arquivos no total. Entre para enviar mais arquivos.",
     "adapterNotConfigured": "Adaptador não configurado para esta conversa. Selecione um adaptador primeiro.",
+    "duplicateFileError": "\"{{filename}}\" já está anexado a esta conversa.",
+    "duplicateFilesError": "{{count}} arquivos já estão anexados a esta conversa.",
     "disabledAriaLabel": "Upload de arquivos desativado",
     "enabledAriaLabel": "Enviar arquivos",
     "dragDropText": "Solte arquivos ou clique para procurar",

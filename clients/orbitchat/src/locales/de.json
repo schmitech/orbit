@@ -332,6 +332,8 @@
     "maxTotalFilesError": "Maximal {{count}} Dateien insgesamt über alle Konversationen erlaubt. Bitte entferne zuerst einige Dateien aus anderen Konversationen.",
     "maxTotalFilesGuestLimitMessage": "Du hast das Gastlimit von insgesamt {{count}} Dateien erreicht. Melde dich an, um mehr Dateien hochzuladen.",
     "adapterNotConfigured": "Adapter für diese Konversation nicht konfiguriert. Bitte wähle zuerst einen Adapter aus.",
+    "duplicateFileError": "\"{{filename}}\" ist dieser Konversation bereits angehängt.",
+    "duplicateFilesError": "{{count}} Dateien sind dieser Konversation bereits angehängt.",
     "disabledAriaLabel": "Dateiupload deaktiviert",
     "enabledAriaLabel": "Dateien hochladen",
     "dragDropText": "Dateien ablegen oder zum Durchsuchen klicken",
