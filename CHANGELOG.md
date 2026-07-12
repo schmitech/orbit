@@ -6,6 +6,7 @@
 - **Message Queue**: Added a broker-native RabbitMQ message-queue surface with request/reply envelopes, dead-letter handling, and a worker lifecycle command.
 - **Auth Sync**: Added postgres-to-sqlite auth synchronization so fresh SQLite installs can be rebuilt from PostgreSQL-backed deployments.
 - **Chunking Strategy**: Added a markdown-header-aware chunking strategy to keep sectioned content aligned with its headings.
+- **Model Discovery**: Fixed single-model adapters (no `allowed_models` configured) returning a provider-prefixed model name (e.g. `cohere-command-r7b-12-2024`) instead of the plain model name used by the multi-model path.
 
 ### Chat-app & UI Improvements
 - **Admin Tables**: Stabilized selectable-row checkbox behavior in admin tables by avoiding full re-renders, fixing dimensions, and refining checkbox styling and focus states.

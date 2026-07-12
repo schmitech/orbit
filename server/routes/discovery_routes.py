@@ -188,7 +188,7 @@ async def list_adapter_models(
 
     safe_model = model.replace('/', '-').replace(':', '-') if model else ''
     default_entry = {
-        "name": f"{provider}-{safe_model}" if safe_model else provider,
+        "name": safe_model or provider,
         "provider": provider,
         "model": model,
     }
