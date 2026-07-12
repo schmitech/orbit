@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Upload, Loader2, CircleAlert } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { FileAttachment } from '../types';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
@@ -9,6 +9,8 @@ import { useLoginPromptStore } from '../stores/loginPromptStore';
 import { debugLog, debugWarn, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { getIsAuthConfigured, resolveApiUrl } from '../utils/runtimeConfig';
+import { FileChip } from './FileChip';
+import { setFileThumbnail, revokeFileThumbnail } from '../utils/fileTypeVisuals';
 
 // Persist upload state across component re-mounts and conversation switches
 const uploadingFilesStore = new Map<string, Map<string, FileUploadProgress>>();
@@ -218,6 +220,7 @@ export function FileUpload({
             } else {
               const adapterName = getStoredAdapterName();
               await FileUploadService.deleteFile(fileId, undefined, undefined, adapterName ?? undefined);
+              revokeFileThumbnail(fileId);
             }
           } catch (error) {
             if (isErrorWithMessage(error)) {
@@ -300,6 +303,9 @@ export function FileUpload({
       abortControllersRef.current.set(file.name, abortController);
       const progressKey = `${activeConversationId}-${file.name}-${Date.now()}-${index}`;
       let uploadedFileId: string | null = null;
+      // Generate the thumbnail immediately, while the File object is still in
+      // memory, so it's ready the instant a fileId shows up in progress events.
+      const localThumbnailUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
 
       try {
         const uploadedAttachment = await FileUploadService.uploadFile(
@@ -314,6 +320,9 @@ export function FileUpload({
               uploadedFileId = progress.fileId;
               uploadedFileIdsRef.current.set(progress.fileId, activeConversationId);
               seenConversationFileIdsRef.current.add(progress.fileId);
+              if (localThumbnailUrl) {
+                setFileThumbnail(progress.fileId, localThumbnailUrl);
+              }
 
               // Add file to conversation immediately when we get the fileId
               // This ensures the file persists even if user switches conversations
@@ -406,6 +415,8 @@ export function FileUpload({
           debugLog(`Upload cancelled for ${file.name}`);
           if (uploadedFileId) {
             uploadedFileIdsRef.current.delete(uploadedFileId);
+          } else if (localThumbnailUrl) {
+            URL.revokeObjectURL(localThumbnailUrl);
           }
           continue;
         }
@@ -429,6 +440,8 @@ export function FileUpload({
         }
         if (uploadedFileId) {
           uploadedFileIdsRef.current.delete(uploadedFileId);
+        } else if (localThumbnailUrl) {
+          URL.revokeObjectURL(localThumbnailUrl);
         }
         // Auto-dismiss the error progress bar after 5 seconds so it never gets stuck
         const errorKey = progressKey;
@@ -518,67 +531,25 @@ export function FileUpload({
   }, [conversationId, globalUploadRevision]);
 
   const renderProgressRow = (progress: FileUploadProgress, key: string) => {
-    const isError = progress.status === 'error';
+    const statusText =
+      progress.status === 'uploading' ? t('fileUpload.uploadingStatus') :
+      progress.status === 'processing' ? t('fileUpload.processingStatus') :
+      progress.status === 'completed' ? t('fileUpload.completedStatus') : undefined;
+
     return (
-      <div
+      <FileChip
         key={key}
-        className={`group relative w-full flex items-center gap-3 rounded-lg px-3 py-2.5 overflow-hidden transition-colors ${
-          isError ? 'border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-[#101010]' : 'border border-gray-200 bg-gray-50 dark:border-[#242424] dark:bg-[#101010]'
-        }`}
-      >
-        {/* Animated progress background fill */}
-        {!isError && (
-          <div
-            className="absolute inset-0 bg-blue-50 dark:bg-white/[0.04] transition-all duration-500 ease-out rounded-lg"
-            style={{ width: `${progress.progress}%` }}
-          />
-        )}
-        <div className="relative flex items-center gap-3 w-full min-w-0">
-          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
-            isError ? 'bg-red-100 dark:bg-red-500/15' : 'bg-blue-100 dark:bg-white/[0.06]'
-          }`}>
-            {isError ? (
-              <CircleAlert className="h-4 w-4 text-red-500 dark:text-red-400" />
-            ) : (
-              <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-[#353740] dark:text-[#ececf1] truncate">
-              {progress.filename}
-            </p>
-            {isError ? (
-              <p className="mt-0.5 text-xs text-red-600 dark:text-red-400 truncate">
-                {progress.error || t('fileUpload.processingFailedMessage')}
-              </p>
-            ) : (
-              <div className="mt-1 flex items-center gap-2">
-                <div className="flex-1 bg-gray-200 dark:bg-[#242424] rounded-full h-1">
-                  <div
-                    className="bg-blue-500 dark:bg-blue-400 h-1 rounded-full transition-all duration-500 ease-out"
-                    style={{ width: `${progress.progress}%` }}
-                  />
-                </div>
-                <span className="text-[11px] tabular-nums text-gray-400 dark:text-[#8e8ea0] shrink-0">
-                  {Math.round(progress.progress)}%
-                </span>
-              </div>
-            )}
-          </div>
-          <span className={`text-xs font-medium shrink-0 ${
-            isError ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-[#bfc2cd]'
-          }`}>
-            {progress.status === 'uploading' ? t('fileUpload.uploadingStatus') :
-             progress.status === 'processing' ? t('fileUpload.processingStatus') :
-             progress.status === 'completed' ? t('fileUpload.completedStatus') : t('fileUpload.failedStatus')}
-          </span>
-        </div>
-      </div>
+        filename={progress.filename}
+        fileId={progress.fileId}
+        status={progress.status}
+        statusText={statusText}
+        errorMessage={progress.error || (progress.status === 'error' ? t('fileUpload.processingFailedMessage') : undefined)}
+      />
     );
   };
 
   const progressContent = (
-    <div className="w-full max-w-full overflow-hidden space-y-1.5" role="status" aria-live="polite">
+    <div className="w-full max-w-full overflow-hidden flex flex-wrap gap-2" role="status" aria-live="polite">
       {Array.from(uploadingFiles.entries()).map(([key, progress]) =>
         renderProgressRow(progress, key)
       )}
@@ -657,7 +628,9 @@ export function FileUpload({
               <div className="text-[11px] font-medium text-gray-400 dark:text-[#6b6f7a] px-1">
                 {conversationNameMap.get(otherId) || 'Conversation'}
               </div>
-              {uploads.map(({ key, progress }) => renderProgressRow(progress, key))}
+              <div className="flex flex-wrap gap-2">
+                {uploads.map(({ key, progress }) => renderProgressRow(progress, key))}
+              </div>
             </div>
           ))}
         </div>

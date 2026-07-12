@@ -7,7 +7,6 @@ import {
   ChevronUp,
   Copy,
   Edit2,
-  File,
   MessageSquare,
   RotateCcw,
   Sparkles,
@@ -34,6 +33,7 @@ import { useLoginPromptStore } from '../stores/loginPromptStore';
 import { useChatStore } from '../stores/chatStore';
 import { SkillPicker } from './SkillPicker';
 import { ModelPickerButton } from './ModelPickerButton';
+import { FileChip } from './FileChip';
 
 interface MessageProps {
   message: MessageType;
@@ -457,8 +457,6 @@ export function Message({
   const bubbleClasses = isAssistant
     ? 'message-bubble message-bubble-assistant min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
     : 'message-bubble message-bubble-user inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] border border-black/[0.06] bg-[#f4f4f4] px-4 py-3 text-[#111827] shadow-[0_1px_2px_rgba(16,24,40,0.06)] dark:border-white/[0.08] dark:bg-[#2a2a2a] dark:text-[#f5f5f5] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]';
-
-  const attachmentClasses = 'border-gray-200 bg-white/80 dark:border-[#3b3c49] dark:bg-white/5';
 
   const markCopied = useCallback(() => {
     setCopied(true);
@@ -910,15 +908,15 @@ export function Message({
           )}
 
           {message.attachments && message.attachments.length > 0 && (
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               {message.attachments.map(file => (
-                <div key={file.file_id} className={`flex items-center gap-3 rounded-xl border p-3 ${attachmentClasses}`}>
-                  <File className="h-4 w-4 text-gray-500 dark:text-[#bfc2cd]" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-[#353740] dark:text-[#ececf1]">{file.filename}</p>
-                    <p className="text-xs text-gray-500 dark:text-[#bfc2cd]">{(file.file_size / 1024).toFixed(1)} KB</p>
-                  </div>
-                </div>
+                <FileChip
+                  key={file.file_id}
+                  filename={file.filename}
+                  fileId={file.file_id}
+                  status="completed"
+                  statusText={`${(file.file_size / 1024).toFixed(1)} KB`}
+                />
               ))}
             </div>
           )}

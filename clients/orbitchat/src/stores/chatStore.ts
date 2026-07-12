@@ -7,6 +7,7 @@ import { AppConfig } from '../utils/config';
 import { getApiUrl, resolveApiUrl, DEFAULT_API_URL, getIsAuthConfigured } from '../utils/runtimeConfig';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { audioStreamManager } from '../utils/audioStreamManager';
+import { revokeFileThumbnail } from '../utils/fileTypeVisuals';
 import { getIsAuthenticated } from '../auth/authState';
 import { useLoginPromptStore } from './loginPromptStore';
 import {
@@ -604,6 +605,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     if (state.currentConversationId === id) {
       audioStreamManager.stop();
+    }
+
+    if (conversation) {
+      const attachmentFileIds = (conversation.attachedFiles || []).map(f => f.file_id);
+      const messageAttachmentFileIds = (conversation.messages || []).flatMap(
+        m => (m.attachments || []).map(f => f.file_id)
+      );
+      [...attachmentFileIds, ...messageAttachmentFileIds].forEach(revokeFileThumbnail);
     }
 
     if (conversation?.sessionId) {
@@ -1591,6 +1600,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         debugError(`[chatStore] Failed to delete file ${fileId} from server:`, error);
       }
     }
+
+    revokeFileThumbnail(fileId);
 
     set(state => ({
       conversations: state.conversations.map(conv =>

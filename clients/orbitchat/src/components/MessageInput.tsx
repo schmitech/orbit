@@ -24,6 +24,8 @@ import { MarkdownRenderer } from './markdown';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { ModelPickerButton } from './ModelPickerButton';
+import { FileChip } from './FileChip';
+import { setFileThumbnail } from '../utils/fileTypeVisuals';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[], threadId?: string, skill?: string) => void;
@@ -1114,6 +1116,10 @@ export function MessageInput({
     setUploadSuccessMessage(null);
 
     let pasteConversationId: string | null = null;
+    // Thumbnails generated below but not yet handed off to the shared store
+    // (i.e. their upload never got as far as returning a fileId) - revoked
+    // in the catch block below so a failed paste doesn't leak the blob URL.
+    const pendingThumbnailUrls = new Set<string>();
 
     try {
       const pasteStore = useChatStore.getState();
@@ -1160,12 +1166,19 @@ export function MessageInput({
       setConversationUploading(pasteConversationId, true);
       const uploadedAttachments: FileAttachment[] = [];
       const completionPromises: Promise<void>[] = [];
-      
+
       for (let index = 0; index < filesFromClipboard.length; index++) {
         const file = filesFromClipboard[index];
         const fallbackName = file.name || `Clipboard file ${index + 1}`;
         const progressKey = `${fallbackName}-${Date.now()}-${index}`;
-        
+        // Pasted clipboard content is usually a screenshot - generate its thumbnail
+        // immediately while the File object is still in memory.
+        const localThumbnailUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+        if (localThumbnailUrl) {
+          pendingThumbnailUrls.add(localThumbnailUrl);
+        }
+        let pastedFileId: string | null = null;
+
         setPasteUploadingFiles(prev => {
           const next = new Map(prev);
           next.set(progressKey, {
@@ -1177,6 +1190,13 @@ export function MessageInput({
         });
 
         const updateEntry = (progress: FileUploadProgress) => {
+          if (progress.fileId && !pastedFileId) {
+            pastedFileId = progress.fileId;
+            if (localThumbnailUrl) {
+              setFileThumbnail(progress.fileId, localThumbnailUrl);
+              pendingThumbnailUrls.delete(localThumbnailUrl);
+            }
+          }
           setPasteUploadingFiles(prev => {
             const next = new Map(prev);
             const existing = next.get(progressKey);
@@ -1266,6 +1286,7 @@ export function MessageInput({
         setPasteError(null);
       }, 5000);
       setPasteUploadingFiles(new Map());
+      pendingThumbnailUrls.forEach(url => URL.revokeObjectURL(url));
     } finally {
       setConversationUploading(pasteConversationId, false);
     }
@@ -1718,56 +1739,34 @@ export function MessageInput({
             {visibleAttachedFiles.map((file) => {
               const isProcessing = isFileProcessing(file.processing_status);
               const isFailed = file.processing_status === 'failed' || file.processing_status === 'error';
+              const status = isFailed ? 'error' : isProcessing
+                ? (file.processing_status === 'uploading' ? 'uploading' : 'processing')
+                : 'completed';
+              const statusText = isProcessing
+                ? (file.processing_status === 'uploading' ? t('messageInput.attachedFile.uploadingStatus') : t('messageInput.attachedFile.processingStatus'))
+                : undefined;
+
               return (
-                <div
+                <FileChip
                   key={file.file_id}
-                  className={`flex items-center gap-2 rounded-md border px-2 py-1 text-xs ${
-                    isFailed
-                      ? 'border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-950/30'
-                      : 'border-gray-200 bg-white dark:border-[#4a4b54] dark:bg-[#2d2f39]'
-                  }`}
-                  title={isFailed ? (file.error_message || t('messageInput.fileProcessingFailedTitle')) : undefined}
-                >
-                  {isProcessing && (
-                    <Loader2 className="h-3 w-3 animate-spin text-blue-500 dark:text-blue-400 flex-shrink-0" />
-                  )}
-                  {isFailed && (
-                    <CircleAlert className="h-3 w-3 text-red-500 dark:text-red-400 flex-shrink-0" />
-                  )}
-                  <span className={`truncate max-w-[150px] ${
-                    isFailed
-                      ? 'text-red-700 dark:text-red-300'
-                      : 'text-[#353740] dark:text-[#ececf1]'
-                  }`}>
-                    {file.filename}
-                  </span>
-                  {isProcessing && (
-                    <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
-                      {file.processing_status === 'uploading' ? t('messageInput.attachedFile.uploadingStatus') : t('messageInput.attachedFile.processingStatus')}
-                    </span>
-                  )}
-                  {isFailed && (
-                    <span className="text-xs text-red-500 dark:text-red-400">{t('messageInput.attachedFile.failedStatus')}</span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isFailed) {
-                        // Failed files: dismiss immediately without confirmation
-                        if (currentConversationId) {
-                          removeFileFromConversation(currentConversationId, file.file_id);
-                        }
-                        setAttachedFiles(prev => prev.filter(f => f.file_id !== file.file_id));
-                      } else {
-                        openFileDeleteConfirmation(file);
+                  filename={file.filename}
+                  fileId={file.file_id}
+                  status={status}
+                  statusText={statusText}
+                  errorMessage={isFailed ? (file.error_message || t('messageInput.fileProcessingFailedTitle')) : undefined}
+                  onRemove={() => {
+                    if (isFailed) {
+                      // Failed files: dismiss immediately without confirmation
+                      if (currentConversationId) {
+                        removeFileFromConversation(currentConversationId, file.file_id);
                       }
-                    }}
-                    className="rounded p-2 md:p-0.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-[#bfc2cd] dark:hover:bg-red-900/30 dark:hover:text-red-300"
-                    title={isFailed ? t('messageInput.attachedFile.removeTitleFailed') : t('messageInput.attachedFile.removeTitleNormal')}
-                  >
-                    <X className="h-4 w-4 md:h-3 md:w-3" />
-                  </button>
-                </div>
+                      setAttachedFiles(prev => prev.filter(f => f.file_id !== file.file_id));
+                    } else {
+                      openFileDeleteConfirmation(file);
+                    }
+                  }}
+                  removeTitle={isFailed ? t('messageInput.attachedFile.removeTitleFailed') : t('messageInput.attachedFile.removeTitleNormal')}
+                />
               );
             })}
           </div>
@@ -1801,47 +1800,24 @@ export function MessageInput({
               </div>
             )}
             {pasteUploadingFiles.size > 0 && (
-              <div className="mb-2 space-y-1.5">
+              <div className="mb-2 flex flex-wrap gap-2">
                 {Array.from(pasteUploadingFiles.entries()).map(([key, progress]) => (
-                  <div
+                  <FileChip
                     key={key}
-                    className="group relative w-full flex items-center gap-3 rounded-lg px-3 py-2.5 bg-gray-50 dark:bg-[#1f1f24] overflow-hidden transition-colors"
-                  >
-                    <div
-                      className="absolute inset-0 bg-blue-50 dark:bg-blue-900/15 transition-all duration-500 ease-out rounded-lg"
-                      style={{ width: `${progress.progress ?? 0}%` }}
-                    />
-                    <div className="relative flex items-center gap-3 w-full min-w-0">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 dark:bg-blue-900/30">
-                        <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[#353740] dark:text-[#ececf1] truncate">
-                          {progress.filename}
-                        </p>
-                        <div className="mt-1 flex items-center gap-2">
-                          <div className="flex-1 bg-gray-200 dark:bg-[#3c3f4a] rounded-full h-1">
-                            <div
-                              className="bg-blue-500 dark:bg-blue-400 h-1 rounded-full transition-all duration-500 ease-out"
-                              style={{ width: `${progress.progress ?? 0}%` }}
-                            />
-                          </div>
-                          <span className="text-[11px] tabular-nums text-gray-400 dark:text-[#8e8ea0] shrink-0">
-                            {Math.round(progress.progress ?? 0)}%
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-xs font-medium text-gray-500 dark:text-[#bfc2cd] shrink-0">
-                        {progress.status === 'uploading'
-                          ? t('messageInput.uploadProgress.statusUploading')
-                          : progress.status === 'processing'
-                          ? t('messageInput.uploadProgress.statusProcessing')
-                          : progress.status === 'completed'
-                          ? t('messageInput.uploadProgress.statusCompleted')
-                          : t('messageInput.uploadProgress.statusPending')}
-                      </span>
-                    </div>
-                  </div>
+                    filename={progress.filename}
+                    fileId={progress.fileId}
+                    status={progress.status}
+                    statusText={
+                      progress.status === 'uploading'
+                        ? t('messageInput.uploadProgress.statusUploading')
+                        : progress.status === 'processing'
+                        ? t('messageInput.uploadProgress.statusProcessing')
+                        : progress.status === 'completed'
+                        ? t('messageInput.uploadProgress.statusCompleted')
+                        : undefined
+                    }
+                    errorMessage={progress.error}
+                  />
                 ))}
               </div>
             )}
