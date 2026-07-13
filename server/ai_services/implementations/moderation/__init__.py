@@ -5,6 +5,7 @@ Available providers:
     - OpenAIModerationService: OpenAI moderation
     - AnthropicModerationService: Anthropic moderation
     - OllamaModerationService: Ollama moderation
+    - PrivacyFilterModerationService: Local PII detection (openai/privacy-filter)
 """
 
 import logging
@@ -17,6 +18,7 @@ _implementations = [
     ('openai_moderation_service', 'OpenAIModerationService'),
     ('anthropic_moderation_service', 'AnthropicModerationService'),
     ('ollama_moderation_service', 'OllamaModerationService'),
+    ('privacy_filter_moderation_service', 'PrivacyFilterModerationService'),
 ]
 
 for module_name, class_name in _implementations:

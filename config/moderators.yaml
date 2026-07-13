@@ -15,3 +15,24 @@ moderations:
     top_p: 1.0
     max_tokens: 100  # Increased from 50 to allow full JSON response
     batch_size: 1
+  # Local PII detection using OpenAI's privacy-filter token-classification
+  # model (Apache 2.0, runs on-premises, no API key required).
+  # Requires the 'huggingface' dependency profile (transformers + torch):
+  #   ./install/setup.sh --profile huggingface
+  # Enable by setting safety.moderator: "privacy_filter" in guardrails.yaml.
+  privacy_filter:
+    model: "openai/privacy-filter"
+    device: "auto"        # auto, cpu, cuda, or mps
+    threshold: 0.5        # Minimum span confidence to count a detection
+    # Categories that flag content when detected at or above the threshold.
+    # Detected categories are always reported as pii.<category> scores;
+    # remove entries here to report them without flagging.
+    flag_categories:
+      - "account_number"
+      - "private_address"
+      - "private_email"
+      - "private_person"
+      - "private_phone"
+      - "private_url"
+      - "private_date"
+      - "secret"

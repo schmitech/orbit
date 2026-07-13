@@ -130,6 +130,7 @@ def register_moderation_services() -> None:
         ("openai", "OpenAIModerationService", "OpenAI"),
         ("anthropic", "AnthropicModerationService", "Anthropic"),
         ("ollama", "OllamaModerationService", "Ollama"),
+        ("privacy_filter", "PrivacyFilterModerationService", "Privacy Filter (PII)"),
     ])
 
 

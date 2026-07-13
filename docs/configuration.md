@@ -1347,6 +1347,22 @@ moderators:
     model: "llama-guard3:1b"
     temperature: 0.0
     batch_size: 1
+
+  # Local PII detection (openai/privacy-filter, no API key required)
+  # Requires the 'huggingface' dependency profile. See docs/security/pii-moderation.md
+  privacy_filter:
+    model: "openai/privacy-filter"
+    device: "auto"        # auto, cpu, cuda, or mps
+    threshold: 0.5        # Minimum span confidence to flag
+    flag_categories:      # Categories that block when detected above threshold
+      - "account_number"
+      - "private_address"
+      - "private_email"
+      - "private_person"
+      - "private_phone"
+      - "private_url"
+      - "private_date"
+      - "secret"
 ```
 
 ## Data Sources Configuration (datasources.yaml)
