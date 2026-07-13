@@ -46,7 +46,7 @@ Vision-backed providers reuse their per-provider settings (API key, model) from 
        model: "mistral-ocr-latest"
    ```
 
-See the [Configuration Guide](configuration.md#ocr-configuration-ocryaml) for the full `ocr.yaml` reference and the [File Processing](configuration.md#chunking-and-processing) section for the `ai_document` block.
+See [`ocr.yaml`](../install/default-config/ocr.yaml) for the full OCR provider reference and the `files.processing` section of [`config.yaml`](../install/default-config/config.yaml) for the `ai_document` block.
 
 ## How it overrides the vision path
 

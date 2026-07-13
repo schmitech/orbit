@@ -14,7 +14,7 @@ adapters:
     model: "gpt-5.4-mini"                # Specific model for this adapter
     embedding_provider: "openai"
     embedding_model: "text-embedding-3-small"
-    vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    vision_provider: "gemini"           # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
     stt_provider: "openai"               # STT provider for audio transcription (see stt.yaml)
     tts_provider: "gemini"               # For TTS output (see tts.yaml)
     # Optional: clients may request any of these models at runtime via the "model" field.
@@ -50,6 +50,19 @@ adapters:
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
       retrieval_behavior: "conditional"  # Only retrieves when file_ids are present
+      # ORBIT-only skills: auto-routed from natural language, NOT user-invokable.
+      # They're intentionally kept out of available_skills, so the / picker won't
+      # show them and an explicit skill=<name> for one of these is rejected.
+      auto_routable_skills:
+        - "Image"
+        - "Video"
+        - "PDF"
+        - "Word"
+        - "Excel"
+        - "PowerPoint"
+        - "CSV"
+        - "Markdown"
+        - "web-search"
       available_skills:
         - "Image"
         - "Video"

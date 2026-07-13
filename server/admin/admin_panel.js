@@ -4582,8 +4582,8 @@
     { label: "General & Performance", keys: ["general", "performance", "language_detection", "clock_service"] },
     { label: "Authentication & Security", keys: ["auth", "api_keys", "security", "secrets_management"] },
     { label: "Internal Services & Storage", keys: ["internal_services", "chat_history", "conversation_threading", "prompt_service"] },
-    { label: "Retrieval & Files", keys: ["composite_retrieval", "autocomplete", "files"] },
-    { label: "Reliability & Messaging", keys: ["fault_tolerance", "messages"] },
+    { label: "Retrieval & Files", keys: ["composite_retrieval", "autocomplete", "skill_routing", "files"] },
+    { label: "Reliability & Messaging", keys: ["fault_tolerance", "messaging", "messages"] },
     { label: "Logging & Monitoring", keys: ["logging", "monitoring"] },
   ];
   var SETTINGS_TITLES = {
@@ -4592,9 +4592,10 @@
     secrets_management: "Secrets Management",
     internal_services: "Internal Services", chat_history: "Chat History",
     conversation_threading: "Conversation Threading", prompt_service: "Prompt Service",
-    composite_retrieval: "Composite Retrieval", autocomplete: "Autocomplete", files: "Files",
-    fault_tolerance: "Fault Tolerance", messages: "Messages", logging: "Logging",
-    monitoring: "Monitoring",
+    composite_retrieval: "Composite Retrieval", autocomplete: "Autocomplete",
+    skill_routing: "Skill Routing", files: "Files",
+    fault_tolerance: "Fault Tolerance", messaging: "Message Queue", messages: "Messages",
+    logging: "Logging", monitoring: "Monitoring",
   };
 
   function settingsSectionTitle(key) {

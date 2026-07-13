@@ -557,5 +557,5 @@ shimmy serve --cpu-moe --n-cpu-moe 8
 
 - [Llama.cpp Server Guide](llama-cpp-server-guide.md) - Alternative local inference server
 - [Ollama Installation Manual](ollama-installation-manual.md) - Another local inference option
-- [Configuration Guide](configuration.md) - General Orbit configuration
+- [Configuration Reference (`config.yaml`)](../install/default-config/config.yaml) - General Orbit configuration
 

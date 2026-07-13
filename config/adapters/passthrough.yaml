@@ -60,7 +60,6 @@ adapters:
         - "CSV"
         - "Markdown"
         - "web-search"
-        - "web-search-duckduckgo"
       # Explicitly-invokable skills (via / picker or skill=). These are NOT
       # auto-routable (retrieval/intent skills + the explicit mcp-agent skill),
       # so they stay here to remain reachable at all.

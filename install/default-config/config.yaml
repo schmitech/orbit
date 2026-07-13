@@ -1,3 +1,6 @@
+# Split configuration: each file below is merged into this one at load time.
+# Provider/service definitions live in these modules (inference, embeddings,
+# vision, voice, stores, ...); this file holds the server-wide settings.
 import:
   - "ollama.yaml"
   - "llama_cpp.yaml"
@@ -19,34 +22,44 @@ import:
   - "mcp_client.yaml"
   - "rewriters-prompts.yaml"
 
+# Core server settings: the HTTP(S) listener, session identification, and the
+# default LLM provider used whenever an adapter doesn't specify its own.
 general:
-  port: 3000
+  port: 3000                        # HTTP port the API server listens on
+  # Optional: add `verbose: true` here for extra per-request diagnostic logging
+  # (language detection, routing decisions, etc.). Defaults to false.
   https:
-    enabled: false
+    enabled: false                  # Serve over TLS using the cert/key below
     port: 3443
     cert_file: "./cert.pem"
     key_file: "./key.pem"
     key_password: ${ORBIT_TLS_KEY_PASSWORD}  # optional: passphrase for encrypted private key
   session_id:
-    header_name: "X-Session-ID"
-    required: true
-  inference_provider: "ollama"
+    header_name: "X-Session-ID"     # HTTP header carrying the conversation/session id
+    required: true                  # Reject requests that omit the session header
+  inference_provider: "ollama"      # Default provider (a key from inference.yaml) when an adapter sets none
 
+# Detects the language of each user message with an ensemble of local libraries
+# (weighted voting plus script/heuristic checks). Used to keep replies in the
+# user's language and to bias RAG retrieval toward same-language documents.
+# Runs fully in-process — no network calls.
 language_detection:
   enabled: true
+  # Detection libraries to combine (installed via the language-detection profile).
   backends:
     - "langdetect"
     - "langid"
     - "pycld2"
+  # Relative trust of each backend when combining votes (higher = more influence).
   backend_weights:
     langdetect: 1.0
     langid: 1.2
     pycld2: 1.5
-  min_confidence: 0.7
-  min_margin: 0.2
-  prefer_english_for_ascii: true
-  enable_stickiness: false
-  fallback_language: "en"
+  min_confidence: 0.7               # Min confidence for the winning language; below -> fallback_language
+  min_margin: 0.2                   # Min lead over the runner-up; below -> fallback_language
+  prefer_english_for_ascii: true    # Bias pure-ASCII text toward English (avoids es/de/nl false positives)
+  enable_stickiness: false          # Reuse the session's previous language for short/ambiguous messages
+  fallback_language: "en"           # Language assumed when detection is uncertain
   backend_timeout: 10.0  # Timeout per backend in seconds (increase for cold starts)
 
   # Configurable heuristic nudges for voting adjustments
@@ -68,8 +81,10 @@ language_detection:
   retrieval_mismatch_penalty: 0.05 # Penalty for non-matching language documents
   retrieval_min_confidence: 0.7    # Min detection confidence to apply boost
 
+# Server concurrency and response-optimization tuning: worker processes, thread
+# pools, and optional GZip/ETag layers.
 performance:
-  workers: 4
+  workers: 4                        # Uvicorn worker processes (scale with CPU cores)
   # Rate-limit fallback note: when the cache service is disabled or unavailable,
   # each worker enforces its own in-memory fixed-window counters. With
   # workers > 1, the aggregate fallback ceiling can be up to limit * workers.
@@ -110,6 +125,8 @@ performance:
     embedding_workers: 15       # Embedding generation
     db_workers: 25              # Database operations
 
+# Resilience for adapter/provider calls: a circuit breaker that trips on
+# repeated failures, plus per-call timeout and retry policy.
 fault_tolerance:
   circuit_breaker:
     failure_threshold: 5        # Consecutive failures before opening
@@ -124,15 +141,20 @@ fault_tolerance:
     max_retries: 3
     retry_delay: 1
   
+# Canned fallback replies returned to the user in specific situations instead
+# of an LLM-generated answer.
 messages:
-  no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
-  collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
+  no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."  # When retrieval finds no relevant context
+  collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."  # When the requested collection/data is missing
 
+# Authentication for the /admin panel and management APIs. The built-in
+# username/password login below always works; external SSO is optional (see
+# providers:).
 auth:
-  session_duration_hours: 12
-  default_admin_username: admin
-  default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
-  pbkdf2_iterations: 600000
+  session_duration_hours: 12        # Admin login session lifetime before re-auth is required
+  default_admin_username: admin     # Bootstrap admin account, created on first startup
+  default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}  # Set via env; change before production
+  pbkdf2_iterations: 600000         # PBKDF2 rounds for password hashing (higher = slower to brute-force)
   # Credential storage method: "keyring" (default) or "file"
   # - keyring: Uses system keychain (macOS Keychain, Linux Secret Service)
   # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
@@ -169,16 +191,22 @@ auth:
       base_url: ${ORBIT_ADMIN_BASE_URL:-}   # Optional; overrides auto-detected redirect base (needed behind a proxy)
       admin_users: [] # Emails and/or "provider:subject" granted admin at login
 
+# Client API-key authentication for the inference endpoints (/v1/chat, ...).
+# Keys are created and managed from the admin panel or the orbit CLI.
 api_keys:
-  header_name: "X-API-Key"
-  prefix: "orbit_"
+  header_name: "X-API-Key"     # HTTP header clients send their API key in
+  prefix: "orbit_"             # Prefix prepended to every generated key
 
+# Loads and caches the named system prompts assigned to adapters / API keys, so
+# they aren't re-fetched from the database on every request.
 prompt_service:
   cache:
     ttl_seconds: 3600  # 1 hour - how long to cache prompts
 
+# Application logging: global level, file/console handlers, and per-logger
+# overrides to quiet noisy third-party libraries.
 logging:
-  level: "INFO"
+  level: "INFO"                      # Root level: DEBUG, INFO, WARNING, ERROR
   handlers:
     file:
       enabled: true
@@ -287,10 +315,13 @@ logging:
       level: "ERROR"
       propagate: false
 
+# Injects the current date/time into the model's context so it can answer
+# time-aware questions ("what day is it?", "how long until..."). Without it the
+# model only knows its training cutoff.
 clock_service:
   enabled: true
-  default_timezone: "America/Toronto"
-  format: "%A, %B %d, %Y at %I:%M:%S %p %Z"
+  default_timezone: "America/Toronto"        # IANA timezone name; falls back to UTC if invalid
+  format: "%A, %B %d, %Y at %I:%M:%S %p %Z"  # Python strftime format for the injected timestamp
 
 internal_services:
   # Backend database configuration
@@ -317,7 +348,7 @@ internal_services:
   # Audit trail storage configuration
   # Stores conversation audit logs for compliance and analytics
   audit:
-    enabled: true
+    enabled: false  # Opt-in: persists every request/response for compliance & analytics
     # Storage backend for audit logs
     # Options: "elasticsearch", "sqlite", "mongodb", "postgres", "database"
     # "database" means use the same backend as internal_services.backend.type
@@ -336,7 +367,7 @@ internal_services:
     # and /auth/* endpoints (user CRUD, API-key management, config changes,
     # login/logout, etc.) into a separate collection/table.
     admin_events:
-      enabled: true
+      enabled: false
       collection_name: "audit_admin_logs"
 
   mongodb:
@@ -439,22 +470,27 @@ messaging:
     prefetch: 8                         # max unacked messages in flight (backpressure)
     durable: true
 
+# Persists conversation turns per session so multi-turn context survives across
+# requests. Stored in the internal_services.backend database.
 chat_history:
   enabled: true
-  collection_name: "chat_history"
-  store_metadata: true
-  retention_days: 90
-  max_tracked_sessions: 10000
+  collection_name: "chat_history"   # Table/collection name in the backend database
+  store_metadata: true              # Persist per-message metadata (tokens, detected language, ...)
+  retention_days: 90                # Auto-expire history older than this many days
+  max_tracked_sessions: 10000       # Cap on concurrently tracked active sessions (memory bound)
   session:
-    auto_generate: false
-    required: true
+    auto_generate: false            # Server-generate a session id when the client omits one
+    required: true                  # Require a session id to read/write history
     header_name: "X-Session-ID"
   user:
-    header_name: "X-User-ID"
+    header_name: "X-User-ID"        # Optional per-user attribution header
     required: false
 
+# Sub-thread branching with dataset reuse: a follow-up can branch from any earlier
+# turn and reuse that turn's cached retrieval results instead of re-querying the
+# datasource, cutting DB load and latency on multi-turn analytical chats.
 conversation_threading:
-  enabled: true
+  enabled: false  # Opt-in: caches retrieval datasets for follow-up turns
   dataset_ttl_hours: 24  # Global default TTL for stored datasets
   # "cache" uses the configured cache provider (internal_services.cache.provider).
   # sqlite/mongodb/postgres store thread datasets directly in the application
@@ -464,7 +500,7 @@ conversation_threading:
 
 # Autocomplete configuration for query suggestions based on intent template nl_examples
 autocomplete:
-  enabled: true  # Master switch - when false, /v1/autocomplete returns empty results
+  enabled: false  # Opt-in: query suggestions from intent-template nl_examples
 
   # Query matching settings
   min_query_length: 3  # Minimum characters before fetching suggestions
@@ -667,15 +703,19 @@ files:
       # Optional custom OCR prompt for vision-backed providers (null = default OCR prompt)
       prompt: null
 
-    # Magika upload inspection
-    # Verifies uploaded content against the declared MIME type before processing
+    # Magika upload inspection (Google's ML-based content-type detector).
+    # Sniffs the real content of each uploaded file and rejects it when the true
+    # type doesn't match the declared MIME type — defends against disguised or
+    # spoofed uploads. Requires the magika dependency; adds a little per-upload latency.
     magika:
-      enabled: false
-      enforcement: "block"
+      enabled: false                       # Master switch for content inspection
+      enforcement: "block"                 # Action on a content/type mismatch (only "block" — reject — is implemented)
+      # Magika confidence mode: HIGH_CONFIDENCE (strictest; classifies as generic
+      # when unsure), MEDIUM_CONFIDENCE, or BEST_GUESS (always emit the top guess).
       prediction_mode: "HIGH_CONFIDENCE"
-      allow_generic_text_fallback: false
-      allow_generic_binary_fallback: false
-      log_detection_details: true
+      allow_generic_text_fallback: false   # true = accept files Magika can only classify as generic text
+      allow_generic_binary_fallback: false # true = accept files Magika can only classify as unknown binary
+      log_detection_details: true          # Debug-log each detection (filename, claimed vs detected type, score)
 
     # CSV processor settings
     csv:
@@ -746,6 +786,8 @@ files:
   default_vector_store: "chroma"  # Default vector store to use
   default_collection_prefix: "files_"  # Default prefix for collection names
 
+# System/health metrics powering the admin dashboard and the Prometheus
+# /metrics endpoint (CPU, memory, latency, error rate, active sessions).
 monitoring:
   enabled: true                    # Enable/disable monitoring
   metrics:

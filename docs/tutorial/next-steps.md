@@ -1,6 +1,6 @@
 # Next Steps
 
-- [Configuration Guide](../configuration.md) – full configuration reference
+- [Configuration Reference (`config.yaml`)](../../install/default-config/config.yaml) – full, commented configuration reference
 - [SQL Retriever Architecture](../sql-retriever-architecture.md) – deep dive into intent SQL
 - [Composite Intent Retriever](../adapters/composite-intent-retriever.md) – multi-source routing details
 - [Intent Agent Retriever](../adapters/intent-agent-retriever.md) – function calling & custom tools

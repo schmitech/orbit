@@ -22,6 +22,7 @@ This document compares **ORBIT** (Open Retrieval-Based Inference Toolkit) and **
 | **Intent-Based Data Routing** | Model/pipeline routing (not natural-language intent routing) | Built-in **Composite Intent Retrievers** routing queries by NL intent |
 | **Web Search** | Built-in search across 20+ providers | Two modes: provider-native (Gemini/OpenAI/xAI) and external backends decoupled from synthesis (any LLM can answer) |
 | **Cross-Adapter Skills** | Plugin/pipeline filters applied at the request/response boundary | **Skills system**: any adapter can invoke image/video generation, web search, or custom skills inline without switching adapters |
+| **Natural-Language Skill Routing** | Image generation, web search, and tools are enabled through per-message UI toggles or explicit tool selection | **Automatic skill intent detection**: infers the right skill (image/video/document generation, web search) from plain language and auto-routes it — no toggle, no `/` command, ChatGPT-style |
 | **Query Autocomplete** | No intent-driven autocomplete | Fuzzy autocomplete from adapter intent templates with Redis caching |
 | **Fault Tolerance** | Fallback routing and rate limiting; no circuit breakers | **Circuit Breaker**, fallback routes, best-effort and all-provider execution strategies |
 | **Retrieval Caching** | Retrieval re-executed per prompt | **Conversation Threading**: cached dataset reuse across follow-ups (Redis/SQLite + TTL) |
@@ -96,6 +97,8 @@ ORBIT's [Skills system](adapters/skills.md) lets any adapter invoke a specialize
 Each adapter declares which skills it is permitted to invoke. When a skill is requested, ORBIT validates the permission, routes the message to the skill adapter, and returns its output — bypassing the calling adapter's normal retrieval pipeline for that turn.
 
 New skills require no server code changes: marking an adapter as a skill in its configuration file is enough for ORBIT to discover and register it at startup.
+
+**Natural-language skill routing.** On top of explicit invocation, ORBIT can infer the right skill directly from plain language — "turn this into a PDF", "read that out loud", "search the web for X" — and auto-route to it with no `/` picker and no `skill` field, the way ChatGPT and Claude silently reach for the right tool. A hybrid router (a cheap embedding pre-filter for recall, then a small LLM confirm for precision) keeps ordinary chat turns free of any extra LLM call, firing only when a candidate skill is found. It's opt-in per adapter and gated globally, backward-compatible when off, and an explicit skill choice from the picker always wins. See [Automatic Skill Intent Detection](../adapters/auto-skill-intent-detection.md).
 
 ### 7. Query Autocomplete from Intent Templates
 

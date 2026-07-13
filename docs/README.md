@@ -43,7 +43,7 @@ New to ORBIT? Start here.
 | [Quick Start](../README.md#-start-in-minutes) | Get ORBIT running in minutes with Docker or manual installation |
 | [Tutorial](tutorial.md) | Step-by-step guide to chat with your data |
 | [Server Setup](server.md) | Detailed server configuration and deployment options |
-| [Configuration Guide](configuration.md) | Complete configuration reference |
+| [Configuration Reference (`config.yaml`)](../install/default-config/config.yaml) | Complete, commented configuration reference |
 | [ORBIT and Open WebUI](orbit-vs-openwebui.md) | Architectural comparison |
 
 ---
@@ -82,9 +82,9 @@ Customize ORBIT for your environment.
 
 | Guide | Description |
 |-------|-------------|
-| [Configuration Reference](configuration.md) | All configuration options explained |
-| [Environment Variables](configuration.md#environment-variables) | Required and optional environment settings |
-| [Inference Providers](configuration.md#inference-providers) | Configure OpenAI, Anthropic, Ollama, llama.cpp, and more |
+| [Configuration Reference (`config.yaml`)](../install/default-config/config.yaml) | All configuration options explained inline |
+| [Environment Variables (`env.example`)](../env.example) | Required and optional environment settings |
+| [Inference Providers (`inference.yaml`)](../install/default-config/inference.yaml) | Configure OpenAI, Anthropic, Ollama, llama.cpp, and more |
 | [System Prompts](server.md#system-prompts) | Customize AI behavior with system prompts |
 
 ---
@@ -158,7 +158,7 @@ For power users and contributors.
 |-------|-------------|
 | [llama.cpp Server](llama-cpp-server-guide.md) | Run GGUF models locally |
 | [Shimmy Server](shimmy-setup-guide.md) | Lightweight OpenAI-compatible inference |
-| [Ollama Integration](configuration.md#ollama) | Using Ollama for local inference |
+| [Ollama Integration (`ollama.yaml`)](../install/default-config/ollama.yaml) | Using Ollama for local inference |
 
 ### Performance & Reliability
 

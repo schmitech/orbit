@@ -414,6 +414,6 @@ consumer, worker, and lifecycle code are unchanged.
 ## See also
 
 - [ORBIT Server — Message Queue (Async) Protocol](server.md#message-queue-async-protocol) — endpoint/CLI reference
-- [Configuration Guide — Message Queue](configuration.md#message-queue-async-ingestion) — config reference
+- [Message Queue config (`config.yaml` → `messaging`)](../install/default-config/config.yaml) — commented config reference
 - [Local RabbitMQ setup](../server/tests/messaging/rabbitmq-local-setup.md) — get a broker running on macOS
 - [MQ integration playbook](../server/tests/messaging/playbook-message-queue.md) — end-to-end verification scenarios

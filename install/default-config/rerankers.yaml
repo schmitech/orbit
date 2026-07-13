@@ -36,7 +36,7 @@ rerankers:
 
   # Cohere Rerank API - Excellent quality, multilingual
   cohere:
-    enabled: true
+    enabled: false
     api_key: ${COHERE_API_KEY}
     api_base: "https://api.cohere.ai/v1"
     model: "rerank-english-v3.0"  # or "rerank-multilingual-v3.0"
@@ -57,7 +57,7 @@ rerankers:
 
   # OpenAI Reranker - Uses GPT models via prompt engineering
   openai:
-    enabled: true
+    enabled: false
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
     model: "gpt-4o-mini"  # Fast and cost-effective
@@ -68,7 +68,7 @@ rerankers:
 
   # Anthropic Reranker - Uses Claude models via prompt engineering
   anthropic:
-    enabled: true
+    enabled: false
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
     model: "claude-haiku-4-5"

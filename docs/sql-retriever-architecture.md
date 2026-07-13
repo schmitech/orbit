@@ -443,4 +443,4 @@ fault_tolerance:
 - [Vector Store Architecture](./vector_store_architecture.md)
 - [Intent SQL/RAG System](./intent-sql-rag-system.md)
 - [Datasource Pooling](./datasource-pooling.md)
-- [Configuration Guide](./configuration.md)
+- [Configuration Reference (`config.yaml`)](../install/default-config/config.yaml)

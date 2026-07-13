@@ -192,11 +192,12 @@ Pick the path closest to what you want to build.
 | **A2A peer protocol** | [Google Agent-to-Agent](https://google.github.io/A2A/) support — discovery via `/.well-known/agent.json` and task delegation over JSON-RPC. [Guide](docs/a2a-protocol.md). |
 | **Message-queue (async) surface** | Broker-native RabbitMQ ingestion — publish requests to a queue, ORBIT consumes them through the same pipeline and replies on a results queue. Decoupled, at-least-once, batch/async processing instead of synchronous HTTP. [Guide](docs/server.md#message-queue-async-protocol). |
 | **Media generation** | Image, video, audio (TTS), PDF, Word, Excel, PowerPoint, CSV, and markdown generation adapters in the same chat flow. |
+| **Natural-language skill routing** | ChatGPT-style intent detection: "turn this into a PDF", "read it aloud", "search the web for X" auto-route to the right skill — image/video/document/audio generation, web search — with no `/` command or manual toggle. [Guide](docs/adapters/auto-skill-intent-detection.md). |
 | **Voice (STT/TTS)** | OpenAI, Whisper, Google, Gemini, ElevenLabs, Coqui, and more. |
 | **Production controls** | API keys, RBAC, SSO via Entra ID & Auth0 (OIDC), per-key routing, rate limits, token quotas, moderation, circuit breakers, fallback routing, metrics, audit logs, and hot adapter reloads. |
 | **Config-first** | Define adapters, providers, datasources, prompts, and guardrails in YAML — no application code. |
 
-📚 Deep dive: [Docs index](docs/README.md) · [Adapter guide](docs/adapters/adapters.md) · [Configuration](docs/configuration.md)
+📚 Deep dive: [Docs index](docs/README.md) · [Adapter guide](docs/adapters/adapters.md) · [Configuration](install/default-config/config.yaml)
 
 ---
 
@@ -295,7 +296,7 @@ Same gateway, different jobs. ORBIT is useful anywhere a team needs private data
 | Topic | Start here |
 | :--- | :--- |
 | **Getting started** | [Tutorial](docs/tutorial.md) · [First chat](docs/tutorial/first-chat.md) |
-| **Configuration** | [Configuration guide](docs/configuration.md) · [Adapter config](docs/adapters/adapter-configuration.md) |
+| **Configuration** | [Configuration reference (`config.yaml`)](install/default-config/config.yaml) · [Adapter config](docs/adapters/adapter-configuration.md) |
 | **Adapters & RAG** | [Adapters overview](docs/adapters/adapters.md) · [File adapter](docs/adapters/file-adapter-guide.md) |
 | **NL data access** | [SQL retriever architecture](docs/sql-retriever-architecture.md) · [Intent SQL RAG](docs/intent-sql-rag-system.md) |
 | **MCP agents** | [MCP agent guide](docs/adapters/mcp-agent.md) |

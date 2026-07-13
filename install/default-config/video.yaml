@@ -1,12 +1,12 @@
 # Global video generation configuration
 video:
   provider: "gemini"  # Default video generation provider
-  enabled: true        # Whether video generation is enabled globally
+  enabled: false       # No local ollama video provider exists; opt-in a cloud provider to enable
 
 # Provider-specific configurations
 video_generation:
   gemini:
-    enabled: true
+    enabled: false
     api_key: ${GOOGLE_API_KEY}
     model: "veo-2.0-generate-001"
     aspect_ratio: "16:9"         # 16:9, 9:16, 1:1
@@ -24,7 +24,7 @@ video_generation:
       max_wait_ms: 60000
       exponential_base: 2
   xai:
-    enabled: true
+    enabled: false
     api_key: ${XAI_API_KEY}
     model: "grok-imagine-video"
     aspect_ratio: "16:9"         # 16:9, 9:16, 1:1, 4:3, 3:4, 3:2, 2:3

@@ -1,12 +1,12 @@
 # Global image generation configuration
 image:
-  provider: "gemini"  # Default image generation provider: openai, gemini, ollama, xai
+  provider: "ollama"  # Default image generation provider: openai, gemini, ollama, xai
   enabled: true        # Whether image generation is enabled globally
 
 # Provider-specific configurations
 image_generation:
   openai:
-    enabled: true
+    enabled: false
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
     model: "gpt-image-2"        # gpt-image-2, gpt-image-1.5, gpt-image-1, dall-e-3, dall-e-2
@@ -31,7 +31,7 @@ image_generation:
       exponential_base: 2
 
   gemini:
-    enabled: true
+    enabled: false
     api_key: ${GOOGLE_API_KEY}
     model: "gemini-3.1-flash-image"
     number_of_images: 1
@@ -71,7 +71,7 @@ image_generation:
       exponential_base: 2
 
   xai:
-    enabled: true
+    enabled: false
     api_key: ${XAI_API_KEY}
     api_base: "https://api.x.ai/v1"
     model: "grok-imagine-image-quality"

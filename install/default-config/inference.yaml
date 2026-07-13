@@ -15,7 +15,7 @@ inference:
   # ═══════════════════════════════════════════════════════════════════════════
   ollama:
     enabled: true
-    use_preset: "gemma4-e2b-cpu"  # Reference to preset in config/ollama.yaml
+    use_preset: "smollm2-1.7b-cpu"  # Reference to preset in config/ollama.yaml
   ollama_cloud:
     enabled: false
     api_key: ${OLLAMA_CLOUD_API_KEY}
@@ -39,7 +39,7 @@ inference:
     # Random seed for reproducible outputs
     seed: null
   ollama_remote:
-    enabled: true
+    enabled: false
     # Remote Ollama server URL (e.g., AWS EC2, self-hosted server)
     base_url: "http://your-remote-server:11434"
     # Optional API key for secured remote servers (leave null if not required)
@@ -154,7 +154,7 @@ inference:
       max_wait_ms: 30000
       exponential_base: 2
   tensorrt:
-    enabled: true
+    enabled: false
     # Mode: "direct" (load model locally with TensorRT-LLM) or "api" (connect to trtllm-serve)
     mode: "direct"
 
@@ -252,7 +252,7 @@ inference:
     enabled: false
     use_preset: "gemma4-e2b-direct-cpu"  # Reference to preset in config/llama_cpp.yaml
   gemini:
-    enabled: true
+    enabled: false
     api_key: ${GOOGLE_API_KEY}
     model: "gemini-3.1-pro-preview"
     context_window: 1000000  # Gemini supports up to 1M tokens (input context)
@@ -276,7 +276,6 @@ inference:
   deepseek:
     enabled: false
     api_key: ${DEEPSEEK_API_KEY}
-    api_base: "https://api.deepseek.com/v1"
     model: "deepseek-chat"
     context_window: 65536  # DeepSeek Chat supports 64K context
     temperature: 0.1
@@ -307,8 +306,8 @@ inference:
     max_tokens: 1024
   azure:
     enabled: false
-    base_url: http://azure-ai.endpoint.microsoft.com
-    deployment: "azure-ai-deployment"
+    endpoint: "https://<your-resource-name>.openai.azure.com/"
+    deployment: "your-deployment-name"
     api_key: ${AZURE_ACCESS_KEY}
     api_version: "2024-06-01"
     context_window: 128000  # Azure OpenAI GPT-4 Turbo supports 128K context
@@ -318,7 +317,7 @@ inference:
     stream: true
     verbose: true
   openai:
-    enabled: true
+    enabled: false
     api_key: ${OPENAI_API_KEY}
     model: "gpt-5.4-mini"
     context_window: 128000  # GPT-4 Turbo/GPT-4o supports 128K context
@@ -330,14 +329,14 @@ inference:
     enabled: false
     api_key: ${MISTRAL_API_KEY}
     api_base: "https://api.mistral.ai/v1"
-    model: "mistral-small-latest"
+    model: "mistral-small-2603"
     context_window: 32768  # Mistral Small supports 32K context
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
     stream: true
   anthropic:
-    enabled: true
+    enabled: false
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
     model: "claude-sonnet-4-6"
@@ -448,11 +447,11 @@ inference:
     enabled: false
     api_key: ${COHERE_API_KEY}
     api_base: "https://api.cohere.ai/compatibility/v1"
-    model: "command-a-03-2025"
-    context_window: 288000  # Command A API limit (input + output); reserve space for max_tokens
-    temperature: 0.1
+    model: "command-r7b-12-2024"
+    context_window: 128000  # Command A API limit (input + output); reserve space for max_tokens
+    temperature: 0.3
     top_p: 0.8
-    max_tokens: 8000       # Max output tokens (on-demand may cap at 4K; dedicated has no cap)
+    max_tokens: 4000 # Max output tokens (on-demand may cap at 4K; dedicated has no cap)
     stream: true
   watson:
     enabled: false
@@ -521,7 +520,8 @@ inference:
     mode: "api"
     
     # Direct mode configuration
-    model_path: "models/bitnet-b1.58-3B/ggml-model-i2_s.gguf"
+    # To get GGUF file run: ./install/setup.sh --download-gguf bitnet-2b-4t
+    model_path: "models/ggml-model-i2_s.gguf"
     quant_type: "i2_s"  # Quantization type: i2_s or tl1
     use_pretuned: true  # Use pretuned kernel parameters
     quant_embd: false   # Quantize embeddings to f16
@@ -677,7 +677,7 @@ inference:
     max_tokens: 4096
     stream: true
   fugu:
-    enabled: true
+    enabled: false
     api_key: ${FUGU_API_KEY}
     base_url: "https://api.sakana.ai/v1"
     model: "fugu"  # Options: fugu, fugu-ultra, fugu-ultra-20260615

@@ -5,7 +5,7 @@ secrets manager — AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager 
 (or in addition to) a local `.env` file, so production credentials don't have to live in
 plaintext on disk.
 
-For the config schema reference see [Configuration Guide → Secrets Management](../configuration.md#secrets-management).
+For the config schema reference see the `secrets_management` section of [`config.yaml`](../../install/default-config/config.yaml).
 
 ## How it works
 
