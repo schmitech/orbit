@@ -14,7 +14,7 @@
   <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit?color=red" alt="Last commit"></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue.svg?logo=python&logoColor=white" alt="Python"></a>
-  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.9.2-blue" alt="Version"></a>
+  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.9.3-blue" alt="Version"></a>
 </p>
 
 <p align="center">
@@ -65,8 +65,8 @@ Put it in front of local or cloud models, connect files, SQL, NoSQL, vector stor
 Install the latest stable release, then start ORBIT locally.
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.9.2/orbit-2.9.2.tar.gz
-tar -xzf orbit-2.9.2.tar.gz && cd orbit-2.9.2
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.9.3/orbit-2.9.3.tar.gz
+tar -xzf orbit-2.9.3.tar.gz && cd orbit-2.9.3
 ./install/setup.sh        # add --wizard for interactive setup
 ./bin/orbit.sh start
 ```
