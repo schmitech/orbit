@@ -273,7 +273,27 @@ analytics) and `mcp-agent` are intentionally excluded.
 |-------|----------|---------|-------------|
 | `skill_routing.auto_detect` | `config/config.yaml` | `false` | Global gate; must be `true` for any adapter's flag to take effect |
 | `capabilities.auto_skill_routing` | consumer adapter YAML | `false` | Per-adapter opt-in |
+| `capabilities.auto_routable_skills` | consumer adapter YAML | `[]` | Skills ORBIT may auto-route to; falls back to `available_skills` when empty |
 | `capabilities.routing_examples` | skill adapter YAML | `[]` | Optional phrases that boost the pre-filter for that skill |
+
+**Auto-route without allowing explicit invocation.** `available_skills` controls
+what a user may call explicitly (the `/` picker / `skill=` in the request);
+`auto_routable_skills` controls what ORBIT may auto-route to. To let ORBIT decide
+skills while forbidding users from invoking them directly, set
+`available_skills: []` and list them under `auto_routable_skills` instead:
+
+```yaml
+capabilities:
+  auto_skill_routing: true
+  available_skills: []              # no manual invocation; / picker shows nothing, skill= is rejected
+  auto_routable_skills:             # ORBIT may still auto-route to these
+    - "PDF"
+    - "Image"
+    - "web-search"
+```
+
+When `auto_routable_skills` is omitted, the router falls back to
+`available_skills` (so existing adapters need no change).
 
 ```yaml
 # config/config.yaml
@@ -496,7 +516,7 @@ No server code changes are required. ORBIT discovers skill adapters at startup b
 | Skill validation + routing | `server/services/chat_handlers/request_context_builder.py` | `build_context(skill=...)` |
 | Skill registry lookups | `server/services/config/adapter_config_manager.py` | `get_skill_adapter()`, `get_all_skills()` |
 | Skill tracking in pipeline | `server/inference/pipeline/base.py` | `ProcessingContext.requested_skill`, `.original_adapter_name` |
-| Capability declaration | `server/adapters/capabilities.py` | `AdapterCapabilities.available_skills`, `.auto_skill_routing`, `.routing_examples` |
+| Capability declaration | `server/adapters/capabilities.py` | `AdapterCapabilities.available_skills`, `.auto_skill_routing`, `.auto_routable_skills`, `.routing_examples` |
 | Automatic intent detection | `server/services/skill_intent_router.py` | `SkillIntentRouter.detect()` — hybrid embed→confirm router |
 | Auto-detection wiring + gate | `server/services/pipeline_chat_service.py` | `_maybe_detect_skill()`, `_auto_skill_routing_enabled()` before `build_context` |
 | Auto-detection global config | `config/config.yaml` | `skill_routing` block (`auto_detect`, `embedding_threshold`, `router_provider`/`router_model`) |

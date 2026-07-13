@@ -260,3 +260,25 @@ async def test_prefers_adapter_embedding_provider_override():
     await router.detect("make a pdf of this", [], "simple-chat-with-files")
     # Adapter override wins over the global default.
     assert manager.embedding_requests == ["cohere"]
+
+
+@pytest.mark.asyncio
+async def test_auto_routable_skills_is_candidate_source():
+    # available_skills empty (no explicit user invocation), but ORBIT may still
+    # auto-route to the skills listed in auto_routable_skills.
+    router, manager, provider = _build({"make a pdf of this": PDF_VEC}, confirm_answer="PDF")
+    caps = manager._configs["simple-chat-with-files"]["capabilities"]
+    caps["available_skills"] = []
+    caps["auto_routable_skills"] = ["PDF", "Excel"]
+    candidates = {c["name"] for c in router._candidate_skills("simple-chat-with-files")}
+    assert candidates == {"PDF", "Excel"}
+    result = await router.detect("make a pdf of this", [], "simple-chat-with-files")
+    assert result == "PDF"
+
+
+@pytest.mark.asyncio
+async def test_falls_back_to_available_skills_when_no_auto_routable():
+    router, manager, provider = _build({"make a pdf of this": PDF_VEC}, confirm_answer="PDF")
+    # No auto_routable_skills => candidates come from available_skills.
+    candidates = {c["name"] for c in router._candidate_skills("simple-chat-with-files")}
+    assert candidates == {"PDF", "Excel"}

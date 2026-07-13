@@ -357,6 +357,46 @@ class TestSkillRouting:
                 skill="image-generation",
             )
 
+    def test_auto_detected_skill_allowed_via_auto_routable(self, base_config):
+        """An auto-detected skill passes when it's in auto_routable_skills even if
+        available_skills is empty (users can't invoke it, but ORBIT may route to it)."""
+        adapter_cfg = {
+            'type': 'retriever',
+            'inference_provider': 'openai',
+            'config': {},
+            'capabilities': {'available_skills': [], 'auto_routable_skills': ['image-generation']},
+        }
+        builder = self._make_builder(base_config, adapter_cfg, skill_adapter_name='image-generator')
+
+        context = builder.build_context(
+            message="a sunset over mountains",
+            adapter_name="test_adapter",
+            context_messages=[],
+            skill="image-generation",
+            skill_auto_detected=True,
+        )
+        assert context.adapter_name == 'image-generator'
+        assert context.requested_skill == 'image-generation'
+
+    def test_explicit_skill_not_allowed_by_auto_routable_only(self, base_config):
+        """A skill only in auto_routable_skills cannot be invoked EXPLICITLY by a user."""
+        adapter_cfg = {
+            'type': 'retriever',
+            'inference_provider': 'openai',
+            'config': {},
+            'capabilities': {'available_skills': [], 'auto_routable_skills': ['image-generation']},
+        }
+        builder = self._make_builder(base_config, adapter_cfg, skill_adapter_name='image-generator')
+
+        with pytest.raises(ValueError, match="not available"):
+            builder.build_context(
+                message="test",
+                adapter_name="test_adapter",
+                context_messages=[],
+                skill="image-generation",
+                skill_auto_detected=False,
+            )
+
     def test_skill_adapter_not_registered_raises(self, base_config):
         """Raises ValueError when no adapter is registered for the skill."""
         adapter_cfg = {

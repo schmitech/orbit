@@ -47,23 +47,28 @@ adapters:
 
     # Capabilities: Pure passthrough - no retrieval
     capabilities:
-      available_skills:
+      # ORBIT-only skills: auto-routed from natural language, NOT user-invokable.
+      # They're intentionally kept out of available_skills, so the / picker won't
+      # show them and an explicit skill=<name> for one of these is rejected.
+      auto_routable_skills:
         - "Image"
         - "Video"
         - "PDF"
         - "Word"
         - "Excel"
         - "PowerPoint"
-        - "web-search"
-        - "web-search-duckduckgo"
-        - "mcp-agent"
-        - "tender-notices"
-        - "award-notices"
-        - "contract-history"
-        - "standing-offers"
-        - "tender-notices"
         - "CSV"
         - "Markdown"
+        - "web-search"
+        - "web-search-duckduckgo"
+      # Explicitly-invokable skills (via / picker or skill=). These are NOT
+      # auto-routable (retrieval/intent skills + the explicit mcp-agent skill),
+      # so they stay here to remain reachable at all.
+      available_skills:
+        - "mcp-agent"
+        - "HR"
+        - "business-analytics"
+        - "customer-orders"
       retrieval_behavior: "none"         # No context retrieval (pure conversational)
       formatting_style: "standard"       # Standard formatting (not used since no retrieval)
       supports_file_ids: false           # Does not support file filtering

@@ -75,11 +75,14 @@ File: `server/services/skill_intent_router.py`
 
 `async detect(message, context_messages, adapter_name) -> Optional[str]`:
 
-1. **Candidate set** = the adapter's `available_skills` ∩ the *routable* set
-   (skills whose backing adapter `type` is in
+1. **Candidate set** = the adapter's `auto_routable_skills` (falling back to
+   `available_skills` when unset) ∩ the *routable* set (skills whose backing
+   adapter `type` is in
    `{image_generation, video_generation, document_generation, audio_generation, fetch}`
    or that carry `web_search: true`). Pull metadata from `get_all_skills()`.
-   Return `None` if empty.
+   Return `None` if empty. (Splitting the source from `available_skills` lets an
+   admin allow auto-routing while forbidding explicit user invocation — set
+   `available_skills: []` and list skills under `auto_routable_skills`.)
 2. **Stage 1 — embedding pre-filter** (recall-oriented, permissive threshold):
    - Provider resolution: the consumer adapter's `embedding_provider` override
      when set, otherwise the global `embedding.provider`. The phrase cache is
@@ -119,8 +122,12 @@ if skill is None and self._auto_skill_routing_enabled(adapter_name):
 
 ### 3. Config + capability flags (two-switch gate)
 - `server/adapters/capabilities.py`: add `auto_skill_routing: bool = False`
-  (consumer-adapter opt-in) and optional `routing_examples: List[str]` (skill-adapter
-  phrase overrides). Parse both in `from_config`.
+  (consumer-adapter opt-in), optional `auto_routable_skills: List[str]` (router
+  candidate source; falls back to `available_skills`), and optional
+  `routing_examples: List[str]` (skill-adapter phrase overrides). Parse all in
+  `from_config`. An auto-detected skill is validated in `build_context` against
+  `auto_routable_skills` (via `skill_auto_detected=True`); explicit user skills
+  stay restricted to `available_skills`.
 - Global gate + router settings in `config/config.yaml` (new block), e.g.:
   ```yaml
   skill_routing:

@@ -122,6 +122,7 @@ class RequestContextBuilder:
         cancel_event: Optional[asyncio.Event] = None,
         requested_model: Optional[str] = None,
         skill: Optional[str] = None,
+        skill_auto_detected: bool = False,
     ) -> ProcessingContext:
         """
         Build a ProcessingContext from request parameters.
@@ -204,11 +205,20 @@ class RequestContextBuilder:
         requested_skill = None
         if skill:
             adapter_config = self.get_adapter_config(adapter_name)
-            available_skills = adapter_config.get('capabilities', {}).get('available_skills', [])
-            if skill not in available_skills:
+            capabilities_cfg = adapter_config.get('capabilities', {})
+            available_skills = capabilities_cfg.get('available_skills', [])
+            # An auto-detected skill is validated against auto_routable_skills
+            # (falling back to available_skills) — this lets ORBIT auto-route to
+            # skills users may not invoke explicitly. An explicit skill from the
+            # request is always restricted to available_skills.
+            if skill_auto_detected:
+                permitted_skills = capabilities_cfg.get('auto_routable_skills') or available_skills
+            else:
+                permitted_skills = available_skills
+            if skill not in permitted_skills:
                 raise ValueError(
                     f"Skill '{skill}' is not available for adapter '{adapter_name}'. "
-                    f"Available skills: {available_skills}"
+                    f"Available skills: {permitted_skills}"
                 )
             skill_adapter_name = (
                 self.adapter_manager.get_skill_adapter(skill)

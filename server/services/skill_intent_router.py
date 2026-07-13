@@ -123,9 +123,15 @@ class SkillIntentRouter:
     # ------------------------------------------------------------------
 
     def _candidate_skills(self, adapter_name: str) -> List[Dict[str, Any]]:
-        """Routable skills the adapter is allowed to use, with their match phrases."""
+        """Routable skills the adapter is allowed to use, with their match phrases.
+
+        Candidate source is ``auto_routable_skills`` when set, otherwise
+        ``available_skills`` — so auto-routing can be allowed even when explicit
+        user invocation (``available_skills``) is disabled.
+        """
         adapter_config = self.adapter_manager.get_adapter_config(adapter_name) or {}
-        available = (adapter_config.get("capabilities", {}) or {}).get("available_skills") or []
+        caps = adapter_config.get("capabilities", {}) or {}
+        available = caps.get("auto_routable_skills") or caps.get("available_skills") or []
         if not available:
             return []
         available_set = set(available)

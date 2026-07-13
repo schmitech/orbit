@@ -148,22 +148,24 @@ class PipelineChatService:
 
     async def _maybe_detect_skill(
         self, skill: Optional[str], message: str, context_messages, adapter_name: str
-    ) -> Optional[str]:
-        """Return an auto-detected skill when none was explicitly requested.
+    ) -> Tuple[Optional[str], bool]:
+        """Return ``(skill, was_auto_detected)``.
 
         An explicit ``skill`` (from the ``/`` picker) always wins — detection only
-        runs when ``skill`` is None and the adapter opts in. Never raises.
+        runs when ``skill`` is None and the adapter opts in. Never raises. The
+        boolean lets ``build_context`` validate an auto-detected skill against
+        ``auto_routable_skills`` rather than the user-facing ``available_skills``.
         """
         if skill is not None or not self._auto_skill_routing_enabled(adapter_name):
-            return skill
+            return skill, False
         try:
             detected = await self.skill_router.detect(message, context_messages, adapter_name)
             if detected:
                 logger.debug(f"Auto-detected skill '{detected}' for adapter '{adapter_name}'")
-                return detected
+                return detected, True
         except Exception as e:
             logger.warning(f"Skill intent detection failed: {e}")
-        return skill
+        return skill, False
 
     async def initialize(self):
         """Initialize the pipeline provider."""
@@ -674,7 +676,9 @@ class PipelineChatService:
                 context_messages = await self.conversation_handler.get_context(session_id, adapter_name)
                 effective_session_id = session_id
 
-            skill = await self._maybe_detect_skill(skill, message, context_messages, adapter_name)
+            skill, skill_auto_detected = await self._maybe_detect_skill(
+                skill, message, context_messages, adapter_name
+            )
 
             context = self.context_builder.build_context(
                 message=message,
@@ -695,6 +699,7 @@ class PipelineChatService:
                 target_language=target_language,
                 requested_model=requested_model,
                 skill=skill,
+                skill_auto_detected=skill_auto_detected,
             )
 
             result = await self.pipeline.process(context)
@@ -837,7 +842,9 @@ class PipelineChatService:
                 context_messages = await self.conversation_handler.get_context(session_id, adapter_name)
                 effective_session_id = session_id
 
-            skill = await self._maybe_detect_skill(skill, message, context_messages, adapter_name)
+            skill, skill_auto_detected = await self._maybe_detect_skill(
+                skill, message, context_messages, adapter_name
+            )
 
             context = self.context_builder.build_context(
                 message=message,
@@ -859,6 +866,7 @@ class PipelineChatService:
                 cancel_event=cancel_event,
                 requested_model=requested_model,
                 skill=skill,
+                skill_auto_detected=skill_auto_detected,
             )
 
             final_state = None

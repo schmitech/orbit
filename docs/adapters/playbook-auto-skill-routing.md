@@ -123,7 +123,83 @@ curl -s -X POST http://localhost:3000/v1/chat \
 **Expected:** `"xlsx"` (Excel), not `"pdf"` — the confirm LLM disambiguates
 between the similar document skills that both survive the pre-filter.
 
-## 7. Manual override still wins
+## 7. Delegate to ORBIT only (no explicit user invocation)
+
+To let ORBIT auto-route while forbidding users from calling skills themselves,
+move the skills from `available_skills` into `auto_routable_skills`:
+
+```yaml
+capabilities:
+  auto_skill_routing: true
+  available_skills: []            # / picker shows nothing; explicit skill= is rejected
+  auto_routable_skills:
+    - "PDF"
+    - "Image"
+    - "web-search"
+```
+
+Verify:
+
+```bash
+# Auto-routing still works (no skill field):
+curl -s -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" -H "X-API-Key: $ORBIT_KEY" \
+  -H "X-Session-ID: auto-only-1" \
+  -d '{"messages":[{"role":"user","content":"make a pdf of this"}]}' | jq '.document_format'
+# => "pdf"
+
+# But an EXPLICIT skill request is now rejected:
+curl -s -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" -H "X-API-Key: $ORBIT_KEY" \
+  -H "X-Session-ID: auto-only-2" \
+  -d '{"messages":[{"role":"user","content":"make a pdf"}],"skill":"PDF"}' | jq
+# => error: "Skill 'PDF' is not available for adapter ..."
+```
+
+### Variant: one adapter, mixed access (`config/adapters/passthrough.yaml` → `simple-chat`)
+
+`simple-chat` shows the two lists side by side: generation + web skills are
+ORBIT-only (`auto_routable_skills`), while the retrieval skills and `mcp-agent`
+stay explicitly invokable (`available_skills`). It also ships `mcp_tools: true`
+(business-sample), so it exercises coexistence with opportunistic MCP too.
+
+```bash
+./bin/orbit.sh key create --adapter simple-chat --name "Auto-routing test (passthrough)"
+export PT_KEY=<the-key-just-created>
+```
+
+1. **Auto-route an ORBIT-only skill** (no `skill` field):
+   ```bash
+   curl -s -X POST http://localhost:3000/v1/chat \
+     -H "Content-Type: application/json" -H "X-API-Key: $PT_KEY" \
+     -H "X-Session-ID: pt-1" \
+     -d '{"messages":[{"role":"user","content":"make a pdf about the water cycle"}]}' | jq '.document_format'
+   # => "pdf"
+   ```
+2. **Explicit call to an ORBIT-only skill is rejected** (it's not in `available_skills`):
+   ```bash
+   curl -s -X POST http://localhost:3000/v1/chat \
+     -H "Content-Type: application/json" -H "X-API-Key: $PT_KEY" \
+     -H "X-Session-ID: pt-2" \
+     -d '{"messages":[{"role":"user","content":"x"}],"skill":"PDF"}' | jq
+   # => error: "Skill 'PDF' is not available for adapter ..."
+   ```
+3. **Explicit call to a still-allowed skill works** (stayed in `available_skills`):
+   ```bash
+   curl -s -X POST http://localhost:3000/v1/chat \
+     -H "Content-Type: application/json" -H "X-API-Key: $PT_KEY" \
+     -H "X-Session-ID: pt-3" \
+     -d '{"messages":[{"role":"user","content":"latest tender notices"}],"skill":"tender-notices"}' | jq 'keys'
+   # => normal retrieval response (not rejected)
+   ```
+4. **Coexistence with opportunistic MCP** (optional): a CRM-style question with no
+   skill match — e.g. *"what's the health score of the top EMEA account?"* — falls
+   through to the `business-sample` MCP tools when `mcp_client.enabled` +
+   `mcp_client.allow_opportunistic` are set (see
+   [playbook-mcp-tool-loop.md](playbook-mcp-tool-loop.md)). The auto-routed skills
+   above and the MCP loop never fire on the same turn.
+
+## 8. Manual override still wins
 
 Send an explicit `skill` that differs from what the text implies — the explicit
 skill must be honored and detection skipped entirely:
@@ -137,14 +213,14 @@ curl -s -X POST http://localhost:3000/v1/chat \
 
 **Expected:** an `image` result (the explicit `skill: "Image"`), NOT a PDF.
 
-## 8. Backward-compatibility check
+## 9. Backward-compatibility check
 
 Set `skill_routing.auto_detect: false` again (or unset `auto_skill_routing` on
 the adapter) and repeat step 4. **Expected:** the "create a PDF…" message now
 returns a normal conversational text response — proving the feature is fully
 gated and off by default.
 
-## 9. OrbitChat UI
+## 10. OrbitChat UI
 
 1. Point OrbitChat at an API key for `simple-chat-with-files` and open a new chat.
 2. **Without** touching the `/` picker, type: *"Can you make a PDF of this conversation?"* and send.

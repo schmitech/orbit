@@ -64,6 +64,13 @@ class AdapterCapabilities:
     # Skills available to this adapter (skill names that can be invoked via skill= in requests)
     available_skills: List[str] = field(default_factory=list)
 
+    # Skills ORBIT may AUTO-route to via intent detection, independent of
+    # available_skills. Lets you allow auto-routing while forbidding explicit
+    # user invocation (set available_skills: [] and list them here instead).
+    # When empty/absent, the router falls back to available_skills.
+    # See docs/adapters/auto-skill-intent-detection.md
+    auto_routable_skills: List[str] = field(default_factory=list)
+
     # Web search: when True, the adapter's inference call enables the provider's
     # native web search (Gemini google_search grounding, OpenAI web search)
     web_search: bool = False
@@ -137,6 +144,7 @@ class AdapterCapabilities:
             context_max_tokens=capabilities_config.get('context_max_tokens'),
             numeric_precision=capabilities_config.get('numeric_precision', {}),
             available_skills=capabilities_config.get('available_skills', []),
+            auto_routable_skills=capabilities_config.get('auto_routable_skills', []),
             web_search=capabilities_config.get('web_search', False),
             mcp_tools=capabilities_config.get('mcp_tools', False),
             mcp_servers=capabilities_config.get('mcp_servers'),
