@@ -8,13 +8,21 @@ adapters:
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    rewrite_provider: "openai"     # LLM used to produce the JSON document spec
-    rewrite_model: "gpt-5.4-mini" # Optional: override the model within rewrite_provider
+    rewrite_provider: "ollama_cloud"     # LLM used to produce the JSON document spec
+    rewrite_model: "gpt-oss:120b" # Optional: override the model within rewrite_provider
 
     capabilities:
       expose_as_skill: true
       skill_name: "PDF"
       skill_description: "Generate PDF documents from text descriptions or structured data"
+      # Phrases that boost the skill-intent embedding pre-filter (auto-routing).
+      routing_examples:
+        - "make a pdf"
+        - "create a pdf document"
+        - "export this as a pdf"
+        - "save this as a pdf"
+        - "turn this into a pdf"
+        - "generate a pdf report"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false

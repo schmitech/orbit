@@ -14,6 +14,14 @@ adapters:
       expose_as_skill: true
       skill_name: "Image"
       skill_description: "Generate images from text descriptions using AI (imagine, Imagen, or Ollama)"
+      # Phrases that boost the skill-intent embedding pre-filter (auto-routing).
+      routing_examples:
+        - "draw a picture of"
+        - "generate an image of"
+        - "create an image"
+        - "paint a"
+        - "make a picture"
+        - "illustrate"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false

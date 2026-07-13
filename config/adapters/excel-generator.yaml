@@ -15,6 +15,12 @@ adapters:
       expose_as_skill: true
       skill_name: "Excel"
       skill_description: "Generate Excel spreadsheets (.xlsx) from text descriptions or structured data"
+      routing_examples:
+        - "put this in a spreadsheet"
+        - "make an excel file"
+        - "create a spreadsheet"
+        - "export this to excel"
+        - "turn this into a table in excel"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false

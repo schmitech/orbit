@@ -230,6 +230,109 @@ The response is a normal text `response` whose content includes inline citations
 
 ---
 
+## Automatic Intent Detection
+
+Everything above requires the client to say *which* skill to use — either by
+sending `skill: "PDF"` explicitly or by picking it from OrbitChat's `/` menu.
+**Automatic intent detection** lets ORBIT infer the skill from plain natural
+language ("can you turn this into a PDF", "read this out loud", "search the web
+for X") and route to it on its own — the same per-turn, model-decides behavior
+ChatGPT and Claude have, and the skills analogue of
+[MCP opportunistic mode](mcp-agent.md#opportunistic-mode-mcp_tools-capability).
+
+It only computes a skill *name* and feeds it into the existing
+`build_context(skill=...)` path, so the allowlist check, adapter swap, and
+pipeline gating are all unchanged — an auto-detected skill behaves exactly like
+an explicitly-requested one.
+
+### How it works — hybrid detection
+
+1. **Embedding pre-filter** (cheap, recall-oriented) — the user's message is
+   embedded and cosine-compared against each candidate skill's phrases
+   (its `skill_description` plus any `routing_examples`). Candidates above
+   `embedding_threshold` survive. **If none match, the turn is answered
+   normally with no extra LLM call** — this keeps ordinary chat fast.
+   The embedding model is the consumer adapter's own `embedding_provider`
+   when set, otherwise the global `embedding.provider` — so routing stays in
+   the same embedding space as that adapter's file-RAG.
+2. **LLM confirm** (precise) — one small, constrained call picks exactly one of
+   the surviving candidates or `NONE`, disambiguating similar skills
+   (spreadsheet → Excel, not PDF) and rejecting false positives (negation,
+   "draft an email *about* PDFs").
+
+### Scope
+
+Only skills whose backing adapter is a **generation** type (`image_generation`,
+`video_generation`, `document_generation`, `audio_generation`), a **fetch**
+adapter, or a **`web_search`** adapter participate. Retrieval skills (HR,
+analytics) and `mcp-agent` are intentionally excluded.
+
+### Two-switch gate (opt-in, off by default)
+
+| Field | Location | Default | Description |
+|-------|----------|---------|-------------|
+| `skill_routing.auto_detect` | `config/config.yaml` | `false` | Global gate; must be `true` for any adapter's flag to take effect |
+| `capabilities.auto_skill_routing` | consumer adapter YAML | `false` | Per-adapter opt-in |
+| `capabilities.routing_examples` | skill adapter YAML | `[]` | Optional phrases that boost the pre-filter for that skill |
+
+```yaml
+# config/config.yaml
+skill_routing:
+  auto_detect: true
+  embedding_threshold: 0.35
+  router_provider: "cohere"          # small/fast confirm LLM (omit to reuse the adapter's provider)
+  router_model: "command-r7b-12-2024"
+```
+
+```yaml
+# config/adapters/multimodal.yaml — the consumer adapter
+- name: "simple-chat-with-files"
+  capabilities:
+    auto_skill_routing: true
+    available_skills: ["Image", "Video", "Audio", "PDF", "Word", "Excel", "PowerPoint", "web-search", "Fetch", "Markdown", ...]
+```
+
+```yaml
+# config/adapters/pdf-generator.yaml — a skill adapter (optional tuning)
+capabilities:
+  skill_name: "PDF"
+  routing_examples: ["make a pdf", "export this as a pdf", "turn this into a pdf"]
+```
+
+### Precedence and safety
+
+- **The `/` picker always wins.** Detection runs only when the request carries
+  no explicit `skill`. An explicit skill bypasses detection entirely.
+- **Fail-safe.** Any router error (embedding, provider, parse) degrades to a
+  normal conversational turn — it never breaks a request.
+- **Cost.** The embedding call runs on every turn for an opted-in adapter, but
+  the confirm LLM fires only when the pre-filter finds a candidate. Keep
+  `available_skills` scoped to what the adapter actually needs.
+- **Coexists with opportunistic MCP.** Auto-routing and `mcp_tools` are gated
+  separately and never both fire on one turn — skill detection runs first, and
+  if it picks a skill the adapter swaps (skipping the MCP loop for that turn).
+  Details and precedence: [Interaction with opportunistic MCP](auto-skill-intent-detection.md#interaction-with-opportunistic-mcp-tool-calling).
+
+### Example
+
+```bash
+# No "skill" field — ORBIT infers PDF and returns a document.
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <key for simple-chat-with-files>" \
+  -H "X-Session-ID: <session-id>" \
+  -d '{"messages":[{"role":"user","content":"create a PDF summarizing our conversation"}]}'
+```
+
+```json
+{ "response": "Conversation Summary", "document": "<base64>", "document_format": "pdf" }
+```
+
+See `docs/adapters/auto-skill-intent-detection.md` for the design rationale and
+`docs/adapters/playbook-auto-skill-routing.md` for manual validation steps.
+
+---
+
 ## Admin API
 
 ### List all registered skills
@@ -393,7 +496,10 @@ No server code changes are required. ORBIT discovers skill adapters at startup b
 | Skill validation + routing | `server/services/chat_handlers/request_context_builder.py` | `build_context(skill=...)` |
 | Skill registry lookups | `server/services/config/adapter_config_manager.py` | `get_skill_adapter()`, `get_all_skills()` |
 | Skill tracking in pipeline | `server/inference/pipeline/base.py` | `ProcessingContext.requested_skill`, `.original_adapter_name` |
-| Capability declaration | `server/adapters/capabilities.py` | `AdapterCapabilities.available_skills` |
+| Capability declaration | `server/adapters/capabilities.py` | `AdapterCapabilities.available_skills`, `.auto_skill_routing`, `.routing_examples` |
+| Automatic intent detection | `server/services/skill_intent_router.py` | `SkillIntentRouter.detect()` — hybrid embed→confirm router |
+| Auto-detection wiring + gate | `server/services/pipeline_chat_service.py` | `_maybe_detect_skill()`, `_auto_skill_routing_enabled()` before `build_context` |
+| Auto-detection global config | `config/config.yaml` | `skill_routing` block (`auto_detect`, `embedding_threshold`, `router_provider`/`router_model`) |
 | Admin endpoints | `server/routes/admin_routes.py` | `GET /admin/skills`, `GET /admin/adapters/{name}/skills` |
 | Response schemas | `server/models/schema.py` | `SkillInfo`, `SkillsResponse`, `AdapterSkillsResponse` |
 | `supportsThreading` in adapter info | `server/services/api_key_service.py` | `get_adapter_info` returns `supportsThreading` from capabilities |

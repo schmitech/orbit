@@ -17,6 +17,9 @@ adapters:
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
     allowed_models:
+      - name: "mistral"
+        provider: "mistral"
+        model: "mistral-small-2603"
       - name: "minimax-m3"
         provider: "ollama_cloud"
         model: "minimax-m3"
@@ -66,6 +69,13 @@ adapters:
       supports_file_ids: false           # Does not support file filtering
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: false # No API key validation needed
+      # Automatic skill intent detection: infer a skill (PDF, Image, web-search, ...)
+      # from plain natural language without the client sending skill=<name>.
+      # Requires skill_routing.auto_detect: true in config.yaml to take effect.
+      # NOTE: this adapter also has mcp_tools below — skill detection runs first,
+      # so a matched skill preempts the MCP loop for that turn (retrieval skills
+      # and mcp-agent are never auto-routed). See docs/adapters/auto-skill-intent-detection.md
+      auto_skill_routing: true
       # Opportunistic MCP tool calling: the model may call these tools on any
       # turn without the client sending skill:"mcp-agent" — no adapter swap,
       # same thread throughout. Requires mcp_client.enabled: true AND

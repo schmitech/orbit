@@ -41,6 +41,12 @@ adapters:
       expose_as_skill: true              # Publish this adapter as a skill
       skill_name: "web-search"           # Identifier clients send in skill=
       skill_description: "Search the web and answer with up-to-date information and citations"
+      routing_examples:
+        - "search the web for"
+        - "look this up online"
+        - "what's the latest news on"
+        - "find current information about"
+        - "google this"
       retrieval_behavior: "none"         # No context retrieval (pure conversational)
       formatting_style: "standard"
       requires_api_key_validation: false # No separate key needed for skill invocation

@@ -83,6 +83,17 @@ class AdapterCapabilities:
     skill_name: Optional[str] = None  # Public skill name (defaults to adapter name when unset)
     skill_description: str = ""
 
+    # Automatic skill intent detection: when True, ORBIT infers which skill
+    # (from available_skills) a plain natural-language turn wants and routes to
+    # it, without the client sending skill=. Gated globally by
+    # skill_routing.auto_detect. Set on a *consumer* adapter (e.g. simple-chat-with-files).
+    # See docs/adapters/auto-skill-intent-detection.md
+    auto_skill_routing: bool = False
+    # Optional phrase overrides used by the skill-intent embedding pre-filter.
+    # Only meaningful on a *skill* adapter (expose_as_skill: true); augments the
+    # skill_description when matching a query against this skill.
+    routing_examples: List[str] = field(default_factory=list)
+
     # Custom behavior hooks (for advanced use cases)
     custom_should_execute: Optional[Callable[[Any], bool]] = None
     custom_format_context: Optional[Callable[[list, Optional[Dict]], str]] = None
@@ -133,6 +144,8 @@ class AdapterCapabilities:
             expose_as_skill=capabilities_config.get('expose_as_skill', False),
             skill_name=capabilities_config.get('skill_name'),
             skill_description=capabilities_config.get('skill_description', ''),
+            auto_skill_routing=capabilities_config.get('auto_skill_routing', False),
+            routing_examples=capabilities_config.get('routing_examples', []),
         )
 
     @classmethod

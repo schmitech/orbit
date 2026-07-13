@@ -15,6 +15,12 @@ adapters:
       expose_as_skill: true
       skill_name: "PowerPoint"
       skill_description: "Generate PowerPoint presentations (.pptx) from text descriptions or structured data"
+      routing_examples:
+        - "make a powerpoint"
+        - "create a slide deck"
+        - "build a presentation"
+        - "turn this into slides"
+        - "export this as pptx"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false

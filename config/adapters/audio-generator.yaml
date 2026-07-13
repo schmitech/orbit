@@ -18,6 +18,14 @@ adapters:
       expose_as_skill: true
       skill_name: "Audio"
       skill_description: "Convert text into natural-sounding speech and get a downloadable audio file"
+      # Phrases that boost the skill-intent embedding pre-filter (auto-routing).
+      routing_examples:
+        - "read this out loud"
+        - "convert this to speech"
+        - "say this out loud"
+        - "generate audio of"
+        - "text to speech"
+        - "narrate this"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false

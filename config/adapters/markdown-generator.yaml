@@ -15,6 +15,10 @@ adapters:
       expose_as_skill: true
       skill_name: "Markdown"
       skill_description: "Generate Markdown documents (.md) from text descriptions or structured data"
+      routing_examples:
+        - "make a markdown file"
+        - "export this as markdown"
+        - "give me this as a .md file"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false

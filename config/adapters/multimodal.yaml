@@ -15,7 +15,8 @@ adapters:
     embedding_provider: "openai"
     embedding_model: "text-embedding-3-small"
     vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
-    stt_provider: "openai"               # STT provider for audio transcription (see stt.yaml) - local, free!
+    stt_provider: "openai"               # STT provider for audio transcription (see stt.yaml)
+    tts_provider: "gemini"               # For TTS output (see tts.yaml)
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above.
     allowed_models:
@@ -68,6 +69,13 @@ adapters:
         - "Markdown"
       formatting_style: "clean"          # Clean format (no citations) to prevent LLM citation markers
       supports_threading: false
+      # Automatic skill intent detection: infer a skill (PDF, Image, Audio, ...)
+      # from plain natural language without the client sending skill=<name>.
+      # Requires skill_routing.auto_detect: true in config.yaml to take effect.
+      # NOTE: coexists with the mcp_tools flag below — skill detection runs first,
+      # so a matched skill preempts the MCP loop for that turn (retrieval skills
+      # and mcp-agent are never auto-routed). See docs/adapters/auto-skill-intent-detection.md
+      auto_skill_routing: true
       supports_file_ids: true            # Accepts file_ids parameter for filtering
       supports_session_tracking: true    # Uses session_id for tracking
       requires_api_key_validation: true  # Validates file ownership via API key

@@ -14,6 +14,11 @@ adapters:
       expose_as_skill: true
       skill_name: "Fetch"
       skill_description: "Fetch and return web page content from a URL"
+      routing_examples:
+        - "fetch this url"
+        - "get the contents of this page"
+        - "read this link for me"
+        - "what does this webpage say"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false

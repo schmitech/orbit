@@ -15,6 +15,11 @@ adapters:
       expose_as_skill: true
       skill_name: "Word"
       skill_description: "Generate Word documents (.docx) from text descriptions or structured data"
+      routing_examples:
+        - "make a word document"
+        - "create a docx"
+        - "write this up as a word doc"
+        - "export this to word"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false

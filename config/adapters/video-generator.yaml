@@ -14,6 +14,13 @@ adapters:
       expose_as_skill: true
       skill_name: "Video"
       skill_description: "Generate short videos from text descriptions using AI (Veo 2)"
+      # Phrases that boost the skill-intent embedding pre-filter (auto-routing).
+      routing_examples:
+        - "make a video of"
+        - "generate a short video"
+        - "create a video clip"
+        - "animate"
+        - "produce a video"
       retrieval_behavior: "none"
       formatting_style: "clean"
       supports_threading: false
