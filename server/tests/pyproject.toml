@@ -36,4 +36,5 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
     "slow: marks tests as slow running",
+    "gpu: marks tests that download and run a real model (needs torch + an accelerator)",
 ] 
