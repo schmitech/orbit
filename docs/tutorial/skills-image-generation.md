@@ -116,6 +116,6 @@ See [Skills](../adapters/skills.md) for the full capability reference, admin end
 
 ---
 
-[Tutorial home](../tutorial.md) | [Previous: Example 8: Agent with Function Calling](agent-function-calling.md) | [Next: Creating API Keys](creating-api-keys.md)
+[Tutorial home](../tutorial.md) | [Previous: Example 8: Agent with Function Calling](agent-function-calling.md) | [Next: Example 10: Opportunistic MCP Tool Calling](mcp-tool-calling.md)
 
 ---

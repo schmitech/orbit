@@ -39,6 +39,6 @@ Beyond API keys, the panel at `/admin` handles everything you'd otherwise edit b
 
 ---
 
-[Tutorial home](../tutorial.md) | [Previous: Example 9: Skills and Image Generation](skills-image-generation.md) | [Next: Connecting Your Own Data](connecting-your-own-data.md)
+[Tutorial home](../tutorial.md) | [Previous: Example 12: Message Queue (Async) Requests](message-queue-async.md) | [Next: Connecting Your Own Data](connecting-your-own-data.md)
 
 ---

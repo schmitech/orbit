@@ -1,6 +1,9 @@
 adapters:
+  # Sample database isn't shipped pre-built — generate it first:
+  #   python utils/templates/examples/sqlite/contact/generate_contact_data.py
+  # or run utils/templates/run_contact_example.sh, then flip enabled to true.
   - name: "intent-sql-sqlite-contact"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "sqlite"
     adapter: "intent"

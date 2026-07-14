@@ -2,6 +2,8 @@
 
 ORBIT picks the right retrieval strategy based on an *adapter type*. You don't choose these at query time — you configure them once in `config/adapters/*.yaml` and reference them by name when creating an API key.
 
+This page is a quick-reference table. For the underlying architecture (retriever base classes, the adapter registry, and how to add a new adapter type), see [Adapters Overview](../adapters/adapters.md).
+
 | Adapter Type | Use it when… | Examples |
 |:---|:---|:---|
 | **Passthrough** | You want plain chat without retrieval | `simple-chat` |

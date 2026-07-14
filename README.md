@@ -80,7 +80,7 @@ Open the admin panel:
 | :--- | :--- |
 | [http://localhost:3000/admin](http://localhost:3000/admin) | `admin` / `admin123` |
 
-Verify the gateway:
+Verify the gateway. `default-key` is a pre-seeded example key (mapped to the `simple-chat` adapter) shipped in the release/Docker database for evaluation — create your own keys via `/admin` or the `orbit key create` CLI command before going further than local testing:
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
@@ -99,7 +99,7 @@ npm install -g orbitchat@latest
 Open a browser chat client:
 
 ```bash
-ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' npx orbitchat --open
+ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' orbitchat --open
 ```
 
 What you should see: the server responds through the OpenAI-compatible `/v1/chat` endpoint, the admin panel shows live health and adapters, and OrbitChat opens a local chat UI.
@@ -193,7 +193,7 @@ Pick the path closest to what you want to build.
 | **Web search** | Provider-agnostic real-time context via DuckDuckGo (free), Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity — decoupled from synthesis so any LLM can answer. |
 | **MCP tool agents** | Connect MCP servers (filesystem, GitHub, Slack, Postgres, Jira, Notion, and more) over stdio/SSE with bounded, server-side agent loops. |
 | **A2A peer protocol** | [Google Agent-to-Agent](https://google.github.io/A2A/) support — discovery via `/.well-known/agent.json` and task delegation over JSON-RPC. [Guide](docs/a2a-protocol.md). |
-| **Message-queue (async) surface** | Broker-native RabbitMQ ingestion — publish requests to a queue, ORBIT consumes them through the same pipeline and replies on a results queue. Decoupled, at-least-once, batch/async processing instead of synchronous HTTP. [Guide](docs/server.md#message-queue-async-protocol). |
+| **Message-queue (async) surface** | Broker-native RabbitMQ ingestion — publish requests to a queue, ORBIT consumes them through the same pipeline and replies on a results queue. Decoupled, at-least-once, batch/async processing instead of synchronous HTTP. [Guide](docs/message-queue-architecture.md). |
 | **Media generation** | Image, video, audio (TTS), PDF, Word, Excel, PowerPoint, CSV, and markdown generation adapters in the same chat flow. |
 | **Natural-language skill routing** | ChatGPT-style intent detection: "turn this into a PDF", "read it aloud", "search the web for X" auto-route to the right skill — image/video/document/audio generation, web search — with no `/` command or manual toggle. [Guide](docs/adapters/auto-skill-intent-detection.md). |
 | **Voice (STT/TTS)** | OpenAI, Whisper, Google, Gemini, ElevenLabs, Coqui, and more. |

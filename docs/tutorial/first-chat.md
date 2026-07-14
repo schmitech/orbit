@@ -2,6 +2,8 @@
 
 Before touching any data source, let's confirm the full request path works end-to-end. The `simple-chat` adapter is pure conversational — no retrieval, no setup — so it's the fastest way to prove the server + API key + client flow is wired. Its adapter definition lives in [`config/adapters/passthrough.yaml`](../../config/adapters/passthrough.yaml).
 
+> **Already tested `default-key` from the README?** That's a pre-seeded example key mapped to `simple-chat`, meant for a quick smoke test — not for real use. This section creates your own key, tied to a persona you control, which is what you'll want for anything beyond a first look.
+
 ### 1. Create an API key
 
 Open `http://localhost:3000/admin`, sign in, then go to **Prompts / Personas**.

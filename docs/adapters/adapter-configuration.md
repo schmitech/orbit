@@ -4,6 +4,8 @@
 
 ORBIT supports external adapter configuration files to make adapter management more maintainable. This allows you to separate adapter definitions from the main configuration file, making it easier to manage large numbers of adapters.
 
+Looking for the field-by-field schema of a single adapter entry instead? See the [Adapter Configuration Reference](../tutorial/adapter-configuration-reference.md).
+
 ## Configuration Structure
 
 ### Main Configuration File (`config.yaml`)

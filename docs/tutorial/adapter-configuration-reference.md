@@ -1,5 +1,7 @@
 # Adapter Configuration Reference
 
+This page is a field-by-field cheatsheet for a single adapter entry. For how to split adapters across multiple files, `import` them into `config.yaml`, and override models per API key, see [Adapter Configuration Management](../adapters/adapter-configuration.md).
+
 Every adapter accepts these shared fields:
 
 ```yaml
