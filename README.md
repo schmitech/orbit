@@ -58,6 +58,9 @@ Put it in front of local or cloud models, connect files, SQL, NoSQL, vector stor
   <em>Upload private files, ask questions in chat, and keep the whole workflow behind your own gateway.</em>
 </p>
 
+> [!NOTE]
+> **Real-world example:** [dialoga.ca](https://dialoga.ca) is a Canadian AI chat tool built on ORBIT. It is currently available only from Canadian IP addresses; use a Canadian VPN endpoint if you are outside Canada.
+
 ---
 
 ## 🚀 Quick Start
