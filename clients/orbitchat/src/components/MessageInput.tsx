@@ -34,6 +34,14 @@ interface MessageInputProps {
   autoFocusEnabled?: boolean;
   suppressMobileAutoFocus?: boolean;
   /**
+   * Limit autofocus to desktop viewports (≥1024px) and focus without scrolling.
+   * Used by the single-mode landing composer so the agent's intro text stays
+   * visible: phones and tablets get no caret (avoids the on-screen keyboard
+   * popping and the intro scrolling out of view), while desktop keeps a ready
+   * caret in place because it has the vertical room to show both.
+   */
+  desktopOnlyAutoFocus?: boolean;
+  /**
    * When true, constrains the input to a tighter max width and centers it.
    * Used for the empty state layout so the field and title feel aligned.
    */
@@ -171,6 +179,7 @@ export function MessageInput({
   placeholder = getDefaultInputPlaceholder(),
   autoFocusEnabled = true,
   suppressMobileAutoFocus = false,
+  desktopOnlyAutoFocus = false,
   isCentered = false,
   maxWidthClass = 'max-w-5xl',
   adapterNotes,
@@ -538,11 +547,25 @@ export function MessageInput({
   };
 
   const shouldSkipAutoFocus = useCallback(() => {
-    if (!suppressMobileAutoFocus || typeof window === 'undefined') {
+    if (typeof window === 'undefined') {
       return false;
     }
-    return window.matchMedia('(max-width: 767px)').matches;
-  }, [suppressMobileAutoFocus]);
+    // Below desktop, don't steal focus for the landing composer — a caret here
+    // pops the mobile/tablet keyboard and scrolls the agent's intro out of view.
+    if (desktopOnlyAutoFocus && !window.matchMedia('(min-width: 1024px)').matches) {
+      return true;
+    }
+    if (suppressMobileAutoFocus && window.matchMedia('(max-width: 767px)').matches) {
+      return true;
+    }
+    return false;
+  }, [desktopOnlyAutoFocus, suppressMobileAutoFocus]);
+
+  // preventScroll keeps the desktop landing caret from scrolling the intro text
+  // off-screen; elsewhere preventScroll: false is the normal focus behavior.
+  const focusTextarea = useCallback(() => {
+    textareaRef.current?.focus({ preventScroll: desktopOnlyAutoFocus });
+  }, [desktopOnlyAutoFocus]);
 
   // Auto-focus when not disabled (when AI response is complete)
   useEffect(() => {
@@ -551,9 +574,9 @@ export function MessageInput({
       return;
     }
     if (autoFocusEnabled && !isInputDisabled && textareaRef.current && !isFocusInTextarea()) {
-      textareaRef.current.focus();
+      focusTextarea();
     }
-  }, [autoFocusEnabled, isInputDisabled, suppressMobileAutoFocus, shouldSkipAutoFocus]);
+  }, [autoFocusEnabled, isInputDisabled, shouldSkipAutoFocus, focusTextarea]);
 
   // Focus input field when assistant response finishes (isLoading becomes false)
   const prevIsLoadingRef = useRef(isLoading);
@@ -569,12 +592,12 @@ export function MessageInput({
       setTimeout(() => {
         // Only focus main input if user is not already focused on a textarea
         if (textareaRef.current && !isFocusInTextarea()) {
-          textareaRef.current.focus();
+          focusTextarea();
         }
       }, 100);
     }
     prevIsLoadingRef.current = isLoading;
-  }, [autoFocusEnabled, isLoading, isInputDisabled, suppressMobileAutoFocus, shouldSkipAutoFocus]);
+  }, [autoFocusEnabled, isLoading, isInputDisabled, shouldSkipAutoFocus, focusTextarea]);
 
   // Auto-send message when voice recording completes
   useEffect(() => {

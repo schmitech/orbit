@@ -506,6 +506,13 @@ export function ChatInterface({
                           hasAdapterConfigurationError
                         }
                         autoFocusEnabled
+                        // Single-adapter mode uses this screen as the landing
+                        // page: keep a ready caret on desktop (room to show the
+                        // agent's intro and the composer together), but skip it
+                        // on mobile/tablet where autofocus would pop the keyboard
+                        // and scroll the intro out of view. Multi mode is
+                        // unaffected — the user got here by picking an agent.
+                        desktopOnlyAutoFocus={isSingleAdapterMode}
                         placeholder={defaultInputPlaceholder}
                         isCentered
                         maxWidthClass={emptyStateInputMaxWidthClass}
