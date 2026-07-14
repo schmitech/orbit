@@ -66,6 +66,7 @@ def create_metrics_router() -> APIRouter:
         except Exception:
             pass
 
+        disconnect_task: "asyncio.Task | None" = None
         try:
             # Get services from app state
             metrics_service = getattr(websocket.app.state, 'metrics_service', None)
@@ -88,7 +89,34 @@ def create_metrics_router() -> APIRouter:
                 except Exception:
                     return {'max_workers': 0, 'active_threads': 0, 'queued_tasks': 0}
 
+            # Observe disconnects authoritatively. This handler only sends, so
+            # client_state never leaves CONNECTED on its own — Starlette flips it
+            # only when receive() consumes a websocket.disconnect event. A
+            # concurrent receive task is the reliable signal for ungraceful
+            # disconnects (proxy idle-timeout, dropped network, closed tab), which
+            # some ASGI servers otherwise only surface as a swallowed
+            # "socket.send() raised exception" warning.
+            disconnected = asyncio.Event()
+
+            async def _watch_disconnect() -> None:
+                try:
+                    while True:
+                        message = await websocket.receive()
+                        if message["type"] == "websocket.disconnect":
+                            break
+                except WebSocketDisconnect:
+                    pass
+                except Exception:
+                    pass
+                finally:
+                    disconnected.set()
+
+            disconnect_task = asyncio.create_task(_watch_disconnect())
+
             while True:
+                if disconnected.is_set():
+                    break
+
                 data: Dict[str, Any] = {}
 
                 # Get metrics data
@@ -207,24 +235,36 @@ def create_metrics_router() -> APIRouter:
                     'adapters_available': bool(data.get('adapters'))
                 }
 
-                await websocket.send_json(data)
+                try:
+                    await websocket.send_json(data)
+                except (WebSocketDisconnect, RuntimeError):
+                    # Peer gone. Without this, send_json to a dead socket surfaces
+                    # only as a bare asyncio "socket.send() raised exception" warning.
+                    break
 
-                # Wait before next update (use configured interval)
+                # Wait before next update (use configured interval), but wake early
+                # if the disconnect watcher fires so we don't send into a dead socket.
                 metrics_service = getattr(websocket.app.state, 'metrics_service', None)
                 update_interval = 5
                 if metrics_service:
                     update_interval = getattr(metrics_service, 'websocket_update_interval', 5)
 
-                await asyncio.sleep(update_interval)
+                try:
+                    await asyncio.wait_for(disconnected.wait(), timeout=update_interval)
+                    break  # disconnected during the wait
+                except asyncio.TimeoutError:
+                    pass  # interval elapsed; send the next update
 
         except WebSocketDisconnect:
-            active_connections.remove(websocket)
             logger.debug("WebSocket client disconnected")
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
+        finally:
+            # Runs on every exit path, including a clean break when the peer goes away.
+            if disconnect_task is not None:
+                disconnect_task.cancel()
             if websocket in active_connections:
                 active_connections.remove(websocket)
-        finally:
             try:
                 ms = getattr(websocket.app.state, 'metrics_service', None)
                 if ms and getattr(ms, 'websocket_connections', None):
