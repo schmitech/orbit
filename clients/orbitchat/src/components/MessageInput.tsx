@@ -440,20 +440,11 @@ export function MessageInput({
     } else {
       setTextareaLineHeight(prev => (prev === null ? prev : null));
     }
-    if (!lineHeight || Number.isNaN(lineHeight)) {
-      applyPadding(DEFAULT_TEXTAREA_VERTICAL_PADDING);
-      return;
-    }
-    const contentHeight = textarea.scrollHeight;
-    const clientHeight = textarea.clientHeight;
-    const isMultiline = contentHeight > lineHeight + 2;
-    if (isMultiline) {
-      applyPadding(DEFAULT_TEXTAREA_VERTICAL_PADDING);
-      return;
-    }
-    const availableSpace = Math.max(clientHeight - lineHeight, 0);
-    const verticalPadding = Math.max(availableSpace / 2, 0);
-    applyPadding(verticalPadding);
+    // Keep the content padding fixed. Deriving it from clientHeight creates a
+    // feedback loop: after a multi-line message is cleared, the retained
+    // textarea height is converted into padding, which then keeps the field
+    // artificially tall on the next resize.
+    applyPadding(DEFAULT_TEXTAREA_VERTICAL_PADDING);
   }, []);
   const isCaretAtMessageEnd = () => {
     const textarea = textareaRef.current;
@@ -513,6 +504,17 @@ export function MessageInput({
     if (textareaRef.current) {
       const textarea = textareaRef.current;
       const maxHeight = 120; // Maximum height in pixels (about 4-5 lines)
+
+      // Mobile Safari can retain the previous scrollHeight for a textarea
+      // immediately after its value is cleared. Explicitly restore the
+      // single-line height so a previously expanded composer cannot linger.
+      if (message.length === 0) {
+        textarea.style.height = '32px';
+        textarea.style.overflowY = 'hidden';
+        adjustTextareaVerticalAlignment();
+        return;
+      }
+
       textarea.style.height = 'auto';
       const scrollHeight = textarea.scrollHeight;
       // Set height to scrollHeight, but cap it at maxHeight
@@ -577,6 +579,32 @@ export function MessageInput({
       focusTextarea();
     }
   }, [autoFocusEnabled, isInputDisabled, shouldSkipAutoFocus, focusTextarea]);
+
+  // On mobile Safari, focusing an empty textarea while the skills row is
+  // mounting can leave its native caret painted at the pre-layout position.
+  // Refocus on the next frame once the grid has settled, without stealing
+  // focus from another control or scrolling the page.
+  const hasVisibleSkillRow = Boolean(selectedSkill) || (skills.length > 0 && message.length === 0 && !isInputDisabled);
+  useEffect(() => {
+    if (
+      typeof window === 'undefined' ||
+      !window.matchMedia('(max-width: 767px)').matches ||
+      !hasVisibleSkillRow ||
+      document.activeElement !== textareaRef.current
+    ) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea || document.activeElement !== textarea) {
+        return;
+      }
+      textarea.blur();
+      textarea.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [hasVisibleSkillRow]);
 
   // Focus input field when assistant response finishes (isLoading becomes false)
   const prevIsLoadingRef = useRef(isLoading);
@@ -1461,29 +1489,31 @@ export function MessageInput({
           <form onSubmit={handleSubmit} className="flex w-full flex-col gap-2 md:gap-3">
           {/* Single-row layout: textarea + action buttons inline on all viewports */}
           <div
-            className={`flex flex-row items-center gap-1.5 md:gap-2 rounded-xl md:rounded-lg border px-2.5 py-1.5 md:px-4 md:py-3 shadow-sm transition-all ${
+            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5 md:flex md:flex-row md:flex-nowrap md:gap-2 rounded-xl md:rounded-lg border px-2.5 py-1.5 md:px-4 md:py-3 shadow-sm transition-all ${
               isFocused
                 ? 'border-gray-400 shadow-md dark:border-[#3a3a3a] dark:shadow-lg'
                 : 'border-gray-300 dark:border-[#242424]'
             } bg-gray-50 dark:bg-[#111111]`}
           >
           {selectedSkill && (
-            <div className="flex h-8 max-w-[45%] shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200 sm:max-w-[38%] md:max-w-[32%]">
-              <Sparkles className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
-              <span className="min-w-0 truncate font-medium capitalize">
-                {selectedSkill.name.replace(/-/g, ' ')}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  clearSkill();
-                  textareaRef.current?.focus();
-                }}
-                className="-mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600"
-                aria-label={t('messageInput.selectedSkill.removeAriaLabel')}
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+            <div className="col-span-2 flex w-full shrink-0 basis-full md:contents">
+              <div className="flex h-8 max-w-[45%] shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200 sm:max-w-[38%] md:self-center md:max-w-[32%]">
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+                <span className="min-w-0 truncate font-medium capitalize">
+                  {selectedSkill.name.replace(/-/g, ' ')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearSkill();
+                    textareaRef.current?.focus();
+                  }}
+                  className="-mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600"
+                  aria-label={t('messageInput.selectedSkill.removeAriaLabel')}
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -1492,25 +1522,27 @@ export function MessageInput({
               opens the picker on click (also covers mobile, where typing "/" is
               not obvious). */}
           {!selectedSkill && skills.length > 0 && message.length === 0 && !isInputDisabled && (
-            <button
-              type="button"
-              onClick={openSkillPicker}
-              className="flex h-8 shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600"
-              aria-label={t('messageInput.skillsHint.ariaLabel')}
-              title={t('messageInput.skillsHint.title')}
-            >
-              <span
-                className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gray-200 font-mono text-[10px] leading-none text-gray-600 dark:bg-[#2a2a2a] dark:text-gray-300"
-                aria-hidden="true"
+            <div className="col-span-2 flex w-full shrink-0 basis-full md:contents">
+              <button
+                type="button"
+                onClick={openSkillPicker}
+                className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600 md:self-center"
+                aria-label={t('messageInput.skillsHint.ariaLabel')}
+                title={t('messageInput.skillsHint.title')}
               >
-                /
-              </span>
-              {t('messageInput.skillsHint.text')}
-            </button>
+                <span
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gray-200 font-mono text-[10px] leading-none text-gray-600 dark:bg-[#2a2a2a] dark:text-gray-300"
+                  aria-hidden="true"
+                >
+                  /
+                </span>
+                {t('messageInput.skillsHint.text')}
+              </button>
+            </div>
           )}
 
           {/* Textarea row */}
-          <div className="relative flex-1 w-full min-w-0">
+          <div className="relative flex-1 w-full min-w-0 md:translate-y-0.5">
             {showCustomPlaceholder && effectivePlaceholder && (
               <div
                 className="pointer-events-none absolute inset-0 truncate whitespace-nowrap text-base md:text-sm text-gray-500 dark:text-[#8e8ea0]"
