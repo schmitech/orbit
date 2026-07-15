@@ -490,23 +490,20 @@ export function useChatAgentSelection({
   ]);
 
   useEffect(() => {
-    const loadMissingAdapterInfo = async () => {
+    const refreshAdapterInfo = async () => {
       const adapterName = currentConversation?.adapterName;
       // Keyed by conversation id + adapter name (not adapter name alone) so that
       // creating a new conversation for the same adapter (common in single mode,
       // where every conversation shares the configured default adapter) still
-      // triggers its own fetch instead of being skipped as "already loaded".
+      // receives a fresh intro from the backend when ChatInterface mounts.
       const loadKey = currentConversation ? `${currentConversation.id}:${adapterName}` : null;
       if (!loadKey || adapterInfoLoadedRef.current === loadKey) {
         return;
       }
 
-      const needsRefresh = !currentConversation?.adapterInfo ||
-        (currentConversation?.adapterInfo && currentConversation.adapterInfo.notes === undefined);
-
-      if (adapterName && needsRefresh) {
+      if (adapterName) {
         adapterInfoLoadedRef.current = loadKey;
-        debugLog('[ChatInterface] Loading adapter info - adapterName:', adapterName, 'reason:', !currentConversation?.adapterInfo ? 'missing' : 'notes undefined');
+        debugLog('[ChatInterface] Refreshing adapter info from the backend - adapterName:', adapterName);
         // Use fetchAdapterInfoForConversation which creates an isolated ApiClient,
         // avoiding mutation of the shared API state that could corrupt active streams.
         const result = await fetchAdapterInfoForConversation(currentConversation);
@@ -536,16 +533,11 @@ export function useChatAgentSelection({
           }
         }
       } else {
-        debugLog('[ChatInterface] Skipping adapter info load:', {
-          adapterName,
-          hasAdapterInfo: !!currentConversation?.adapterInfo,
-          hasNotes: currentConversation?.adapterInfo?.notes !== undefined,
-          refValue: adapterInfoLoadedRef.current
-        });
+        debugLog('[ChatInterface] Skipping adapter info refresh: no adapter selected');
       }
     };
 
-    void loadMissingAdapterInfo();
+    void refreshAdapterInfo();
   }, [fetchAdapterInfoForConversation, currentConversation]);
 
   useEffect(() => {
