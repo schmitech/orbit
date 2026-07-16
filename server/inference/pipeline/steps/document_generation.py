@@ -19,7 +19,7 @@ from datetime import date
 from typing import Optional, Dict, Any, List
 
 from ..base import PipelineStep, ProcessingContext
-from ._utils import get_rewrite_prompt_config
+from ._utils import get_generation_memory, get_rewrite_prompt_config, store_generation_memory
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,9 @@ class DocumentGenerationStep(PipelineStep):
         context.document_format = fmt
         context.document_revised_prompt = spec.get("title") or context.message
         context.response = context.document_revised_prompt
+        await store_generation_memory(
+            self.container, context.adapter_name, context.session_id, {"spec": spec},
+        )
         logger.info("Document generated: format=%s, size=%d bytes", fmt, len(document_bytes))
         return context
 
@@ -241,7 +244,8 @@ class DocumentGenerationStep(PipelineStep):
         temperature = llm_override.get('temperature', prompt_cfg.get('temperature', 0.3))
         history_limit = llm_override.get('history_limit', prompt_cfg.get('history_limit', 6))
 
-        prompt = self._build_spec_prompt(context, fmt, prompt_cfg, history_limit=history_limit)
+        memory = await get_generation_memory(self.container, context.adapter_name, context.session_id)
+        prompt = self._build_spec_prompt(context, fmt, prompt_cfg, history_limit=history_limit, memory=memory)
         if prompt is None:
             logger.warning("Malformed 'document' rewrite config — using fallback document spec")
             return self._fallback_spec(context)
@@ -309,7 +313,8 @@ class DocumentGenerationStep(PipelineStep):
         return tables
 
     def _build_spec_prompt(
-        self, context: ProcessingContext, fmt: str, prompt_cfg: Dict[str, Any], history_limit: int = 6
+        self, context: ProcessingContext, fmt: str, prompt_cfg: Dict[str, Any], history_limit: int = 6,
+        memory: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """Build the LLM prompt asking for a JSON document spec from history + context.
 
@@ -336,6 +341,11 @@ class DocumentGenerationStep(PipelineStep):
 
         display_author = self._author_display()
         today = date.today().isoformat()
+        previous_generation_text = (
+            f"\nPrevious document spec (this request may be a refinement — start from it and "
+            f"apply the requested changes):\n{json.dumps(memory['spec'])}\n"
+            if memory and memory.get('spec') else ""
+        )
 
         template = prompt_cfg.get('template')
         format_hints = prompt_cfg.get('format_hints', {})
@@ -384,6 +394,7 @@ class DocumentGenerationStep(PipelineStep):
                 history_text=history_text,
                 pre_extracted=pre_extracted,
                 context_text=context_text,
+                previous_generation_text=previous_generation_text,
                 message=context.message,
             )
         except (KeyError, IndexError) as e:

@@ -8,8 +8,8 @@ adapters:
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    rewrite_provider: "openai"     # LLM used to produce the JSON document spec
-    # rewrite_model: "gpt-5.4-mini" # Optional: override the model within rewrite_provider
+    rewrite_provider: "openai"          # Text LLM used to enrich prompts before image generation
+    rewrite_model: "gpt-5.4-mini"       # Text LLM used to enrich prompts before image generation
 
     capabilities:
       expose_as_skill: true

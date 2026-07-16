@@ -179,6 +179,112 @@ async def test_clear_session_history_removes_thread_data(chat_history_services):
   assert await services['dataset'].get_dataset(seeded['dataset_key']) is None
 
 
+class _GenerationMemoryContainer:
+  """Minimal container satisfying inference.pipeline.steps._utils' contract
+  (has/get for 'thread_dataset_service') so store/get_generation_memory can be
+  exercised against the fixture's real ThreadDatasetService."""
+  def __init__(self, dataset_service):
+    self._dataset_service = dataset_service
+
+  def has(self, key):
+    return key == 'thread_dataset_service'
+
+  def get(self, key):
+    return self._dataset_service if key == 'thread_dataset_service' else None
+
+
+@pytest.mark.asyncio
+async def test_clear_session_history_removes_generation_memory_with_existing_thread(chat_history_services):
+  """A session that has both a normal intent-SQL thread AND generation memory —
+  both must be cleaned up together."""
+  from inference.pipeline.steps._utils import get_generation_memory, store_generation_memory
+
+  services = chat_history_services
+  services['config']['adapters'] = [
+    {'name': 'image-generator', 'type': 'image_generation'},
+    {'name': 'pdf-generator', 'type': 'document_generation'},
+  ]
+  container = _GenerationMemoryContainer(services['dataset'])
+
+  seeded = await _seed_conversation_with_thread(services)
+  await store_generation_memory(
+    container, "image-generator", seeded['session_id'], {"prompt": "a dog in a forest"}
+  )
+  assert await get_generation_memory(container, "image-generator", seeded['session_id']) is not None
+
+  result = await services['chat_history'].clear_session_history(seeded['session_id'])
+  assert result is True
+
+  assert await services['dataset'].get_dataset(seeded['dataset_key']) is None
+  assert await get_generation_memory(container, "image-generator", seeded['session_id']) is None
+
+
+@pytest.mark.asyncio
+async def test_clear_session_history_removes_generation_memory_with_no_thread(chat_history_services):
+  """Regression test: a session that ONLY ever used generation adapters (no
+  conversation_threads row at all) must still have its generation memory
+  cleaned up — the conversation_threads lookup returning empty must not skip
+  this cleanup."""
+  from inference.pipeline.steps._utils import get_generation_memory, store_generation_memory
+
+  services = chat_history_services
+  services['config']['adapters'] = [
+    {'name': 'image-generator', 'type': 'image_generation'},
+    {'name': 'video-generator', 'type': 'video_generation'},
+    {'name': 'pdf-generator', 'type': 'document_generation'},
+  ]
+  container = _GenerationMemoryContainer(services['dataset'])
+
+  backend_type = services['config']['internal_services']['backend']['type']
+  session_id = f"session_{generate_id(backend_type)}"
+
+  await store_generation_memory(container, "image-generator", session_id, {"prompt": "a dog in a forest"})
+  await store_generation_memory(container, "pdf-generator", session_id, {"spec": {"title": "Q1 report"}})
+  # video-generator was never used this session — its cleanup attempt should no-op, not error.
+
+  assert await get_generation_memory(container, "image-generator", session_id) is not None
+  assert await get_generation_memory(container, "pdf-generator", session_id) is not None
+
+  # No conversation_threads row exists for this session — confirm the baseline.
+  assert await services['db'].find_many('conversation_threads', {'parent_session_id': session_id}) == []
+
+  result = await services['chat_history'].clear_session_history(session_id)
+  assert result is False  # no chat_history rows were ever added for this session
+
+  assert await get_generation_memory(container, "image-generator", session_id) is None
+  assert await get_generation_memory(container, "pdf-generator", session_id) is None
+  assert await get_generation_memory(container, "video-generator", session_id) is None
+
+
+@pytest.mark.asyncio
+async def test_clear_session_history_removes_generation_memory_stored_inside_thread(chat_history_services):
+  """Regression test: a generation skill (e.g. PDF) invoked WHILE a thread is
+  active stores its memory under the thread's own thread_session_id, not the
+  parent conversation's session_id (ContextRetrievalStep reassigns
+  context.session_id to thread_session_id for thread follow-ups — see
+  inference/pipeline/steps/context_retrieval.py). Deleting the parent
+  conversation must still clean this up."""
+  from inference.pipeline.steps._utils import get_generation_memory, store_generation_memory
+
+  services = chat_history_services
+  services['config']['adapters'] = [
+    {'name': 'pdf-generator', 'type': 'document_generation'},
+  ]
+  container = _GenerationMemoryContainer(services['dataset'])
+
+  seeded = await _seed_conversation_with_thread(services)
+  await store_generation_memory(
+    container, "pdf-generator", seeded['thread_session_id'], {"spec": {"title": "Q1 report"}}
+  )
+  assert await get_generation_memory(container, "pdf-generator", seeded['thread_session_id']) is not None
+
+  result = await services['chat_history'].clear_session_history(seeded['session_id'])
+  assert result is True
+
+  assert await services['dataset'].get_dataset(seeded['dataset_key']) is None
+  assert await get_generation_memory(container, "pdf-generator", seeded['thread_session_id']) is None
+
+
 class _DummyApiKeyService:
   async def validate_api_key(self, api_key, adapter_manager=None):
     if api_key != "valid-key":

@@ -25,7 +25,7 @@ adapters:
       - name: "gpt-oss-120b"
         provider: "ollama_cloud"
         model: "gpt-oss:120b"
-      - name: "nemotron-3-ultra"
+      - name: "ollama-nemotron-3"
         provider: "ollama_cloud"
         model: "nemotron-3-ultra"
       - name: "claude-sonnet-4-5"

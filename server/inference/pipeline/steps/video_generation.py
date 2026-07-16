@@ -10,7 +10,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from ..base import PipelineStep, ProcessingContext
-from ._utils import get_rewrite_prompt_config
+from ._utils import get_generation_memory, get_rewrite_prompt_config, store_generation_memory
 
 logger = logging.getLogger(__name__)
 
@@ -53,18 +53,20 @@ class VideoGenerationStep(PipelineStep):
             return context
 
         prompt = context.message
+        memory = await get_generation_memory(self.container, context.adapter_name, context.session_id)
         logger.debug(
-            "Video generation context: context_messages=%d, formatted_context_len=%d",
+            "Video generation context: context_messages=%d, formatted_context_len=%d, has_memory=%s",
             len(context.context_messages),
             len(context.formatted_context),
+            memory is not None,
         )
-        if context.context_messages or context.formatted_context:
+        if context.context_messages or context.formatted_context or memory:
             if context.context_messages and not context.formatted_context:
                 logger.debug(
                     "Video generation has conversation history but no structured retrieval "
                     "context. Prompt rewrite will use conversation text only."
                 )
-            prompt = await self._rewrite_prompt(context)
+            prompt = await self._rewrite_prompt(context, memory)
             logger.debug("Video generation prompt after rewrite: %r", prompt[:200])
 
         try:
@@ -73,6 +75,10 @@ class VideoGenerationStep(PipelineStep):
             context.video_format = result.get("format", "mp4")
             context.video_revised_prompt = result.get("revised_prompt") or prompt
             context.response = context.video_revised_prompt
+            await store_generation_memory(
+                self.container, context.adapter_name, context.session_id,
+                {"prompt": context.video_revised_prompt},
+            )
         except Exception as e:
             logger.error(f"Video generation failed: {e}", exc_info=True)
             context.set_error(f"Video generation failed: {e}")
@@ -135,9 +141,10 @@ class VideoGenerationStep(PipelineStep):
 
         return self.container.get_or_none('llm_provider')
 
-    async def _rewrite_prompt(self, context: ProcessingContext) -> str:
-        """Rewrite the user's message into a descriptive video prompt using history and context."""
-        if not context.context_messages and not context.formatted_context:
+    async def _rewrite_prompt(self, context: ProcessingContext, memory: Optional[Dict[str, Any]] = None) -> str:
+        """Rewrite the user's message into a descriptive video prompt using history, context,
+        and (if this is a follow-up) the previous turn's generation prompt."""
+        if not context.context_messages and not context.formatted_context and not memory:
             return context.message
 
         llm_provider = await self._resolve_rewrite_provider(context)
@@ -167,11 +174,16 @@ class VideoGenerationStep(PipelineStep):
 
         history_text = "\n".join(history) if history else "No prior conversation."
         context_text = f"\nRetrieved Data/Context:\n{context.formatted_context}\n" if context.formatted_context else ""
+        previous_generation_text = (
+            f"\nPrevious video prompt (this request may be a refinement — incorporate it):\n{memory['prompt']}\n"
+            if memory and memory.get('prompt') else ""
+        )
 
         try:
             rewrite_prompt = template.format(
                 history_text=history_text,
                 context_text=context_text,
+                previous_generation_text=previous_generation_text,
                 message=context.message,
             )
         except (KeyError, IndexError) as e:

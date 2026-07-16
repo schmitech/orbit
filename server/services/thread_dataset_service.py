@@ -253,8 +253,31 @@ class ThreadDatasetService:
                     'expires_at': expires_at.isoformat(),
                     'created_at': datetime.now(UTC).isoformat()
                 }
-                
-                await self.database_service.insert_one(collection_name, document)
+
+                # Upsert: a dataset_key can be re-stored (e.g. per-turn generation
+                # memory overwriting the prior turn), so update in place if a row
+                # already exists rather than blindly inserting and hitting the
+                # unique constraint on 'id'. Two concurrent stores for the same key
+                # can both miss the update and race to insert; the loser's insert
+                # fails (raises on sqlite/postgres, returns None on Mongo), so on
+                # either failure mode retry as an update now that the winner's row
+                # exists — this is what makes the last writer's data win instead of
+                # silently dropping the loser's turn.
+                updated = await self.database_service.update_one(
+                    collection_name, {'id': dataset_key}, {'$set': document}
+                )
+                if not updated:
+                    insert_error = None
+                    try:
+                        inserted_id = await self.database_service.insert_one(collection_name, document)
+                        insert_failed = inserted_id is None
+                    except Exception as e:
+                        insert_failed = True
+                        insert_error = e
+                    if insert_failed and not await self.database_service.update_one(
+                        collection_name, {'id': dataset_key}, {'$set': document}
+                    ):
+                        raise insert_error or RuntimeError(f"Failed to store dataset {dataset_key}: insert returned no id")
                 
                 logger.debug(f"Stored dataset for thread {thread_id} in database (expires: {expires_at})")
             

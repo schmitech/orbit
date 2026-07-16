@@ -11,6 +11,7 @@ Prerequisites:
 """
 
 import os
+import sqlite3
 import sys
 import pytest
 from pathlib import Path
@@ -399,6 +400,129 @@ async def test_compression_efficiency(dataset_service):
 
     retrieved = await dataset_service.get_dataset(dataset_key)
     assert retrieved is not None
+
+
+# ---------------------------------------------------------------------------
+# Overwrite / concurrent-store race (database-backend upsert path)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_store_dataset_overwrites_existing_key(dataset_service):
+    """Re-storing under the same thread_id must update in place, not raise a
+    unique-constraint error (regression: store_dataset used to blindly
+    insert_one, which failed on any second write to the same key)."""
+    thread_id = generate_id()
+
+    key1 = await dataset_service.store_dataset(
+        thread_id=thread_id, query_context={"prompt": "first"}, raw_results=[],
+    )
+    key2 = await dataset_service.store_dataset(
+        thread_id=thread_id, query_context={"prompt": "second"}, raw_results=[],
+    )
+
+    assert key1 == key2
+    retrieved_context, _ = await dataset_service.get_dataset(key2)
+    assert retrieved_context == {"prompt": "second"}
+
+
+@pytest.mark.asyncio
+async def test_concurrent_stores_to_same_key_do_not_raise(dataset_service):
+    """Two concurrent store_dataset calls for the same thread_id race on the
+    update_one-miss -> insert_one path; the loser's insert must be recovered
+    via a retried update rather than propagating a duplicate-key error."""
+    import asyncio
+
+    thread_id = generate_id()
+
+    results = await asyncio.gather(
+        dataset_service.store_dataset(thread_id=thread_id, query_context={"prompt": "A"}, raw_results=[]),
+        dataset_service.store_dataset(thread_id=thread_id, query_context={"prompt": "B"}, raw_results=[]),
+        return_exceptions=True,
+    )
+
+    assert not any(isinstance(r, Exception) for r in results), results
+    dataset_key = results[0]
+    retrieved_context, _ = await dataset_service.get_dataset(dataset_key)
+    assert retrieved_context in ({"prompt": "A"}, {"prompt": "B"})
+
+
+@pytest.mark.asyncio
+async def test_store_dataset_recovers_when_insert_races_after_update_miss():
+    """Unit-level reproduction of the race: update_one misses (no row yet),
+    insert_one then fails because a concurrent writer already inserted that
+    key — store_dataset must retry the update instead of propagating the
+    insert failure."""
+    from unittest.mock import AsyncMock, MagicMock
+    from services.thread_dataset_service import ThreadDatasetService
+
+    config = {
+        'conversation_threading': {
+            'enabled': True,
+            'dataset_ttl_hours': 24,
+            'storage_backend': 'database',
+            'cache_key_prefix': 'thread_dataset:',
+        },
+    }
+
+    fake_db = MagicMock()
+    fake_db.initialize = AsyncMock()
+    # First update_one (pre-insert) misses; second (post-insert-failure retry) succeeds.
+    fake_db.update_one = AsyncMock(side_effect=[False, True])
+    fake_db.insert_one = AsyncMock(side_effect=sqlite3.IntegrityError("UNIQUE constraint failed: thread_datasets.id"))
+
+    # ThreadDatasetService is a singleton keyed by a hash of the conversation_threading
+    # config — without clearing, this test would return (and mutate .database_service
+    # on) the same shared instance other test modules construct with an equivalent
+    # config, corrupting them for the rest of the session.
+    ThreadDatasetService.clear_cache()
+    try:
+        service = ThreadDatasetService(config, cache_service=None)
+        service.database_service = fake_db
+        service.uses_cache = False
+
+        dataset_key = await service.store_dataset(
+            thread_id="race-key", query_context={"prompt": "loser"}, raw_results=[],
+        )
+
+        assert dataset_key is not None
+        assert fake_db.update_one.await_count == 2
+        fake_db.insert_one.assert_awaited_once()
+    finally:
+        ThreadDatasetService.clear_cache()
+
+
+@pytest.mark.asyncio
+async def test_store_dataset_raises_when_retry_update_also_fails():
+    """If the insert fails AND the retried update also finds no row (a genuine
+    error, not a race), the original failure must propagate rather than being
+    silently swallowed."""
+    from unittest.mock import AsyncMock, MagicMock
+    from services.thread_dataset_service import ThreadDatasetService
+
+    config = {
+        'conversation_threading': {
+            'enabled': True,
+            'dataset_ttl_hours': 24,
+            'storage_backend': 'database',
+            'cache_key_prefix': 'thread_dataset:',
+        },
+    }
+
+    fake_db = MagicMock()
+    fake_db.initialize = AsyncMock()
+    fake_db.update_one = AsyncMock(side_effect=[False, False])
+    fake_db.insert_one = AsyncMock(side_effect=sqlite3.IntegrityError("UNIQUE constraint failed"))
+
+    ThreadDatasetService.clear_cache()
+    try:
+        service = ThreadDatasetService(config, cache_service=None)
+        service.database_service = fake_db
+        service.uses_cache = False
+
+        with pytest.raises(sqlite3.IntegrityError):
+            await service.store_dataset(thread_id="race-key", query_context={"prompt": "x"}, raw_results=[])
+    finally:
+        ThreadDatasetService.clear_cache()
 
 
 if __name__ == "__main__":

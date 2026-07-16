@@ -21,6 +21,7 @@ from services.database_service import (
     DatabaseTimeoutError
 )
 from utils.text_utils import mask_api_key
+from utils.generation_memory import GENERATION_ADAPTER_TYPES, generation_memory_key
 
 # Import tokenizer utilities for token counting
 try:
@@ -1165,6 +1166,35 @@ class ChatHistoryService:
             logger.error(f"Error getting user sessions: {str(e)}")
             return []
     
+    async def _delete_generation_memory(self, session_id: str) -> int:
+        """Delete generation-memory rows (see inference/pipeline/steps/_utils.py) for
+        every configured generation adapter under the given session id. Returns the
+        number of rows actually deleted."""
+        if not self.thread_dataset_service or not session_id:
+            return 0
+
+        deleted = 0
+        generation_adapter_names = {
+            adapter.get('name')
+            for adapter in self.config.get('adapters', [])
+            if isinstance(adapter, dict)
+            and adapter.get('type') in GENERATION_ADAPTER_TYPES
+            and adapter.get('name')
+        }
+        for adapter_name in generation_adapter_names:
+            try:
+                dataset_key = self.thread_dataset_service._generate_dataset_key(
+                    generation_memory_key(adapter_name, session_id)
+                )
+                if await self.thread_dataset_service.delete_dataset(dataset_key):
+                    deleted += 1
+            except Exception as e:
+                logger.debug(
+                    "Failed to delete generation memory for adapter '%s' session %s: %s",
+                    adapter_name, session_id, e,
+                )
+        return deleted
+
     async def _cascade_delete_session(
         self,
         session_id: str,
@@ -1188,6 +1218,18 @@ class ChatHistoryService:
             "thread_messages_deleted": 0,
             "files_deleted": 0,
         }
+
+        # Generation-memory rows (image/video/document generation follow-up prompts,
+        # see inference/pipeline/steps/_utils.py) are keyed by adapter+session directly
+        # in ThreadDatasetService rather than through a conversation_threads row, so
+        # they must be cleaned up unconditionally here — the conversation_threads
+        # lookup below returns early when empty, which is the common case for a
+        # session that only ever used generation adapters. A generation skill invoked
+        # INSIDE an active thread stores its memory under the thread's own
+        # thread_session_id (ContextRetrievalStep reassigns context.session_id to it
+        # for thread follow-ups), not the parent session_id, so this same cleanup must
+        # also run per-thread below once thread_session_id values are known.
+        result["datasets_deleted"] += await self._delete_generation_memory(session_id)
 
         try:
             threads = await self.database_service.find_many(
@@ -1259,6 +1301,11 @@ class ChatHistoryService:
                         result["thread_messages_deleted"] += deleted
                     except Exception as e:
                         logger.warning("Failed to delete thread session %s: %s", thread_session_id, e)
+
+                    # A generation skill (PDF, Image, ...) invoked while this thread was
+                    # active stores its memory under thread_session_id, not the parent
+                    # session_id handled above.
+                    result["datasets_deleted"] += await self._delete_generation_memory(thread_session_id)
 
             # Delete thread records
             result["threads_deleted"] = await self.database_service.delete_many(

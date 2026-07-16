@@ -92,7 +92,8 @@ CHART_SPEC = {
 
 def _make_container(adapter_type: str = "document_generation",
                     document_format: str = "pdf",
-                    llm_provider=None):
+                    llm_provider=None,
+                    thread_dataset_service=None):
     """Build a minimal ServiceContainer mock for DocumentGenerationStep."""
     adapter_manager = MagicMock()
     adapter_manager.get_adapter_config.return_value = {
@@ -102,17 +103,39 @@ def _make_container(adapter_type: str = "document_generation",
     }
     adapter_manager.get_overridden_provider = AsyncMock(return_value=None)
 
+    known = {"adapter_manager": adapter_manager, "llm_provider": llm_provider, "config": TEST_CONFIG}
+    if thread_dataset_service is not None:
+        known["thread_dataset_service"] = thread_dataset_service
+
     container = MagicMock()
-    container.has.side_effect = lambda key: key in ("adapter_manager", "llm_provider", "config")
-    container.get.side_effect = lambda key: (
-        adapter_manager if key == "adapter_manager" else
-        llm_provider if key == "llm_provider" else TEST_CONFIG
-    )
-    container.get_or_none.side_effect = lambda key: (
-        llm_provider if key == "llm_provider" else
-        TEST_CONFIG if key == "config" else None
-    )
+    container.has.side_effect = lambda key: key in known and known[key] is not None
+    container.get.side_effect = lambda key: known.get(key)
+    container.get_or_none.side_effect = lambda key: known.get(key)
     return container
+
+
+def _make_memory_service(stored=None):
+    """A minimal fake ThreadDatasetService using the same store/get key transform
+    as the real service, so tests exercise the same key-alignment as production."""
+    store = {}
+    if stored:
+        store.update(stored)
+
+    service = MagicMock()
+    service.enabled = True
+    service._generate_dataset_key = MagicMock(side_effect=lambda thread_id: f"thread_dataset:{thread_id}")
+
+    async def get_dataset(key):
+        return store.get(key)
+
+    async def store_dataset(thread_id, query_context, raw_results):
+        key = service._generate_dataset_key(thread_id)
+        store[key] = (query_context, raw_results)
+        return key
+
+    service.get_dataset = AsyncMock(side_effect=get_dataset)
+    service.store_dataset = AsyncMock(side_effect=store_dataset)
+    return service
 
 
 # ---------------------------------------------------------------------------
@@ -656,6 +679,110 @@ class TestDocumentGenerationStepProcess:
 
         assert result.error is not None
         assert "rtf" in result.error.lower() or "unsupported" in result.error.lower()
+
+
+# ---------------------------------------------------------------------------
+# DocumentGenerationStep.process — generation memory (follow-up refinements)
+# ---------------------------------------------------------------------------
+
+class TestDocumentGenerationStepMemory:
+    def setup_method(self):
+        from inference.pipeline.steps.document_generation import DocumentGenerationStep
+        self.StepClass = DocumentGenerationStep
+
+    @pytest.mark.asyncio
+    async def test_process_stores_spec_as_generation_memory_after_success(self):
+        from inference.pipeline.base import ProcessingContext
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        memory_service = _make_memory_service()
+        container = _make_container(
+            document_format="pdf", llm_provider=llm_provider, thread_dataset_service=memory_service,
+        )
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator", message="Write a Q1 sales report", session_id="sess-1",
+        )
+        result = await step.process(ctx)
+
+        assert result.error is None
+        memory_service.store_dataset.assert_awaited_once()
+        _, kwargs = memory_service.store_dataset.call_args
+        assert kwargs["query_context"] == {"spec": SAMPLE_SPEC}
+
+    @pytest.mark.asyncio
+    async def test_process_does_not_store_memory_without_session_id(self):
+        from inference.pipeline.base import ProcessingContext
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        memory_service = _make_memory_service()
+        container = _make_container(
+            document_format="pdf", llm_provider=llm_provider, thread_dataset_service=memory_service,
+        )
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(adapter_name="pdf-generator", message="Write a Q1 sales report")
+        await step.process(ctx)
+
+        memory_service.store_dataset.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_process_folds_previous_spec_into_rewrite_prompt(self):
+        """A follow-up like 'add a chart to the sales section' should have the
+        previous turn's full JSON spec available to the rewrite LLM, not just
+        the conversation transcript."""
+        from inference.pipeline.base import ProcessingContext
+
+        captured_prompts = []
+
+        async def capture_generate(prompt, **kwargs):
+            captured_prompts.append(prompt)
+            return json.dumps(SAMPLE_SPEC)
+
+        llm_provider = MagicMock()
+        llm_provider.generate = capture_generate
+        memory_service = _make_memory_service()
+        container = _make_container(
+            document_format="pdf", llm_provider=llm_provider, thread_dataset_service=memory_service,
+        )
+
+        step = self.StepClass(container)
+
+        first_ctx = ProcessingContext(
+            adapter_name="pdf-generator", message="Write a Q1 sales report", session_id="sess-1",
+        )
+        await step.process(first_ctx)
+
+        second_ctx = ProcessingContext(
+            adapter_name="pdf-generator", message="Add a chart to the sales section", session_id="sess-1",
+        )
+        await step.process(second_ctx)
+
+        assert len(captured_prompts) == 2
+        assert SAMPLE_SPEC["title"] in captured_prompts[1]
+        assert "refinement" in captured_prompts[1].lower()
+
+    @pytest.mark.asyncio
+    async def test_process_omits_previous_generation_slot_with_no_memory(self):
+        from inference.pipeline.base import ProcessingContext
+        from inference.pipeline.steps._utils import get_generation_memory
+
+        memory_service = _make_memory_service()
+        container = _make_container(document_format="pdf", thread_dataset_service=memory_service)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator", message="Write a Q1 sales report", session_id="never-used-before",
+        )
+        memory = await get_generation_memory(container, ctx.adapter_name, ctx.session_id)
+        assert memory is None
+
+        prompt = step._build_spec_prompt(ctx, "pdf", DOCUMENT_PROMPT_CFG, memory=memory)
+
+        assert "Previous document spec" not in prompt
 
 
 # ---------------------------------------------------------------------------

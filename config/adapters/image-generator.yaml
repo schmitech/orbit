@@ -7,8 +7,9 @@ adapters:
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    image_provider: "gemini"               # Optional adapter override; omit to use config/image.yaml
-    rewrite_model: "deepseek"          # Text LLM used to enrich prompts before image generation
+    image_provider: "gemini"            # Optional adapter override; omit to use config/image.yaml
+    rewrite_provider: "openai"          # Text LLM used to enrich prompts before image generation
+    rewrite_model: "gpt-5.4-mini"       # Text LLM used to enrich prompts before image generation
 
     capabilities:
       expose_as_skill: true

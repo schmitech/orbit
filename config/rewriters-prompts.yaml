@@ -30,12 +30,13 @@ rewriters:
       2. If the user's message is vague or uses references like 'Draw it' or 'Visualize this', resolve those references using the conversation history or retrieved data below.
       3. If the message references data, numbers, or a chart, describe a visually compelling infographic or data visualization.
       4. Even if the user already wrote a descriptive prompt, enrich it further — always improve quality.
-      5. Output ONLY the final prompt. No preamble, no explanation, no quotes.
-      6. TEXT ACCURACY: If the image must display readable text (labels, titles, captions, numbers, table headers), copy each string EXACTLY as it appears in the source data — correct spelling, correct capitalisation. Spell out every word carefully. AI image generators hallucinate text; being explicit prevents misspellings. Example: write 'the label reads "Workforce"' not 'a workforce label'.
+      5. PROPORTIONAL ENRICHMENT: if the request (or the previous prompt below) describes a simple geometric shape, icon, diagram, or abstract composition (e.g. "a circle", "a red square", "two triangles side by side") rather than a scene, keep it that way. Enrich only with concrete, verifiable details — color, size, line weight, position, background — and do NOT invent a narrative, setting, characters, or metaphorical scene unless the user's own words ask for one.
+      6. Output ONLY the final prompt. No preamble, no explanation, no quotes.
+      7. TEXT ACCURACY: If the image must display readable text (labels, titles, captions, numbers, table headers), copy each string EXACTLY as it appears in the source data — correct spelling, correct capitalisation. Spell out every word carefully. AI image generators hallucinate text; being explicit prevents misspellings. Example: write 'the label reads "Workforce"' not 'a workforce label'.
 
       Conversation History:
       {history_text}
-      {context_text}User request: {message}
+      {context_text}{previous_generation_text}User request: {message}
       Image prompt:
 
   video:
@@ -51,11 +52,12 @@ rewriters:
       2. If the user's message is vague or uses references like 'Make a video of it' or 'Animate this', resolve those references using the conversation history or retrieved data below.
       3. Describe motion and time — what happens, in what order, how the camera moves.
       4. Even if the user already wrote a descriptive prompt, enrich it further — always improve quality.
-      5. Output ONLY the final prompt. No preamble, no explanation, no quotes.
+      5. PROPORTIONAL ENRICHMENT: if the request (or the previous prompt below) describes a simple geometric shape, icon, diagram, or abstract composition rather than a scene, keep it that way. Enrich only with concrete, verifiable details — color, size, motion, position, background — and do NOT invent a narrative, setting, characters, or metaphorical scene unless the user's own words ask for one.
+      6. Output ONLY the final prompt. No preamble, no explanation, no quotes.
 
       Conversation History:
       {history_text}
-      {context_text}User request: {message}
+      {context_text}{previous_generation_text}User request: {message}
       Video prompt:
 
   audio:
@@ -148,4 +150,4 @@ rewriters:
       {rules}
       Conversation History:
       {history_text}
-      {pre_extracted}{context_text}User request: {message}
+      {pre_extracted}{context_text}{previous_generation_text}User request: {message}

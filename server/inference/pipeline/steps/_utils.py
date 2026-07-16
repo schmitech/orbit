@@ -1,7 +1,12 @@
 """Shared utilities for pipeline steps."""
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Optional
+
+from utils.generation_memory import generation_memory_key
+
+logger = logging.getLogger(__name__)
 
 # Adapter types that never call the main inference LLM — each has its own
 # dedicated pipeline step (or, for 'fetch'/'openai_realtime', bypasses it entirely).
@@ -49,3 +54,50 @@ def get_rewrite_prompt_config(container, kind: str) -> Dict[str, Any]:
     """
     config = container.get_or_none('config') or {}
     return config.get('rewriters', {}).get(kind, {}) or {}
+
+
+async def get_generation_memory(container, adapter_name: str, session_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Return the last stored generation memory (effective prompt/spec) for this
+    adapter+session, so a follow-up like "add another dog" can be merged with
+    what was actually generated last turn instead of re-running the rewrite LLM
+    on the raw message alone.
+
+    Reuses ThreadDatasetService (see conversation_threading config) as a generic
+    session-scoped KV cache — independent of the client-driven /threads flow that
+    intent-SQL retrieval uses, since generation follow-ups shouldn't require an
+    extra round trip to opt in.
+    """
+    if not session_id or not adapter_name or not container.has('thread_dataset_service'):
+        return None
+    dataset_service = container.get('thread_dataset_service')
+    if not dataset_service or not getattr(dataset_service, 'enabled', False):
+        return None
+    try:
+        # store_dataset() transforms thread_id -> dataset_key internally (cache-key
+        # prefixing / db-key formatting) before storing; get_dataset() expects that
+        # already-transformed key, so recompute the same deterministic transform here.
+        dataset_key = dataset_service._generate_dataset_key(generation_memory_key(adapter_name, session_id))
+        result = await dataset_service.get_dataset(dataset_key)
+        return result[0] if result else None
+    except Exception as e:
+        logger.debug("Could not fetch generation memory for '%s': %s", adapter_name, e)
+        return None
+
+
+async def store_generation_memory(
+    container, adapter_name: str, session_id: Optional[str], memory: Dict[str, Any]
+) -> None:
+    """Store this turn's effective generation prompt/spec for future follow-ups."""
+    if not session_id or not adapter_name or not container.has('thread_dataset_service'):
+        return
+    dataset_service = container.get('thread_dataset_service')
+    if not dataset_service or not getattr(dataset_service, 'enabled', False):
+        return
+    try:
+        await dataset_service.store_dataset(
+            thread_id=generation_memory_key(adapter_name, session_id),
+            query_context=memory,
+            raw_results=[],
+        )
+    except Exception as e:
+        logger.debug("Could not store generation memory for '%s': %s", adapter_name, e)
