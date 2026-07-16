@@ -198,6 +198,10 @@ logging:
     langid.langid:
       level: "WARNING"
       propagate: false
+    # Suppress Matplotlib's categorical-axis advisory messages.
+    matplotlib.category:
+      level: "WARNING"
+      propagate: false
     # Suppress all Python warnings (ResourceWarnings, DeprecationWarnings, etc.)
     py.warnings:
       level: "ERROR"
@@ -500,7 +504,7 @@ autocomplete:
 # this global gate AND capabilities.auto_skill_routing on the consumer adapter.
 # See docs/adapters/auto-skill-intent-detection.md
 skill_routing:
-  auto_detect: false             # Global gate (default off = backward compatible)
+  auto_detect: true             # Global gate (default off = backward compatible)
   embedding_threshold: 0.35     # Permissive pre-filter cosine threshold (recall-oriented)
   max_candidates: 3             # Top-N skills passed from pre-filter to the confirm LLM
   history_turns: 4              # Recent conversation turns given to the confirm LLM

@@ -226,6 +226,10 @@ logging:
     langid.langid:
       level: "WARNING"
       propagate: false
+    # Suppress Matplotlib's categorical-axis advisory messages.
+    matplotlib.category:
+      level: "WARNING"
+      propagate: false
     # Suppress all Python warnings (ResourceWarnings, DeprecationWarnings, etc.)
     py.warnings:
       level: "ERROR"
