@@ -50,7 +50,7 @@ Put it in front of local or cloud models, connect files, SQL, NoSQL, vector stor
 
 ---
 
-## 🎬 See It Work
+## See ORBIT in Production
 
 <figure align="center">
   <video src="https://github.com/user-attachments/assets/b599906b-50ec-4199-ad4d-b314000143f9" controls muted playsinline width="80%"></video>
@@ -58,7 +58,6 @@ Put it in front of local or cloud models, connect files, SQL, NoSQL, vector stor
     <em><a href="https://dialoga.ca">dialoga.ca</a> is a Canadian AI chat tool built on ORBIT (currently available only from Canadian IP addresses).</em>
   </figcaption>
 </figure>
----
 
 ## 🚀 Quick Start
 
