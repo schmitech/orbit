@@ -498,6 +498,7 @@ export function MessageInput({
   // Disable file upload button if feature disabled, adapter doesn't support files, or input is disabled
   const fileLimitActive = conversationFileLimitReached || workspaceFileLimitReached;
   const isFileUploadDisabled = !canUseFileUploads || isInputDisabled || fileLimitActive;
+  const isUploadProgressOnly = !showFileUpload && (isUploading || pasteUploadingFiles.size > 0);
 
   // Auto-resize textarea with maximum height limit
   useLayoutEffect(() => {
@@ -1830,7 +1831,7 @@ export function MessageInput({
         {uploadFeatureEnabled && (isFileSupported || hasAnyUploadingConversations) && (
           <div
             ref={uploadPanelRef}
-            className={`rounded-lg border border-gray-200/80 bg-white p-2.5 dark:border-[#3c3f4a] dark:bg-[#2a2b32] transition-all duration-200 ${
+            className={`${isUploadProgressOnly ? '' : 'rounded-lg border border-gray-200/80 bg-white p-2.5 dark:border-[#3c3f4a] dark:bg-[#2a2b32]'} transition-all duration-200 ${
               !showFileUpload && !isUploading && pasteUploadingFiles.size === 0 && !hasAnyUploadingConversations
                 ? 'hidden'
                 : ''
@@ -1849,7 +1850,7 @@ export function MessageInput({
                 </button>
               </div>
             )}
-            {(isUploading || pasteUploadingFiles.size > 0) && !showFileUpload && pasteUploadingFiles.size === 0 && (
+            {!isUploadProgressOnly && isUploading && !showFileUpload && pasteUploadingFiles.size === 0 && (
               <div className="mb-2 px-1">
                 <span className="text-xs font-medium text-gray-500 dark:text-[#8e8ea0] uppercase tracking-wider">{t('messageInput.uploadPanel.headingUploading')}</span>
               </div>
@@ -1892,6 +1893,7 @@ export function MessageInput({
                 onUploadSuccess={handleUploadSuccessToast}
                 maxFiles={AppConfig.maxFilesPerConversation}
                 disabled={isFileUploadDisabled}
+                hideUploadControl={isUploading}
               />
             </div>
           </div>

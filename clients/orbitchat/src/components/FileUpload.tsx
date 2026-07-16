@@ -49,6 +49,7 @@ interface FileUploadProps {
   onUploadSuccess?: (conversationId: string, newFiles: FileAttachment[]) => void;
   maxFiles?: number;
   disabled?: boolean;
+  hideUploadControl?: boolean;
 }
 
 export function FileUpload({ 
@@ -59,7 +60,8 @@ export function FileUpload({
   onUploadingChange,
   onUploadSuccess,
   maxFiles = AppConfig.maxFilesPerConversation,
-  disabled = false
+  disabled = false,
+  hideUploadControl = false
 }: FileUploadProps): React.ReactElement {
   const { t } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
@@ -589,7 +591,7 @@ export function FileUpload({
     <div className="w-full max-w-full overflow-hidden space-y-2">
       {isUploading && progressContent}
 
-      {!isUploading && (
+      {!isUploading && !hideUploadControl && (
         <button
           type="button"
           onClick={handleClick}
