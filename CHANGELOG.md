@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.9.4] - 2026-07-15
+
+### Core System Updates
+- **Follow-Up Memory**: Added session memory for image, video, and document generation follow-ups so refinements build on the previous turn's effective prompt/spec.
+
+### Chat-app & UI Improvements
+- **orbitchat**: Published orbitchat 3.11.9.
+- **Intro Reload**: Fixed intro content reloading on page refresh instead of using stale cached content.
+- **Mobile Layout**: Corrected skill-pill and text alignment in the mobile orbitchat composer.
+
+### Bug Fixes & Technical Improvements
+- **Chart Rendering**: Improved document chart rendering quality with higher-resolution output, clearer typography, wrapped labels, and better legend/grid styling.
+- **Memory Storage**: Fixed thread-dataset upserts and cleanup so follow-up memory remains consistent across the SQLite backend and conversation deletes.
+
+### Documentation & Configuration
+- **Config Cleanup**: Removed the obsolete `dialoga` config file.
+- **Validation Docs**: Added a manual chart-generation playbook with validation prompts.
+
 ## [2.9.3] - 2026-07-13
 
 ### Core System Updates
