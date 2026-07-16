@@ -64,7 +64,7 @@
 
 /* System preference dark mode */
 @media (prefers-color-scheme: dark) {
-  .markdown-content:not(.light):not([data-theme="light"]) {
+  :root:not([data-theme="light"]) .markdown-content:not(.light):not([data-theme="light"]) {
     --md-bg-primary: #212121;
     --md-bg-secondary: #202123;
     --md-bg-tertiary: #2a2b32;

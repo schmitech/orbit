@@ -44,6 +44,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setIsDark(dark);
       
       const root = document.documentElement;
+
+      // Expose the resolved theme to scoped component styles. This prevents
+      // system-level media queries from overriding an explicitly chosen theme.
+      root.dataset.theme = dark ? 'dark' : 'light';
       
       // Apply dark mode
       if (dark) {
