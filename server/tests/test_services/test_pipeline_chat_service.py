@@ -64,6 +64,7 @@ def _build_service(cancelled: bool):
     )
     svc.context_builder = MagicMock()
     svc.context_builder.build_context = MagicMock(return_value=real_context)
+    svc.context_builder.resolve_runtime_model_override = MagicMock(return_value=(None, None, None))
 
     completed_state = StreamingState()
     completed_state.accumulated_text = "the full essay response"

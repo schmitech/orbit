@@ -68,10 +68,11 @@ class FaultTolerantAdapterManager:
         provider_name: str,
         adapter_name: Optional[str] = None,
         explicit_model_override: Optional[str] = None,
+        explicit_param_overrides: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Get an overridden provider instance."""
         return await self.base_adapter_manager.get_overridden_provider(
-            provider_name, adapter_name, explicit_model_override
+            provider_name, adapter_name, explicit_model_override, explicit_param_overrides
         )
 
     async def get_overridden_embedding(self, provider_name: str, adapter_name: Optional[str] = None) -> Any:

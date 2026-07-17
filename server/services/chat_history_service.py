@@ -78,7 +78,22 @@ def with_retry(
 class ChatHistoryService:
     """Service for managing chat history and conversations"""
 
-    def __init__(self, config: Dict[str, Any], database_service=None, thread_dataset_service=None):
+    # Provider-specific context window parameter names. Most providers use the
+    # generic 'context_window' key; local inference backends use their own native
+    # option name instead. Used both to read the configured value and to write an
+    # adapter-level context_window override to the key the provider actually reads.
+    _CONTEXT_WINDOW_PARAM_NAMES = {
+        'ollama': 'num_ctx',
+        'ollama_cloud': 'num_ctx',
+        'ollama_remote': 'num_ctx',
+        'llama_cpp': 'n_ctx',
+        'bitnet': 'n_ctx',
+        'vllm': 'max_model_len',
+        'tensorrt': 'max_model_len',
+        'huggingface': 'max_length',
+    }
+
+    def __init__(self, config: Dict[str, Any], database_service=None, thread_dataset_service=None, adapter_manager=None):
         """
         Initialize the Chat History Service
 
@@ -86,6 +101,10 @@ class ChatHistoryService:
             config: Application configuration
             database_service: Database service instance
             thread_dataset_service: Thread dataset service instance (optional)
+            adapter_manager: Optional adapter manager, used to resolve per-adapter
+                context_window/max_tokens overrides for the conversation history
+                token budget (falls back to the global default provider's budget
+                when not provided or when an adapter has no override)
         """
         self.config = config
         # Use provided database service or create a new one using factory
@@ -94,6 +113,8 @@ class ChatHistoryService:
             database_service = create_database_service(config)
         self.database_service = database_service
         self.api_key_service = None
+        self.adapter_manager = adapter_manager
+        self._adapter_token_budgets: Dict[Any, int] = {}  # keyed by adapter_name or (adapter_name, overrides)
 
         # Initialize thread dataset service for proper dataset deletion
         if thread_dataset_service is None:
@@ -183,21 +204,46 @@ class ChatHistoryService:
         # Preset values are the base; explicit inference.yaml keys override them
         return {**preset, **{k: v for k, v in provider_config.items() if k != 'use_preset'}}
 
-    def _calculate_max_token_budget(self) -> int:
+    def _calculate_max_token_budget(self, adapter_config: Optional[Dict[str, Any]] = None) -> int:
         """
         Calculate the maximum token budget for conversation history.
+
+        Args:
+            adapter_config: Optional adapter config. When provided, its
+                inference_provider/context_window/max_tokens override the global
+                default provider and its inference.yaml settings (e.g. an adapter
+                pinned to Claude's 1M-token context gets a much larger budget than
+                the global default small local model).
 
         Returns:
             Maximum tokens available for conversation history
         """
         try:
-            # Get the active inference provider
-            inference_provider = self.config.get('general', {}).get('inference_provider', 'ollama')
-            inference_config = self.config.get('inference', {}).get(inference_provider, {})
+            # Get the active inference provider (adapter override takes precedence)
+            inference_provider = (
+                (adapter_config or {}).get('inference_provider')
+                or self.config.get('general', {}).get('inference_provider', 'ollama')
+            )
+            inference_config = dict(self.config.get('inference', {}).get(inference_provider, {}))
 
             # Resolve preset references (e.g. llama_cpp use_preset) so that
             # context-window and max-token settings are actually visible here.
             inference_config = self._resolve_preset_config(inference_provider, inference_config)
+
+            # Apply adapter-level overrides on top of the provider's defaults.
+            # Also write the provider's native context-window param name (e.g. ollama's
+            # num_ctx) directly, since _get_context_window_size checks that key BEFORE
+            # falling back to the generic 'context_window' name — without this, an
+            # override would be silently shadowed by whatever inference.yaml already
+            # set for that native key.
+            if adapter_config:
+                if adapter_config.get('context_window') is not None:
+                    inference_config['context_window'] = adapter_config['context_window']
+                    native_key = self._CONTEXT_WINDOW_PARAM_NAMES.get(inference_provider)
+                    if native_key:
+                        inference_config[native_key] = adapter_config['context_window']
+                if adapter_config.get('max_tokens') is not None:
+                    inference_config['max_tokens'] = adapter_config['max_tokens']
 
             # Extract context window size
             context_window = self._get_context_window_size(inference_provider, inference_config)
@@ -235,7 +281,66 @@ class ChatHistoryService:
             logger.warning(f"Error calculating max token budget: {str(e)}. Using fallback value.")
             # Fallback to a reasonable default if calculation fails
             return 4000  # ~40 messages at 100 tokens each
-    
+
+    def _get_token_budget_for_adapter(
+        self,
+        adapter_name: Optional[str],
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None,
+    ) -> int:
+        """
+        Resolve the conversation-history token budget for a given adapter.
+
+        Adapters without a context_window/max_tokens override (or without an
+        adapter_manager reference) fall back to the global default provider's
+        budget computed at startup. Results are cached per (adapter, runtime
+        provider, runtime overrides) combination since adapter configs don't
+        change at runtime outside of a config reload, but a runtime override —
+        e.g. the client picked a different allowed_models entry — varies per
+        request.
+
+        Args:
+            adapter_name: The adapter name
+            runtime_param_overrides: Optional temperature/max_tokens/context_window
+                overrides from a runtime-selected allowed_models entry, layered on
+                top of the adapter's own overrides for this calculation only
+            runtime_provider: Optional provider from the same runtime-selected
+                allowed_models entry. The actual LLM call uses this provider, so the
+                budget must be computed against ITS context window/defaults, not the
+                adapter's configured inference_provider — otherwise, e.g. picking a
+                small local model via allowed_models would still size the history
+                budget off the adapter's larger default cloud provider.
+        """
+        if not adapter_name or not self.adapter_manager:
+            return self.max_token_budget
+
+        if not runtime_param_overrides and not runtime_provider:
+            cache_key = adapter_name
+        else:
+            cache_key = (
+                adapter_name,
+                runtime_provider,
+                tuple(sorted((runtime_param_overrides or {}).items())),
+            )
+        if cache_key in self._adapter_token_budgets:
+            return self._adapter_token_budgets[cache_key]
+
+        adapter_config = self.adapter_manager.get_adapter_config(adapter_name)
+        effective_config = {**(adapter_config or {}), **(runtime_param_overrides or {})}
+        if runtime_provider:
+            effective_config['inference_provider'] = runtime_provider
+        if effective_config and (
+            effective_config.get('context_window') is not None
+            or effective_config.get('max_tokens') is not None
+            or effective_config.get('inference_provider')
+        ):
+            budget = self._calculate_max_token_budget(effective_config)
+        else:
+            budget = self.max_token_budget
+
+        self._adapter_token_budgets[cache_key] = budget
+        return budget
+
     def _get_context_window_size(self, provider: str, provider_config: Dict[str, Any]) -> int:
         """
         Extract context window size from provider configuration.
@@ -251,25 +356,18 @@ class ChatHistoryService:
         Returns:
             Context window size in tokens
         """
-        # Provider-specific context window parameter names
-        # These map to the actual config parameters each provider uses
-        context_params = {
-            'ollama': 'num_ctx',
-            'ollama_cloud': 'num_ctx',
-            'ollama_remote': 'num_ctx',
-            'llama_cpp': 'n_ctx',
-            'bitnet': 'n_ctx',
-            'vllm': 'max_model_len',
-            'tensorrt': 'max_model_len',
-            'huggingface': 'max_length',
-            # All other providers use 'context_window' as their primary param
-        }
+        # Provider-specific context window parameter names (shared with the override
+        # logic in _calculate_max_token_budget via _CONTEXT_WINDOW_PARAM_NAMES)
+        context_params = self._CONTEXT_WINDOW_PARAM_NAMES
         # Most providers use 'context_window' — set it as the default
         _default_context_param = 'context_window'
         
         # Alternative parameter names that might indicate context window size
-        # These are fallback parameters if the primary one isn't found
-        default_alternatives = ['max_context_length', 'context_length']
+        # These are fallback parameters if the primary one isn't found.
+        # 'context_window' is included so an adapter-level override still takes
+        # effect for providers whose primary param has a different name (e.g.
+        # ollama's num_ctx).
+        default_alternatives = ['context_window', 'max_context_length', 'context_length']
         
         # Default context window sizes for providers (conservative estimates)
         # Used only when no configuration parameter is found
@@ -782,7 +880,10 @@ class ChatHistoryService:
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        regenerate_of_message_id: Optional[str] = None
+        regenerate_of_message_id: Optional[str] = None,
+        adapter_name: Optional[str] = None,
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None
     ) -> Tuple[Optional[Any], Optional[Any]]:
         """
         Add a complete conversation turn (user message + assistant response).
@@ -803,6 +904,12 @@ class ChatHistoryService:
             metadata: Optional metadata to store
             regenerate_of_message_id: Optional id of an existing assistant message to
                 overwrite in place, instead of storing a new turn
+            adapter_name: Optional adapter name, used to resolve a per-adapter token
+                budget (context_window/max_tokens override) for cleanup
+            runtime_param_overrides: Optional per-request overrides from a runtime-
+                selected allowed_models entry, layered on top of the adapter's own
+            runtime_provider: Optional provider from the same runtime-selected
+                allowed_models entry (see _get_token_budget_for_adapter)
 
         Returns:
             Tuple of (user_message_id, assistant_message_id)
@@ -817,7 +924,9 @@ class ChatHistoryService:
                 )
                 if preceding_user_id:
                     await self.replace_user_message(session_id, preceding_user_id, user_message)
-                await self._cleanup_excess_messages(session_id)
+                await self._cleanup_excess_messages(
+                    session_id, adapter_name, runtime_param_overrides, runtime_provider
+                )
                 return preceding_user_id, regenerate_of_message_id
             # Assistant message not found in this session — fall through to a normal
             # insert below (also guards against a cross-session/forged message id).
@@ -843,9 +952,9 @@ class ChatHistoryService:
                 api_key=api_key,
                 metadata=metadata
             )
-        
+
         # Trigger cleanup if session exceeds token budget threshold
-        await self._cleanup_excess_messages(session_id)
+        await self._cleanup_excess_messages(session_id, adapter_name, runtime_param_overrides, runtime_provider)
 
         return user_msg_id, assistant_msg_id
 
@@ -875,7 +984,13 @@ class ChatHistoryService:
                 self._session_locks[session_id] = asyncio.Lock()
             return self._session_locks[session_id]
 
-    async def _cleanup_excess_messages(self, session_id: str) -> int:
+    async def _cleanup_excess_messages(
+        self,
+        session_id: str,
+        adapter_name: Optional[str] = None,
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None,
+    ) -> int:
         """
         Delete messages that fall outside the rolling window token budget.
 
@@ -887,6 +1002,12 @@ class ChatHistoryService:
 
         Args:
             session_id: Session identifier
+            adapter_name: Optional adapter name, used to resolve a per-adapter
+                token budget (context_window/max_tokens override)
+            runtime_param_overrides: Optional per-request overrides from a runtime-
+                selected allowed_models entry, layered on top of the adapter's own
+            runtime_provider: Optional provider from the same runtime-selected
+                allowed_models entry (see _get_token_budget_for_adapter)
 
         Returns:
             Number of messages deleted
@@ -894,9 +1015,13 @@ class ChatHistoryService:
         if not self.enabled:
             return 0
 
+        token_budget = self._get_token_budget_for_adapter(
+            adapter_name, runtime_param_overrides, runtime_provider
+        )
+
         # Quick check before acquiring lock (avoid lock contention for normal case)
         current_tokens = self._session_token_counts.get(session_id, 0)
-        cleanup_threshold = int(self.max_token_budget * 1.2)
+        cleanup_threshold = int(token_budget * 1.2)
 
         if current_tokens <= cleanup_threshold:
             return 0
@@ -941,7 +1066,7 @@ class ChatHistoryService:
                         content = msg.get("content", "")
                         token_count = self._estimate_token_count(content)
 
-                    if accumulated_tokens + token_count > self.max_token_budget:
+                    if accumulated_tokens + token_count > token_budget:
                         break
 
                     accumulated_tokens += token_count
@@ -990,7 +1115,7 @@ class ChatHistoryService:
                         session_id,
                         tokens_removed,
                         self._session_token_counts.get(session_id, 0),
-                        self.max_token_budget,
+                        token_budget,
                     )
 
                 return actual_deleted
@@ -1525,7 +1650,13 @@ class ChatHistoryService:
             logger.error(f"Error getting session stats: {str(e)}")
             return {"session_id": session_id, "error": str(e)}
     
-    async def _get_rolling_window_token_count(self, session_id: str) -> int:
+    async def _get_rolling_window_token_count(
+        self,
+        session_id: str,
+        adapter_name: Optional[str] = None,
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None,
+    ) -> int:
         """
         Get token count for messages that would be included in rolling window query.
 
@@ -1533,25 +1664,52 @@ class ChatHistoryService:
 
         Args:
             session_id: Session identifier
+            adapter_name: Optional adapter name, used to resolve a per-adapter
+                token budget (context_window/max_tokens override)
+            runtime_param_overrides: Optional per-request overrides from a runtime-
+                selected allowed_models entry, layered on top of the adapter's own
+            runtime_provider: Optional provider from the same runtime-selected
+                allowed_models entry (see _get_token_budget_for_adapter)
 
         Returns:
             Token count for messages that fit within token budget
         """
-        _, accumulated_tokens = await self.get_context_messages(session_id)
+        _, accumulated_tokens = await self.get_context_messages(
+            session_id,
+            adapter_name=adapter_name,
+            runtime_param_overrides=runtime_param_overrides,
+            runtime_provider=runtime_provider,
+        )
         return accumulated_tokens
 
-    async def get_session_token_usage(self, session_id: str) -> Tuple[int, int]:
+    async def get_session_token_usage(
+        self,
+        session_id: str,
+        adapter_name: Optional[str] = None,
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None,
+    ) -> Tuple[int, int]:
         """
         Get current token usage and max budget for a session.
 
         Args:
             session_id: Session identifier
+            adapter_name: Optional adapter name, used to resolve a per-adapter
+                token budget (context_window/max_tokens override)
+            runtime_param_overrides: Optional per-request overrides from a runtime-
+                selected allowed_models entry, layered on top of the adapter's own
+            runtime_provider: Optional provider from the same runtime-selected
+                allowed_models entry (see _get_token_budget_for_adapter)
 
         Returns:
             Tuple of (current_tokens, max_tokens)
         """
-        current = await self._get_rolling_window_token_count(session_id)
-        return current, self.max_token_budget
+        current = await self._get_rolling_window_token_count(
+            session_id, adapter_name, runtime_param_overrides, runtime_provider
+        )
+        return current, self._get_token_budget_for_adapter(
+            adapter_name, runtime_param_overrides, runtime_provider
+        )
 
     async def _cleanup_old_conversations(self) -> None:
         """Background task to clean up old conversations"""
@@ -1611,7 +1769,10 @@ class ChatHistoryService:
     async def get_context_messages(
         self,
         session_id: str,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        adapter_name: Optional[str] = None,
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None,
     ) -> Tuple[List[Dict[str, str]], int]:
         """
         Get conversation messages formatted for LLM context using rolling window query.
@@ -1621,7 +1782,15 @@ class ChatHistoryService:
 
         Args:
             session_id: Session identifier
-            max_tokens: Maximum token budget for context (defaults to max_token_budget)
+            max_tokens: Explicit token budget for context; takes precedence over
+                adapter_name/runtime_param_overrides/runtime_provider and the global default
+            adapter_name: Optional adapter name, used to resolve a per-adapter
+                token budget (context_window/max_tokens override) when max_tokens
+                isn't explicitly given
+            runtime_param_overrides: Optional per-request overrides from a runtime-
+                selected allowed_models entry, layered on top of the adapter's own
+            runtime_provider: Optional provider from the same runtime-selected
+                allowed_models entry (see _get_token_budget_for_adapter)
 
         Returns:
             Tuple of (messages formatted for LLM context, accumulated token count)
@@ -1630,7 +1799,9 @@ class ChatHistoryService:
             return [], 0
 
         # Determine token budget
-        token_budget = max_tokens or self.max_token_budget
+        token_budget = max_tokens or self._get_token_budget_for_adapter(
+            adapter_name, runtime_param_overrides, runtime_provider
+        )
 
         try:
             # Calculate intelligent fetch limit based on token budget

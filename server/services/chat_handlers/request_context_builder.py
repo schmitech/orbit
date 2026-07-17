@@ -84,6 +84,78 @@ class RequestContextBuilder:
         custom_config = adapter_config.get('config') or {}
         return custom_config.get('timezone')
 
+    def resolve_runtime_model_override(
+        self,
+        adapter_name: str,
+        requested_model: Optional[str],
+    ) -> tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
+        """
+        Resolve a client-requested model name against the adapter's allowed_models list.
+
+        Callable ahead of build_context() (e.g. so the conversation-history token
+        budget can reflect the runtime model choice before context messages are
+        fetched), and reused by build_context() itself so both call sites agree.
+
+        Args:
+            adapter_name: The adapter name
+            requested_model: Optional model name from the request body
+
+        Returns:
+            Tuple of (runtime_provider, runtime_model_name, runtime_param_overrides).
+            All None when requested_model is falsy or the adapter has no allowed_models.
+
+        Raises:
+            ValueError: If requested_model doesn't match any allowed_models entry
+                (except the adapter-name echo from OpenAI-compatible clients, which
+                is silently treated as "no override").
+        """
+        if not requested_model:
+            return None, None, None
+
+        adapter_config = self.get_adapter_config(adapter_name)
+        allowed = adapter_config.get('allowed_models') or []
+        if not allowed:
+            # No allowed_models list — silently ignore the override
+            return None, None, None
+
+        match = next((m for m in allowed if m.get('name') == requested_model), None)
+        if match is None:
+            # OpenAI-compatible clients (e.g. LiteLLM) echo the adapter name back as
+            # the model field. Treat that specific case as "no override" so they work
+            # out of the box. Any other unrecognized value is a real validation error.
+            if requested_model == adapter_name:
+                logger.debug(
+                    f"Ignoring model echo '{requested_model}' from OpenAI-compatible client "
+                    f"for adapter '{adapter_name}' — using adapter default"
+                )
+                return None, None, None
+            allowed_names = [m['name'] for m in allowed if m.get('name')]
+            raise ValueError(
+                f"Model '{requested_model}' is not allowed for adapter '{adapter_name}'. "
+                f"Allowed models: {allowed_names}"
+            )
+
+        runtime_provider = match.get('provider')
+        runtime_model_name = match.get('model')
+        if not runtime_provider or not runtime_model_name:
+            raise ValueError(
+                f"Adapter '{adapter_name}' has an invalid allowed_models entry for "
+                f"'{requested_model}'. Each entry must include 'name', 'provider', and 'model'."
+            )
+
+        runtime_param_overrides = {
+            key: match[key]
+            for key in ('temperature', 'max_tokens', 'context_window')
+            if key in match and match[key] is not None
+        } or None
+
+        logger.debug(
+            f"Runtime model override: '{requested_model}' → "
+            f"{runtime_provider}/{runtime_model_name} for adapter '{adapter_name}'"
+            + (f" (params: {runtime_param_overrides})" if runtime_param_overrides else "")
+        )
+        return runtime_provider, runtime_model_name, runtime_param_overrides
+
     def get_time_format(self, adapter_name: str) -> Optional[str]:
         """
         Get the time format setting for an adapter.
@@ -164,41 +236,9 @@ class RequestContextBuilder:
                 logger.debug(f"Using adapter config tts_voice: {tts_voice} for adapter: {adapter_name}")
 
         # Resolve runtime model override from adapter's allowed_models
-        runtime_provider = None
-        runtime_model_name = None
-        if requested_model:
-            adapter_config = self.get_adapter_config(adapter_name)
-            allowed = adapter_config.get('allowed_models') or []
-            if allowed:
-                match = next((m for m in allowed if m.get('name') == requested_model), None)
-                if match is None:
-                    # OpenAI-compatible clients (e.g. LiteLLM) echo the adapter name back as
-                    # the model field. Treat that specific case as "no override" so they work
-                    # out of the box. Any other unrecognized value is a real validation error.
-                    if requested_model == adapter_name:
-                        logger.debug(
-                            f"Ignoring model echo '{requested_model}' from OpenAI-compatible client "
-                            f"for adapter '{adapter_name}' — using adapter default"
-                        )
-                    else:
-                        allowed_names = [m['name'] for m in allowed if m.get('name')]
-                        raise ValueError(
-                            f"Model '{requested_model}' is not allowed for adapter '{adapter_name}'. "
-                            f"Allowed models: {allowed_names}"
-                        )
-                else:
-                    runtime_provider = match.get('provider')
-                    runtime_model_name = match.get('model')
-                    if not runtime_provider or not runtime_model_name:
-                        raise ValueError(
-                            f"Adapter '{adapter_name}' has an invalid allowed_models entry for "
-                            f"'{requested_model}'. Each entry must include 'name', 'provider', and 'model'."
-                        )
-                    logger.debug(
-                        f"Runtime model override: '{requested_model}' → "
-                        f"{runtime_provider}/{runtime_model_name} for adapter '{adapter_name}'"
-                    )
-            # If adapter has no allowed_models list, silently ignore the override
+        runtime_provider, runtime_model_name, runtime_param_overrides = (
+            self.resolve_runtime_model_override(adapter_name, requested_model)
+        )
 
         # Resolve skill invocation: validate allowlist and swap adapter
         original_adapter_name = None
@@ -236,10 +276,11 @@ class RequestContextBuilder:
                 inference_provider = skill_inference_provider
                 runtime_provider = None
                 runtime_model_name = None
+                runtime_param_overrides = None
             else:
                 # Skill has no configured LLM (e.g. fetch) — keep the invoking
                 # adapter's provider/model so the caller's LLM processes the result.
-                pass  # inference_provider, runtime_provider, runtime_model_name unchanged
+                pass  # inference_provider, runtime_provider, runtime_model_name, runtime_param_overrides unchanged
             logger.debug(
                 f"Skill routing: '{requested_skill}' → adapter '{adapter_name}' "
                 f"(original: '{original_adapter_name}')"
@@ -277,6 +318,7 @@ class RequestContextBuilder:
             cancel_event=cancel_event,
             runtime_provider=runtime_provider,
             runtime_model_name=runtime_model_name,
+            runtime_param_overrides=runtime_param_overrides,
             requested_skill=requested_skill,
             original_adapter_name=original_adapter_name,
             web_search=web_search,

@@ -11,6 +11,7 @@ Orbit includes a conversation history system that automatically adapts to your c
   - [Automatic Cleanup Mechanism](#-automatic-cleanup-mechanism)
 - [Dynamic Token Budget](#dynamic-token-budget)
 - [Provider-Specific Behavior](#provider-specific-behavior)
+- [Per-Adapter and Per-Request Overrides](#per-adapter-and-per-request-overrides)
 - [Configuration](#configuration)
 - [Examples](#examples)
 - [Technical Details](#technical-details)
@@ -80,11 +81,15 @@ The system **dynamically calculates** the optimal token budget for conversation 
 
 ```
 Token Budget = Context Window - Reserved Tokens
+Reserved Tokens = Model's Max Output Tokens + 700
 ```
 
 Where:
-- **Reserved Tokens**: 350 (system prompts + current query + response buffer)
+- **Model's Max Output Tokens**: the provider's configured `max_tokens` (or `num_predict` for Ollama) — how many tokens the model is allowed to generate in its response. Defaults to **1,024** if not explicitly configured for that provider.
+- **700**: fixed overhead for the system prompt (~500 tokens) + current query buffer (~200 tokens)
 - **Safety Bounds**: Minimum 100 tokens, maximum 800,000 tokens
+
+Because the reserved amount includes the model's own output budget, a provider configured for long responses (e.g. `max_tokens: 16000`) reserves noticeably more than one left at the default 1,024 — the same context window yields a smaller history budget for the former.
 
 The system then uses a **rolling window query** to select messages that fit within this token budget, starting from the most recent messages and working backwards until the budget is reached.
 
@@ -207,15 +212,15 @@ To verify the rolling window works correctly, try:
 **Cleanup triggers when session exceeds 120% of token budget:**
 
 ```
-Token budget: 7,842 tokens
-Cleanup threshold: 9,410 tokens (120% of budget)
+Token budget: 6,468 tokens (Ollama, num_ctx=8192, default max_tokens)
+Cleanup threshold: 7,761 tokens (120% of budget)
 
-Session at 8,000 tokens → No cleanup (under 120%)
-Session at 10,000 tokens → Cleanup triggered
+Session at 7,000 tokens → No cleanup (under 120%)
+Session at 8,500 tokens → Cleanup triggered
     ↓
 Delete oldest messages until session fits within budget
     ↓
-Session now at ~7,800 tokens
+Session now at ~6,400 tokens
 ```
 
 **Cleanup behavior:**
@@ -224,6 +229,7 @@ Session now at ~7,800 tokens
 - **Thread-safe**: Per-session locking prevents race conditions
 - **Non-blocking**: Cleanup happens asynchronously after storing messages
 - **Permanent**: Deleted messages cannot be recovered
+- **Model-aware**: the threshold used is the budget for whichever adapter/model handled *that turn* (see [Per-Adapter and Per-Request Overrides](#per-adapter-and-per-request-overrides)) — switching to a model with a smaller context window can trigger deletion of messages that were stored under a larger budget, not just omit them from that turn's prompt
 
 ## Dynamic Token Budget
 
@@ -233,8 +239,9 @@ The system examines your active inference provider configuration and extracts th
 
 | Provider | Primary Parameter | Universal Parameter | Typical Range |
 |----------|------------------|-------------------|---------------|
-| llama.cpp | `n_ctx` | `context_window` | 1,024 - 8,192 |
-| Ollama | `num_ctx` | `context_window` | 2,048 - 32,768 |
+| llama.cpp, BitNet | `n_ctx` | `context_window` | 1,024 - 8,192 |
+| Ollama (local, cloud, remote) | `num_ctx` | `context_window` | 2,048 - 32,768 |
+| vLLM, TensorRT-LLM | `max_model_len` | `context_window` | 4,096 - 32,768 |
 | OpenAI | `context_window` | `max_context_length` | 8,192 - 128,000+ |
 | Anthropic | `context_window` | `max_context_length` | 100,000 - 200,000+ |
 | Gemini | `context_window` | `max_context_length` | 32,768 - 1,000,000+ |
@@ -243,25 +250,31 @@ The system examines your active inference provider configuration and extracts th
 | HuggingFace | `max_length` | `context_window` | 512 - 4,096 |
 | Others | `context_window` | `max_context_length` | Varies |
 
+All figures below assume the provider's `max_tokens`/`num_predict` (output token reservation) is left at its default of 1,024 — see [The Calculation Process](#how-it-works) for how a larger configured output budget reduces these numbers.
+
 ### Example Calculations
 
 **Small Model (llama.cpp with n_ctx: 1,024)**:
 ```
-Token Budget: 1,024 - 350 = 674 tokens
+Token Budget: 1,024 - (1,024 + 700) = 0 → clamped to safety minimum
 Safety Minimum: 100 tokens (applied)
-Result: 674 tokens available for conversation history
+Result: 100 tokens available for conversation history
 ```
+A context window this small is mostly consumed by the reserved system prompt and
+output budget — there's effectively no room left for history. In practice, models
+this small should configure a much smaller `max_tokens`/`num_predict` to leave any
+usable budget.
 
 **Medium Model (Ollama with num_ctx: 8,192)**:
 ```
-Token Budget: 8,192 - 350 = 7,842 tokens
-Result: 7,842 tokens available for conversation history
+Token Budget: 8,192 - (1,024 + 700) = 6,468 tokens
+Result: 6,468 tokens available for conversation history
 ```
 
-**Large Model (OpenAI GPT-4 with ~32K context)**:
+**Large Model (OpenAI with ~32K context)**:
 ```
-Token Budget: 32,768 - 350 = 32,418 tokens
-Result: 32,418 tokens available for conversation history
+Token Budget: 32,768 - (1,024 + 700) = 31,044 tokens
+Result: 31,044 tokens available for conversation history
 ```
 
 The system then uses a rolling window query to select messages that fit within this token budget, starting from the most recent messages.
@@ -279,10 +292,10 @@ inference:
     num_ctx: 8192  # ← System reads this value
 ```
 
-**Typical Results**:
-- 1K context → 674 tokens available (minimum 100 tokens enforced)
-- 4K context → 3,746 tokens available
-- 8K context → 7,842 tokens available
+**Typical Results** (default `max_tokens`/`num_predict` of 1,024):
+- 1K context → 100 tokens available (safety minimum enforced)
+- 4K context → 2,372 tokens available
+- 8K context → 6,468 tokens available
 
 ### Cloud APIs (OpenAI, Anthropic, etc.)
 
@@ -302,10 +315,10 @@ inference:
     context_window: 48000   # ← Override provider default
 ```
 
-**Fallbacks**: Uses defaults when not configured
-- OpenAI: 32,768 tokens → 32,418 token budget
-- Anthropic: 200,000 tokens → 199,650 token budget (capped at 800,000)
-- Groq: 8,192 tokens → 7,842 token budget
+**Fallbacks**: Uses conservative built-in defaults when `context_window` isn't configured for that provider (default `max_tokens`/`num_predict` of 1,024 assumed)
+- OpenAI: 128,000 tokens → 126,276 token budget
+- Anthropic: 200,000 tokens → 198,276 token budget
+- Groq: 131,072 tokens → 129,348 token budget
 
 ### Universal Configuration
 
@@ -363,14 +376,14 @@ The system uses a **three-tier detection strategy**:
 openai:
   context_window: 64000        # ← 1st priority: Universal parameter
   max_context_length: 60000    # ← 2nd priority: Alternative parameter
-  # No config found?           # ← 3rd priority: Default (32,768 tokens)
+  # No config found?           # ← 3rd priority: Default (128,000 tokens)
 ```
 
 ### Fallback Behavior
 
 **For unknown providers or missing configuration**:
 - **Default context window**: 4,096 tokens
-- **Resulting token budget**: 3,746 tokens
+- **Resulting token budget**: 2,372 tokens
 - **Graceful degradation**: System continues working with reasonable defaults
 - **Verbose logging**: Shows which defaults are being used
 
@@ -379,6 +392,95 @@ openai:
 - ✅ **User control** over context windows for any provider
 - ✅ **Defaults** when configuration is missing
 - ✅ **No breaking changes** to existing configurations
+
+## Per-Adapter and Per-Request Overrides
+
+Everything above describes the **global default** budget, computed from
+`general.inference_provider` and its `config/inference.yaml` settings. On top of
+that, individual adapters — and individual runtime model choices — can override
+`inference_provider`, `context_window`, `max_tokens`, and `temperature` for
+themselves. The history token budget automatically follows whichever provider
+actually answers a given turn.
+
+### Precedence
+
+```
+runtime (allowed_models entry selected via the "model" request field)
+  > adapter config (config/adapters/*.yaml)
+    > config/inference.yaml default
+```
+
+### Adapter-level overrides
+
+```yaml
+# config/adapters/passthrough.yaml
+adapters:
+  - name: "simple-chat"
+    type: "passthrough"
+    inference_provider: "openai"   # Override the global default provider
+    model: "gpt-5.4-mini"
+    context_window: 200000         # Optional — also reshapes the history budget
+    max_tokens: 4096                # Optional
+    temperature: 0.3                # Optional (LLM call only; doesn't affect history)
+```
+
+If an adapter sets `context_window`/`max_tokens`, those values — merged with the
+adapter's `inference_provider` (or the global default provider if the adapter
+doesn't set one) — replace the global default budget for every request that uses
+that adapter.
+
+### Per-request overrides via `allowed_models`
+
+An adapter can also let clients pick from a fixed list of models at request time
+(via the `model` field in the chat request), and each entry may carry its own
+overrides:
+
+```yaml
+allowed_models:
+  - name: "claude"
+    provider: "anthropic"
+    model: "claude-sonnet-4-5-20250929"
+    context_window: 1000000   # e.g. Claude's extended-context variant
+  - name: "mistral"
+    provider: "mistral"
+    model: "mistral-small-2603"
+    # No overrides on this entry — its own inference.yaml context_window (e.g. 32K) applies
+```
+
+When a client requests `"model": "mistral"` on an adapter otherwise configured
+for a 128K-context provider, **that specific turn's** history budget is
+calculated against `mistral`'s own `context_window`/`max_tokens` from
+`config/inference.yaml` (32,768 by default here), not the adapter's 128K
+default — even though the `mistral` entry itself sets no overrides. The selected
+*provider* alone is enough to change which provider's defaults apply.
+
+### What this means in practice
+
+- **Switching models mid-conversation is safe** — on the next request, only as
+  much prior history is included in the prompt as fits the newly-selected
+  model's budget. Nothing crashes or silently truncates mid-response.
+- **The original messages aren't deleted just because they weren't sent** —
+  they remain in the database. They're only *permanently* deleted if the
+  post-turn cleanup threshold (120% of that turn's budget) is exceeded. Since
+  cleanup uses whichever budget applied to *that* turn, switching to a
+  smaller-context model can trigger deletion of messages that were stored
+  under a larger budget from an earlier turn in the same session.
+- **A smaller usable budget than the raw context window suggests**: the reserved
+  amount includes the *selected* model's own output-token setting (see
+  [The Calculation Process](#how-it-works)), so two models with the same
+  context window but different `max_tokens` configurations get different
+  history budgets.
+
+### Provider-native parameter names
+
+Local/self-hosted providers (Ollama family, llama.cpp, BitNet, vLLM,
+TensorRT-LLM, HuggingFace) don't read a generic `context_window` key from their
+config section — they use their own native option name (see the
+[provider table](#automatic-calculation) above: `num_ctx`, `n_ctx`,
+`max_model_len`, `max_length`). An adapter or `allowed_models` override to
+`context_window`/`max_tokens` is written to **both** the generic key and that
+provider's native key, so it takes effect regardless of which one the provider
+actually reads — including for the actual LLM call, not just the history budget.
 
 ## Configuration
 
@@ -439,7 +541,7 @@ inference:
 
 **Result**:
 - Context window: 1,024 tokens
-- Token budget: 674 tokens (minimum 100 tokens enforced)
+- Token budget: 100 tokens (safety minimum enforced — the reserved system prompt + default 1,024-token output budget already exceeds the context window)
 - Conversation length: Varies based on message sizes
 
 ### Example 2: Medium Local Model
@@ -455,7 +557,7 @@ inference:
 
 **Result**:
 - Context window: 8,192 tokens
-- Token budget: 7,842 tokens
+- Token budget: 6,468 tokens
 - Conversation length: Varies based on message sizes
 
 ### Example 3: Cloud API
@@ -470,25 +572,32 @@ inference:
 ```
 
 **Result**:
-- Context window: 32,768 tokens (default)
-- Token budget: 32,418 tokens
+- Context window: 128,000 tokens (default)
+- Token budget: 126,276 tokens
 - Conversation length: Varies based on message sizes
 
-### Example 4: Switching Providers
+### Example 4: Switching the Global Default Provider
 
-When you change providers, limits automatically adjust:
+Changing `general.inference_provider` changes the budget used for adapters that
+don't set their own `inference_provider` — but **requires a service restart**,
+since the global default budget (`max_token_budget`) is computed once when
+`ChatHistoryService` initializes:
 
 ```yaml
 # Before: Using small local model
 general:
-  inference_provider: "llama_cpp"  # 674 token budget
+  inference_provider: "llama_cpp"  # 100 token budget (n_ctx: 1024)
 
-# After: Switching to cloud API  
+# After restart: Switching to cloud API
 general:
-  inference_provider: "anthropic"  # 199,650 token budget
+  inference_provider: "anthropic"  # 198,276 token budget (default 200K context)
 ```
 
-**No restart required** - token budget recalculates on service initialization.
+For switching models **without a restart**, see
+[Per-Adapter and Per-Request Overrides](#per-adapter-and-per-request-overrides) —
+setting `inference_provider`/`context_window`/`max_tokens` on an adapter, or
+letting clients pick a model via `allowed_models`, changes the budget on the very
+next request that uses it.
 
 ### Example 5: Custom Context Windows
 
@@ -516,10 +625,10 @@ inference:
     context_window: 48000     # 48K context → ~476 messages
 ```
 
-**Results**:
-- **OpenAI**: 64,000 tokens → 63,650 token budget
-- **Anthropic**: 150,000 tokens → 149,650 token budget
-- **Ollama**: 16,384 tokens → 16,034 token budget
+**Results** (default `max_tokens`/`num_predict` of 1,024):
+- **OpenAI**: 64,000 tokens → 62,276 token budget
+- **Anthropic**: 150,000 tokens → 148,276 token budget
+- **Ollama**: 16,384 tokens → 14,660 token budget
 - **Automatic scaling** based on your exact configuration
 
 ## Technical Details
@@ -541,10 +650,12 @@ The system uses a two-phase token counting approach:
 
 **Reserved Space Breakdown**:
 ```
-System prompt:                           ~200 tokens
-Current user query:                       ~50 tokens
-Response generation buffer:              ~100 tokens
-Total reserved:                          ~350 tokens
+System prompt:                           ~500 tokens
+Current query buffer:                    ~200 tokens
+Fixed overhead subtotal:                  700 tokens
+Model's response budget (max_tokens /
+num_predict; defaults to 1,024):        1,024 tokens (example — varies by config)
+Total reserved (example):               1,724 tokens
 ```
 
 ### Rolling Window Query with Cleanup
@@ -557,12 +668,12 @@ The system uses a token-based rolling window query approach with automatic clean
 4. **Chronological Order**: Results are reversed to oldest-to-newest for LLM context
 5. **Automatic Cleanup**: Messages exceeding 120% of budget are permanently deleted
 
-**Example**: If token budget is 7,842 tokens:
+**Example**: If token budget is 6,468 tokens:
 - Query fetches messages starting from most recent
 - Accumulates: Message 1 (150 tokens), Message 2 (200 tokens), ...
-- Stops when adding next message would exceed 7,842 tokens
+- Stops when adding next message would exceed 6,468 tokens
 - Returns selected messages in chronological order
-- If session reaches 9,410 tokens (120%), oldest messages are deleted
+- If session reaches 7,761 tokens (120%), oldest messages are deleted
 
 ### Thread Safety
 
@@ -608,8 +719,13 @@ The rolling window query naturally fills the available token budget, maximizing 
 When the service starts, you'll see:
 
 ```
-Chat History Service initialized with max_token_budget=7842 tokens
+Chat History Service initialized with max_token_budget=6468 tokens
 ```
+
+This is the **global default** budget only, computed from `general.inference_provider`.
+Adapters or requests using a different provider (via an adapter-level override or
+`allowed_models`) get their own budget computed and logged the first time they're
+used — see [Per-Adapter and Per-Request Overrides](#per-adapter-and-per-request-overrides).
 
 ### Verbose Logging
 
@@ -622,38 +738,53 @@ general:
 
 **Verbose Output**:
 ```
-Token budget calculation: provider=ollama, context_window=8192, 
-reserved=350, available=7842, max_budget=7842
+Token budget calculation: provider=ollama, context_window=8192,
+reserved=1724, available=6468, max_budget=6468
 ```
 
-### Health Check Endpoint
+### Service Metrics
 
-Monitor the service via the admin API:
+`ChatHistoryService` exposes `get_metrics()` and `health_check()` methods with
+this shape:
 
-```bash
-GET /admin/chat-history-stats
-```
-
-**Response**:
 ```json
 {
   "active_sessions": 15,
   "tracked_sessions": 42,
   "messages_today": 234,
-  "max_token_budget": 7842,
+  "oldest_tracked_session": "2026-01-01T00:00:00+00:00",
+  "max_token_budget": 6468,
   "max_tracked_sessions": 10000,
   "retention_days": 90
 }
 ```
+
+There is currently no dedicated admin HTTP route exposing these directly. For
+inspecting an individual session's stored history, use:
+
+```bash
+GET /admin/chat-history/{session_id}
+```
+
+`max_token_budget` reflects only the **global default provider's** budget. It
+does not surface the per-adapter or per-runtime-model budgets described in
+[Per-Adapter and Per-Request Overrides](#per-adapter-and-per-request-overrides) —
+those are only visible via debug logging on the request that used them.
 
 ### Common Issues
 
 **Issue**: Token budget seems too low
 ```
 Solution: Check your inference provider's context window setting
-- llama.cpp: Increase n_ctx
-- ollama: Increase num_ctx  
+- llama.cpp / BitNet: Increase n_ctx
+- Ollama (local/cloud/remote): Increase num_ctx
+- vLLM / TensorRT-LLM: Increase max_model_len
 - Cloud providers: Set context_window parameter
+- Check the provider's configured max_tokens/num_predict — a large output
+  reservation eats directly into the history budget (see The Calculation Process)
+- If this is adapter- or model-specific, check for a context_window/max_tokens
+  override on the adapter or the allowed_models entry that was selected
+  (see Per-Adapter and Per-Request Overrides)
 - Check model documentation for optimal values
 ```
 
@@ -676,7 +807,17 @@ Verify inference provider configuration is valid
 
 **Memory Usage**: Proportional to `max_tracked_sessions` setting
 **Database Growth**: Managed by `retention_days` cleanup
-**Computation**: Calculation happens once at service startup
+**Computation**:
+- The **global default** budget is calculated once at service startup.
+- Any **adapter- or runtime-model-specific** budget (see
+  [Per-Adapter and Per-Request Overrides](#per-adapter-and-per-request-overrides))
+  is calculated lazily the first time it's needed, then cached in memory for the
+  life of the process — it is a cheap, non-blocking calculation, not a per-request cost.
+- ⚠️ These cached per-adapter/per-runtime-model budgets are **not** invalidated by
+  a live adapter config reload. If you change an adapter's `context_window`/
+  `max_tokens`/`inference_provider` via the admin API without restarting the
+  server, chat history for that adapter keeps using the previously cached budget
+  until the process restarts.
 
 ### Migration from Fixed Limits
 
@@ -708,7 +849,7 @@ The system uses **two thresholds** based on token usage:
 
 **⚠️ Memory Warning** (at 90% token threshold):
 ```
-⚠️ **WARNING**: This conversation is using 7057/7842 tokens. Older messages
+⚠️ **WARNING**: This conversation is using 5900/6468 tokens. Older messages
 will be automatically deleted to stay within limits. Consider starting a new
 conversation if you want to preserve the full context.
 ```
@@ -717,17 +858,17 @@ The warning message can be customized via the `messages.conversation_limit_warni
 
 ### Warning Behavior by Model Size
 
-**Small Models** (e.g., TinyLLama with 1K context → 674 token budget):
-- Warning at 607 tokens (90% of 674)
-- Cleanup at 809 tokens (120% of 674)
+**Small Models** (e.g., TinyLlama with 1K context → 100 token budget, safety minimum enforced):
+- Warning at 90 tokens (90% of 100)
+- Cleanup at 120 tokens (120% of 100)
 - Tight limits require immediate action
 
-**Medium Models** (e.g., Ollama with 8K context → 7,842 token budget):
-- Warning at 7,058 tokens (90% of 7,842)
-- Cleanup at 9,410 tokens (120% of 7,842)
+**Medium Models** (e.g., Ollama with 8K context → 6,468 token budget):
+- Warning at 5,821 tokens (90% of 6,468)
+- Cleanup at 7,761 tokens (120% of 6,468)
 - "Older messages will be automatically deleted"
 
-**Large Models** (e.g., GPT-4 with 32K context → 32,418 token budget):
-- Warning at 29,176 tokens (90% of 32,418)
-- Cleanup at 38,902 tokens (120% of 32,418)
+**Large Models** (e.g., a 32K-context model → 31,044 token budget):
+- Warning at 27,939 tokens (90% of 31,044)
+- Cleanup at 37,252 tokens (120% of 31,044)
 - "Consider starting a new conversation if you want to preserve the full context"

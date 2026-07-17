@@ -299,6 +299,7 @@ class DynamicAdapterManager:
         provider_name: str,
         adapter_name: str = None,
         explicit_model_override: Optional[str] = None,
+        explicit_param_overrides: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """
         Get an inference provider instance by name, loading and caching it if necessary.
@@ -308,9 +309,14 @@ class DynamicAdapterManager:
             adapter_name: Optional adapter name to get model override from
             explicit_model_override: When set, bypasses the adapter config model lookup and uses
                                      this value directly (used for runtime per-request model selection)
+            explicit_param_overrides: Optional temperature/max_tokens/context_window overrides
+                                     from a runtime-selected allowed_models entry. Layered on top
+                                     of the adapter's own overrides (runtime > adapter > inference.yaml)
         """
         if not provider_name:
             raise ValueError("Provider name cannot be empty")
+
+        adapter_config = self.config_manager.get(adapter_name) if adapter_name else None
 
         if explicit_model_override is not None:
             model_override = explicit_model_override
@@ -320,13 +326,42 @@ class DynamicAdapterManager:
             )
         else:
             model_override = None
-            if adapter_name:
-                adapter_config = self.config_manager.get(adapter_name)
-                if adapter_config and adapter_config.get('model'):
-                    model_override = adapter_config['model']
-                    logger.debug(f"Found model override '{model_override}' for adapter '{adapter_name}'")
+            if adapter_config and adapter_config.get('model'):
+                model_override = adapter_config['model']
+                logger.debug(f"Found model override '{model_override}' for adapter '{adapter_name}'")
 
-        return await self.provider_cache.create_provider(provider_name, model_override, adapter_name)
+        param_overrides = self._extract_param_overrides(adapter_config) or {}
+        if explicit_param_overrides:
+            param_overrides = {
+                **param_overrides,
+                **{k: v for k, v in explicit_param_overrides.items() if v is not None},
+            }
+            logger.debug(
+                f"Using explicit runtime parameter overrides {explicit_param_overrides} "
+                f"for provider '{provider_name}'"
+            )
+        param_overrides = param_overrides or None
+
+        return await self.provider_cache.create_provider(
+            provider_name, model_override, adapter_name, param_overrides=param_overrides
+        )
+
+    @staticmethod
+    def _extract_param_overrides(adapter_config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        Extract optional generation parameter overrides (temperature, max_tokens,
+        context_window) from an adapter config. These fall back to inference.yaml
+        defaults when not set on the adapter — useful since some models (e.g. a small
+        local LLM vs. Claude's 1M-token context) need very different limits.
+        """
+        if not adapter_config:
+            return None
+        overrides = {
+            key: adapter_config[key]
+            for key in ('temperature', 'max_tokens', 'context_window')
+            if key in adapter_config and adapter_config[key] is not None
+        }
+        return overrides or None
 
     def get_allowed_models(self, adapter_name: str) -> list:
         """

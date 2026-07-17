@@ -475,7 +475,8 @@ class ServiceFactory:
         app.state.chat_history_service = ChatHistoryService(
             self.config,
             app.state.database_service,
-            thread_dataset_service=thread_dataset_service
+            thread_dataset_service=thread_dataset_service,
+            adapter_manager=getattr(app.state, 'adapter_manager', None)
         )
         logger.debug("Initializing Chat History Service...")
         try:

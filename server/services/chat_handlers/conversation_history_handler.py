@@ -75,7 +75,9 @@ class ConversationHistoryHandler:
     async def get_context(
         self,
         session_id: Optional[str],
-        adapter_name: str
+        adapter_name: str,
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None
     ) -> List[Dict[str, str]]:
         """
         Get conversation context from history for the current session.
@@ -83,6 +85,12 @@ class ConversationHistoryHandler:
         Args:
             session_id: The session identifier
             adapter_name: The adapter being used
+            runtime_param_overrides: Optional per-request overrides from a runtime-
+                selected allowed_models entry, layered on top of the adapter's own
+            runtime_provider: Optional provider from the same runtime-selected
+                allowed_models entry — the actual LLM call uses this provider, so
+                the history token budget must be computed against it rather than
+                the adapter's configured inference_provider
 
         Returns:
             List of previous messages formatted for LLM context
@@ -93,7 +101,12 @@ class ConversationHistoryHandler:
         try:
             # Get context messages from chat history using rolling window query
             # No need to check limits - rolling window query naturally enforces token budget
-            context_messages, _ = await self.chat_history_service.get_context_messages(session_id)
+            context_messages, _ = await self.chat_history_service.get_context_messages(
+                session_id,
+                adapter_name=adapter_name,
+                runtime_param_overrides=runtime_param_overrides,
+                runtime_provider=runtime_provider,
+            )
 
             if context_messages:
                 logger.debug(f"Retrieved {len(context_messages)} context messages for session {session_id}")
@@ -113,7 +126,9 @@ class ConversationHistoryHandler:
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        regenerate_of_message_id: Optional[str] = None
+        regenerate_of_message_id: Optional[str] = None,
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None
     ) -> tuple[Optional[Any], Optional[Any]]:
         """
         Store a conversation turn in chat history.
@@ -129,6 +144,10 @@ class ConversationHistoryHandler:
             regenerate_of_message_id: Optional id of an existing assistant message to
                 overwrite in place (regenerate or edit+regenerate), instead of storing
                 a new turn — the paired user turn is resolved and updated server-side
+            runtime_param_overrides: Optional per-request overrides from a runtime-
+                selected allowed_models entry, layered on top of the adapter's own
+            runtime_provider: Optional provider from the same runtime-selected
+                allowed_models entry (see get_context)
 
         Returns:
             Tuple of (user_message_id, assistant_message_id)
@@ -155,7 +174,10 @@ class ConversationHistoryHandler:
                 user_id=user_id,
                 api_key=api_key,
                 metadata=metadata,
-                regenerate_of_message_id=regenerate_of_message_id
+                regenerate_of_message_id=regenerate_of_message_id,
+                adapter_name=adapter_name,
+                runtime_param_overrides=runtime_param_overrides,
+                runtime_provider=runtime_provider
             )
 
             logger.debug(f"Stored conversation turn for session {session_id} (threading={has_retrieved_docs})")
@@ -169,7 +191,9 @@ class ConversationHistoryHandler:
     async def check_limit_warning(
         self,
         session_id: Optional[str],
-        adapter_name: str
+        adapter_name: str,
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None
     ) -> Optional[str]:
         """
         Check if the conversation is approaching the limit and return a warning if needed.
@@ -177,6 +201,10 @@ class ConversationHistoryHandler:
         Args:
             session_id: The session identifier
             adapter_name: The adapter being used
+            runtime_param_overrides: Optional per-request overrides from a runtime-
+                selected allowed_models entry, layered on top of the adapter's own
+            runtime_provider: Optional provider from the same runtime-selected
+                allowed_models entry (see get_context)
 
         Returns:
             Warning message if approaching limit, None otherwise
@@ -187,7 +215,12 @@ class ConversationHistoryHandler:
         try:
             # Use token-based limits - calculate tokens that would actually be included
             # in the rolling window query, not total session tokens
-            current_tokens, max_tokens = await self.chat_history_service.get_session_token_usage(session_id)
+            current_tokens, max_tokens = await self.chat_history_service.get_session_token_usage(
+                session_id,
+                adapter_name=adapter_name,
+                runtime_param_overrides=runtime_param_overrides,
+                runtime_provider=runtime_provider,
+            )
 
             if max_tokens <= 0:
                 return None

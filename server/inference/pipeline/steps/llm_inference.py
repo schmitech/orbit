@@ -41,6 +41,7 @@ class LLMInferenceStep(PipelineStep):
                     context.runtime_provider,
                     adapter_name,
                     explicit_model_override=context.runtime_model_name,
+                    explicit_param_overrides=context.runtime_param_overrides,
                 )
             if context.inference_provider:
                 return await adapter_manager.get_overridden_provider(

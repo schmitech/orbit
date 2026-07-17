@@ -235,7 +235,9 @@ class ResponseProcessor:
         processing_time: float,
         retrieved_docs: Optional[list] = None,
         model: Optional[str] = None,
-        regenerate_of_message_id: Optional[str] = None
+        regenerate_of_message_id: Optional[str] = None,
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None
     ) -> tuple[str, Optional[str]]:
         """
         Complete post-processing of a chat response.
@@ -260,6 +262,12 @@ class ResponseProcessor:
             regenerate_of_message_id: Optional id of an existing assistant message to
                 overwrite in place (regenerate or edit+regenerate), instead of storing
                 a new turn — the paired user turn is resolved and updated server-side
+            runtime_param_overrides: Optional per-request overrides from a runtime-
+                selected allowed_models entry, layered on top of the adapter's own
+            runtime_provider: Optional provider from the same runtime-selected
+                allowed_models entry — the actual LLM call uses this provider, so
+                the history token budget must be computed against it rather than
+                the adapter's configured inference_provider
 
         Returns:
             Tuple of (processed_response_text, assistant_message_id)
@@ -298,11 +306,15 @@ class ResponseProcessor:
                 user_id=user_id,
                 api_key=api_key,
                 metadata=metadata,
-                regenerate_of_message_id=regenerate_of_message_id
+                regenerate_of_message_id=regenerate_of_message_id,
+                runtime_param_overrides=runtime_param_overrides,
+                runtime_provider=runtime_provider
             )
 
         # Check for conversation limit warning and inject AFTER storage (display only)
-        warning = await self.conversation_handler.check_limit_warning(session_id, adapter_name)
+        warning = await self.conversation_handler.check_limit_warning(
+            session_id, adapter_name, runtime_param_overrides, runtime_provider
+        )
         displayed_response = self.inject_warning(processed_response, warning)
 
         # Log conversation

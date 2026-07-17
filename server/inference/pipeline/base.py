@@ -81,6 +81,9 @@ class ProcessingContext:
     # Runtime model override (resolved from adapter's allowed_models at request time)
     runtime_provider: Optional[str] = None
     runtime_model_name: Optional[str] = None
+    # Optional temperature/max_tokens/context_window overrides from the matched
+    # allowed_models entry, layered on top of the adapter's own overrides
+    runtime_param_overrides: Optional[Dict[str, Any]] = None
 
     # Skill invocation (set when client sends skill= in request)
     requested_skill: Optional[str] = None

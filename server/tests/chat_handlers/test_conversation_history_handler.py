@@ -90,7 +90,9 @@ class TestConversationHistoryHandler:
         assert len(context) == 2
         assert context[0]['role'] == 'user'
         assert context[1]['role'] == 'assistant'
-        mock_chat_history_service.get_context_messages.assert_awaited_once_with('session123')
+        mock_chat_history_service.get_context_messages.assert_awaited_once_with(
+            'session123', adapter_name='test_adapter', runtime_param_overrides=None, runtime_provider=None
+        )
 
     @pytest.mark.asyncio
     async def test_get_context_returns_empty_when_disabled(
@@ -156,6 +158,9 @@ class TestConversationHistoryHandler:
             api_key='key123',
             metadata={'extra': 'data'},
             regenerate_of_message_id=None,
+            adapter_name='test_adapter',
+            runtime_param_overrides=None,
+            runtime_provider=None,
         )
 
     @pytest.mark.asyncio

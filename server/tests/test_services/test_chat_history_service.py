@@ -14,6 +14,7 @@ import shutil
 import tempfile
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from pytest_asyncio import fixture
@@ -28,6 +29,36 @@ from services.chat_history_service import ChatHistoryService
 from services.thread_dataset_service import ThreadDatasetService
 from utils.id_utils import generate_id
 from utils.text_utils import mask_api_key
+
+
+def test_runtime_provider_selects_its_own_history_budget_without_param_overrides():
+  """A runtime allowed_models provider must not inherit the adapter's budget."""
+  adapter_manager = MagicMock()
+  adapter_manager.get_adapter_config.return_value = {
+    'inference_provider': 'openai',
+  }
+  service = ChatHistoryService(
+    {
+      'general': {'inference_provider': 'openai'},
+      'inference': {
+        'openai': {'context_window': 128000, 'max_tokens': 4096},
+        'mistral': {'context_window': 32000, 'max_tokens': 2048},
+      },
+    },
+    database_service=MagicMock(),
+    thread_dataset_service=MagicMock(),
+    adapter_manager=adapter_manager,
+  )
+  service.max_token_budget = service._calculate_max_token_budget()
+
+  default_budget = service._get_token_budget_for_adapter('simple-chat')
+  mistral_budget = service._get_token_budget_for_adapter(
+    'simple-chat', runtime_provider='mistral'
+  )
+
+  assert default_budget == 123204
+  assert mistral_budget == 29252
+  assert mistral_budget < default_budget
 
 
 @fixture(scope="function")

@@ -14,8 +14,19 @@ adapters:
     model: "gpt-5.4-mini"         # Specific model for this adapter (default / fallback)
     tts_provider: "cohere"          # TTS provider for audio output (see tts.yaml)
 
+    # Optional generation parameter overrides - fall back to config/inference.yaml
+    # defaults for the resolved inference_provider when omitted. Useful since context
+    # windows vary widely across models (e.g. a small local LLM vs. Claude's 1M tokens).
+    # context_window: 200000  # Also reshapes the conversation-history token budget
+    # max_tokens: 4096
+    # temperature: 0.3         # Omitted automatically for models that reject it (e.g. gpt-5.x, o-series)
+
     # Optional: clients may request any of these models at runtime via the "model" field.
-    # If omitted, the adapter always uses the model defined above.
+    # If omitted, the adapter always uses the model defined above. Each entry may also
+    # carry its own optional temperature/max_tokens/context_window overrides, which take
+    # precedence over the adapter-level overrides above for that request only (also
+    # reshapes the conversation-history token budget for that turn, same as context_window
+    # above).
     allowed_models:
       - name: "mistral"
         provider: "mistral"
@@ -35,6 +46,7 @@ adapters:
       - name: "claude"
         provider: "anthropic"
         model: "claude-sonnet-4-5-20250929"
+        context_window: 1000000  # e.g. Claude's extended-context variant
       - name: "gemini"
         provider: "gemini"
         model: "gemini-3.1-pro-preview"

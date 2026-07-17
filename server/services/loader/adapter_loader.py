@@ -112,6 +112,11 @@ class AdapterLoader:
 
             if inference_provider:
                 model_override = model_override or adapter_config.get('model')
+                param_overrides = {
+                    key: adapter_config[key]
+                    for key in ('temperature', 'max_tokens', 'context_window')
+                    if key in adapter_config and adapter_config[key] is not None
+                } or None
                 logger.debug(f"Preloading inference provider '{inference_provider}' for adapter '{adapter_name}' (model: {model_override or 'default'})")
                 try:
                     # Clear any stale cached instance for this provider BEFORE creating new one
@@ -119,7 +124,9 @@ class AdapterLoader:
                     AIServiceFactory.clear_cache(service_type=ServiceType.INFERENCE, provider=inference_provider)
                     logger.debug(f"Cleared AIServiceFactory inference cache for '{inference_provider}' before preload")
 
-                    await self.provider_cache.create_provider(inference_provider, model_override, adapter_name)
+                    await self.provider_cache.create_provider(
+                        inference_provider, model_override, adapter_name, param_overrides=param_overrides
+                    )
                     log_msg = f"Preloaded inference provider '{inference_provider}' for adapter '{adapter_name}'"
                     if model_override:
                         log_msg += f" with model override '{model_override}'"

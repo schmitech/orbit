@@ -94,7 +94,7 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             }
 
             temperature = kwargs.pop('temperature', self.temperature)
-            if temperature is not None:
+            if temperature is not None and self._supports_temperature():
                 params["temperature"] = temperature
 
             top_p_value = kwargs.pop('top_p', self.top_p)
@@ -159,7 +159,7 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             }
 
             temperature = kwargs.pop('temperature', self.temperature)
-            if temperature is not None:
+            if temperature is not None and self._supports_temperature():
                 params["temperature"] = temperature
 
             top_p_value = kwargs.pop('top_p', self.top_p)
@@ -219,7 +219,7 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             params["tools"] = tools
             params["tool_choice"] = "auto"
         temp = kw.pop("temperature", self.temperature)
-        if temp is not None:
+        if temp is not None and self._supports_temperature():
             params["temperature"] = temp
         if self._supports_top_p():
             params["top_p"] = kw.pop("top_p", self.top_p)
@@ -295,7 +295,7 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             params["instructions"] = "\n\n".join(instructions_parts)
 
         temperature = kwargs.pop("temperature", self.temperature)
-        if temperature is not None:
+        if temperature is not None and self._supports_temperature():
             params["temperature"] = temperature
 
         if stream:
@@ -353,6 +353,21 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
 
         # No override found; use configured default
         return self.max_tokens
+
+    def _supports_temperature(self) -> bool:
+        """Return whether the current model supports custom temperature values."""
+        model_name = (self.model or "").lower()
+
+        # Newer OpenAI models (gpt-5, o-series) only support default temperature (1.0)
+        # and will error if you pass temperature=0.0 or any other value
+        unsupported_prefixes = (
+            "gpt-5",
+            "o1",
+            "o2",
+            "o3",
+        )
+
+        return not model_name.startswith(unsupported_prefixes)
 
     def _supports_top_p(self) -> bool:
         """Return whether the current model supports the top_p parameter."""

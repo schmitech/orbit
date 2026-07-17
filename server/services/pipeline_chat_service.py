@@ -420,6 +420,8 @@ class PipelineChatService:
         thread_id: str,
         session_id: Optional[str],
         adapter_name: str,
+        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_provider: Optional[str] = None,
     ) -> Tuple[List[Dict[str, str]], Optional[str]]:
         """
         Return (context_messages, effective_session_id) for a thread request.
@@ -432,24 +434,32 @@ class PipelineChatService:
 
         container = self.pipeline.container
         if not container.has('thread_service'):
-            return await self.conversation_handler.get_context(session_id, adapter_name), session_id
+            return await self.conversation_handler.get_context(
+                session_id, adapter_name, runtime_param_overrides, runtime_provider
+            ), session_id
 
         thread_service = container.get('thread_service')
         thread_info = await thread_service.get_thread(thread_id)
         if not thread_info:
             logger.warning(f"Thread {thread_id} not found; falling back to session context")
-            return await self.conversation_handler.get_context(session_id, adapter_name), session_id
+            return await self.conversation_handler.get_context(
+                session_id, adapter_name, runtime_param_overrides, runtime_provider
+            ), session_id
 
         thread_session_id = thread_info.get('thread_session_id', session_id)
 
-        thread_messages = await self.conversation_handler.get_context(thread_session_id, adapter_name)
+        thread_messages = await self.conversation_handler.get_context(
+            thread_session_id, adapter_name, runtime_param_overrides, runtime_provider
+        )
         if thread_messages:
             return thread_messages, thread_session_id
 
         # First turn: thread session is empty — seed with parent context so the LLM
         # retains the conversation that led to this thread being created.
         parent_session_id = thread_info.get('parent_session_id', session_id)
-        parent_messages = await self.conversation_handler.get_context(parent_session_id, adapter_name)
+        parent_messages = await self.conversation_handler.get_context(
+            parent_session_id, adapter_name, runtime_param_overrides, runtime_provider
+        )
         return parent_messages, thread_session_id
 
     # -------------------------------------------------------------------------
@@ -668,12 +678,25 @@ class PipelineChatService:
                 api_key, session_id, user_id,
             )
 
+            # Resolve the runtime model override ahead of context fetching so the
+            # conversation-history token budget can reflect the client's chosen
+            # allowed_models entry (e.g. a bigger context_window, or simply a
+            # different provider with different context/output defaults) for this
+            # turn. build_context() below re-resolves the same thing from
+            # requested_model; cheap dict lookup, and this call raises first on an
+            # invalid model.
+            runtime_provider, _, runtime_param_overrides = self.context_builder.resolve_runtime_model_override(
+                adapter_name, requested_model
+            )
+
             if thread_id:
                 context_messages, effective_session_id = await self._resolve_context_for_thread(
-                    thread_id, session_id, adapter_name
+                    thread_id, session_id, adapter_name, runtime_param_overrides, runtime_provider
                 )
             else:
-                context_messages = await self.conversation_handler.get_context(session_id, adapter_name)
+                context_messages = await self.conversation_handler.get_context(
+                    session_id, adapter_name, runtime_param_overrides, runtime_provider
+                )
                 effective_session_id = session_id
 
             skill, skill_auto_detected = await self._maybe_detect_skill(
@@ -725,6 +748,8 @@ class PipelineChatService:
                 retrieved_docs=result.retrieved_docs,
                 model=model,
                 regenerate_of_message_id=regenerate_of_message_id,
+                runtime_param_overrides=context.runtime_param_overrides,
+                runtime_provider=context.runtime_provider,
             )
 
             audio_data, audio_format_str = await self._maybe_generate_full_audio(
@@ -834,12 +859,25 @@ class PipelineChatService:
                 api_key, session_id, user_id,
             )
 
+            # Resolve the runtime model override ahead of context fetching so the
+            # conversation-history token budget can reflect the client's chosen
+            # allowed_models entry (e.g. a bigger context_window, or simply a
+            # different provider with different context/output defaults) for this
+            # turn. build_context() below re-resolves the same thing from
+            # requested_model; cheap dict lookup, and this call raises first on an
+            # invalid model.
+            runtime_provider, _, runtime_param_overrides = self.context_builder.resolve_runtime_model_override(
+                adapter_name, requested_model
+            )
+
             if thread_id:
                 context_messages, effective_session_id = await self._resolve_context_for_thread(
-                    thread_id, session_id, adapter_name
+                    thread_id, session_id, adapter_name, runtime_param_overrides, runtime_provider
                 )
             else:
-                context_messages = await self.conversation_handler.get_context(session_id, adapter_name)
+                context_messages = await self.conversation_handler.get_context(
+                    session_id, adapter_name, runtime_param_overrides, runtime_provider
+                )
                 effective_session_id = session_id
 
             skill, skill_auto_detected = await self._maybe_detect_skill(
@@ -997,9 +1035,13 @@ class PipelineChatService:
             retrieved_docs=context.retrieved_docs,
             model=model,
             regenerate_of_message_id=regenerate_of_message_id,
+            runtime_param_overrides=context.runtime_param_overrides,
+            runtime_provider=context.runtime_provider,
         )
 
-        warning = await self.conversation_handler.check_limit_warning(session_id, adapter_name)
+        warning = await self.conversation_handler.check_limit_warning(
+            session_id, adapter_name, context.runtime_param_overrides, context.runtime_provider
+        )
         if warning:
             yield f"data: {json.dumps({'response': f'{chr(10)}{chr(10)}---{chr(10)}{warning}', 'done': False})}\n\n"
 
