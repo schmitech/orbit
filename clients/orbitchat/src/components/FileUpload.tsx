@@ -49,7 +49,6 @@ interface FileUploadProps {
   onUploadSuccess?: (conversationId: string, newFiles: FileAttachment[]) => void;
   maxFiles?: number;
   disabled?: boolean;
-  hideUploadControl?: boolean;
 }
 
 export function FileUpload({ 
@@ -60,8 +59,7 @@ export function FileUpload({
   onUploadingChange,
   onUploadSuccess,
   maxFiles = AppConfig.maxFilesPerConversation,
-  disabled = false,
-  hideUploadControl = false
+  disabled = false
 }: FileUploadProps): React.ReactElement {
   const { t } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
@@ -83,6 +81,21 @@ export function FileUpload({
     const uploads = uploadingFilesStore.get(conversationId);
     return uploads ? new Map(uploads) : new Map<string, FileUploadProgress>();
   }, [conversationId, globalUploadRevision]);
+
+  const visibleUploadingEntries = useMemo(() => {
+    if (!conversationId) {
+      return Array.from(uploadingFiles.entries());
+    }
+
+    const conversation = conversations.find(conv => conv.id === conversationId);
+    const attachedFileIds = new Set(
+      conversation?.attachedFiles?.map(file => file.file_id) || []
+    );
+
+    return Array.from(uploadingFiles.entries()).filter(([, progress]) => {
+      return !progress.fileId || !attachedFileIds.has(progress.fileId);
+    });
+  }, [conversationId, conversations, uploadingFiles]);
 
   const refreshVisibleUploads = useCallback((targetConversationId: string | null) => {
     if (!targetConversationId) {
@@ -537,8 +550,10 @@ export function FileUpload({
     }
   }, [disabled, handleClick]);
 
-  // While uploads are active, show only progress and hide the upload dropzone.
-  const isUploading = uploadingFiles.size > 0;
+  // While FileUpload has visible in-flight uploads, show only progress and hide
+  // the dropzone. Once an upload is attached to the conversation, MessageInput
+  // owns the visible chip for that file even if backend processing is ongoing.
+  const isUploading = visibleUploadingEntries.length > 0;
   const conversationNameMap = useMemo(() => {
     const map = new Map<string, string>();
     conversations.forEach(conv => {
@@ -579,19 +594,19 @@ export function FileUpload({
     );
   };
 
-  const progressContent = (
+  const progressContent = visibleUploadingEntries.length > 0 ? (
     <div className="w-full max-w-full overflow-hidden flex flex-wrap gap-2" role="status" aria-live="polite">
-      {Array.from(uploadingFiles.entries()).map(([key, progress]) =>
+      {visibleUploadingEntries.map(([key, progress]) =>
         renderProgressRow(progress, key)
       )}
     </div>
-  );
+  ) : null;
 
   return (
     <div className="w-full max-w-full overflow-hidden space-y-2">
       {isUploading && progressContent}
 
-      {!isUploading && !hideUploadControl && (
+      {!isUploading && (
         <button
           type="button"
           onClick={handleClick}

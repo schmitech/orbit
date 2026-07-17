@@ -495,10 +495,13 @@ export function MessageInput({
   const isInputDisabled = disabled || hasProcessingFiles || isUploading || messageLimitActive;
   
   const canUseFileUploads = uploadFeatureEnabled && isFileSupported;
-  // Disable file upload button if feature disabled, adapter doesn't support files, or input is disabled
+  // File selection only needs to be blocked while an upload is actively in the
+  // FileUpload pipeline. Already attached files may still be processing, but
+  // they are rendered by MessageInput and should not hide or disable the picker.
   const fileLimitActive = conversationFileLimitReached || workspaceFileLimitReached;
-  const isFileUploadDisabled = !canUseFileUploads || isInputDisabled || fileLimitActive;
+  const isFileUploadDisabled = !canUseFileUploads || disabled || isUploading || messageLimitActive || fileLimitActive;
   const isUploadProgressOnly = !showFileUpload && (isUploading || pasteUploadingFiles.size > 0);
+  const shouldShowFileUploadControl = showFileUpload || (isUploading && pasteUploadingFiles.size === 0);
 
   // Auto-resize textarea with maximum height limit
   useLayoutEffect(() => {
@@ -1166,6 +1169,7 @@ export function MessageInput({
     e.preventDefault();
     setPasteError(null);
     setUploadSuccessMessage(null);
+    setShowFileUpload(false);
 
     let pasteConversationId: string | null = null;
     // Thumbnails generated below but not yet handed off to the shared store
@@ -1402,6 +1406,22 @@ export function MessageInput({
     const timeout = setTimeout(() => setUploadError(null), 5000);
     return () => clearTimeout(timeout);
   }, [uploadError]);
+
+  useEffect(() => {
+    if (!showFileUpload) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) {
+        return;
+      }
+      setShowFileUpload(false);
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [showFileUpload]);
 
   useEffect(() => {
     if (!(showFileUpload || isUploading || pasteUploadingFiles.size > 0 || hasAnyUploadingConversations)) {
@@ -1881,7 +1901,7 @@ export function MessageInput({
               Keep FileUpload mounted while uploads are in progress so progress bars stay visible
               even if the widget was auto-hidden after selecting files.
             */}
-            <div className={`${showFileUpload || isUploading ? 'block max-h-[40vh] overflow-y-auto' : 'hidden'}`} aria-hidden={!(showFileUpload || isUploading)}>
+            <div className={`${shouldShowFileUploadControl ? 'block max-h-[40vh] overflow-y-auto' : 'hidden'}`} aria-hidden={!shouldShowFileUploadControl}>
               <FileUpload
                 conversationId={currentConversationId}
                 onFilesSelected={handleFilesSelected}
@@ -1893,7 +1913,6 @@ export function MessageInput({
                 onUploadSuccess={handleUploadSuccessToast}
                 maxFiles={AppConfig.maxFilesPerConversation}
                 disabled={isFileUploadDisabled}
-                hideUploadControl={isUploading}
               />
             </div>
           </div>
