@@ -154,7 +154,8 @@ class TestConversationHistoryHandler:
             assistant_response='Hi there!',
             user_id='user1',
             api_key='key123',
-            metadata={'extra': 'data'}
+            metadata={'extra': 'data'},
+            regenerate_of_message_id=None,
         )
 
     @pytest.mark.asyncio
