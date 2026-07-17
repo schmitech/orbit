@@ -244,6 +244,7 @@ const statusDot = document.getElementById('statusDot') as HTMLDivElement;
 const statusText = document.getElementById('statusText') as HTMLSpanElement;
 const responseCanvas = document.getElementById('responseCanvas') as HTMLCanvasElement;
 const transcriptEl = document.getElementById('transcript') as HTMLPreElement | null;
+const targetLanguageInput = document.getElementById('targetLanguage') as HTMLSelectElement | null;
 
 const INPUT_LIMITS = {
   serverUrl: 120,
@@ -731,6 +732,10 @@ async function connect() {
   if (apiKey) {
     params.set('api_key', apiKey);
   }
+  const targetLanguage = targetLanguageInput?.value.trim();
+  if (targetLanguage) {
+    params.set('target_language', targetLanguage);
+  }
   const qs = params.toString() ? `?${params.toString()}` : '';
   let wsUrl = `${stripTrailingSlash(baseUrl)}/ws/voice${qs}`;
   if (!apiKey) {
@@ -861,6 +866,12 @@ function handleMessage(message: OrbitMessage) {
       break;
     }
 
+    case 'target_language_updated': {
+      const lang = typeof message.target_language === 'string' ? message.target_language : '';
+      appendTranscriptLine('system', `Target language → ${lang}`);
+      break;
+    }
+
     case 'pong': {
       break;
     }
@@ -890,6 +901,15 @@ connectBtn.addEventListener('click', () => {
       console.error('Failed to establish connection', error);
       setStatus('error', error instanceof Error ? error.message : 'Failed to connect');
     });
+  }
+});
+
+targetLanguageInput?.addEventListener('change', () => {
+  const language = targetLanguageInput.value.trim();
+  if (!language) return;
+  // If connected, switch live; otherwise it applies on the next connect.
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'set_target_language', language }));
   }
 });
 

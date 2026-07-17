@@ -18,6 +18,7 @@ NO_LLM_ADAPTER_TYPES = frozenset({
     'mcp_agent',
     'fetch',
     'openai_realtime',
+    'openai_realtime_translation',
 })
 
 # Adapter types that have no use for an inference_provider/rewrite_provider at all —
@@ -27,6 +28,7 @@ NO_LLM_ADAPTER_TYPES = frozenset({
 NO_INFERENCE_PROVIDER_ADAPTER_TYPES = frozenset({
     'fetch',
     'openai_realtime',
+    'openai_realtime_translation',
 })
 
 

@@ -12,11 +12,11 @@ adapters:
     datasource: "none"
     adapter: "file"
     implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b"
+    inference_provider: "openrouter"
+    model: "nvidia/nemotron-3-ultra-550b-a55b"
     embedding_provider: "openai"
     embedding_model: "text-embedding-3-small"
-    stt_provider: "gemini"
+    stt_provider: "cohere"
     
     # Capabilities: Audio file transcription
     capabilities:
@@ -485,3 +485,39 @@ adapters:
       openai_connection_timeout_seconds: 60
       # Set true only if you still use the Realtime beta interface (adds OpenAI-Beta: realtime=v1)
       use_realtime_beta_header: false
+
+  # OpenAI Realtime Translation (WebSocket) — speech-to-speech translation via
+  #   wss://api.openai.com/v1/realtime/translations
+  # Stateless interpreter: no VAD, no instructions, no response lifecycle. Streams
+  # translated speech + text continuously. Requires OPENAI_API_KEY.
+  # NOTE: This adapter does NOT use a system prompt — the translation endpoint does
+  # not accept `instructions`. Behavior is fixed and controlled only by target_language.
+  # (examples/prompts/audio/open-ai-real-time-translation-prompt.md is documentation-only.)
+  # Test: ws://<host>:<port>/ws/voice/open-ai-real-time-translation?target_language=fr
+  # Same client protocol as real-time-voice-chat (PCM16 mono 24kHz base64 audio_chunk).
+  # Docs: https://developers.openai.com/api/docs/guides/realtime-translation
+  - name: "open-ai-real-time-translation"
+    enabled: true
+    type: "openai_realtime_translation"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      supports_interruption: false
+      supports_realtime_audio: true
+      optional_parameters:
+        - "session_id"
+        - "user_id"
+        - "target_language"
+
+    config:
+      realtime_model: "gpt-realtime-translate"
+      # Default target language (ISO code). Override per-connection via ?target_language=
+      target_language: "es"
+      openai_connection_timeout_seconds: 60

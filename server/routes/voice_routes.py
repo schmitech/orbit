@@ -9,6 +9,7 @@ Supports handler types:
 
 Handler selection is automatic based on adapter type:
 - type: "openai_realtime" -> OpenAIRealtimeWebSocketHandler
+- type: "openai_realtime_translation" -> OpenAIRealtimeTranslationWebSocketHandler
 - other types -> VoiceWebSocketHandler
 """
 
@@ -80,9 +81,9 @@ async def validate_adapter(adapter_name: str, request: Request) -> Dict[str, Any
     # Check adapter type
     adapter_type = adapter_config.get('type', '')
 
-    # For openai_realtime, stt/tts are not used here
-    if adapter_type == 'openai_realtime':
-        logger.info(
+    # For openai_realtime (and translation), stt/tts are not used here
+    if adapter_type in ('openai_realtime', 'openai_realtime_translation'):
+        logger.debug(
             f"Adapter validation successful: {adapter_name}, "
             f"type: {adapter_type} (Realtime bridge)"
         )
@@ -101,7 +102,7 @@ async def validate_adapter(adapter_name: str, request: Request) -> Dict[str, Any
             )
         audio_provider = f"stt:{stt_provider or 'none'}, tts:{tts_provider or 'none'}"
 
-    logger.info(
+    logger.debug(
         f"Adapter validation successful: {adapter_name}, "
         f"audio provider: {audio_provider}"
     )
@@ -122,13 +123,13 @@ async def _resolve_voice_adapter_from_api_key(
     source of truth and any explicit adapter path acts only as a fallback.
     """
     if api_key:
-        logger.info(
+        logger.debug(
             "Voice websocket received api_key for adapter '%s' (length=%s)",
             requested_adapter_name or "<auto>",
             len(api_key),
         )
     else:
-        logger.info(
+        logger.debug(
             "Voice websocket received no api_key for adapter '%s'",
             requested_adapter_name or "<auto>",
         )
@@ -153,20 +154,20 @@ async def _resolve_voice_adapter_from_api_key(
         api_key,
         adapter_manager=adapter_manager,
     )
-    logger.info(
+    logger.debug(
         "API key resolution for voice websocket: requested_adapter=%s, resolved_adapter=%s, system_prompt_id=%s",
         requested_adapter_name,
         resolved_adapter_name,
         system_prompt_id,
     )
     if requested_adapter_name and requested_adapter_name != resolved_adapter_name:
-        logger.info(
+        logger.debug(
             "Overriding requested voice adapter '%s' with API-key adapter '%s'",
             requested_adapter_name,
             resolved_adapter_name,
         )
     if system_prompt_id:
-        logger.info("API key has system_prompt_id: %s", system_prompt_id)
+        logger.debug("API key has system_prompt_id: %s", system_prompt_id)
     return resolved_adapter_name, str(system_prompt_id) if system_prompt_id else None
 
 
@@ -176,7 +177,8 @@ async def _handle_voice_websocket(
     adapter_name: Optional[str],
     session_id: Optional[str] = Query(None, description="Session ID for conversation history"),
     user_id: Optional[str] = Query(None, description="User ID for tracking"),
-    api_key: Optional[str] = Query(None, description="API key for authentication")
+    api_key: Optional[str] = Query(None, description="API key for authentication"),
+    target_language: Optional[str] = Query(None, description="Target language for realtime translation adapters")
 ):
     """
     WebSocket endpoint for real-time voice conversations.
@@ -249,6 +251,20 @@ async def _handle_voice_websocket(
                 system_prompt_id=system_prompt_id,
                 clock_service=clock_service,
             )
+        elif adapter_type == 'openai_realtime_translation':
+            from services.chat_handlers.openai_realtime_translation_websocket_handler import (
+                OpenAIRealtimeTranslationWebSocketHandler,
+            )
+
+            handler = OpenAIRealtimeTranslationWebSocketHandler(
+                websocket=websocket,
+                adapter_name=adapter_name,
+                adapter_config=adapter_config,
+                config=config,
+                session_id=session_id,
+                user_id=user_id,
+                target_language=target_language,
+            )
         else:
             # Use standard voice handler for cascade (STT -> LLM -> TTS)
             handler = VoiceWebSocketHandler(
@@ -307,7 +323,8 @@ async def websocket_voice_auto(
     websocket: WebSocket,
     session_id: Optional[str] = Query(None, description="Session ID for conversation history"),
     user_id: Optional[str] = Query(None, description="User ID for tracking"),
-    api_key: Optional[str] = Query(None, description="API key for authentication")
+    api_key: Optional[str] = Query(None, description="API key for authentication"),
+    target_language: Optional[str] = Query(None, description="Target language for realtime translation adapters")
 ):
     """WebSocket endpoint that resolves the adapter from the API key."""
     await _handle_voice_websocket(
@@ -316,6 +333,7 @@ async def websocket_voice_auto(
         session_id=session_id,
         user_id=user_id,
         api_key=api_key,
+        target_language=target_language,
     )
 
 
@@ -325,7 +343,8 @@ async def websocket_voice(
     adapter_name: str,
     session_id: Optional[str] = Query(None, description="Session ID for conversation history"),
     user_id: Optional[str] = Query(None, description="User ID for tracking"),
-    api_key: Optional[str] = Query(None, description="API key for authentication")
+    api_key: Optional[str] = Query(None, description="API key for authentication"),
+    target_language: Optional[str] = Query(None, description="Target language for realtime translation adapters")
 ):
     """WebSocket endpoint for real-time voice conversations with explicit adapter path."""
     await _handle_voice_websocket(
@@ -334,6 +353,7 @@ async def websocket_voice(
         session_id=session_id,
         user_id=user_id,
         api_key=api_key,
+        target_language=target_language,
     )
 
 
@@ -380,7 +400,7 @@ async def voice_status(request: Request):
             capabilities = adapter_config.get('capabilities', {})
             if capabilities.get('supports_realtime_audio', False):
                 adapter_type = adapter_config.get('type', 'passthrough')
-                is_full_duplex = adapter_type == 'openai_realtime'
+                is_full_duplex = adapter_type in ('openai_realtime', 'openai_realtime_translation')
 
                 adapter_info = {
                     "name": adapter_name,
@@ -393,6 +413,11 @@ async def voice_status(request: Request):
                     adapter_info["mode"] = "openai_realtime"
                     rcfg = (adapter_config.get('config') or {})
                     adapter_info["realtime_model"] = rcfg.get('realtime_model', 'gpt-realtime')
+                elif adapter_type == 'openai_realtime_translation':
+                    adapter_info["mode"] = "openai_realtime_translation"
+                    rcfg = (adapter_config.get('config') or {})
+                    adapter_info["realtime_model"] = rcfg.get('realtime_model', 'gpt-realtime-translate')
+                    adapter_info["target_language"] = rcfg.get('target_language', 'es')
                 else:
                     # Traditional cascade adapters
                     adapter_info["mode"] = "cascade"

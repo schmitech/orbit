@@ -580,9 +580,12 @@ files:
     prefix: "${ORBIT_S3_PREFIX:-}"                # optional key prefix within the bucket
     region: "${AWS_REGION:-us-east-1}"
     endpoint_url: "${ORBIT_S3_ENDPOINT_URL:-}"    # set for MinIO / S3-compatible stores
-    # Omit the credentials below to use the boto3 default chain (env / instance role / SSO):
-    # access_key_id: "${AWS_ACCESS_KEY_ID:-}"
-    # secret_access_key: "${AWS_SECRET_ACCESS_KEY:-}"
+    # Dedicated IAM user access key (recommended — see utils/scripts/setup_s3_app_user.sh).
+    # Distinct from AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (used by Bedrock) so
+    # file storage doesn't share credentials with other AWS integrations.
+    # Leave both empty to fall back to the boto3 default chain (env / instance role / SSO).
+    access_key_id: "${ORBIT_S3_ACCESS_KEY_ID:-}"
+    secret_access_key: "${ORBIT_S3_SECRET_ACCESS_KEY:-}"
 
   # Azure Blob settings — used when storage_backend is azure. The container must already exist.
   azure:
