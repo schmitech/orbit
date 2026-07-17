@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.9.5] - 2026-07-17
+
+### Core System Updates
+- **Runtime Model Overrides**: Added runtime provider/model overrides for chat and MCP inference, with conversation-history budgets enforced against the selected model.
+- **Voice Translation**: Added an OpenAI Realtime Translation adapter for stateless live voice translation with target-language switching.
+- **S3 Access**: Added dedicated IAM access for S3 file storage so uploads can use long-lived credentials independent of Bedrock access.
+
+### Chat-app & UI Improvements
+- **orbitchat**: Published orbitchat 3.11.11.
+- **Composer UX**: Improved upload-chip and attach-panel behavior, including paste handling, Escape dismissal, and duplicate-chip prevention.
+- **Voice UI**: Added a target-language selector to the realtime translation client and updated the voice client flow.
+
+### Bug Fixes & Technical Improvements
+- **Model Reporting**: Fixed the client-facing model label so chat, image, video, and TTS responses report the actual model that produced them.
+- **Conversation History**: Fixed the conversation history handler test expectation for regenerated messages.
+- **Markdown Preview**: Fixed light-mode markdown preview styling so dark-system preferences no longer force near-white text.
+
+### Documentation & Configuration
+- **Config Updates**: Updated config files, environment examples, and docs to reflect the new S3 access flow and voice translation settings.
+- **Reference Material**: Added the OpenAI Realtime Translation prompt example and refreshed conversation-history documentation for runtime model overrides.
+
 ## [2.9.4] - 2026-07-15
 
 ### Core System Updates
