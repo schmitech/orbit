@@ -5,7 +5,7 @@
 
   # ORBIT
 
-  ## Turn private data and internal tools into an OpenAI-compatible AI API
+  ## Connect private data and internal tools through one OpenAI-compatible API
 
   Connect files, databases, vector stores, models, APIs, and MCP tools. Run locally or in your cloud—with authentication, observability, and governance built in.
 </div>
