@@ -1,9 +1,10 @@
 # AWS S3 File Storage Setup
 
 This guide walks through provisioning an S3 bucket and wiring it into ORBIT so uploaded
-files and generated media are stored in S3 instead of the local filesystem. It assumes
-you already have an AWS identity (SSO session, IAM user, or instance role) and want to
-verify the setup end-to-end before pointing a production adapter at it.
+files and generated media are stored in S3 instead of the local filesystem. It uses a
+dedicated IAM user with a long-lived access key rather than a local AWS SSO session —
+SSO sessions expire, and when they do, ORBIT loses its connection to S3 and uploads start
+failing. An access key scoped to just this bucket avoids that.
 
 For the full storage abstraction (filesystem, S3, MinIO, Azure Blob, GCS) see
 [File Adapter Guide → Storage Backends](../adapters/file-adapter-guide.md#storage-backends).
@@ -13,9 +14,10 @@ For a deeper test matrix across all backends see
 ## Prerequisites
 
 - AWS CLI installed and an active session — either `aws sso login`, a configured IAM
-  user/access key, or an EC2/ECS instance role.
+  user/access key, or an EC2/ECS instance role. This is only needed to *provision* the
+  bucket and the app's IAM user below; ORBIT itself won't use this session.
 - Permission to create and configure an S3 bucket (`s3:CreateBucket`, `s3:PutBucketPublicAccessBlock`)
-  in the target account.
+  and to create IAM users/policies/access keys in the target account.
 - ORBIT installed with the `cloud-services` dependency profile (provides `boto3`). Check with:
   ```bash
   venv/bin/python -c "import boto3; print(boto3.__version__)"
@@ -34,7 +36,9 @@ aws configure get region --profile $AWS_PROFILE
 ```
 
 Note the account ID and region — you'll use the region when creating the bucket and in
-ORBIT's config.
+ORBIT's config. This session is only used for the one-time setup steps below (bucket and
+IAM user creation); ORBIT's own runtime credentials come from the app user created in
+step 3, not from this session.
 
 ---
 
@@ -71,25 +75,32 @@ aws s3api head-bucket --bucket orbit-file-storage-<your-account-id> && echo OK
 
 ---
 
-## 3. Set environment variables
+## 3. Create a dedicated app user and access key
 
-Add to your `.env` (or export in the shell that runs the server):
+Rather than relying on your local AWS SSO session (which expires — and when it does,
+ORBIT loses its connection to S3 and uploads start failing), create a dedicated IAM user
+scoped to just this bucket, with a long-lived access key:
+
+```bash
+export ORBIT_S3_BUCKET=orbit-file-storage-<your-account-id>
+export AWS_REGION=<your-region>
+./utils/scripts/setup_s3_app_user.sh
+```
+
+This creates (or updates) an IAM user `orbit-file-storage-app` with an inline policy
+granting only `s3:GetObject`/`PutObject`/`DeleteObject`/`ListBucket`/`GetBucketLocation`
+on that bucket, rotates its access key, and prints the values to add to `.env`:
 
 ```env
 ORBIT_S3_BUCKET=orbit-file-storage-<your-account-id>
 AWS_REGION=<your-region>
+ORBIT_S3_ACCESS_KEY_ID=<printed by the script>
+ORBIT_S3_SECRET_ACCESS_KEY=<printed by the script>
 # ORBIT_S3_PREFIX=                     # optional key prefix within the bucket
 # ORBIT_S3_ENDPOINT_URL=               # only set for MinIO / S3-compatible stores
 ```
 
-If you're using SSO or an instance role, that's all you need — boto3 picks up credentials
-from the ambient session automatically. Only set `AWS_ACCESS_KEY_ID` /
-`AWS_SECRET_ACCESS_KEY` if you're using static keys (not recommended; prefer SSO or an
-instance role).
-
-```bash
-export AWS_PROFILE=<your-profile>   # if using SSO, so boto3 can find the session
-```
+The secret is only shown once — save it now. Re-run the script any time to rotate the key.
 
 ---
 
@@ -106,9 +117,10 @@ files:
     prefix: "${ORBIT_S3_PREFIX:-}"
     region: "${AWS_REGION:-us-east-1}"
     endpoint_url: "${ORBIT_S3_ENDPOINT_URL:-}"
-    # Omit credentials to use the boto3 default chain (SSO / env / instance role):
-    # access_key_id: "${AWS_ACCESS_KEY_ID:-}"
-    # secret_access_key: "${AWS_SECRET_ACCESS_KEY:-}"
+    # Dedicated app-user access key from setup_s3_app_user.sh. Leave both empty
+    # to fall back to the boto3 default chain (SSO / env / instance role) instead.
+    access_key_id: "${ORBIT_S3_ACCESS_KEY_ID:-}"
+    secret_access_key: "${ORBIT_S3_SECRET_ACCESS_KEY:-}"
 ```
 
 Never inline the bucket name or credentials directly in the YAML — always reference the
@@ -124,9 +136,10 @@ Before starting the full server, exercise the backend in isolation:
 
 ```bash
 cd server
-AWS_PROFILE=<your-profile> \
 ORBIT_S3_BUCKET=orbit-file-storage-<your-account-id> \
 AWS_REGION=<your-region> \
+AWS_ACCESS_KEY_ID=<ORBIT_S3_ACCESS_KEY_ID from .env> \
+AWS_SECRET_ACCESS_KEY=<ORBIT_S3_SECRET_ACCESS_KEY from .env> \
 venv/bin/python -c "
 import asyncio
 from services.file_storage import S3Storage
@@ -174,7 +187,8 @@ For the full upload → download → delete cycle through the API, along with ed
 
 | Error | Cause | Fix |
 |---|---|---|
-| `Unable to locate credentials` | No active AWS session in the shell running ORBIT | `export AWS_PROFILE=<profile>` and confirm with `aws sts get-caller-identity` |
+| `Unable to locate credentials` | `ORBIT_S3_ACCESS_KEY_ID`/`ORBIT_S3_SECRET_ACCESS_KEY` unset and no ambient AWS session/instance role | Run `./utils/scripts/setup_s3_app_user.sh` and add the printed keys to `.env` |
+| Uploads stop working after previously working | Relying on a local AWS SSO session, which expired | Switch to a dedicated app-user access key via `./utils/scripts/setup_s3_app_user.sh` (long-lived, doesn't expire) |
 | `NoSuchBucket` / bucket check fails at startup | Bucket doesn't exist, or region mismatch | Verify with `aws s3api head-bucket --bucket <name>`; check `region` matches where the bucket was created |
 | `Unknown storage_backend` | Typo in `files.storage_backend` | Must be exactly `filesystem`, `s3`, `minio`, `azure`, or `gcs` |
 | Object uploads under a garbled/bytes-looking key | `put_file` called with `(key, data)` instead of `(data, key)` | Check argument order: `put_file(file_data, key, metadata)` |

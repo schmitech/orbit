@@ -366,12 +366,17 @@ is transparent to existing deployments, and no cloud SDK is required.
 
 ### S8. Credential resolution
 
-- **Explicit keys:** set `access_key_id`/`secret_access_key` in the `s3` block
-  (via env). Round-trip works.
-- **Default chain:** comment them out; rely on `AWS_PROFILE` / instance role.
-  Round-trip still works.
-- **Wrong credentials:** set a bad `AWS_SECRET_ACCESS_KEY`. Confirm ORBIT fails
-  fast at startup (the `head_bucket` access check fails), not on first upload.
+- **Explicit keys (recommended):** set `ORBIT_S3_ACCESS_KEY_ID`/
+  `ORBIT_S3_SECRET_ACCESS_KEY` (e.g. via `utils/scripts/setup_s3_app_user.sh`, see
+  `docs/aws/s3-file-storage-setup.md`) — a long-lived key scoped to just the
+  bucket, so a locally expiring SSO session never breaks uploads. Round-trip
+  works.
+- **Default chain:** leave `access_key_id`/`secret_access_key` empty; rely on
+  `AWS_PROFILE` / instance role. Round-trip still works, but an SSO session
+  will eventually expire and uploads will start failing until it's refreshed.
+- **Wrong credentials:** set a bad `ORBIT_S3_SECRET_ACCESS_KEY`. Confirm ORBIT
+  fails fast at startup (the `head_bucket` access check fails), not on first
+  upload.
 
 ### S9. Generated media also persists to the cloud
 
