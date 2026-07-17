@@ -31,31 +31,43 @@ adapters:
       - name: "mistral"
         provider: "mistral"
         model: "mistral-small-2603"
+        context_window: 32768
+        max_tokens: 1024
       - name: "minimax-m3"
         provider: "ollama_cloud"
         model: "minimax-m3"
+        context_window: 1000000
+        max_tokens: 128000
       - name: "grok-4.3"
         provider: "xai"
         model: "grok-4.3"
+        context_window: 1000000
+        max_tokens: 16000
       - name: "openai"
         provider: "openai"
         model: "gpt-5.4-mini"
+        context_window: 400000
+        max_tokens: 128000
       - name: "gpt-oss-120b"
         provider: "ollama_cloud"
         model: "gpt-oss:20b"
+        context_window: 131072
+        max_tokens: 32768
       - name: "claude"
         provider: "anthropic"
         model: "claude-sonnet-4-5-20250929"
         context_window: 1000000  # e.g. Claude's extended-context variant
+        max_tokens: 64000
       - name: "gemini"
         provider: "gemini"
         model: "gemini-3.1-pro-preview"
-      - name: "fugu"
-        provider: "fugu"
-        model: "fugu"
+        context_window: 1048576
+        max_tokens: 65536
       - name: "nemotron-3-ultra"
         provider: "openrouter"
         model: "nvidia/nemotron-3-ultra-550b-a55b"
+        context_window: 1048576
+        max_tokens: 65536
 
     # Capabilities: Pure passthrough - no retrieval
     capabilities:

@@ -23,7 +23,7 @@ from models.schema import (
     SkillsResponse,
 )
 from routes.auth_helpers import check_service_availability
-from utils import is_true_value
+from utils import is_true_value, resolve_generation_provider_and_model
 
 logger = logging.getLogger(__name__)
 
@@ -176,15 +176,24 @@ async def list_adapter_models(
             "models": models,
         }
 
-    inference_provider = adapter_config.get('inference_provider')
     config = getattr(request.app.state, 'config', {})
-    default_provider = config.get('general', {}).get('inference_provider', 'default')
-    provider = inference_provider or default_provider
-    model = adapter_config.get('model', '')
 
-    if not model:
-        inference_cfg = config.get('inference', {}).get(provider, {})
-        model = inference_cfg.get('model', '')
+    # Image/video/audio generation adapters don't run a text LLM — the response
+    # comes from the image/video/TTS provider declared via image_provider/
+    # video_provider/tts_provider, resolved against image.yaml/video.yaml/tts.yaml.
+    generation_provider, generation_model = resolve_generation_provider_and_model(adapter_config, config)
+    if generation_model:
+        provider = generation_provider
+        model = generation_model
+    else:
+        inference_provider = adapter_config.get('inference_provider')
+        default_provider = config.get('general', {}).get('inference_provider', 'default')
+        provider = inference_provider or default_provider
+        model = adapter_config.get('model', '')
+
+        if not model:
+            inference_cfg = config.get('inference', {}).get(provider, {})
+            model = inference_cfg.get('model', '')
 
     safe_model = model.replace('/', '-').replace(':', '-') if model else ''
     default_entry = {

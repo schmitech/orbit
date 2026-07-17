@@ -17,6 +17,7 @@ from typing import Dict, Any, Optional, Union
 from io import BytesIO
 import asyncio
 import logging
+import os
 import wave
 
 from ...services import AudioService
@@ -36,6 +37,7 @@ _global_tts_model = None
 _global_tts_model_dir = None
 
 SAMPLE_RATE = 44100  # Supertonic always outputs 44.1 kHz
+DEFAULT_MODEL_NAME = "supertonic"  # Reported when no local model_dir is configured (auto-download)
 
 
 class SupertonicAudioService(AudioService):
@@ -58,6 +60,11 @@ class SupertonicAudioService(AudioService):
         provider_config = self._extract_provider_config()
 
         self.model_dir: Optional[str] = provider_config.get("model_dir", None)
+        # Supertonic has no separate model-name setting — identify it by the local
+        # directory it was downloaded to (matches the `hf download` setup instructions).
+        self.model: str = (
+            os.path.basename(str(self.model_dir).rstrip("/\\")) if self.model_dir else DEFAULT_MODEL_NAME
+        ) or DEFAULT_MODEL_NAME
         self.tts_voice: str = provider_config.get("tts_voice", "F1")
         self.tts_language: str = provider_config.get("tts_language", "en")
         self.tts_format: str = provider_config.get("tts_format", "wav")

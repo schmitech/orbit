@@ -325,6 +325,14 @@ async function _runStreamIntoMessage(
           }));
         }
 
+        if (response.model) {
+          set((state: ExtendedChatState) =>
+            updateLastAssistantMessage(state, conversationId, () => ({
+              model: response.model,
+            }), assistantMessageId)
+          );
+        }
+
         break;
       }
     }
@@ -1140,6 +1148,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                   };
                 }),
               }));
+            }
+
+            if (response.model) {
+              set(state =>
+                updateLastAssistantMessage(state, streamingConversationId!, () => ({
+                  model: response.model,
+                }), assistantMessageId)
+              );
             }
 
             break;

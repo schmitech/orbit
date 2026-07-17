@@ -343,6 +343,7 @@ class ResponseProcessor:
         assistant_message_id: Optional[str] = None,
         session_id: Optional[str] = None,
         adapter_name: Optional[str] = None,
+        model: Optional[str] = None,
         image: Optional[str] = None,
         image_format: Optional[str] = None,
         image_revised_prompt: Optional[str] = None,
@@ -389,6 +390,11 @@ class ResponseProcessor:
         # Always include assistant message ID for feedback support
         if assistant_message_id:
             result["assistant_message_id"] = assistant_message_id
+
+        # Report the model that actually produced the response (text LLM, image/video/TTS
+        # generation model, etc.) so clients can display it rather than the adapter's static config.
+        if model:
+            result["model"] = model
 
         # Add threading metadata if adapter supports it and has meaningful results
         # Only enable threading when there are actual sources/results to thread on

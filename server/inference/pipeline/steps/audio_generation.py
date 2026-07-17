@@ -64,6 +64,10 @@ class AudioGenerationStep(PipelineStep):
             context.generated_audio_format = self._resolve_format(context)
             context.generated_audio_revised_prompt = text
             context.response = text
+            # Report the TTS model as the model that produced the response —
+            # not the rewrite LLM used to resolve the text to speak above.
+            context.runtime_provider = self._resolve_provider(context, self.container.get_or_none('config') or {})
+            context.runtime_model_name = getattr(audio_service, "tts_model", None) or getattr(audio_service, "model", None)
         except Exception as e:
             logger.error(f"Audio generation failed: {e}", exc_info=True)
             context.set_error(f"Audio generation failed: {e}")

@@ -20,6 +20,7 @@ import threading
 import hashlib
 
 from utils.text_utils import mask_api_key
+from utils.generation_model_resolver import resolve_generation_model
 from services.database_service import DatabaseService
 from adapters.capabilities import AdapterCapabilities
 
@@ -408,9 +409,20 @@ class ApiKeyService:
             "notes": key_doc.get("notes")  # Include notes from API key record
         }
 
-        # Get model - check adapter config first, then fall back to global inference config
-        model = adapter_config.get('model')
         debug_enabled = logger.isEnabledFor(logging.DEBUG)
+
+        # Image/video/audio generation adapters don't run a text LLM — the response
+        # comes from the image/video/TTS provider declared via image_provider/
+        # video_provider/tts_provider, resolved against image.yaml/video.yaml/tts.yaml.
+        model = resolve_generation_model(adapter_config, active_config)
+
+        if debug_enabled and model:
+            masked_key = mask_api_key(api_key)
+            logger.debug(f"get_adapter_info for {masked_key}: resolved generation model = {model}")
+
+        # Get model - check adapter config first, then fall back to global inference config
+        if not model:
+            model = adapter_config.get('model')
 
         if debug_enabled:
             masked_key = mask_api_key(api_key)

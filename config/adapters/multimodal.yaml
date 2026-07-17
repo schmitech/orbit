@@ -23,30 +23,48 @@ adapters:
       - name: "minimax-m3"
         provider: "openrouter"
         model: "minimax/minimax-m3"
+        context_window: 1000000
+        max_tokens: 128000
       - name: "deepseek"
         provider: "deepseek"
         model: "deepseek-chat"
+        context_window: 65536
+        max_tokens: 8000
       - name: "cohere"
         provider: "cohere"
         model: "command-a-03-2025"
+        context_window: 256000
+        max_tokens: 8000
       - name: "grok-4.3"
         provider: "xai"
         model: "grok-4.3"
+        context_window: 1000000
+        max_tokens: 16000
       - name: "gemma4-e2b"
         provider: "ollama"
         model: "gemma4-e2b-cpu"
+        context_window: 8192
+        max_tokens: 2048
       - name: "gpt-oss-120b"
         provider: "openrouter"
         model: "openai/gpt-oss-120b:free"
+        context_window: 131072
+        max_tokens: 32768
       - name: "claude"
         provider: "anthropic"
         model: "claude-sonnet-4-5-20250929"
+        context_window: 1000000
+        max_tokens: 64000
       - name: "gemini"
         provider: "gemini"
         model: "gemini-3.1-pro-preview"
+        context_window: 1048576
+        max_tokens: 65536
       - name: "nemotron-3-ultra"
         provider: "openrouter"
         model: "nvidia/nemotron-3-ultra-550b-a55b"
+        context_window: 1048576
+        max_tokens: 65536
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
       retrieval_behavior: "conditional"  # Only retrieves when file_ids are present

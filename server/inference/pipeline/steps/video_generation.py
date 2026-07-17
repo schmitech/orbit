@@ -75,6 +75,10 @@ class VideoGenerationStep(PipelineStep):
             context.video_format = result.get("format", "mp4")
             context.video_revised_prompt = result.get("revised_prompt") or prompt
             context.response = context.video_revised_prompt
+            # Report the video model as the model that produced the response —
+            # not the rewrite LLM used to refine the prompt above.
+            context.runtime_provider = self._resolve_provider(context, self.container.get_or_none('config') or {})
+            context.runtime_model_name = getattr(video_service, "model", None)
             await store_generation_memory(
                 self.container, context.adapter_name, context.session_id,
                 {"prompt": context.video_revised_prompt},

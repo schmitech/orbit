@@ -52,6 +52,7 @@ export interface StreamResponse {
   generated_audio_url?: string;  // Persistent server-side URL for generated (TTS-skill) audio
   generated_audio_format?: string;  // Generated audio format (mp3, wav, etc.)
   generated_audio_revised_prompt?: string;  // Text that was spoken
+  model?: string;  // Actual model that produced the response (text LLM, image/video/TTS model, etc.)
   assistant_message_id?: string;  // Database message ID for feedback
   threading?: {  // Optional threading metadata
     supports_threading: boolean;
@@ -66,6 +67,7 @@ export interface ChatResponse {
   sources?: any[];
   audio?: string;  // Optional base64-encoded audio data (TTS response)
   audio_format?: string;  // Audio format (mp3, wav, etc.)
+  model?: string;  // Actual model that produced the response
 }
 
 // Thread-related interfaces
@@ -1469,7 +1471,8 @@ export class ApiClient {
             text: data.response,
             done: true,
             audio: data.audio,
-            audioFormat: data.audio_format
+            audioFormat: data.audio_format,
+            model: data.model
           } as StreamResponse & { audio?: string; audioFormat?: string };
         }
         return;
@@ -1556,6 +1559,7 @@ export class ApiClient {
                       generated_audio_url: data.generated_audio_url,
                       generated_audio_format: data.generated_audio_format,
                       generated_audio_revised_prompt: data.generated_audio_revised_prompt,
+                      model: data.model,
                       assistant_message_id: data.assistant_message_id,
                       threading: data.threading
                     };

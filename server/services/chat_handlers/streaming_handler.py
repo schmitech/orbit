@@ -569,6 +569,7 @@ class StreamingHandler:
         audio_format_str: Optional[str] = None,
         threading_metadata: Optional[Dict[str, Any]] = None,
         assistant_message_id: Optional[str] = None,
+        model: Optional[str] = None,
         image: Optional[str] = None,
         image_format: Optional[str] = None,
         image_revised_prompt: Optional[str] = None,
@@ -606,6 +607,10 @@ class StreamingHandler:
         # Include assistant message ID for feedback support
         if assistant_message_id:
             done_chunk["assistant_message_id"] = assistant_message_id
+
+        # Report the model that actually produced the response.
+        if model:
+            done_chunk["model"] = model
 
         # Include threading metadata if available
         if threading_metadata:
