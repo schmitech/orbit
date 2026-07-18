@@ -283,10 +283,12 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
     setClearAllConfirmation((prev) => ({ ...prev, isDeleting: true }));
     try {
       await deleteAllConversations();
+      setClearAllConfirmation({ isOpen: false, isDeleting: false });
+      onRequestClose?.();
     } catch (error) {
       debugError('Failed to clear all conversations:', error);
+      setClearAllConfirmation((prev) => ({ ...prev, isDeleting: false }));
     }
-    setClearAllConfirmation({ isOpen: false, isDeleting: false });
   };
 
   const cancelClearAll = () => {
@@ -330,28 +332,12 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
         className={`group relative flex w-full cursor-pointer items-center overflow-hidden rounded-xl border px-3 py-2 text-left text-sm transition-all duration-150
           ${
             isActive
-              ? 'border-slate-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(248,250,252,0.94))] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_2px_10px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(50,52,65,0.95),rgba(38,39,49,0.92))] dark:shadow-[0_2px_16px_rgba(0,0,0,0.32)]'
+              ? 'border-sky-400/80 bg-sky-50/70 shadow-[0_0_0_1px_rgba(14,165,233,0.08),0_4px_14px_rgba(15,23,42,0.06)] dark:border-sky-400/45 dark:bg-sky-950/30 dark:shadow-[0_0_0_1px_rgba(56,189,248,0.07),0_6px_18px_rgba(0,0,0,0.28)]'
               : 'border-transparent hover:border-slate-200/60 hover:bg-slate-50 dark:hover:border-white/[0.05] dark:hover:bg-[#212228]'
           } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 dark:focus-visible:ring-sky-400/40`}
         aria-current={isActive ? 'true' : undefined}
         aria-label={t('sidebar.conversationCard.openAriaLabel', { title: displayTitle })}
       >
-        {/* Top sheen — matches the glassy surface used on the search field */}
-        {isActive && (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.4),rgba(255,255,255,0))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0))]"
-          />
-        )}
-
-        {/* Active-conversation rail — marks which thread you're in, clipped flush to the card's rounded edge */}
-        <span
-          aria-hidden="true"
-          className={`absolute inset-y-0 left-0 w-[3px] transition-opacity duration-150 ${
-            isActive ? 'bg-sky-500 opacity-100 dark:bg-sky-400' : 'opacity-0'
-          }`}
-        />
-
         {editingId === conversation.id ? (
           <input
             type="text"

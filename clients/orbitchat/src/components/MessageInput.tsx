@@ -1508,16 +1508,17 @@ export function MessageInput({
           {/* Autocomplete suggestions are rendered below the form */}
 
           <form onSubmit={handleSubmit} className="flex w-full flex-col gap-2 md:gap-3">
-          {/* Single-row layout: textarea + action buttons inline on all viewports */}
+          {/* Mobile uses a stacked composer so the model picker never squeezes
+              the textarea. Desktop keeps the compact single-row layout. */}
           <div
-            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5 md:flex md:flex-row md:flex-nowrap md:gap-2 rounded-xl md:rounded-lg border px-2.5 py-1.5 md:px-4 md:py-3 shadow-sm transition-all ${
+            className={`grid grid-cols-1 items-center gap-2 md:flex md:flex-row md:flex-nowrap md:gap-2 rounded-xl md:rounded-lg border px-2.5 py-2 md:px-4 md:py-3 shadow-sm transition-all ${
               isFocused
                 ? 'border-gray-400 shadow-md dark:border-[#3a3a3a] dark:shadow-lg'
                 : 'border-gray-300 dark:border-[#242424]'
             } bg-gray-50 dark:bg-[#111111]`}
           >
-          {selectedSkill && (
-            <div className="col-span-2 flex w-full shrink-0 basis-full md:contents">
+          <div className="col-span-full flex w-full shrink-0 basis-full items-center justify-between gap-2 md:contents">
+            {selectedSkill && (
               <div className="flex h-8 max-w-[45%] shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200 sm:max-w-[38%] md:self-center md:max-w-[32%]">
                 <Sparkles className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
                 <span className="min-w-0 truncate font-medium capitalize">
@@ -1535,19 +1536,17 @@ export function MessageInput({
                   <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Skills hint — shown only when the adapter exposes skills, none is
-              selected yet, and the input is empty. Signals the "/" trigger and
-              opens the picker on click (also covers mobile, where typing "/" is
-              not obvious). */}
-          {!selectedSkill && skills.length > 0 && message.length === 0 && !isInputDisabled && (
-            <div className="col-span-2 flex w-full shrink-0 basis-full md:contents">
+            {/* Keep the Skills affordance visible whenever the adapter exposes
+                skills. Disable it while a draft exists (opening it would replace
+                the draft with "/") or while the composer is unavailable. */}
+            {!selectedSkill && skills.length > 0 && (
               <button
                 type="button"
                 onClick={openSkillPicker}
-                className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600 md:self-center"
+                disabled={message.length > 0 || isInputDisabled}
+                className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white disabled:hover:text-gray-600 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600 dark:disabled:hover:bg-[#1a1a1a] dark:disabled:hover:text-gray-300 md:self-center"
                 aria-label={t('messageInput.skillsHint.ariaLabel')}
                 title={t('messageInput.skillsHint.title')}
               >
@@ -1559,8 +1558,19 @@ export function MessageInput({
                 </span>
                 {t('messageInput.skillsHint.text')}
               </button>
-            </div>
-          )}
+            )}
+
+            {/* On mobile, capability selectors share the top row so the
+                textarea and bottom action bar stay spacious. */}
+            <ModelPickerButton
+              availableModels={availableModels}
+              defaultModel={defaultModel}
+              selectedModel={selectedModel}
+              onSelect={(name) => onSelectModel?.(name)}
+              wrapperClassName="relative ml-auto block md:hidden"
+              maxWidthClass="max-w-[150px]"
+            />
+          </div>
 
           {/* Textarea row */}
           <div className="relative flex-1 w-full min-w-0 md:translate-y-0.5">
@@ -1637,7 +1647,7 @@ export function MessageInput({
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center justify-end gap-1 md:gap-2 flex-shrink-0">
+          <div className="flex w-full flex-shrink-0 items-center justify-between gap-2 md:w-auto md:justify-end">
             <div className="flex items-center gap-1 md:gap-2">
               {isCentered && !uploadFeatureEnabled && (
                 <div className="hidden md:block h-8 w-8 shrink-0" aria-hidden="true" />
@@ -1701,8 +1711,8 @@ export function MessageInput({
                 defaultModel={defaultModel}
                 selectedModel={selectedModel}
                 onSelect={(name) => onSelectModel?.(name)}
-                wrapperClassName="relative block"
-                maxWidthClass="max-w-[150px] md:max-w-[220px]"
+                wrapperClassName="relative hidden md:block"
+                maxWidthClass="max-w-[220px]"
               />
               {(audioOutputEnabled || audioInputEnabled) && (
                 <>

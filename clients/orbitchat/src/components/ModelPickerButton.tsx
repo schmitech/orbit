@@ -40,7 +40,7 @@ export function ModelPickerButton({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
-  const [dropdownPos, setDropdownPos] = useState<{ bottom: number; right: number } | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ bottom: number; left: number } | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -65,9 +65,14 @@ export function ModelPickerButton({
   const recalcPos = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
+    const menuWidth = Math.min(352, window.innerWidth - 24);
+    const rightAlignedLeft = rect.right - menuWidth;
     setDropdownPos({
       bottom: window.innerHeight - rect.top + 10,
-      right: Math.max(12, window.innerWidth - rect.right),
+      left: Math.min(
+        window.innerWidth - menuWidth - 12,
+        Math.max(12, rightAlignedLeft)
+      ),
     });
   }, []);
 
@@ -159,7 +164,7 @@ export function ModelPickerButton({
           style={{
             position: 'fixed',
             bottom: dropdownPos.bottom,
-            right: dropdownPos.right,
+            left: dropdownPos.left,
             width: 'min(352px, calc(100vw - 24px))',
             zIndex: 9999,
           }}
@@ -281,13 +286,8 @@ export function ModelPickerButton({
     : null;
 
   const label = (
-    <span className="min-w-0 flex-1 text-left leading-none">
-      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">
-        {t('modelPicker.modelLabel')}
-      </span>
-      <span className="block truncate text-xs font-semibold text-gray-800 dark:text-gray-200">
-        {effectiveModel ?? t('modelPicker.selectModel')}
-      </span>
+    <span className="min-w-0 flex-1 truncate text-left text-xs font-medium text-gray-800 dark:text-gray-200">
+      {effectiveModel ?? t('modelPicker.selectModel')}
     </span>
   );
 
@@ -299,7 +299,7 @@ export function ModelPickerButton({
             ref={triggerRef}
             type="button"
             onClick={toggleDropdown}
-            className={`group inline-flex min-w-[124px] ${maxWidthClass} items-center gap-2 rounded-xl border border-gray-200 bg-white/80 ${triggerPaddingClass} shadow-sm transition-all motion-reduce:transition-none hover:border-gray-300 hover:bg-white hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/20 dark:hover:bg-white/[0.08] dark:focus-visible:ring-white/20`}
+            className={`group inline-flex h-8 min-w-[124px] ${maxWidthClass} items-center gap-2 rounded-full border border-gray-200 bg-white/80 ${triggerPaddingClass} shadow-sm transition-all motion-reduce:transition-none hover:border-gray-300 hover:bg-white hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/20 dark:hover:bg-white/[0.08] dark:focus-visible:ring-white/20`}
             aria-haspopup="listbox"
             aria-expanded={open}
             aria-controls={open ? listboxId : undefined}
@@ -315,7 +315,7 @@ export function ModelPickerButton({
         </>
       ) : (
         <div
-          className={`inline-flex min-w-[124px] ${maxWidthClass} items-center gap-2 rounded-xl border border-gray-200 bg-white/60 ${staticPaddingClass} shadow-sm dark:border-white/10 dark:bg-white/[0.04]`}
+          className={`inline-flex h-8 min-w-[124px] ${maxWidthClass} items-center gap-2 rounded-full border border-gray-200 bg-white/60 ${staticPaddingClass} shadow-sm dark:border-white/10 dark:bg-white/[0.04]`}
           title={effectiveModel ?? undefined}
         >
           {label}

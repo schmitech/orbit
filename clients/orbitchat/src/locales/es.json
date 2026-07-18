@@ -404,7 +404,6 @@
     }
   },
   "modelPicker": {
-    "modelLabel": "Modelo",
     "chooseModel": "Elige un modelo",
     "chooseModelHint": "Selecciona el modelo para la próxima respuesta",
     "searchPlaceholder": "Buscar modelos…",

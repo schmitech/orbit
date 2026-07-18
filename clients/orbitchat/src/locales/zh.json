@@ -404,7 +404,6 @@
     }
   },
   "modelPicker": {
-    "modelLabel": "模型",
     "chooseModel": "选择模型",
     "chooseModelHint": "选择用于下一条回复的模型",
     "searchPlaceholder": "搜索模型…",

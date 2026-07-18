@@ -404,7 +404,6 @@
     }
   },
   "modelPicker": {
-    "modelLabel": "モデル",
     "chooseModel": "モデルを選択",
     "chooseModelHint": "次の回答に使用するモデルを選択してください",
     "searchPlaceholder": "モデルを検索…",
