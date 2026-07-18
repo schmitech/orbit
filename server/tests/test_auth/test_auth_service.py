@@ -477,6 +477,82 @@ async def test_get_user_by_id_invalid_objectid(auth_service: AuthService):
         user = await auth_service.get_user_by_id(invalid_id)
         assert user is None, f"Should return None for invalid ID: {invalid_id}"
 
+async def test_create_user_defaults_roles_to_single_role_list(auth_service: AuthService):
+    """A user created without an explicit roles list gets roles=[role]."""
+    username = f"defaultroles_{time.time_ns()}"
+    user_id = await auth_service.create_user(username, 'testpass123', role='user')
+    assert user_id is not None
+
+    success, _, user_info = await auth_service.authenticate_user(username, 'testpass123')
+    assert success
+    assert user_info['roles'] == ['user']
+    assert user_info['permissions'] == []
+
+    await auth_service.delete_user(user_id)
+
+
+async def test_create_user_with_multiple_roles(auth_service: AuthService):
+    """Roles passed explicitly are stored verbatim and their permissions unioned."""
+    username = f"multirole_{time.time_ns()}"
+    user_id = await auth_service.create_user(username, 'testpass123', roles=['operator', 'auditor'])
+    assert user_id is not None
+
+    success, _, user_info = await auth_service.authenticate_user(username, 'testpass123')
+    assert success
+    assert set(user_info['roles']) == {'operator', 'auditor'}
+    assert 'config.manage' in user_info['permissions']
+    assert 'conversations.read' not in user_info['permissions']
+
+    await auth_service.delete_user(user_id)
+
+
+async def test_create_user_rejects_invalid_role(auth_service: AuthService):
+    username = f"badrole_{time.time_ns()}"
+    user_id = await auth_service.create_user(username, 'testpass123', role='superadmin')
+    assert user_id is None
+
+
+async def test_set_roles_rejects_invalid_role(auth_service: AuthService, new_user):
+    result = await auth_service.set_roles(new_user['id'], ['not-a-real-role'])
+    assert result is False
+
+
+async def test_set_roles_updates_both_role_and_roles(auth_service: AuthService, new_user):
+    result = await auth_service.set_roles(new_user['id'], ['operator', 'analyst'])
+    assert result is True
+
+    success, _, user_info = await auth_service.authenticate_user(new_user['username'], new_user['password'])
+    assert success
+    assert user_info['role'] == 'operator'
+    assert set(user_info['roles']) == {'operator', 'analyst'}
+
+
+async def test_backfill_roles_for_legacy_user(auth_service: AuthService, database_service):
+    """A user row written before multi-role support (role only, no roles) should
+    be backfilled to roles=[role] by AuthService._backfill_roles()."""
+    username = f"legacyuser_{time.time_ns()}"
+    from datetime import datetime, UTC
+    legacy_doc = {
+        "username": username,
+        "password": auth_service._hash_and_encode("testpass123"),
+        "role": "admin",
+        "active": True,
+        "created_at": datetime.now(UTC),
+        "last_login": None,
+    }
+    user_id = await database_service.insert_one(auth_service.users_collection_name, legacy_doc)
+
+    await auth_service._backfill_roles()
+
+    success, _, user_info = await auth_service.authenticate_user(username, "testpass123")
+    assert success
+    assert user_info['roles'] == ['admin']
+    assert 'config.manage' in user_info['permissions']
+    assert 'conversations.read' in user_info['permissions']
+
+    await auth_service.delete_user(user_id)
+
+
 def test_auth_service():
     """Run all authentication service tests"""
     logger.info("Starting Authentication Service tests...")

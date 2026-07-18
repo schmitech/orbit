@@ -35,7 +35,7 @@ class UserListCommand(BaseCommand):
         return "List all users"
     
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument('--role', choices=['user', 'admin'], help='Filter by role')
+        parser.add_argument('--role', help='Filter by role')
         parser.add_argument('--active-only', action='store_true', help='Show only active users')
         parser.add_argument('--limit', type=int, default=100, help='Maximum number of users to return')
         parser.add_argument('--offset', type=int, default=0, help='Number of users to skip for pagination')
@@ -51,7 +51,7 @@ class UserListCommand(BaseCommand):
             self.formatter.format_json(result)
         else:
             if result:
-                headers = ['ID', 'Username', 'Role', 'Active', 'Created']
+                headers = ['ID', 'Username', 'Roles', 'Active', 'Created']
                 data = []
                 for user in result:
                     created_at = user.get('created_at', 'N/A')
@@ -60,10 +60,11 @@ class UserListCommand(BaseCommand):
                     elif isinstance(created_at, str):
                         created_at = created_at[:10]
                     
+                    roles = user.get('roles') or [user.get('role', 'N/A')]
                     data.append({
                         'ID': (user.get('_id') or user.get('id', 'N/A'))[:12] + '...',
                         'Username': user.get('username', 'N/A'),
-                        'Role': user.get('role', 'N/A'),
+                        'Roles': ', '.join(roles),
                         'Active': '✓' if user.get('active', True) else '✗',
                         'Created': created_at
                     })
@@ -212,6 +213,72 @@ class UserActivateCommand(BaseCommand):
             self.formatter.format_json(result)
         else:
             self.formatter.success("User activated successfully")
+        return 0
+
+
+class UserRolesCommand(BaseCommand):
+    """Command to list all registered roles."""
+
+    def __init__(self, api_service: ApiService, formatter: OutputFormatter):
+        self.api_service = api_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "user roles"
+
+    @property
+    def description(self) -> str:
+        return "List all registered roles"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        pass
+
+    def execute(self, args: argparse.Namespace) -> int:
+        result = self.api_service.list_roles()
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            for role in result:
+                console.print(f"- {role}")
+        return 0
+
+
+class UserSetRolesCommand(BaseCommand):
+    """Command to replace a user's role assignment."""
+
+    def __init__(self, api_service: ApiService, formatter: OutputFormatter):
+        self.api_service = api_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "user set-roles"
+
+    @property
+    def description(self) -> str:
+        return "Replace a user's assigned roles"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        set_roles_group = parser.add_mutually_exclusive_group(required=True)
+        set_roles_group.add_argument('--user-id', help='User ID')
+        set_roles_group.add_argument('--username', help='Username')
+        parser.add_argument(
+            '--roles', required=True,
+            help="Comma-separated list of roles, e.g. 'operator,auditor'"
+        )
+
+    def execute(self, args: argparse.Namespace) -> int:
+        user_id = args.user_id
+        if args.username:
+            user_id = self.api_service.find_user_id_by_username(args.username)
+
+        roles = [r.strip() for r in args.roles.split(',') if r.strip()]
+        result = self.api_service.set_user_roles(user_id, roles)
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success(f"Roles updated: {', '.join(roles)}")
         return 0
 
 

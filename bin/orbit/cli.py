@@ -41,7 +41,8 @@ from bin.orbit.commands.prompts import (
 )
 from bin.orbit.commands.users import (
     UserListCommand, UserResetPasswordCommand, UserDeleteCommand,
-    UserDeactivateCommand, UserActivateCommand, UserChangePasswordCommand
+    UserDeactivateCommand, UserActivateCommand, UserChangePasswordCommand,
+    UserRolesCommand, UserSetRolesCommand
 )
 from bin.orbit.commands.config import (
     ConfigShowCommand, ConfigEffectiveCommand, ConfigSetCommand, ConfigResetCommand
@@ -448,7 +449,19 @@ Report issues at: https://github.com/schmitech/orbit/issues
         change_password_cmd = UserChangePasswordCommand(self._get_api_service(), self.formatter)
         change_password_cmd.add_arguments(change_password_parser)
         change_password_parser.set_defaults(func=lambda args, cmd=change_password_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
-    
+
+        # Roles command
+        roles_parser = user_subparsers.add_parser('roles', help='List all registered roles')
+        roles_cmd = UserRolesCommand(self._get_api_service(), self.formatter)
+        roles_cmd.add_arguments(roles_parser)
+        roles_parser.set_defaults(func=lambda args, cmd=roles_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
+        # Set-roles command
+        set_roles_parser = user_subparsers.add_parser('set-roles', help="Replace a user's assigned roles")
+        set_roles_cmd = UserSetRolesCommand(self._get_api_service(), self.formatter)
+        set_roles_cmd.add_arguments(set_roles_parser)
+        set_roles_parser.set_defaults(func=lambda args, cmd=set_roles_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
     def _add_config_commands(self, subparsers):
         """Add configuration commands."""
         config_parser = subparsers.add_parser('config', help='Manage CLI configuration')

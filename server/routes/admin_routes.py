@@ -31,7 +31,7 @@ from config.config_manager import reload_adapters_config
 from utils.text_utils import mask_api_key
 
 # Import auth dependencies
-from routes.auth_dependencies import check_admin_or_api_key, require_admin
+from routes.auth_dependencies import permission_or_api_key, require_permission
 from routes.auth_helpers import check_service_availability
 
 # Initialize logger
@@ -159,16 +159,21 @@ def _tail_file(path: Path, n: int) -> list:
         return text.splitlines()[-n:]
 
 
-async def admin_auth_check(
-    request: Request,
-    authorized: bool = Depends(check_admin_or_api_key)
-):
-    """Check if the request is authorized via admin auth or API key."""
-    return authorized
+# Per-resource-group authorization: bearer token holding the permission, or a
+# valid X-API-Key for programmatic/automation access. Conversation content is
+# bearer-only (require_permission) so a leaked API key cannot read transcripts.
+apikeys_auth = Depends(permission_or_api_key("apikeys.manage"))
+adapters_auth = Depends(permission_or_api_key("adapters.manage"))
+prompts_auth = Depends(permission_or_api_key("prompts.manage"))
+config_auth = Depends(permission_or_api_key("config.manage"))
+system_auth = Depends(permission_or_api_key("system.manage"))
+logs_auth = Depends(permission_or_api_key("logs.read"))
+audit_auth = Depends(permission_or_api_key("audit.read"))
+conversations_auth = Depends(require_permission("conversations.read"))
 
 
 # API Key Management Routes
-@admin_router.post("/api-keys", response_model=ApiKeyResponse, dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/api-keys", response_model=ApiKeyResponse, dependencies=[apikeys_auth])
 async def create_api_key(
     api_key_data: ApiKeyCreate,
     request: Request,
@@ -226,7 +231,7 @@ async def create_api_key(
     return api_key_response
 
 
-@admin_router.get("/api-keys", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/api-keys", dependencies=[apikeys_auth])
 async def list_api_keys(
     request: Request,
     adapter: Optional[str] = None,
@@ -315,7 +320,7 @@ async def list_api_keys(
         raise HTTPException(status_code=500, detail="Failed to list API keys")
 
 
-@admin_router.get("/api-keys/{api_key_id}/detail", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/api-keys/{api_key_id}/detail", dependencies=[apikeys_auth])
 async def get_api_key_detail(
     api_key_id: str,
     request: Request,
@@ -368,7 +373,7 @@ async def get_api_key_detail(
         raise HTTPException(status_code=500, detail="Failed to retrieve API key detail")
 
 
-@admin_router.get("/api-keys/{api_key_id}/status", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/api-keys/{api_key_id}/status", dependencies=[apikeys_auth])
 async def get_api_key_status(
     api_key_id: str,
     request: Request,
@@ -389,7 +394,7 @@ async def get_api_key_status(
     return status
 
 
-@admin_router.patch("/api-keys/{api_key_id}/rename", dependencies=[Depends(admin_auth_check)])
+@admin_router.patch("/api-keys/{api_key_id}/rename", dependencies=[apikeys_auth])
 async def rename_api_key(
     api_key_id: str,
     new_api_key: str = Query(..., min_length=8, description="New API key value"),
@@ -415,7 +420,7 @@ async def rename_api_key(
     return {"status": "success", "message": "API key renamed successfully", "new_api_key_masked": masked_new}
 
 
-@admin_router.put("/api-keys/{api_key_id}", dependencies=[Depends(admin_auth_check)])
+@admin_router.put("/api-keys/{api_key_id}", dependencies=[apikeys_auth])
 async def update_api_key(
     api_key_id: str,
     data: ApiKeyUpdate,
@@ -443,7 +448,7 @@ async def update_api_key(
     return {"status": "success", "message": "API key updated successfully"}
 
 
-@admin_router.post("/api-keys/{api_key_id}/deactivate", dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/api-keys/{api_key_id}/deactivate", dependencies=[apikeys_auth])
 async def deactivate_api_key(
     api_key_id: str,
     api_key_service = Depends(get_api_key_service),
@@ -458,7 +463,7 @@ async def deactivate_api_key(
     return {"status": "success", "message": "API key deactivated"}
 
 
-@admin_router.delete("/api-keys/{api_key_id}", dependencies=[Depends(admin_auth_check)])
+@admin_router.delete("/api-keys/{api_key_id}", dependencies=[apikeys_auth])
 async def delete_api_key(
     api_key_id: str,
     api_key_service = Depends(get_api_key_service),
@@ -495,7 +500,7 @@ def _supports_template_reload(adapter_instance, adapter_config: dict) -> bool:
         return False
 
 
-@admin_router.get("/adapters/capabilities", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/adapters/capabilities", dependencies=[adapters_auth])
 async def get_adapter_capabilities(
     request: Request,
 ):
@@ -605,7 +610,7 @@ def _write_adapter_config(file_path: Path, new_content: str) -> None:
     clear_config_cache()
 
 
-@admin_router.get("/adapters/config", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/adapters/config", dependencies=[adapters_auth])
 async def list_adapter_configs(
     request: Request,
 ):
@@ -659,7 +664,7 @@ async def list_adapter_configs(
     return {"files": files, "imports": current_imports, "adapters_yaml": adapters_yaml_content}
 
 
-@admin_router.get("/adapters/config/entry/{adapter_name}", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/adapters/config/entry/{adapter_name}", dependencies=[adapters_auth])
 async def get_adapter_entry(
     adapter_name: str,
     request: Request,
@@ -679,7 +684,7 @@ async def get_adapter_entry(
     return {"content": block, "filename": file_path.name, "adapter_name": adapter_name}
 
 
-@admin_router.put("/adapters/config/entry/{adapter_name}", dependencies=[Depends(admin_auth_check)])
+@admin_router.put("/adapters/config/entry/{adapter_name}", dependencies=[adapters_auth])
 async def save_adapter_entry(
     adapter_name: str,
     request: Request,
@@ -713,7 +718,7 @@ async def save_adapter_entry(
     }
 
 
-@admin_router.patch("/adapters/config/entry/{adapter_name}/toggle", dependencies=[Depends(admin_auth_check)])
+@admin_router.patch("/adapters/config/entry/{adapter_name}/toggle", dependencies=[adapters_auth])
 async def toggle_adapter_enabled(
     adapter_name: str,
     request: Request,
@@ -794,7 +799,7 @@ async def toggle_adapter_enabled(
     }
 
 
-@admin_router.get("/adapters/config/{filename}", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/adapters/config/{filename}", dependencies=[adapters_auth])
 async def get_adapter_config_file(
     filename: str,
     request: Request,
@@ -808,7 +813,7 @@ async def get_adapter_config_file(
     return {"content": content, "filename": filename}
 
 
-@admin_router.put("/adapters/config/{filename}", dependencies=[Depends(admin_auth_check)])
+@admin_router.put("/adapters/config/{filename}", dependencies=[adapters_auth])
 async def save_adapter_config_file(
     filename: str,
     request: Request,
@@ -836,7 +841,7 @@ async def save_adapter_config_file(
     }
 
 
-@admin_router.post("/api-keys/{api_key_id}/prompt", dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/api-keys/{api_key_id}/prompt", dependencies=[apikeys_auth])
 async def associate_prompt_with_api_key(
     api_key_id: str,
     data: ApiKeyPromptAssociate,
@@ -860,7 +865,7 @@ async def _resolve_api_key(request: Request, api_key_id: str) -> str:
     return doc["api_key"]
 
 
-@admin_router.get("/api-keys/{api_key_id}/quota", response_model=ApiKeyQuotaResponse, dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/api-keys/{api_key_id}/quota", response_model=ApiKeyQuotaResponse, dependencies=[apikeys_auth])
 async def get_api_key_quota(
     api_key_id: str,
     request: Request,
@@ -925,7 +930,7 @@ async def get_api_key_quota(
     )
 
 
-@admin_router.put("/api-keys/{api_key_id}/quota", dependencies=[Depends(admin_auth_check)])
+@admin_router.put("/api-keys/{api_key_id}/quota", dependencies=[apikeys_auth])
 async def update_api_key_quota(
     api_key_id: str,
     quota_data: ApiKeyQuotaUpdate,
@@ -955,7 +960,7 @@ async def update_api_key_quota(
     return {"status": "success", "message": "Quota configuration updated successfully"}
 
 
-@admin_router.post("/api-keys/{api_key_id}/quota/reset", dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/api-keys/{api_key_id}/quota/reset", dependencies=[apikeys_auth])
 async def reset_api_key_quota(
     api_key_id: str,
     request: Request,
@@ -979,7 +984,7 @@ async def reset_api_key_quota(
     return {"status": "success", "message": f"Quota usage ({period}) reset successfully"}
 
 
-@admin_router.get("/quotas/usage-report", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/quotas/usage-report", dependencies=[apikeys_auth])
 async def get_quota_usage_report(
     request: Request,
     period: str = Query("daily", pattern="^(daily|monthly)$"),
@@ -1060,7 +1065,7 @@ async def get_quota_usage_report(
 
 
 # System Prompts Management Routes
-@admin_router.post("/prompts", response_model=SystemPromptResponse, dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/prompts", response_model=SystemPromptResponse, dependencies=[prompts_auth])
 async def create_prompt(
     prompt_data: SystemPromptCreate,
     request: Request,
@@ -1094,7 +1099,7 @@ async def create_prompt(
     }
 
 
-@admin_router.get("/prompts", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/prompts", dependencies=[prompts_auth])
 async def list_prompts(
     name_filter: Optional[str] = None,
     limit: int = 100,
@@ -1120,7 +1125,7 @@ async def list_prompts(
     return await prompt_service.list_prompts(name_filter=name_filter, limit=limit, offset=offset)
 
 
-@admin_router.get("/prompts/{prompt_id}", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/prompts/{prompt_id}", dependencies=[prompts_auth])
 async def get_prompt(
     prompt_id: str,
     prompt_service = Depends(get_prompt_service),
@@ -1141,7 +1146,7 @@ async def get_prompt(
     return prompt
 
 
-@admin_router.post("/render-markdown", dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/render-markdown", dependencies=[prompts_auth])
 def render_markdown_preview(
     payload: dict = Body(...),
 ):
@@ -1175,7 +1180,7 @@ def render_markdown_preview(
         raise HTTPException(status_code=500, detail="Failed to render markdown preview")
 
 
-@admin_router.put("/prompts/{prompt_id}", response_model=SystemPromptResponse, dependencies=[Depends(admin_auth_check)])
+@admin_router.put("/prompts/{prompt_id}", response_model=SystemPromptResponse, dependencies=[prompts_auth])
 async def update_prompt(
     prompt_id: str,
     prompt_data: SystemPromptUpdate,
@@ -1210,7 +1215,7 @@ async def update_prompt(
     }
 
 
-@admin_router.delete("/prompts/{prompt_id}", dependencies=[Depends(admin_auth_check)])
+@admin_router.delete("/prompts/{prompt_id}", dependencies=[prompts_auth])
 async def delete_prompt(
     prompt_id: str,
     request: Request,
@@ -1229,7 +1234,7 @@ async def delete_prompt(
 
 
 # Chat History Management (only available in inference-only mode)
-@admin_router.get("/chat-history/{session_id}", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/chat-history/{session_id}", dependencies=[conversations_auth])
 async def get_chat_history(
     session_id: str,
     request: Request,
@@ -1250,7 +1255,7 @@ async def get_chat_history(
 
 
 # Adapter Hot Reload
-@admin_router.post("/reload-adapters", response_model=AdapterReloadResponse, dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/reload-adapters", response_model=AdapterReloadResponse, dependencies=[adapters_auth])
 async def reload_adapters(
     request: Request,
     adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload"),
@@ -1338,7 +1343,7 @@ async def reload_adapters(
         raise HTTPException(status_code=500, detail="Failed to reload adapters")
 
 
-@admin_router.post("/reload-adapters/async", dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/reload-adapters/async", dependencies=[adapters_auth])
 async def reload_adapters_async(
     request: Request,
     adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload"),
@@ -1372,7 +1377,7 @@ async def reload_adapters_async(
 
 
 # Template Hot Reload
-@admin_router.post("/reload-templates", response_model=TemplateReloadResponse, dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/reload-templates", response_model=TemplateReloadResponse, dependencies=[adapters_auth])
 async def reload_templates(
     request: Request,
     adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload templates for"),
@@ -1446,7 +1451,7 @@ async def reload_templates(
         raise HTTPException(status_code=500, detail="Failed to reload templates")
 
 
-@admin_router.post("/reload-templates/async", dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/reload-templates/async", dependencies=[adapters_auth])
 async def reload_templates_async(
     request: Request,
     adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload templates for"),
@@ -1479,7 +1484,7 @@ async def reload_templates_async(
     }
 
 
-@admin_router.post("/adapters/{adapter_name}/test-query", dependencies=[Depends(require_admin)])
+@admin_router.post("/adapters/{adapter_name}/test-query", dependencies=[Depends(require_permission("adapters.manage"))])
 async def test_adapter_query(
     adapter_name: str,
     body: TemplateTestRequest,
@@ -1533,7 +1538,7 @@ async def test_adapter_query(
         raise HTTPException(status_code=500, detail="Test query failed")
 
 
-@admin_router.get("/jobs/{job_id}", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/jobs/{job_id}", dependencies=[system_auth])
 async def get_admin_job_status(
     job_id: str,
     request: Request,
@@ -1546,7 +1551,7 @@ async def get_admin_job_status(
     return job
 
 
-@admin_router.get("/info", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/info", dependencies=[system_auth])
 async def get_server_info(
     request: Request,
 ):
@@ -1568,7 +1573,7 @@ async def get_server_info(
     }
 
 
-@admin_router.get("/config", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/config", dependencies=[config_auth])
 async def get_config(
     request: Request,
 ):
@@ -1585,7 +1590,7 @@ async def get_config(
     return {"content": content, "path": str(config_path.resolve())}
 
 
-@admin_router.put("/config", dependencies=[Depends(admin_auth_check)])
+@admin_router.put("/config", dependencies=[config_auth])
 async def update_config(
     request: Request,
     body: dict = Body(...)
@@ -1667,7 +1672,7 @@ def _load_config_sections(request: Request):
     return config_path, sections, lines
 
 
-@admin_router.get("/config/sections", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/config/sections", dependencies=[config_auth])
 async def list_config_sections(request: Request):
     """List config.yaml's top-level keys, for the split settings editor."""
     _config_path, sections, _lines = _load_config_sections(request)
@@ -1679,7 +1684,7 @@ async def list_config_sections(request: Request):
     }
 
 
-@admin_router.get("/config/sections/{key}", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/config/sections/{key}", dependencies=[config_auth])
 async def get_config_section(request: Request, key: str):
     """Read the raw text of a single top-level config.yaml section."""
     _config_path, sections, lines = _load_config_sections(request)
@@ -1689,7 +1694,7 @@ async def get_config_section(request: Request, key: str):
     return {"content": "".join(lines[match["start"]:match["end"] + 1])}
 
 
-@admin_router.put("/config/sections/{key}", dependencies=[Depends(admin_auth_check)])
+@admin_router.put("/config/sections/{key}", dependencies=[config_auth])
 async def update_config_section(request: Request, key: str, body: dict = Body(...)):
     """Validate and splice one section's edited text back into config.yaml."""
     new_section_content = body.get("content")
@@ -1774,7 +1779,7 @@ async def update_config_section(request: Request, key: str, body: dict = Body(..
     }
 
 
-@admin_router.post("/shutdown", dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/shutdown", dependencies=[system_auth])
 async def shutdown_server(
     request: Request,
 ):
@@ -1818,7 +1823,7 @@ async def shutdown_server(
     }
 
 
-@admin_router.post("/restart", dependencies=[Depends(admin_auth_check)])
+@admin_router.post("/restart", dependencies=[system_auth])
 async def restart_server(
     request: Request,
 ):
@@ -1860,7 +1865,7 @@ def _resolve_log_dir_and_candidates(request: Request):
     return log_dir, candidates
 
 
-@admin_router.get("/logs/files", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/logs/files", dependencies=[logs_auth])
 def list_log_files(request: Request):
     """Return all available log files sorted newest-first."""
     log_dir, candidates = _resolve_log_dir_and_candidates(request)
@@ -1876,7 +1881,7 @@ def list_log_files(request: Request):
     return {"files": files}
 
 
-@admin_router.get("/logs/tail", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/logs/tail", dependencies=[logs_auth])
 def tail_log_file(
     request: Request,
     lines: int = Query(200, ge=10, le=500),
@@ -1917,7 +1922,7 @@ def tail_log_file(
 # Admin / Auth Audit Events
 # -------------------------------------------------------------------------
 
-@admin_router.get("/audit/events", dependencies=[Depends(admin_auth_check)])
+@admin_router.get("/audit/events", dependencies=[audit_auth])
 async def list_admin_audit_events(
     request: Request,
     limit: int = Query(50, ge=1, le=500),

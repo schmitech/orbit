@@ -134,6 +134,7 @@ class SQLiteService(DatabaseService):
                     username TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
                     role TEXT NOT NULL,
+                    roles TEXT,
                     active INTEGER NOT NULL DEFAULT 1,
                     created_at TEXT NOT NULL,
                     last_login TEXT,
@@ -823,6 +824,11 @@ class SQLiteService(DatabaseService):
             sanitized_metadata = _make_json_serializable(metadata)
             document['metadata_json'] = json.dumps(sanitized_metadata)
 
+        # Users.roles is a list (Mongo stores it natively); SQLite has no array
+        # column type, so store it as a JSON string.
+        if collection_name == 'users' and isinstance(document.get('roles'), list):
+            document['roles'] = json.dumps(document['roles'])
+
         # Convert datetime objects to ISO strings
         for key, value in document.items():
             if isinstance(value, datetime):
@@ -1026,6 +1032,8 @@ class SQLiteService(DatabaseService):
                 elif isinstance(value, (dict, list)) and key == 'metadata_json':
                     # If updating metadata_json, ensure it's serializable
                     set_data[key] = json.dumps(_make_json_serializable(value))
+                elif isinstance(value, list) and key == 'roles' and collection_name == 'users':
+                    set_data[key] = json.dumps(value)
 
             # Build SET clause (quote column names to handle reserved keywords)
             set_parts = [f'"{key}" = ?' for key in set_data.keys()]
@@ -1281,6 +1289,13 @@ class SQLiteService(DatabaseService):
                 except json.JSONDecodeError:
                     doc['metadata'] = {}
             doc.pop('metadata_json', None)
+
+        # Convert users.roles JSON string back to a list
+        if collection_name == 'users' and isinstance(doc.get('roles'), str):
+            try:
+                doc['roles'] = json.loads(doc['roles'])
+            except json.JSONDecodeError:
+                doc['roles'] = None
 
         # Convert ISO strings back to datetime objects where appropriate
         datetime_fields = ['created_at', 'updated_at', 'last_login', 'expires', 'timestamp']

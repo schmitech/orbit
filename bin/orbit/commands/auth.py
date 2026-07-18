@@ -137,9 +137,13 @@ class RegisterCommand(BaseCommand):
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('--username', '-u', required=True, help='Username for the new user')
         parser.add_argument('--password', '-p', help='Password (will prompt if not provided)')
-        parser.add_argument('--role', '-r', default='user', choices=['user', 'admin'], help='User role')
+        parser.add_argument('--role', '-r', default='user', help='User role (default: user)')
+        parser.add_argument(
+            '--roles', help='Comma-separated list of roles to assign (overrides --role). '
+                             "Run 'orbit user roles' to see valid roles."
+        )
         parser.add_argument('--email', help='Email address for the user')
-    
+
     def execute(self, args: argparse.Namespace) -> int:
         password = args.password
         if not password:
@@ -148,8 +152,9 @@ class RegisterCommand(BaseCommand):
             if password != confirm:
                 self.formatter.error("Passwords do not match")
                 return 1
-        
-        result = self.api_service.register_user(args.username, password, args.role)
+
+        roles = [r.strip() for r in args.roles.split(',') if r.strip()] if args.roles else None
+        result = self.api_service.register_user(args.username, password, args.role, roles=roles)
         if getattr(args, 'output', None) == 'json':
             self.formatter.format_json(result)
         else:

@@ -4,17 +4,44 @@ This document details the design, architecture, and enforcement of Role-Based Ac
 
 ---
 
-## 1. Overview & Core Roles
+## 1. Overview & Core Model
 
-ORBIT implements a simple, robust RBAC model with exactly **two** built-in roles:
-*   **`admin`**: Full administrative access. Admins can manage other users, register new users, configure programmatic API keys, modify system prompts, reload adapters, and view system metrics/logs.
-*   **`user`**: Standard access. Standard users are restricted to standard, non-administrative endpoints (like checking their own info via `/auth/me` or changing their own password via `/auth/change-password`).
+ORBIT implements a **permission-based RBAC model**: every user is just a *user* — there is no separate "admin account type." What a user can do is determined entirely by the **roles** assigned to them, where each role grants a fixed set of **permission** strings. A user may hold multiple roles; their effective permissions are the union of each role's permissions.
+
+Roles and their permission grants are defined in a code registry — `server/auth/rbac.py` — not editable at runtime. This keeps authorization auditable and versioned in git, mirroring the existing `AdapterCapabilityRegistry` pattern (`server/adapters/capabilities.py`).
+
+### Built-in roles
+
+| Role | Permissions | Intent |
+|---|---|---|
+| `admin` | `*` (wildcard — every permission) | Full administrative access |
+| `operator` | `config.manage`, `adapters.manage`, `apikeys.manage`, `prompts.manage`, `system.manage`, `metrics.read` | Runs day-to-day system operations (config, adapters, API keys, prompts, restart/shutdown); **cannot** read user conversations/feedback, server logs, or the audit trail — that visibility belongs to `auditor` |
+| `auditor` | `logs.read`, `audit.read`, `metrics.read` | Read-only diagnostics, for compliance/observability roles |
+| `analyst` | `conversations.read`, `feedback.read` | Reads conversation transcripts and feedback analytics; cannot touch config |
+| `user-manager` | `users.manage` | Delegated identity administration — create/deactivate/reset/assign roles |
+| `user` | (none) | Standard, non-administrative access — `/auth/me`, `/auth/change-password` |
+
+### Permission vocabulary
+
+| Permission | Gates |
+|---|---|
+| `users.manage` | Register/delete/reset/deactivate/activate users, assign roles |
+| `apikeys.manage` | `/admin/api-keys*`, quota routes |
+| `adapters.manage` | `/admin/adapters/*`, reload-adapters, reload-templates, test-query |
+| `prompts.manage` | `/admin/prompts*`, render-markdown |
+| `config.manage` | `/admin/config*`, config sections |
+| `system.manage` | `/admin/info`, `/admin/jobs`, shutdown, restart |
+| `logs.read` | `/admin/logs/*` |
+| `audit.read` | `/admin/audit/events` |
+| `metrics.read` | Metrics WebSocket stream |
+| `conversations.read` | `/admin/chat-history/{session_id}`, conversation excerpts in feedback analytics |
+| `feedback.read` | Feedback-analytics aggregates |
+
+This decomposition is what makes it possible, for example, to let an `operator` fully run the system — configuration, adapters, API keys, prompts, restart/shutdown — without ever being able to read another user's conversation, server logs, or the audit trail. That's the sensitivity concern that motivated this design: some admin-panel users should not have permission to read or view conversations (or operational history), without resorting to an all-or-nothing admin flag. Logs and audit visibility are scoped to `auditor` instead, on the same reasoning: someone who restarts the server or edits config doesn't automatically need to see every admin action ever taken, or raw log content.
 
 ---
 
 ## 2. Architecture & Data Flow
-
-When a client sends a request to the ORBIT API, the following flow enforces the appropriate RBAC constraints:
 
 ```mermaid
 sequenceDiagram
@@ -22,30 +49,34 @@ sequenceDiagram
     participant FastAPI Router
     participant Dependency (auth_dependencies.py)
     participant AuthService (auth_service.py)
-    participant MongoDB
+    participant RBAC Registry (auth/rbac.py)
+    participant Database
 
-    Client->>FastAPI Router: Request (with Bearer Token or Cookie)
-    FastAPI Router->>Dependency: Depends(require_admin) / Depends(get_current_user)
+    Client->>FastAPI Router: Request (Bearer Token, Cookie, or X-API-Key)
+    FastAPI Router->>Dependency: Depends(require_permission("conversations.read")) / permission_or_api_key(...)
     Dependency->>AuthService: validate_token(token)
-    AuthService->>MongoDB: Query active session & user role
-    MongoDB-->>AuthService: User document (role: "admin" | "user")
-    AuthService-->>Dependency: User Info Dict (or error)
-    
-    Note over Dependency: Dependency checks user_info.get('role')
-    alt User is admin
-        Dependency-->>FastAPI Router: Return User Info (Authorized)
-        FastAPI Router->>Client: 200 OK Response (Data)
-    else User is standard "user" and route is admin-only
+    AuthService->>Database: Query active session & user document (roles: [...])
+    Database-->>AuthService: User document
+    AuthService->>RBAC Registry: permissions_for_roles(user.roles)
+    RBAC Registry-->>AuthService: union of permission strings
+    AuthService-->>Dependency: user_info dict (id, username, role, roles, permissions, active)
+
+    alt user_info.permissions has required permission (or "*")
+        Dependency-->>FastAPI Router: Authorized
+        FastAPI Router->>Client: 200 OK Response
+    else Missing permission
         Dependency-->>FastAPI Router: Raise HTTPException(403 Forbidden)
         FastAPI Router-->>Client: 403 Forbidden
     end
 ```
 
+Every authorization checkpoint in the codebase reads from a single choke point: `AuthService._user_info()` (`server/services/auth_service.py`), which resolves a user's `roles` and computes `permissions = permissions_for_roles(roles)` once. All three enforcement paths below build on top of that projection.
+
 ---
 
 ## 3. Database Schema
 
-User roles are stored directly in the `users` collection (MongoDB) or the `users` table (SQLite). 
+Users are stored in the `users` collection (MongoDB) or `users` table (SQLite/PostgreSQL).
 
 ### Schema representation:
 ```javascript
@@ -53,54 +84,63 @@ User roles are stored directly in the `users` collection (MongoDB) or the `users
   "_id": ObjectId("..."),
   "username": "developer",
   "password": "base64_encoded_pbkdf2_hash",
-  "role": "admin" | "user",            // Must be one of: "admin", "user"
-  "active": true,                      // Inactive users cannot validate tokens
+  "role": "admin",                      // primary/display role (backward compat, first entry of roles)
+  "roles": ["admin"],                   // source of truth: full list of assigned roles
+  "active": true,                       // inactive users cannot validate tokens
   "created_at": ISODate("2026-07-09T12:00:00Z"),
   "last_login": ISODate("2026-07-09T19:24:00Z")
 }
 ```
 
 > [!NOTE]
-> The database enforces a `UNIQUE` index on the `username` field. For standard local logins, the username is chosen by the admin. For external users, it follows a `"{provider}:{subject}"` format.
+> The database enforces a `UNIQUE` index on the `username` field. For standard local logins, the username is chosen by an administrator. For external users, it follows a `"{provider}:{subject}"` format.
+
+`roles` is the source of truth; `role` is kept as a denormalized primary/display value (`roles[0]`) for backward compatibility with older UI and API surfaces. On SQLite/PostgreSQL, `roles` is stored as a JSON-encoded string column (both are `TEXT`, with no native array type) and transparently encoded/decoded by `sqlite_service.py` / `postgres_service.py`; MongoDB stores it as a native array.
+
+A one-time, idempotent backfill (`AuthService._backfill_roles()`, run on every service `initialize()`) assigns `roles = [role]` to any user row created before multi-role support existed, so legacy single-role users keep working without manual migration.
 
 ---
 
 ## 4. Key Code Components & References
 
-### A. FastAPI Dependencies
-FastAPI dependencies are defined in [auth_dependencies.py](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py):
+### A. RBAC Registry
+[`server/auth/rbac.py`](file:///Users/remsyschmilinsky/Downloads/orbit/server/auth/rbac.py) is the single source of truth for role → permission mappings:
+*   **`ROLE_PERMISSIONS`**: dict of role name → set of permission strings (the table in section 1).
+*   **`permissions_for_roles(roles)`**: computes the union of permissions across a list of roles; expands to every permission if any role holds the `*` wildcard.
+*   **`has_permission(user_info, permission)`** / **`has_any_permission(user_info)`**: the checks used throughout the route dependencies.
+*   **`is_valid_role(role)`** / **`get_role_names()`**: used wherever role input is validated (user creation, CLI, admin panel).
 
-*   **[`get_current_user`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py#L28-L70)**: 
-    Extracts the bearer token from the `Authorization` header, verifies it, and returns the basic user info dict.
-*   **[`require_admin`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py#L116-L147)**:
-    Requires the user to be authenticated and strictly asserts that the user's role is `"admin"`:
-    ```python
-    if current_user.get('role') != 'admin':
-        raise HTTPException(
-            status_code=403,
-            detail="Admin access required"
-        )
-    ```
-*   **[`check_admin_or_api_key`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py#L183-L218)**:
-    Enables dual-path authorization for admin endpoints. It passes if the user has an `"admin"` role **OR** if a valid programmatic API key is supplied in the `X-API-Key` header.
+### B. FastAPI Dependencies
+Defined in [auth_dependencies.py](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py):
 
-### B. Admin & Route Helpers
-Administrative GUI page access and WebSockets are guarded by cookie-based authentication helpers in [auth_helpers.py](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_helpers.py):
+*   **[`get_current_user`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py)**: Extracts and validates the bearer token, returning the `user_info` dict (including `roles`/`permissions`).
+*   **[`require_permission(*permissions)`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py)**: Dependency factory — bearer-token only, no API-key bypass. Used for routes where a leaked API key must never grant access, such as reading conversation transcripts.
+*   **[`permission_or_api_key(*permissions)`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py)**: Dependency factory — authorizes via a bearer token holding all listed permissions, **or** a valid `X-API-Key` header for programmatic/automation access.
+*   **`require_admin`**: Retained as a thin alias requiring the wildcard permission (`*`), for any code path that genuinely needs "must be a full admin."
 
-*   **[`get_admin_user`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_helpers.py#L106-L124)**: Validates the `dashboard_token` cookie and confirms that `user_info.get("role") == "admin"`.
-*   **[`authenticate_websocket_admin`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_helpers.py#L140-L182)**: Restricts WebSocket channels (like live streaming logs or system metrics) to admin-only connections.
+`server/routes/admin_routes.py` builds one dependency instance per resource group (`apikeys_auth`, `adapters_auth`, `prompts_auth`, `config_auth`, `system_auth`, `logs_auth`, `audit_auth`) via `permission_or_api_key(...)`, and a bearer-only `conversations_auth = require_permission("conversations.read")` for the chat-history route — the one place a compromised API key must not be able to reach.
 
-### C. Authentication Service
-The logic to manage users and modify roles is implemented in [auth_service.py](file:///Users/remsyschmilinsky/Downloads/orbit/server/services/auth_service.py):
+### C. Admin & Route Helpers (cookie/WebSocket)
+Cookie-based authentication for the server-rendered admin panel lives in [auth_helpers.py](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_helpers.py):
 
-*   **[`_create_default_admin`](file:///Users/remsyschmilinsky/Downloads/orbit/server/services/auth_service.py#L240-L275)**: Creates the default admin account (configured via `auth.default_admin_username` / `auth.default_admin_password`) on system startup if it does not already exist.
-*   **[`set_role`](file:///Users/remsyschmilinsky/Downloads/orbit/server/services/auth_service.py#L377-L399)**: Atomically updates a user's role in the database:
-    ```python
-    if role not in {"user", "admin"}:
-        return False
-    # DB update code ...
-    ```
-*   **[`create_user`](file:///Users/remsyschmilinsky/Downloads/orbit/server/services/auth_service.py#L588-L651)**: Standard method to provision users, strictly validating that the assigned role is one of `{"user", "admin"}`.
+*   **`get_admin_user`**: Validates the `dashboard_token` cookie and allows panel entry to anyone holding **at least one** admin permission (`has_any_permission`) — not just `role == "admin"`. Per-tab/per-route access is enforced separately by the specific permission each route or tab requires.
+*   **`authenticate_websocket_admin`**: Restricts WebSocket channels (live metrics) to users holding `metrics.read`.
+
+### D. Authentication Service
+User and role management lives in [auth_service.py](file:///Users/remsyschmilinsky/Downloads/orbit/server/services/auth_service.py):
+
+*   **`_user_info`**: Builds the auth-context dict returned by every login/validate call, including `roles` and the computed `permissions` list.
+*   **`create_user(username, password, role="user", roles=None)`**: Validates all assigned roles against the registry (`is_valid_role`); `roles` defaults to `[role]` when omitted.
+*   **`set_role(user_id, role)`** / **`set_roles(user_id, roles)`**: Atomically replace a user's role assignment; `set_role` is a single-role convenience wrapper over `set_roles`.
+*   **`_backfill_roles()`**: One-time migration described in section 3.
+
+### E. Admin Panel UI Gating
+`server/admin/admin_panel.js`'s `TABS` array declares a `permission` per tab (e.g. Feedback → `feedback.read`, Users → `users.manage`, Settings → `config.manage`); tabs the current user's `permissions` don't satisfy are hidden from navigation entirely. The feedback-analytics endpoint additionally gates the conversation-excerpt enrichment block (rated prompt/response text, user identity) on `conversations.read`, separately from the `feedback.read` permission required for the aggregate stats — so an `operator` can see satisfaction trends without ever reading a transcript.
+
+A tab can also bundle sub-sections gated by a *different* permission than the tab itself. The Ops tab is visible on `system.manage` alone (it holds restart/shutdown), but its server-log viewer additionally requires `logs.read` — `renderOps()` checks this client-side and skips building the log viewer (and its network calls) entirely rather than rendering a panel that would just 401, since `operator` has `system.manage` but not `logs.read`.
+
+### F. CLI
+`orbit register --roles operator,auditor` and `orbit user set-roles --username NAME --roles operator,auditor` assign multiple roles; `orbit user roles` lists all registered role names from the server (`GET /auth/roles`).
 
 ---
 
@@ -109,52 +149,48 @@ The logic to manage users and modify roles is implemented in [auth_service.py](f
 ORBIT supports external token validation and Admin Panel SSO via **Microsoft Entra ID** and **Auth0**. Roles are handled as follows:
 
 1.  **JIT Provisioning Role**:
-    When a user signs in for the first time via an external provider, a local user account is automatically provisioned just-in-time (JIT). The role defaults to the configured `default_role` parameter (defined in the `auth.providers.default_role` block in `config.yaml`, defaulting to `"user"`).
+    When a user signs in for the first time via an external provider, a local user account is automatically provisioned just-in-time (JIT). The role defaults to the configured `default_role` parameter (defined in the `auth.providers.default_role` block in `config.yaml`, defaulting to `"user"`), stored as `roles: [default_role]`.
 2.  **SSO Admin Promotion**:
     When users sign in through the Admin Panel SSO (`/admin/auth/{provider}/login`), ORBIT verifies their email or provider subject against the `auth.providers.admin_sso.admin_users` allowlist:
-    *   If they match, they are provisioned or promoted to the `"admin"` role using `provision_sso_user()`.
+    *   If they match, they are provisioned or promoted to `roles: ["admin"]` using `provision_sso_user()`.
     *   If they do not match, the login is rejected.
 3.  **Role Permanence**:
-    Once provisioned, an external user's role is managed locally within ORBIT. Promoting an external user to `"admin"` via `orbit user` command will persist and will **not** be overwritten on subsequent logins.
+    Once provisioned, an external user's roles are managed locally within ORBIT. Promoting an external user to `admin` (via the allowlist or `orbit user set-roles`) persists and will **not** be overwritten on subsequent logins.
 
 ---
 
 ## 6. Architecture & Design Rationale
 
-Having distinct `user` and `admin` roles provides several key architectural and security benefits:
-
 ### A. Security Isolation (Principle of Least Privilege)
-*   **Administrative Safeguards**: Endpoints that configure database adapters, modify global system prompts, register programmatic API keys, or view system logs are protected from standard consumers.
-*   **Mitigation of Compromised Client Tokens**: Front-end client applications (e.g. `orbitchat`) consume the API using standard `user` bearer tokens. If a token is leaked on the client side, the attacker lacks the privileges required to modify system configuration or create new API keys.
+*   **Fine-grained administrative safeguards**: Each admin capability area (config, adapters, API keys, prompts, system control, logs, audit, conversations, feedback) is gated by its own permission, so a role can be granted exactly the operations it needs and nothing more.
+*   **Conversation content isolation**: `conversations.read` is a distinct permission from every other admin capability, including `feedback.read` — an `operator` running the system day-to-day never needs, and never gets, the ability to read what users said to the assistant.
+*   **Operational history isolation**: `logs.read` and `audit.read` are likewise excluded from `operator` — running the system does not require seeing server logs or a history of every admin action. That visibility is scoped to `auditor`.
+*   **Mitigation of compromised credentials**: Front-end client applications (e.g. `orbitchat`) consume the API using standard `user` bearer tokens with no admin permissions. The chat-history route additionally accepts bearer tokens only (no `X-API-Key` bypass), so a leaked programmatic API key cannot be used to read conversation transcripts even if it can reach other admin-automation routes.
 
 ### B. Just-in-Time (JIT) Provisioning and SSO Allowlisting
-*   **Organization-wide Access**: When external identity providers (Auth0 or Entra ID) are enabled, any authenticated organization member can access the client-facing APIs, and ORBIT automatically provisions a standard `user` profile for them.
-*   **Allowlisted Administrators**: Only specific, trusted identities listed under the `auth.providers.admin_sso.admin_users` allowlist are promoted to the `admin` role, preventing unauthorized access to administrative configuration interfaces.
+*   **Organization-wide access**: When external identity providers are enabled, any authenticated organization member is JIT-provisioned with the configured default role (typically `user`, granting no admin permissions).
+*   **Allowlisted administrators**: Only identities on the `auth.providers.admin_sso.admin_users` allowlist are promoted to `admin`.
 
 ### C. Attribution & Auditing
-*   **Audit Separation**: Distinguishes administrative configuration changes (e.g., modifying prompt personas) from routine API consumption or chat interactions.
-*   **User Attribution**: Enables fine-grained attribution of query logs, quotas, and chat histories to specific standard users, while administrators maintain control over global quotas and resources.
+*   **Audit separation**: Distinguishes administrative configuration changes from routine API consumption or chat interactions.
+*   **User attribution**: Enables fine-grained attribution of query logs, quotas, and chat histories to specific standard users, while roles like `operator` and `user-manager` maintain control over global quotas, resources, and account administration without needing conversation access.
 
 ---
 
-## 7. Future Roadmap Items (Lightweight RBAC Enhancements)
-
-To improve ORBIT's access control without introducing unnecessary complexity, the following roadmap items are planned:
+## 7. Future Roadmap Items
 
 ### A. Group/Claim Role Mapping for SSO
-*   **Goal**: Automatically map external OIDC token group/role claims (e.g. Azure AD groups or Auth0 metadata roles) directly to ORBIT's local `admin` role.
-*   **Implementation**: Inspect the decoded claims inside `oidc_validator.py` and `admin_sso_service.py` to promote any user possessing configured administrative group memberships.
+*   **Goal**: Automatically map external OIDC token group/role claims (e.g. Azure AD groups or Auth0 metadata roles) directly to one or more ORBIT roles.
+*   **Implementation**: Inspect the decoded claims inside `oidc_validator.py` and `admin_sso_service.py` to assign roles based on configured group memberships.
 
-### B. Read-Only Administrative Role (`auditor` or `operator`)
-*   **Goal**: Support a low-privilege administrative persona to view diagnostic configurations and query logs without edit/delete permissions.
-*   **Implementation**: Add a third string role (`"auditor"`) and enforce read-only access checks across `admin_routes.py` via a new `require_auditor_or_admin` dependency helper.
+### B. Namespace/Collection Scoping for API Keys & Users
+*   **Goal**: Enforce fine-grained permissions for specific database adapters or prompt collections based on resource scoping, beyond the current per-adapter binding on API keys.
+*   **Implementation**: Extend `permission_or_api_key` to match resource targets against the key's allowed scopes list.
 
-### C. Namespace/Collection Scoping for API Keys & Users
-*   **Goal**: Enforce fine-grained permissions for specific database adapters or prompt collections based on resource scoping.
-*   **Implementation**: Enhance `check_admin_or_api_key` to match resource targets against the key's allowed scopes list.
-
-### D. Role-Based Rate Limiting & Quota Bypassing
+### C. Role-Based Rate Limiting & Quota Bypassing
 *   **Goal**: Ensure high-volume client chat interactions do not starve system resources or lock out administrative tasks.
-*   **Implementation**: Update `quota_service.py` checking logic to bypass rate limits and quota verification for users authenticated as `admin`.
+*   **Implementation**: Update `quota_service.py` checking logic to bypass rate limits and quota verification for users holding `system.manage` (or the wildcard).
 
-
+### D. DB-editable custom roles
+*   **Goal**: Allow organizations to define additional roles or adjust permission grants without a code change, for deployments whose administrative structure doesn't fit the built-in roles.
+*   **Implementation**: Introduce `roles`/`role_permissions` tables alongside the code registry, with the registry acting as the immutable set of built-in defaults.

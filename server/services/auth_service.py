@@ -13,7 +13,7 @@ import secrets
 import base64
 import logging
 import re
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from datetime import datetime, timedelta, UTC
 
 from services.database_service import (
@@ -23,6 +23,7 @@ from services.database_service import (
     DatabaseDuplicateKeyError,
     DatabaseTimeoutError
 )
+from auth.rbac import is_valid_role, permissions_for_roles
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,9 @@ class AuthService:
         
         # Create default admin user if it doesn't exist
         await self._create_default_admin()
+
+        # Backfill `roles` for users created before multi-role support existed
+        await self._backfill_roles()
 
         # Set up external identity providers (Entra ID, Auth0) if enabled
         self._initialize_oidc()
@@ -213,13 +217,24 @@ class AuthService:
         return self._encode_password(salt, hash_bytes)
 
     @staticmethod
+    def _resolve_roles(user: Dict[str, Any]) -> List[str]:
+        """Resolve a user's role list, falling back to the legacy single `role` field."""
+        roles = user.get("roles")
+        if roles:
+            return list(roles)
+        return [user.get("role", "user")]
+
+    @staticmethod
     def _user_info(user: Dict[str, Any]) -> Dict[str, Any]:
         """Build the auth-context user dict (no password, no timestamps)."""
+        roles = AuthService._resolve_roles(user)
         return {
             "id": str(user["_id"]),
             "username": user["username"],
             "email": user.get("email"),
             "role": user.get("role", "user"),
+            "roles": roles,
+            "permissions": sorted(permissions_for_roles(roles)),
             "active": user.get("active", True),
         }
 
@@ -230,6 +245,7 @@ class AuthService:
             "id": str(user["_id"]),
             "username": user["username"],
             "role": user.get("role", "user"),
+            "roles": AuthService._resolve_roles(user),
             "active": user.get("active", True),
             "created_at": user.get("created_at"),
             "last_login": user.get("last_login"),
@@ -252,6 +268,7 @@ class AuthService:
                     "username": self.default_admin_username,
                     "password": self._hash_and_encode(self.default_admin_password),
                     "role": "admin",
+                    "roles": ["admin"],
                     "active": True,
                     "created_at": datetime.now(UTC),
                     "last_login": None
@@ -272,7 +289,25 @@ class AuthService:
         except Exception as e:
             logger.error(f"Unexpected error creating default admin user: {str(e)}")
             raise
-    
+
+    async def _backfill_roles(self) -> None:
+        """One-time migration: assign `roles = [role]` to any user created before
+        multi-role support existed. Idempotent - only touches users missing `roles`."""
+        try:
+            users = await self.database.find_many(self.users_collection_name, {}, limit=10_000)
+            for user in users:
+                if user.get("roles"):
+                    continue
+                role = user.get("role", "user")
+                await self.database.update_one(
+                    self.users_collection_name,
+                    {"_id": user["_id"]},
+                    {"$set": {"roles": [role]}}
+                )
+                logger.info(f"Backfilled roles for user {user.get('username')}: [{role}]")
+        except Exception as e:
+            logger.error(f"Unexpected error backfilling user roles: {str(e)}")
+
     async def verify_credentials(self, username: str, password: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """
         Verify username/password without creating a session token.
@@ -375,23 +410,28 @@ class AuthService:
         return token
 
     async def set_role(self, user_id: str, role: str) -> bool:
-        """Set a user's role. Used to promote allowlisted SSO users to admin."""
-        if role not in {"user", "admin"}:
-            logger.warning(f"Rejected set_role for invalid role: {role}")
+        """Set a user's single role. Used to promote allowlisted SSO users to admin."""
+        return await self.set_roles(user_id, [role])
+
+    async def set_roles(self, user_id: str, roles: List[str]) -> bool:
+        """Set a user's role list. The first role is also stored as the legacy
+        `role` field for display/backward compatibility."""
+        if not roles or any(not is_valid_role(role) for role in roles):
+            logger.warning(f"Rejected set_roles for invalid roles: {roles}")
             return False
         try:
             user_id_converted = await self.database.ensure_id_is_object_id(user_id)
             result = await self.database.update_one(
                 self.users_collection_name,
                 {"_id": user_id_converted},
-                {"$set": {"role": role}}
+                {"$set": {"role": roles[0], "roles": list(roles)}}
             )
             return bool(result)
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error setting role for {user_id}: {str(e)}")
+            logger.error(f"Database connection error setting roles for {user_id}: {str(e)}")
             return False
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error setting role for {user_id}: {str(e)}")
+            logger.error(f"Database operation error setting roles for {user_id}: {str(e)}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error setting role for {user_id}: {str(e)}")
@@ -585,15 +625,18 @@ class AuthService:
             logger.error(f"Unexpected error changing password: {str(e)}")
             return False
     
-    async def create_user(self, username: str, password: str, role: str = "user") -> Optional[str]:
+    async def create_user(
+        self, username: str, password: str, role: str = "user", roles: Optional[List[str]] = None
+    ) -> Optional[str]:
         """
         Create a new user
-        
+
         Args:
             username: The username
             password: The password
-            role: The user role (default: user)
-            
+            role: The user's primary role (default: user), stored for display/backward compat
+            roles: The full list of roles to assign. Defaults to [role] when omitted.
+
         Returns:
             The new user's ID if successful, None otherwise
         """
@@ -608,8 +651,9 @@ class AuthService:
                 logger.warning(f"Rejected user creation for invalid password: {password_error}")
                 return None
 
-            if role not in {"user", "admin"}:
-                logger.warning(f"Rejected user creation for invalid role: {role}")
+            assigned_roles = list(roles) if roles else [role]
+            if not assigned_roles or any(not is_valid_role(r) for r in assigned_roles):
+                logger.warning(f"Rejected user creation for invalid roles: {assigned_roles}")
                 return None
 
             # Check if username already exists
@@ -617,26 +661,27 @@ class AuthService:
                 self.users_collection_name,
                 {"username": username}
             )
-            
+
             if existing:
                 logger.warning(f"Username already exists: {username}")
                 return None
-            
+
             # Create user document
             user_doc = {
                 "username": username,
                 "password": self._hash_and_encode(password),
-                "role": role,
+                "role": assigned_roles[0],
+                "roles": assigned_roles,
                 "active": True,
                 "created_at": datetime.now(UTC),
                 "last_login": None
             }
-            
+
             # Insert user
             user_id = await self.database.insert_one(self.users_collection_name, user_doc)
-            
-            logger.debug(f"Created new user: {username} with role: {role}")
-            
+
+            logger.debug(f"Created new user: {username} with roles: {assigned_roles}")
+
             return str(user_id)
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
@@ -676,6 +721,7 @@ class AuthService:
                 "username": username,
                 "password": self._hash_and_encode(secrets.token_hex(32)),
                 "role": create_role,
+                "roles": [create_role],
                 "active": True,
                 "provider": provider,
                 "external_id": external_id,
@@ -722,6 +768,7 @@ class AuthService:
         if is_admin and user.get("role") != "admin":
             if await self.set_role(str(user["_id"]), "admin"):
                 user["role"] = "admin"
+                user["roles"] = ["admin"]
         return user
 
     async def list_users(self, filter_query: Optional[Dict[str, Any]] = None, limit: int = 100, offset: int = 0) -> list:

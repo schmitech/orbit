@@ -59,6 +59,7 @@
     healthAdapters: "/health/adapters",
     register: "/auth/register",
     users: "/auth/users",
+    roles: "/auth/roles",
     changePassword: "/auth/change-password",
     resetPassword: "/auth/reset-password",
     apiKeys: "/admin/api-keys",
@@ -200,6 +201,14 @@
   var PASSWORD_MIN_LENGTH = 8;
   var PASSWORD_MAX_LENGTH = 128;
   var USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+  var ROLE_DETAILS = {
+    admin: "Full access to every administrative capability.",
+    analyst: "Reads conversations and feedback; cannot change configuration.",
+    auditor: "Read-only logs, audit events, and system metrics.",
+    operator: "Runs system configuration, adapters, and server control; no chat, log, or audit access.",
+    "user-manager": "Creates and manages user accounts and role assignments.",
+    user: "Standard account access with no administrative permissions."
+  };
 
   function passwordField(labelText, input, hintText) {
     input.type = "password";
@@ -872,26 +881,41 @@
   // ------------------------------------------------------------------
   var TABS = [
     { id: "overview", label: "Overview" },
-    { id: "feedback", label: "Feedback" },
-    { id: "users", label: "Users" },
-    { id: "keys", label: "API Keys" },
-    { id: "prompts", label: "Personas" },
-    { id: "adapters", label: "Adapters" },
-    { id: "ops", label: "Ops" },
-    { id: "audit", label: "Audit" },
-    { id: "settings", label: "Settings" },
+    { id: "feedback", label: "Feedback", permission: "feedback.read" },
+    { id: "users", label: "Users", permission: "users.manage" },
+    { id: "keys", label: "API Keys", permission: "apikeys.manage" },
+    { id: "prompts", label: "Personas", permission: "prompts.manage" },
+    { id: "adapters", label: "Adapters", permission: "adapters.manage" },
+    { id: "ops", label: "Ops", permission: "system.manage" },
+    { id: "audit", label: "Audit", permission: "audit.read" },
+    { id: "settings", label: "Settings", permission: "config.manage" },
   ];
+
+  // A tab with no `permission` is visible to anyone who can load the panel.
+  function hasTabPermission(tab) {
+    if (!tab.permission) return true;
+    var permissions = (currentUser && currentUser.permissions) || [];
+    return permissions.indexOf("*") !== -1 || permissions.indexOf(tab.permission) !== -1;
+  }
+
+  function getVisibleTabs() {
+    return TABS.filter(hasTabPermission);
+  }
 
   function renderShell() {
     var app = document.getElementById("app");
     clear(app);
+    var visibleTabs = getVisibleTabs();
+    if (visibleTabs.every(function (t) { return t.id !== activeTab; })) {
+      activeTab = visibleTabs.length ? visibleTabs[0].id : "overview";
+    }
 
     // Topbar with inline nav
     var logoutBtn = el("button", { type: "button", className: "topbar-logout" }, "Logout");
     logoutBtn.addEventListener("click", doLogout);
 
     var nav = el("nav", { className: "topbar-nav", role: "tablist", "aria-label": "Admin sections" });
-    TABS.forEach(function (t) {
+    visibleTabs.forEach(function (t) {
       var isSelected = t.id === activeTab;
       var btn = el("a", {
         id: "tab-" + t.id,
@@ -905,13 +929,13 @@
       }, t.label);
       btn.addEventListener("click", function (e) { e.preventDefault(); switchTab(t.id); });
       btn.addEventListener("keydown", function (e) {
-        var currentIndex = TABS.findIndex(function (tab) { return tab.id === t.id; });
+        var currentIndex = visibleTabs.findIndex(function (tab) { return tab.id === t.id; });
         if (e.key === "ArrowRight") {
           e.preventDefault();
-          switchTab(TABS[(currentIndex + 1) % TABS.length].id);
+          switchTab(visibleTabs[(currentIndex + 1) % visibleTabs.length].id);
         } else if (e.key === "ArrowLeft") {
           e.preventDefault();
-          switchTab(TABS[(currentIndex - 1 + TABS.length) % TABS.length].id);
+          switchTab(visibleTabs[(currentIndex - 1 + visibleTabs.length) % visibleTabs.length].id);
         }
       });
       nav.appendChild(btn);
@@ -2191,14 +2215,17 @@
     var accountPanel = el("div", { className: "panel" });
     var createPanel = el("div", { className: "panel", style: "display:none" });
     var userSearchFilter = "";
+    var userSearchInteracted = false;
     var allUsers = [];
     var userFilteredEmpty = false;
     var selectedUserIds = new Set();
     var tableWrap = el("div", null, skeleton());
     var searchInput = el("input", {
       type: "text",
+      name: "user-search",
       placeholder: "Search users",
-      "aria-label": "Search users"
+      "aria-label": "Search users",
+      autocomplete: "off"
     });
     var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
     bulkDeleteBtn.style.visibility = "hidden";
@@ -2256,10 +2283,76 @@
       autocorrect: "off",
       spellcheck: "false"
     });
-    var roleSelect = el("select", null,
-      el("option", { value: "user" }, "user"),
-      el("option", { value: "admin" }, "admin")
-    );
+    var roleOptions = el("div", {
+      className: "role-picker-options",
+      role: "group",
+      "aria-labelledby": "new-user-roles-label"
+    });
+    function syncAdminRoleState() {
+      var adminCheckbox = roleOptions.querySelector('input[value="admin"]');
+      var adminSelected = adminCheckbox && adminCheckbox.checked;
+      Array.from(roleOptions.querySelectorAll("input")).forEach(function (input) {
+        if (input === adminCheckbox) return;
+        if (adminSelected) input.checked = false;
+        input.disabled = Boolean(adminSelected);
+        input.closest(".role-picker-option").classList.toggle("is-disabled", Boolean(adminSelected));
+      });
+    }
+
+    function createRoleOption(name, index) {
+      var checkbox = el("input", {
+        id: "new-user-role-" + index,
+        type: "checkbox",
+        value: name,
+        "aria-describedby": "new-user-role-description-" + index
+      });
+      checkbox.checked = name === "user";
+      checkbox.addEventListener("change", syncAdminRoleState);
+      return el("label", { className: "role-picker-option", htmlFor: checkbox.id },
+        checkbox,
+        el("span", { className: "role-picker-copy" },
+          el("span", { className: "role-picker-option-label" }, name),
+          el("span", { id: "new-user-role-description-" + index, className: "role-picker-option-description" },
+            ROLE_DETAILS[name] || "Grants the permissions assigned to this role."
+          )
+        )
+      );
+    }
+
+    function renderRoleOptions(roles) {
+      clear(roleOptions);
+      var orderedRoles = roles.slice().sort(function (a, b) {
+        if (a === "admin") return -1;
+        if (b === "admin") return 1;
+        return a.localeCompare(b);
+      });
+      var adminIndex = orderedRoles.indexOf("admin");
+      if (adminIndex !== -1) {
+        roleOptions.appendChild(el("div", { className: "role-picker-section role-picker-section-admin" },
+          createRoleOption("admin", adminIndex)
+        ));
+      }
+      var scopedRoles = orderedRoles.filter(function (name) { return name !== "admin"; });
+      if (adminIndex !== -1 && scopedRoles.length) {
+        roleOptions.appendChild(el("div", { className: "role-picker-divider", role: "separator" }, "Scoped access"));
+      }
+      if (scopedRoles.length) {
+        var scopedSection = el("div", { className: "role-picker-section role-picker-section-scoped" });
+        scopedRoles.forEach(function (name) {
+          scopedSection.appendChild(createRoleOption(name, orderedRoles.indexOf(name)));
+        });
+        roleOptions.appendChild(scopedSection);
+      }
+      syncAdminRoleState();
+    }
+
+    renderRoleOptions(["user"]);
+    (async function populateRoleOptions() {
+      try {
+        var data = await api("GET", ENDPOINTS.roles);
+        renderRoleOptions(data.roles || ["user"]);
+      } catch (_) { /* keep the "user" fallback option */ }
+    })();
     var createBtn = el("button", { type: "button" }, "Create User");
     var createPanelToggle = el("button", { className: "secondary", type: "button" }, "Close");
 
@@ -2281,15 +2374,19 @@
     ));
 
     var form = el("div", { className: "admin-create-form" },
+      el("div", { className: "stack role-picker" },
+        el("span", { id: "new-user-roles-label" }, "Roles"),
+        el("span", { className: "muted" }, "Select all that apply"),
+        roleOptions
+      ),
       el("div", { className: "admin-create-form-grid user-create-grid" },
         field("Username", usernameInput),
-        passwordField("Password", passwordInput),
-        field("Role", roleSelect)
+        passwordField("Password", passwordInput)
       ),
-      el("div", { className: "admin-create-form-actions" }, createBtn)
+      el("div", { className: "admin-create-form-actions user-create-form-actions" }, createBtn)
     );
     createPanel.appendChild(form);
-    bindValidationClear(usernameInput, passwordInput, roleSelect);
+    bindValidationClear(usernameInput, passwordInput, roleOptions);
 
     renderSelectedUserPlaceholder(detailPanel);
     renderAccountSecurityPanel(accountPanel);
@@ -2301,11 +2398,14 @@
       if (usernameError) { showError(usernameError); return; }
       var passwordError = validatePassword(p);
       if (passwordError) { showError(passwordError); return; }
+      var selectedRoles = Array.from(roleOptions.querySelectorAll("input:checked")).map(function (input) { return input.value; });
+      if (!selectedRoles.length) { showError("Select at least one role."); return; }
       withButton(createBtn, async function () {
-        await api("POST", ENDPOINTS.register, { username: u, password: p, role: roleSelect.value });
+        await api("POST", ENDPOINTS.register, { username: u, password: p, roles: selectedRoles });
         usernameInput.value = "";
         passwordInput.value = "";
-        roleSelect.value = "user";
+        Array.from(roleOptions.querySelectorAll("input")).forEach(function (input) { input.checked = input.value === "user"; });
+        syncAdminRoleState();
         closeCreatePanel();
         loadUsers({ preferredUsername: u });
       }, "User created");
@@ -2338,6 +2438,7 @@
         return [
           user.username,
           user.role,
+          (user.roles || []).join(" "),
           user.id,
           user.active !== false ? "active" : "inactive"
         ].some(function (value) {
@@ -2364,6 +2465,21 @@
     searchInput.addEventListener("input", function (e) {
       userSearchFilter = (e.target.value || "").trim().toLowerCase();
       applyUserFilter();
+    });
+    searchInput.addEventListener("keydown", function () { userSearchInteracted = true; });
+    searchInput.addEventListener("paste", function () { userSearchInteracted = true; });
+
+    function clearAutofilledUserSearch() {
+      if (userSearchInteracted || document.activeElement === searchInput) return;
+      searchInput.value = "";
+      userSearchFilter = "";
+      applyUserFilter();
+    }
+
+    // Some browsers ignore autocomplete="off" and populate the field after it mounts.
+    window.requestAnimationFrame(function () {
+      clearAutofilledUserSearch();
+      window.setTimeout(clearAutofilledUserSearch, 200);
     });
 
     async function loadUsers(options) {
@@ -2439,7 +2555,7 @@
     ));
     panel.appendChild(el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "Username:"), " " + ((currentUser && currentUser.username) || "N/A")),
-      el("p", null, el("strong", null, "Role:"), " " + ((currentUser && currentUser.role) || "N/A"))
+      el("p", null, el("strong", null, "Roles:"), " " + ((currentUser && currentUser.roles && currentUser.roles.join(", ")) || "N/A"))
     ));
     renderChangeMyPassword(formWrap, closeForm);
     panel.appendChild(formWrap);
@@ -2597,7 +2713,7 @@
       },
         el("td", { className: "selection-col" }, checkbox),
         el("td", null, u.email || u.username),
-        el("td", null, u.role || ""),
+        el("td", null, (u.roles && u.roles.length ? u.roles : [u.role]).filter(Boolean).join(", ")),
         el("td", null,
           el("span", { className: u.active !== false ? "status-active" : "status-inactive" },
             u.active !== false ? "Active" : "Inactive"
@@ -2661,7 +2777,7 @@
       el("p", null, el("strong", null, "ID:"), " " + (user.id || "N/A")),
       el("p", null, el("strong", null, "Email:"), " " + (user.email || "N/A")),
       el("p", null, el("strong", null, "Username:"), " " + (user.username || "N/A")),
-      el("p", null, el("strong", null, "Role:"), " " + (user.role || "N/A")),
+      el("p", null, el("strong", null, "Roles:"), " " + ((user.roles && user.roles.length ? user.roles : [user.role]).filter(Boolean).join(", ") || "N/A")),
       el("p", null, el("strong", null, "Status:"), " ",
         el("span", { className: user.active !== false ? "status-active" : "status-inactive" },
           user.active !== false ? "Active" : "Inactive"
@@ -2675,6 +2791,112 @@
         el("p", { className: "muted" }, "Use My Account to update your own password.")
       ));
     } else {
+      var roleEditor = el("div", { className: "role-editor", style: "display:none" });
+      var roleEditorOptions = el("div", {
+        className: "role-picker-options",
+        role: "group",
+        "aria-labelledby": "edit-user-roles-label"
+      });
+      var saveRolesBtn = el("button", { type: "button" }, "Save Roles");
+      var cancelRolesBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
+      var editRolesToggle = el("button", { className: "secondary", type: "button" }, "Edit Roles");
+
+      function syncEditedAdminRoleState() {
+        var adminCheckbox = roleEditorOptions.querySelector('input[value="admin"]');
+        var adminSelected = adminCheckbox && adminCheckbox.checked;
+        Array.from(roleEditorOptions.querySelectorAll("input")).forEach(function (input) {
+          if (input === adminCheckbox) return;
+          if (adminSelected) input.checked = false;
+          input.disabled = Boolean(adminSelected);
+          input.closest(".role-picker-option").classList.toggle("is-disabled", Boolean(adminSelected));
+        });
+      }
+
+      function renderRoleEditorOptions(roles) {
+        clear(roleEditorOptions);
+        var assignedRoles = user.roles && user.roles.length ? user.roles : [user.role];
+        var orderedRoles = roles.slice().sort(function (a, b) {
+          if (a === "admin") return -1;
+          if (b === "admin") return 1;
+          return a.localeCompare(b);
+        });
+
+        function option(name, index) {
+          var checkbox = el("input", {
+            id: "edit-user-role-" + index,
+            type: "checkbox",
+            value: name,
+            "aria-describedby": "edit-user-role-description-" + index
+          });
+          checkbox.checked = assignedRoles.indexOf(name) !== -1;
+          checkbox.addEventListener("change", syncEditedAdminRoleState);
+          return el("label", { className: "role-picker-option", htmlFor: checkbox.id },
+            checkbox,
+            el("span", { className: "role-picker-copy" },
+              el("span", { className: "role-picker-option-label" }, name),
+              el("span", { id: "edit-user-role-description-" + index, className: "role-picker-option-description" },
+                ROLE_DETAILS[name] || "Grants the permissions assigned to this role."
+              )
+            )
+          );
+        }
+
+        var adminIndex = orderedRoles.indexOf("admin");
+        if (adminIndex !== -1) {
+          roleEditorOptions.appendChild(el("div", { className: "role-picker-section role-picker-section-admin" }, option("admin", adminIndex)));
+        }
+        var scopedRoles = orderedRoles.filter(function (name) { return name !== "admin"; });
+        if (adminIndex !== -1 && scopedRoles.length) {
+          roleEditorOptions.appendChild(el("div", { className: "role-picker-divider", role: "separator" }, "Scoped access"));
+        }
+        if (scopedRoles.length) {
+          var scopedSection = el("div", { className: "role-picker-section role-picker-section-scoped" });
+          scopedRoles.forEach(function (name) { scopedSection.appendChild(option(name, orderedRoles.indexOf(name))); });
+          roleEditorOptions.appendChild(scopedSection);
+        }
+        syncEditedAdminRoleState();
+      }
+
+      function closeRoleEditor() {
+        roleEditor.style.display = "none";
+        editRolesToggle.textContent = "Edit Roles";
+      }
+
+      editRolesToggle.addEventListener("click", async function () {
+        if (roleEditor.style.display !== "none") {
+          closeRoleEditor();
+          return;
+        }
+        editRolesToggle.disabled = true;
+        try {
+          var data = await api("GET", ENDPOINTS.roles);
+          renderRoleEditorOptions(data.roles || ["user"]);
+          roleEditor.style.display = "";
+          editRolesToggle.textContent = "Close Role Editor";
+        } catch (err) {
+          showError(err.message);
+        } finally {
+          editRolesToggle.disabled = false;
+        }
+      });
+
+      cancelRolesBtn.addEventListener("click", closeRoleEditor);
+      saveRolesBtn.addEventListener("click", function () {
+        var selectedRoles = Array.from(roleEditorOptions.querySelectorAll("input:checked")).map(function (input) { return input.value; });
+        if (!selectedRoles.length) { showError("Select at least one role."); return; }
+        withButton(saveRolesBtn, async function () {
+          await api("PUT", ENDPOINTS.users + "/" + encodeURIComponent(user.id) + "/roles", { roles: selectedRoles });
+          closeRoleEditor();
+          onRefresh({ preferredUserId: user.id });
+        }, "Roles updated");
+      });
+
+      roleEditor.appendChild(el("div", { className: "stack" },
+        el("span", { id: "edit-user-roles-label" }, "Roles"),
+        el("span", { className: "muted" }, "Select all that apply"),
+        roleEditorOptions,
+        el("div", { className: "inline-form detail-action-row" }, cancelRolesBtn, saveRolesBtn)
+      ));
       var actionRow = el("div", { className: "inline-form detail-action-row" });
       var toggleBtn = el("button", { className: "secondary", type: "button" },
         user.active !== false ? "Deactivate User" : "Activate User"
@@ -2718,6 +2940,7 @@
           }
         });
       });
+      actionRow.appendChild(editRolesToggle);
       actionRow.appendChild(toggleBtn);
       actionRow.appendChild(resetToggle);
       var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete User");
@@ -2736,6 +2959,7 @@
       });
       actionRow.appendChild(deleteBtn);
       panel.appendChild(actionRow);
+      panel.appendChild(roleEditor);
       resetPanel.appendChild(el("div", { className: "admin-create-form user-reset-form" },
         passwordField("New Password", newPwInput),
         el("div", { className: "inline-form detail-action-row" }, resetCancelBtn, resetBtn)
@@ -4181,6 +4405,19 @@
     actionBar.appendChild(restartBtn);
     actionBar.appendChild(shutdownBtn);
     container.appendChild(actionBar);
+
+    // Log viewing is a separate permission (logs.read) from running the
+    // server (system.manage) - operator, for example, has the latter but not
+    // the former. Skip building the viewer (and its network calls) entirely
+    // rather than rendering a panel that will just 401.
+    var opsPermissions = (currentUser && currentUser.permissions) || [];
+    var canReadLogs = opsPermissions.indexOf("*") !== -1 || opsPermissions.indexOf("logs.read") !== -1;
+    if (!canReadLogs) {
+      container.appendChild(el("p", { className: "muted" },
+        "Server log viewing requires the logs.read permission (the auditor role, for example)."
+      ));
+      return;
+    }
 
     // --- Log viewer: full-width terminal-style panel ---
     var logLevelFilter = "all";

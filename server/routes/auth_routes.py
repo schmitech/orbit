@@ -14,8 +14,9 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from routes.auth_dependencies import get_auth_service, get_current_user, get_current_user_with_token, require_admin
+from routes.auth_dependencies import get_auth_service, get_current_user, get_current_user_with_token, require_permission
 from services.auth_service import AuthService
+from auth.rbac import has_permission, is_valid_role, get_role_names
 
 logger = logging.getLogger(__name__)
 
@@ -50,18 +51,21 @@ class RegisterRequest(BaseModel):
     username: str = Field(min_length=1, max_length=AuthService.USERNAME_MAX_LENGTH)
     password: str = Field(min_length=1, max_length=AuthService.PASSWORD_MAX_LENGTH)
     role: str = "user"
+    roles: Optional[List[str]] = None
 
 
 class RegisterResponse(BaseModel):
     id: str
     username: str
     role: str
+    roles: List[str]
 
 
 class UserResponse(BaseModel):
     id: str
     username: str
     role: str
+    roles: List[str] = []
     active: bool
     created_at: Optional[str] = None
     last_login: Optional[str] = None
@@ -73,6 +77,7 @@ class UserByUsernameResponse(BaseModel):
     id: str
     username: str
     role: str
+    roles: List[str] = []
     active: bool
 
 
@@ -88,6 +93,10 @@ class ResetPasswordRequest(BaseModel):
 
 class DeactivateUserRequest(BaseModel):
     user_id: str
+
+
+class SetRolesRequest(BaseModel):
+    roles: List[str]
 
 
 # Authentication Endpoints
@@ -184,11 +193,12 @@ async def get_current_user_info(
             id=user["id"],
             username=user["username"],
             role=user["role"],
+            roles=user.get("roles") or [user["role"]],
             active=user["active"],
             created_at=created_at,
             last_login=last_login
         )
-        
+
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
@@ -196,7 +206,13 @@ async def get_current_user_info(
         logger.error(f"Error getting current user info: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@auth_router.get("/users", response_model=List[UserResponse], dependencies=[Depends(require_admin)])
+@auth_router.get("/roles", dependencies=[Depends(require_permission("users.manage"))])
+async def list_roles():
+    """List all registered roles, for populating role-assignment UI."""
+    return {"roles": get_role_names()}
+
+
+@auth_router.get("/users", response_model=List[UserResponse], dependencies=[Depends(require_permission("users.manage"))])
 async def list_users(
     role: Optional[str] = None,
     active_only: bool = False,
@@ -254,6 +270,7 @@ async def list_users(
                 id=user["id"],
                 username=user["username"],
                 role=user["role"],
+                roles=user.get("roles") or [user["role"]],
                 active=user["active"],
                 created_at=created_at,
                 last_login=last_login,
@@ -269,7 +286,7 @@ async def list_users(
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@auth_router.get("/users/by-username", response_model=UserByUsernameResponse, dependencies=[Depends(require_admin)])
+@auth_router.get("/users/by-username", response_model=UserByUsernameResponse, dependencies=[Depends(require_permission("users.manage"))])
 async def get_user_by_username(
     username: str,
     auth_service = Depends(get_auth_service)
@@ -304,6 +321,7 @@ async def get_user_by_username(
             id=user["id"],
             username=user["username"],
             role=user["role"],
+            roles=user.get("roles") or [user["role"]],
             active=user["active"]
         )
         
@@ -334,35 +352,40 @@ async def register_user(
     Raises:
         HTTPException: If registration fails or user not admin
     """
-    # Check if current user is admin
-    if current_user.get("role") != "admin":
+    if not has_permission(current_user, "users.manage"):
         raise HTTPException(
             status_code=403,
-            detail="Only administrators can create new users"
+            detail="Only users with the users.manage permission can create new users"
         )
 
     validate_username_or_400(request.username)
     validate_password_or_400(request.password)
-    if request.role not in {"user", "admin"}:
-        raise HTTPException(status_code=400, detail="Role must be either 'user' or 'admin'")
-    
+    assigned_roles = request.roles or [request.role]
+    invalid_roles = [r for r in assigned_roles if not is_valid_role(r)]
+    if invalid_roles:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid role(s): {', '.join(invalid_roles)}. Valid roles: {', '.join(get_role_names())}"
+        )
+
     try:
         user_id = await auth_service.create_user(
             request.username,
             request.password,
-            request.role
+            roles=assigned_roles
         )
-        
+
         if not user_id:
             raise HTTPException(
                 status_code=400,
                 detail="Failed to create user. Username may already exist."
             )
-        
+
         return RegisterResponse(
             id=user_id,
             username=request.username,
-            role=request.role
+            role=assigned_roles[0],
+            roles=assigned_roles
         )
         
     except HTTPException:
@@ -439,11 +462,10 @@ async def delete_user(
     Raises:
         HTTPException: If deletion fails or user not admin
     """
-    # Check if current user is admin
-    if current_user.get("role") != "admin":
+    if not has_permission(current_user, "users.manage"):
         raise HTTPException(
             status_code=403,
-            detail="Only administrators can delete users"
+            detail="Only users with the users.manage permission can delete users"
         )
     
     # Prevent admin from deleting themselves
@@ -463,7 +485,7 @@ async def delete_user(
             )
         
         return {"message": "User deleted successfully", "user_id": user_id}
-        
+
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
@@ -473,6 +495,40 @@ async def delete_user(
             status_code=500,
             detail="Internal server error during user deletion"
         )
+
+
+@auth_router.put("/users/{user_id}/roles")
+async def set_user_roles(
+    user_id: str,
+    request: SetRolesRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service = Depends(get_auth_service)
+):
+    """Replace a user's role assignment (users.manage permission required)."""
+    if not has_permission(current_user, "users.manage"):
+        raise HTTPException(
+            status_code=403,
+            detail="Only users with the users.manage permission can assign roles"
+        )
+
+    if current_user.get("id") == user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot change your own roles"
+        )
+
+    invalid_roles = [r for r in request.roles if not is_valid_role(r)]
+    if invalid_roles:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid role(s): {', '.join(invalid_roles)}. Valid roles: {', '.join(get_role_names())}"
+        )
+
+    success = await auth_service.set_roles(user_id, request.roles)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found or roles could not be updated")
+
+    return {"message": "Roles updated successfully", "user_id": user_id, "roles": request.roles}
 
 
 @auth_router.post("/change-password")
@@ -542,11 +598,10 @@ async def reset_user_password(
     Raises:
         HTTPException: If password reset fails or user not admin
     """
-    # Check if current user is admin
-    if current_user.get("role") != "admin":
+    if not has_permission(current_user, "users.manage"):
         raise HTTPException(
             status_code=403,
-            detail="Only administrators can reset user passwords"
+            detail="Only users with the users.manage permission can reset user passwords"
         )
     
     # Prevent admin from resetting their own password this way
@@ -603,11 +658,10 @@ async def deactivate_user(
     Raises:
         HTTPException: If deactivation fails or user not admin
     """
-    # Check if current user is admin
-    if current_user.get("role") != "admin":
+    if not has_permission(current_user, "users.manage"):
         raise HTTPException(
             status_code=403,
-            detail="Only administrators can deactivate users"
+            detail="Only users with the users.manage permission can deactivate users"
         )
     
     # Prevent admin from deactivating themselves
@@ -659,11 +713,10 @@ async def activate_user(
     Raises:
         HTTPException: If activation fails or user not admin
     """
-    # Check if current user is admin
-    if current_user.get("role") != "admin":
+    if not has_permission(current_user, "users.manage"):
         raise HTTPException(
             status_code=403,
-            detail="Only administrators can activate users"
+            detail="Only users with the users.manage permission can activate users"
         )
     
     try:

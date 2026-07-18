@@ -405,11 +405,22 @@ class TestAdminAuditMiddleware:
 
 def _build_endpoint_app(audit_service):
     """FastAPI app mounting the real admin_router with auth bypassed."""
-    from routes.admin_routes import admin_router, admin_auth_check
+    from routes import admin_routes
     app = FastAPI()
     app.state.audit_service = audit_service
-    app.include_router(admin_router)
-    app.dependency_overrides[admin_auth_check] = lambda: True
+    app.include_router(admin_routes.admin_router)
+    # Each admin route group now checks a distinct permission; bypass them all.
+    for dependency in (
+        admin_routes.apikeys_auth,
+        admin_routes.adapters_auth,
+        admin_routes.prompts_auth,
+        admin_routes.config_auth,
+        admin_routes.system_auth,
+        admin_routes.logs_auth,
+        admin_routes.audit_auth,
+        admin_routes.conversations_auth,
+    ):
+        app.dependency_overrides[dependency.dependency] = lambda: True
     return app
 
 

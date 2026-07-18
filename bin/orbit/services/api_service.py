@@ -77,12 +77,39 @@ class ApiService:
         403: "Admin privileges required to register users",
         409: "User already exists"
     })
-    def register_user(self, username: str, password: str, role: str = "user") -> Dict[str, Any]:
-        """Register a new user (admin only)."""
+    def register_user(self, username: str, password: str, role: str = "user",
+                       roles: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Register a new user (users.manage permission required)."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
         data = {"username": username, "password": password, "role": role}
+        if roles:
+            data["roles"] = roles
         response = self.api_client.post("/auth/register", headers=headers, json_data=data)
+        response.raise_for_status()
+        return response.json()
+
+    @handle_api_errors(operation_name="List roles", custom_errors={
+        403: "users.manage permission required to list roles"
+    })
+    def list_roles(self) -> List[str]:
+        """List all registered roles."""
+        headers = self._get_auth_headers()
+        response = self.api_client.get("/auth/roles", headers=headers)
+        response.raise_for_status()
+        return response.json().get("roles", [])
+
+    @handle_api_errors(operation_name="Set user roles", custom_errors={
+        403: "users.manage permission required to assign roles",
+        404: "User not found"
+    })
+    def set_user_roles(self, user_id: str, roles: List[str]) -> Dict[str, Any]:
+        """Replace a user's role assignment."""
+        headers = self._get_auth_headers()
+        headers["Content-Type"] = "application/json"
+        response = self.api_client.put(
+            f"/auth/users/{user_id}/roles", headers=headers, json_data={"roles": roles}
+        )
         response.raise_for_status()
         return response.json()
     

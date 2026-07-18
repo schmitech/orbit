@@ -14,6 +14,8 @@ from urllib.parse import quote
 from fastapi import Request, WebSocket, HTTPException
 from pathlib import Path
 
+from auth.rbac import has_any_permission, has_permission
+
 logger = logging.getLogger(__name__)
 
 ADMIN_DIR = Path(__file__).parent.parent / "admin"
@@ -117,7 +119,7 @@ async def get_admin_user(request: Request) -> Optional[Dict[str, Any]]:
         return None
 
     valid, user_info = await auth_service.validate_token(token)
-    if not valid or not user_info or user_info.get("role") != "admin":
+    if not valid or not user_info or not has_any_permission(user_info):
         return None
 
     return user_info
@@ -156,7 +158,7 @@ async def authenticate_websocket_admin(websocket: WebSocket) -> bool:
             if "dashboard_token" in cookie:
                 token = cookie["dashboard_token"].value
                 valid, user_info = await auth_service.validate_token(token)
-                if valid and user_info and user_info.get("role") == "admin":
+                if valid and user_info and has_permission(user_info, "metrics.read"):
                     return True
         except Exception:
             pass
@@ -175,7 +177,7 @@ async def authenticate_websocket_admin(websocket: WebSocket) -> bool:
         return False
 
     success, user_info = await auth_service.verify_credentials(username, password)
-    if not success or not user_info or user_info.get("role") != "admin":
+    if not success or not user_info or not has_permission(user_info, "metrics.read"):
         await websocket.close(code=4403, reason="Admin credentials required")
         return False
 

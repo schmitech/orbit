@@ -2,7 +2,9 @@
 
 ## Overview
 
-ORBIT's authentication leverages PBKDF2-SHA256 (600k iterations) for password security and cryptographically secure bearer tokens for session management. The modular architecture integrates MongoDB for persistent session storage, implements role-based access control (RBAC), and provides both programmatic and CLI interfaces for comprehensive user lifecycle management.
+ORBIT's authentication leverages PBKDF2-SHA256 (600k iterations) for password security and cryptographically secure bearer tokens for session management. The modular architecture integrates MongoDB for persistent session storage, implements permission-based role-based access control (RBAC), and provides both programmatic and CLI interfaces for comprehensive user lifecycle management.
+
+RBAC itself — the role/permission registry, built-in roles (`admin`, `operator`, `auditor`, `analyst`, `user-manager`, `user`), and how permissions gate individual admin routes — is documented in detail in [rbac-architecture.md](rbac-architecture.md). This document covers authentication mechanics (password hashing, tokens, sessions, credential storage, OIDC/SSO); the schema and endpoints below show the role/roles fields authentication produces, but defer to rbac-architecture.md for what each role/permission actually grants.
 
 In addition to this built-in username/password system, ORBIT can **validate access tokens issued by external identity providers** — Microsoft Entra ID (Azure AD) and Auth0 — presented as bearer tokens. This lets browser clients such as `orbitchat` sign users in via OAuth 2.0 / OIDC and call the ORBIT API with the resulting JWT, while the built-in admin/CLI login continues to work unchanged. See [External Identity Providers](#external-identity-providers-oidc).
 
@@ -48,12 +50,15 @@ In addition to this built-in username/password system, ORBIT can **validate acce
   "_id": ObjectId("..."),
   "username": "admin",
   "password": "base64_encoded_pbkdf2_hash",  // salt + hash
-  "role": "admin|user",
+  "role": "admin",           // primary/display role - first entry of roles, kept for backward compat
+  "roles": ["admin"],        // source of truth - full list of assigned roles (see rbac-architecture.md)
   "active": true,
   "created_at": ISODate("2025-01-01T00:00:00Z"),
   "last_login": ISODate("2025-01-01T12:00:00Z")
 }
 ```
+
+A user may hold multiple roles (e.g. `["operator", "auditor"]`); effective permissions are the union of each role's grants, computed by `permissions_for_roles()` in `server/auth/rbac.py`. On SQLite/PostgreSQL, `roles` is stored as a JSON-encoded string column; MongoDB stores it as a native array.
 
 ### Sessions Collection
 
@@ -173,6 +178,10 @@ Authenticate user and create session.
     "id": "507f1f77bcf86cd799439011",
     "username": "admin", 
     "role": "admin",
+    "roles": ["admin"],
+    "permissions": ["adapters.manage", "apikeys.manage", "audit.read", "config.manage",
+                    "conversations.read", "feedback.read", "logs.read", "metrics.read",
+                    "prompts.manage", "system.manage", "users.manage"],
     "active": true
   }
 }
@@ -206,7 +215,8 @@ Authorization: Bearer abc123...
 {
   "id": "507f1f77bcf86cd799439011",
   "username": "admin",
-  "role": "admin", 
+  "role": "admin",
+  "roles": ["admin"],
   "active": true
 }
 ```
@@ -214,7 +224,7 @@ Authorization: Bearer abc123...
 ### User Management Endpoints
 
 #### POST /auth/register
-Create new user (admin only).
+Create new user (requires the `users.manage` permission).
 
 **Headers:**
 ```
@@ -226,12 +236,23 @@ Authorization: Bearer abc123...
 {
   "username": "newuser",
   "password": "password123",
-  "role": "user"
+  "role": "user",
+  "roles": ["operator", "auditor"]
 }
 ```
 
+`roles` (optional) assigns multiple roles at once and takes precedence over `role`; when omitted, the user gets `roles: [role]`. Roles are validated against the registry in `server/auth/rbac.py` (see [rbac-architecture.md](rbac-architecture.md)) — an unrecognized role name is rejected with 400.
+
+#### GET /auth/roles
+List all registered role names (requires `users.manage`). Used to populate role-assignment UI/CLI.
+
+**Response:**
+```json
+{"roles": ["admin", "analyst", "auditor", "operator", "user", "user-manager"]}
+```
+
 #### GET /auth/users
-List all users (admin only).
+List all users (requires `users.manage`).
 
 **Headers:**
 ```
@@ -245,6 +266,7 @@ Authorization: Bearer abc123...
     "id": "507f1f77bcf86cd799439011",
     "username": "admin",
     "role": "admin",
+    "roles": ["admin"],
     "active": true,
     "created_at": "2025-01-01T00:00:00Z",
     "last_login": "2025-01-01T12:00:00Z"
@@ -252,8 +274,21 @@ Authorization: Bearer abc123...
 ]
 ```
 
+#### PUT /auth/users/{user_id}/roles
+Replace a user's role assignment (requires `users.manage`).
+
+**Request:**
+```json
+{"roles": ["operator", "analyst"]}
+```
+
+**Response:**
+```json
+{"message": "Roles updated successfully", "user_id": "507f1f77bcf86cd799439011", "roles": ["operator", "analyst"]}
+```
+
 #### DELETE /auth/users/{user_id}
-Delete user (admin only).
+Delete user (requires `users.manage`).
 
 **Headers:**
 ```
@@ -279,7 +314,7 @@ Authorization: Bearer abc123...
 ```
 
 #### POST /auth/reset-password
-Reset user password (admin only).
+Reset user password (requires `users.manage`).
 
 **Headers:**
 ```
@@ -696,16 +731,31 @@ orbit change-password
 orbit change-password --current-password old --new-password new
 ```
 
-### User Management (Admin Only)
+### User Management (requires the `users.manage` permission)
 
 #### List Users
 ```bash
 orbit user list
 ```
 
+#### List Registered Roles
+```bash
+orbit user roles
+```
+
 #### Register New User
 ```bash
+# Single role (backward compatible)
 orbit register --username newuser --password pass123 --role user
+
+# Multiple roles
+orbit register --username newuser --password pass123 --roles operator,auditor
+```
+
+#### Assign/Replace a User's Roles
+```bash
+orbit user set-roles --username newuser --roles analyst
+orbit user set-roles --user-id 507f1f77bcf86cd799439011 --roles operator,auditor
 ```
 
 #### Delete User
@@ -773,12 +823,12 @@ For a JWT, ORBIT:
 1. Reads the unverified `iss` claim only to select the matching provider (routing).
 2. Fetches the provider's signing key from its JWKS endpoint (cached in memory) and fully verifies the token: **RS256** signature, `iss`, `aud`, and `exp` (60s leeway). `sub` is required.
 3. **Just-in-time provisions** a local user on first login, keyed by subject. The stored username is `"{provider}:{sub}"` (e.g. `entra:00000000-...` or `auth0|abc123`), with the email captured for display. On later logins the existing user is reused.
-4. Returns the same user context (`id`, `username`, `role`, `active`) as a normal login, so RBAC, admin routes, and audit logging all work identically.
+4. Returns the same user context (`id`, `username`, `role`, `roles`, `permissions`, `active`) as a normal login, so RBAC, admin routes, and audit logging all work identically.
 
 Any invalid, expired, mis-issued, or wrong-audience token is rejected (401) — the validator fails closed and never raises.
 
 Notes:
-- **Role assignment**: a JIT-provisioned user receives `auth.providers.default_role` **at creation only**. Roles are managed in ORBIT thereafter (e.g. promote to admin via `orbit user ...`) and are **not** overwritten on subsequent logins.
+- **Role assignment**: a JIT-provisioned user receives `roles: [auth.providers.default_role]` **at creation only**. Roles are managed in ORBIT thereafter (e.g. `orbit user set-roles`) and are **not** overwritten on subsequent logins.
 - **External users cannot password-login**: they have no usable local password. `orbit login` and `change-password` reject them.
 - **Deactivation is honored**: deactivating a JIT-provisioned user blocks re-login; it is not silently reactivated.
 
@@ -1042,7 +1092,7 @@ Located in `bin/orbit.py`
 ✅ **Session Expiration**: Automatic timeout and cleanup  
 ✅ **Password Confirmation**: Interactive CLI prompts confirmation  
 ✅ **Session Invalidation**: Password changes clear all sessions  
-✅ **Role-Based Access**: Admin-only endpoints protected  
+✅ **Permission-Based Access**: Each admin route gated by a specific permission, not a binary admin flag (see [rbac-architecture.md](rbac-architecture.md))  
 ✅ **Input Validation**: Pydantic models validate all inputs  
 ✅ **Error Handling**: Secure error messages, no info leakage  
 ✅ **Audit Logging**: Authentication events logged  
@@ -1071,7 +1121,7 @@ Located in `bin/orbit.py`
 #### 403 Forbidden  
 ```json
 {
-  "detail": "Only administrators can create new users"
+  "detail": "Only users with the users.manage permission can create new users"
 }
 ```
 
@@ -1120,8 +1170,10 @@ orbit change-password
 # Enter new password: [secure_password]
 # Confirm new password: [secure_password]
 
-# 4. Create additional users
+# 4. Create additional users, assigning least-privilege roles
 orbit register --username developer --password devpass123 --role user
+orbit register --username ops --password opspass123 --roles operator
+orbit register --username reviewer --password revpass123 --roles analyst
 orbit register --username manager --password mgmtpass123 --role admin
 ```
 
@@ -1137,10 +1189,13 @@ orbit me
 # Change your password
 orbit change-password
 
-# List all users (admin only)
+# List all users (requires users.manage)
 orbit user list
 
-# Reset forgotten password (admin only)
+# Reassign a user's roles (requires users.manage)
+orbit user set-roles --username ops --roles operator,auditor
+
+# Reset forgotten password (requires users.manage)
 orbit user reset-password --user-id 507f1f77bcf86cd799439011 --password temppass123
 
 # Logout
@@ -1173,9 +1228,15 @@ db.users.find({}, {password: 0}).pretty()
 // Find inactive users
 db.users.find({active: false})
 
-// Count users by role
+// Count users by primary role
 db.users.aggregate([
   {$group: {_id: "$role", count: {$sum: 1}}}
+])
+
+// Count users by each assigned role (a user with multiple roles counts once per role)
+db.users.aggregate([
+  {$unwind: "$roles"},
+  {$group: {_id: "$roles", count: {$sum: 1}}}
 ])
 ```
 

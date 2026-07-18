@@ -76,7 +76,7 @@ class FakeDatabase:
 @pytest.mark.asyncio
 async def test_feedback_analytics_aggregates_and_enriches(monkeypatch):
     async def fake_admin_user(_request):
-        return {"id": "admin", "role": "admin"}
+        return {"id": "admin", "role": "admin", "roles": ["admin"], "permissions": ["*"]}
 
     monkeypatch.setattr(admin_panel_routes, "get_admin_user", fake_admin_user)
     database = FakeDatabase()

@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from routes.auth_helpers import get_admin_user, get_sso_service, render_login_html
+from auth.rbac import has_any_permission, has_permission
 
 # User-facing messages for /admin/login?error=<code>
 _SSO_ERROR_MESSAGES = {
@@ -172,7 +173,7 @@ def create_admin_panel_router() -> APIRouter:
             await auth_service.initialize()
 
         success, token, user_info = await auth_service.authenticate_user(username, password)
-        if not success or not token or not user_info or user_info.get("role") != "admin":
+        if not success or not token or not user_info or not has_any_permission(user_info):
             return HTMLResponse(
                 content=render_login_html(
                     next_path=next if next and next.startswith("/") else "/admin",
@@ -279,7 +280,7 @@ def create_admin_panel_router() -> APIRouter:
             raise HTTPException(status_code=503, detail="Authentication service not available")
 
         user = await auth_service.provision_sso_user(provider, subject, email, is_admin=True)
-        if not user or not user.get("active", True) or user.get("role") != "admin":
+        if not user or not user.get("active", True) or not has_permission(user, "*"):
             return _login_redirect("not_authorized")
 
         token = await auth_service.create_session(user)
@@ -330,6 +331,9 @@ def create_admin_panel_router() -> APIRouter:
         user_info = await get_admin_user(request)
         if not user_info:
             raise HTTPException(status_code=401, detail="Authentication required")
+        if not has_permission(user_info, "feedback.read"):
+            raise HTTPException(status_code=403, detail="Missing required permission: feedback.read")
+        can_read_conversations = has_permission(user_info, "conversations.read")
         if days not in (7, 30, 90, 365):
             raise HTTPException(status_code=400, detail="days must be one of 7, 30, 90, or 365")
 
@@ -423,49 +427,54 @@ def create_admin_panel_router() -> APIRouter:
             message_id = item.get("message_id")
             assistant_message = None
             user_prompt = None
-            if session_id and message_id and chat_history_service is not None:
-                # Resolve the exact rated response by its primary key. This avoids a
-                # global history fan-out cap starving a busy session's example.
-                assistant_message = await database_service.find_one(
-                    chat_collection,
-                    {"_id": str(message_id), "session_id": session_id, "role": "assistant"},
-                )
-                if assistant_message and assistant_message.get("timestamp"):
-                    nearby_history = await database_service.find_many(
-                        chat_collection,
-                        {
-                            "session_id": session_id,
-                            "timestamp": {"$lte": assistant_message["timestamp"]},
-                        },
-                        limit=8,
-                        sort=[("timestamp", -1)],
-                    )
-                    preceding = next(
-                        (
-                            candidate for candidate in nearby_history
-                            if candidate.get("role") == "user"
-                        ),
-                        None,
-                    )
-                    if preceding:
-                        user_prompt = _feedback_excerpt(preceding.get("content"), 500)
-
             user_id = str(item.get("user_id")) if item.get("user_id") else None
             user_label = None
-            if user_id:
-                if user_id not in user_cache:
-                    user_doc = await database_service.find_one(users_collection, {"_id": user_id})
-                    user_cache[user_id] = (
-                        _feedback_excerpt(user_doc.get("email") or user_doc.get("username"), 120)
-                        if user_doc else None
+
+            # Conversation content (the rated exchange itself) and user identity are
+            # only resolved for callers holding conversations.read - otherwise this
+            # panel would let any feedback.read admin read other users' chats.
+            if can_read_conversations:
+                if session_id and message_id and chat_history_service is not None:
+                    # Resolve the exact rated response by its primary key. This avoids a
+                    # global history fan-out cap starving a busy session's example.
+                    assistant_message = await database_service.find_one(
+                        chat_collection,
+                        {"_id": str(message_id), "session_id": session_id, "role": "assistant"},
                     )
-                user_label = user_cache[user_id]
+                    if assistant_message and assistant_message.get("timestamp"):
+                        nearby_history = await database_service.find_many(
+                            chat_collection,
+                            {
+                                "session_id": session_id,
+                                "timestamp": {"$lte": assistant_message["timestamp"]},
+                            },
+                            limit=8,
+                            sort=[("timestamp", -1)],
+                        )
+                        preceding = next(
+                            (
+                                candidate for candidate in nearby_history
+                                if candidate.get("role") == "user"
+                            ),
+                            None,
+                        )
+                        if preceding:
+                            user_prompt = _feedback_excerpt(preceding.get("content"), 500)
+
+                if user_id:
+                    if user_id not in user_cache:
+                        user_doc = await database_service.find_one(users_collection, {"_id": user_id})
+                        user_cache[user_id] = (
+                            _feedback_excerpt(user_doc.get("email") or user_doc.get("username"), 120)
+                            if user_doc else None
+                        )
+                    user_label = user_cache[user_id]
 
             feedback_created_at = _feedback_datetime(item.get("created_at"))
             recent_negative.append({
                 "created_at": feedback_created_at.isoformat() if feedback_created_at else None,
                 "adapter": item.get("adapter_name") or "Unknown",
-                "session_id": session_id,
+                "session_id": session_id if can_read_conversations else None,
                 "user": user_label or ("Authenticated user" if user_id else "Anonymous"),
                 "comment": _feedback_excerpt(item.get("comment"), 2000),
                 "user_prompt": user_prompt,

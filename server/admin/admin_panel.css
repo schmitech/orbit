@@ -620,9 +620,145 @@ textarea {
 }
 
 .user-create-grid {
-  grid-template-columns: minmax(220px, 320px) minmax(220px, 320px) minmax(120px, 160px);
+  grid-template-columns: minmax(220px, 320px) minmax(220px, 320px);
   align-items: end;
   justify-content: start;
+}
+
+.role-picker {
+  min-width: 0;
+}
+
+.role-picker-options {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.role-picker-options:focus-within {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px var(--brand-50);
+}
+
+.role-picker-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-height: 52px;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.role-picker-section {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.role-picker-section-scoped {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.role-picker-section-admin .role-picker-option {
+  border-color: #c5d5e8;
+  background: var(--surface);
+}
+
+.role-picker-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.role-picker-divider::before,
+.role-picker-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--border);
+}
+
+.role-picker-option:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.role-picker-option:has(input:checked) {
+  background: var(--brand-50);
+  border-color: #b8d2ee;
+  color: var(--brand-700);
+}
+
+.role-picker-option input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  margin-top: 3px;
+  padding: 0;
+  border: 1px solid #9caec5;
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.role-picker-option input[type="checkbox"]:checked {
+  border-color: var(--brand-500);
+  background-color: var(--brand-500);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.2 6.1 4.7 8.5 9.8 3.4' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.role-picker-option input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.role-picker-option.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.role-picker-option.is-disabled:hover {
+  border-color: transparent;
+  background: transparent;
+}
+
+.role-picker-option.is-disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+.role-picker-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.role-picker-option-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.role-picker-option-description {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  line-height: 1.35;
 }
 
 .user-reset-form label {
@@ -644,6 +780,10 @@ textarea {
 
 .admin-create-form-actions button {
   min-width: 140px;
+}
+
+.user-create-form-actions {
+  justify-content: flex-start;
 }
 
 .inline-form input,
@@ -1087,6 +1227,12 @@ tbody tr:nth-child(even) {
 
 .detail-action-row {
   margin-top: var(--sp-3);
+}
+
+.role-editor {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-light);
 }
 
 /* ============================================================

@@ -11,6 +11,8 @@ from typing import Optional, Dict, Any
 from fastapi import Request, HTTPException, Header, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
+from auth.rbac import has_permission
+
 logger = logging.getLogger(__name__)
 
 # Create a bearer token security scheme
@@ -138,13 +140,75 @@ async def require_admin(
             headers={"WWW-Authenticate": "Bearer"}
         )
     
-    if current_user.get('role') != 'admin':
+    if not has_permission(current_user, "*"):
         raise HTTPException(
             status_code=403,
             detail="Admin access required"
         )
-    
+
     return current_user
+
+
+def require_permission(*permissions: str):
+    """
+    Build a dependency that requires the current user to hold all of the
+    given permissions (bearer token only - no API-key bypass).
+
+    Use for routes where a compromised API key should not be able to gain
+    access even if it could reach other admin routes (e.g. reading
+    conversation transcripts).
+    """
+    async def _dependency(
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
+    ) -> Dict[str, Any]:
+        if not current_user:
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+
+        missing = [perm for perm in permissions if not has_permission(current_user, perm)]
+        if missing:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Missing required permission(s): {', '.join(missing)}"
+            )
+
+        return current_user
+
+    return _dependency
+
+
+def permission_or_api_key(*permissions: str):
+    """
+    Build a dependency that authorizes a request via either a bearer token
+    whose user holds all of the given permissions, or a valid X-API-Key
+    header (for programmatic/automation access).
+    """
+    async def _dependency(
+        request: Request,
+        current_user: Optional[Dict[str, Any]] = Depends(get_optional_user),
+        x_api_key: Optional[str] = Header(None, alias="X-API-Key")
+    ) -> bool:
+        if current_user and all(has_permission(current_user, perm) for perm in permissions):
+            request.state.current_user = current_user
+            return True
+
+        if hasattr(request.app.state, 'api_key_service') and x_api_key:
+            api_key_service = request.app.state.api_key_service
+            adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+            is_valid, _, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
+            if is_valid:
+                request.state.api_key = x_api_key
+                return True
+
+        raise HTTPException(
+            status_code=401,
+            detail="Admin authentication or valid API key required"
+        )
+
+    return _dependency
 
 
 async def get_optional_user(
@@ -180,39 +244,3 @@ async def get_optional_user(
     return None
 
 
-async def check_admin_or_api_key(
-    request: Request,
-    current_user: Optional[Dict[str, Any]] = Depends(get_optional_user),
-    x_api_key: Optional[str] = Header(None, alias="X-API-Key")
-) -> bool:
-    """
-    Authorize a request via either admin bearer token or API key.
-
-    Admin routes accept both authentication methods: a session bearer token
-    issued by the auth service, or a valid X-API-Key header for programmatic
-    access. Raises 401 if neither is present or valid.
-    """
-    # If we have an admin user, allow access
-    if current_user and current_user.get('role') == 'admin':
-        # get_optional_user already set request.state.current_user, but do it
-        # here too for defense in depth.
-        request.state.current_user = current_user
-        return True
-
-    # Otherwise, check API key using existing service
-    if hasattr(request.app.state, 'api_key_service') and x_api_key:
-        api_key_service = request.app.state.api_key_service
-        # Get adapter manager to check live configs (respects hot-reload)
-        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-        is_valid, _, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
-        if is_valid:
-            # Stash the raw key on request.state so the admin-audit middleware
-            # can record a masked version as the actor identity.
-            request.state.api_key = x_api_key
-            return True
-
-    # Neither admin auth nor valid API key
-    raise HTTPException(
-        status_code=401,
-        detail="Admin authentication or valid API key required"
-    )
