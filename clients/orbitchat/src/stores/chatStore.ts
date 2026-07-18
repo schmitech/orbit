@@ -159,7 +159,7 @@ interface ExtendedChatState extends ChatState {
   syncConversationsWithBackend: () => Promise<void>;
   stopStreaming: () => Promise<void>;
   clearCurrentConversationAdapter: () => void;
-  submitFeedback: (conversationMessageId: string, feedbackType: 'up' | 'down') => Promise<void>;
+  submitFeedback: (conversationMessageId: string, feedbackType: 'up' | 'down', comment?: string) => Promise<boolean>;
   loadFeedbackForConversation: (sessionId: string) => Promise<void>;
 }
 
@@ -1888,17 +1888,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     debouncedSaveToLocalStorage(get);
   },
 
-  submitFeedback: async (conversationMessageId: string, feedbackType: 'up' | 'down') => {
+  submitFeedback: async (conversationMessageId: string, feedbackType: 'up' | 'down', comment?: string) => {
     const state = get();
     const conversation = state.conversations.find(c => c.id === state.currentConversationId);
-    if (!conversation) return;
+    if (!conversation) return false;
 
     const message = conversation.messages.find(m => m.id === conversationMessageId);
     if (!message?.databaseMessageId) {
       debugWarn('[chatStore] Cannot submit feedback: no databaseMessageId on message');
-      return;
+      return false;
     }
-    if (!conversation.adapterName) return;
+    if (!conversation.adapterName) return false;
 
     try {
       const api = await getApi();
@@ -1911,17 +1911,21 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       const result = await apiClient.submitFeedback!(
         message.databaseMessageId,
         conversation.sessionId,
-        feedbackType
+        feedbackType,
+        comment
       );
 
       const newFeedbackType = result.feedback_type as 'up' | 'down' | null;
+      const newComment = (result.comment ?? null) as string | null;
       set(s => ({
         conversations: s.conversations.map(conv => {
           if (conv.id !== state.currentConversationId) return conv;
           return {
             ...conv,
             messages: conv.messages.map(msg =>
-              msg.id === conversationMessageId ? { ...msg, feedback: newFeedbackType } : msg
+              msg.id === conversationMessageId
+                ? { ...msg, feedback: newFeedbackType, feedbackComment: newComment }
+                : msg
             ),
             updatedAt: new Date(),
           };
@@ -1929,8 +1933,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }));
 
       debouncedSaveToLocalStorage(get);
+      return true;
     } catch (error) {
       debugError('[chatStore] Failed to submit feedback:', error);
+      return false;
     }
   },
 
@@ -1960,11 +1966,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         )
       );
 
-      const feedbackMap = new Map<string, 'up' | 'down'>();
+      const feedbackMap = new Map<string, { feedbackType: 'up' | 'down'; comment: string | null }>();
       for (const result of feedbackResults) {
         if (result?.feedbacks) {
           for (const fb of result.feedbacks) {
-            feedbackMap.set(fb.message_id, fb.feedback_type as 'up' | 'down');
+            feedbackMap.set(fb.message_id, {
+              feedbackType: fb.feedback_type as 'up' | 'down',
+              comment: fb.comment ?? null,
+            });
           }
         }
       }
@@ -1978,7 +1987,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             ...conv,
             messages: conv.messages.map(msg => {
               if (msg.databaseMessageId && feedbackMap.has(msg.databaseMessageId)) {
-                return { ...msg, feedback: feedbackMap.get(msg.databaseMessageId)! };
+                const entry = feedbackMap.get(msg.databaseMessageId)!;
+                return { ...msg, feedback: entry.feedbackType, feedbackComment: entry.comment };
               }
               return msg;
             }),

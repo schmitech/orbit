@@ -427,7 +427,13 @@
     "feedback": {
       "good": "好回复",
       "poor": "回复不佳",
-      "thanks": "谢谢！"
+      "thanks": "谢谢！",
+      "commentPrompt": "哪里出了问题？",
+      "commentPlaceholder": "告诉我们更多（可选）",
+      "commentSend": "发送",
+      "commentCancel": "取消",
+      "commentEdit": "编辑评论",
+      "commentSaved": "评论已保存"
     },
     "editAriaLabel": "编辑消息",
     "regenerateTitle": "重新生成回复",

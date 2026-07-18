@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any, List, Tuple
 from fastapi import FastAPI, Request, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from utils import is_true_value
 from services.stream_registry import stream_registry
@@ -900,10 +900,14 @@ class RouteConfigurator:
     def _configure_feedback_endpoints(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
         """Configure feedback endpoints."""
 
+        from services.feedback_service import MAX_COMMENT_LENGTH
+
         class FeedbackRequest(BaseModel):
             message_id: str
             session_id: str
             feedback_type: str  # 'up' or 'down'
+            # Optional free-text comment (thumbs-down); bounded to prevent abuse.
+            comment: Optional[str] = Field(default=None, max_length=MAX_COMMENT_LENGTH)
 
         @app.post("/api/feedback", operation_id="submit_feedback")
         async def submit_feedback(
@@ -925,7 +929,8 @@ class RouteConfigurator:
                     session_id=request_body.session_id,
                     feedback_type=request_body.feedback_type,
                     user_id=user_id,
-                    adapter_name=adapter_name
+                    adapter_name=adapter_name,
+                    comment=request_body.comment
                 )
                 return result
             except ValueError as e:

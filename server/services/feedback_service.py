@@ -15,6 +15,10 @@ from services.database_service import create_database_service
 
 logger = logging.getLogger(__name__)
 
+# Maximum length of a feedback comment. Enforced here (authoritative) and mirrored
+# on the API boundary and clients to bound stored size and prevent abuse.
+MAX_COMMENT_LENGTH = 2000
+
 
 class FeedbackService:
     """Service for managing user feedback on chat responses"""
@@ -78,15 +82,20 @@ class FeedbackService:
         session_id: str,
         feedback_type: str,
         user_id: Optional[str] = None,
-        adapter_name: Optional[str] = None
+        adapter_name: Optional[str] = None,
+        comment: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Submit or toggle feedback for a message.
+        Submit or toggle feedback for a message, optionally with a free-text comment.
 
-        Idempotent logic:
+        Thumb-only logic (comment is None):
         - If no existing feedback: create new
         - If same feedback_type: remove (toggle off)
-        - If different feedback_type: update to new type
+        - If different feedback_type: switch type (and clear any prior comment)
+
+        Comment logic (comment is not None, including ""):
+        - Add/edit/clear the comment on the current reaction; never toggles off.
+          Empty/whitespace comments normalize to NULL (clears the comment).
 
         Args:
             message_id: Database message ID
@@ -94,9 +103,11 @@ class FeedbackService:
             feedback_type: 'up' or 'down'
             user_id: Optional user ID
             adapter_name: Optional adapter name
+            comment: Optional free-text comment. None means "thumb-only action"; a
+                string (including "") means "set/clear the comment".
 
         Returns:
-            Dict with message_id, feedback_type (or None if removed), and action
+            Dict with message_id, feedback_type (or None if removed), comment, and action
         """
         if not self._initialized:
             await self.initialize()
@@ -104,7 +115,13 @@ class FeedbackService:
         if feedback_type not in ('up', 'down'):
             raise ValueError(f"Invalid feedback_type: {feedback_type}. Must be 'up' or 'down'.")
 
+        if comment is not None and len(comment) > MAX_COMMENT_LENGTH:
+            raise ValueError(f"Comment exceeds maximum length of {MAX_COMMENT_LENGTH} characters.")
+
         now = datetime.now(UTC).isoformat()
+
+        # Normalize a provided comment: empty/whitespace becomes NULL.
+        normalized_comment = comment.strip() or None if comment is not None else None
 
         # Check for existing feedback
         existing = await self.database_service.find_one(
@@ -116,8 +133,22 @@ class FeedbackService:
             existing_type = existing.get('feedback_type')
             existing_id = existing.get('_id') or existing.get('id')
 
-            if existing_type == feedback_type:
-                # Same type: toggle off (remove)
+            if comment is not None:
+                # Comment add/edit/clear on the current reaction — never toggles off.
+                await self.database_service.update_one(
+                    self.collection_name,
+                    {"_id": existing_id},
+                    {"$set": {"feedback_type": feedback_type, "comment": normalized_comment, "updated_at": now}}
+                )
+                logger.debug(f"Feedback comment updated for message {message_id}")
+                return {
+                    "message_id": message_id,
+                    "feedback_type": feedback_type,
+                    "comment": normalized_comment,
+                    "action": "updated"
+                }
+            elif existing_type == feedback_type:
+                # Same type, no comment: toggle off (remove)
                 await self.database_service.delete_one(
                     self.collection_name,
                     {"_id": existing_id}
@@ -126,19 +157,21 @@ class FeedbackService:
                 return {
                     "message_id": message_id,
                     "feedback_type": None,
+                    "comment": None,
                     "action": "removed"
                 }
             else:
-                # Different type: update
+                # Different type, no comment: switch type and drop any prior comment
                 await self.database_service.update_one(
                     self.collection_name,
                     {"_id": existing_id},
-                    {"$set": {"feedback_type": feedback_type, "updated_at": now}}
+                    {"$set": {"feedback_type": feedback_type, "comment": None, "updated_at": now}}
                 )
                 logger.debug(f"Feedback updated for message {message_id}: {existing_type} -> {feedback_type}")
                 return {
                     "message_id": message_id,
                     "feedback_type": feedback_type,
+                    "comment": None,
                     "action": "updated"
                 }
         else:
@@ -150,6 +183,7 @@ class FeedbackService:
                 "user_id": user_id,
                 "feedback_type": feedback_type,
                 "adapter_name": adapter_name,
+                "comment": normalized_comment,
                 "created_at": now,
                 "updated_at": now
             }
@@ -158,6 +192,7 @@ class FeedbackService:
             return {
                 "message_id": message_id,
                 "feedback_type": feedback_type,
+                "comment": normalized_comment,
                 "action": "created"
             }
 
@@ -204,6 +239,10 @@ class FeedbackService:
         )
 
         return [
-            {"message_id": r.get("message_id"), "feedback_type": r.get("feedback_type")}
+            {
+                "message_id": r.get("message_id"),
+                "feedback_type": r.get("feedback_type"),
+                "comment": r.get("comment")
+            }
             for r in results
         ]

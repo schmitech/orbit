@@ -427,7 +427,13 @@
     "feedback": {
       "good": "Good response",
       "poor": "Poor response",
-      "thanks": "Thanks!"
+      "thanks": "Thanks!",
+      "commentPrompt": "What went wrong?",
+      "commentPlaceholder": "Tell us more (optional)",
+      "commentSend": "Send",
+      "commentCancel": "Cancel",
+      "commentEdit": "Edit comment",
+      "commentSaved": "Comment saved"
     },
     "editAriaLabel": "Edit message",
     "regenerateTitle": "Regenerate response",

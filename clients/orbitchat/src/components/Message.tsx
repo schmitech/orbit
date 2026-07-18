@@ -34,6 +34,7 @@ import { useChatStore } from '../stores/chatStore';
 import { SkillPicker } from './SkillPicker';
 import { ModelPickerButton } from './ModelPickerButton';
 import { FileChip } from './FileChip';
+import { FeedbackCommentBox } from './FeedbackCommentBox';
 
 interface MessageProps {
   message: MessageType;
@@ -150,6 +151,8 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [showAcknowledgement, setShowAcknowledgement] = useState(false);
+  const [showCommentBox, setShowCommentBox] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const acknowledgementTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const submitFeedbackAction = useChatStore(state => state.submitFeedback);
 
@@ -161,23 +164,35 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
     };
   }, []);
 
+  const flashAcknowledgement = () => {
+    setShowAcknowledgement(true);
+    if (acknowledgementTimeoutRef.current) {
+      clearTimeout(acknowledgementTimeoutRef.current);
+    }
+    acknowledgementTimeoutRef.current = setTimeout(() => {
+      setShowAcknowledgement(false);
+      acknowledgementTimeoutRef.current = null;
+    }, 2000);
+  };
+
   const handleClick = async (type: 'up' | 'down') => {
     if (!reply.databaseMessageId || isLoading) return;
-    const shouldShowAcknowledgement = reply.feedback !== type;
+    const willActivate = reply.feedback !== type;
+    const openingCommentBox = type === 'down' && willActivate;
     setIsLoading(true);
     try {
-      await submitFeedbackAction(reply.id, type);
-      if (shouldShowAcknowledgement) {
-        setShowAcknowledgement(true);
-        if (acknowledgementTimeoutRef.current) {
-          clearTimeout(acknowledgementTimeoutRef.current);
-        }
-        acknowledgementTimeoutRef.current = setTimeout(() => {
-          setShowAcknowledgement(false);
-          acknowledgementTimeoutRef.current = null;
-        }, 2000);
-      } else {
+      const ok = await submitFeedbackAction(reply.id, type);
+      if (!ok) return;
+      if (openingCommentBox) {
         setShowAcknowledgement(false);
+        setShowCommentBox(true);
+      } else {
+        setShowCommentBox(false);
+        if (willActivate) {
+          flashAcknowledgement();
+        } else {
+          setShowAcknowledgement(false);
+        }
       }
     } catch (error) {
       debugError('Failed to submit thread reply feedback:', error);
@@ -186,31 +201,68 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
     }
   };
 
+  const handleCommentSubmit = async (comment: string) => {
+    if (!reply.databaseMessageId) return;
+    setIsSubmittingComment(true);
+    try {
+      const ok = await submitFeedbackAction(reply.id, 'down', comment);
+      // On failure keep the box open so the user doesn't lose their text.
+      if (!ok) return;
+      setShowCommentBox(false);
+      flashAcknowledgement();
+    } catch (error) {
+      debugError('Failed to submit thread reply feedback comment:', error);
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
   return (
-    <div className="mt-0.5 flex items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0]">
-      <button
-        onClick={() => handleClick('up')}
-        disabled={isLoading}
-        className={`rounded-md p-1.5 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
-        title={t('message.feedback.good')}
-        aria-label={t('message.feedback.good')}
-      >
-        <ThumbsUp className="h-4 w-4" />
-      </button>
-      <button
-        onClick={() => handleClick('down')}
-        disabled={isLoading}
-        className={`rounded-md p-1.5 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
-        title={t('message.feedback.poor')}
-        aria-label={t('message.feedback.poor')}
-      >
-        <ThumbsDown className="h-4 w-4" />
-      </button>
-      {showAcknowledgement && (
-        <span className="ml-1 inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
-          <Check className="h-3.5 w-3.5" />
-          {t('message.feedback.thanks')}
-        </span>
+    <div className="mt-0.5">
+      <div className="flex items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0]">
+        <button
+          onClick={() => handleClick('up')}
+          disabled={isLoading}
+          className={`rounded-md p-1.5 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
+          title={t('message.feedback.good')}
+          aria-label={t('message.feedback.good')}
+        >
+          <ThumbsUp className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => handleClick('down')}
+          disabled={isLoading}
+          className={`rounded-md p-1.5 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
+          title={t('message.feedback.poor')}
+          aria-label={t('message.feedback.poor')}
+        >
+          <ThumbsDown className="h-4 w-4" />
+        </button>
+        {reply.feedback === 'down' && !showCommentBox && (
+          <button
+            type="button"
+            onClick={() => setShowCommentBox(true)}
+            className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
+          >
+            {reply.feedbackComment
+              ? t('message.feedback.commentEdit')
+              : t('message.feedback.commentPrompt')}
+          </button>
+        )}
+        {showAcknowledgement && (
+          <span className="ml-1 inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
+            <Check className="h-3.5 w-3.5" />
+            {t('message.feedback.thanks')}
+          </span>
+        )}
+      </div>
+      {reply.feedback === 'down' && showCommentBox && (
+        <FeedbackCommentBox
+          initialValue={reply.feedbackComment}
+          onSubmit={handleCommentSubmit}
+          onCancel={() => setShowCommentBox(false)}
+          isSubmitting={isSubmittingComment}
+        />
       )}
     </div>
   );
@@ -238,6 +290,8 @@ export function Message({
   const [copied, setCopied] = useState(false);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
   const [showFeedbackAcknowledgement, setShowFeedbackAcknowledgement] = useState(false);
+  const [showFeedbackCommentBox, setShowFeedbackCommentBox] = useState(false);
+  const [isSubmittingFeedbackComment, setIsSubmittingFeedbackComment] = useState(false);
   const [threadInput, setThreadInput] = useState('');
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isSendingThreadMessage, setIsSendingThreadMessage] = useState(false);
@@ -509,23 +563,36 @@ export function Message({
 
   const submitFeedback = useChatStore(state => state.submitFeedback);
 
+  const flashFeedbackAcknowledgement = () => {
+    setShowFeedbackAcknowledgement(true);
+    if (feedbackAcknowledgementTimeoutRef.current) {
+      clearTimeout(feedbackAcknowledgementTimeoutRef.current);
+    }
+    feedbackAcknowledgementTimeoutRef.current = setTimeout(() => {
+      setShowFeedbackAcknowledgement(false);
+      feedbackAcknowledgementTimeoutRef.current = null;
+    }, 2000);
+  };
+
   const handleFeedback = async (type: 'up' | 'down') => {
     if (!message.databaseMessageId || isFeedbackLoading) return;
-    const shouldShowAcknowledgement = message.feedback !== type;
+    const willActivate = message.feedback !== type;
+    // Opening the inline comment box replaces the "thanks" popover for thumbs-down.
+    const openingCommentBox = type === 'down' && willActivate;
     setIsFeedbackLoading(true);
     try {
-      await submitFeedback(message.id, type);
-      if (shouldShowAcknowledgement) {
-        setShowFeedbackAcknowledgement(true);
-        if (feedbackAcknowledgementTimeoutRef.current) {
-          clearTimeout(feedbackAcknowledgementTimeoutRef.current);
-        }
-        feedbackAcknowledgementTimeoutRef.current = setTimeout(() => {
-          setShowFeedbackAcknowledgement(false);
-          feedbackAcknowledgementTimeoutRef.current = null;
-        }, 2000);
-      } else {
+      const ok = await submitFeedback(message.id, type);
+      if (!ok) return;
+      if (openingCommentBox) {
         setShowFeedbackAcknowledgement(false);
+        setShowFeedbackCommentBox(true);
+      } else {
+        setShowFeedbackCommentBox(false);
+        if (willActivate) {
+          flashFeedbackAcknowledgement();
+        } else {
+          setShowFeedbackAcknowledgement(false);
+        }
       }
     } catch (error) {
       debugError('Failed to submit feedback:', error);
@@ -533,6 +600,23 @@ export function Message({
       setIsFeedbackLoading(false);
     }
   };
+
+  const handleFeedbackCommentSubmit = async (comment: string) => {
+    if (!message.databaseMessageId) return;
+    setIsSubmittingFeedbackComment(true);
+    try {
+      const ok = await submitFeedback(message.id, 'down', comment);
+      // On failure keep the box open so the user doesn't lose their text.
+      if (!ok) return;
+      setShowFeedbackCommentBox(false);
+      flashFeedbackAcknowledgement();
+    } catch (error) {
+      debugError('Failed to submit feedback comment:', error);
+    } finally {
+      setIsSubmittingFeedbackComment(false);
+    }
+  };
+
 
   const handleThreadSubmit = async () => {
     if (!onSendThreadMessage || !message.threadInfo || threadLimitReached) {
@@ -1050,6 +1134,19 @@ export function Message({
                 </div>
               )}
 
+              {/* Add/edit feedback comment (thumbs-down only) */}
+              {getEnableFeedbackButtons() && message.feedback === 'down' && !showFeedbackCommentBox && (
+                <button
+                  type="button"
+                  onClick={() => setShowFeedbackCommentBox(true)}
+                  className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
+                >
+                  {message.feedbackComment
+                    ? t('message.feedback.commentEdit')
+                    : t('message.feedback.commentPrompt')}
+                </button>
+              )}
+
               {/* Regenerate */}
               {onRegenerate && (
                 <button
@@ -1109,6 +1206,16 @@ export function Message({
                 </>
               )}
           </div>
+        )}
+
+        {isAssistant && !message.isStreaming && getEnableFeedbackButtons() &&
+          message.feedback === 'down' && showFeedbackCommentBox && (
+          <FeedbackCommentBox
+            initialValue={message.feedbackComment}
+            onSubmit={handleFeedbackCommentSubmit}
+            onCancel={() => setShowFeedbackCommentBox(false)}
+            isSubmitting={isSubmittingFeedbackComment}
+          />
         )}
 
         {threadsEnabled && message.threadInfo && isThreadOpen && (

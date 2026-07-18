@@ -277,6 +277,7 @@ class SQLiteService(DatabaseService):
                     user_id TEXT,
                     feedback_type TEXT NOT NULL,
                     adapter_name TEXT,
+                    comment TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )

@@ -231,11 +231,12 @@ export interface ApiKeyQuotaDetails {
 export interface FeedbackResponse {
   message_id: string;
   feedback_type: string | null;
+  comment?: string | null;  // Optional free-text comment accompanying the rating
   action: string;
 }
 
 export interface SessionFeedbackResponse {
-  feedbacks: Array<{ message_id: string; feedback_type: string }>;
+  feedbacks: Array<{ message_id: string; feedback_type: string; comment?: string | null }>;
 }
 
 // Model discovery interfaces
@@ -289,6 +290,8 @@ interface ApiClientConfig {
 }
 
 const NETWORK_ERROR_MESSAGE = 'Could not connect to the server. Please check if the server is running.';
+// Keep in sync with the server's MAX_COMMENT_LENGTH (server/services/feedback_service.py).
+export const FEEDBACK_COMMENT_MAX_LENGTH = 2000;
 const CHAT_TIMEOUT_MS = 60000;
 const STREAM_BUFFER_MAX_LENGTH = 1000000;
 const STREAM_BUFFER_TRIMMED_LENGTH = 500000;
@@ -2047,14 +2050,26 @@ export class ApiClient {
   public async submitFeedback(
     messageId: string,
     sessionId: string,
-    feedbackType: 'up' | 'down'
+    feedbackType: 'up' | 'down',
+    comment?: string
   ): Promise<FeedbackResponse> {
+    if (comment !== undefined && comment.length > FEEDBACK_COMMENT_MAX_LENGTH) {
+      throw new Error(`Feedback comment exceeds maximum length of ${FEEDBACK_COMMENT_MAX_LENGTH} characters`);
+    }
+    const body: Record<string, unknown> = {
+      message_id: messageId,
+      session_id: sessionId,
+      feedback_type: feedbackType
+    };
+    if (comment !== undefined) {
+      body.comment = comment;
+    }
     return await this.requestJsonOrThrow<FeedbackResponse>(
       `${this.apiUrl}/api/feedback`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message_id: messageId, session_id: sessionId, feedback_type: feedbackType })
+        body: JSON.stringify(body)
       },
       'Failed to submit feedback'
     );

@@ -427,7 +427,13 @@
     "feedback": {
       "good": "Buena respuesta",
       "poor": "Mala respuesta",
-      "thanks": "¡Gracias!"
+      "thanks": "¡Gracias!",
+      "commentPrompt": "¿Qué salió mal?",
+      "commentPlaceholder": "Cuéntanos más (opcional)",
+      "commentSend": "Enviar",
+      "commentCancel": "Cancelar",
+      "commentEdit": "Editar comentario",
+      "commentSaved": "Comentario guardado"
     },
     "editAriaLabel": "Editar mensaje",
     "regenerateTitle": "Regenerar respuesta",

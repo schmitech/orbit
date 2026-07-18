@@ -427,7 +427,13 @@
     "feedback": {
       "good": "良い応答",
       "poor": "不十分な応答",
-      "thanks": "ありがとうございます！"
+      "thanks": "ありがとうございます！",
+      "commentPrompt": "何が問題でしたか？",
+      "commentPlaceholder": "詳しく教えてください（任意）",
+      "commentSend": "送信",
+      "commentCancel": "キャンセル",
+      "commentEdit": "コメントを編集",
+      "commentSaved": "コメントを保存しました"
     },
     "editAriaLabel": "メッセージを編集",
     "regenerateTitle": "応答を再生成",

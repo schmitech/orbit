@@ -517,6 +517,7 @@ CREATE TABLE IF NOT EXISTS feedback (
     user_id TEXT,
     feedback_type TEXT NOT NULL,
     adapter_name TEXT,
+    comment TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 )
@@ -529,6 +530,7 @@ CREATE TABLE IF NOT EXISTS feedback (
 - `user_id` (TEXT): Optional user ID (when auth is enabled)
 - `feedback_type` (TEXT): Feedback value ("up" or "down")
 - `adapter_name` (TEXT): Adapter that generated the response
+- `comment` (TEXT): Optional free-text comment accompanying the rating (captured on thumbs-down); `NULL` when none. Bounded to 2000 characters (enforced server-side and by clients)
 - `created_at` (TEXT): ISO format timestamp of feedback creation
 - `updated_at` (TEXT): ISO format timestamp of last update
 
@@ -707,6 +709,9 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.3** (2026-07-18): Feedback comments
+  - Added nullable `feedback.comment` for the optional free-text comment captured on thumbs-down
+  - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`)
 - **v1.2** (2026-07-03): External identity provider support
   - Added `users.provider`, `users.external_id`, and `users.email` (all nullable) for JIT-provisioned Entra ID / Auth0 users
   - Applied to existing databases via the additive-column migration on startup

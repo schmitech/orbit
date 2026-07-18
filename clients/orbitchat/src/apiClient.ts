@@ -90,13 +90,14 @@ export interface ApiClient {
     expires_at: string;
   }>;
   deleteThread?(threadId: string): Promise<{ status: string; message: string; thread_id: string }>;
-  submitFeedback?(messageId: string, sessionId: string, feedbackType: 'up' | 'down'): Promise<{
+  submitFeedback?(messageId: string, sessionId: string, feedbackType: 'up' | 'down', comment?: string): Promise<{
     message_id: string;
     feedback_type: string | null;
+    comment?: string | null;
     action: string;
   }>;
   getSessionFeedback?(sessionId: string): Promise<{
-    feedbacks: Array<{ message_id: string; feedback_type: string }>;
+    feedbacks: Array<{ message_id: string; feedback_type: string; comment?: string | null }>;
   }>;
   clearConversationHistory?(sessionId?: string): Promise<{
     status: string;
@@ -494,7 +495,15 @@ function createProxyApi(): ApiFunctions {
         return response.json();
       },
 
-      async submitFeedback(messageId: string, sessionId: string, feedbackType: 'up' | 'down') {
+      async submitFeedback(messageId: string, sessionId: string, feedbackType: 'up' | 'down', comment?: string) {
+        const body: Record<string, unknown> = {
+          message_id: messageId,
+          session_id: sessionId,
+          feedback_type: feedbackType,
+        };
+        if (comment !== undefined) {
+          body.comment = comment;
+        }
         const response = await fetch('/api/feedback', {
           method: 'POST',
           headers: await buildHeaders({
@@ -502,7 +511,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
             'X-Session-ID': sessionId,
           }),
-          body: JSON.stringify({ message_id: messageId, session_id: sessionId, feedback_type: feedbackType }),
+          body: JSON.stringify(body),
         });
         if (!response.ok) throw new Error(`Failed to submit feedback: ${response.statusText}`);
         return response.json();
