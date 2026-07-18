@@ -42,6 +42,8 @@
   let lastThreadPools = {};
   let threadPoolSearchFilter = "";
   let overviewCharts = {};
+  let feedbackCharts = {};
+  let selectedFeedbackWindowDays = 30;
   let monitoringThresholds = { cpu: 90, memory: 85, error_rate: 5, response_time_ms: 5000 };
   let overviewAdapterPaginator = null;
   let overviewDatasourcePaginator = null;
@@ -75,6 +77,7 @@
     configSections: "/admin/config/sections",
     adapterConfigs: "/admin/adapters/config",
     auditEvents: "/admin/audit/events",
+    feedbackAnalytics: "/admin/api/feedback-analytics",
     serverInfo: "/admin/info",
   };
 
@@ -869,6 +872,7 @@
   // ------------------------------------------------------------------
   var TABS = [
     { id: "overview", label: "Overview" },
+    { id: "feedback", label: "Feedback" },
     { id: "users", label: "Users" },
     { id: "keys", label: "API Keys" },
     { id: "prompts", label: "Personas" },
@@ -972,6 +976,9 @@
       disconnectMetricsWs();
       destroyOverviewCharts();
     }
+    if (activeTab === "feedback" && id !== "feedback") {
+      destroyFeedbackCharts();
+    }
     // Destroy adapter editor when leaving adapters tab
     if (activeTab === "adapters" && id !== "adapters") {
       if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
@@ -1000,6 +1007,7 @@
     clear(c);
     switch (activeTab) {
       case "overview": renderOverview(c); break;
+      case "feedback": renderFeedback(c); break;
       case "users": renderUsers(c); break;
       case "keys": renderKeys(c); break;
       case "prompts": renderPrompts(c); break;
@@ -1840,6 +1848,315 @@
 
     // Connect WebSocket for live monitoring
     connectMetricsWs();
+  }
+
+  // ==================================================================
+  // TAB: Feedback analytics
+  // ==================================================================
+
+  function destroyFeedbackCharts() {
+    Object.keys(feedbackCharts).forEach(function (key) {
+      try { feedbackCharts[key].destroy(); } catch (_) {}
+    });
+    feedbackCharts = {};
+  }
+
+  function feedbackPercent(value) {
+    return value == null ? "—" : formatNum(value, 1) + "%";
+  }
+
+  function feedbackMetricCard(value, label, detail, progress, tone) {
+    return el("div", { className: "metric-card" },
+      el("div", { className: "metric-value" }, value),
+      el("div", { className: "metric-label" }, label),
+      el("div", { className: "metric-sub" }, detail || ""),
+      progress == null ? null : el("div", { className: "monitoring-progress-track" },
+        el("div", {
+          className: "monitoring-progress-bar " + (tone || "sky"),
+          style: "width:" + clampPercentage(progress) + "%"
+        })
+      )
+    );
+  }
+
+  function feedbackChartOptions() {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      elements: { point: { radius: 2, hoverRadius: 5 }, line: { borderWidth: 2 } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: "rgba(15,29,51,0.06)" },
+          ticks: { color: "#6b7a96", precision: 0, font: { size: 10 } }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: "#6b7a96", maxRotation: 0, autoSkip: true, maxTicksLimit: 10, font: { size: 10 } }
+        }
+      },
+      plugins: {
+        legend: { labels: { color: "#3d4f6f", usePointStyle: true, boxWidth: 10, font: { size: 11 } } },
+        tooltip: {
+          backgroundColor: "rgba(10,14,23,0.96)",
+          titleColor: "#f4f6fa",
+          bodyColor: "#e4e8f0",
+          padding: 12,
+          cornerRadius: 6
+        }
+      }
+    };
+  }
+
+  function initFeedbackCharts(data) {
+    destroyFeedbackCharts();
+    if (typeof Chart === "undefined" || !data.summary.total) return;
+
+    var trendCanvas = document.getElementById("feedback-trend-chart");
+    if (trendCanvas) {
+      var trendOptions = feedbackChartOptions();
+      trendOptions.scales.y1 = {
+        beginAtZero: true,
+        min: 0,
+        max: 100,
+        position: "right",
+        grid: { drawOnChartArea: false },
+        ticks: { color: "#6b7a96", callback: function (value) { return value + "%"; }, font: { size: 10 } }
+      };
+      feedbackCharts.trend = new Chart(trendCanvas, {
+        type: "line",
+        data: {
+          labels: data.trend.map(function (item) {
+            return new Date(item.date + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          }),
+          datasets: [
+            { label: "Positive", data: data.trend.map(function (item) { return item.positive; }), borderColor: "#28a66a", backgroundColor: "rgba(40,166,106,0.10)", fill: true, tension: 0.25 },
+            { label: "Negative", data: data.trend.map(function (item) { return item.negative; }), borderColor: "#e05260", backgroundColor: "rgba(224,82,96,0.08)", fill: true, tension: 0.25 },
+            { label: "Satisfaction %", data: data.trend.map(function (item) { return item.satisfaction_rate; }), borderColor: "#5794f2", backgroundColor: "transparent", borderDash: [5, 4], yAxisID: "y1", spanGaps: true, tension: 0.2 }
+          ]
+        },
+        options: trendOptions
+      });
+    }
+
+    var distributionCanvas = document.getElementById("feedback-distribution-chart");
+    if (distributionCanvas) {
+      feedbackCharts.distribution = new Chart(distributionCanvas, {
+        type: "doughnut",
+        data: {
+          labels: ["Positive", "Negative"],
+          datasets: [{
+            data: [data.summary.positive, data.summary.negative],
+            backgroundColor: ["#28a66a", "#e05260"],
+            borderWidth: 0,
+            hoverOffset: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "68%",
+          plugins: feedbackChartOptions().plugins
+        }
+      });
+    }
+
+    var adapterCanvas = document.getElementById("feedback-adapter-chart");
+    var adapterRows = data.adapters.slice(0, 10);
+    if (adapterCanvas && adapterRows.length) {
+      var adapterOptions = feedbackChartOptions();
+      adapterOptions.indexAxis = "y";
+      adapterOptions.scales.x.max = 100;
+      adapterOptions.scales.x.ticks.callback = function (value) { return value + "%"; };
+      adapterOptions.plugins.legend.display = false;
+      adapterOptions.plugins.tooltip.callbacks = {
+        afterLabel: function (context) {
+          var row = adapterRows[context.dataIndex];
+          return row.total + " ratings (" + row.positive + " positive, " + row.negative + " negative)";
+        }
+      };
+      feedbackCharts.adapters = new Chart(adapterCanvas, {
+        type: "bar",
+        data: {
+          labels: adapterRows.map(function (item) { return item.adapter; }),
+          datasets: [{
+            label: "Satisfaction",
+            data: adapterRows.map(function (item) { return item.satisfaction_rate || 0; }),
+            backgroundColor: adapterRows.map(function (item) {
+              return item.satisfaction_rate >= 80 ? "#28a66a" : item.satisfaction_rate >= 60 ? "#e0a22f" : "#e05260";
+            }),
+            borderRadius: 4
+          }]
+        },
+        options: adapterOptions
+      });
+    }
+  }
+
+  function renderFeedbackAdapterTable(container, adapters) {
+    var table = el("table");
+    table.appendChild(el("thead", null, el("tr", null,
+      el("th", null, "Adapter"),
+      el("th", { style: "text-align:right" }, "Ratings"),
+      el("th", { style: "text-align:right" }, "Positive"),
+      el("th", { style: "text-align:right" }, "Negative"),
+      el("th", { style: "text-align:right" }, "Satisfaction"),
+      el("th", { style: "text-align:right" }, "Comments")
+    )));
+    var body = el("tbody");
+    adapters.forEach(function (item) {
+      body.appendChild(el("tr", null,
+        el("td", null, el("strong", null, item.adapter)),
+        el("td", { style: "text-align:right" }, formatNum(item.total)),
+        el("td", { style: "text-align:right;color:#208755" }, formatNum(item.positive)),
+        el("td", { style: "text-align:right;color:#bd3f4d" }, formatNum(item.negative)),
+        el("td", { style: "text-align:right;font-weight:700" }, feedbackPercent(item.satisfaction_rate)),
+        el("td", { style: "text-align:right" }, formatNum(item.comments))
+      ));
+    });
+    table.appendChild(body);
+    container.appendChild(wrapTable(table));
+  }
+
+  function renderRecentNegativeFeedback(container, rows) {
+    if (!rows.length) {
+      container.appendChild(el("div", { className: "empty-state" },
+        el("p", null, "No negative feedback was recorded in this window.")));
+      return;
+    }
+    var table = el("table");
+    table.appendChild(el("thead", null, el("tr", null,
+      el("th", null, "When"),
+      el("th", null, "Adapter / user"),
+      el("th", null, "User prompt"),
+      el("th", null, "Assistant response"),
+      el("th", null, "Feedback comment")
+    )));
+    var body = el("tbody");
+    rows.forEach(function (item) {
+      var timestamp = item.created_at ? new Date(item.created_at).toLocaleString() : "Unknown";
+      body.appendChild(el("tr", null,
+        el("td", { style: "white-space:nowrap" }, timestamp),
+        el("td", null,
+          el("strong", null, item.adapter || "Unknown"),
+          el("div", { className: "muted", style: "font-size:var(--text-xs);margin-top:2px" }, item.user || "Anonymous")
+        ),
+        el("td", { title: item.user_prompt || "" }, item.user_prompt || "Unavailable"),
+        el("td", { title: item.assistant_response || "" }, item.assistant_response || "Unavailable"),
+        el("td", { title: item.comment || "" }, item.comment || "No comment")
+      ));
+    });
+    table.appendChild(body);
+    container.appendChild(wrapTable(table));
+  }
+
+  async function renderFeedback(container) {
+    var requestVersion = 0;
+    var header = el("div", { className: "panel" },
+      el("div", { className: "panel-header-row" },
+        el("div", null,
+          el("h2", null, "Feedback intelligence"),
+          el("p", { className: "muted" }, "Track satisfaction, compare adapters, and inspect the conversations behind negative ratings.")
+        ),
+        el("div", { className: "monitoring-toolbar-right", id: "feedback-window-controls" },
+          [7, 30, 90, 365].map(function (days) {
+            var button = el("button", {
+              type: "button",
+              className: "time-window-btn",
+              "aria-pressed": days === selectedFeedbackWindowDays ? "true" : "false"
+            }, days === 365 ? "1y" : days + "d");
+            button.addEventListener("click", function () {
+              if (selectedFeedbackWindowDays === days) return;
+              selectedFeedbackWindowDays = days;
+              load();
+            });
+            return button;
+          })
+        )
+      )
+    );
+    var content = el("div", { style: "display:grid;gap:var(--sp-4)" }, skeleton());
+    container.appendChild(header);
+    container.appendChild(content);
+
+    async function load() {
+      var version = ++requestVersion;
+      header.querySelectorAll(".time-window-btn").forEach(function (button) {
+        var label = selectedFeedbackWindowDays === 365 ? "1y" : selectedFeedbackWindowDays + "d";
+        button.setAttribute("aria-pressed", button.textContent === label ? "true" : "false");
+      });
+      destroyFeedbackCharts();
+      clear(content);
+      content.appendChild(skeleton());
+      try {
+        var data = await api("GET", ENDPOINTS.feedbackAnalytics + "?days=" + selectedFeedbackWindowDays);
+        if (version !== requestVersion || activeTab !== "feedback") return;
+        clear(content);
+
+        if (data.meta.truncated) {
+          content.appendChild(el("div", {
+            className: "panel",
+            style: "border-color:#e0a22f;background:rgba(224,162,47,0.08);font-size:var(--text-sm)"
+          },
+            "This view uses the newest " + formatNum(data.meta.record_limit) + " ratings in the selected window."
+          ));
+        }
+
+        var summary = data.summary;
+        var coverageDetail = summary.eligible_messages == null
+          ? "Chat history unavailable"
+          : summary.response_rate == null
+            ? "Chat retention prevents a reliable denominator"
+            : formatNum(summary.total) + " of " + formatNum(summary.eligible_messages) + " retained responses";
+        content.appendChild(el("div", { className: "metric-cards-grid" },
+          feedbackMetricCard(feedbackPercent(summary.satisfaction_rate), "Satisfaction", formatNum(summary.positive) + " positive / " + formatNum(summary.negative) + " negative", summary.satisfaction_rate, summary.satisfaction_rate >= 80 ? "green" : summary.satisfaction_rate >= 60 ? "amber" : "red"),
+          feedbackMetricCard(formatNum(summary.total), "Ratings", formatNum(summary.sessions) + " sessions · " + formatNum(summary.users) + " identified users"),
+          feedbackMetricCard(feedbackPercent(summary.response_rate), "Feedback coverage", coverageDetail, summary.response_rate, "sky"),
+          feedbackMetricCard(feedbackPercent(summary.negative_comment_rate), "Negative detail rate", formatNum(summary.comments) + " comments on negative ratings", summary.negative_comment_rate, "amber")
+        ));
+
+        if (summary.total) {
+          var charts = el("div", { className: "charts-grid" },
+            el("div", { className: "chart-card" }, el("h3", null, "Ratings and satisfaction over time"), el("canvas", { id: "feedback-trend-chart" })),
+            el("div", { className: "chart-card" }, el("h3", null, "Overall distribution"), el("canvas", { id: "feedback-distribution-chart" })),
+            el("div", { className: "chart-card" }, el("h3", null, "Satisfaction by adapter (top 10 by volume)"), el("canvas", { id: "feedback-adapter-chart" }))
+          );
+          content.appendChild(charts);
+        } else {
+          content.appendChild(el("div", { className: "panel empty-state" },
+            el("p", null, "No feedback has been recorded in this time window.")));
+        }
+
+        var adapterPanel = el("div", { className: "panel" },
+          el("h2", null, "Adapter performance"),
+          el("p", { className: "muted" }, "Compare rating volume and satisfaction together; low-volume percentages should be treated cautiously.")
+        );
+        if (data.adapters.length) renderFeedbackAdapterTable(adapterPanel, data.adapters);
+        else adapterPanel.appendChild(el("p", { className: "muted" }, "No adapter feedback in this window."));
+        content.appendChild(adapterPanel);
+
+        var negativePanel = el("div", { className: "panel" },
+          el("h2", null, "Recent negative feedback"),
+          el("p", { className: "muted" }, "The linked prompt and response provide context for triage. Unavailable content may have expired under chat-history retention.")
+        );
+        renderRecentNegativeFeedback(negativePanel, data.recent_negative);
+        content.appendChild(negativePanel);
+
+        content.appendChild(el("p", { className: "muted", style: "font-size:var(--text-xs)" },
+          data.window.basis + ". Generated " + new Date(data.meta.generated_at).toLocaleString() + "."
+        ));
+        initFeedbackCharts(data);
+      } catch (err) {
+        if (version !== requestVersion || activeTab !== "feedback") return;
+        clear(content);
+        content.appendChild(el("div", { className: "panel empty-state" },
+          el("p", null, "Failed to load feedback analytics: " + err.message)
+        ));
+      }
+    }
+
+    load();
   }
 
   function renderInfoCard(panel, title, data) {

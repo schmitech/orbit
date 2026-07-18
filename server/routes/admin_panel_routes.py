@@ -9,8 +9,9 @@ import base64
 import json
 import logging
 import secrets
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pathlib import Path
@@ -81,6 +82,54 @@ def _get_adapter_manager(request: Request):
     if not manager:
         manager = getattr(request.app.state, 'adapter_manager', None)
     return manager
+
+
+def _feedback_datetime(value: Any) -> Optional[datetime]:
+    """Normalize database date values to timezone-aware UTC datetimes."""
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _feedback_excerpt(value: Any, limit: int) -> Optional[str]:
+    """Return a compact single-line excerpt suitable for the analytics payload."""
+    if not isinstance(value, str):
+        return None
+    compact = " ".join(value.split())
+    if not compact:
+        return None
+    return compact if len(compact) <= limit else compact[:limit - 1].rstrip() + "…"
+
+
+def _feedback_rate(positive: int, total: int) -> Optional[float]:
+    return round((positive / total) * 100, 1) if total else None
+
+
+async def _feedback_records(database_service, query: Dict[str, Any], limit: int = 10000) -> List[Dict[str, Any]]:
+    """Read feedback in bounded pages so analytics works across all DB backends."""
+    records: List[Dict[str, Any]] = []
+    page_size = 1000
+    while len(records) < limit:
+        batch = await database_service.find_many(
+            "feedback",
+            query,
+            limit=min(page_size, limit - len(records)),
+            sort=[("created_at", -1)],
+            skip=len(records),
+        )
+        records.extend(batch)
+        if len(batch) < page_size:
+            break
+    return records
 
 
 def create_admin_panel_router() -> APIRouter:
@@ -274,6 +323,201 @@ def create_admin_panel_router() -> APIRouter:
             )
         token = request.cookies.get("dashboard_token")
         return JSONResponse(content={"token": token, "user": user_info})
+
+    @router.get("/admin/api/feedback-analytics", response_class=JSONResponse)
+    async def get_feedback_analytics(request: Request, days: int = 30):
+        """Return current feedback health, trends, adapter breakdowns, and examples."""
+        user_info = await get_admin_user(request)
+        if not user_info:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        if days not in (7, 30, 90, 365):
+            raise HTTPException(status_code=400, detail="days must be one of 7, 30, 90, or 365")
+
+        feedback_service = getattr(request.app.state, "feedback_service", None)
+        if feedback_service is None:
+            from services.feedback_service import FeedbackService
+            feedback_service = FeedbackService(
+                request.app.state.config,
+                database_service=getattr(request.app.state, "database_service", None),
+            )
+            await feedback_service.initialize()
+            request.app.state.feedback_service = feedback_service
+
+        database_service = feedback_service.database_service
+        now = datetime.now(timezone.utc)
+        first_day = now.date() - timedelta(days=days - 1)
+        window_start = datetime.combine(first_day, datetime.min.time(), tzinfo=timezone.utc)
+        feedback_query = {"created_at": {"$gte": window_start.isoformat()}}
+
+        records = await _feedback_records(database_service, feedback_query)
+        source_count = await database_service.count("feedback", feedback_query)
+        source_count = max(source_count, len(records))
+
+        positive = sum(1 for item in records if item.get("feedback_type") == "up")
+        negative = sum(1 for item in records if item.get("feedback_type") == "down")
+        rated_total = positive + negative
+        negative_comments = sum(
+            1 for item in records
+            if item.get("feedback_type") == "down" and str(item.get("comment") or "").strip()
+        )
+        unique_sessions = {str(item.get("session_id")) for item in records if item.get("session_id")}
+        unique_users = {str(item.get("user_id")) for item in records if item.get("user_id")}
+
+        trend_map: Dict[str, Dict[str, int]] = defaultdict(lambda: {"positive": 0, "negative": 0})
+        adapter_map: Dict[str, Dict[str, int]] = defaultdict(
+            lambda: {"positive": 0, "negative": 0, "comments": 0}
+        )
+        for item in records:
+            feedback_type = item.get("feedback_type")
+            created_at = _feedback_datetime(item.get("created_at"))
+            if created_at and feedback_type in ("up", "down"):
+                trend_key = created_at.date().isoformat()
+                trend_map[trend_key]["positive" if feedback_type == "up" else "negative"] += 1
+
+            adapter_name = str(item.get("adapter_name") or "Unknown")
+            if feedback_type == "up":
+                adapter_map[adapter_name]["positive"] += 1
+            elif feedback_type == "down":
+                adapter_map[adapter_name]["negative"] += 1
+            if str(item.get("comment") or "").strip():
+                adapter_map[adapter_name]["comments"] += 1
+
+        trend = []
+        for offset in range(days):
+            day = first_day + timedelta(days=offset)
+            counts = trend_map[day.isoformat()]
+            total = counts["positive"] + counts["negative"]
+            trend.append({
+                "date": day.isoformat(),
+                "positive": counts["positive"],
+                "negative": counts["negative"],
+                "total": total,
+                "satisfaction_rate": _feedback_rate(counts["positive"], total),
+            })
+
+        adapters = []
+        for name, counts in adapter_map.items():
+            total = counts["positive"] + counts["negative"]
+            adapters.append({
+                "adapter": name,
+                "positive": counts["positive"],
+                "negative": counts["negative"],
+                "total": total,
+                "comments": counts["comments"],
+                "satisfaction_rate": _feedback_rate(counts["positive"], total),
+            })
+        adapters.sort(key=lambda item: (-item["total"], item["adapter"].lower()))
+
+        # Feedback and chat history share message/session identifiers. Enrich only the
+        # most recent negative examples to keep the endpoint useful and inexpensive.
+        chat_history_service = getattr(request.app.state, "chat_history_service", None)
+        chat_collection = getattr(chat_history_service, "collection_name", "chat_history")
+        recent_negative = []
+        user_cache: Dict[str, Optional[str]] = {}
+        negative_records = [item for item in records if item.get("feedback_type") == "down"][:25]
+        auth_service = getattr(request.app.state, "auth_service", None)
+        users_collection = getattr(auth_service, "users_collection_name", "users")
+
+        for item in negative_records:
+            session_id = item.get("session_id")
+            message_id = item.get("message_id")
+            assistant_message = None
+            user_prompt = None
+            if session_id and message_id and chat_history_service is not None:
+                # Resolve the exact rated response by its primary key. This avoids a
+                # global history fan-out cap starving a busy session's example.
+                assistant_message = await database_service.find_one(
+                    chat_collection,
+                    {"_id": str(message_id), "session_id": session_id, "role": "assistant"},
+                )
+                if assistant_message and assistant_message.get("timestamp"):
+                    nearby_history = await database_service.find_many(
+                        chat_collection,
+                        {
+                            "session_id": session_id,
+                            "timestamp": {"$lte": assistant_message["timestamp"]},
+                        },
+                        limit=8,
+                        sort=[("timestamp", -1)],
+                    )
+                    preceding = next(
+                        (
+                            candidate for candidate in nearby_history
+                            if candidate.get("role") == "user"
+                        ),
+                        None,
+                    )
+                    if preceding:
+                        user_prompt = _feedback_excerpt(preceding.get("content"), 500)
+
+            user_id = str(item.get("user_id")) if item.get("user_id") else None
+            user_label = None
+            if user_id:
+                if user_id not in user_cache:
+                    user_doc = await database_service.find_one(users_collection, {"_id": user_id})
+                    user_cache[user_id] = (
+                        _feedback_excerpt(user_doc.get("email") or user_doc.get("username"), 120)
+                        if user_doc else None
+                    )
+                user_label = user_cache[user_id]
+
+            feedback_created_at = _feedback_datetime(item.get("created_at"))
+            recent_negative.append({
+                "created_at": feedback_created_at.isoformat() if feedback_created_at else None,
+                "adapter": item.get("adapter_name") or "Unknown",
+                "session_id": session_id,
+                "user": user_label or ("Authenticated user" if user_id else "Anonymous"),
+                "comment": _feedback_excerpt(item.get("comment"), 2000),
+                "user_prompt": user_prompt,
+                "assistant_response": _feedback_excerpt(
+                    assistant_message.get("content") if assistant_message else None,
+                    800,
+                ),
+            })
+
+        eligible_messages = None
+        if chat_history_service is not None:
+            eligible_messages = await database_service.count(
+                chat_collection,
+                {"role": "assistant", "timestamp": {"$gte": window_start.isoformat()}},
+            )
+
+        return JSONResponse(content={
+            "window": {
+                "days": days,
+                "start": window_start.isoformat(),
+                "end": now.isoformat(),
+                "basis": "Current ratings grouped by their creation date",
+            },
+            "summary": {
+                "total": rated_total,
+                "positive": positive,
+                "negative": negative,
+                "satisfaction_rate": _feedback_rate(positive, rated_total),
+                "comments": negative_comments,
+                "negative_comment_rate": _feedback_rate(negative_comments, negative),
+                "sessions": len(unique_sessions),
+                "users": len(unique_users),
+                "eligible_messages": eligible_messages,
+                "response_rate": (
+                    _feedback_rate(rated_total, eligible_messages)
+                    if (
+                        eligible_messages is not None
+                        and eligible_messages >= rated_total
+                        and source_count == len(records)
+                    ) else None
+                ),
+            },
+            "trend": trend,
+            "adapters": adapters,
+            "recent_negative": recent_negative,
+            "meta": {
+                "generated_at": now.isoformat(),
+                "source_records": source_count,
+                "record_limit": 10000,
+                "truncated": source_count > len(records),
+            },
+        })
 
     # ----- Logout -----
 
