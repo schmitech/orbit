@@ -404,11 +404,16 @@
     }
   },
   "modelPicker": {
+    "modelLabel": "Model",
+    "chooseModel": "Choose a model",
+    "chooseModelHint": "Select the model for your next response",
     "searchPlaceholder": "Search models…",
     "searchAriaLabel": "Search models",
     "noModelsMatch": "No models match \"{{query}}\"",
     "modelCountHint": "{{filtered}} of {{total}} models",
-    "selectModel": "Select model"
+    "selectModel": "Select model",
+    "tryAnotherSearch": "Try a model name or provider",
+    "keyboardHint": "↑↓ navigate · Enter select"
   },
   "skillPicker": {
     "noSkillsAvailable": "No skills available for this adapter.",

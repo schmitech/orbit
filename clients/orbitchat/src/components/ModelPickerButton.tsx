@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Search } from 'lucide-react';
+import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { AllowedModel } from '../types';
 
@@ -17,23 +17,29 @@ interface ModelPickerButtonProps {
   triggerPaddingClass?: string;
 }
 
+function formatProvider(provider: string): string {
+  return provider.replace(/[_-]+/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
+}
+
 export function ModelPickerButton({
   availableModels,
   defaultModel,
   selectedModel,
   onSelect,
   wrapperClassName = 'relative hidden md:block',
-  maxWidthClass = 'max-w-[200px]',
+  maxWidthClass = 'max-w-[220px]',
   triggerTitle,
   listboxLabel,
-  staticPaddingClass = 'px-3 py-1.5',
-  triggerPaddingClass = 'px-3 py-1.5',
+  staticPaddingClass = 'px-2.5 py-1.5',
+  triggerPaddingClass = 'px-2.5 py-1.5',
 }: ModelPickerButtonProps) {
   const { t } = useTranslation();
   const resolvedTriggerTitle = triggerTitle ?? t('modelPicker.selectModel');
   const resolvedListboxLabel = listboxLabel ?? t('modelPicker.selectModel');
+  const listboxId = useId();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
   const [dropdownPos, setDropdownPos] = useState<{ bottom: number; right: number } | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -41,16 +47,27 @@ export function ModelPickerButton({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const effectiveModel = selectedModel ?? defaultModel;
 
-  const filtered = query.trim()
-    ? availableModels.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase()))
-    : availableModels;
+  const filtered = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return availableModels;
+    return availableModels.filter(model =>
+      `${model.name} ${model.provider} ${model.model}`.toLowerCase().includes(normalizedQuery)
+    );
+  }, [availableModels, query]);
+
+  const selectModel = useCallback((name: string) => {
+    onSelect(name);
+    setOpen(false);
+    setQuery('');
+    requestAnimationFrame(() => triggerRef.current?.focus());
+  }, [onSelect]);
 
   const recalcPos = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     setDropdownPos({
-      bottom: window.innerHeight - rect.top + 8,
-      right: window.innerWidth - rect.right,
+      bottom: window.innerHeight - rect.top + 10,
+      right: Math.max(12, window.innerWidth - rect.right),
     });
   }, []);
 
@@ -65,6 +82,8 @@ export function ModelPickerButton({
       return;
     }
     recalcPos();
+    const selectedIndex = availableModels.findIndex(model => model.name === effectiveModel);
+    setActiveIndex(Math.max(selectedIndex, 0));
     setOpen(true);
   };
 
@@ -77,24 +96,41 @@ export function ModelPickerButton({
       const target = event.target as Node;
       const inWrapper = wrapperRef.current?.contains(target) ?? false;
       const inDropdown = dropdownRef.current?.contains(target) ?? false;
-      if (!inWrapper && !inDropdown) {
-        closeDropdown();
-      }
+      if (!inWrapper && !inDropdown) closeDropdown();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
         closeDropdown();
         triggerRef.current?.focus();
+        return;
+      }
+      if (filtered.length === 0) return;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveIndex(index => (index + 1) % filtered.length);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveIndex(index => (index - 1 + filtered.length) % filtered.length);
+      } else if (event.key === 'Home') {
+        // In this open combobox, Home/End navigate options rather than moving
+        // the search caret so keyboard behavior stays consistent with the list.
+        event.preventDefault();
+        setActiveIndex(0);
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        setActiveIndex(filtered.length - 1);
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        const model = filtered[activeIndex];
+        if (model) selectModel(model.name);
       }
     };
 
-    // Keep position in sync while open
     const resizeObserver = new ResizeObserver(recalcPos);
     if (triggerRef.current) resizeObserver.observe(triggerRef.current);
     window.addEventListener('resize', recalcPos, { passive: true });
     document.addEventListener('scroll', recalcPos, { capture: true, passive: true });
-
     document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
@@ -105,93 +141,155 @@ export function ModelPickerButton({
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [closeDropdown, open, recalcPos]);
+  }, [activeIndex, closeDropdown, filtered, open, recalcPos, selectModel]);
 
-  if (!defaultModel && availableModels.length === 0) {
-    return null;
-  }
+  useEffect(() => {
+    if (!open) return;
+    dropdownRef.current
+      ?.querySelector<HTMLElement>(`[data-model-index="${activeIndex}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex, open]);
+
+  if (!defaultModel && availableModels.length === 0) return null;
 
   const dropdown = open && dropdownPos && typeof document !== 'undefined'
     ? createPortal(
         <div
           ref={dropdownRef}
-          style={{ position: 'fixed', bottom: dropdownPos.bottom, right: dropdownPos.right, width: 288, zIndex: 9999 }}
-          className="rounded-xl border border-gray-200 bg-white shadow-xl dark:border-[#2f303d] dark:bg-[#111111]"
+          style={{
+            position: 'fixed',
+            bottom: dropdownPos.bottom,
+            right: dropdownPos.right,
+            width: 'min(352px, calc(100vw - 24px))',
+            zIndex: 9999,
+          }}
+          className="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-[0_18px_50px_-12px_rgba(0,0,0,0.3)] ring-1 ring-black/[0.03] dark:border-white/10 dark:bg-[#171717] dark:ring-white/[0.04]"
         >
-          {/* Search bar */}
-          <div className="p-2 border-b border-gray-100 dark:border-[#222222]">
-            <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-1.5 dark:bg-[#1a1a1a]">
-              <Search className="h-3.5 w-3.5 flex-shrink-0 text-gray-400 dark:text-[#6b6f7a]" aria-hidden="true" />
+          <div className="flex items-start justify-between gap-4 px-4 pb-3 pt-4">
+            <div>
+              <h2 className="text-sm font-semibold leading-5 text-gray-950 dark:text-white">
+                {t('modelPicker.chooseModel')}
+              </h2>
+              <p className="mt-0.5 text-xs leading-4 text-gray-500 dark:text-gray-400">
+                {t('modelPicker.chooseModelHint')}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium tabular-nums text-gray-500 dark:bg-white/[0.07] dark:text-gray-400">
+                {filtered.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  closeDropdown();
+                  requestAnimationFrame(() => triggerRef.current?.focus());
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors motion-reduce:transition-none hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:bg-white/[0.08] dark:hover:text-gray-200 dark:focus-visible:ring-white/20"
+                aria-label={t('common.close')}
+                title={t('common.close')}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <div className="px-3 pb-3">
+            <label className="flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 transition-colors focus-within:border-gray-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-gray-200/70 dark:border-white/10 dark:bg-white/[0.05] dark:focus-within:border-white/25 dark:focus-within:bg-white/[0.07] dark:focus-within:ring-white/10">
+              <Search className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
               <input
                 ref={searchRef}
                 type="text"
                 value={query}
-                onChange={e => setQuery(e.target.value)}
+                onChange={event => {
+                  setQuery(event.target.value);
+                  setActiveIndex(0);
+                }}
                 placeholder={t('modelPicker.searchPlaceholder')}
-                className="flex-1 bg-transparent pl-1 text-xs text-gray-700 placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#6b6f7a]"
+                className="min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm text-gray-900 shadow-none outline-none ring-0 placeholder:text-gray-400 focus:border-0 focus:outline-none focus:ring-0 dark:text-white dark:placeholder:text-gray-500"
+                role="combobox"
+                aria-expanded={open}
+                aria-haspopup="listbox"
                 aria-label={t('modelPicker.searchAriaLabel')}
+                aria-controls={listboxId}
+                aria-activedescendant={filtered[activeIndex] ? `${listboxId}-option-${activeIndex}` : undefined}
               />
-            </div>
+            </label>
           </div>
 
-          {/* Model list */}
+          <div className="mx-3 border-t border-gray-100 dark:border-white/[0.07]" />
           <div
+            id={listboxId}
             role="listbox"
             aria-label={resolvedListboxLabel}
-            className="max-h-60 overflow-y-auto py-1"
+            className="max-h-72 overflow-y-auto p-2"
           >
             {filtered.length === 0 ? (
-              <div className="px-3 py-5 text-center text-xs text-gray-400 dark:text-[#6b6f7a]">
-                {t('modelPicker.noModelsMatch', { query })}
+              <div className="flex flex-col items-center px-4 py-8 text-center">
+                <Search className="mb-2 h-5 w-5 text-gray-300 dark:text-gray-600" aria-hidden="true" />
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('modelPicker.noModelsMatch', { query })}
+                </p>
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('modelPicker.tryAnotherSearch')}</p>
               </div>
             ) : (
-              filtered.map(model => {
-                const isActive = effectiveModel === model.name;
+              filtered.map((model, index) => {
+                const isSelected = effectiveModel === model.name;
+                const isActive = activeIndex === index;
                 return (
                   <button
+                    id={`${listboxId}-option-${index}`}
                     key={model.name}
+                    data-model-index={index}
                     role="option"
-                    aria-selected={isActive}
+                    aria-selected={isSelected}
                     type="button"
-                    onClick={() => {
-                      onSelect(model.name);
-                      closeDropdown();
-                      triggerRef.current?.focus();
-                    }}
-                    className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors ${
+                    onMouseMove={() => setActiveIndex(index)}
+                    onClick={() => selectModel(model.name)}
+                    className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
                       isActive
-                        ? 'bg-gray-100 text-gray-900 dark:bg-[#1f1f1f] dark:text-[#ececf1]'
-                        : 'text-gray-700 hover:bg-gray-50 dark:text-[#bfc2cd] dark:hover:bg-[#1a1a1a]'
+                        ? 'bg-gray-100 dark:bg-white/[0.08]'
+                        : 'hover:bg-gray-50 dark:hover:bg-white/[0.05]'
                     }`}
                   >
-                    <span className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border ${
-                      isActive
-                        ? 'border-blue-500 bg-blue-500 dark:border-blue-400 dark:bg-blue-400'
-                        : 'border-gray-300 dark:border-[#5a5b65]'
-                    }`}>
-                      {isActive && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                      )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">{model.name}</span>
+                      <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">
+                        {formatProvider(model.provider)}
+                        {model.model !== model.name ? ` · ${model.model}` : ''}
+                      </span>
                     </span>
-                    <span className="truncate font-medium normal-case tracking-normal">{model.name}</span>
+                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                      isSelected ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'text-transparent'
+                    }`}>
+                      <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+                    </span>
                   </button>
                 );
               })
             )}
           </div>
 
-          {/* Count hint when list is long */}
-          {availableModels.length > 8 && (
-            <div className="border-t border-gray-100 px-3 py-1.5 dark:border-[#222222]">
-              <span className="text-[10px] text-gray-400 dark:text-[#6b6f7a]">
-                {t('modelPicker.modelCountHint', { filtered: filtered.length, total: availableModels.length })}
-              </span>
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/80 px-4 py-2 text-[11px] text-gray-400 dark:border-white/[0.07] dark:bg-white/[0.025] dark:text-gray-500">
+              <span>{t('modelPicker.modelCountHint', { filtered: filtered.length, total: availableModels.length })}</span>
+              <span className="hidden sm:inline">{t('modelPicker.keyboardHint')}</span>
             </div>
           )}
         </div>,
         document.body
       )
     : null;
+
+  const label = (
+    <span className="min-w-0 flex-1 text-left leading-none">
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">
+        {t('modelPicker.modelLabel')}
+      </span>
+      <span className="block truncate text-xs font-semibold text-gray-800 dark:text-gray-200">
+        {effectiveModel ?? t('modelPicker.selectModel')}
+      </span>
+    </span>
+  );
 
   return (
     <div ref={wrapperRef} className={wrapperClassName}>
@@ -201,14 +299,15 @@ export function ModelPickerButton({
             ref={triggerRef}
             type="button"
             onClick={toggleDropdown}
-            className={`inline-flex min-w-[100px] ${maxWidthClass} items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 ${triggerPaddingClass} text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd] dark:hover:bg-[#3a3b48]`}
+            className={`group inline-flex min-w-[124px] ${maxWidthClass} items-center gap-2 rounded-xl border border-gray-200 bg-white/80 ${triggerPaddingClass} shadow-sm transition-all motion-reduce:transition-none hover:border-gray-300 hover:bg-white hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/20 dark:hover:bg-white/[0.08] dark:focus-visible:ring-white/20`}
             aria-haspopup="listbox"
             aria-expanded={open}
+            aria-controls={open ? listboxId : undefined}
             title={resolvedTriggerTitle}
           >
-            <span className="truncate flex-1">{effectiveModel}</span>
+            {label}
             <ChevronDown
-              className={`h-3.5 w-3.5 flex-shrink-0 text-gray-400 transition-transform duration-150 dark:text-[#6b6f7a] ${open ? 'rotate-180' : ''}`}
+              className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
               aria-hidden="true"
             />
           </button>
@@ -216,10 +315,10 @@ export function ModelPickerButton({
         </>
       ) : (
         <div
-          className={`inline-flex min-w-[100px] ${maxWidthClass} items-center rounded-full border border-gray-200 bg-gray-100 ${staticPaddingClass} text-xs text-gray-500 dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#bfc2cd]`}
+          className={`inline-flex min-w-[124px] ${maxWidthClass} items-center gap-2 rounded-xl border border-gray-200 bg-white/60 ${staticPaddingClass} shadow-sm dark:border-white/10 dark:bg-white/[0.04]`}
           title={effectiveModel ?? undefined}
         >
-          <span className="truncate">{effectiveModel}</span>
+          {label}
         </div>
       )}
     </div>

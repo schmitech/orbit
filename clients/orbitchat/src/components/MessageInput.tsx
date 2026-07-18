@@ -1701,6 +1701,8 @@ export function MessageInput({
                 defaultModel={defaultModel}
                 selectedModel={selectedModel}
                 onSelect={(name) => onSelectModel?.(name)}
+                wrapperClassName="relative block"
+                maxWidthClass="max-w-[150px] md:max-w-[220px]"
               />
               {(audioOutputEnabled || audioInputEnabled) && (
                 <>

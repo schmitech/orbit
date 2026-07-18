@@ -404,11 +404,16 @@
     }
   },
   "modelPicker": {
+    "modelLabel": "Modell",
+    "chooseModel": "Modell auswählen",
+    "chooseModelHint": "Wähle das Modell für die nächste Antwort",
     "searchPlaceholder": "Modelle suchen…",
     "searchAriaLabel": "Modelle suchen",
     "noModelsMatch": "Keine Modelle entsprechen \"{{query}}\"",
     "modelCountHint": "{{filtered}} von {{total}} Modellen",
-    "selectModel": "Modell auswählen"
+    "selectModel": "Modell auswählen",
+    "tryAnotherSearch": "Versuche einen Modell- oder Anbieternamen",
+    "keyboardHint": "↑↓ navigieren · Enter auswählen"
   },
   "skillPicker": {
     "noSkillsAvailable": "Für diesen Adapter sind keine Skills verfügbar.",

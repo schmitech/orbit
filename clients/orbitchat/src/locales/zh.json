@@ -404,11 +404,16 @@
     }
   },
   "modelPicker": {
+    "modelLabel": "模型",
+    "chooseModel": "选择模型",
+    "chooseModelHint": "选择用于下一条回复的模型",
     "searchPlaceholder": "搜索模型…",
     "searchAriaLabel": "搜索模型",
     "noModelsMatch": "没有模型匹配“{{query}}”",
     "modelCountHint": "{{filtered}} / {{total}} 个模型",
-    "selectModel": "选择模型"
+    "selectModel": "选择模型",
+    "tryAnotherSearch": "尝试搜索模型名称或提供商",
+    "keyboardHint": "↑↓ 导航 · Enter 选择"
   },
   "skillPicker": {
     "noSkillsAvailable": "此适配器没有可用技能。",

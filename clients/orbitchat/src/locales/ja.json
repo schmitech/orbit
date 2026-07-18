@@ -404,11 +404,16 @@
     }
   },
   "modelPicker": {
+    "modelLabel": "モデル",
+    "chooseModel": "モデルを選択",
+    "chooseModelHint": "次の回答に使用するモデルを選択してください",
     "searchPlaceholder": "モデルを検索…",
     "searchAriaLabel": "モデルを検索",
     "noModelsMatch": "\"{{query}}\" に一致するモデルはありません",
     "modelCountHint": "{{total}} 件中 {{filtered}} 件のモデル",
-    "selectModel": "モデルを選択"
+    "selectModel": "モデルを選択",
+    "tryAnotherSearch": "モデル名またはプロバイダー名で検索してください",
+    "keyboardHint": "↑↓ 移動 · Enter 選択"
   },
   "skillPicker": {
     "noSkillsAvailable": "このアダプターで利用できるスキルはありません。",
