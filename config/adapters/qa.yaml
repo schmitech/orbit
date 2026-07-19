@@ -52,6 +52,27 @@ adapters:
     event_handler:
       type: default
 
+- name: "qa-realtime-voice"
+  enabled: true
+  type: "openai_realtime"
+  datasource: "none"
+  adapter: "conversational"
+  implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+  capabilities:
+    retrieval_behavior: "none"      # this adapter doesn't retrieve directly; grounding_adapter does
+    supports_realtime_audio: true
+    supports_interruption: true
+  config:
+    realtime_model: "gpt-realtime"
+    realtime_voice: "marin"
+    enable_input_transcription: true
+    # Points at the qa-sql retriever adapter above; grounding_adapter can name
+    # any retriever-type adapter (e.g. intent-sql-postgres, intent-duckdb-analytics)
+    # to reuse this same live-lookup pattern for other domains.
+    grounding_adapter: "qa-sql"
+    grounding_tool_name: "lookup_answer"
+    grounding_tool_description: "Look up factual answers (fees, hours, procedures) from the city knowledge base."
+
 - name: qa-vector-chroma
   enabled: true
   type: retriever

@@ -250,6 +250,8 @@ async def _handle_voice_websocket(
                 prompt_service=prompt_service,
                 system_prompt_id=system_prompt_id,
                 clock_service=clock_service,
+                adapter_manager=chat_service.context_builder.adapter_manager,
+                api_key=api_key,
             )
         elif adapter_type == 'openai_realtime_translation':
             from services.chat_handlers.openai_realtime_translation_websocket_handler import (

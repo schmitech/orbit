@@ -19,6 +19,11 @@ from typing import Any, Dict, Optional
 from fastapi import WebSocket, WebSocketDisconnect
 from inference.pipeline.base import ProcessingContext
 from inference.pipeline.prompt_builder import PromptInstructionBuilder
+from services.chat_handlers.realtime_grounding import (
+    build_tool_schema,
+    execute_grounding_lookup,
+    resolve_grounding_config,
+)
 from starlette.websockets import WebSocketState
 
 logger = logging.getLogger(__name__)
@@ -75,6 +80,8 @@ class OpenAIRealtimeWebSocketHandler:
         prompt_service: Optional[Any] = None,
         system_prompt_id: Optional[str] = None,
         clock_service: Optional[Any] = None,
+        adapter_manager: Optional[Any] = None,
+        api_key: Optional[str] = None,
     ):
         self.websocket = websocket
         self.adapter_name = adapter_name
@@ -85,6 +92,9 @@ class OpenAIRealtimeWebSocketHandler:
         self.prompt_service = prompt_service
         self.system_prompt_id = system_prompt_id
         self.clock_service = clock_service
+        self.adapter_manager = adapter_manager
+        self.api_key = api_key
+        self._grounding = resolve_grounding_config(adapter_config)
 
         cfg = adapter_config.get("config") or {}
         self._realtime_model = cfg.get("realtime_model", "gpt-realtime")
@@ -148,7 +158,14 @@ class OpenAIRealtimeWebSocketHandler:
                 prompt_preview,
             )
 
-        return await builder.build_system_message_content(context)
+        instructions = await builder.build_system_message_content(context)
+        if self._grounding:
+            instructions += (
+                f"\n\nWhen the user asks a factual question, call the {self._grounding.tool_name} "
+                "tool to look up the answer, then respond naturally and conversationally in your "
+                "own words in a friendly tone — do not read the looked-up text verbatim."
+            )
+        return instructions
 
     async def _build_session_update(self) -> Dict[str, Any]:
         pcm_format = {"type": "audio/pcm", "rate": 24000}
@@ -173,14 +190,19 @@ class OpenAIRealtimeWebSocketHandler:
         if self._enable_input_transcription:
             audio["input"]["transcription"] = {"model": self._transcription_model}
 
+        session: Dict[str, Any] = {
+            "type": "realtime",
+            "model": self._realtime_model,
+            "instructions": instructions,
+            "audio": audio,
+        }
+        if self._grounding:
+            session["tools"] = [build_tool_schema(self._grounding)]
+            session["tool_choice"] = "auto"
+
         return {
             "type": "session.update",
-            "session": {
-                "type": "realtime",
-                "model": self._realtime_model,
-                "instructions": instructions,
-                "audio": audio,
-            },
+            "session": session,
         }
 
     async def _send_client(self, message: Dict[str, Any]) -> None:
@@ -296,11 +318,22 @@ class OpenAIRealtimeWebSocketHandler:
             if text:
                 await self._send_client({"type": "transcription", "text": text})
         elif etype == "response.done":
-            logger.debug("OpenAI Realtime: response.done")
-            await self._send_client(
-                {"type": "done", "session_id": self.orbit_session_id}
+            response_obj = event.get("response") or {}
+            outputs = response_obj.get("output") or []
+            # A response containing only a function_call (no message/audio) is the
+            # tool-call turn itself — the real spoken answer arrives in the *next*
+            # response we trigger via response.create, so don't signal "done" yet.
+            is_tool_call_only = bool(outputs) and all(
+                item.get("type") == "function_call" for item in outputs
             )
-            self._chunk_index = 0
+            if is_tool_call_only:
+                logger.debug("OpenAI Realtime: response.done (tool-call turn, suppressing client done)")
+            else:
+                logger.debug("OpenAI Realtime: response.done")
+                await self._send_client(
+                    {"type": "done", "session_id": self.orbit_session_id}
+                )
+                self._chunk_index = 0
         elif etype == "error":
             err = event.get("error") or {}
             msg = err.get("message") if isinstance(err, dict) else str(err)
@@ -309,6 +342,49 @@ class OpenAIRealtimeWebSocketHandler:
             logger.debug("OpenAI Realtime: %s", etype)
         elif etype == "input_audio_buffer.speech_stopped":
             logger.debug("OpenAI Realtime: input_audio_buffer.speech_stopped")
+        elif etype == "response.function_call_arguments.done":
+            await self._handle_function_call(event)
+
+    async def _handle_function_call(self, event: Dict[str, Any]) -> None:
+        if not self._grounding:
+            return
+        call_id = event.get("call_id")
+        name = event.get("name")
+        if name and name != self._grounding.tool_name:
+            logger.debug("Ignoring unknown realtime tool call: %s", name)
+            return
+        try:
+            arguments = json.loads(event.get("arguments") or "{}")
+        except json.JSONDecodeError:
+            arguments = {}
+        query = arguments.get("query", "")
+        logger.debug(
+            "OpenAI Realtime: _handle_function_call invoking grounding_adapter='%s' query=%r",
+            self._grounding.adapter_name, query,
+        )
+
+        result_text = await execute_grounding_lookup(
+            self.adapter_manager, self._grounding, query, api_key=self.api_key
+        )
+        logger.debug(
+            "OpenAI Realtime: grounding lookup result (%d chars): %r",
+            len(result_text), result_text,
+        )
+
+        assert self._openai_ws is not None
+        await self._openai_ws.send_str(
+            json.dumps(
+                {
+                    "type": "conversation.item.create",
+                    "item": {
+                        "type": "function_call_output",
+                        "call_id": call_id,
+                        "output": result_text,
+                    },
+                }
+            )
+        )
+        await self._openai_ws.send_str(json.dumps({"type": "response.create"}))
 
     async def _openai_loop(self) -> None:
         assert self._openai_ws is not None
