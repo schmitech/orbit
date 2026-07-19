@@ -106,7 +106,71 @@ Point any existing retriever adapter at a new `openai_realtime` adapter via `con
 | `grounding_confidence_threshold` | No | retriever's own default | Overrides the retriever's configured `confidence_threshold` for this tool's calls. |
 | `grounding_max_answer_chars` | No | `600` | Caps how much retrieved text gets spoken back per lookup. |
 
-The same pattern generalizes to any other retriever domain — point `grounding_adapter` at `intent-sql-postgres` (customer orders) or `intent-duckdb-analytics` (business analytics) to get a grounded voice assistant for those domains with no further code changes.
+The `grounding_adapter` mechanism itself is generic — it works against any `type: "retriever"` adapter via the same `BaseRetriever.get_relevant_context()` interface, regardless of datasource. In practice, today it's only tuned for **QA-shaped** retrievers (`qa-sql`, `qa-vector-chroma`). See [Known Limitations](#known-limitations-intent-retriever-content-shape) before pointing it at an intent retriever (`intent-sql-postgres`, `intent-duckdb-analytics`, `intent-elasticsearch-app-logs`, `intent-mongodb-mflix`, ...).
+
+---
+
+## Known Limitations: Intent Retriever Content Shape
+
+**Status: analyzed, not yet fixed.** Currently validated end-to-end only
+against `qa-sql`/`qa-vector-chroma` (`config/adapters/qa.yaml`). This is
+QA-only *by current tuning*, not by architectural necessity — the fix below
+is scoped and not yet built.
+
+### Why QA retrievers work cleanly today
+
+QA domain adapters (`server/adapters/qa/base.py:36-48`, `format_document`)
+set `item["answer"]` to a short, pre-formatted natural-language sentence
+(e.g. *"Birth certificates can be requested from the Vital Records Office
+for a fee of $20."*). `_format_answer()` in `realtime_grounding.py` prefers
+`doc.get("answer")`, so the text handed to the model as `function_call_output`
+is already voice-ready — truncating it at `grounding_max_answer_chars`
+(default 600) rarely matters since these answers are short.
+
+### Why intent retrievers (customer-orders, elasticsearch-logs, mongodb-mflix, business-analytics) need more work
+
+Intent retrievers (`server/retrievers/base/intent_sql_base.py:770-831`,
+mirrored in `intent_http_base.py`) never set `item["answer"]`. A single
+`get_relevant_context()` call returns **one dict** (not one per row) whose
+`content` field is a fully-rendered multi-row table — markdown/TOON/CSV
+depending on `context_format`, built by `TableRenderer.render()`
+(`intent_sql_base.py:786`) — covering up to `return_results` rows (e.g.
+`return_results: 100` in `config/adapters/customer-orders.yaml`) folded
+into one string that can run to several KB, prefixed with a line like
+`"Found 47 results:"` or `"Showing 20 of 47 total results (truncated):"`.
+
+`_format_answer()` falls back to `doc.get("content")` for these and
+truncates at `grounding_max_answer_chars` on a raw character boundary. For
+a multi-row table that means:
+- Cutting mid-row or mid-table-syntax (stray `|` characters, broken TOON
+  lines) rather than at a sentence boundary.
+- Silently dropping the relevant row entirely if it falls past the
+  first ~600 characters of the table.
+
+This formatting happens *inside* `get_relevant_context()` itself (before
+the pipeline's `context_format`/`context_max_tokens` capabilities are ever
+applied — those only run later, in `ContextRetrievalStep._format_context`,
+which this grounding path doesn't use), so there's no existing per-adapter
+knob that produces a short spoken sentence instead of a table.
+
+### Follow-up work (next session)
+
+1. **Make truncation table-aware** in `_format_answer()` — detect
+   table-formatted content (or just always truncate on line/row boundaries,
+   not mid-string) so a cut-off table degrades to "fewer rows shown"
+   instead of garbled syntax.
+2. **Recommend/default a small `return_results`** (e.g. 1–3) for any
+   retriever adapter used as a `grounding_adapter`, so the table is small
+   by construction rather than relying on downstream truncation — a voice
+   answer should describe one thing, not summarize 47 rows.
+3. Optionally, let `execute_grounding_lookup()` ask the underlying LLM
+   (or a cheap summarizer call) to condense a table result into a single
+   spoken sentence, rather than truncating raw table text at all — closer
+   to how the text pipeline lets the *main* LLM read structured `<context>`
+   and phrase a natural answer, except here the *tool output* itself would
+   need to already be terse since the Realtime model receives it as plain
+   function-call output, not as `<context>` fed through the usual prompt
+   builder.
 
 ---
 
