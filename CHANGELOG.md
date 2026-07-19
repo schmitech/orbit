@@ -1,18 +1,26 @@
 # Changelog
 
-## [2.9.6] - 2026-07-18
+## [2.10.0] - 2026-07-18
 
 ### Core System Updates
+- **RBAC**: Replaced the binary admin/user role with a permission-based RBAC model, including multi-role users, localized enforcement across auth paths, and a one-time migration from legacy role storage.
+- **SSO Role Handling**: Tightened SSO-provisioned account handling so password resets no longer create local hashes, locally assigned admin-panel roles persist for non-allowlisted identities, and allowlisted identities still resolve to admin.
 - **Feedback Input**: Added backend support for an optional free-text feedback field on thumbs-down reactions, with persistence and rehydration.
 - **Admin Panel**: Added feedback analytics to the admin panel, including trends, satisfaction metrics, adapter comparisons, and richer negative-feedback insights.
 
 ### Chat-app & UI Improvements
 - **Feedback Input**: Added an optional free-text comment box to thumbs-down feedback, with live character counting, rehydration on reload, and edit support.
 - **Model Picker**: Redesigned the model selector with searchable details, clearer labeling, keyboard navigation, responsive styling, and improved combobox accessibility.
+- **orbitchat**: Published orbitchat 3.12.1.
+- **Mobile UX**: Improved the mobile composer and sidebar flow, keeping Skills visible, auto-closing the sidebar after clearing conversations, and highlighting the active conversation.
 
 ### Bug Fixes & Technical Improvements
 - **Feedback Service**: Updated feedback submission and rehydration paths to persist comments, keep reactions stable when a note is edited, and enforce the new comment length constraint.
 - **Analytics APIs**: Added authenticated admin analytics endpoints and cross-database test coverage for the feedback dashboard.
+- **SSO Controls**: Hid password-change and password-reset controls for SSO-provisioned accounts and aligned the server-side checks with the UI.
+
+### Documentation & Configuration
+- **RBAC Docs**: Updated authentication and RBAC documentation to match the new SSO role behavior and added a troubleshooting note for roles reverting to admin.
 
 ## [2.9.5] - 2026-07-17
 
