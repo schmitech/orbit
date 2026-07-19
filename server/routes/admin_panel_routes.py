@@ -268,19 +268,22 @@ def create_admin_panel_router() -> APIRouter:
 
         subject = claims["sub"]
         email = claims.get("email") or claims.get("preferred_username")
-        if not sso.is_admin(email, provider, subject):
-            logger.warning(
-                "Admin SSO denied for %s: email=%r subject=%r not on admin_users allowlist",
-                provider, email, subject,
-            )
-            return _login_redirect("not_authorized")
+        is_admin_allowlisted = sso.is_admin(email, provider, subject)
 
         auth_service = getattr(request.app.state, "auth_service", None)
         if not auth_service:
             raise HTTPException(status_code=503, detail="Authentication service not available")
 
-        user = await auth_service.provision_sso_user(provider, subject, email, is_admin=True)
-        if not user or not user.get("active", True) or not has_permission(user, "*"):
+        # Allowlisted identities are always granted (or kept as) admin. Everyone
+        # else is provisioned/looked up as-is, so an operator/auditor/analyst
+        # role assigned via the admin panel is respected rather than requiring
+        # allowlisting for any admin-panel SSO access at all.
+        user = await auth_service.provision_sso_user(provider, subject, email, is_admin=is_admin_allowlisted)
+        if not user or not user.get("active", True) or not has_any_permission(user):
+            logger.warning(
+                "Admin SSO denied for %s: email=%r subject=%r has no admin-panel permissions",
+                provider, email, subject,
+            )
             return _login_redirect("not_authorized")
 
         token = await auth_service.create_session(user)

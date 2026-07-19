@@ -23,6 +23,7 @@ SCRIPT_DIR = Path(__file__).parent.absolute()
 SERVER_DIR = SCRIPT_DIR.parent.parent
 sys.path.append(str(SERVER_DIR))
 
+from auth.rbac import has_any_permission
 from services.admin_sso_service import AdminSSOService
 from services.auth_service import AuthService
 from services.database_service import create_database_service
@@ -260,3 +261,22 @@ async def test_provision_sso_user_promotes_existing(auth_service: AuthService):
 async def test_set_role_rejects_invalid(auth_service: AuthService):
     user = await auth_service.provision_sso_user("entra", "role-test", None, is_admin=False)
     assert await auth_service.set_role(str(user["_id"]), "superuser") is False
+
+
+async def test_provision_sso_user_respects_manually_assigned_role_when_not_allowlisted(auth_service: AuthService):
+    """A non-allowlisted SSO identity's manually assigned role (e.g. via the
+    admin panel's Users tab) must survive subsequent SSO logins, since
+    provision_sso_user(is_admin=False) should never touch an existing role -
+    only the allowlist (is_admin=True) path is authoritative for role resets."""
+    user = await auth_service.provision_sso_user("entra", "scoped-op", "op@example.com", is_admin=False)
+    assert user["role"] == "user"
+
+    assert await auth_service.set_role(str(user["_id"]), "operator") is True
+
+    relogin = await auth_service.provision_sso_user("entra", "scoped-op", "op@example.com", is_admin=False)
+    assert relogin["role"] == "operator"
+    assert relogin["roles"] == ["operator"]
+    assert has_any_permission(relogin)
+
+    record = await auth_service.get_user_by_username("entra:scoped-op")
+    assert record["role"] == "operator"

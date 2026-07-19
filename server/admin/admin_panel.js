@@ -2531,6 +2531,7 @@
 
   function renderAccountSecurityPanel(panel) {
     clear(panel);
+    var isSsoUser = !!(currentUser && currentUser.provider);
     var formWrap = el("div", { className: "collapsible-panel-body", style: "display:none" });
     var toggleBtn = el("button", { className: "secondary", type: "button" }, "Change Password");
 
@@ -2551,12 +2552,18 @@
 
     panel.appendChild(el("div", { className: "panel-header-row" },
       el("h2", null, "My Account"),
-      toggleBtn
+      isSsoUser ? null : toggleBtn
     ));
     panel.appendChild(el("div", { className: "key-summary" },
       el("p", null, el("strong", null, "Username:"), " " + ((currentUser && currentUser.username) || "N/A")),
       el("p", null, el("strong", null, "Roles:"), " " + ((currentUser && currentUser.roles && currentUser.roles.join(", ")) || "N/A"))
     ));
+    if (isSsoUser) {
+      panel.appendChild(el("p", { className: "muted" },
+        "Your password is managed by your identity provider (" + currentUser.provider + "). Sign in through that provider to change it."
+      ));
+      return;
+    }
     renderChangeMyPassword(formWrap, closeForm);
     panel.appendChild(formWrap);
   }
@@ -2942,7 +2949,7 @@
       });
       actionRow.appendChild(editRolesToggle);
       actionRow.appendChild(toggleBtn);
-      actionRow.appendChild(resetToggle);
+      if (!user.provider) actionRow.appendChild(resetToggle);
       var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete User");
       deleteBtn.addEventListener("click", function () {
         requireTypedConfirmation({

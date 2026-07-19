@@ -236,6 +236,7 @@ class AuthService:
             "roles": roles,
             "permissions": sorted(permissions_for_roles(roles)),
             "active": user.get("active", True),
+            "provider": user.get("provider"),
         }
 
     @staticmethod
@@ -757,7 +758,10 @@ class AuthService:
         Called by the admin-panel SSO callback after the id_token is validated
         and the admin allowlist is checked. Creates the user with the right role
         on first login, and promotes an existing user to admin when they are on
-        the allowlist. Returns the user document (including ``_id``) or None.
+        the allowlist. When ``is_admin`` is False, any existing user's roles are
+        left untouched (a non-allowlisted identity's admin-panel permissions are
+        managed entirely via manual role assignment, not by this method).
+        Returns the user document (including ``_id``) or None.
         """
         role = "admin" if is_admin else self._oidc_default_role
         user = await self._find_or_create_external_user(provider, external_id, email, role=role)
@@ -947,7 +951,12 @@ class AuthService:
             if not user:
                 logger.warning(f"User not found for password reset: {user_id}")
                 return False
-            
+
+            # External users have no local password to reset
+            if user.get("provider"):
+                logger.warning(f"Password reset attempt for external user: {user['username']}")
+                return False
+
             result = await self.database.update_one(
                 self.users_collection_name,
                 {"_id": user["_id"]},

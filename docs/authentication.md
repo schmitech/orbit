@@ -903,7 +903,7 @@ The bearer-token validation above is for API clients that already hold a provide
 1. The login page shows a button per enabled provider linking to `GET /admin/auth/{provider}/login`.
 2. That route generates `state`, a PKCE `code_verifier`/`code_challenge`, and a `nonce`, stashes them in a short-lived httponly cookie (`admin_sso_flow`, ~5 min, `SameSite=Lax`), and redirects to the provider's authorize endpoint.
 3. The provider redirects back to `GET /admin/auth/{provider}/callback`. ORBIT verifies `state`, exchanges the `code` at the token endpoint, and validates the returned **id_token** (RS256 via JWKS, `aud == client_id`, `iss`, `exp`, and matching `nonce`).
-4. The user's email/subject is checked against the **admin allowlist**. If authorized, the user is JIT-provisioned (or promoted) as an `admin` and a `dashboard_token` session cookie is set. Otherwise the login page shows an error.
+4. The user's email/subject is checked against the **admin allowlist** (`admin_users`). If they match, they are JIT-provisioned (or re-promoted) as `admin`. If they don't match, ORBIT still JIT-provisions/looks up the account and grants a session if it already holds *any* admin-panel role (assigned manually via the Users tab or `orbit user set-roles`) — otherwise the login page shows an error. See "Admin Panel SSO" below for the full allowlist-vs-manual-role interaction, including why a role assigned to an allowlisted identity won't stick.
 
 **Configuration**
 
@@ -932,7 +932,10 @@ auth:
 Additional environment variables: `ORBIT_AUTH_AUTH0_CLIENT_ID`, `ORBIT_AUTH_ENTRA_CLIENT_SECRET`, `ORBIT_AUTH_AUTH0_CLIENT_SECRET`, `ORBIT_ADMIN_BASE_URL`.
 
 - **`client_secret` is optional.** With PKCE alone the flow works as a public client (you can reuse an SPA app registration). Supplying a secret upgrades the code exchange to a confidential client.
-- **Admin access is granted only by `admin_users`.** A matching user is created/promoted to `admin` at login; a non-matching authenticated user is rejected. There's no need for a bootstrap password admin.
+- **Full admin access is granted only by `admin_users`.** A matching identity is created/promoted to `admin` at every login (this overrides any role assigned locally). There's no need for a bootstrap password admin.
+- **Non-matching identities aren't automatically rejected.** A user not on `admin_users` can still sign into the Admin Panel via SSO if an admin has assigned them a scoped role (`operator`, `auditor`, `analyst`, `user-manager`) via the Users tab or `orbit user set-roles` — that role is preserved across logins. Only an identity with no admin-panel role at all (the default `user` role for a first-time SSO login) is rejected.
+
+> **Troubleshooting: "I changed this SSO user's role but it keeps reverting to admin."** This happens when the identity (by email or `provider:subject`) is still listed in `admin_users` — the allowlist is authoritative and re-promotes to `admin` on *every* login, overriding anything set in the Users tab. To make a demotion stick, remove the identity from `admin_users` in `config/config.yaml` and reload/restart the server; the role you assigned locally (e.g. `analyst`) will then take effect on their next SSO login. Make sure at least one other path to full admin remains available (another allowlisted identity, or the local bootstrap `admin` account) before removing the only allowlisted identity.
 
 **Redirect URI to register** with each provider (must match exactly):
 

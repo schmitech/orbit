@@ -152,10 +152,10 @@ ORBIT supports external token validation and Admin Panel SSO via **Microsoft Ent
     When a user signs in for the first time via an external provider, a local user account is automatically provisioned just-in-time (JIT). The role defaults to the configured `default_role` parameter (defined in the `auth.providers.default_role` block in `config.yaml`, defaulting to `"user"`), stored as `roles: [default_role]`.
 2.  **SSO Admin Promotion**:
     When users sign in through the Admin Panel SSO (`/admin/auth/{provider}/login`), ORBIT verifies their email or provider subject against the `auth.providers.admin_sso.admin_users` allowlist:
-    *   If they match, they are provisioned or promoted to `roles: ["admin"]` using `provision_sso_user()`.
-    *   If they do not match, the login is rejected.
+    *   If they match, they are provisioned or **re-promoted** to `roles: ["admin"]` on every login using `provision_sso_user()` — the allowlist is authoritative and always wins. If an admin has manually assigned a non-admin role to an allowlisted identity, it is overwritten back to `admin` on their next SSO login; remove the identity from `admin_users` to make a demotion stick.
+    *   If they do not match, the login is **not automatically rejected**: ORBIT still looks up/JIT-provisions the account and admits it if the identity already holds *any* admin-panel permission (e.g. `operator`, `auditor`, `analyst` assigned manually via the Users tab or `orbit user set-roles`). Only an identity with no admin-panel permissions at all (the default for a brand-new external user, who is provisioned with the plain `user` role) is rejected with `not_authorized`.
 3.  **Role Permanence**:
-    Once provisioned, an external user's roles are managed locally within ORBIT. Promoting an external user to `admin` (via the allowlist or `orbit user set-roles`) persists and will **not** be overwritten on subsequent logins.
+    Once provisioned, a non-allowlisted external user's roles are managed entirely locally within ORBIT and are **never** overwritten on subsequent logins — an admin can assign, change, or revoke their roles at any time via the Users tab or CLI, and it takes effect on their next login. This permanence does **not** apply to allowlisted identities (see above), which are always forced back to `admin`.
 
 ---
 
@@ -169,7 +169,8 @@ ORBIT supports external token validation and Admin Panel SSO via **Microsoft Ent
 
 ### B. Just-in-Time (JIT) Provisioning and SSO Allowlisting
 *   **Organization-wide access**: When external identity providers are enabled, any authenticated organization member is JIT-provisioned with the configured default role (typically `user`, granting no admin permissions).
-*   **Allowlisted administrators**: Only identities on the `auth.providers.admin_sso.admin_users` allowlist are promoted to `admin`.
+*   **Allowlisted administrators**: Identities on the `auth.providers.admin_sso.admin_users` allowlist are always promoted to (and kept at) `admin`, regardless of any role assigned to them locally.
+*   **Non-allowlisted admin-panel access**: An identity that is *not* on the allowlist can still log into the Admin Panel via SSO once an admin assigns it a scoped role (`operator`, `auditor`, `analyst`, `user-manager`) locally — the allowlist only controls automatic promotion to full `admin`, not eligibility for the admin panel in general.
 
 ### C. Attribution & Auditing
 *   **Audit separation**: Distinguishes administrative configuration changes from routine API consumption or chat interactions.
