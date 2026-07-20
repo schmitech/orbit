@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.10.1] - 2026-07-20
+
+### Core System Updates
+- **Grounded Realtime Voice**: Added provider-agnostic realtime grounding so OpenAI Realtime voice adapters can answer factual questions through live RAG lookups before speaking the response.
+- **Gemini Live STS**: Added Gemini Live as a second realtime speech-to-speech provider using the same ORBIT client protocol and grounding flow as OpenAI Realtime.
+- **Adapter SDK**: Added an adapter SDK and CLI for scaffolding valid adapter configs, validating required fields, rendering YAML templates, registering adapters, and optionally enriching metadata with AI.
+- **Realtime Audio Cleanup**: Removed the old websocket audio adapters in favor of the realtime STS provider architecture.
+
+### Chat-app & UI Improvements
+- **Admin Dashboard**: Improved dashboard metric cards with clearer health states, trend handling, dual-axis request/error charts, better timestamp spacing, and an error-budget reliability indicator.
+- **Realtime Voice Client**: Redesigned the realtime voice test client with a provider-agnostic UI — a duplex signal strip and a dynamic provider/model readout — and renamed it from `openai-realtime-voice` to `realtime-voice`.
+
+### Documentation & Configuration
+- **Voice QA Docs**: Added grounded realtime voice architecture documentation, a manual test playbook, and demo adapter/prompt configuration.
+- **Roadmap Docs**: Updated the guide with current limitations, roadmap details, and planning notes for upcoming releases.
+
 ## [2.10.0] - 2026-07-18
 
 ### Core System Updates

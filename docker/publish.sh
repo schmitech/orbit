@@ -10,8 +10,8 @@
 #
 # Source modes:
 #   release        Default. Download a GitHub release tarball and build from it.
-#                  If --tag is 2.10.0-openai, the source release resolves to
-#                  v2.10.0 unless --release-tag is provided.
+#                  If --tag is 2.10.1-openai, the source release resolves to
+#                  v2.10.1 unless --release-tag is provided.
 #   local-tarball  Build utils/scripts/build-tarball.sh from this checkout and
 #                  use that tarball as the Docker context. Use for release tests.
 #   checkout       Build from this checkout. Use for development/testing only.
@@ -19,12 +19,12 @@
 # Targeted config builds:
 #   Use --config-dir to overlay a config tree onto /orbit/config in the image.
 #   This is how to build provider-specific images such as:
-#     schmitech/orbit:2.10.0-openai
-#     schmitech/orbit:2.10.0-gemini
-#     schmitech/orbit:2.10.0-ollama
+#     schmitech/orbit:2.10.1-openai
+#     schmitech/orbit:2.10.1-gemini
+#     schmitech/orbit:2.10.1-ollama
 #
 #   Example:
-#     ./publish.sh --build --tag 2.10.0-openai --config-dir ../deploy/openai
+#     ./publish.sh --build --tag 2.10.1-openai --config-dir ../deploy/openai
 #
 #   The config directory should contain only configuration files, for example:
 #     deploy/openai/config.yaml
@@ -45,10 +45,10 @@
 #     DATASOURCE_QDRANT_API_KEY=...
 #
 #   Example runtime command:
-#     docker run -d --name orbit-2.10.0-openai \
+#     docker run -d --name orbit-2.10.1-openai \
 #       --env-file ./orbit.env \
 #       -p 3000:3000 \
-#       schmitech/orbit:2.10.0-openai
+#       schmitech/orbit:2.10.1-openai
 #
 # Image contents:
 #   - Lean server-only image; no Ollama, no Node.js, no bundled models.
@@ -70,9 +70,9 @@
 #
 # EXAMPLES:
 #   ./publish.sh --build
-#   ./publish.sh --build --tag v2.10.0
-#   ./publish.sh --build --tag 2.10.0-openai --config-dir ../deploy/openai
-#   ./publish.sh --publish --tag 2.10.0-openai --config-dir ../deploy/openai
+#   ./publish.sh --build --tag v2.10.1
+#   ./publish.sh --build --tag 2.10.1-openai --config-dir ../deploy/openai
+#   ./publish.sh --publish --tag 2.10.1-openai --config-dir ../deploy/openai
 #   ./publish.sh --build --source checkout
 #
 set -euo pipefail
@@ -133,9 +133,9 @@ print_help() {
     echo ""
     echo "Examples:"
     echo "  ./publish.sh --build"
-    echo "  ./publish.sh --build --tag v2.10.0"
-    echo "  ./publish.sh --build --tag 2.10.0-openai --release-tag v2.10.0 --config-dir ../deploy/openai"
-    echo "  ./publish.sh --build --source local-tarball --tag v2.10.0"
+    echo "  ./publish.sh --build --tag v2.10.1"
+    echo "  ./publish.sh --build --tag 2.10.1-openai --release-tag v2.10.1 --config-dir ../deploy/openai"
+    echo "  ./publish.sh --build --source local-tarball --tag v2.10.1"
     echo "  ./publish.sh --build --source checkout"
     echo "  ./publish.sh --build --no-cache"
     echo "  ./publish.sh --publish --tag v1.0.0"
