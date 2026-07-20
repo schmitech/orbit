@@ -1,0 +1,40 @@
+# {{ skill_name }} generation adapter — converts text/data into {{ document_format }} documents.
+# Handled by DocumentGenerationStep; LLMInferenceStep is skipped for this adapter type.
+adapters:
+  - name: "{{ name }}"
+    enabled: {{ enabled | lower }}
+    type: "{{ type }}"
+    document_format: "{{ document_format }}"
+    datasource: "{{ datasource }}"
+    adapter: "{{ adapter }}"
+    implementation: "{{ implementation }}"
+{%- if rewrite_provider %}
+    rewrite_provider: "{{ rewrite_provider }}"   # Text LLM used to enrich the request
+{%- endif %}
+{%- if rewrite_model %}
+    rewrite_model: "{{ rewrite_model }}"
+{%- endif %}
+
+    capabilities:
+      expose_as_skill: true
+      skill_name: "{{ skill_name }}"
+      skill_description: "{{ skill_description }}"
+{%- if routing_examples %}
+      # Phrases that boost the skill-intent embedding pre-filter (auto-routing).
+      routing_examples:
+{%- for phrase in routing_examples %}
+        - "{{ phrase }}"
+{%- endfor %}
+{%- endif %}
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"
+
+    config:
+      storage_backend: "{{ storage_backend }}"
+      storage_root: "{{ storage_root }}"

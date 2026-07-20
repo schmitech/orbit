@@ -1,0 +1,27 @@
+# MCP Agent Skill Adapter — exposes configured MCP servers as an agentic tool-calling skill.
+# Prerequisites: mcp_client.enabled: true in config/mcp_client.yaml, at least one configured
+# server, and an inference_provider that supports native tool calling (openai/anthropic/gemini/xai).
+adapters:
+  - name: "{{ name }}"
+    enabled: {{ enabled | lower }}
+    type: "{{ type }}"                    # triggers MCPAgentStep; LLM step is skipped
+    datasource: "{{ datasource }}"
+    adapter: "{{ adapter }}"
+    implementation: "{{ implementation }}"
+    inference_provider: "{{ inference_provider }}"   # must support native tool calling
+    model: "{{ model }}"
+
+    capabilities:
+      expose_as_skill: true
+      skill_name: "{{ skill_name }}"
+      skill_description: "{{ skill_description }}"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+{%- if mcp_servers %}
+      # Restrict which MCP servers this adapter may use. Omit to allow all enabled servers.
+      mcp_servers:
+{%- for srv in mcp_servers %}
+        - "{{ srv }}"
+{%- endfor %}
+{%- endif %}

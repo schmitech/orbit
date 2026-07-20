@@ -1,0 +1,30 @@
+# EXTERNAL SEARCH PROVIDER ADAPTER
+# Calls a dedicated external search API, then uses any configured LLM to synthesize the answer.
+adapters:
+  - name: "{{ name }}"
+    enabled: {{ enabled | lower }}
+    type: "{{ type }}"
+    datasource: "{{ datasource }}"
+    adapter: "{{ adapter }}"
+    implementation: "{{ implementation }}"
+    inference_provider: "{{ inference_provider }}"
+    model: "{{ model }}"
+    web_search:
+      provider: "{{ search_provider }}"
+      result_count: {{ result_count }}
+{%- if api_key %}
+      api_key: "{{ api_key }}"
+{%- endif %}
+{%- if query_url %}
+      query_url: "{{ query_url }}"
+{%- endif %}
+{%- if search_engine_id %}
+      search_engine_id: "{{ search_engine_id }}"
+{%- endif %}
+    capabilities:
+      expose_as_skill: true
+      skill_name: "{{ skill_name }}"
+      skill_description: "{{ skill_description }}"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false

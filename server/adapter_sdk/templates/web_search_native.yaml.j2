@@ -1,0 +1,26 @@
+# PROVIDER-NATIVE WEB SEARCH
+# Delegates web search to the LLM provider's built-in search tool (search + synthesis in one call).
+# SUPPORTED PROVIDERS: only "gemini", "openai", and "xai" support native web search.
+adapters:
+  - name: "{{ name }}"
+    enabled: {{ enabled | lower }}
+    type: "{{ type }}"
+    datasource: "{{ datasource }}"
+    adapter: "{{ adapter }}"
+    implementation: "{{ implementation }}"
+    inference_provider: "{{ inference_provider }}"
+    model: "{{ model }}"
+    capabilities:
+      web_search: true                   # Enable native web search on the inference call
+      expose_as_skill: true
+      skill_name: "{{ skill_name }}"
+      skill_description: "{{ skill_description }}"
+{%- if routing_examples %}
+      routing_examples:
+{%- for phrase in routing_examples %}
+        - "{{ phrase }}"
+{%- endfor %}
+{%- endif %}
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false

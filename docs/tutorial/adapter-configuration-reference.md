@@ -2,6 +2,16 @@
 
 This page is a field-by-field cheatsheet for a single adapter entry. For how to split adapters across multiple files, `import` them into `config.yaml`, and override models per API key, see [Adapter Configuration Management](../adapters/adapter-configuration.md).
 
+> **Tip: generate adapters instead of hand-writing them.** The Adapter SDK scaffolds valid config files for the template-like families — document/media generators, passthrough, `fetch`, `mcp-agent`, and web-search — writes them to `config/adapters/`, and registers them so ORBIT loads them. Run it from anywhere:
+>
+> ```bash
+> bin/adapter-sdk.sh --list                          # see which families it can generate
+> bin/adapter-sdk.sh                                  # interactive wizard
+> bin/adapter-sdk.sh --spec doc-generator --dry-run   # preview a config without writing
+> ```
+>
+> It picks the interdependent `type`/`datasource`/`adapter`/`implementation` values for you and can optionally use an LLM to draft the skill description and routing phrases. Intent × datasource adapters (the config shown below) are still authored by hand for now. See [server/adapter_sdk/README.md](../../server/adapter_sdk/README.md).
+
 Every adapter accepts these shared fields:
 
 ```yaml

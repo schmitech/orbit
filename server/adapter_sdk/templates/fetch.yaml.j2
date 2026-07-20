@@ -1,0 +1,30 @@
+# Fetch skill adapter — retrieves web page content from a URL.
+# Handled by FetchStep; LLMInferenceStep is skipped for this adapter type.
+adapters:
+  - name: "{{ name }}"
+    enabled: {{ enabled | lower }}
+    type: "{{ type }}"
+    datasource: "{{ datasource }}"
+    adapter: "{{ adapter }}"
+    implementation: "{{ implementation }}"
+    fetch_timeout: {{ fetch_timeout }}
+    fetch_user_agent: "{{ fetch_user_agent }}"
+
+    capabilities:
+      expose_as_skill: true
+      skill_name: "{{ skill_name }}"
+      skill_description: "{{ skill_description }}"
+{%- if routing_examples %}
+      routing_examples:
+{%- for phrase in routing_examples %}
+        - "{{ phrase }}"
+{%- endfor %}
+{%- endif %}
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"

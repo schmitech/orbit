@@ -1,0 +1,45 @@
+# Passthrough / conversational adapter — pure conversation, no retrieval.
+adapters:
+  - name: "{{ name }}"
+    enabled: {{ enabled | lower }}
+    type: "{{ type }}"
+    datasource: "{{ datasource }}"
+    adapter: "{{ adapter }}"
+    implementation: "{{ implementation }}"
+{%- if inference_provider %}
+    inference_provider: "{{ inference_provider }}"   # Override default inference provider
+{%- endif %}
+{%- if model %}
+    model: "{{ model }}"
+{%- endif %}
+
+    capabilities:
+{%- if available_skills %}
+      available_skills:
+{%- for skill in available_skills %}
+        - "{{ skill }}"
+{%- endfor %}
+{%- endif %}
+{%- if auto_routable_skills %}
+      auto_routable_skills:
+{%- for skill in auto_routable_skills %}
+        - "{{ skill }}"
+{%- endfor %}
+{%- endif %}
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      requires_api_key_validation: false
+{%- if auto_skill_routing %}
+      auto_skill_routing: true
+{%- endif %}
+{%- if mcp_tools %}
+      mcp_tools: true
+{%- if mcp_servers %}
+      mcp_servers:
+{%- for srv in mcp_servers %}
+        - "{{ srv }}"
+{%- endfor %}
+{%- endif %}
+{%- endif %}
