@@ -1201,7 +1201,15 @@
       },
       x: {
         grid: { color: "rgba(15,29,51,0.05)", drawBorder: false },
-        ticks: { color: "#6b7a96", maxRotation: 0, minRotation: 0, font: { size: 10, family: "'JetBrains Mono', monospace" }, padding: 4 }
+        ticks: {
+          color: "#6b7a96",
+          autoSkip: true,
+          maxTicksLimit: 5,
+          maxRotation: 0,
+          minRotation: 0,
+          font: { size: 10, family: "'JetBrains Mono', monospace" },
+          padding: 4
+        }
       }
     },
     plugins: {
@@ -1240,8 +1248,8 @@
         ]
       },
       { id: "mon-request-chart", series: [
-          { label: "Requests/sec", color: "#f2a35e", rgb: [242,163,94],  fill: true },
-          { label: "Error Rate %", color: "#f26073", rgb: [242,96,115],  fill: true }
+          { label: "Requests/sec", color: "#f2a35e", rgb: [242,163,94],  fill: true, axis: "y" },
+          { label: "Error Rate %", color: "#f26073", rgb: [242,96,115],  fill: true, axis: "y1" }
         ]
       },
       { id: "mon-response-chart", series: [
@@ -1271,13 +1279,33 @@
         return {
           label: s.label, borderColor: s.color, backgroundColor: bg,
           fill: s.fill || false, tension: 0.3, borderDash: s.borderDash || [],
-          borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 20, data: []
+          borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 20,
+          yAxisID: s.axis || "y", data: []
         };
       });
 
-      var opts = i === 1
-        ? Object.assign({}, monitoringChartOpts, { scales: Object.assign({}, monitoringChartOpts.scales, { y: Object.assign({}, monitoringChartOpts.scales.y, { ticks: Object.assign({}, monitoringChartOpts.scales.y.ticks, { stepSize: 1, precision: 0 }), min: 0 }) }) })
-        : monitoringChartOpts;
+      var opts = monitoringChartOpts;
+      // Request volume and error rate have different units. A second axis keeps
+      // both trends readable instead of implying that req/s and percent share a scale.
+      if (i === 1) {
+        opts = Object.assign({}, monitoringChartOpts, {
+          scales: Object.assign({}, monitoringChartOpts.scales, {
+            y: Object.assign({}, monitoringChartOpts.scales.y, {
+              min: 0,
+              ticks: Object.assign({}, monitoringChartOpts.scales.y.ticks, { stepSize: 1, precision: 0 }),
+              title: { display: true, text: "Requests/sec", color: "#6b7a96", font: { size: 10 } }
+            }),
+            y1: {
+              beginAtZero: true,
+              max: 100,
+              position: "right",
+              grid: { drawOnChartArea: false },
+              ticks: { color: "#6b7a96", callback: function (value) { return value + "%"; }, font: { size: 10, family: "'JetBrains Mono', monospace" }, padding: 6 },
+              title: { display: true, text: "Error rate", color: "#6b7a96", font: { size: 10 } }
+            }
+          })
+        });
+      }
 
       overviewCharts[def.id] = new Chart(canvas, {
         type: "line",
@@ -1298,20 +1326,35 @@
     var errRate = clampPercentage(data.requests.error_rate);
     var reliability = clampPercentage(100 - errRate);
 
+    var series = data.time_series || {};
+    var trendValues = function (values) {
+      if (!Array.isArray(values)) return values;
+      return values.slice(Math.max(0, values.length - getMaxPoints(series.timestamps)));
+    };
     setText("mon-cpu-value", formatNum(cpu, 1));
     setProgressBar("mon-cpu-bar", cpu, cpu >= monitoringThresholds.cpu ? "red" : cpu >= monitoringThresholds.cpu * 0.82 ? "amber" : "sky");
-    setText("mon-cpu-sub", formatNum(cpu, 1) + "% utilization");
+    setMetricStatus("mon-cpu", cpu, monitoringThresholds.cpu, "high", "CPU");
+    setMetricChange("mon-cpu", trendValues(series.cpu), "%");
 
     setText("mon-mem-value", formatNum(data.system.memory_gb, 2));
     setProgressBar("mon-mem-bar", mem, mem >= monitoringThresholds.memory ? "red" : mem >= monitoringThresholds.memory * 0.82 ? "amber" : "green");
-    setText("mon-mem-sub", formatNum(mem, 1) + "% of system");
+    setMetricStatus("mon-mem", mem, monitoringThresholds.memory, "high", "Memory");
+    setMetricChange("mon-mem", trendValues(series.memory), "%");
 
     setText("mon-rps-value", formatNum(data.requests.per_second, 1));
-    setText("mon-rps-sub", formatNum(data.requests.total) + " total");
+    setText("mon-rps-sub", formatNum(data.requests.total) + " total requests");
+    // Throughput has no meaningful healthy threshold: zero traffic can be valid.
+    // Mark the card as live when a metrics snapshot arrives without judging its rate.
+    setMetricLiveStatus("mon-rps");
+    setMetricChange("mon-rps", trendValues(series.requests_per_second), " req/s");
 
     setText("mon-rel-value", formatNum(reliability, 2));
-    setProgressBar("mon-rel-bar", reliability, errRate >= monitoringThresholds.error_rate ? "red" : errRate > 0 ? "amber" : "green");
-    setText("mon-rel-sub", errRate > 0 ? formatNum(errRate, 2) + "% error rate" : "No errors");
+    var errorBudgetUsed = monitoringThresholds.error_rate > 0
+      ? (errRate / monitoringThresholds.error_rate) * 100
+      : 0;
+    setProgressBar("mon-rel-bar", errorBudgetUsed, errRate >= monitoringThresholds.error_rate ? "red" : errRate > 0 ? "amber" : "green");
+    setMetricStatus("mon-rel", errRate, monitoringThresholds.error_rate, "high", "Reliability", 0);
+    setMetricChange("mon-rel", trendValues(series.error_rate), "% error rate");
 
     setText("mon-last-update", new Date().toLocaleTimeString());
 
@@ -1322,7 +1365,13 @@
 
     // Charts
     if (data.time_series && data.time_series.timestamps && data.time_series.timestamps.length > 0) {
-      var labels = data.time_series.timestamps.map(function (t) { return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); });
+      // A compact, fixed-width 24-hour time label prevents adjacent ticks from
+      // colliding on narrow chart cards while retaining second-level precision.
+      var labels = data.time_series.timestamps.map(function (t) {
+        return new Date(t).toLocaleTimeString([], {
+          hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+        });
+      });
       var maxPts = getMaxPoints(data.time_series.timestamps);
       var startIdx = Math.max(0, labels.length - maxPts);
       var trimmed = labels.slice(startIdx);
@@ -1339,7 +1388,10 @@
         if (!chart) return;
         var density = getChartDensityConfig();
         if (chart.options && chart.options.scales && chart.options.scales.x && chart.options.scales.x.ticks) {
-          chart.options.scales.x.ticks.maxTicksLimit = density.maxTicks;
+          // The overview grid can narrow individual charts below ~420px even
+          // on desktop. Three fixed-width timestamps fit comfortably there;
+          // wider cards keep the denser range-specific tick count.
+          chart.options.scales.x.ticks.maxTicksLimit = chart.width > 0 && chart.width < 420 ? 3 : density.maxTicks;
         }
         var agg = aggregateSeries(trimmed, c.series);
         updateChartWithActiveTooltip(chart, agg.labels, agg.seriesList);
@@ -1357,6 +1409,38 @@
     if (!bar) return;
     bar.style.width = clampPercentage(pct).toFixed(1) + "%";
     bar.className = "monitoring-progress-bar " + color;
+  }
+
+  function setMetricStatus(id, value, threshold, direction, label, warningThreshold) {
+    var isCritical = direction === "high" && value >= threshold;
+    var isWarning = !isCritical && direction === "high" && (
+      warningThreshold == null ? value >= threshold * 0.82 : value > warningThreshold
+    );
+    var state = isCritical ? "Critical" : isWarning ? "Warning" : "Healthy";
+    var detail = label === "Reliability"
+      ? formatNum(value, 2) + "% error rate · " + formatNum(threshold > 0 ? (value / threshold) * 100 : 0, 0) + "% of error budget (threshold " + formatNum(threshold, 2) + "%)"
+      : formatNum(value, 1) + "% of " + formatNum(threshold, 0) + "% threshold";
+    setText(id + "-status", state);
+    setText(id + "-sub", detail);
+    var card = document.getElementById(id);
+    if (card) card.dataset.state = state.toLowerCase();
+  }
+
+  function setMetricLiveStatus(id) {
+    setText(id + "-status", "Live");
+    var card = document.getElementById(id);
+    if (card) card.dataset.state = "live";
+  }
+
+  function setMetricChange(id, values, unit) {
+    var change = document.getElementById(id + "-change");
+    if (!change) return;
+    var points = Array.isArray(values) ? values.filter(function (value) { return typeof value === "number" && !isNaN(value); }) : [];
+    if (points.length < 2) { change.textContent = "Collecting trend data"; change.dataset.direction = "neutral"; return; }
+    var delta = points[points.length - 1] - points[0];
+    var sign = delta > 0 ? "+" : "";
+    change.textContent = sign + formatNum(delta, 1) + unit + " since window start";
+    change.dataset.direction = delta > 0 ? "up" : delta < 0 ? "down" : "neutral";
   }
 
   function updateMonitoringEndpoints(endpoints) {
@@ -1724,18 +1808,22 @@
     container.appendChild(toolbar);
 
     // 2. Metric cards
-    function metricCard(id, label, unit) {
-      return el("div", { className: "metric-card" },
-        el("div", null, el("span", { id: id + "-value", className: "metric-value" }, "—"), unit ? el("span", { className: "metric-unit" }, unit) : null),
-        el("div", { className: "metric-label" }, label),
+    function metricCard(id, label, unit, showProgress) {
+      return el("div", { id: id, className: "metric-card", dataset: { state: "unknown" } },
+        el("div", { className: "metric-card-header" },
+          el("div", { className: "metric-label" }, label),
+          el("span", { id: id + "-status", className: "metric-status" }, "Waiting")
+        ),
+        el("div", { className: "metric-reading" }, el("span", { id: id + "-value", className: "metric-value" }, "—"), unit ? el("span", { className: "metric-unit" }, unit) : null),
         el("div", { id: id + "-sub", className: "metric-sub" }, ""),
-        el("div", { className: "monitoring-progress-track" }, el("div", { id: id + "-bar", className: "monitoring-progress-bar muted", style: "width:0%" }))
+        el("div", { id: id + "-change", className: "metric-change", dataset: { direction: "neutral" } }, "Collecting trend data"),
+        showProgress === false ? null : el("div", { className: "monitoring-progress-track" }, el("div", { id: id + "-bar", className: "monitoring-progress-bar muted", style: "width:0%" }))
       );
     }
     var metricsGrid = el("div", { className: "metric-cards-grid" },
       metricCard("mon-cpu", "CPU", "%"),
       metricCard("mon-mem", "Memory", "GB"),
-      metricCard("mon-rps", "Throughput", "req/s"),
+      metricCard("mon-rps", "Throughput", "req/s", false),
       metricCard("mon-rel", "Reliability", "%")
     );
     container.appendChild(metricsGrid);
