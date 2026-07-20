@@ -1,10 +1,12 @@
 /**
- * ORBIT OpenAI Realtime Voice Client
+ * ORBIT Realtime Voice Bridge — test client
  *
- * Tests the `open-ai-real-time-voice-chat` adapter: WebSocket bridge to OpenAI Realtime.
- * Wire format is PCM16 mono 24 kHz (base64), per OpenAI Realtime session config.
+ * Speaks the same ORBIT WebSocket protocol regardless of which real-time
+ * speech-to-speech provider is behind the adapter (OpenAI Realtime, Gemini
+ * Live, ...). Wire format is PCM16 mono 24 kHz (base64) both ways; the server
+ * resamples to whatever the active provider actually needs.
  *
- * Protocol (ORBIT JSON, same shape as real-time-voice-chat):
+ * Protocol (ORBIT JSON):
  * - Client sends: {"type": "audio_chunk", "data": "<base64_pcm16_le>", "format": "pcm"}
  * - Server sends: {"type": "audio_chunk", "data": "<base64_pcm16_le>", "format": "pcm", ...}
  */
@@ -36,20 +38,36 @@ interface AudioChunkMessage extends OrbitMessage {
   chunk_index?: number;
 }
 
-const DEFAULT_ADAPTER = 'open-ai-real-time-voice-chat';
+// No hardcoded provider default — set VITE_ADAPTER_NAME, or type an adapter
+// name in the UI (VITE_DISPLAY_SETTINGS=true), for whichever STS provider
+// (OpenAI Realtime, Gemini Live, ...) the server has configured.
+const DEFAULT_ADAPTER = '';
+
+/** Friendly labels for known realtime STS providers, keyed by the server's `connected.mode`. */
+const PROVIDER_LABELS: Record<string, string> = {
+  openai_realtime: 'OpenAI Realtime',
+  openai_realtime_translation: 'OpenAI Realtime (Translate)',
+  gemini_live: 'Gemini Live',
+};
+
+function providerLabelFor(mode?: string): string {
+  if (!mode) return '—';
+  if (PROVIDER_LABELS[mode]) return PROVIDER_LABELS[mode];
+  return mode.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-const STREAM_SAMPLE_RATE = 24000;  // OpenAI Realtime pcm16 @ 24 kHz
+const STREAM_SAMPLE_RATE = 24000;  // ORBIT realtime STS wire format: pcm16 @ 24 kHz
 const CAPTURE_SAMPLE_RATE = 48000;
 
 const DEFAULT_SERVER_URL = (import.meta.env.VITE_ORBIT_SERVER_URL || 'ws://localhost:3000').trim();
 const API_BASE_OVERRIDE = (import.meta.env.VITE_ORBIT_API_URL || '').trim();
 const DEFAULT_ADAPTER_NAME = (import.meta.env.VITE_ADAPTER_NAME || DEFAULT_ADAPTER).trim();
 const DEFAULT_API_KEY = (import.meta.env.VITE_API_KEY || '').trim();
-const DEFAULT_APP_TITLE = (import.meta.env.VITE_APP_TITLE || 'ORBIT OpenAI Realtime Voice').trim();
+const DEFAULT_APP_TITLE = (import.meta.env.VITE_APP_TITLE || 'ORBIT Realtime Voice Bridge').trim();
 
 const ENV_CONFIG = {
   serverUrl: DEFAULT_SERVER_URL || 'ws://localhost:3000',
@@ -223,8 +241,6 @@ let socket: WebSocket | null = null;
 let isConnected = false;
 let responseAnalyser: AnalyserNode | null = null;
 let captureAnalyser: AnalyserNode | null = null;
-let waveAnimationId: number | null = null;
-let idleWavePhase = 0;
 let playbackSuppressed = false;
 
 // ============================================================================
@@ -242,7 +258,9 @@ const adapterCounter = document.querySelector('[data-counter="adapterName"]') as
 const connectBtn = document.getElementById('connectBtn') as HTMLButtonElement;
 const statusDot = document.getElementById('statusDot') as HTMLDivElement;
 const statusText = document.getElementById('statusText') as HTMLSpanElement;
-const responseCanvas = document.getElementById('responseCanvas') as HTMLCanvasElement;
+const signalCanvas = document.getElementById('signalCanvas') as HTMLCanvasElement;
+const providerLabelEl = document.getElementById('providerLabel') as HTMLSpanElement | null;
+const modelLabelEl = document.getElementById('modelLabel') as HTMLSpanElement | null;
 const transcriptEl = document.getElementById('transcript') as HTMLPreElement | null;
 const targetLanguageInput = document.getElementById('targetLanguage') as HTMLSelectElement | null;
 
@@ -296,6 +314,12 @@ function appendTranscriptLine(prefix: string, text: string) {
 
 function clearTranscript() {
   if (transcriptEl) transcriptEl.textContent = '';
+}
+
+function setMeta(el: HTMLSpanElement | null, value: string) {
+  if (!el) return;
+  el.textContent = value;
+  el.classList.toggle('is-empty', value === '—');
 }
 
 function updateCharCounter(field: keyof typeof INPUT_LIMITS) {
@@ -373,122 +397,104 @@ function queueOutboundChunk(chunk: Float32Array) {
 }
 
 // ============================================================================
-// Audio Visualization
+// Audio Visualization — duplex signal strip (IN = mic, OUT = model reply)
 // ============================================================================
 
-function getWaveformData(analyser: AnalyserNode | null): Uint8Array | null {
-  if (!analyser) return null;
+const STRIP_HISTORY_LENGTH = 140;
+const inLevels = new Float32Array(STRIP_HISTORY_LENGTH);
+const outLevels = new Float32Array(STRIP_HISTORY_LENGTH);
+let idleWavePhase = 0;
+
+/** Cheap RMS-ish level in [0, 1] from an analyser's time-domain buffer. */
+function getLevel(analyser: AnalyserNode | null): number {
+  if (!analyser) return 0;
   const length = analyser.fftSize;
-  if (!length) return null;
+  if (!length) return 0;
   const buffer = new Uint8Array(length);
   analyser.getByteTimeDomainData(buffer);
-  return buffer;
+  let sumSquares = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    const centered = (buffer[i]! - 128) / 128;
+    sumSquares += centered * centered;
+  }
+  return Math.min(1, Math.sqrt(sumSquares / buffer.length) * 3.2);
 }
 
-function sampleWaveformValue(waveform: Uint8Array, index: number, totalSamples: number): number {
-  if (waveform.length === 0) return 0;
-  const denominator = Math.max(totalSamples - 1, 1);
-  const position = (index / denominator) * (waveform.length - 1);
-  const baseIndex = Math.floor(position);
-  const nextIndex = Math.min(baseIndex + 1, waveform.length - 1);
-  const frac = position - baseIndex;
-  const baseValue = (waveform[baseIndex]! - 128) / 128;
-  const nextValue = (waveform[nextIndex]! - 128) / 128;
-  return baseValue + (nextValue - baseValue) * frac;
+function pushLevel(history: Float32Array, value: number) {
+  history.copyWithin(0, 1);
+  history[history.length - 1] = value;
 }
 
-function drawResponseWave() {
-  if (!responseCanvas) return;
-  const ctx = responseCanvas.getContext('2d');
+/** Draws two scrolling amplitude lanes (IN above, OUT below) sharing one timeline. */
+function drawSignalStrip() {
+  if (!signalCanvas) return;
+  const ctx = signalCanvas.getContext('2d');
   if (!ctx) return;
 
   const dpr = window.devicePixelRatio || 1;
-  const width = Math.floor(responseCanvas.clientWidth * dpr) || responseCanvas.width;
-  const height = Math.floor(responseCanvas.clientHeight * dpr) || responseCanvas.height;
-
+  const width = Math.floor(signalCanvas.clientWidth * dpr) || signalCanvas.width;
+  const height = Math.floor(signalCanvas.clientHeight * dpr) || signalCanvas.height;
   if (width === 0 || height === 0) return;
 
-  if (responseCanvas.width !== width || responseCanvas.height !== height) {
-    responseCanvas.width = width;
-    responseCanvas.height = height;
+  if (signalCanvas.width !== width || signalCanvas.height !== height) {
+    signalCanvas.width = width;
+    signalCanvas.height = height;
+  }
+
+  if (isConnected) {
+    pushLevel(inLevels, getLevel(captureAnalyser));
+    pushLevel(outLevels, getLevel(responseAnalyser));
+  } else {
+    // Idle standby pulse — a faint synthetic heartbeat instead of a dead panel.
+    idleWavePhase += 0.02;
+    const idle = 0.05 + Math.max(0, Math.sin(idleWavePhase)) * 0.03;
+    pushLevel(inLevels, idle);
+    pushLevel(outLevels, idle);
   }
 
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = 'rgba(15, 10, 5, 0.45)';
+  ctx.fillStyle = '#0e1210';
   ctx.fillRect(0, 0, width, height);
 
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, 'rgba(251, 191, 36, 0.9)');
-  gradient.addColorStop(1, 'rgba(249, 115, 22, 0.85)');
+  const laneHeight = height / 2;
+  const barWidth = width / STRIP_HISTORY_LENGTH;
 
-  const captureWaveform = captureAnalyser && isConnected ? getWaveformData(captureAnalyser) : null;
-  const responseWaveform = responseAnalyser && isConnected ? getWaveformData(responseAnalyser) : null;
-  const hasLiveWave = Boolean(captureWaveform || responseWaveform);
-  const sampleCount = hasLiveWave
-    ? Math.max(captureWaveform?.length ?? 0, responseWaveform?.length ?? 0, 2)
-    : 256;
-  const dataPoints: Array<{ x: number; y: number }> = [];
+  drawLane(ctx, inLevels, 0, laneHeight, 'top', isConnected ? '#8fa398' : '#3c4841');
+  drawLane(ctx, outLevels, laneHeight, laneHeight, 'bottom', isConnected ? '#4ce0a0' : '#2c6e56');
 
-  for (let i = 0; i < sampleCount; i++) {
-    const x = (i / (sampleCount - 1)) * width;
-    let value: number;
-
-    if (hasLiveWave) {
-      const captureValue = captureWaveform ? sampleWaveformValue(captureWaveform, i, sampleCount) : null;
-      const responseValue = responseWaveform ? sampleWaveformValue(responseWaveform, i, sampleCount) : null;
-
-      if (captureValue !== null && responseValue !== null) {
-        value = Math.abs(captureValue) >= Math.abs(responseValue) ? captureValue : responseValue;
-      } else if (captureValue !== null) {
-        value = captureValue;
-      } else if (responseValue !== null) {
-        value = responseValue;
-      } else {
-        value = Math.sin((i / sampleCount) * 4 * Math.PI + idleWavePhase) * 0.25;
-      }
-    } else {
-      value = Math.sin((i / sampleCount) * 4 * Math.PI + idleWavePhase) * 0.25;
-    }
-
-    const y = height / 2 + value * (height / 2 - 24);
-    dataPoints.push({ x, y });
-  }
-
-  if (dataPoints.length === 0) return;
-
-  ctx.beginPath();
-  ctx.moveTo(dataPoints[0]!.x, dataPoints[0]!.y);
-  for (let i = 1; i < dataPoints.length; i++) {
-    ctx.lineTo(dataPoints[i]!.x, dataPoints[i]!.y);
-  }
-
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = gradient;
-  ctx.shadowColor = 'rgba(251, 146, 60, 0.4)';
-  ctx.shadowBlur = 20;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  ctx.lineTo(width, height);
-  ctx.lineTo(0, height);
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(251, 146, 60, 0.1)';
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
+  ctx.strokeStyle = '#2a332e';
   ctx.lineWidth = 1;
-  ctx.moveTo(0, height / 2);
-  ctx.lineTo(width, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(0, laneHeight);
+  ctx.lineTo(width, laneHeight);
   ctx.stroke();
+
+  function drawLane(
+    context: CanvasRenderingContext2D,
+    history: Float32Array,
+    top: number,
+    laneH: number,
+    align: 'top' | 'bottom',
+    color: string
+  ) {
+    const baseline = align === 'top' ? top : top + laneH;
+    context.fillStyle = color;
+    for (let i = 0; i < history.length; i++) {
+      const barHeight = Math.max(1, history[i]! * (laneH - 8));
+      const x = i * barWidth;
+      const y = align === 'top' ? baseline : baseline - barHeight;
+      context.fillRect(x, y, Math.max(1, barWidth - 1), barHeight);
+    }
+  }
 }
+
+let waveAnimationId: number | null = null;
 
 function startWaveAnimation() {
   if (waveAnimationId !== null) return;
 
   const render = () => {
-    drawResponseWave();
-    idleWavePhase += isConnected ? 0.2 : 0.05;
+    drawSignalStrip();
     waveAnimationId = requestAnimationFrame(render);
   };
 
@@ -807,19 +813,21 @@ function handleDisconnect() {
     audioContext = null;
   }
 
-  setStatus('disconnected', 'Disconnected');
+  setStatus('disconnected', 'Idle');
+  setMeta(providerLabelEl, '—');
+  setMeta(modelLabelEl, '—');
 }
 
 function handleMessage(message: OrbitMessage) {
   switch (message.type) {
     case 'connected': {
       const connMsg = message as ConnectedMessage;
-      const model = connMsg.realtime_model ? ` (${connMsg.realtime_model})` : '';
-      const adapterLabel = connMsg.adapter ? `Connected — ${connMsg.adapter}${model}` : 'Connected';
       isConnected = true;
       playbackSuppressed = false;
-      setStatus('connected', adapterLabel);
-      appendTranscriptLine('system', adapterLabel);
+      setStatus('connected', 'Connected');
+      setMeta(providerLabelEl, providerLabelFor(connMsg.mode));
+      setMeta(modelLabelEl, connMsg.realtime_model || '—');
+      appendTranscriptLine('system', connMsg.adapter ? `Connected — ${connMsg.adapter}` : 'Connected');
       break;
     }
 
@@ -940,5 +948,5 @@ if (titleText) {
   titleText.textContent = ENV_CONFIG.appTitle;
 }
 
-drawResponseWave();
+drawSignalStrip();
 startWaveAnimation();

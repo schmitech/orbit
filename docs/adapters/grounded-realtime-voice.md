@@ -11,7 +11,7 @@ Key properties:
 - **Live, per-turn grounding** — retrieval runs fresh for each question the model decides needs it, the same way `retrieval_behavior: "always"` retrieval works for text adapters. Nothing is baked into the prompt at connect time.
 - **Reuses existing retriever adapters as-is** — no new adapter type, no changes to `server/adapters/capabilities.py`, `server/inference/pipeline/steps/*`, or the retriever implementations themselves. Any `type: "retriever"` adapter (SQL, DuckDB, vector, HTTP, ...) can be pointed at.
 - **Provider-agnostic core** — the tool schema and the retrieval call live in a small shared module independent of OpenAI's wire protocol, so a future Gemini/Mistral/local realtime handler can reuse them; only the event-mapping layer is OpenAI-specific.
-- **Zero client changes** — the ORBIT client protocol (`audio_chunk`, `transcription`, `assistant_transcript_delta`, `done`, ...) is unchanged. Grounding happens entirely between ORBIT and OpenAI; `clients/openai-realtime-voice/` needs no changes.
+- **Zero client changes** — the ORBIT client protocol (`audio_chunk`, `transcription`, `assistant_transcript_delta`, `done`, ...) is unchanged. Grounding happens entirely between ORBIT and OpenAI; `clients/realtime-voice/` needs no changes.
 - **Backward compatible** — an `openai_realtime` adapter with no `grounding_adapter` configured behaves exactly as before (e.g. `open-ai-real-time-voice-chat` in `config/adapters/audio.yaml`).
 
 ---
@@ -113,7 +113,7 @@ The `grounding_adapter` mechanism itself is generic — it works against any `ty
 
 ## Gemini Live Provider
 
-`GeminiLiveWebSocketHandler` (`server/services/chat_handlers/gemini_live_websocket_handler.py`) is a second real-time speech-to-speech provider, registered under adapter `type: "gemini_live"`. It proves the provider-agnostic design: it reuses `realtime_grounding.py` **unchanged** and speaks the identical ORBIT client wire protocol (`audio_chunk`/`transcription`/`assistant_transcript_delta`/`done`/`error`), so `clients/openai-realtime-voice/` works against it with no changes — just point `VITE_ADAPTER_NAME` at a `gemini_live` adapter.
+`GeminiLiveWebSocketHandler` (`server/services/chat_handlers/gemini_live_websocket_handler.py`) is a second real-time speech-to-speech provider, registered under adapter `type: "gemini_live"`. It proves the provider-agnostic design: it reuses `realtime_grounding.py` **unchanged** and speaks the identical ORBIT client wire protocol (`audio_chunk`/`transcription`/`assistant_transcript_delta`/`done`/`error`), so `clients/realtime-voice/` works against it with no changes — just point `VITE_ADAPTER_NAME` at a `gemini_live` adapter.
 
 Implementation notes:
 
@@ -195,7 +195,7 @@ knob that produces a short spoken sentence instead of a table.
 ## Testing
 
 1. Set `OPENAI_API_KEY` and start the server.
-2. Connect the existing node client (`clients/openai-realtime-voice/`) to `ws://<host>:<port>/ws/voice/qa-realtime-voice` — no client-side changes needed.
+2. Connect the existing node client (`clients/realtime-voice/`) to `ws://<host>:<port>/ws/voice/qa-realtime-voice` — no client-side changes needed.
 3. Ask a factual question in the adapter's domain (e.g. *"How much is the birth certificate?"*, answered from `examples/city-qa-pairs.json` via `qa-sql`). Expect a tool call, a short pause for the lookup, then a natural spoken answer.
 4. Ask an unrelated conversational question (small talk) and confirm the model does **not** call the tool for it.
 5. Confirm an adapter with no `grounding_adapter` configured (e.g. `open-ai-real-time-voice-chat`) is unaffected — no `tools` in its session, no function-call handling triggered.

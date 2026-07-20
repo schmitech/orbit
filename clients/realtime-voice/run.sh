@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# ORBIT OpenAI Realtime Voice Client
+# ORBIT Realtime Voice Bridge — test client
 # =====================================
 #
 # Usage:
@@ -28,12 +28,14 @@ case "$1" in
         fi
 
         echo ""
-        echo "Starting OpenAI Realtime Voice test client..."
+        echo "Starting realtime voice bridge test client..."
         echo ""
         echo "  Prerequisites:"
         echo "    1. ORBIT server running (e.g. ws://localhost:3000)"
-        echo "    2. Adapter open-ai-real-time-voice-chat enabled + audio.yaml imported"
-        echo "    3. OPENAI_API_KEY set on the server"
+        echo "    2. A real-time STS adapter enabled in audio.yaml — e.g."
+        echo "       open-ai-real-time-voice-chat (needs OPENAI_API_KEY) or"
+        echo "       gemini-live-voice-chat (needs GOOGLE_API_KEY)"
+        echo "    3. VITE_ADAPTER_NAME in .env.local set to that adapter's name"
         echo ""
         echo "  Dev server: http://localhost:5175"
         echo ""

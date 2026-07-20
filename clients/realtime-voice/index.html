@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ORBIT Realtime Voice Bridge</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23121614'/%3E%3Cpath d='M3 20h4l2-8 3 14 3-20 3 14 2-8h9' fill='none' stroke='%234CE0A0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      color-scheme: dark;
+      --chassis: #121614;
+      --panel: #181f1c;
+      --line: #2a332e;
+      --phosphor: #4ce0a0;
+      --phosphor-dim: #2c6e56;
+      --warn: #e2a64b;
+      --error: #e2645a;
+      --paper: #e9efea;
+      --ink-dim: #7e9088;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          rgba(76, 224, 160, 0.035) 0px,
+          rgba(76, 224, 160, 0.035) 1px,
+          transparent 1px,
+          transparent 28px
+        ),
+        var(--chassis);
+      min-height: 100vh;
+      color: var(--paper);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .mono {
+      font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .app-shell {
+      width: min(460px, 100%);
+      position: relative;
+      z-index: 1;
+    }
+
+    .unit {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      overflow: hidden;
+    }
+
+    .unit-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 1.1rem 1.25rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .unit-header .brand {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-weight: 600;
+      font-size: 0.95rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--paper);
+    }
+
+    .unit-header .brand span {
+      color: var(--phosphor);
+    }
+
+    .unit-header .subtitle {
+      display: block;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+      margin-top: 0.3rem;
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ink-dim);
+      box-shadow: 0 0 0 3px rgba(126, 144, 136, 0.12);
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .status-dot.connecting {
+      background: var(--warn);
+      box-shadow: 0 0 0 3px rgba(226, 166, 75, 0.18);
+      animation: pulse 1s infinite;
+    }
+
+    .status-dot.connected {
+      background: var(--phosphor);
+      box-shadow: 0 0 0 3px rgba(76, 224, 160, 0.18);
+    }
+
+    .status-dot.error {
+      background: var(--error);
+      box-shadow: 0 0 0 3px rgba(226, 100, 90, 0.18);
+    }
+
+    .meta-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .meta-cell {
+      padding: 0.75rem 1.25rem;
+      min-width: 0;
+    }
+
+    .meta-cell + .meta-cell {
+      border-left: 1px solid var(--line);
+    }
+
+    .meta-label {
+      display: block;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+      margin-bottom: 0.3rem;
+    }
+
+    .meta-value {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.8rem;
+      color: var(--paper);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: block;
+    }
+
+    .meta-value.is-empty {
+      color: var(--ink-dim);
+    }
+
+    .signal-panel {
+      position: relative;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .lane-tag {
+      position: absolute;
+      left: 0.9rem;
+      font-size: 0.62rem;
+      letter-spacing: 0.16em;
+      color: var(--ink-dim);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .lane-tag.in { top: 0.6rem; }
+    .lane-tag.out { bottom: 0.6rem; }
+
+    canvas#signalCanvas {
+      display: block;
+      width: 100%;
+      height: 168px;
+      background: #0e1210;
+    }
+
+    .transcript-panel {
+      max-height: 150px;
+      overflow-y: auto;
+      padding: 0.85rem 1.25rem;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      font-size: 0.82rem;
+      line-height: 1.55;
+      color: var(--paper);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .transcript-panel:empty::before {
+      content: "Transcript appears here once connected — your speech and the model's reply.";
+      color: var(--ink-dim);
+    }
+
+    .transcript-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .transcript-panel::-webkit-scrollbar-thumb {
+      background: var(--line);
+      border-radius: 3px;
+    }
+
+    .settings {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      padding: 1.1rem 1.25rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .char-counter {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.65rem;
+      color: var(--ink-dim);
+      text-align: right;
+      width: 100%;
+    }
+
+    label {
+      display: block;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+      margin-bottom: 0.35rem;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--chassis);
+      color: inherit;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.85rem;
+      padding: 0.7rem 0.9rem;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--phosphor);
+      box-shadow: 0 0 0 3px rgba(76, 224, 160, 0.15);
+    }
+
+    .actions {
+      padding: 1.1rem 1.25rem 1.25rem;
+    }
+
+    #connectBtn {
+      width: 100%;
+      border: none;
+      border-radius: 6px;
+      padding: 0.9rem 1.2rem;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: var(--phosphor);
+      color: #0a1512;
+      transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
+    }
+
+    #connectBtn.connected {
+      background: var(--error);
+      color: #200a08;
+    }
+
+    #connectBtn:hover:not(:disabled) {
+      filter: brightness(1.08);
+    }
+
+    #connectBtn:active:not(:disabled) {
+      transform: scale(0.99);
+    }
+
+    #connectBtn:disabled {
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+      opacity: 0.7;
+    }
+
+    #connectBtn:focus-visible {
+      outline: 2px solid var(--paper);
+      outline-offset: 2px;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .status-dot.connecting {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="unit">
+      <div class="unit-header">
+        <div>
+          <div class="brand">ORBIT <span>REALTIME</span></div>
+          <span class="subtitle" id="appTitleText">Speech-to-speech bridge</span>
+        </div>
+        <div class="status-chip">
+          <div class="status-dot" id="statusDot"></div>
+          <span id="statusText">Idle</span>
+        </div>
+      </div>
+
+      <div class="meta-row">
+        <div class="meta-cell">
+          <span class="meta-label">Provider</span>
+          <span class="meta-value is-empty" id="providerLabel">—</span>
+        </div>
+        <div class="meta-cell">
+          <span class="meta-label">Model</span>
+          <span class="meta-value is-empty" id="modelLabel">—</span>
+        </div>
+      </div>
+
+      <div class="signal-panel">
+        <span class="lane-tag in mono">IN</span>
+        <span class="lane-tag out mono">OUT</span>
+        <canvas id="signalCanvas" width="440" height="168"></canvas>
+      </div>
+
+      <pre class="transcript-panel" id="transcript" aria-live="polite"></pre>
+
+      <div class="settings" id="settingsPanel">
+        <div class="field">
+          <label for="serverUrl">Server URL</label>
+          <input type="text" id="serverUrl" maxlength="120" placeholder="ws://localhost:3000">
+          <div class="char-counter" data-counter="serverUrl">120 characters left</div>
+        </div>
+        <div class="field">
+          <label for="adapterName">Adapter name</label>
+          <input type="text" id="adapterName" maxlength="120" placeholder="e.g. open-ai-real-time-voice-chat or gemini-live-voice-chat">
+          <div class="char-counter" data-counter="adapterName">120 characters left</div>
+        </div>
+        <div class="field">
+          <label for="apiKey">API key (optional)</label>
+          <input type="text" id="apiKey" maxlength="120" placeholder="Leave empty if server allows anonymous voice">
+          <div class="char-counter" data-counter="apiKey">120 characters left</div>
+        </div>
+        <div class="field">
+          <label for="targetLanguage">Translate to (translation adapters only)</label>
+          <select id="targetLanguage">
+            <option value="es">Spanish (es)</option>
+            <option value="en">English (en)</option>
+            <option value="fr">French (fr)</option>
+            <option value="de">German (de)</option>
+            <option value="it">Italian (it)</option>
+            <option value="pt">Portuguese (pt)</option>
+            <option value="ja">Japanese (ja)</option>
+            <option value="zh">Chinese (zh)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="connectBtn" type="button">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

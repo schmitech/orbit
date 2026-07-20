@@ -1,9 +1,9 @@
 {
-  "name": "orbit-openai-realtime-voice",
+  "name": "orbit-realtime-voice-bridge",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Voice test client for ORBIT OpenAI Realtime adapter (WebSocket)",
+  "description": "Voice test client for ORBIT real-time speech-to-speech adapters (OpenAI Realtime, Gemini Live, ...)",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

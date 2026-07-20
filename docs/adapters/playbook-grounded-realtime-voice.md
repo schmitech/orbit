@@ -37,7 +37,7 @@ would surface here, before any voice traffic is sent.
 ## 3. Point the node client at the adapter
 
 ```bash
-cd clients/openai-realtime-voice
+cd clients/realtime-voice
 cp .env.example .env.local
 ```
 
@@ -147,7 +147,7 @@ python3 server/main.py --log-level debug
 Point the node client at it:
 
 ```bash
-# clients/openai-realtime-voice/.env.local
+# clients/realtime-voice/.env.local
 VITE_ADAPTER_NAME=qa-gemini-realtime-voice
 ```
 
