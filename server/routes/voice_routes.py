@@ -1,25 +1,29 @@
 """
 Voice Routes
 
-WebSocket endpoints for real-time voice conversations with AI.
+WebSocket endpoints for real-time speech-to-speech (STS) voice conversations with AI.
 
-Supports handler types:
-- VoiceWebSocketHandler: Traditional cascade (STT -> LLM -> TTS)
-- OpenAIRealtimeWebSocketHandler: OpenAI Realtime API WebSocket (speech-to-speech)
+This endpoint only serves true full-duplex STS providers — the model listens
+and speaks over one continuous audio stream, with no discrete STT -> LLM -> TTS
+round trip. For regular (non-streaming) voice — a single request that submits
+audio and gets an audio reply back, e.g. the "voice-chat" adapter in
+config/adapters/audio.yaml — use the standard chat completions endpoint
+(chat_routes.py) with audio_input/return_audio; that path is unaffected by
+this module.
 
 Handler selection is automatic based on adapter type:
 - type: "openai_realtime" -> OpenAIRealtimeWebSocketHandler
 - type: "openai_realtime_translation" -> OpenAIRealtimeTranslationWebSocketHandler
 - type: "gemini_live" -> GeminiLiveWebSocketHandler
-- other types -> VoiceWebSocketHandler
 """
 
 import logging
 from typing import Optional, Any, Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Query, HTTPException
-from services.chat_handlers.voice_websocket_handler import VoiceWebSocketHandler
 
 logger = logging.getLogger(__name__)
+
+REALTIME_STS_ADAPTER_TYPES = ('openai_realtime', 'openai_realtime_translation', 'gemini_live')
 
 router = APIRouter()
 
@@ -79,33 +83,21 @@ async def validate_adapter(adapter_name: str, request: Request) -> Dict[str, Any
             detail=f"Adapter '{adapter_name}' does not support real-time audio conversations"
         )
 
-    # Check adapter type
+    # Check adapter type — this websocket endpoint only serves full-duplex
+    # speech-to-speech providers; STT/TTS are handled by the provider itself.
     adapter_type = adapter_config.get('type', '')
-
-    # For openai_realtime (and translation) and gemini_live, stt/tts are not used here
-    if adapter_type in ('openai_realtime', 'openai_realtime_translation', 'gemini_live'):
-        logger.debug(
-            f"Adapter validation successful: {adapter_name}, "
-            f"type: {adapter_type} (Realtime bridge)"
-        )
-        return adapter_config
-
-    # For other adapter types, audio provider must be configured
-    audio_provider = adapter_config.get('audio_provider')
-    if not audio_provider:
-        # Also check stt_provider/tts_provider for voice adapters
-        stt_provider = adapter_config.get('stt_provider')
-        tts_provider = adapter_config.get('tts_provider')
-        if not (stt_provider or tts_provider):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Adapter '{adapter_name}' has no audio provider configured"
+    if adapter_type not in REALTIME_STS_ADAPTER_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Adapter '{adapter_name}' (type: '{adapter_type}') is not a real-time "
+                f"speech-to-speech provider. Supported types: {', '.join(REALTIME_STS_ADAPTER_TYPES)}."
             )
-        audio_provider = f"stt:{stt_provider or 'none'}, tts:{tts_provider or 'none'}"
+        )
 
     logger.debug(
         f"Adapter validation successful: {adapter_name}, "
-        f"audio provider: {audio_provider}"
+        f"type: {adapter_type} (Realtime bridge)"
     )
 
     return adapter_config
@@ -201,7 +193,7 @@ async def _handle_voice_websocket(
         user_id: Optional user ID for tracking
 
     Example client connection:
-        ws://localhost:8000/ws/voice/real-time-voice-chat?session_id=abc123
+        ws://localhost:8000/ws/voice/open-ai-real-time-voice-chat?session_id=abc123
     """
     handler = None
 
@@ -289,23 +281,14 @@ async def _handle_voice_websocket(
                 api_key=api_key,
             )
         else:
-            # Use standard voice handler for cascade (STT -> LLM -> TTS)
-            handler = VoiceWebSocketHandler(
-                websocket=websocket,
-                chat_service=chat_service,
-                adapter_name=adapter_name,
-                config=config,
-                session_id=session_id,
-                user_id=user_id
+            # validate_adapter() already restricts this endpoint to
+            # REALTIME_STS_ADAPTER_TYPES, so this should be unreachable.
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported real-time adapter type: {adapter_type}"
             )
 
-            # Initialize handler
-            await handler.initialize()
-
-            # Accept connection
-            await handler.accept_connection()
-
-        # Run message loop (OpenAI Realtime accepts inside run())
+        # Run message loop (each realtime handler accepts the socket inside run())
         await handler.run()
 
     except HTTPException as e:
@@ -446,11 +429,14 @@ async def voice_status(request: Request):
                     rcfg = (adapter_config.get('config') or {})
                     adapter_info["realtime_model"] = rcfg.get('realtime_model', 'gemini-3.1-flash-live-preview')
                 else:
-                    # Traditional cascade adapters
-                    adapter_info["mode"] = "cascade"
-                    adapter_info["audio_provider"] = adapter_config.get('audio_provider', 'unknown')
-                    adapter_info["stt_provider"] = adapter_config.get('stt_provider')
-                    adapter_info["tts_provider"] = adapter_config.get('tts_provider')
+                    # /ws/voice only serves REALTIME_STS_ADAPTER_TYPES (see validate_adapter);
+                    # an adapter with supports_realtime_audio: true outside that set is
+                    # misconfigured and won't actually connect.
+                    logger.warning(
+                        f"Adapter '{adapter_name}' has supports_realtime_audio: true but "
+                        f"type '{adapter_type}' is not a supported real-time STS provider"
+                    )
+                    adapter_info["mode"] = "unsupported"
 
                 voice_adapters.append(adapter_info)
 
