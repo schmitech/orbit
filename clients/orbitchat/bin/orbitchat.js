@@ -338,9 +338,9 @@ function loadAdaptersForProxy(yamlAdapters) {
       const keys = JSON.parse(envKeysRaw);
       for (const [id, value] of Object.entries(keys)) {
         if (!adapters[id]) {
-          // Auto-register adapters declared only via env (no YAML entry).
-          // Uses the fallback API URL; YAML declaration overrides this when present.
-          adapters[id] = { apiKey: '', apiUrl: fallbackApiUrl, name: id };
+          // The YAML adapters list defines availability. Ignore secrets for
+          // adapters that are not configured there.
+          continue;
         }
         const isObjectValue = typeof value === 'object' && value !== null;
         adapters[id].apiKey = isObjectValue ? String(value.apiKey || value.key || '') : String(value);
@@ -354,14 +354,12 @@ function loadAdaptersForProxy(yamlAdapters) {
     } catch { /* ignore */ }
   }
 
-  const finalAdapters = {};
-  for (const [id, config] of Object.entries(adapters)) {
-    if (config.apiKey) finalAdapters[id] = config;
+  const configuredAdapterCount = Object.keys(adapters).length;
+  const adapterKeyCount = Object.values(adapters).filter((config) => config.apiKey).length;
+  if (configuredAdapterCount > 0) {
+    console.debug(`Loaded ${configuredAdapterCount} configured adapters (${adapterKeyCount} with API keys from environment).`);
   }
-  if (Object.keys(finalAdapters).length > 0) {
-    console.debug(`Loaded ${Object.keys(finalAdapters).length} adapters with API keys from environment.`);
-  }
-  return Object.keys(finalAdapters).length > 0 ? finalAdapters : null;
+  return configuredAdapterCount > 0 ? adapters : null;
 }
 
 // ---- Express server ----
@@ -540,6 +538,9 @@ function createServer(distPath, config, serverConfig = {}) {
       const adapterName = req.headers['x-adapter-name'];
       if (!adapterName) return res.status(400).json({ error: 'X-Adapter-Name header is required' });
       if (!adapters[adapterName]) return res.status(404).json({ error: `Adapter '${adapterName}' not found` });
+      if (!adapters[adapterName].apiKey.trim()) {
+        return res.status(503).json({ error: `Adapter '${adapterName}' is not configured with an API key` });
+      }
       dynamicProxy(req, res, next);
     });
   }

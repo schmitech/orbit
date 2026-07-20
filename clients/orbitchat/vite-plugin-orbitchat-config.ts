@@ -229,7 +229,8 @@ function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<
       const keys = JSON.parse(envKeysRaw);
       for (const [id, value] of Object.entries(keys)) {
         if (!adapters[id]) {
-          // Strict mode: only adapters explicitly declared in orbitchat.yaml are allowed.
+          // The YAML adapters list defines availability. Ignore secrets for
+          // adapters that are not configured there.
           continue;
         }
         const isObjectValue = typeof value === 'object' && value !== null;
@@ -249,15 +250,7 @@ function loadAdaptersForProxy(yamlAdapters: YamlConfig['adapters'], env: Record<
     } catch { /* ignore */ }
   }
 
-  // Filter out any adapters that ended up without an API key
-  const finalAdapters: Record<string, AdapterConfig> = {};
-  for (const [id, config] of Object.entries(adapters)) {
-    if (config.apiKey) {
-      finalAdapters[id] = config;
-    }
-  }
-
-  return Object.keys(finalAdapters).length > 0 ? finalAdapters : null;
+  return Object.keys(adapters).length > 0 ? adapters : null;
 }
 
 export function orbitchatConfigPlugin(): Plugin {
@@ -424,7 +417,7 @@ export function orbitchatConfigPlugin(): Plugin {
         const currentAdapters = adaptersCache || loadAdaptersForProxy(yamlConfig?.adapters, resolvedEnv);
         if (!currentAdapters) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'No adapters configured. Set VITE_ADAPTER_KEYS in .env' }));
+          res.end(JSON.stringify({ error: 'No adapters configured. Define adapters in orbitchat.yaml.' }));
           return;
         }
 
@@ -458,6 +451,11 @@ export function orbitchatConfigPlugin(): Plugin {
         if (!adapter) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: `Adapter '${adapterName}' not found` }));
+          return;
+        }
+        if (!adapter.apiKey.trim()) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Adapter '${adapterName}' is not configured with an API key` }));
           return;
         }
 

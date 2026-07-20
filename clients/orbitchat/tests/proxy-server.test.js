@@ -17,6 +17,7 @@ const TEST_ADAPTER_KEYS = {
   'Test Agent': 'test-key-1',
   'Second Agent': 'test-key-2',
   'Backend Agent': 'secret-key-abc',
+  'Environment Only Agent': 'secret-key-not-in-yaml',
 };
 
 process.env.ORBIT_ADAPTER_KEYS = JSON.stringify(TEST_ADAPTER_KEYS);
@@ -99,6 +100,12 @@ describe('Express proxy – api-only mode', () => {
           apiUrl: 'http://localhost:19999',
           description: 'Second test agent',
         },
+        {
+          id: 'Unkeyed Agent',
+          name: 'Unkeyed Agent',
+          apiUrl: 'http://localhost:19999',
+          description: 'Configured without an environment key',
+        },
       ]
     };
     const serverConfig = { apiOnly: true, port: PORT, host: 'localhost' };
@@ -124,11 +131,13 @@ describe('Express proxy – api-only mode', () => {
 
       const data = jsonBody(res);
       assert.ok(Array.isArray(data.adapters));
-      assert.equal(data.adapters.length, 2);
+      assert.equal(data.adapters.length, 3);
 
       const names = data.adapters.map((a) => a.name);
       assert.ok(names.includes('Test Agent'));
       assert.ok(names.includes('Second Agent'));
+      assert.ok(names.includes('Unkeyed Agent'));
+      assert.ok(!names.includes('Environment Only Agent'));
     });
 
     it('includes description and notes but not apiKey or apiUrl', async () => {
@@ -192,6 +201,20 @@ describe('Express proxy – api-only mode', () => {
       assert.equal(res.status, 404);
       const data = jsonBody(res);
       assert.ok(data.error.includes('nonexistent'));
+    });
+
+    it('returns 503 without forwarding when an adapter has no API key', async () => {
+      const res = await fetch(`${BASE}/api/v1/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Adapter-Name': 'Unkeyed Agent',
+        },
+        body: JSON.stringify({ message: 'hello' }),
+      });
+      assert.equal(res.status, 503);
+      const data = jsonBody(res);
+      assert.ok(data.error.includes('not configured with an API key'));
     });
   });
 });

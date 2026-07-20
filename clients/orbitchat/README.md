@@ -251,18 +251,19 @@ orbitchat --port 8080
 
 ### `GET /api/adapters` returns 404
 
-This means orbitchat started with no valid adapters — `ORBIT_ADAPTER_KEYS` was not set, was invalid JSON, or all keys had empty values. Check:
+This means orbitchat started with no adapters configured in `orbitchat.yaml`. Check:
 
-1. `ORBIT_ADAPTER_KEYS` is exported and contains valid JSON.
-2. The values are non-empty strings (e.g. `'{"simple-chat":"my-key"}'` not `'{"simple-chat":""}'`).
-3. The CLI startup logs show "Loaded N adapters".
+1. `orbitchat.yaml` contains a non-empty `adapters` list with unique `id` values.
+2. The CLI startup logs show "Loaded N configured adapters".
 
 ### No Adapters Available
 
 If the agent selector shows no adapters:
-1. Ensure `ORBIT_ADAPTER_KEYS` (or `VITE_ADAPTER_KEYS`) is set and contains valid JSON.
-2. If using `orbitchat.yaml`, verify that the adapter `id` exactly matches the key used in `ORBIT_ADAPTER_KEYS`.
-3. Check the CLI startup logs for "Available Adapters: ...".
+1. Verify that `orbitchat.yaml` contains the adapters you intend to expose.
+2. Check the CLI startup logs for "Loaded N configured adapters".
+3. Ensure the browser is using the expected configuration file.
+
+Configured adapters without a matching non-empty `ORBIT_ADAPTER_KEYS` (or `VITE_ADAPTER_KEYS`) entry remain visible, but requests to them return `503` until their secret is configured.
 
 ### Stale Configuration
 
