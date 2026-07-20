@@ -9,7 +9,7 @@ from utils.generation_memory import generation_memory_key
 logger = logging.getLogger(__name__)
 
 # Adapter types that never call the main inference LLM — each has its own
-# dedicated pipeline step (or, for 'fetch'/'openai_realtime', bypasses it entirely).
+# dedicated pipeline step (or, for 'fetch'/'openai_realtime'/'gemini_live', bypasses it entirely).
 NO_LLM_ADAPTER_TYPES = frozenset({
     'image_generation',
     'video_generation',
@@ -19,6 +19,7 @@ NO_LLM_ADAPTER_TYPES = frozenset({
     'fetch',
     'openai_realtime',
     'openai_realtime_translation',
+    'gemini_live',
 })
 
 # Adapter types that have no use for an inference_provider/rewrite_provider at all —
@@ -29,6 +30,7 @@ NO_INFERENCE_PROVIDER_ADAPTER_TYPES = frozenset({
     'fetch',
     'openai_realtime',
     'openai_realtime_translation',
+    'gemini_live',
 })
 
 

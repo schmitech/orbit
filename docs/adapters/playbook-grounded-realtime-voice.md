@@ -133,6 +133,38 @@ ruff check server/
 pytest server/tests/
 ```
 
+## 9. Repeat the grounded check against Gemini Live
+
+`config/adapters/qa.yaml` also defines `qa-gemini-realtime-voice`, the Gemini
+counterpart of `qa-realtime-voice` — same `grounding_adapter: "qa-sql"`,
+different provider (`type: "gemini_live"`, via the `google-genai` SDK).
+
+```bash
+export GOOGLE_API_KEY=...   # or GEMINI_API_KEY
+python3 server/main.py --log-level debug
+```
+
+Point the node client at it:
+
+```bash
+# clients/openai-realtime-voice/.env.local
+VITE_ADAPTER_NAME=qa-gemini-realtime-voice
+```
+
+Restart `npm run dev`, reconnect, and repeat step 5's check: ask *"How much
+is the birth certificate?"* Confirm:
+- Server logs show `Gemini Live: _handle_tool_call invoking
+  grounding_adapter='qa-sql' query='...'` followed by `Gemini Live: grounding
+  lookup result (N chars): '...'`.
+- The assistant answers with the same $20 / Vital Records substance, spoken
+  naturally.
+- Small talk ("how's your day going?") still gets a normal reply with no
+  tool call (step 6's check, same result expected).
+
+Then confirm the plain `gemini-live-voice-chat` adapter (no
+`grounding_adapter`) behaves like an unmodified voice chat — same
+backward-compatibility check as step 7, just against the Gemini provider.
+
 ---
 
 ## Additional Test Scenarios

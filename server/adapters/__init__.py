@@ -107,9 +107,13 @@ def register_adapters():
         )
     logger.debug("Registered multimodal passthrough adapter")
 
-    # openai_realtime, openai_realtime_translation, mcp_agent, fetch, and web-search each
-    # route via their own step; the domain adapter is the same conversational passthrough.
-    for _adapter_type in ['openai_realtime', 'openai_realtime_translation', 'mcp_agent', 'fetch', 'web-search']:
+    # openai_realtime, openai_realtime_translation, gemini_live, mcp_agent, fetch, and
+    # web-search each route via their own step; the domain adapter is the same
+    # conversational passthrough.
+    for _adapter_type in [
+        'openai_realtime', 'openai_realtime_translation', 'gemini_live',
+        'mcp_agent', 'fetch', 'web-search',
+    ]:
         ADAPTER_REGISTRY.register(
             adapter_type=_adapter_type,
             datasource="none",
@@ -117,7 +121,10 @@ def register_adapters():
             factory_func=_create_conversational_adapter,
             config={}
         )
-    logger.debug("Registered openai_realtime, openai_realtime_translation, mcp_agent, fetch, and web-search conversational adapters")
+    logger.debug(
+        "Registered openai_realtime, openai_realtime_translation, gemini_live, mcp_agent, "
+        "fetch, and web-search conversational adapters"
+    )
 
 
 # Register adapters when module is imported

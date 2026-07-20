@@ -51,8 +51,9 @@ Everything after step 3 is invisible to the ORBIT client — it just keeps recei
 |---|---|
 | Grounding config, tool schema, retrieval call (provider-agnostic) | `server/services/chat_handlers/realtime_grounding.py` |
 | OpenAI wire-protocol integration (session.tools, function-call event handling) | `server/services/chat_handlers/openai_realtime_websocket_handler.py` |
+| Gemini Live wire-protocol integration (google-genai SDK, tool-call handling) | `server/services/chat_handlers/gemini_live_websocket_handler.py` |
 | Passes `adapter_manager`/`api_key` into the handler | `server/routes/voice_routes.py` |
-| Demo adapter | `config/adapters/qa.yaml` → `qa-realtime-voice` |
+| Demo adapters | `config/adapters/qa.yaml` → `qa-realtime-voice`, `qa-gemini-realtime-voice` |
 
 ### `realtime_grounding.py`
 
@@ -107,6 +108,23 @@ Point any existing retriever adapter at a new `openai_realtime` adapter via `con
 | `grounding_max_answer_chars` | No | `600` | Caps how much retrieved text gets spoken back per lookup. |
 
 The `grounding_adapter` mechanism itself is generic — it works against any `type: "retriever"` adapter via the same `BaseRetriever.get_relevant_context()` interface, regardless of datasource. In practice, today it's only tuned for **QA-shaped** retrievers (`qa-sql`, `qa-vector-chroma`). See [Known Limitations](#known-limitations-intent-retriever-content-shape) before pointing it at an intent retriever (`intent-sql-postgres`, `intent-duckdb-analytics`, `intent-elasticsearch-app-logs`, `intent-mongodb-mflix`, ...).
+
+---
+
+## Gemini Live Provider
+
+`GeminiLiveWebSocketHandler` (`server/services/chat_handlers/gemini_live_websocket_handler.py`) is a second real-time speech-to-speech provider, registered under adapter `type: "gemini_live"`. It proves the provider-agnostic design: it reuses `realtime_grounding.py` **unchanged** and speaks the identical ORBIT client wire protocol (`audio_chunk`/`transcription`/`assistant_transcript_delta`/`done`/`error`), so `clients/openai-realtime-voice/` works against it with no changes — just point `VITE_ADAPTER_NAME` at a `gemini_live` adapter.
+
+Implementation notes:
+
+- Uses the `google-genai` SDK (`client.aio.live.connect`), not a raw WebSocket — the SDK owns the Gemini `setup`/tool-call/tool-response wire protocol.
+- **Sample rate**: Gemini Live requires **16 kHz PCM16** input; the ORBIT client always sends **24 kHz**. The handler resamples every inbound `audio_chunk` from 24 kHz → 16 kHz server-side (`_resample_pcm16`, linear interpolation via numpy) before forwarding to Gemini. Output audio is already 24 kHz PCM16, matching the client's expected output rate, so no output resampling is needed.
+- **Tool calling**: `build_tool_schema(grounding)`'s neutral JSON-schema dict is passed directly into `google.genai.types.FunctionDeclaration(parameters_json_schema=...)` — no manual translation into the SDK's `Schema` object graph. Incoming `response.tool_call.function_calls[]` are resolved via `execute_grounding_lookup()` (same as OpenAI) and replied to via `session.send_tool_response(function_responses=[FunctionResponse(id, name, response={"result": ...})])`.
+- **No tool-call-only `done` suppression needed** (unlike the OpenAI handler): Gemini signals turn completion via `server_content.turn_complete`, which only fires once the spoken answer has actually streamed, not on the tool-call round-trip itself.
+- **Auth**: `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) env var, else `inference.gemini.api_key` in `config/inference.yaml` (already used by the existing Gemini vision/video/embedding services).
+- **Custom tools vs. Google Search grounding**: Gemini Live can't combine a custom `function_declarations` tool with built-in `googleSearch` grounding in the same session — this handler only wires up custom tools (the `grounding_adapter` pattern), so it's unaffected, but don't add `googleSearch` alongside `grounding_adapter` in the same adapter config.
+
+Demo adapters: `gemini-live-voice-chat` (ungrounded, `config/adapters/audio.yaml`) and `qa-gemini-realtime-voice` (grounded against `qa-sql`, `config/adapters/qa.yaml`) — direct Gemini counterparts of `open-ai-real-time-voice-chat` and `qa-realtime-voice`.
 
 ---
 

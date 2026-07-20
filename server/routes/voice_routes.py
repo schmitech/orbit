@@ -10,6 +10,7 @@ Supports handler types:
 Handler selection is automatic based on adapter type:
 - type: "openai_realtime" -> OpenAIRealtimeWebSocketHandler
 - type: "openai_realtime_translation" -> OpenAIRealtimeTranslationWebSocketHandler
+- type: "gemini_live" -> GeminiLiveWebSocketHandler
 - other types -> VoiceWebSocketHandler
 """
 
@@ -81,8 +82,8 @@ async def validate_adapter(adapter_name: str, request: Request) -> Dict[str, Any
     # Check adapter type
     adapter_type = adapter_config.get('type', '')
 
-    # For openai_realtime (and translation), stt/tts are not used here
-    if adapter_type in ('openai_realtime', 'openai_realtime_translation'):
+    # For openai_realtime (and translation) and gemini_live, stt/tts are not used here
+    if adapter_type in ('openai_realtime', 'openai_realtime_translation', 'gemini_live'):
         logger.debug(
             f"Adapter validation successful: {adapter_name}, "
             f"type: {adapter_type} (Realtime bridge)"
@@ -267,6 +268,26 @@ async def _handle_voice_websocket(
                 user_id=user_id,
                 target_language=target_language,
             )
+        elif adapter_type == 'gemini_live':
+            from services.chat_handlers.gemini_live_websocket_handler import (
+                GeminiLiveWebSocketHandler,
+            )
+            prompt_service = getattr(websocket.app.state, 'prompt_service', None)
+            clock_service = getattr(websocket.app.state, 'clock_service', None)
+
+            handler = GeminiLiveWebSocketHandler(
+                websocket=websocket,
+                adapter_name=adapter_name,
+                adapter_config=adapter_config,
+                config=config,
+                session_id=session_id,
+                user_id=user_id,
+                prompt_service=prompt_service,
+                system_prompt_id=system_prompt_id,
+                clock_service=clock_service,
+                adapter_manager=chat_service.context_builder.adapter_manager,
+                api_key=api_key,
+            )
         else:
             # Use standard voice handler for cascade (STT -> LLM -> TTS)
             handler = VoiceWebSocketHandler(
@@ -402,7 +423,7 @@ async def voice_status(request: Request):
             capabilities = adapter_config.get('capabilities', {})
             if capabilities.get('supports_realtime_audio', False):
                 adapter_type = adapter_config.get('type', 'passthrough')
-                is_full_duplex = adapter_type in ('openai_realtime', 'openai_realtime_translation')
+                is_full_duplex = adapter_type in ('openai_realtime', 'openai_realtime_translation', 'gemini_live')
 
                 adapter_info = {
                     "name": adapter_name,
@@ -420,6 +441,10 @@ async def voice_status(request: Request):
                     rcfg = (adapter_config.get('config') or {})
                     adapter_info["realtime_model"] = rcfg.get('realtime_model', 'gpt-realtime-translate')
                     adapter_info["target_language"] = rcfg.get('target_language', 'es')
+                elif adapter_type == 'gemini_live':
+                    adapter_info["mode"] = "gemini_live"
+                    rcfg = (adapter_config.get('config') or {})
+                    adapter_info["realtime_model"] = rcfg.get('realtime_model', 'gemini-3.1-flash-live-preview')
                 else:
                     # Traditional cascade adapters
                     adapter_info["mode"] = "cascade"

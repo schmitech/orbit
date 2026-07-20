@@ -73,6 +73,26 @@ adapters:
     grounding_tool_name: "lookup_answer"
     grounding_tool_description: "Look up factual answers (fees, hours, procedures) from the city knowledge base."
 
+- name: "qa-gemini-realtime-voice"
+  enabled: true
+  type: "gemini_live"
+  datasource: "none"
+  adapter: "conversational"
+  implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+  capabilities:
+    retrieval_behavior: "none"      # this adapter doesn't retrieve directly; grounding_adapter does
+    supports_realtime_audio: true
+    supports_interruption: true
+  config:
+    realtime_model: "gemini-3.1-flash-live-preview"
+    realtime_voice: "Puck"
+    enable_input_transcription: true
+    enable_output_transcription: true
+    # Same grounding_adapter pattern as qa-realtime-voice (OpenAI) — provider-agnostic.
+    grounding_adapter: "qa-sql"
+    grounding_tool_name: "lookup_answer"
+    grounding_tool_description: "Look up factual answers (fees, hours, procedures) from the city knowledge base."
+
 - name: qa-vector-chroma
   enabled: true
   type: retriever
