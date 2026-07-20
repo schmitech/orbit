@@ -31,7 +31,7 @@
 </p>
 
 <div id="see-orbit-in-action" align="center">
-  <video src="https://github.com/user-attachments/assets/d5a91482-c457-4d3f-8659-50381c359829" controls muted playsinline width="85%"></video>
+  <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="85%"></video>
   <br />
   <em>Upload PDFs, spreadsheets, and images, then query them together with context preserved across the conversation.</em>
 </div>
