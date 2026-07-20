@@ -39,6 +39,8 @@ class TestResult:
     rate_limited: bool = False
     rate_limit: Optional[int] = None
     rate_remaining: Optional[int] = None
+    adapter: Optional[str] = None
+    first_token_time: Optional[float] = None
 
 
 class PerformanceMetrics:
@@ -115,7 +117,8 @@ class PerformanceMetrics:
         """Export results to CSV file."""
         with open(filename, 'w', newline='') as csvfile:
             fieldnames = ['timestamp', 'endpoint', 'method', 'status_code', 'response_time',
-                         'success', 'rate_limited', 'rate_limit', 'rate_remaining', 'error_message']
+                         'success', 'rate_limited', 'rate_limit', 'rate_remaining', 'error_message',
+                         'adapter', 'first_token_time']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
             writer.writeheader()
@@ -130,7 +133,9 @@ class PerformanceMetrics:
                     'rate_limited': result.rate_limited,
                     'rate_limit': result.rate_limit or '',
                     'rate_remaining': result.rate_remaining or '',
-                    'error_message': result.error_message or ''
+                    'error_message': result.error_message or '',
+                    'adapter': result.adapter or '',
+                    'first_token_time': result.first_token_time if result.first_token_time is not None else ''
                 })
 
 

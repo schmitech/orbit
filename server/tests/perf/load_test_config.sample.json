@@ -1,0 +1,55 @@
+{
+  "host": "http://localhost:3000",
+  "endpoint": "/v1/chat/completions",
+  "default_prompts": [
+    "What can you help me with?",
+    "Give me a short summary of what you do.",
+    "Tell me something interesting."
+  ],
+  "adapters": [
+    {
+      "id": "qa-sql",
+      "name": "City FAQ Assistant (SQLite)",
+      "api_key": "orbit_REPLACE_ME",
+      "weight": 3,
+      "prompts": [
+        "What are the city's business hours?",
+        "How do I request a building permit?",
+        "Where can I pay a parking ticket?"
+      ]
+    },
+    {
+      "id": "hr-db-chatbot",
+      "name": "HR System Assistant",
+      "api_key": "orbit_REPLACE_ME",
+      "weight": 2,
+      "prompts": [
+        "How many employees are in the engineering department?",
+        "Who is the manager of the sales team?",
+        "What is the average salary in the marketing department?"
+      ]
+    },
+    {
+      "id": "intent-sql-postgres",
+      "name": "Customer Orders Assistant",
+      "api_key": "orbit_REPLACE_ME",
+      "weight": 2,
+      "prompts": [
+        "How many orders were placed last month?",
+        "What is the total revenue from customer orders?",
+        "Which customer has placed the most orders?"
+      ]
+    },
+    {
+      "id": "web-search",
+      "name": "Simple AI Chat (Web Search)",
+      "api_key": "orbit_REPLACE_ME",
+      "weight": 1,
+      "prompts": [
+        "What's the latest news on AI regulation?",
+        "Who won the most recent World Cup?",
+        "What's the current weather in Ottawa?"
+      ]
+    }
+  ]
+}

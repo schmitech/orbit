@@ -154,7 +154,75 @@ selected workload, gracefully stops the server, and writes reports under
   still live at process exit
 - `server.log` and `workload_summary.txt` - run context
 
-### Option 6: Rate Limiting & Throttling Simulation
+### Option 6: Multi-User Load Test (Multiple Adapters/API Keys)
+
+`multi_user_load_test.py` simulates many concurrent "users" hitting **different
+adapters** with **different API keys** at once — the shape of real multi-tenant
+traffic — instead of a single key firing a fixed RPS. Use it to see how the
+server behaves under volume (latency, error rate, and whether it stays up) on
+a given hardware/environment configuration.
+
+#### 1. Generate a config
+
+`gen_load_config.py` builds a config JSON from an OrbitChat client's real
+adapter keys and metadata (`clients/orbitchat/.env.local` +
+`clients/orbitchat/orbitchat.yaml`):
+
+```bash
+cd server/tests/perf
+python gen_load_config.py \
+  --env-file ../../../clients/orbitchat/.env.local \
+  --client-yaml ../../../clients/orbitchat/orbitchat.yaml \
+  --host http://localhost:3000 \
+  --out load_test_config.json
+```
+
+Media/voice adapters (image/video/audio generation, transcription, realtime
+voice) are excluded by default since they don't fit a text chat load test —
+pass `--include-all` to keep them. Adapters with a missing or placeholder key
+are skipped and logged. The generated file contains real API keys — it's
+gitignored, don't commit it.
+
+Alternatively, copy `load_test_config.sample.json` and fill in real keys by
+hand; it documents the schema (`host`, `endpoint`, `default_prompts`, and a
+list of `adapters` each with `id`, `name`, `api_key`, `weight`, `prompts`).
+
+#### 2. Run a load test
+
+Each virtual user loops: pick a weighted-random adapter → pick a random
+prompt for it → send a chat request → pause for a random "think time" →
+repeat.
+
+```bash
+# Constant load: 20 concurrent users for 2 minutes, ramping in at 2 users/sec
+python multi_user_load_test.py --config load_test_config.json --users 20 --spawn-rate 2 --duration 120
+
+# Streaming, with time-to-first-token measured
+python multi_user_load_test.py --config load_test_config.json --users 20 --stream
+
+# Staged ramp to find the breaking point: 10 users for 60s, then 50 for 120s, then 100 for 180s.
+# Ramp time between stages (governed by --spawn-rate) is added on top of each stage's duration,
+# so each stage is always held at its full target user count for the documented number of seconds.
+python multi_user_load_test.py --config load_test_config.json --stages "10:60,50:120,100:180"
+
+# Restrict to specific adapters
+python multi_user_load_test.py --config load_test_config.json --adapters qa-sql,hr-db-chatbot --users 15
+```
+
+#### Reading the output
+
+Console output shows periodic status lines during the run, then an overall
+summary and a **per-adapter breakdown** (requests, success rate, p50/p95/p99
+latency, RPS per adapter) — so you can see whether one adapter degrades
+faster than others. When `--stream` is used, mean/p95 time-to-first-token is
+also reported. Results are written to `results/multi_user_load_<timestamp>.csv`
+(now includes `adapter` and `first_token_time` columns) and a matching HTML
+report.
+
+Interrupting with Ctrl+C stops all workers and still generates a report from
+whatever results were collected.
+
+### Option 7: Rate Limiting & Throttling Simulation
 
 `rate_limit_simulation.py` is a focused simulation tool for verifying rate limiting and throttling behaviour. Unlike the general load tests it fires targeted traffic patterns and surfaces rate limit headers, quota counters, and throttle delays in real time.
 

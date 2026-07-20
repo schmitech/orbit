@@ -68,6 +68,7 @@ results/
 *.db-wal
 *.duckdb
 *performance_results*
+server/tests/perf/load_test_config.json
 .firecrawl_cache
 .claude
 *.yaml.bak
