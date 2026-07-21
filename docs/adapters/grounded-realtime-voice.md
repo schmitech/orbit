@@ -37,7 +37,7 @@ Client: WS /ws/voice/qa-realtime-voice
         b. retriever.get_relevant_context(query=...) → ranked QA docs
         c. execute_grounding_lookup() formats the top answer(s) into short spoken text
         d. sends conversation.item.create { type: function_call_output, call_id, output: "<answer text>" }
-        e. sends response.create
+        e. waits for the tool-call response's response.done, then sends response.create
    7. OpenAI speaks the grounded answer in the model's own words (audio streamed back as usual)
 ```
 
@@ -57,7 +57,7 @@ Everything after step 3 is invisible to the ORBIT client — it just keeps recei
 
 ### `realtime_grounding.py`
 
-- `resolve_grounding_config(adapter_config) -> Optional[GroundingConfig]` — reads `config.grounding_adapter` (the name of an existing retriever adapter) plus optional `grounding_tool_name`, `grounding_tool_description`, `grounding_confidence_threshold`, `grounding_max_answer_chars`. Returns `None` when `grounding_adapter` isn't set, which is what keeps ungrounded `openai_realtime` adapters unaffected.
+- `resolve_grounding_config(adapter_config) -> Optional[GroundingConfig]` — reads `config.grounding_adapter` (the name of an existing retriever adapter) plus optional `grounding_tool_name`, `grounding_tool_description`, `grounding_confidence_threshold`, `grounding_max_answer_chars`, and `grounding_max_rows`. Returns `None` when `grounding_adapter` isn't set, which is what keeps ungrounded `openai_realtime` adapters unaffected.
 - `build_tool_schema(grounding) -> dict` — a neutral JSON-schema function-calling definition. OpenAI Realtime's `session.tools` accepts this shape directly; a future provider handler would translate the same dict into its own tool-declaration format instead of duplicating this logic.
 - `execute_grounding_lookup(adapter_manager, grounding, query, api_key=None) -> str` — calls `adapter_manager.get_adapter(grounding.adapter_name)` then `adapter.get_relevant_context(query=...)` (the same ad-hoc, outside-the-pipeline entry point already used by `parallel_adapter_executor.py` and `file_routes.py`), then joins the top answers into a short, speakable plain-text string. Voice answers favor terse text over the markdown/toon table formatting used for LLM prompt injection — a table doesn't work well read aloud.
 
@@ -66,7 +66,7 @@ Everything after step 3 is invisible to the ORBIT client — it just keeps recei
 - Constructor takes `adapter_manager` and `api_key`, and resolves `self._grounding = resolve_grounding_config(adapter_config)` once at construction.
 - `_resolve_realtime_instructions()` appends a short instruction — *"call `<tool_name>` for factual questions, then answer naturally, don't read the lookup text verbatim"* — when grounding is configured. This composes with whatever base persona/system prompt (`system_prompt_id`) is already loaded; no separate persona mechanism is needed.
 - `_build_session_update()` adds `tools`/`tool_choice` to the session payload only when `self._grounding` is set.
-- `_map_openai_event()` handles `response.function_call_arguments.done` via `_handle_function_call()`, which parses the `query` argument, runs `execute_grounding_lookup()`, and replies with `conversation.item.create` (`function_call_output`) + `response.create`.
+- `_map_openai_event()` handles `response.function_call_arguments.done` via `_handle_function_call()`, which parses the `query` argument, runs `execute_grounding_lookup()`, and replies with `conversation.item.create` (`function_call_output`). It sends `response.create` only after OpenAI emits `response.done` for the tool-call-only response; creating the follow-up earlier is rejected as a concurrent active response.
 
 None of this fires when `self._grounding` is `None` — the branch is simply never reached, and no new fields are added to the session payload.
 
@@ -97,6 +97,7 @@ Point any existing retriever adapter at a new `openai_realtime` adapter via `con
     grounding_tool_description: "Look up factual answers (fees, hours, procedures) from the city knowledge base."
     # grounding_confidence_threshold: 0.3       # optional override
     # grounding_max_answer_chars: 600           # optional override (default 600)
+    # grounding_max_rows: 3                     # optional override (default 3)
 ```
 
 | Field | Required | Default | Purpose |
@@ -106,8 +107,9 @@ Point any existing retriever adapter at a new `openai_realtime` adapter via `con
 | `grounding_tool_description` | No | generic description | Shown to the model — write this to match the adapter's actual domain so the model knows when to call it. |
 | `grounding_confidence_threshold` | No | retriever's own default | Overrides the retriever's configured `confidence_threshold` for this tool's calls. |
 | `grounding_max_answer_chars` | No | `600` | Caps how much retrieved text gets spoken back per lookup. |
+| `grounding_max_rows` | No | `3` | For structured intent results, exposes at most this many complete rows to the realtime model. |
 
-The `grounding_adapter` mechanism itself is generic — it works against any `type: "retriever"` adapter via the same `BaseRetriever.get_relevant_context()` interface, regardless of datasource. In practice, today it's only tuned for **QA-shaped** retrievers (`qa-sql`, `qa-vector-chroma`). See [Known Limitations](#known-limitations-intent-retriever-content-shape) before pointing it at an intent retriever (`intent-sql-postgres`, `intent-duckdb-analytics`, `intent-elasticsearch-app-logs`, `intent-mongodb-mflix`, ...).
+The `grounding_adapter` mechanism works against any `type: "retriever"` adapter via the same `BaseRetriever.get_relevant_context()` interface, regardless of datasource. QA retrievers contribute their `answer` text directly. Intent retrievers (`intent-sql-postgres`, `intent-duckdb-analytics`, `intent-elasticsearch-app-logs`, `intent-mongodb-mflix`, and HTTP-backed intent adapters) contribute their structured `metadata.formatted_data` instead: ORBIT converts each selected result row to field/value text before it reaches the realtime model. This avoids passing markdown, CSV, or TOON table syntax into a spoken response.
 
 ---
 
@@ -128,67 +130,90 @@ Demo adapters: `gemini-live-voice-chat` (ungrounded, `config/adapters/audio.yaml
 
 ---
 
-## Known Limitations: Intent Retriever Content Shape
+## Intent Retriever Grounding
 
-**Status: analyzed, not yet fixed.** Currently validated end-to-end only
-against `qa-sql`/`qa-vector-chroma` (`config/adapters/qa.yaml`). This is
-QA-only *by current tuning*, not by architectural necessity — the fix below
-is scoped and not yet built.
+Intent retrievers return a structured `formatted_data` payload alongside
+their normal text `content`. Realtime grounding uses the structured payload
+when it contains a table: it sends a short result count followed by complete
+`Column: value` rows. `grounding_max_rows` defaults to 3 and is applied
+independently of the retriever's `return_results`, so enabling voice does not
+change a shared adapter's behavior for text clients.
 
-### Why QA retrievers work cleanly today
+For a dedicated voice-only retriever, set `return_results` to 1–3 as well to
+reduce query work and keep the source result set aligned with what can be
+spoken. For a shared adapter such as `intent-sql-postgres` in
+`config/adapters/customer-orders.yaml`, `intent-duckdb-analytics` in
+`config/adapters/business-analytics.yaml`, or `intent-elasticsearch-app-logs`
+in `config/adapters/elasticsearch-logs.yaml`, leave its existing
+`return_results` intact and configure the voice adapter separately:
 
-QA domain adapters (`server/adapters/qa/base.py:36-48`, `format_document`)
-set `item["answer"]` to a short, pre-formatted natural-language sentence
-(e.g. *"Birth certificates can be requested from the Vital Records Office
-for a fee of $20."*). `_format_answer()` in `realtime_grounding.py` prefers
-`doc.get("answer")`, so the text handed to the model as `function_call_output`
-is already voice-ready — truncating it at `grounding_max_answer_chars`
-(default 600) rarely matters since these answers are short.
+```yaml
+- name: "customer-orders-realtime-voice"
+  enabled: true
+  type: "openai_realtime"
+  datasource: "none"
+  adapter: "conversational"
+  implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+  capabilities:
+    retrieval_behavior: "none"
+    supports_realtime_audio: true
+    supports_interruption: true
+  config:
+    realtime_model: "gpt-realtime"
+    realtime_voice: "marin"
+    grounding_adapter: "intent-sql-postgres"
+    grounding_tool_name: "lookup_customer_orders"
+    grounding_tool_description: "Look up customer order facts, statuses, and totals."
+    grounding_max_rows: 3
+    grounding_max_answer_chars: 600
+```
 
-### Why intent retrievers (customer-orders, elasticsearch-logs, mongodb-mflix, business-analytics) need more work
+The same configuration works with `gemini_live` by changing only `type`, the
+Gemini model, and voice fields. The realtime model still turns the returned
+facts into a natural answer; ORBIT does not add a second LLM summarization
+call or a second source of truth.
 
-Intent retrievers (`server/retrievers/base/intent_sql_base.py:770-831`,
-mirrored in `intent_http_base.py`) never set `item["answer"]`. A single
-`get_relevant_context()` call returns **one dict** (not one per row) whose
-`content` field is a fully-rendered multi-row table — markdown/TOON/CSV
-depending on `context_format`, built by `TableRenderer.render()`
-(`intent_sql_base.py:786`) — covering up to `return_results` rows (e.g.
-`return_results: 100` in `config/adapters/customer-orders.yaml`) folded
-into one string that can run to several KB, prefixed with a line like
-`"Found 47 results:"` or `"Showing 20 of 47 total results (truncated):"`.
+---
 
-`_format_answer()` falls back to `doc.get("content")` for these and
-truncates at `grounding_max_answer_chars` on a raw character boundary. For
-a multi-row table that means:
-- Cutting mid-row or mid-table-syntax (stray `|` characters, broken TOON
-  lines) rather than at a sentence boundary.
-- Silently dropping the relevant row entirely if it falls past the
-  first ~600 characters of the table.
+## Known Limitation: MCP Agent Adapters Not Groundable (Future Task)
 
-This formatting happens *inside* `get_relevant_context()` itself (before
-the pipeline's `context_format`/`context_max_tokens` capabilities are ever
-applied — those only run later, in `ContextRetrievalStep._format_context`,
-which this grounding path doesn't use), so there's no existing per-adapter
-knob that produces a short spoken sentence instead of a table.
+**Status: analyzed, not yet fixed.** `grounding_adapter` does **not** currently
+work against `type: "mcp_agent"` adapters (e.g. `mcp-agent-chat` in
+`config/adapters/mcp-agent.yaml`) — it fails silently rather than erroring.
 
-### Follow-up work (next session)
+**Why:** `execute_grounding_lookup()` calls
+`adapter.get_relevant_context(query=...)`, the `BaseRetriever` interface.
+`mcp_agent` is registered under the same conversational-passthrough factory
+as `openai_realtime`/`gemini_live` themselves (`server/adapters/__init__.py`),
+which resolves to `ConversationalImplementation` — its
+`get_relevant_context()` is an explicit no-op that always returns `[]`. So
+pointing `grounding_adapter` at an MCP agent adapter would always fall
+through to `execute_grounding_lookup()`'s empty-result branch and answer
+"I don't have information about that.", regardless of what the MCP tools
+could actually answer.
 
-1. **Make truncation table-aware** in `_format_answer()` — detect
-   table-formatted content (or just always truncate on line/row boundaries,
-   not mid-string) so a cut-off table degrades to "fewer rows shown"
-   instead of garbled syntax.
-2. **Recommend/default a small `return_results`** (e.g. 1–3) for any
-   retriever adapter used as a `grounding_adapter`, so the table is small
-   by construction rather than relying on downstream truncation — a voice
-   answer should describe one thing, not summarize 47 rows.
-3. Optionally, let `execute_grounding_lookup()` ask the underlying LLM
-   (or a cheap summarizer call) to condense a table result into a single
-   spoken sentence, rather than truncating raw table text at all — closer
-   to how the text pipeline lets the *main* LLM read structured `<context>`
-   and phrase a natural answer, except here the *tool output* itself would
-   need to already be terse since the Realtime model receives it as plain
-   function-call output, not as `<context>` fed through the usual prompt
-   builder.
+MCP tool-calling instead runs through `MCPAgentStep`
+(`server/inference/pipeline/steps/mcp_agent.py`), a full pipeline step that
+replaces `LLMInferenceStep` and runs its own multi-turn
+`run_tool_calling_loop()` / `generate_with_tools()` against the configured
+MCP servers — a different call shape than "give me a query, get back ranked
+docs."
+
+**Candidate fixes (pick one to scope out):**
+1. Add an MCP-specific branch to `execute_grounding_lookup()` that detects
+   a `type: "mcp_agent"` grounding adapter and calls
+   `run_tool_calling_loop()` directly instead of `get_relevant_context()`,
+   formatting its final answer the same way QA/intent results are formatted
+   today.
+2. Give `MCPAgentStep`'s tool-calling loop a retriever-shaped wrapper (a thin
+   adapter whose `get_relevant_context()` runs the MCP loop internally and
+   returns its answer as a single doc), so `execute_grounding_lookup()` needs
+   no MCP-specific logic at all — closer to how QA/intent grounding works
+   today.
+
+Option 2 keeps `realtime_grounding.py` fully provider- and adapter-type
+agnostic (the stated design goal); option 1 is more direct but reintroduces
+a type-specific branch into the shared module.
 
 ---
 

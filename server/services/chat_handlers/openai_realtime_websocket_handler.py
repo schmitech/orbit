@@ -115,6 +115,7 @@ class OpenAIRealtimeWebSocketHandler:
         self._client_task: Optional[asyncio.Task] = None
         self._openai_task: Optional[asyncio.Task] = None
         self._chunk_index = 0
+        self._grounding_response_pending = False
 
     async def _resolve_realtime_instructions(self) -> str:
         cfg = self.adapter_config.get("config") or {}
@@ -328,6 +329,14 @@ class OpenAIRealtimeWebSocketHandler:
             )
             if is_tool_call_only:
                 logger.debug("OpenAI Realtime: response.done (tool-call turn, suppressing client done)")
+                if self._grounding_response_pending:
+                    self._grounding_response_pending = False
+                    assert self._openai_ws is not None
+                    # OpenAI does not allow response.create while the
+                    # function-call response is still active. The function
+                    # output is already in the conversation; now that this
+                    # response is done, request the spoken follow-up.
+                    await self._openai_ws.send_str(json.dumps({"type": "response.create"}))
             else:
                 logger.debug("OpenAI Realtime: response.done")
                 await self._send_client(
@@ -384,7 +393,10 @@ class OpenAIRealtimeWebSocketHandler:
                 }
             )
         )
-        await self._openai_ws.send_str(json.dumps({"type": "response.create"}))
+        # response.function_call_arguments.done precedes response.done. Wait
+        # for the tool-only response to close before requesting the spoken
+        # follow-up, otherwise OpenAI rejects response.create as concurrent.
+        self._grounding_response_pending = True
 
     async def _openai_loop(self) -> None:
         assert self._openai_ws is not None

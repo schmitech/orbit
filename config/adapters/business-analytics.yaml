@@ -89,3 +89,23 @@ adapters:
       # Query monitoring (automatically provided by unified base)
       enable_query_monitoring: true
       query_timeout: 5000  # 5 seconds
+
+  - name: "business-analytics-realtime-voice"
+    enabled: false
+    type: "openai_realtime"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    capabilities:
+      retrieval_behavior: "none"
+      supports_realtime_audio: true
+      supports_interruption: true
+    config:
+      realtime_model: "gpt-realtime"
+      realtime_voice: "marin"
+      enable_input_transcription: true
+      grounding_adapter: "intent-duckdb-analytics"
+      grounding_tool_name: "lookup_business_analytics"
+      grounding_tool_description: "Look up business analytics metrics, trends, and reports."
+      grounding_max_rows: 3
+      grounding_max_answer_chars: 600

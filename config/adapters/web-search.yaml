@@ -28,7 +28,7 @@
 #     -d '{"messages":[{"role":"user","content":"What are today'\''s top news headlines?"}],
 #          "skill":"web-search"}'
 adapters:
-  - name: "web-search-chat"
+  - name: "web-search"
     enabled: true
     type: "passthrough"
     datasource: "none"
@@ -43,10 +43,33 @@ adapters:
       skill_description: "Search the web and answer with up-to-date information and citations"
       routing_examples:
         - "search the web for"
+        - "recherche sur le web"
         - "look this up online"
+        - "cherche ceci en ligne"
         - "what's the latest news on"
+        - "quelles sont les dernières nouvelles sur"
         - "find current information about"
+        - "trouve des informations à jour sur"
         - "google this"
+        - "cherche ceci sur Google"
+        - "what is the current price, exchange rate, or market value of"
+        - "quel est le prix actuel, le taux de change ou la valeur marchande de"
+        - "who is the current CEO, president, or office holder of"
+        - "qui est le PDG, président ou titulaire actuel de"
+        - "what are the latest laws, regulations, rules, or standards for"
+        - "quelles sont les lois, réglementations, règles ou normes les plus récentes pour"
+        - "what is the current schedule, score, weather forecast, or availability for"
+        - "quel est l'horaire, le score, les prévisions météo ou la disponibilité actuels pour"
+        - "what are the newest features, documentation, or release notes for"
+        - "quelles sont les nouvelles fonctionnalités, la documentation ou les notes de version pour"
+        - "recommend the best current product, service, restaurant, or travel option for"
+        - "recommande le meilleur produit, service, restaurant ou voyage actuel pour"
+        - "verify whether this claim is true"
+        - "vérifie si cette affirmation est vraie"
+        - "find an official source or citation for"
+        - "trouve une source officielle ou une citation pour"
+        - "summarize or answer questions about this URL, article, paper, or dataset"
+        - "résume cette URL, cet article, ce document ou cet ensemble de données, ou réponds à mes questions à ce sujet"
       retrieval_behavior: "none"         # No context retrieval (pure conversational)
       formatting_style: "standard"
       requires_api_key_validation: false # No separate key needed for skill invocation

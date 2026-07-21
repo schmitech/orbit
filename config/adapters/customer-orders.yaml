@@ -99,3 +99,46 @@ adapters:
       # Query monitoring (automatically provided by new base)
       enable_query_monitoring: true
       query_timeout: 5000  # 5 seconds
+
+  # Reuses intent-sql-postgres for per-turn realtime voice grounding without
+  # changing the retriever's result limit for existing text clients.
+  - name: "customer-orders-realtime-voice"
+    enabled: false
+    type: "openai_realtime"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    capabilities:
+      retrieval_behavior: "none"
+      supports_realtime_audio: true
+      supports_interruption: true
+    config:
+      realtime_model: "gpt-realtime"
+      realtime_voice: "marin"
+      enable_input_transcription: true
+      grounding_adapter: "intent-sql-postgres"
+      grounding_tool_name: "lookup_customer_orders"
+      grounding_tool_description: "Look up customer order facts, statuses, and totals."
+      grounding_max_rows: 3
+      grounding_max_answer_chars: 600
+
+  - name: "customer-orders-gemini-realtime-voice"
+    enabled: false
+    type: "gemini_live"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    capabilities:
+      retrieval_behavior: "none"
+      supports_realtime_audio: true
+      supports_interruption: true
+    config:
+      realtime_model: "gemini-3.1-flash-live-preview"
+      realtime_voice: "Leda"
+      enable_input_transcription: true
+      enable_output_transcription: true
+      grounding_adapter: "intent-sql-postgres"
+      grounding_tool_name: "lookup_customer_orders"
+      grounding_tool_description: "Look up customer order facts, statuses, and totals."
+      grounding_max_rows: 3
+      grounding_max_answer_chars: 600

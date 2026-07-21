@@ -53,7 +53,7 @@ adapters:
       type: default
 
 - name: "qa-realtime-voice"
-  enabled: true
+  enabled: false
   type: "openai_realtime"
   datasource: "none"
   adapter: "conversational"
@@ -74,7 +74,7 @@ adapters:
     grounding_tool_description: "Look up factual answers (fees, hours, procedures) from the city knowledge base."
 
 - name: "qa-gemini-realtime-voice"
-  enabled: true
+  enabled: false
   type: "gemini_live"
   datasource: "none"
   adapter: "conversational"
@@ -85,7 +85,7 @@ adapters:
     supports_interruption: true
   config:
     realtime_model: "gemini-3.1-flash-live-preview"
-    realtime_voice: "Puck"
+    realtime_voice: "Leda"
     enable_input_transcription: true
     enable_output_transcription: true
     # Same grounding_adapter pattern as qa-realtime-voice (OpenAI) — provider-agnostic.

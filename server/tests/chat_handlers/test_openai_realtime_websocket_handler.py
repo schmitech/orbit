@@ -5,6 +5,7 @@ Tests for OpenAIRealtimeWebSocketHandler.
 import os
 import sys
 import importlib.util
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -67,3 +68,52 @@ async def test_session_update_falls_back_when_prompt_missing():
     session_update = await handler._build_session_update()
 
     assert "You are a helpful assistant." in session_update["session"]["instructions"]
+
+
+@pytest.mark.asyncio
+async def test_grounding_waits_for_tool_response_done_before_creating_follow_up_response():
+    websocket = MagicMock()
+    adapter_manager = AsyncMock()
+    retriever = AsyncMock()
+    retriever.get_relevant_context.return_value = [{"answer": "Order A-100 has shipped."}]
+    adapter_manager.get_adapter.return_value = retriever
+
+    handler = OpenAIRealtimeWebSocketHandler(
+        websocket=websocket,
+        adapter_name="customer-orders-realtime-voice",
+        adapter_config={
+            "config": {
+                "grounding_adapter": "intent-sql-postgres",
+                "grounding_tool_name": "lookup_customer_orders",
+            }
+        },
+        config={},
+        adapter_manager=adapter_manager,
+    )
+    handler._openai_ws = AsyncMock()
+    handler._send_client = AsyncMock()
+
+    await handler._handle_function_call(
+        {
+            "call_id": "call-1",
+            "name": "lookup_customer_orders",
+            "arguments": '{"query": "Has order A-100 shipped?"}',
+        }
+    )
+
+    sent = [json.loads(call.args[0]) for call in handler._openai_ws.send_str.await_args_list]
+    assert [message["type"] for message in sent] == ["conversation.item.create"]
+
+    await handler._map_openai_event(
+        {
+            "type": "response.done",
+            "response": {"output": [{"type": "function_call"}]},
+        }
+    )
+
+    sent = [json.loads(call.args[0]) for call in handler._openai_ws.send_str.await_args_list]
+    assert [message["type"] for message in sent] == [
+        "conversation.item.create",
+        "response.create",
+    ]
+    handler._send_client.assert_not_awaited()

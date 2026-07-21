@@ -61,3 +61,23 @@ adapters:
 
       enable_query_monitoring: true
       query_timeout: 5000
+
+  - name: "contact-realtime-voice"
+    enabled: false
+    type: "openai_realtime"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    capabilities:
+      retrieval_behavior: "none"
+      supports_realtime_audio: true
+      supports_interruption: true
+    config:
+      realtime_model: "gpt-realtime"
+      realtime_voice: "marin"
+      enable_input_transcription: true
+      grounding_adapter: "intent-sql-sqlite-contact"
+      grounding_tool_name: "lookup_contact_information"
+      grounding_tool_description: "Look up contact names, details, and relationships."
+      grounding_max_rows: 3
+      grounding_max_answer_chars: 600

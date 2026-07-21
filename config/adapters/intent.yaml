@@ -65,6 +65,106 @@ adapters:
       max_retries: 3
       retry_delay: 1.0
 
+  - name: "jsonplaceholder-realtime-voice"
+    enabled: false
+    type: "openai_realtime"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    capabilities:
+      retrieval_behavior: "none"
+      supports_realtime_audio: true
+      supports_interruption: true
+    config:
+      realtime_model: "gpt-realtime"
+      realtime_voice: "marin"
+      enable_input_transcription: true
+      grounding_adapter: "intent-http-jsonplaceholder"
+      grounding_tool_name: "lookup_jsonplaceholder"
+      grounding_tool_description: "Look up sample users, posts, comments, and todos."
+      grounding_max_rows: 3
+      grounding_max_answer_chars: 600
+
+  - name: "paris-opendata-realtime-voice"
+    enabled: false
+    type: "openai_realtime"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    capabilities:
+      retrieval_behavior: "none"
+      supports_realtime_audio: true
+      supports_interruption: true
+    config:
+      realtime_model: "gpt-realtime"
+      realtime_voice: "marin"
+      enable_input_transcription: true
+      grounding_adapter: "intent-http-paris-opendata"
+      grounding_tool_name: "lookup_paris_open_data"
+      grounding_tool_description: "Look up facts from the configured Paris open-data source."
+      grounding_max_rows: 3
+      grounding_max_answer_chars: 600
+
+  - name: "firecrawl-realtime-voice"
+    enabled: false
+    type: "openai_realtime"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    capabilities:
+      retrieval_behavior: "none"
+      supports_realtime_audio: true
+      supports_interruption: true
+    config:
+      realtime_model: "gpt-realtime"
+      realtime_voice: "marin"
+      enable_input_transcription: true
+      grounding_adapter: "intent-firecrawl-webscrape"
+      grounding_tool_name: "lookup_web_content"
+      grounding_tool_description: "Look up facts from configured web content sources."
+      grounding_max_rows: 3
+      grounding_max_answer_chars: 600
+
+  - name: "spacex-realtime-voice"
+    enabled: false
+    type: "openai_realtime"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    capabilities:
+      retrieval_behavior: "none"
+      supports_realtime_audio: true
+      supports_interruption: true
+    config:
+      realtime_model: "gpt-realtime"
+      realtime_voice: "marin"
+      enable_input_transcription: true
+      grounding_adapter: "intent-graphql-spacex"
+      grounding_tool_name: "lookup_spacex_data"
+      grounding_tool_description: "Look up SpaceX launches, missions, and vehicle facts."
+      grounding_max_rows: 3
+      grounding_max_answer_chars: 600
+
+  - name: "intent-agent-realtime-voice"
+    enabled: false
+    type: "openai_realtime"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    capabilities:
+      retrieval_behavior: "none"
+      supports_realtime_audio: true
+      supports_interruption: true
+    config:
+      realtime_model: "gpt-realtime"
+      realtime_voice: "marin"
+      enable_input_transcription: true
+      grounding_adapter: "intent-agent-example"
+      grounding_tool_name: "lookup_agent_information"
+      grounding_tool_description: "Look up facts using the configured intent-agent tools."
+      grounding_max_rows: 3
+      grounding_max_answer_chars: 600
+
   # HTTP JSON API Adapter - Paris Open Data (Que Faire à Paris)
   # This adapter queries the Paris city open data portal for events and activities
   # No authentication required - public API
