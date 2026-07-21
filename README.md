@@ -111,6 +111,15 @@ Prefer a stable native installation? Download the latest [release](https://githu
 </details>
 
 <details>
+<summary><strong>Talk to a real-time voice assistant grounded in your data</strong></summary>
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/d1214904-267e-4295-8a0c-246dd37b7e56" controls muted playsinline width="80%"></video>
+  <br />
+  <em>Speech-to-speech voice grounded in SQL databases, APIs, or data lakes — interrupt it mid-answer and it stops and responds immediately.</em>
+</p>
+</details>
+
+<details>
 <summary><strong>Let the model use internal tools</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/a57ff84e-db9d-466d-8f82-e23473b745fb" controls muted playsinline width="80%"></video>
