@@ -493,7 +493,7 @@
       "error": "Call error"
     },
     "idleHint": "Start a call to speak with the assistant.",
-    "startCall": "Start call",
+    "startCall": "Start Call",
     "endCall": "End call",
     "muteMic": "Mute microphone",
     "unmuteMic": "Unmute microphone",

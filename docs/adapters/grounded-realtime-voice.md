@@ -52,7 +52,8 @@ Everything after step 3 is invisible to the ORBIT client — it just keeps recei
 | Grounding config, tool schema, retrieval call (provider-agnostic) | `server/services/chat_handlers/realtime_grounding.py` |
 | OpenAI wire-protocol integration (session.tools, function-call event handling) | `server/services/chat_handlers/openai_realtime_websocket_handler.py` |
 | Gemini Live wire-protocol integration (google-genai SDK, tool-call handling) | `server/services/chat_handlers/gemini_live_websocket_handler.py` |
-| Passes `adapter_manager`/`api_key` into the handler | `server/routes/voice_routes.py` |
+| Passes `adapter_manager`/`api_key`/`chat_history_service` into the handler | `server/routes/voice_routes.py` |
+| Conversation history persistence (`_persist_turn`, see below) | Both handler files above |
 | Demo adapters | `config/adapters/qa.yaml` → `qa-realtime-voice`, `qa-gemini-realtime-voice` |
 
 ### `realtime_grounding.py`
@@ -172,6 +173,59 @@ The same configuration works with `gemini_live` by changing only `type`, the
 Gemini model, and voice fields. The realtime model still turns the returned
 facts into a natural answer; ORBIT does not add a second LLM summarization
 call or a second source of truth.
+
+---
+
+## Conversation History Persistence
+
+Realtime voice turns are now written to `chat_history_service` — the same
+service normal passthrough/retriever chat uses via
+`ConversationHistoryHandler.store_turn()` — so a voice conversation shows up
+in history queries and is genuinely cleared (not just a client-side no-op)
+when the user deletes it from the sidebar.
+
+**Why this was needed:** the realtime WS handlers bypass
+`PipelineChatService`/`ConversationHistoryHandler` entirely (that's how they
+get low-latency full-duplex audio), so nothing was ever persisted server-side
+for a voice session — only the ORBIT client's own Zustand/localStorage state
+tracked it. `DELETE /admin/conversations/{session_id}` (used by the sidebar's
+delete button, `clients/orbitchat/src/components/Sidebar.tsx`) already called
+`chat_history_service.clear_conversation_history()` unconditionally for any
+session id — it just always found zero rows for a voice session, silently.
+
+**How it works:** both `OpenAIRealtimeWebSocketHandler` and
+`GeminiLiveWebSocketHandler` accept an optional `chat_history_service`
+(wired in from `websocket.app.state` in `voice_routes.py`, same pattern as
+`prompt_service`/`clock_service`). Each handler accumulates the current
+turn's final user transcript (`conversation.item.input_audio_transcription.completed`
+for OpenAI, `server_content.input_transcription.text` for Gemini) and the
+streamed assistant reply text (`response.output_audio_transcript.delta` /
+`server_content.output_transcription.text`), then calls
+`chat_history_service.add_conversation_turn(session_id=self.orbit_session_id, ...)`
+at the same point the real (non-tool-call-only) `done`/`turn_complete` event
+fires — right before it's relayed to the client. Persistence is best-effort:
+a failure logs and is swallowed, never disrupting the live audio session.
+Buffers reset after each persist call (success or failure) so a stray
+duplicate `done` doesn't re-persist stale text.
+
+**What this does NOT cover yet (deferred):**
+- **Feedback (thumbs up/down) on voice messages still no-ops.** The client
+  gates feedback on `message.databaseMessageId`, which is only ever set from
+  the server's `assistant_message_id` in a normal `/v1/chat` response. Voice
+  turns don't have an equivalent today — `add_conversation_turn()`'s returned
+  `(user_msg_id, assistant_msg_id)` isn't surfaced back to the client. To fix:
+  add `user_message_id`/`assistant_message_id` fields to the `done` event in
+  both handlers, and update `chatStore.ts`'s `finishRealtimeVoiceTurn` (plus
+  `RealtimeVoicePanel.tsx`'s `'done'` handler) to store them as
+  `databaseMessageId` on the corresponding message objects.
+- **Interrupted turns aren't persisted.** Only a clean turn completion
+  (`response.done` / `turn_complete`) triggers `_persist_turn()`. If the user
+  barges in mid-reply, whatever partial assistant text had accumulated is
+  discarded along with the rest of the interrupted response, rather than
+  being saved as a partial turn.
+- **`openai_realtime_translation` is out of scope.** The translation adapter
+  has no persona/conversation concept — it's a stateless continuous
+  interpreter, not a Q&A exchange — so it isn't wired to chat_history.
 
 ---
 

@@ -22,6 +22,8 @@ interface MessageListProps {
   availableModels?: AllowedModel[];
   defaultModel?: string | null;
   selectedModel?: string | null;
+  /** Restrict assistant message controls for adapters that do not support follow-up actions. */
+  assistantActions?: 'full' | 'copy';
 }
 
 export function MessageList({
@@ -37,6 +39,7 @@ export function MessageList({
   availableModels,
   defaultModel,
   selectedModel,
+  assistantActions = 'full',
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -182,6 +185,7 @@ export function MessageList({
                 availableModels={availableModels}
                 defaultModel={defaultModel}
                 selectedModel={selectedModel}
+                assistantActions={assistantActions}
               />
             </div>
           ))}

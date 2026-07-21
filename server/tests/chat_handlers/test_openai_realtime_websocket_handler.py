@@ -117,3 +117,148 @@ async def test_grounding_waits_for_tool_response_done_before_creating_follow_up_
         "response.create",
     ]
     handler._send_client.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_completed_turn_is_persisted_to_chat_history():
+    websocket = MagicMock()
+    chat_history_service = AsyncMock()
+    chat_history_service.add_conversation_turn.return_value = ("stored-user", "stored-assistant")
+
+    handler = OpenAIRealtimeWebSocketHandler(
+        websocket=websocket,
+        adapter_name="open-ai-real-time-voice-chat",
+        adapter_config={"config": {}},
+        config={},
+        session_id="session-1",
+        user_id="user-1",
+        api_key="test-key",
+        chat_history_service=chat_history_service,
+    )
+    handler._send_client = AsyncMock()
+
+    await handler._map_openai_event({
+        "type": "conversation.item.input_audio_transcription.completed",
+        "transcript": "How much is the birth certificate?",
+    })
+    await handler._map_openai_event({
+        "type": "response.output_audio_transcript.delta", "delta": "It's twenty "
+    })
+    await handler._map_openai_event({
+        "type": "response.output_audio_transcript.delta", "delta": "dollars."
+    })
+    await handler._map_openai_event({
+        "type": "response.done",
+        "response": {"output": [{"type": "message"}]},
+    })
+
+    chat_history_service.add_conversation_turn.assert_awaited_once_with(
+        session_id="session-1",
+        user_message="How much is the birth certificate?",
+        assistant_response="It's twenty dollars.",
+        user_id="user-1",
+        api_key="test-key",
+        adapter_name="open-ai-real-time-voice-chat",
+    )
+    assert _send_payloads(handler)[-1] == {
+        "type": "done",
+        "session_id": "session-1",
+        "user_message_id": "stored-user",
+        "assistant_message_id": "stored-assistant",
+    }
+    # Buffers reset after persisting, so a second empty done doesn't re-persist.
+    await handler._map_openai_event({
+        "type": "response.done",
+        "response": {"output": [{"type": "message"}]},
+    })
+    chat_history_service.add_conversation_turn.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_persist_turn_skips_when_no_chat_history_service():
+    websocket = MagicMock()
+    handler = OpenAIRealtimeWebSocketHandler(
+        websocket=websocket,
+        adapter_name="open-ai-real-time-voice-chat",
+        adapter_config={"config": {}},
+        config={},
+    )
+    handler._send_client = AsyncMock()
+    handler._pending_user_message = "hello"
+
+    # Should not raise even though chat_history_service is None.
+    await handler._persist_turn()
+    assert handler._pending_user_message == "hello"  # unchanged: persist was a no-op, not "cleared"
+
+
+@pytest.mark.asyncio
+async def test_persist_turn_skips_when_turn_is_empty():
+    websocket = MagicMock()
+    chat_history_service = AsyncMock()
+    handler = OpenAIRealtimeWebSocketHandler(
+        websocket=websocket,
+        adapter_name="open-ai-real-time-voice-chat",
+        adapter_config={"config": {}},
+        config={},
+        chat_history_service=chat_history_service,
+    )
+
+    await handler._persist_turn()
+
+    chat_history_service.add_conversation_turn.assert_not_awaited()
+
+
+def _send_payloads(handler):
+    return [call.args[0] for call in handler._send_client.await_args_list]
+
+
+@pytest.mark.asyncio
+async def test_final_transcript_supplies_suffix_missing_from_streamed_deltas():
+    handler = OpenAIRealtimeWebSocketHandler(
+        websocket=MagicMock(),
+        adapter_name="open-ai-real-time-voice-chat",
+        adapter_config={"config": {}},
+        config={},
+    )
+    handler._send_client = AsyncMock()
+
+    await handler._map_openai_event({
+        "type": "response.output_audio_transcript.delta",
+        "response_id": "response-1",
+        "item_id": "item-1",
+        "output_index": 0,
+        "content_index": 0,
+        "delta": "The answer is",
+    })
+    await handler._map_openai_event({
+        "type": "response.output_audio_transcript.done",
+        "response_id": "response-1",
+        "item_id": "item-1",
+        "output_index": 0,
+        "content_index": 0,
+        "transcript": "The answer is forty-two.",
+    })
+
+    assert _send_payloads(handler) == [
+        {"type": "assistant_transcript_delta", "delta": "The answer is"},
+        {"type": "assistant_transcript_delta", "delta": " forty-two."},
+    ]
+    assert handler._pending_assistant_text == "The answer is forty-two."
+
+
+def test_discard_pending_turn_clears_interrupted_turn_state():
+    handler = OpenAIRealtimeWebSocketHandler(
+        websocket=MagicMock(),
+        adapter_name="open-ai-real-time-voice-chat",
+        adapter_config={"config": {}},
+        config={},
+    )
+    handler._pending_user_message = "Old question"
+    handler._pending_assistant_text = "Old answer"
+    handler._assistant_transcript_prefixes["response:item:0:0"] = "Old answer"
+
+    handler._discard_pending_turn()
+
+    assert handler._pending_user_message == ""
+    assert handler._pending_assistant_text == ""
+    assert handler._assistant_transcript_prefixes == {}

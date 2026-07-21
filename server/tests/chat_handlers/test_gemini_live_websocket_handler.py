@@ -191,3 +191,67 @@ async def test_handle_tool_call_ignores_unknown_tool_name():
 
     adapter_manager.get_adapter.assert_not_awaited()
     session.send_tool_response.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_persist_turn_writes_accumulated_transcript_to_chat_history():
+    websocket = MagicMock()
+    chat_history_service = AsyncMock()
+
+    handler = GeminiLiveWebSocketHandler(
+        websocket=websocket,
+        adapter_name="gemini-live-voice-chat",
+        adapter_config={"config": {}},
+        config={},
+        session_id="session-1",
+        user_id="user-1",
+        api_key="test-key",
+        chat_history_service=chat_history_service,
+    )
+    handler._pending_user_message = "How much is the birth certificate?"
+    handler._pending_assistant_text = "It's twenty dollars."
+
+    await handler._persist_turn()
+
+    chat_history_service.add_conversation_turn.assert_awaited_once_with(
+        session_id="session-1",
+        user_message="How much is the birth certificate?",
+        assistant_response="It's twenty dollars.",
+        user_id="user-1",
+        api_key="test-key",
+        adapter_name="gemini-live-voice-chat",
+    )
+    assert handler._pending_user_message == ""
+    assert handler._pending_assistant_text == ""
+
+
+@pytest.mark.asyncio
+async def test_persist_turn_skips_when_no_chat_history_service():
+    websocket = MagicMock()
+    handler = GeminiLiveWebSocketHandler(
+        websocket=websocket,
+        adapter_name="gemini-live-voice-chat",
+        adapter_config={"config": {}},
+        config={},
+    )
+    handler._pending_user_message = "hello"
+
+    await handler._persist_turn()  # should not raise
+    assert handler._pending_user_message == "hello"  # no-op, not "cleared"
+
+
+@pytest.mark.asyncio
+async def test_persist_turn_skips_when_turn_is_empty():
+    websocket = MagicMock()
+    chat_history_service = AsyncMock()
+    handler = GeminiLiveWebSocketHandler(
+        websocket=websocket,
+        adapter_name="gemini-live-voice-chat",
+        adapter_config={"config": {}},
+        config={},
+        chat_history_service=chat_history_service,
+    )
+
+    await handler._persist_turn()
+
+    chat_history_service.add_conversation_turn.assert_not_awaited()

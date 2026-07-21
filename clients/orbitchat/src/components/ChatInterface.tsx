@@ -446,28 +446,49 @@ export function ChatInterface({
           </div>
 
           {isRealtimeVoiceConversation && currentConversation ? (
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-              {currentConversation.messages.length > 0 && (
-                <div className="flex h-[min(35vh,18rem)] shrink-0 overflow-hidden">
-                  <MessageList
-                    messages={currentConversation.messages}
-                    onRegenerate={() => undefined}
-                    onEditMessage={() => undefined}
-                    onStartThread={async () => undefined}
-                    onClearThread={async () => undefined}
-                    onSendThreadMessage={async () => undefined}
-                    sessionId={currentConversation.sessionId}
-                    isLoading={false}
-                    contentMaxWidthClass={inputMaxWidthClass}
-                  />
+            <div className="flex min-h-0 flex-1 flex-col">
+              {currentConversation.messages.length > 0 ? (
+                <MessageList
+                  messages={currentConversation.messages}
+                  onRegenerate={() => undefined}
+                  onEditMessage={() => undefined}
+                  onStartThread={async () => undefined}
+                  onClearThread={async () => undefined}
+                  onSendThreadMessage={async () => undefined}
+                  sessionId={currentConversation.sessionId}
+                  isLoading={false}
+                  contentMaxWidthClass={inputMaxWidthClass}
+                  assistantActions="copy"
+                />
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-4 md:pt-6">
+                  <div className="mx-auto flex w-full max-w-[64rem] flex-col gap-4 px-3 pb-8 sm:px-5 md:gap-5 md:px-6 md:pb-12 lg:px-8 xl:px-10">
+                    <h2
+                      className="w-full text-center text-xl font-semibold tracking-tight text-[#353740] dark:text-[#ececf1] md:text-2xl"
+                      style={{ fontFamily: '-apple-system, "SF Pro Display", BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
+                    >
+                      {getAdapterDisplayName(currentConversation.adapterName) || currentConversation.adapterName}
+                    </h2>
+                    {seoAdapter && shouldRenderAgentNotesForSeo() && (
+                      <AgentSeoContent
+                        adapter={seoAdapter}
+                        syntaxTheme={syntaxTheme}
+                        forcedThemeClass={forcedThemeClass}
+                      />
+                    )}
+                  </div>
                 </div>
               )}
-              <RealtimeVoicePanel
-                conversationId={currentConversation.id}
-                adapterName={currentConversation.adapterName!}
-                sessionId={currentConversation.sessionId}
-                adapterNotes={currentConversation.adapterInfo?.notes || seoAdapter?.notes || seoAdapter?.description}
-              />
+              <div className={MOBILE_INPUT_WRAPPER_CLASSES}>
+                <div className="mx-auto w-full max-w-[96rem] px-3 sm:px-5 md:px-6 lg:px-8 xl:px-10">
+                  <RealtimeVoicePanel
+                    conversationId={currentConversation.id}
+                    adapterName={currentConversation.adapterName!}
+                    sessionId={currentConversation.sessionId}
+                    adapterNotes={currentConversation.adapterInfo?.notes || seoAdapter?.notes || seoAdapter?.description}
+                  />
+                </div>
+              </div>
             </div>
           ) : showEmptyState ? (
             <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>

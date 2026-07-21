@@ -49,6 +49,7 @@ interface MessageProps {
   availableModels?: AllowedModel[];
   defaultModel?: string | null;
   selectedModel?: string | null;
+  assistantActions?: 'full' | 'copy';
 }
 
 const EMPTY_THREAD_REPLIES: MessageType[] = [];
@@ -281,6 +282,7 @@ export function Message({
   availableModels = [],
   defaultModel = null,
   selectedModel = null,
+  assistantActions = 'full',
 }: MessageProps) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
@@ -319,6 +321,7 @@ export function Message({
   const feedbackAcknowledgementTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isAssistant = message.role === 'assistant';
+  const showFullAssistantActions = assistantActions === 'full';
   const threadReplies = threadMessages ?? EMPTY_THREAD_REPLIES;
   const threadReplyCount = threadReplies.filter(msg => !(msg.role === 'assistant' && msg.isStreaming)).length;
   const threadHasStreaming = threadReplies.some(msg => msg.isStreaming);
@@ -1102,7 +1105,7 @@ export function Message({
               )}
 
               {/* Feedback */}
-              {getEnableFeedbackButtons() && (
+              {showFullAssistantActions && getEnableFeedbackButtons() && (
                 <div className="relative flex items-center gap-0.5">
                   <button
                     onClick={() => handleFeedback('up')}
@@ -1135,7 +1138,7 @@ export function Message({
               )}
 
               {/* Add/edit feedback comment (thumbs-down only) */}
-              {getEnableFeedbackButtons() && message.feedback === 'down' && !showFeedbackCommentBox && (
+              {showFullAssistantActions && getEnableFeedbackButtons() && message.feedback === 'down' && !showFeedbackCommentBox && (
                 <button
                   type="button"
                   onClick={() => setShowFeedbackCommentBox(true)}
@@ -1148,7 +1151,7 @@ export function Message({
               )}
 
               {/* Regenerate */}
-              {onRegenerate && (
+              {showFullAssistantActions && onRegenerate && (
                 <button
                   onClick={() => onRegenerate(message.id)}
                   className="rounded-md p-1.5 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
@@ -1160,7 +1163,7 @@ export function Message({
               )}
 
               {/* Continue thread */}
-              {threadsEnabled && message.supportsThreading && !message.threadInfo && onStartThread && sessionId && (
+              {showFullAssistantActions && threadsEnabled && message.supportsThreading && !message.threadInfo && onStartThread && sessionId && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1178,7 +1181,7 @@ export function Message({
               )}
 
               {/* Thread reply count */}
-              {threadsEnabled && message.threadInfo && (
+              {showFullAssistantActions && threadsEnabled && message.threadInfo && (
                 <>
                   <div className="w-px h-4 shrink-0 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
                   <button
@@ -1208,7 +1211,7 @@ export function Message({
           </div>
         )}
 
-        {isAssistant && !message.isStreaming && getEnableFeedbackButtons() &&
+        {isAssistant && !message.isStreaming && showFullAssistantActions && getEnableFeedbackButtons() &&
           message.feedback === 'down' && showFeedbackCommentBox && (
           <FeedbackCommentBox
             initialValue={message.feedbackComment}

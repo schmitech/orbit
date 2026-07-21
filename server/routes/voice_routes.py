@@ -232,6 +232,7 @@ async def _handle_voice_websocket(
             )
             prompt_service = getattr(websocket.app.state, 'prompt_service', None)
             clock_service = getattr(websocket.app.state, 'clock_service', None)
+            chat_history_service = getattr(websocket.app.state, 'chat_history_service', None)
 
             handler = OpenAIRealtimeWebSocketHandler(
                 websocket=websocket,
@@ -245,6 +246,7 @@ async def _handle_voice_websocket(
                 clock_service=clock_service,
                 adapter_manager=chat_service.context_builder.adapter_manager,
                 api_key=api_key,
+                chat_history_service=chat_history_service,
             )
         elif adapter_type == 'openai_realtime_translation':
             from services.chat_handlers.openai_realtime_translation_websocket_handler import (
@@ -266,6 +268,7 @@ async def _handle_voice_websocket(
             )
             prompt_service = getattr(websocket.app.state, 'prompt_service', None)
             clock_service = getattr(websocket.app.state, 'clock_service', None)
+            chat_history_service = getattr(websocket.app.state, 'chat_history_service', None)
 
             handler = GeminiLiveWebSocketHandler(
                 websocket=websocket,
@@ -279,6 +282,7 @@ async def _handle_voice_websocket(
                 clock_service=clock_service,
                 adapter_manager=chat_service.context_builder.adapter_manager,
                 api_key=api_key,
+                chat_history_service=chat_history_service,
             )
         else:
             # validate_adapter() already restricts this endpoint to

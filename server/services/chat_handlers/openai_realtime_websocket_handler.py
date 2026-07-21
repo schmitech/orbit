@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from fastapi import WebSocket, WebSocketDisconnect
 from inference.pipeline.base import ProcessingContext
@@ -82,6 +82,7 @@ class OpenAIRealtimeWebSocketHandler:
         clock_service: Optional[Any] = None,
         adapter_manager: Optional[Any] = None,
         api_key: Optional[str] = None,
+        chat_history_service: Optional[Any] = None,
     ):
         self.websocket = websocket
         self.adapter_name = adapter_name
@@ -94,7 +95,11 @@ class OpenAIRealtimeWebSocketHandler:
         self.clock_service = clock_service
         self.adapter_manager = adapter_manager
         self.api_key = api_key
+        self.chat_history_service = chat_history_service
         self._grounding = resolve_grounding_config(adapter_config)
+        self._pending_user_message = ""
+        self._pending_assistant_text = ""
+        self._assistant_transcript_prefixes: Dict[str, str] = {}
 
         cfg = adapter_config.get("config") or {}
         self._realtime_model = cfg.get("realtime_model", "gpt-realtime")
@@ -282,6 +287,7 @@ class OpenAIRealtimeWebSocketHandler:
                 await self._send_client({"type": "pong"})
             elif mtype == "interrupt":
                 await self._openai_ws.send_str(json.dumps({"type": "response.cancel"}))
+                self._discard_pending_turn()
                 await self._send_client({"type": "interrupted", "reason": "user_request"})
             elif mtype == "audio_chunk":
                 b64 = message.get("data")
@@ -310,13 +316,25 @@ class OpenAIRealtimeWebSocketHandler:
                 self._chunk_index += 1
         elif etype == "response.output_audio.done":
             pass
-        elif etype == "response.output_audio_transcript.delta":
+        elif etype in (
+            "response.output_audio_transcript.delta",
+            "response.audio_transcript.delta",
+        ):
             d = event.get("delta")
-            if d:
+            if isinstance(d, str) and d:
+                self._pending_assistant_text += d
+                key = self._transcript_key(event)
+                self._assistant_transcript_prefixes[key] = self._assistant_transcript_prefixes.get(key, "") + d
                 await self._send_client({"type": "assistant_transcript_delta", "delta": d})
+        elif etype in (
+            "response.output_audio_transcript.done",
+            "response.audio_transcript.done",
+        ):
+            await self._send_missing_transcript_suffix(event)
         elif etype == "conversation.item.input_audio_transcription.completed":
             text = event.get("transcript")
             if text:
+                self._pending_user_message = text
                 await self._send_client({"type": "transcription", "text": text})
         elif etype == "response.done":
             response_obj = event.get("response") or {}
@@ -339,10 +357,17 @@ class OpenAIRealtimeWebSocketHandler:
                     await self._openai_ws.send_str(json.dumps({"type": "response.create"}))
             else:
                 logger.debug("OpenAI Realtime: response.done")
+                user_message_id, assistant_message_id = await self._persist_turn()
                 await self._send_client(
-                    {"type": "done", "session_id": self.orbit_session_id}
+                    {
+                        "type": "done",
+                        "session_id": self.orbit_session_id,
+                        "user_message_id": user_message_id,
+                        "assistant_message_id": assistant_message_id,
+                    }
                 )
                 self._chunk_index = 0
+                self._assistant_transcript_prefixes.clear()
         elif etype == "error":
             err = event.get("error") or {}
             msg = err.get("message") if isinstance(err, dict) else str(err)
@@ -353,6 +378,61 @@ class OpenAIRealtimeWebSocketHandler:
             logger.debug("OpenAI Realtime: input_audio_buffer.speech_stopped")
         elif etype == "response.function_call_arguments.done":
             await self._handle_function_call(event)
+
+    @staticmethod
+    def _transcript_key(event: Dict[str, Any]) -> str:
+        return ":".join(str(event.get(key, "")) for key in ("response_id", "item_id", "output_index", "content_index"))
+
+    async def _send_missing_transcript_suffix(self, event: Dict[str, Any]) -> None:
+        """Forward any final transcript portion that did not arrive as a delta."""
+        transcript = event.get("transcript")
+        key = self._transcript_key(event)
+        prefix = self._assistant_transcript_prefixes.pop(key, "")
+        if not isinstance(transcript, str) or not transcript:
+            return
+        if transcript.startswith(prefix):
+            suffix = transcript[len(prefix):]
+        else:
+            logger.warning("OpenAI Realtime final transcript did not extend streamed prefix")
+            suffix = transcript
+        if suffix:
+            self._pending_assistant_text += suffix
+            await self._send_client({"type": "assistant_transcript_delta", "delta": suffix})
+
+    def _discard_pending_turn(self) -> None:
+        self._pending_user_message = ""
+        self._pending_assistant_text = ""
+        self._assistant_transcript_prefixes.clear()
+
+    async def _persist_turn(self) -> Tuple[Optional[Any], Optional[Any]]:
+        """Persist the completed turn to chat_history, the same way normal
+        passthrough/retriever chat does via ConversationHistoryHandler — so a
+        voice conversation shows up in history and can be cleared through the
+        same DELETE /admin/conversations/{session_id} endpoint as any other
+        conversation. Best-effort: a failure here never disrupts the live
+        audio session.
+        """
+        if not self.chat_history_service:
+            return None, None
+        if not self._pending_user_message.strip() and not self._pending_assistant_text.strip():
+            return None, None
+        try:
+            result = await self.chat_history_service.add_conversation_turn(
+                session_id=self.orbit_session_id,
+                user_message=self._pending_user_message,
+                assistant_response=self._pending_assistant_text,
+                user_id=self.user_id,
+                api_key=self.api_key,
+                adapter_name=self.adapter_name,
+            )
+            if isinstance(result, tuple) and len(result) == 2:
+                return result
+            return None, None
+        except Exception as e:
+            logger.error("Failed to persist realtime voice turn to chat history: %s", e, exc_info=True)
+            return None, None
+        finally:
+            self._discard_pending_turn()
 
     async def _handle_function_call(self, event: Dict[str, Any]) -> None:
         if not self._grounding:

@@ -165,7 +165,7 @@ interface ExtendedChatState extends ChatState {
   setRealtimeVoiceState: (state: Partial<RealtimeVoiceState>) => void;
   beginRealtimeVoiceTurn: (conversationId: string, transcript: string) => void;
   appendRealtimeVoiceAssistantDelta: (conversationId: string, delta: string) => void;
-  finishRealtimeVoiceTurn: (conversationId: string) => void;
+  finishRealtimeVoiceTurn: (conversationId: string, messageIds?: { userMessageId?: string; assistantMessageId?: string }) => void;
 }
 
 
@@ -436,9 +436,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       ...conv, messages: conv.messages.map(msg => msg.role === 'assistant' && msg.isStreaming ? { ...msg, content: msg.content + delta } : msg), updatedAt: new Date()
     }), realtimeVoice: { ...state.realtimeVoice, transcript: state.realtimeVoice.transcript + delta } }));
   },
-  finishRealtimeVoiceTurn: (conversationId) => {
+  finishRealtimeVoiceTurn: (conversationId, messageIds) => {
     set(state => ({ conversations: state.conversations.map(conv => conv.id !== conversationId ? conv : {
-      ...conv, messages: conv.messages.map(msg => msg.isStreaming ? { ...msg, isStreaming: false } : msg), updatedAt: new Date()
+      ...conv,
+      messages: conv.messages.map(msg => {
+        if (!msg.isStreaming) return msg;
+        const databaseMessageId = msg.role === 'user'
+          ? messageIds?.userMessageId
+          : messageIds?.assistantMessageId;
+        return { ...msg, isStreaming: false, ...(databaseMessageId ? { databaseMessageId } : {}) };
+      }),
+      updatedAt: new Date()
     }) }));
     debouncedSaveToLocalStorage(get);
   },

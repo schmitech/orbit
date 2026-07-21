@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 from fastapi import WebSocket, WebSocketDisconnect
@@ -102,6 +102,7 @@ class GeminiLiveWebSocketHandler:
         clock_service: Optional[Any] = None,
         adapter_manager: Optional[Any] = None,
         api_key: Optional[str] = None,
+        chat_history_service: Optional[Any] = None,
     ):
         self.websocket = websocket
         self.adapter_name = adapter_name
@@ -114,7 +115,10 @@ class GeminiLiveWebSocketHandler:
         self.clock_service = clock_service
         self.adapter_manager = adapter_manager
         self.api_key = api_key
+        self.chat_history_service = chat_history_service
         self._grounding = resolve_grounding_config(adapter_config)
+        self._pending_user_message = ""
+        self._pending_assistant_text = ""
 
         cfg = adapter_config.get("config") or {}
         self._realtime_model = cfg.get("realtime_model", "gemini-3.1-flash-live-preview")
@@ -274,6 +278,40 @@ class GeminiLiveWebSocketHandler:
             else:
                 logger.debug("Unknown client message type: %s", mtype)
 
+    def _discard_pending_turn(self) -> None:
+        self._pending_user_message = ""
+        self._pending_assistant_text = ""
+
+    async def _persist_turn(self) -> Tuple[Optional[Any], Optional[Any]]:
+        """Persist the completed turn to chat_history, the same way normal
+        passthrough/retriever chat does via ConversationHistoryHandler — so a
+        voice conversation shows up in history and can be cleared through the
+        same DELETE /admin/conversations/{session_id} endpoint as any other
+        conversation. Best-effort: a failure here never disrupts the live
+        audio session.
+        """
+        if not self.chat_history_service:
+            return None, None
+        if not self._pending_user_message.strip() and not self._pending_assistant_text.strip():
+            return None, None
+        try:
+            result = await self.chat_history_service.add_conversation_turn(
+                session_id=self.orbit_session_id,
+                user_message=self._pending_user_message,
+                assistant_response=self._pending_assistant_text,
+                user_id=self.user_id,
+                api_key=self.api_key,
+                adapter_name=self.adapter_name,
+            )
+            if isinstance(result, tuple) and len(result) == 2:
+                return result
+            return None, None
+        except Exception as e:
+            logger.error("Failed to persist realtime voice turn to chat history: %s", e, exc_info=True)
+            return None, None
+        finally:
+            self._discard_pending_turn()
+
     async def _handle_tool_call(self, tool_call: Any) -> None:
         if not self._grounding:
             return
@@ -324,14 +362,17 @@ class GeminiLiveWebSocketHandler:
                         continue
 
                     if server_content.interrupted:
+                        self._discard_pending_turn()
                         await self._send_client({"type": "interrupted", "reason": "model_interrupted"})
 
                     if server_content.input_transcription and server_content.input_transcription.text:
+                        self._pending_user_message = server_content.input_transcription.text
                         await self._send_client(
                             {"type": "transcription", "text": server_content.input_transcription.text}
                         )
 
                     if server_content.output_transcription and server_content.output_transcription.text:
+                        self._pending_assistant_text += server_content.output_transcription.text
                         await self._send_client(
                             {
                                 "type": "assistant_transcript_delta",
@@ -355,7 +396,13 @@ class GeminiLiveWebSocketHandler:
 
                     if server_content.turn_complete:
                         logger.debug("Gemini Live: turn_complete")
-                        await self._send_client({"type": "done", "session_id": self.orbit_session_id})
+                        user_message_id, assistant_message_id = await self._persist_turn()
+                        await self._send_client({
+                            "type": "done",
+                            "session_id": self.orbit_session_id,
+                            "user_message_id": user_message_id,
+                            "assistant_message_id": assistant_message_id,
+                        })
                         self._chunk_index = 0
                 if not self.is_connected:
                     break
