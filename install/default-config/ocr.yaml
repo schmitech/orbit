@@ -5,11 +5,12 @@
 # OCR for PDFs and images to an LLM inference service.
 #
 # Two kinds of backends:
-#   - mistral: native OCR endpoint (client.ocr) — ingests a PDF/image directly.
-#   - openai / gemini / anthropic / ...: "vision-backed" — PDF pages are
-#     rasterized to images and sent through the provider's vision model.
-#     These reuse the per-provider settings from vision.yaml (visions:), so the
-#     entries below only need an `enabled` flag to gate registration.
+#   - mistral / gemini: native OCR (single call) — ingests a PDF/image directly
+#     and returns extracted text. No rasterization.
+#   - openai / anthropic / ...: "vision-backed" — PDF pages are rasterized to
+#     images and sent through the provider's vision model. These reuse the
+#     per-provider settings from vision.yaml (visions:), so the entries below
+#     only need an `enabled` flag to gate registration.
 #
 # The active provider is selected by files.processing.ai_document.provider.
 # NOTE: that provider must also be `enabled: true` here to be registered.
@@ -34,11 +35,15 @@ ocr:
       max_wait_ms: 30000
       exponential_base: 2
 
+  # Gemini native document processing (single call, no rasterization)
+  gemini:
+    enabled: false
+    api_key: ${GOOGLE_API_KEY}
+    model: "gemini-3.6-flash"
+
   # Vision-backed providers — reuse settings from vision.yaml (visions:).
   # Enable the one you set as files.processing.ai_document.provider.
   openai:
-    enabled: false
-  gemini:
     enabled: false
   anthropic:
     enabled: false

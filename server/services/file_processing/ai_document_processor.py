@@ -111,8 +111,8 @@ class AIDocumentProcessor(FileProcessor):
     def _count_pages(self, file_data: bytes, mime_type: str) -> int:
         """Count the pages/frames that are actually OCR'd (computed locally, no API call).
 
-        Vision-backed providers cap work at max_pages; Mistral native OCR
-        processes the whole document, so its count is not capped.
+        Vision-backed providers cap work at max_pages; native OCR providers
+        (Mistral, Gemini) process the whole document, so their count is not capped.
         """
         if mime_type.startswith('image/'):
             try:
@@ -133,6 +133,6 @@ class AIDocumentProcessor(FileProcessor):
                 logger.debug(f"Could not count PDF pages: {e}")
                 return 0
 
-        if self.provider == 'mistral':
+        if self.provider in ('mistral', 'gemini'):
             return source_count
         return min(source_count, self.max_pages)

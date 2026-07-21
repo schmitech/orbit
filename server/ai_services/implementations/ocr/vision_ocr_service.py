@@ -2,7 +2,7 @@
 Vision-backed OCR services.
 
 For providers that expose image understanding but no dedicated OCR endpoint
-(OpenAI, Gemini, Anthropic, ...), this reuses the existing ``VisionService``:
+(OpenAI, Anthropic, ...), this reuses the existing ``VisionService``:
 images are OCR'd directly, and PDFs are rasterized page-by-page with pypdfium2
 and each page image is sent through ``extract_text_from_image``.
 
@@ -166,13 +166,6 @@ class OpenAIOcrService(VisionBackedOcrService):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config, "openai")
-
-
-class GeminiOcrService(VisionBackedOcrService):
-    VISION_PROVIDER = "gemini"
-
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__(config, "gemini")
 
 
 class AnthropicOcrService(VisionBackedOcrService):

@@ -229,6 +229,64 @@ async def test_mistral_ocr_service_image_payload():
 
 
 # ============================================================================
+# GeminiOcrService (native, single-call)
+# ============================================================================
+
+async def test_gemini_ocr_service_extract_document():
+    from ai_services.implementations.ocr.gemini_ocr_service import GeminiOcrService
+
+    config = {'ocr': {'gemini': {'enabled': True, 'api_key': 'AIza-test', 'model': 'gemini-3.6-flash'}}}
+    service = GeminiOcrService(config)
+    assert service.model == 'gemini-3.6-flash'
+
+    pdf = _make_pdf(2)
+
+    part = MagicMock(text='Hello World')
+    content = MagicMock(parts=[part])
+    candidate = MagicMock(content=content)
+    response = MagicMock(candidates=[candidate])
+
+    service._genai_client = MagicMock()
+    service._genai_client.models.generate_content = MagicMock(return_value=response)
+    service.initialized = True
+
+    result = await service.extract_document(pdf, 'application/pdf', 'doc.pdf')
+
+    assert result['text'] == 'Hello World'
+    assert result['page_count'] == 2
+    _, kwargs = service._genai_client.models.generate_content.call_args
+    assert kwargs['model'] == 'gemini-3.6-flash'
+
+
+async def test_gemini_ocr_service_no_content_raises():
+    from ai_services.implementations.ocr.gemini_ocr_service import GeminiOcrService
+
+    config = {'ocr': {'gemini': {'enabled': True, 'api_key': 'AIza-test'}}}
+    service = GeminiOcrService(config)
+    service._genai_client = MagicMock()
+    service._genai_client.models.generate_content = MagicMock(return_value=MagicMock(candidates=[]))
+    service.initialized = True
+
+    with pytest.raises(Exception):
+        await service.extract_document(b'\x89PNG\r\n\x1a\n', 'image/png', 'x.png')
+
+
+def test_gemini_ocr_page_count_uncapped_for_ai_document_processor():
+    """AIDocumentProcessor treats Gemini like Mistral: native OCR, not capped by max_pages."""
+    pdf = _make_pdf(3)
+    config = {
+        'files': {'processing': {
+            'ai_document_enabled': True,
+            'processor_priority': 'ai_document',
+            'ai_document': {'provider': 'gemini', 'max_pages': 1},
+        }},
+        'ocr': {}, 'visions': {},
+    }
+    proc = AIDocumentProcessor(enabled=True, config=config)
+    assert proc._count_pages(pdf, 'application/pdf') == 3
+
+
+# ============================================================================
 # VisionBackedOcrService (rasterization)
 # ============================================================================
 

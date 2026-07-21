@@ -2,8 +2,8 @@
 OCR service implementations.
 
 Available providers:
-    - MistralOcrService: Mistral native OCR endpoint (PDF/image-direct)
-    - OpenAIOcrService / GeminiOcrService / AnthropicOcrService / ... :
+    - MistralOcrService / GeminiOcrService: native OCR endpoints (PDF/image-direct)
+    - OpenAIOcrService / AnthropicOcrService / ... :
       vision-backed OCR (rasterize PDF pages, reuse the vision provider)
 """
 
@@ -15,8 +15,8 @@ __all__ = []
 
 _implementations = [
     ('mistral_ocr_service', 'MistralOcrService'),
+    ('gemini_ocr_service', 'GeminiOcrService'),
     ('vision_ocr_service', 'OpenAIOcrService'),
-    ('vision_ocr_service', 'GeminiOcrService'),
     ('vision_ocr_service', 'AnthropicOcrService'),
     ('vision_ocr_service', 'CohereOcrService'),
     ('vision_ocr_service', 'OllamaOcrService'),
