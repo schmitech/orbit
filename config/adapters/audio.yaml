@@ -423,9 +423,11 @@ adapters:
       # Server VAD (turn detection) — higher silence avoids cutting you off mid-thought
       vad_prefix_padding_ms: 300
       vad_silence_duration_ms: 1000
-      vad_threshold: 0.65
-      # When true, server VAD can cancel the model reply if it thinks you started speaking (can sound "cut off")
-      realtime_interrupt_response: false
+      # Lower threshold = faster barge-in detection (was 0.65, which delayed
+      # interruption relative to Gemini Live's more sensitive default VAD).
+      vad_threshold: 0.5
+      # Let a new user utterance interrupt the active reply (barge-in).
+      realtime_interrupt_response: true
       openai_connection_timeout_seconds: 60
       # Set true only if you still use the Realtime beta interface (adds OpenAI-Beta: realtime=v1)
       use_realtime_beta_header: false

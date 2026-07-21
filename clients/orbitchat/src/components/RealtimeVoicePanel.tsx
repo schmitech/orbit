@@ -85,8 +85,20 @@ export function RealtimeVoicePanel({
   const stop = useCallback(() => {
     isStoppingRef.current = true;
     const socket = socketRef.current;
-    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'interrupt' }));
-    socket?.close(); socketRef.current = null;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'interrupt' }));
+      // A new call can start before the delayed close below. Detach this old
+      // socket so late provider frames cannot be applied to that new call.
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      // Let the proxy deliver the cancellation to OpenAI before ending this
+      // browser connection. Closing in the same tick can drop response.cancel.
+      window.setTimeout(() => socket.close(), 150);
+    } else {
+      socket?.close();
+    }
+    socketRef.current = null;
     processorRef.current?.disconnect(); processorRef.current?.port.close(); processorRef.current = null;
     streamRef.current?.getTracks().forEach(track => track.stop()); streamRef.current = null;
     playbackSourcesRef.current.forEach(source => {
@@ -97,7 +109,12 @@ export function RealtimeVoicePanel({
     micAnalyserRef.current = null; outputAnalyserRef.current = null;
     setIsMuted(false); setIsAssistantSpeaking(false); setElapsedSeconds(0);
     setStatus('idle'); setVoice({ status: 'idle' });
-  }, [setVoice]);
+    // onmessage now ignores everything once isStoppingRef is set (so the 150ms
+    // teardown window doesn't replay stray audio/transcript), which means the
+    // server's own 'interrupted' ack will never reach finishTurn. Finalize the
+    // in-progress message here instead, or it's stuck at isStreaming: true forever.
+    finishTurn(conversationId);
+  }, [conversationId, finishTurn, setVoice]);
 
   const clearPlayback = useCallback(() => {
     playbackSourcesRef.current.forEach(source => {
@@ -155,6 +172,7 @@ export function RealtimeVoicePanel({
       const url = api.getRealtimeVoiceWebSocketUrl(adapterName, { sessionId });
       const socket = new WebSocket(url); socketRef.current = socket;
       socket.onmessage = event => {
+        if (isStoppingRef.current) return;
         let message: Record<string, unknown>;
         try {
           message = JSON.parse(event.data) as Record<string, unknown>;

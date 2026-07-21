@@ -246,6 +246,91 @@ async def test_final_transcript_supplies_suffix_missing_from_streamed_deltas():
     assert handler._pending_assistant_text == "The answer is forty-two."
 
 
+@pytest.mark.asyncio
+async def test_response_done_reconciles_transcript_when_provider_skips_transcript_done():
+    handler = OpenAIRealtimeWebSocketHandler(
+        websocket=MagicMock(),
+        adapter_name="open-ai-real-time-voice-chat",
+        adapter_config={"config": {}},
+        config={},
+    )
+    handler._send_client = AsyncMock()
+
+    await handler._map_openai_event({
+        "type": "response.output_audio_transcript.delta",
+        "response_id": "response-1",
+        "item_id": "item-1",
+        "output_index": 0,
+        "content_index": 0,
+        "delta": "The answer is",
+    })
+    await handler._map_openai_event({
+        "type": "response.done",
+        "response": {
+            "id": "response-1",
+            "output": [{
+                "id": "item-1",
+                "type": "message",
+                "content": [{"type": "audio", "transcript": "The answer is forty-two."}],
+            }],
+        },
+    })
+
+    assert _send_payloads(handler)[:2] == [
+        {"type": "assistant_transcript_delta", "delta": "The answer is"},
+        {"type": "assistant_transcript_delta", "delta": " forty-two."},
+    ]
+    assert handler._pending_assistant_text == "The answer is forty-two."
+
+
+@pytest.mark.asyncio
+async def test_cancelled_response_ignores_buffered_partial_events():
+    handler = OpenAIRealtimeWebSocketHandler(
+        websocket=MagicMock(),
+        adapter_name="open-ai-real-time-voice-chat",
+        adapter_config={"config": {}},
+        config={},
+    )
+    handler._send_client = AsyncMock()
+    handler._discarding_response = True
+    handler._pending_user_message = "Old question"
+
+    await handler._map_openai_event({
+        "type": "response.output_audio_transcript.delta",
+        "delta": "Partial answer",
+    })
+    await handler._map_openai_event({
+        "type": "response.done",
+        "response": {"output": [{"type": "message"}]},
+    })
+
+    handler._send_client.assert_not_awaited()
+    assert handler._pending_user_message == ""
+    assert handler._pending_assistant_text == ""
+    assert not handler._discarding_response
+
+
+@pytest.mark.asyncio
+async def test_speech_started_interrupts_active_response_when_adapter_supports_it():
+    handler = OpenAIRealtimeWebSocketHandler(
+        websocket=MagicMock(),
+        adapter_name="open-ai-real-time-voice-chat",
+        adapter_config={"capabilities": {"supports_interruption": True}, "config": {}},
+        config={},
+    )
+    handler._send_client = AsyncMock()
+    handler._response_in_progress = True
+    handler._pending_user_message = "Previous question"
+    handler._pending_assistant_text = "Previous answer"
+
+    await handler._map_openai_event({"type": "input_audio_buffer.speech_started"})
+
+    handler._send_client.assert_awaited_once_with({"type": "interrupted", "reason": "user_speech"})
+    assert handler._discarding_response
+    assert handler._pending_user_message == ""
+    assert handler._pending_assistant_text == ""
+
+
 def test_discard_pending_turn_clears_interrupted_turn_state():
     handler = OpenAIRealtimeWebSocketHandler(
         websocket=MagicMock(),

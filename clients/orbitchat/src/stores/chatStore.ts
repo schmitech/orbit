@@ -162,6 +162,7 @@ interface ExtendedChatState extends ChatState {
   submitFeedback: (conversationMessageId: string, feedbackType: 'up' | 'down', comment?: string) => Promise<boolean>;
   loadFeedbackForConversation: (sessionId: string) => Promise<void>;
   realtimeVoice: RealtimeVoiceState;
+  _pendingRealtimeTurns: Record<string, { userMessageId: string; assistantMessageId: string }>;
   setRealtimeVoiceState: (state: Partial<RealtimeVoiceState>) => void;
   beginRealtimeVoiceTurn: (conversationId: string, transcript: string) => void;
   appendRealtimeVoiceAssistantDelta: (conversationId: string, delta: string) => void;
@@ -412,31 +413,102 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   isLoading: false,
   error: null,
   realtimeVoice: { status: 'idle', transcript: '' },
+  _pendingRealtimeTurns: {},
   sessionId: getOrCreateSessionId(),
 
   getSessionId: () => get().sessionId,
 
   setRealtimeVoiceState: (voiceState) => set(state => ({ realtimeVoice: { ...state.realtimeVoice, ...voiceState } })),
+  // OpenAI's input transcription is a separate async pass that can complete
+  // either before or after the response it belongs to (unlike Gemini, whose
+  // transcription and generation come from one sequenced stream). Rather than
+  // matching messages by the transient isStreaming flag — which the 'done'
+  // event can flip before a late transcription arrives — both methods below
+  // track the pending pair by message id so either event can arrive first,
+  // or arrive after the turn was already marked finished, and still land on
+  // the same pair. A pair is only "reusable" while its own field (transcript
+  // or assistant text) hasn't been filled in yet; once filled, the next event
+  // for this conversation must belong to a new turn.
   beginRealtimeVoiceTurn: (conversationId, transcript) => {
     if (!transcript.trim()) return;
-    set(state => ({ conversations: state.conversations.map(conv => {
-      if (conv.id !== conversationId) return conv;
-      const pendingUser = conv.messages.findLast(msg => msg.role === 'user' && msg.isStreaming);
-      const messages = pendingUser
-        ? conv.messages.map(msg => msg === pendingUser ? { ...msg, content: transcript } : msg)
-        : [...conv.messages,
-            { id: generateUniqueMessageId('user'), content: transcript, role: 'user' as const, timestamp: new Date(), isStreaming: true },
-            { id: generateUniqueMessageId('assistant'), content: '', role: 'assistant' as const, timestamp: new Date(), isStreaming: true }];
-      return { ...conv, messages, updatedAt: new Date(), title: conv.messages.length === 0 ? transcript.slice(0, 50) : conv.title };
-    }), realtimeVoice: { ...state.realtimeVoice, transcript: `You: ${transcript}\nAssistant: ` } }));
+    set(state => {
+      const pending = state._pendingRealtimeTurns[conversationId];
+      let userMessageId = pending?.userMessageId;
+      let assistantMessageId = pending?.assistantMessageId;
+      const conversations = state.conversations.map(conv => {
+        if (conv.id !== conversationId) return conv;
+        const pendingUser = pending ? conv.messages.find(msg => msg.id === pending.userMessageId) : undefined;
+        if (pendingUser && !pendingUser.content) {
+          return {
+            ...conv,
+            messages: conv.messages.map(msg => msg.id === pendingUser.id ? { ...msg, content: transcript } : msg),
+            updatedAt: new Date(),
+          };
+        }
+        userMessageId = generateUniqueMessageId('user');
+        assistantMessageId = generateUniqueMessageId('assistant');
+        return {
+          ...conv,
+          messages: [...conv.messages,
+            { id: userMessageId, content: transcript, role: 'user' as const, timestamp: new Date(), isStreaming: true },
+            { id: assistantMessageId, content: '', role: 'assistant' as const, timestamp: new Date(), isStreaming: true }],
+          updatedAt: new Date(),
+          title: conv.messages.length === 0 ? transcript.slice(0, 50) : conv.title,
+        };
+      });
+      return {
+        conversations,
+        _pendingRealtimeTurns: userMessageId && assistantMessageId
+          ? { ...state._pendingRealtimeTurns, [conversationId]: { userMessageId, assistantMessageId } }
+          : state._pendingRealtimeTurns,
+        realtimeVoice: { ...state.realtimeVoice, transcript: `You: ${transcript}\nAssistant: ` },
+      };
+    });
   },
   appendRealtimeVoiceAssistantDelta: (conversationId, delta) => {
     if (!delta) return;
-    set(state => ({ conversations: state.conversations.map(conv => conv.id !== conversationId ? conv : {
-      ...conv, messages: conv.messages.map(msg => msg.role === 'assistant' && msg.isStreaming ? { ...msg, content: msg.content + delta } : msg), updatedAt: new Date()
-    }), realtimeVoice: { ...state.realtimeVoice, transcript: state.realtimeVoice.transcript + delta } }));
+    set(state => {
+      const pending = state._pendingRealtimeTurns[conversationId];
+      let userMessageId = pending?.userMessageId;
+      let assistantMessageId = pending?.assistantMessageId;
+      const conversations = state.conversations.map(conv => {
+        if (conv.id !== conversationId) return conv;
+        const pendingAssistant = pending ? conv.messages.find(msg => msg.id === pending.assistantMessageId) : undefined;
+        // A late first delta can arrive after `done` has already marked this
+        // pair non-streaming. It still belongs in its empty tracked placeholder;
+        // subsequent non-streaming content, by contrast, starts a new turn.
+        if (pendingAssistant && (pendingAssistant.isStreaming || !pendingAssistant.content)) {
+          return {
+            ...conv,
+            messages: conv.messages.map(msg => msg.id === pendingAssistant.id ? { ...msg, content: msg.content + delta } : msg),
+            updatedAt: new Date(),
+          };
+        }
+        userMessageId = generateUniqueMessageId('user');
+        assistantMessageId = generateUniqueMessageId('assistant');
+        return {
+          ...conv,
+          messages: [...conv.messages,
+            { id: userMessageId, content: '', role: 'user' as const, timestamp: new Date(), isStreaming: true },
+            { id: assistantMessageId, content: delta, role: 'assistant' as const, timestamp: new Date(), isStreaming: true }],
+          updatedAt: new Date(),
+        };
+      });
+      return {
+        conversations,
+        _pendingRealtimeTurns: userMessageId && assistantMessageId
+          ? { ...state._pendingRealtimeTurns, [conversationId]: { userMessageId, assistantMessageId } }
+          : state._pendingRealtimeTurns,
+        realtimeVoice: { ...state.realtimeVoice, transcript: state.realtimeVoice.transcript + delta },
+      };
+    });
   },
   finishRealtimeVoiceTurn: (conversationId, messageIds) => {
+    // Deliberately does not clear _pendingRealtimeTurns[conversationId]: a
+    // still-in-flight transcription for this same turn needs to find its
+    // placeholder after this runs. It gets naturally replaced the next time
+    // beginRealtimeVoiceTurn/appendRealtimeVoiceAssistantDelta run for this
+    // conversation and find their target field already filled in.
     set(state => ({ conversations: state.conversations.map(conv => conv.id !== conversationId ? conv : {
       ...conv,
       messages: conv.messages.map(msg => {

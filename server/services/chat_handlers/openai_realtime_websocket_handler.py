@@ -96,6 +96,7 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
             chat_history_service=chat_history_service,
         )
         self._assistant_transcript_prefixes: Dict[str, str] = {}
+        self._finalized_transcript_keys: set[str] = set()
 
         cfg = adapter_config.get("config") or {}
         self._realtime_model = cfg.get("realtime_model", "gpt-realtime")
@@ -107,14 +108,20 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
         self._vad_threshold = float(cfg.get("vad_threshold", 0.5))
         self._connection_timeout = float(cfg.get("openai_connection_timeout_seconds", 60))
         self._use_beta_header = bool(cfg.get("use_realtime_beta_header", False))
-        # False avoids cancelling the model mid-reply when the mic picks up room noise / overlap.
-        self._interrupt_response = bool(cfg.get("realtime_interrupt_response", False))
+        # Honour the adapter capability by default; an adapter may still opt
+        # out explicitly when its environment has too much microphone echo.
+        capabilities = adapter_config.get("capabilities") or {}
+        self._interrupt_response = bool(
+            cfg.get("realtime_interrupt_response", capabilities.get("supports_interruption", False))
+        )
 
         self._http_session: Optional["aiohttp.ClientSession"] = None
         self._openai_ws: Optional["aiohttp.ClientWebSocketResponse"] = None
         self._openai_task: Optional[asyncio.Task] = None
         self._chunk_index = 0
         self._grounding_response_pending = False
+        self._response_in_progress = False
+        self._discarding_response = False
 
     async def _build_session_update(self) -> Dict[str, Any]:
         pcm_format = {"type": "audio/pcm", "rate": 24000}
@@ -211,7 +218,13 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
             if mtype == "ping":
                 await self._send_client({"type": "pong"})
             elif mtype == "interrupt":
-                await self._openai_ws.send_str(json.dumps({"type": "response.cancel"}))
+                # Clear audio the provider has not committed to a turn yet.  A
+                # response.cancel sent while no response is active is an API
+                # error, so only send it after response.created/output began.
+                await self._openai_ws.send_str(json.dumps({"type": "input_audio_buffer.clear"}))
+                if self._response_in_progress:
+                    self._discarding_response = True
+                    await self._openai_ws.send_str(json.dumps({"type": "response.cancel"}))
                 self._discard_pending_turn()
                 await self._send_client({"type": "interrupted", "reason": "user_request"})
             elif mtype == "audio_chunk":
@@ -226,7 +239,19 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
 
     async def _map_openai_event(self, event: Dict[str, Any]) -> None:
         etype = event.get("type")
+        if etype == "response.created":
+            self._response_in_progress = True
+            self._discarding_response = False
+            logger.debug("OpenAI Realtime: response.created")
+            return
+
+        # A cancel can race with already-buffered provider frames. Do not
+        # render or persist those partial frames as a completed assistant turn.
+        if self._discarding_response and isinstance(etype, str) and etype.startswith("response.") and etype != "response.done":
+            return
+
         if etype == "response.output_audio.delta":
+            self._response_in_progress = True
             delta = event.get("delta")
             if delta:
                 await self._send_client(
@@ -255,14 +280,20 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
             "response.output_audio_transcript.done",
             "response.audio_transcript.done",
         ):
-            await self._send_missing_transcript_suffix(event)
+            await self._send_missing_transcript_suffix(event, mark_final=True)
         elif etype == "conversation.item.input_audio_transcription.completed":
             text = event.get("transcript")
             if text:
                 self._pending_user_message = text
                 await self._send_client({"type": "transcription", "text": text})
         elif etype == "response.done":
+            self._response_in_progress = False
             response_obj = event.get("response") or {}
+            if self._discarding_response:
+                self._discarding_response = False
+                self._discard_pending_turn()
+                self._chunk_index = 0
+                return
             outputs = response_obj.get("output") or []
             # A response containing only a function_call (no message/audio) is the
             # tool-call turn itself — the real spoken answer arrives in the *next*
@@ -282,6 +313,7 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
                     await self._openai_ws.send_str(json.dumps({"type": "response.create"}))
             else:
                 logger.debug("OpenAI Realtime: response.done")
+                await self._reconcile_response_transcripts(response_obj)
                 user_message_id, assistant_message_id = await self._persist_turn()
                 await self._send_client(
                     {
@@ -297,8 +329,17 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
             err = event.get("error") or {}
             msg = err.get("message") if isinstance(err, dict) else str(err)
             await self._send_client({"type": "error", "message": msg or "OpenAI Realtime error"})
-        elif etype in ("session.created", "session.updated", "input_audio_buffer.speech_started"):
+        elif etype in ("session.created", "session.updated"):
             logger.debug("OpenAI Realtime: %s", etype)
+        elif etype == "input_audio_buffer.speech_started":
+            logger.debug("OpenAI Realtime: input_audio_buffer.speech_started")
+            if self._interrupt_response and self._response_in_progress:
+                # Server VAD is cancelling the provider response. Tell the
+                # browser now so it stops scheduled PCM immediately rather
+                # than continuing to play already-received chunks.
+                self._discarding_response = True
+                self._discard_pending_turn()
+                await self._send_client({"type": "interrupted", "reason": "user_speech"})
         elif etype == "input_audio_buffer.speech_stopped":
             logger.debug("OpenAI Realtime: input_audio_buffer.speech_stopped")
         elif etype == "response.function_call_arguments.done":
@@ -308,10 +349,14 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
     def _transcript_key(event: Dict[str, Any]) -> str:
         return ":".join(str(event.get(key, "")) for key in ("response_id", "item_id", "output_index", "content_index"))
 
-    async def _send_missing_transcript_suffix(self, event: Dict[str, Any]) -> None:
+    async def _send_missing_transcript_suffix(
+        self, event: Dict[str, Any], *, mark_final: bool = False
+    ) -> None:
         """Forward any final transcript portion that did not arrive as a delta."""
         transcript = event.get("transcript")
         key = self._transcript_key(event)
+        if key in self._finalized_transcript_keys:
+            return
         prefix = self._assistant_transcript_prefixes.pop(key, "")
         if not isinstance(transcript, str) or not transcript:
             return
@@ -323,10 +368,36 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
         if suffix:
             self._pending_assistant_text += suffix
             await self._send_client({"type": "assistant_transcript_delta", "delta": suffix})
+        if mark_final:
+            self._finalized_transcript_keys.add(key)
+
+    async def _reconcile_response_transcripts(self, response: Dict[str, Any]) -> None:
+        """Use the completed response as a final transcript source.
+
+        Some Realtime responses finish with the transcript only inside
+        ``response.done.response.output[].content[]``. Reconcile that shape in
+        addition to the dedicated transcript-done event so the chat transcript
+        never loses a provider's final words.
+        """
+        response_id = response.get("id")
+        for output_index, item in enumerate(response.get("output") or []):
+            if not isinstance(item, dict):
+                continue
+            for content_index, content in enumerate(item.get("content") or []):
+                if not isinstance(content, dict) or not isinstance(content.get("transcript"), str):
+                    continue
+                await self._send_missing_transcript_suffix({
+                    "response_id": response_id,
+                    "item_id": item.get("id"),
+                    "output_index": output_index,
+                    "content_index": content_index,
+                    "transcript": content["transcript"],
+                })
 
     def _discard_pending_turn(self) -> None:
         super()._discard_pending_turn()
         self._assistant_transcript_prefixes.clear()
+        self._finalized_transcript_keys.clear()
 
     async def _handle_function_call(self, event: Dict[str, Any]) -> None:
         if not self._grounding:
