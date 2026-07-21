@@ -26,8 +26,6 @@
   <a href="docs/tutorial.md"><strong>Tutorial</strong></a>
   &nbsp;•&nbsp;
   <a href="docs/"><strong>Documentation</strong></a>
-  &nbsp;•&nbsp;
-  <a href="https://github.com/schmitech/orbit/stargazers"><strong>Star ORBIT</strong></a>
 </p>
 
 <div id="see-orbit-in-action" align="center">
@@ -35,6 +33,8 @@
   <br />
   <em>Upload PDFs, spreadsheets, and images, then query them together with context preserved across the conversation.</em>
 </div>
+
+> ⭐ **Cloning ORBIT?** If it looks useful, [star the repository](https://github.com/schmitech/orbit). It helps other developers discover the project and signals that we should keep investing in new model, datasource, and agent integrations.
 
 ---
 
