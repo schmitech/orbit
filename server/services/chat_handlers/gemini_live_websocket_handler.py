@@ -13,19 +13,15 @@ import base64
 import json
 import logging
 import os
-import uuid
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import numpy as np
 from fastapi import WebSocket, WebSocketDisconnect
-from inference.pipeline.base import ProcessingContext
-from inference.pipeline.prompt_builder import PromptInstructionBuilder
+from services.chat_handlers.base_realtime_websocket_handler import BaseRealtimeWebSocketHandler
 from services.chat_handlers.realtime_grounding import (
     build_tool_schema,
     execute_grounding_lookup,
-    resolve_grounding_config,
 )
-from starlette.websockets import WebSocketState
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +67,7 @@ def _resample_pcm16(data: bytes, src_rate: int, dst_rate: int) -> bytes:
     return resampled.astype("<i2").tobytes()
 
 
-class GeminiLiveWebSocketHandler:
+class GeminiLiveWebSocketHandler(BaseRealtimeWebSocketHandler):
     """
     Bridges ORBIT /ws/voice clients to Gemini Live (google-genai SDK).
 
@@ -89,6 +85,8 @@ class GeminiLiveWebSocketHandler:
     - {"type": "error", "message": "..."}
     """
 
+    provider_label = "Gemini Live"
+
     def __init__(
         self,
         websocket: WebSocket,
@@ -104,21 +102,20 @@ class GeminiLiveWebSocketHandler:
         api_key: Optional[str] = None,
         chat_history_service: Optional[Any] = None,
     ):
-        self.websocket = websocket
-        self.adapter_name = adapter_name
-        self.adapter_config = adapter_config
-        self.config = config
-        self.orbit_session_id = session_id or str(uuid.uuid4())
-        self.user_id = user_id
-        self.prompt_service = prompt_service
-        self.system_prompt_id = system_prompt_id
-        self.clock_service = clock_service
-        self.adapter_manager = adapter_manager
-        self.api_key = api_key
-        self.chat_history_service = chat_history_service
-        self._grounding = resolve_grounding_config(adapter_config)
-        self._pending_user_message = ""
-        self._pending_assistant_text = ""
+        super().__init__(
+            websocket=websocket,
+            adapter_name=adapter_name,
+            adapter_config=adapter_config,
+            config=config,
+            session_id=session_id,
+            user_id=user_id,
+            prompt_service=prompt_service,
+            system_prompt_id=system_prompt_id,
+            clock_service=clock_service,
+            adapter_manager=adapter_manager,
+            api_key=api_key,
+            chat_history_service=chat_history_service,
+        )
 
         cfg = adapter_config.get("config") or {}
         self._realtime_model = cfg.get("realtime_model", "gemini-3.1-flash-live-preview")
@@ -128,62 +125,9 @@ class GeminiLiveWebSocketHandler:
         self._vad_silence_ms = int(cfg.get("vad_silence_duration_ms", 500))
         self._vad_prefix_ms = int(cfg.get("vad_prefix_padding_ms", 300))
 
-        self.is_connected = False
         self._session: Optional[Any] = None
-        self._client_task: Optional[asyncio.Task] = None
         self._gemini_task: Optional[asyncio.Task] = None
         self._chunk_index = 0
-
-    async def _resolve_realtime_instructions(self) -> str:
-        cfg = self.adapter_config.get("config") or {}
-        context = ProcessingContext(
-            adapter_name=self.adapter_name,
-            system_prompt_id=self.system_prompt_id,
-            timezone=cfg.get("timezone"),
-            time_format=cfg.get("time_format"),
-        )
-        builder = PromptInstructionBuilder(
-            config=self.config,
-            prompt_service=self.prompt_service,
-            clock_service=self.clock_service,
-            builder_logger=logger,
-        )
-        base_system_prompt = await builder.get_system_prompt(context)
-        prompt_preview = " ".join(base_system_prompt.split())[:160]
-
-        if self.system_prompt_id:
-            if base_system_prompt == builder.DEFAULT_SYSTEM_PROMPT:
-                logger.warning(
-                    "Gemini Live prompt fallback in use for adapter '%s' "
-                    "(system_prompt_id=%s, prompt_service_available=%s)",
-                    self.adapter_name,
-                    self.system_prompt_id,
-                    bool(self.prompt_service),
-                )
-            else:
-                logger.info(
-                    "Gemini Live loaded system prompt for adapter '%s' "
-                    "(system_prompt_id=%s, preview=%r)",
-                    self.adapter_name,
-                    self.system_prompt_id,
-                    prompt_preview,
-                )
-        else:
-            logger.info(
-                "Gemini Live has no system_prompt_id for adapter '%s'; using default prompt "
-                "(preview=%r)",
-                self.adapter_name,
-                prompt_preview,
-            )
-
-        instructions = await builder.build_system_message_content(context)
-        if self._grounding:
-            instructions += (
-                f"\n\nWhen the user asks a factual question, call the {self._grounding.tool_name} "
-                "tool to look up the answer, then respond naturally and conversationally in your "
-                "own words in a friendly tone — do not read the looked-up text verbatim."
-            )
-        return instructions
 
     async def _build_live_config(self) -> Any:
         instructions = await self._resolve_realtime_instructions()
@@ -224,24 +168,6 @@ class GeminiLiveWebSocketHandler:
 
         return genai_types.LiveConnectConfig(**kwargs)
 
-    async def _send_client(self, message: Dict[str, Any]) -> None:
-        if self.websocket.client_state != WebSocketState.CONNECTED:
-            self.is_connected = False
-            return
-        try:
-            await self.websocket.send_text(json.dumps(message))
-        except WebSocketDisconnect:
-            self.is_connected = False
-        except RuntimeError as e:
-            if "WebSocket is not connected" in str(e):
-                self.is_connected = False
-            else:
-                logger.error("WebSocket send failed: %s", e)
-                self.is_connected = False
-        except Exception as e:  # pragma: no cover
-            logger.error("WebSocket send failed: %s", e)
-            self.is_connected = False
-
     async def _client_loop(self) -> None:
         assert self._session is not None
         while self.is_connected:
@@ -277,40 +203,6 @@ class GeminiLiveWebSocketHandler:
                 )
             else:
                 logger.debug("Unknown client message type: %s", mtype)
-
-    def _discard_pending_turn(self) -> None:
-        self._pending_user_message = ""
-        self._pending_assistant_text = ""
-
-    async def _persist_turn(self) -> Tuple[Optional[Any], Optional[Any]]:
-        """Persist the completed turn to chat_history, the same way normal
-        passthrough/retriever chat does via ConversationHistoryHandler — so a
-        voice conversation shows up in history and can be cleared through the
-        same DELETE /admin/conversations/{session_id} endpoint as any other
-        conversation. Best-effort: a failure here never disrupts the live
-        audio session.
-        """
-        if not self.chat_history_service:
-            return None, None
-        if not self._pending_user_message.strip() and not self._pending_assistant_text.strip():
-            return None, None
-        try:
-            result = await self.chat_history_service.add_conversation_turn(
-                session_id=self.orbit_session_id,
-                user_message=self._pending_user_message,
-                assistant_response=self._pending_assistant_text,
-                user_id=self.user_id,
-                api_key=self.api_key,
-                adapter_name=self.adapter_name,
-            )
-            if isinstance(result, tuple) and len(result) == 2:
-                return result
-            return None, None
-        except Exception as e:
-            logger.error("Failed to persist realtime voice turn to chat history: %s", e, exc_info=True)
-            return None, None
-        finally:
-            self._discard_pending_turn()
 
     async def _handle_tool_call(self, tool_call: Any) -> None:
         if not self._grounding:
@@ -457,22 +349,7 @@ class GeminiLiveWebSocketHandler:
                 self._client_task = asyncio.create_task(self._client_loop())
                 self._gemini_task = asyncio.create_task(self._gemini_loop())
 
-                done, pending = await asyncio.wait(
-                    [self._client_task, self._gemini_task],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                for t in pending:
-                    t.cancel()
-                    try:
-                        await t
-                    except asyncio.CancelledError:
-                        pass
-                for t in done:
-                    if t.cancelled():
-                        continue
-                    exc = t.exception()
-                    if exc:
-                        logger.error("Task ended with error: %s", exc)
+                await self._run_until_either(self._client_task, self._gemini_task)
         except Exception as e:
             logger.error("Gemini Live connect failed: %s", e, exc_info=True)
             await self._send_client({"type": "error", "message": f"Gemini Live connection failed: {e}"})
@@ -483,4 +360,4 @@ class GeminiLiveWebSocketHandler:
     async def cleanup(self) -> None:
         self.is_connected = False
         self._session = None
-        logger.info("Gemini Live handler cleanup complete (adapter=%s)", self.adapter_name)
+        logger.debug("Gemini Live handler cleanup complete (adapter=%s)", self.adapter_name)
