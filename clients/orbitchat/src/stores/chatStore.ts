@@ -1,6 +1,6 @@
 import { create, type StoreApi } from 'zustand';
 import { getApi, ApiClient } from '../apiClient';
-import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '../types';
+import { Message, Conversation, ChatState, FileAttachment, AdapterInfo, RealtimeVoiceState } from '../types';
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
@@ -161,6 +161,11 @@ interface ExtendedChatState extends ChatState {
   clearCurrentConversationAdapter: () => void;
   submitFeedback: (conversationMessageId: string, feedbackType: 'up' | 'down', comment?: string) => Promise<boolean>;
   loadFeedbackForConversation: (sessionId: string) => Promise<void>;
+  realtimeVoice: RealtimeVoiceState;
+  setRealtimeVoiceState: (state: Partial<RealtimeVoiceState>) => void;
+  beginRealtimeVoiceTurn: (conversationId: string, transcript: string) => void;
+  appendRealtimeVoiceAssistantDelta: (conversationId: string, delta: string) => void;
+  finishRealtimeVoiceTurn: (conversationId: string) => void;
 }
 
 
@@ -406,9 +411,37 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   currentConversationId: null,
   isLoading: false,
   error: null,
+  realtimeVoice: { status: 'idle', transcript: '' },
   sessionId: getOrCreateSessionId(),
 
   getSessionId: () => get().sessionId,
+
+  setRealtimeVoiceState: (voiceState) => set(state => ({ realtimeVoice: { ...state.realtimeVoice, ...voiceState } })),
+  beginRealtimeVoiceTurn: (conversationId, transcript) => {
+    if (!transcript.trim()) return;
+    set(state => ({ conversations: state.conversations.map(conv => {
+      if (conv.id !== conversationId) return conv;
+      const pendingUser = conv.messages.findLast(msg => msg.role === 'user' && msg.isStreaming);
+      const messages = pendingUser
+        ? conv.messages.map(msg => msg === pendingUser ? { ...msg, content: transcript } : msg)
+        : [...conv.messages,
+            { id: generateUniqueMessageId('user'), content: transcript, role: 'user' as const, timestamp: new Date(), isStreaming: true },
+            { id: generateUniqueMessageId('assistant'), content: '', role: 'assistant' as const, timestamp: new Date(), isStreaming: true }];
+      return { ...conv, messages, updatedAt: new Date(), title: conv.messages.length === 0 ? transcript.slice(0, 50) : conv.title };
+    }), realtimeVoice: { ...state.realtimeVoice, transcript: `You: ${transcript}\nAssistant: ` } }));
+  },
+  appendRealtimeVoiceAssistantDelta: (conversationId, delta) => {
+    if (!delta) return;
+    set(state => ({ conversations: state.conversations.map(conv => conv.id !== conversationId ? conv : {
+      ...conv, messages: conv.messages.map(msg => msg.role === 'assistant' && msg.isStreaming ? { ...msg, content: msg.content + delta } : msg), updatedAt: new Date()
+    }), realtimeVoice: { ...state.realtimeVoice, transcript: state.realtimeVoice.transcript + delta } }));
+  },
+  finishRealtimeVoiceTurn: (conversationId) => {
+    set(state => ({ conversations: state.conversations.map(conv => conv.id !== conversationId ? conv : {
+      ...conv, messages: conv.messages.map(msg => msg.isStreaming ? { ...msg, isStreaming: false } : msg), updatedAt: new Date()
+    }) }));
+    debouncedSaveToLocalStorage(get);
+  },
 
   configureApiSettings: async (apiUrl: string, sessionId?: string, adapterName?: string) => {
     const state = get();

@@ -483,6 +483,26 @@
       "startFailed": "Failed to start speech recognition. Please try again."
     }
   },
+  "realtimeVoice": {
+    "sectionAriaLabel": "Realtime voice call",
+    "status": {
+      "ready": "Ready",
+      "connecting": "Connecting…",
+      "listening": "Listening…",
+      "speaking": "Assistant is speaking…",
+      "error": "Call error"
+    },
+    "idleHint": "Start a call to speak with the assistant.",
+    "startCall": "Start call",
+    "endCall": "End call",
+    "muteMic": "Mute microphone",
+    "unmuteMic": "Unmute microphone",
+    "retry": "Try again",
+    "errors": {
+      "microphoneDenied": "Microphone access denied. Please allow microphone access to start a call.",
+      "connectionFailed": "Couldn't connect. Please try again."
+    }
+  },
   "agent": {
     "error": {
       "singleAdapterMissing": "Single adapter mode requires agentMode.defaultAdapterId to match an adapter id in orbitchat.yaml.",

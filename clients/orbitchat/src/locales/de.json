@@ -483,6 +483,26 @@
       "startFailed": "Spracherkennung konnte nicht gestartet werden. Bitte versuche es erneut."
     }
   },
+  "realtimeVoice": {
+    "sectionAriaLabel": "Echtzeit-Sprachanruf",
+    "status": {
+      "ready": "Bereit",
+      "connecting": "Verbindung wird hergestellt…",
+      "listening": "Hört zu…",
+      "speaking": "Der Assistent spricht…",
+      "error": "Anruffehler"
+    },
+    "idleHint": "Starte einen Anruf, um mit dem Assistenten zu sprechen.",
+    "startCall": "Anruf starten",
+    "endCall": "Anruf beenden",
+    "muteMic": "Mikrofon stummschalten",
+    "unmuteMic": "Mikrofon aktivieren",
+    "retry": "Erneut versuchen",
+    "errors": {
+      "microphoneDenied": "Mikrofonzugriff verweigert. Erlaube den Mikrofonzugriff, um einen Anruf zu starten.",
+      "connectionFailed": "Verbindung fehlgeschlagen. Bitte versuche es erneut."
+    }
+  },
   "agent": {
     "error": {
       "singleAdapterMissing": "Der Einzeladaptermodus erfordert, dass agentMode.defaultAdapterId mit einer Adapter-ID in orbitchat.yaml übereinstimmt.",

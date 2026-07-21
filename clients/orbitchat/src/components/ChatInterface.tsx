@@ -2,6 +2,7 @@ import { useEffect, useCallback, useLayoutEffect, useMemo, useState } from 'reac
 import { useTranslation } from 'react-i18next';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import { RealtimeVoicePanel } from './RealtimeVoicePanel';
 import { useChatStore } from '../stores/chatStore';
 import { Settings, Menu, Plus } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
@@ -13,6 +14,7 @@ import {
   getEnableHeader,
   getEnableFooter,
   getAdapterDisplayName,
+  isRealtimeVoiceAdapter,
 } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
 import { audioStreamManager } from '../utils/audioStreamManager';
@@ -82,6 +84,10 @@ export function ChatInterface({
     .join(' ');
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
+  const isRealtimeVoiceConversation = Boolean(
+    currentConversation?.adapterInfo?.supportsRealtimeVoice === true ||
+    (currentConversation?.adapterName && isRealtimeVoiceAdapter(currentConversation.adapterName))
+  );
   const hasSidebarConversations = conversations.some(
     (conversation) =>
       (conversation.messages.length > 0 || (conversation.attachedFiles?.length || 0) > 0) &&
@@ -439,7 +445,31 @@ export function ChatInterface({
             </div>
           </div>
 
-          {showEmptyState ? (
+          {isRealtimeVoiceConversation && currentConversation ? (
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+              {currentConversation.messages.length > 0 && (
+                <div className="flex h-[min(35vh,18rem)] shrink-0 overflow-hidden">
+                  <MessageList
+                    messages={currentConversation.messages}
+                    onRegenerate={() => undefined}
+                    onEditMessage={() => undefined}
+                    onStartThread={async () => undefined}
+                    onClearThread={async () => undefined}
+                    onSendThreadMessage={async () => undefined}
+                    sessionId={currentConversation.sessionId}
+                    isLoading={false}
+                    contentMaxWidthClass={inputMaxWidthClass}
+                  />
+                </div>
+              )}
+              <RealtimeVoicePanel
+                conversationId={currentConversation.id}
+                adapterName={currentConversation.adapterName!}
+                sessionId={currentConversation.sessionId}
+                adapterNotes={currentConversation.adapterInfo?.notes || seoAdapter?.notes || seoAdapter?.description}
+              />
+            </div>
+          ) : showEmptyState ? (
             <div className={`flex flex-1 flex-col min-h-0 ${emptyStateTopSpacingClass} ${shouldShowAgentSelectionList ? 'overflow-hidden' : ''}`}>
               {shouldShowAgentSelectionList ? (
                 <div className="flex-1 flex flex-col md:justify-start min-h-0 overflow-hidden">

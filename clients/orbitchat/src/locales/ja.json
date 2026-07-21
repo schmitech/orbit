@@ -483,6 +483,26 @@
       "startFailed": "音声認識を開始できませんでした。もう一度お試しください。"
     }
   },
+  "realtimeVoice": {
+    "sectionAriaLabel": "リアルタイム音声通話",
+    "status": {
+      "ready": "準備完了",
+      "connecting": "接続中…",
+      "listening": "聞き取り中…",
+      "speaking": "アシスタントが話しています…",
+      "error": "通話エラー"
+    },
+    "idleHint": "通話を開始してアシスタントと話しましょう。",
+    "startCall": "通話を開始",
+    "endCall": "通話を終了",
+    "muteMic": "マイクをミュート",
+    "unmuteMic": "ミュートを解除",
+    "retry": "再試行",
+    "errors": {
+      "microphoneDenied": "マイクへのアクセスが拒否されました。通話を開始するには、ブラウザでマイクへのアクセスを許可してください。",
+      "connectionFailed": "接続できませんでした。もう一度お試しください。"
+    }
+  },
   "agent": {
     "error": {
       "singleAdapterMissing": "単一アダプターモードでは、agentMode.defaultAdapterId が orbitchat.yaml 内のアダプター ID と一致している必要があります。",

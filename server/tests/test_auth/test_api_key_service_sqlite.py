@@ -588,5 +588,32 @@ async def test_deactivated_api_key_validation_with_adapters(api_key_service):
     assert is_valid is False
 
 
+@pytest.mark.asyncio
+async def test_get_adapter_info_supports_realtime_voice_flag(api_key_service):
+    """get_adapter_info() reflects capabilities.supports_realtime_audio as supportsRealtimeVoice"""
+    # qa-sql has no capabilities block configured -> defaults to False
+    result = await api_key_service.create_api_key(
+        client_name="Realtime Flag Test Client",
+        adapter_name="qa-sql"
+    )
+    adapter_info = await api_key_service.get_adapter_info(result["api_key"])
+    assert adapter_info["supportsRealtimeVoice"] is False
+
+    # Temporarily mark qa-sql as a real-time voice adapter
+    for adapter in api_key_service.config['adapters']:
+        if adapter['name'] == 'qa-sql':
+            adapter['capabilities'] = {'supports_realtime_audio': True}
+            break
+
+    adapter_info = await api_key_service.get_adapter_info(result["api_key"])
+    assert adapter_info["supportsRealtimeVoice"] is True
+
+    # Restore original config
+    for adapter in api_key_service.config['adapters']:
+        if adapter['name'] == 'qa-sql':
+            adapter.pop('capabilities', None)
+            break
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

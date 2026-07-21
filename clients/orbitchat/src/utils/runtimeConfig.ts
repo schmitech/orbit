@@ -141,6 +141,7 @@ export interface RuntimeConfig {
     description?: string;
     notes?: string;
     inputPlaceholder?: string;
+    realtimeVoice?: boolean;
   }>;
 }
 
@@ -468,6 +469,13 @@ export function getAdapterInputPlaceholder(adapterId?: string | null): string | 
   const adapter = runtimeConfig.adapters.find((item) => item?.id?.trim() === normalizedId);
   const placeholder = adapter?.inputPlaceholder?.trim();
   return placeholder || null;
+}
+
+export function isRealtimeVoiceAdapter(adapterId?: string | null): boolean {
+  const normalizedId = adapterId?.trim();
+  return Boolean(normalizedId && runtimeConfig.adapters.some(
+    adapter => adapter?.id?.trim() === normalizedId && adapter.realtimeVoice === true
+  ));
 }
 
 export function getConsoleDebug(): boolean {

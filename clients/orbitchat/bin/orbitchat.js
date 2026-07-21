@@ -672,6 +672,33 @@ function main() {
       }
     }
   });
+  // WebSocket companion to /api: inject the adapter key during upgrade instead
+  // of exposing it in the browser's socket URL.
+  const websocketAdapters = loadAdaptersForProxy(config.adapters) || {};
+  server.on('upgrade', (req, socket, head) => {
+    const match = req.url?.match(/^\/api\/ws\/voice\/([^/?]+)(\?.*)?$/);
+    if (!match) return;
+    const adapterName = decodeURIComponent(match[1]);
+    const adapter = websocketAdapters[adapterName];
+    if (!adapter?.apiKey?.trim()) {
+      socket.destroy();
+      return;
+    }
+    // ORBIT's /ws/voice endpoint reads api_key from the query string only (it's a
+    // WebSocket route, not an HTTP one — headers aren't available the same way), so
+    // it must be appended to the rewritten path rather than passed as a header. The
+    // browser-facing URL never contains it; only the outgoing proxied request does.
+    const params = new URLSearchParams(match[2] ? match[2].slice(1) : '');
+    params.set('api_key', adapter.apiKey);
+    const proxy = createProxyMiddleware({
+      target: adapter.apiUrl,
+      changeOrigin: true,
+      ws: true,
+      pathRewrite: () => `/ws/voice/${encodeURIComponent(adapterName)}?${params.toString()}`,
+      logLevel: 'silent',
+    });
+    proxy.upgrade(req, socket, head);
+  });
   // http-proxy may register multiple close listeners when routing across many adapters.
   // Raise the listener cap to avoid noisy false-positive MaxListeners warnings.
   if (typeof server.setMaxListeners === 'function') {

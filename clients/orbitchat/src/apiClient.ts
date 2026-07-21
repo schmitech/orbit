@@ -55,6 +55,7 @@ export interface ConversationHistoryResponse {
 }
 
 export interface ApiClient {
+  getRealtimeVoiceWebSocketUrl?(adapterName: string, options?: { sessionId?: string; targetLanguage?: string }): string;
   streamChat(
     message: string,
     stream?: boolean,
@@ -176,6 +177,7 @@ export interface ApiClient {
     adapter_name: string;
     model: string | null;
     isFileSupported?: boolean;
+    supportsRealtimeVoice?: boolean;
     notes?: string | null;
   }>;
   getConversationHistory?(sessionId?: string, limit?: number): Promise<ConversationHistoryResponse>;
@@ -206,6 +208,7 @@ export interface ApiFunctions {
   ) => AsyncGenerator<StreamResponse>;
   ApiClient: new (config: { apiUrl: string; sessionId?: string | null; adapterName?: string | null }) => ApiClient;
   stopChat?: (sessionId: string, requestId: string) => Promise<boolean>;
+  getRealtimeVoiceWebSocketUrl: (adapterName: string, options?: { sessionId?: string; targetLanguage?: string }) => string;
 }
 
 export class ApiRequestError extends Error {
@@ -341,6 +344,14 @@ function createProxyApi(): ApiFunctions {
     defaultSessionId = sessId || null;
     defaultAdapterName = adapter || null;
   };
+  const getRealtimeVoiceWebSocketUrl = (adapterName: string, options: { sessionId?: string; targetLanguage?: string } = {}): string => {
+    const url = new URL(`/api/ws/voice/${encodePathSegment(adapterName)}`, window.location.origin);
+    const sessionId = options.sessionId || defaultSessionId;
+    if (sessionId) url.searchParams.set('session_id', sessionId);
+    if (options.targetLanguage) url.searchParams.set('target_language', options.targetLanguage);
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    return url.toString();
+  };
 
   /**
    * Create a proxy client with the given adapter/session configuration.
@@ -349,6 +360,8 @@ function createProxyApi(): ApiFunctions {
    */
   const createProxyClient = (clientAdapterName: string, clientSessionId: string | null): ApiClient => {
     return {
+      getRealtimeVoiceWebSocketUrl: (adapterName, options = {}) =>
+        getRealtimeVoiceWebSocketUrl(adapterName, { sessionId: clientSessionId || undefined, ...options }),
       async *streamChat(
         message: string,
         stream?: boolean,
@@ -764,6 +777,7 @@ function createProxyApi(): ApiFunctions {
 
   return {
     configureApi,
+    getRealtimeVoiceWebSocketUrl,
     streamChat: async function* (
       message: string,
       stream?: boolean,
@@ -845,6 +859,7 @@ function createProxyApi(): ApiFunctions {
       get getAllModels() { return this.client.getAllModels?.bind(this.client); }
       get getAdapterSkills() { return this.client.getAdapterSkills?.bind(this.client); }
       get getAllSkills() { return this.client.getAllSkills?.bind(this.client); }
+      get getRealtimeVoiceWebSocketUrl() { return this.client.getRealtimeVoiceWebSocketUrl?.bind(this.client); }
     },
   };
 }

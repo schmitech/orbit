@@ -60,6 +60,7 @@ export interface AdapterInfo {
   model: string | null;
   isFileSupported?: boolean;
   supportsThreading?: boolean;
+  supportsRealtimeVoice?: boolean;
   notes?: string | null;  // Description/notes about the adapter from API key record
 }
 
@@ -121,6 +122,14 @@ export interface ChatState {
   currentConversationId: string | null;
   isLoading: boolean;
   error: string | null;
+}
+
+export interface RealtimeVoiceState {
+  status: 'idle' | 'connecting' | 'connected' | 'error';
+  provider?: string;
+  model?: string;
+  transcript: string;
+  error?: string;
 }
 
 export interface ThemeConfig {

@@ -483,6 +483,26 @@
       "startFailed": "启动语音识别失败。请重试。"
     }
   },
+  "realtimeVoice": {
+    "sectionAriaLabel": "实时语音通话",
+    "status": {
+      "ready": "准备就绪",
+      "connecting": "正在连接…",
+      "listening": "正在聆听…",
+      "speaking": "助手正在说话…",
+      "error": "通话错误"
+    },
+    "idleHint": "开始通话即可与助手对话。",
+    "startCall": "开始通话",
+    "endCall": "结束通话",
+    "muteMic": "静音麦克风",
+    "unmuteMic": "取消静音",
+    "retry": "重试",
+    "errors": {
+      "microphoneDenied": "麦克风访问被拒绝。请在浏览器中允许访问麦克风以开始通话。",
+      "connectionFailed": "无法连接,请重试。"
+    }
+  },
   "agent": {
     "error": {
       "singleAdapterMissing": "单适配器模式要求 agentMode.defaultAdapterId 与 orbitchat.yaml 中的某个适配器 ID 匹配。",

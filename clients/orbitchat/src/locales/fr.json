@@ -483,6 +483,26 @@
       "startFailed": "Impossible de démarrer la reconnaissance vocale. Veuillez réessayer."
     }
   },
+  "realtimeVoice": {
+    "sectionAriaLabel": "Appel vocal en temps réel",
+    "status": {
+      "ready": "Prêt",
+      "connecting": "Connexion en cours…",
+      "listening": "À l'écoute…",
+      "speaking": "L'assistant parle…",
+      "error": "Erreur d'appel"
+    },
+    "idleHint": "Démarrez un appel pour parler avec l'assistant.",
+    "startCall": "Démarrer l'appel",
+    "endCall": "Terminer l'appel",
+    "muteMic": "Couper le micro",
+    "unmuteMic": "Réactiver le micro",
+    "retry": "Réessayer",
+    "errors": {
+      "microphoneDenied": "Accès au microphone refusé. Autorisez l'accès au microphone pour démarrer un appel.",
+      "connectionFailed": "Impossible de se connecter. Veuillez réessayer."
+    }
+  },
   "agent": {
     "error": {
       "singleAdapterMissing": "Le mode adaptateur unique nécessite que agentMode.defaultAdapterId corresponde à un identifiant d'adaptateur dans orbitchat.yaml.",

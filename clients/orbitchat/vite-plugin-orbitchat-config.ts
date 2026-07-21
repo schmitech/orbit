@@ -290,6 +290,33 @@ export function orbitchatConfigPlugin(): Plugin {
         server.httpServer.setMaxListeners(0);
       }
 
+      // Browser WebSockets cannot carry our X-Adapter-Name/X-API-Key headers.
+      // Upgrade through the same-origin proxy so adapter secrets stay server-side.
+      server.httpServer?.on('upgrade', (req, socket, head) => {
+        const match = req.url?.match(/^\/api\/ws\/voice\/([^/?]+)(\?.*)?$/);
+        if (!match) return;
+        const adapterName = decodeURIComponent(match[1]);
+        const currentAdapters = adaptersCache || loadAdaptersForProxy(yamlConfig?.adapters, resolvedEnv);
+        const adapter = currentAdapters?.[adapterName];
+        if (!adapter || !adapter.apiKey.trim()) {
+          socket.destroy();
+          return;
+        }
+        // ORBIT's /ws/voice endpoint reads api_key from the query string only (it's a
+        // WebSocket route, not an HTTP one — headers aren't available the same way), so
+        // it must be appended to the rewritten path rather than passed as a header. The
+        // browser-facing URL never contains it; only the outgoing proxied request does.
+        const params = new URLSearchParams(match[2] ? match[2].slice(1) : '');
+        params.set('api_key', adapter.apiKey);
+        const proxy = createProxyMiddleware({
+          target: adapter.apiUrl,
+          changeOrigin: true,
+          ws: true,
+          pathRewrite: () => `/ws/voice/${encodeURIComponent(adapterName)}?${params.toString()}`,
+        });
+        proxy.upgrade!(req, socket, head);
+      });
+
       if (fs.existsSync(yamlPath)) {
         server.watcher.add(yamlPath);
         server.watcher.on('change', (changedPath) => {

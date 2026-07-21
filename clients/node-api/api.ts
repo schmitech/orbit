@@ -1235,7 +1235,7 @@ export class ApiClient {
 
   public getVoiceWebSocketUrl(
     adapterName: string,
-    options: { sessionId?: string; userId?: string; apiKey?: string } = {}
+    options: { sessionId?: string; userId?: string; apiKey?: string; targetLanguage?: string } = {}
   ): string {
     const base = this.apiUrl.replace(/^http/i, 'ws');
     const url = new URL(`${base}/ws/voice/${adapterName}`);
@@ -1245,6 +1245,7 @@ export class ApiClient {
     if (sessionId) url.searchParams.set('session_id', sessionId);
     if (options.userId) url.searchParams.set('user_id', options.userId);
     if (apiKey) url.searchParams.set('api_key', apiKey);
+    if (options.targetLanguage) url.searchParams.set('target_language', options.targetLanguage);
     return url.toString();
   }
 

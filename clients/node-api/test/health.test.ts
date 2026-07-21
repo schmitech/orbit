@@ -151,9 +151,10 @@ describe('Health and metrics endpoints', () => {
     });
 
     it('should append query params when provided', () => {
-      const url = client.getVoiceWebSocketUrl('hr', { sessionId: 's1', userId: 'u1' });
+      const url = client.getVoiceWebSocketUrl('hr', { sessionId: 's1', userId: 'u1', targetLanguage: 'fr-CA' });
       expect(url).toContain('session_id=s1');
       expect(url).toContain('user_id=u1');
+      expect(url).toContain('target_language=fr-CA');
     });
   });
 

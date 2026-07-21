@@ -371,6 +371,10 @@ class ApiKeyService:
                 - adapter_name: Name of the adapter
                 - model: The model name (from adapter config or global default)
                 - isFileSupported: Boolean indicating if adapter supports file processing
+                - supportsRealtimeVoice: Boolean indicating if the adapter is a real-time
+                  speech-to-speech provider (capabilities.supports_realtime_audio), so
+                  client proxies (e.g. orbitchat) can gate a voice UI without needing
+                  their own static per-adapter config
 
         Raises:
             HTTPException: If the API key is invalid or adapter not found
@@ -461,6 +465,8 @@ class ApiKeyService:
         else:
             inferred = AdapterCapabilities.for_standard_retriever()
             adapter_info['supportsThreading'] = inferred.supports_threading
+
+        adapter_info['supportsRealtimeVoice'] = bool(capabilities.get('supports_realtime_audio', False))
 
         if debug_enabled:
             logger.debug(

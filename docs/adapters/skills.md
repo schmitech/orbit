@@ -430,11 +430,14 @@ This behaviour is driven by the `supportsThreading` field returned in `GET /admi
   "adapter_name": "intent-sql-sqlite-hr",
   "model": null,
   "isFileSupported": false,
-  "supportsThreading": true
+  "supportsThreading": true,
+  "supportsRealtimeVoice": false
 }
 ```
 
 The UI reads this to decide whether to show the skill picker.
+
+`supportsRealtimeVoice` reflects the adapter's `capabilities.supports_realtime_audio` — `true` for real-time speech-to-speech adapters (`openai_realtime`, `openai_realtime_translation`, `gemini_live`). Client proxies (e.g. orbitchat) can use it to decide whether to show a voice UI for a given adapter, without maintaining their own separate list of which adapters are realtime-capable.
 
 ### Generic integration flow
 
