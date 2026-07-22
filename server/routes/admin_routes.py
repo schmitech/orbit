@@ -1568,8 +1568,13 @@ async def get_server_info(
 
     from services.pause_state import is_paused
 
+    # Under multi-worker mode, os.getpid() is this specific worker's PID, not
+    # a stable process to target for stop/status — report the supervisor's
+    # PID instead (set by InferenceServer.run(), inherited by all workers).
+    pid = int(os.environ.get('ORBIT_SUPERVISOR_PID', os.getpid()))
+
     return {
-        "pid": os.getpid(),
+        "pid": pid,
         "version": "2.10.1",
         "status": "paused" if await is_paused(request.app.state) else "running"
     }
@@ -1808,12 +1813,15 @@ async def shutdown_server(
     # Schedule shutdown in background to allow response to be sent
     async def shutdown_background():
         await asyncio.sleep(0.5)  # Small delay to ensure response is sent
-        # Try to get the uvicorn server instance
-        # The server is stored in the app's lifespan context
-        # We'll use signal-based shutdown as a reliable method
         import os
-        # Send SIGTERM to current process for graceful shutdown
-        os.kill(os.getpid(), signal.SIGTERM)
+        # Under multi-worker mode, this request was handled by one of several
+        # worker processes — sending SIGTERM to ourselves only kills that one
+        # worker, which the supervisor treats as an unhealthy child and
+        # immediately replaces, leaving the server running. Target the
+        # supervisor (all workers descend from it) so the whole pool shuts
+        # down, matching single-process behavior where we ARE the supervisor.
+        pid = int(os.environ.get('ORBIT_SUPERVISOR_PID', os.getpid()))
+        os.kill(pid, signal.SIGTERM)
     
     # Schedule the shutdown
     asyncio.create_task(shutdown_background())
@@ -1890,6 +1898,20 @@ async def restart_server(
     import asyncio
     import os
     import sys
+
+    supervisor_pid = os.environ.get('ORBIT_SUPERVISOR_PID')
+    if supervisor_pid is not None and int(supervisor_pid) != os.getpid():
+        # We're one of several worker processes under a multi-process
+        # supervisor — re-exec'ing this worker alone would leave the
+        # supervisor and sibling workers in an inconsistent state. Restarting
+        # the whole server in multi-worker mode requires stopping and
+        # relaunching the supervisor itself, which `orbit restart` already
+        # does correctly from outside the process (see bin/orbit/services/
+        # server_service.py).
+        raise HTTPException(
+            status_code=501,
+            detail="/admin/restart is not supported when performance.workers > 1; use 'orbit restart' instead"
+        )
 
     logger.info("Server restart initiated via /admin/restart endpoint")
 

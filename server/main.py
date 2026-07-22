@@ -100,5 +100,17 @@ def main():
 
 if __name__ == "__main__":
     main()
-else:
-    app: FastAPI = create_app()
+
+
+def __getattr__(name: str):
+    """Lazily build the app on first attribute access (PEP 562).
+
+    Keeps `main:app` usable as a plain uvicorn import string without
+    eagerly constructing an InferenceServer at import time — multi-worker
+    mode imports this module via the `main:create_app` factory string
+    instead, which never touches this attribute, so the app is never
+    built twice.
+    """
+    if name == "app":
+        return create_app()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

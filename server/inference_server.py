@@ -536,7 +536,6 @@ class InferenceServer:
         config_kwargs = {
             "host": host,
             "port": port_to_use,
-            "workers": workers if workers > 1 else None,  # Only use workers if > 1
             "loop": "asyncio",
             "timeout_keep_alive": perf_config.get('keep_alive_timeout', 30),
             "timeout_graceful_shutdown": 30,
@@ -557,19 +556,33 @@ class InferenceServer:
                 }
             )
 
-        # Configure uvicorn with signal handlers for graceful shutdown
-        config = uvicorn.Config(self.app, **config_kwargs)
-        
-        server = uvicorn.Server(config)
-        
         try:
-            # Start the server
             if https_enabled:
                 logger.info("Starting HTTPS server on %s:%s", host, port_to_use)
             else:
                 logger.info("Starting HTTP server on %s:%s", host, port_to_use)
-                
-            server.run()
+
+            if workers and workers > 1:
+                # Real multi-process mode: each worker independently imports
+                # "main" and calls create_app(), so the app MUST be referenced
+                # as an import string (uvicorn refuses workers>1 otherwise) and
+                # each forked worker needs its own config path in the env,
+                # since it never inherits self.config_path directly.
+                os.environ['OIS_CONFIG_PATH'] = str(self.config_path)
+                # This process is the supervisor; workers are its children and
+                # never share app.state, so admin endpoints that need a stable
+                # PID (e.g. /admin/info for `orbit stop`/`status`) read this
+                # instead of their own os.getpid().
+                os.environ['ORBIT_SUPERVISOR_PID'] = str(os.getpid())
+                config_kwargs["workers"] = workers
+                config = uvicorn.Config("main:create_app", factory=True, **config_kwargs)
+                sock = config.bind_socket()
+                from uvicorn.supervisors import Multiprocess
+                Multiprocess(config, target=uvicorn.Server(config).run, sockets=[sock]).run()
+            else:
+                config_kwargs["workers"] = None
+                config = uvicorn.Config(self.app, **config_kwargs)
+                uvicorn.Server(config).run()
         except KeyboardInterrupt:
             logger.info("Received shutdown signal, initiating graceful shutdown...")
             # The server will handle the graceful shutdown through its signal handlers

@@ -84,7 +84,13 @@ language_detection:
 # Server concurrency and response-optimization tuning: worker processes, thread
 # pools, and optional GZip/ETag layers.
 performance:
-  workers: 4                        # Uvicorn worker processes (scale with CPU cores)
+  # Number of OS worker processes uvicorn spawns to serve requests (scale with
+  # CPU cores). Each worker independently re-imports the app and builds its
+  # own DB/cache connections, service instances, etc. Set to 1 for a single
+  # process (simplest to reason about/debug). See docs/multi-worker-support.md
+  # for how this is implemented and its known limitations (e.g. /admin/restart
+  # is disabled when workers > 1; use `orbit restart` instead).
+  workers: 1                        # Uvicorn worker processes (scale with CPU cores)
   # Rate-limit fallback note: when the cache service is disabled or unavailable,
   # each worker enforces its own in-memory fixed-window counters. With
   # workers > 1, the aggregate fallback ceiling can be up to limit * workers.

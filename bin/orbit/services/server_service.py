@@ -86,6 +86,91 @@ class ServerService:
         except (NetworkError, requests.exceptions.RequestException):
             return False
     
+    @staticmethod
+    def _is_orbit_server_process(proc: "psutil.Process") -> bool:
+        """Identify an ORBIT server process by its command line, not by OS
+        process-group membership — see `_force_kill`."""
+        try:
+            cmdline = " ".join(proc.cmdline())
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return False
+        return "server/main.py" in cmdline or "main:app" in cmdline or "main:create_app" in cmdline
+
+    @staticmethod
+    def _force_kill(pid: int) -> None:
+        """
+        SIGKILL the server, taking any multi-worker children down with it,
+        without ever risking a signal to processes outside ORBIT's own tree
+        (e.g. the operator's shell).
+
+        `start()` launches the server with start_new_session=True, so in the
+        normal detached case `pid`'s process group ID equals `pid` itself,
+        and workers it spawns stay in that same group (they never call
+        setsid()). SIGKILL can't be caught, so killing only one process's
+        PID would orphan the rest of the group holding the listening
+        socket — killpg() on that group takes them all down safely.
+
+        But `pid` isn't always that supervisor: a port-based fallback
+        lookup can return a worker's PID instead, and `orbit start --reload`
+        (or a manually foreground-started server) never calls
+        start_new_session=True at all, so `pid`'s process group is
+        whatever shared it — potentially the invoking terminal's group. In
+        those cases getpgid(pid) != pid, and killpg() must NOT be used: it
+        would signal every process in that group, shell included. Instead,
+        walk pid's ancestry to find the actual ORBIT server process
+        (verified by command line, not by group membership) and kill
+        exactly that verified tree.
+        """
+        try:
+            if os.getpgid(pid) == pid:
+                os.killpg(pid, signal.SIGKILL)
+                return
+        except (ProcessLookupError, PermissionError):
+            raise
+        except OSError:
+            pass
+
+        root = None
+        try:
+            proc = psutil.Process(pid)
+            for candidate in [proc, *proc.parents()]:
+                if ServerService._is_orbit_server_process(candidate):
+                    root = candidate
+                    break
+        except psutil.Error:
+            root = None
+
+        if root is not None:
+            # The supervisor's health loop can spawn a replacement worker
+            # the instant it observes one of its children die — if it's
+            # still running while we enumerate+kill children below, a
+            # worker started between the snapshot and the kill loop would
+            # be missed and survive as an orphan holding the listening
+            # socket. Freeze the supervisor first so it can't react to
+            # anything we do to its children, then it's safe to enumerate.
+            try:
+                root.suspend()
+            except psutil.NoSuchProcess:
+                return
+            try:
+                for child in root.children(recursive=True):
+                    try:
+                        child.kill()
+                    except psutil.NoSuchProcess:
+                        pass
+            finally:
+                # A stopped process still dies instantly on SIGKILL — no
+                # need to resume it first.
+                try:
+                    root.kill()
+                except psutil.NoSuchProcess:
+                    pass
+            return
+
+        # Couldn't verify this belongs to an ORBIT server tree — kill only
+        # the single process rather than risk touching anything else.
+        os.kill(pid, signal.SIGKILL)
+
     def get_server_info(self) -> Optional[Dict[str, Any]]:
         """
         Get server information including PID via /admin/info endpoint.
@@ -339,7 +424,7 @@ class ServerService:
                     # Force kill immediately
                     if pid:
                         try:
-                            os.kill(pid, signal.SIGKILL)
+                            self._force_kill(pid)
                             time.sleep(1)
                             progress.update(task, completed=True)
                             self.formatter.success("Server force stopped")
@@ -436,7 +521,7 @@ class ServerService:
                             
                             # Force kill if still running
                             self.formatter.warning("Server did not stop gracefully. Force killing...")
-                            os.kill(pid, signal.SIGKILL)
+                            self._force_kill(pid)
                             time.sleep(1)
                             
                             if not self.is_running():
@@ -488,7 +573,7 @@ class ServerService:
                                 time.sleep(0.5)
                             
                             # Force kill if still running
-                            os.kill(pid, signal.SIGKILL)
+                            self._force_kill(pid)
                             time.sleep(1)
                             
                             if not self.is_running():
