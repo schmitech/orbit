@@ -131,7 +131,7 @@ Prefer a stable native installation? Download the latest [release](https://githu
 <details>
 <summary><strong>Operate the gateway</strong></summary>
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/f85fb880-9f76-471a-8875-a16d615c3aa8" controls muted playsinline width="80%"></video>
+  <video src="https://github.com/user-attachments/assets/81730186-8dba-4cfa-8613-af5efd82e4c8" controls muted playsinline width="80%"></video>
   <br />
   <em>Monitor health, latency, tokens, sessions, adapters, and logs behind API keys, quotas, and rate limits.</em>
 </p>
