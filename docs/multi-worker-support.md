@@ -74,6 +74,23 @@ was a no-op — see "History" below for why.
   "reload everything" is the existing no-`adapter_name` behavior anyway.
   Skipped entirely in single-process mode (nothing to sync). `PUT
   /admin/config` and `/admin/jobs` are unaffected — see their own entries.
+- **Concurrent Postgres schema creation on first boot**: every worker runs
+  its own `PostgresService._create_tables()`/`_create_indexes()` at startup
+  (see "How it works" above). Postgres's `CREATE TABLE IF NOT EXISTS` /
+  `CREATE INDEX IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` aren't atomic
+  across sessions — two workers reaching the same brand-new table's DDL at
+  the same moment (e.g. right after upgrading to a release that adds one)
+  can both pass the "doesn't exist yet" check before either commits, and
+  the loser gets a duplicate-name error (e.g. `duplicate key value
+  violates unique constraint "pg_type_typname_nsp_index"`) instead of the
+  no-op it asked for — which previously crashed that worker's entire
+  startup. Fixed in `server/services/postgres_service.py`:
+  `_is_concurrent_ddl_race()` recognizes the SQLSTATEs this race can
+  produce (`23505`/`42P07`/`42710`/`42701`) and `_create_tables()`/
+  `_create_indexes()`/`_migrate_table_schema()` treat them as benign (the
+  desired end state — the object exists — is already satisfied by
+  whichever worker won) rather than fatal; any other error still
+  propagates and fails startup as before.
 - **Log files**: each worker independently builds its own `InferenceServer`
   (see "How it works" above), so without this each would open its own
   `RotatingFileHandler`/`TimedRotatingFileHandler` on the same `orbit.log`

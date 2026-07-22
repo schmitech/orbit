@@ -26,6 +26,50 @@ from utils.id_utils import generate_id, ensure_id, id_to_string
 
 logger = logging.getLogger(__name__)
 
+# Postgres SQLSTATEs that can only occur when a concurrent session's own
+# identical `IF NOT EXISTS`/`ADD COLUMN IF NOT EXISTS` DDL won a race
+# against ours. `IF NOT EXISTS` isn't atomic across sessions - it checks
+# "doesn't exist yet" and creates in one statement, but two sessions can
+# both pass that check before either commits, and the loser gets a
+# duplicate-name error instead of the no-op it asked for. Under
+# `performance.workers > 1`, every worker runs this same schema-creation
+# code concurrently at startup, so this is an expected, benign race on
+# first boot for any newly-added table/index - not a real failure, since
+# the desired end state (the object exists) is already satisfied by
+# whichever process won.
+#
+# 42P07/42710/42701 (duplicate_table/duplicate_object/duplicate_column) are
+# exclusively DDL-identity errors - Postgres never raises them for a data
+# problem, so any occurrence here is safely this race.
+#
+# 23505 (unique_violation) is NOT exclusive to this race, though - it's the
+# same code Postgres raises when CREATE UNIQUE INDEX finds actual duplicate
+# values in existing rows (e.g. duplicate (session_id, message_hash) pairs
+# in chat_history), which is a real data-integrity failure that must not be
+# swallowed - doing so would let startup "succeed" without ever creating
+# the required unique index, leaving duplicates unconstrained. The two
+# cases are only distinguishable by which constraint reported the
+# violation: the catalog race always fails on a Postgres-internal system
+# catalog constraint (always named with the fixed, well-known `pg_` prefix,
+# e.g. `pg_type_typname_nsp_index`, `pg_class_relname_nsp_index`), never on
+# any of ORBIT's own table/index/constraint names. So 23505 is only treated
+# as benign when the reported constraint is one of those.
+_DUPLICATE_OBJECT_SQLSTATES = frozenset({
+    '42P07',  # duplicate_table
+    '42710',  # duplicate_object - e.g. concurrent CREATE INDEX
+    '42701',  # duplicate_column - e.g. concurrent ADD COLUMN
+})
+
+
+def _is_concurrent_ddl_race(exc: Exception) -> bool:
+    sqlstate = getattr(exc, 'sqlstate', None)
+    if sqlstate in _DUPLICATE_OBJECT_SQLSTATES:
+        return True
+    if sqlstate == '23505':
+        constraint_name = getattr(getattr(exc, 'diag', None), 'constraint_name', None)
+        return bool(constraint_name) and constraint_name.startswith('pg_')
+    return False
+
 
 class PostgresService(DatabaseService):
     """Service for handling PostgreSQL database operations with singleton pattern"""
@@ -419,13 +463,22 @@ class PostgresService(DatabaseService):
         """Create database tables and ensure all columns exist"""
         loop = asyncio.get_running_loop()
         for table_name, schema in self._schema.items():
-            await loop.run_in_executor(
-                self.executor,
-                self._execute_sql,
-                schema,
-                ()
-            )
-            logger.debug(f"Created table: {table_name}")
+            try:
+                await loop.run_in_executor(
+                    self.executor,
+                    self._execute_sql,
+                    schema,
+                    ()
+                )
+                logger.debug(f"Created table: {table_name}")
+            except Exception as e:
+                if not _is_concurrent_ddl_race(e):
+                    raise
+                logger.debug(
+                    f"Table '{table_name}' already created by a concurrent worker "
+                    f"(sqlstate {getattr(e, 'sqlstate', None)}) - continuing"
+                )
+                self.connection.rollback()
 
             await loop.run_in_executor(
                 self.executor,
@@ -470,7 +523,13 @@ class PostgresService(DatabaseService):
                     cursor.execute(alter_sql)
                     self.connection.commit()
             except Exception as e:
-                logger.error(f"Failed to ensure column '{column_name}' on table '{table_name}': {e}")
+                if _is_concurrent_ddl_race(e):
+                    logger.debug(
+                        f"Column '{column_name}' on table '{table_name}' already added by a "
+                        f"concurrent worker (sqlstate {getattr(e, 'sqlstate', None)}) - continuing"
+                    )
+                else:
+                    logger.error(f"Failed to ensure column '{column_name}' on table '{table_name}': {e}")
                 self.connection.rollback()
 
     async def _create_indexes(self) -> None:
@@ -478,12 +537,21 @@ class PostgresService(DatabaseService):
         loop = asyncio.get_running_loop()
         for table_name, indexes in self._indexes.items():
             for index_sql in indexes:
-                await loop.run_in_executor(
-                    self.executor,
-                    self._execute_sql,
-                    index_sql,
-                    ()
-                )
+                try:
+                    await loop.run_in_executor(
+                        self.executor,
+                        self._execute_sql,
+                        index_sql,
+                        ()
+                    )
+                except Exception as e:
+                    if not _is_concurrent_ddl_race(e):
+                        raise
+                    logger.debug(
+                        f"Index on '{table_name}' already created by a concurrent worker "
+                        f"(sqlstate {getattr(e, 'sqlstate', None)}) - continuing"
+                    )
+                    self.connection.rollback()
 
     def _operation_scope(self):
         """Async context manager serializing writes against the single shared connection.
