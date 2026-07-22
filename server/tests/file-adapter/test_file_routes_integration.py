@@ -11,6 +11,7 @@ Prerequisites:
 4. Test API key should be configured (default: "files-key" for testing)
 """
 
+import asyncio
 import pytest
 import httpx
 import logging
@@ -60,11 +61,42 @@ async def server_health_check(http_client):
         pytest.skip(f"Server is not accessible: {e}")
 
 
+async def wait_for_processing(http_client, file_id, max_wait=15):
+    """Poll a file's status until processing completes (or fails/times out).
+
+    Uploads now return immediately with status 'processing' while extraction/
+    chunking/indexing runs in the background, so tests must poll for the
+    final state instead of asserting it on the upload response.
+    """
+    headers = {"X-API-Key": TEST_API_KEY}
+    last_status = None
+
+    for _ in range(max_wait):
+        await asyncio.sleep(1)
+
+        response = await http_client.get(
+            f"{TEST_SERVER_URL}/api/files/{file_id}",
+            headers=headers
+        )
+        if response.status_code != 200:
+            continue
+
+        file_info = response.json()
+        last_status = file_info.get("processing_status")
+
+        if last_status == "completed":
+            return file_info
+        if last_status == "failed":
+            raise Exception(f"File processing failed: {file_info.get('error_message')}")
+
+    raise TimeoutError(f"File {file_id} did not complete within {max_wait}s (last status: {last_status})")
+
+
 @pytest.mark.asyncio
 async def test_file_upload(http_client, test_file, server_health_check):
     """Test file upload endpoint"""
     headers = {"X-API-Key": TEST_API_KEY}
-    
+
     with open(test_file, "rb") as f:
         files = {"file": (test_file.name, f, "text/markdown")}
         response = await http_client.post(
@@ -72,17 +104,23 @@ async def test_file_upload(http_client, test_file, server_health_check):
             headers=headers,
             files=files
         )
-    
+
     assert response.status_code == 200, f"Upload failed: {response.text}"
     data = response.json()
-    
-    # Verify response structure
+
+    # Verify response structure - upload returns immediately, processing continues
+    # in the background
     assert "file_id" in data
     assert data["filename"] == test_file.name
     assert data["mime_type"] == "text/markdown"
-    assert data["status"] == "completed"
-    assert data["chunk_count"] > 0
+    assert data["status"] == "processing"
+    assert data["chunk_count"] == 0
     assert "collection_name" in data or "message" in data
+
+    # Poll until background processing finishes
+    file_info = await wait_for_processing(http_client, data["file_id"])
+    assert file_info["processing_status"] == "completed"
+    assert file_info["chunk_count"] > 0
 
 
 @pytest.mark.asyncio
@@ -125,16 +163,10 @@ async def test_get_file_info(http_client, test_file, server_health_check):
     
     assert upload_response.status_code == 200
     file_id = upload_response.json()["file_id"]
-    
-    # Now get file info
-    response = await http_client.get(
-        f"{TEST_SERVER_URL}/api/files/{file_id}",
-        headers=headers
-    )
-    
-    assert response.status_code == 200
-    file_info = response.json()
-    
+
+    # Wait for background processing to complete before checking final status
+    file_info = await wait_for_processing(http_client, file_id)
+
     # Verify response structure
     assert file_info["file_id"] == file_id
     assert "filename" in file_info
@@ -477,13 +509,8 @@ async def test_complete_file_lifecycle(http_client, test_file, server_health_che
     files_list = list_response.json()
     assert any(f["file_id"] == file_id for f in files_list)
     
-    # 3. Get file info
-    info_response = await http_client.get(
-        f"{TEST_SERVER_URL}/api/files/{file_id}",
-        headers=headers
-    )
-    assert info_response.status_code == 200
-    info_data = info_response.json()
+    # 3. Get file info - wait for background processing to complete first
+    info_data = await wait_for_processing(http_client, file_id)
     assert info_data["file_id"] == file_id
     assert info_data["processing_status"] == "completed"
     

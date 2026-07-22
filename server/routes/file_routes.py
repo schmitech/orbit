@@ -207,59 +207,38 @@ def create_file_router() -> APIRouter:
                 claimed_mime_type=mime_type,
             )
             
-            # For images and audio files, store file and process in background to avoid blocking
-            # (API calls can take time for vision transcription and audio transcription)
-            if mime_type and (mime_type.startswith('image/') or mime_type.startswith('audio/')):
-                # Quick upload: store file and return immediately
-                file_id = await processing_service.quick_upload(
-                    file_data=file_data,
-                    filename=file.filename,
-                    mime_type=mime_type,
-                    api_key=x_api_key
-                )
-                
-                # Process content in background (vision API calls for images, audio transcription for audio)
-                background_tasks.add_task(
-                    processing_service.process_file_content,
-                    file_id=file_id,
-                    file_data=file_data,
-                    filename=file.filename,
-                    mime_type=mime_type,
-                    api_key=x_api_key,
-                    vision_prompt=prompt if mime_type.startswith('image/') else None
-                )
-                
-                logger.info(f"File uploaded (processing in background): {file_id}")
-                
-                return UploadResponse(
-                    file_id=file_id,
-                    filename=file.filename,
-                    mime_type=mime_type,
-                    file_size=len(file_data),
-                    status='processing',
-                    chunk_count=0,
-                    message="File uploaded, processing in background"
-                )
-            else:
-                # For non-image files, process synchronously (usually fast)
-                result = await processing_service.process_file(
-                    file_data=file_data,
-                    filename=file.filename,
-                    mime_type=mime_type,
-                    api_key=x_api_key
-                )
+            # Store the file and return immediately; extraction/chunking/indexing
+            # (which can be slow for large documents or vision/audio API calls)
+            # runs in the background so the client gets a file_id to poll and
+            # cancel against right away, instead of blocking the request.
+            file_id = await processing_service.quick_upload(
+                file_data=file_data,
+                filename=file.filename,
+                mime_type=mime_type,
+                api_key=x_api_key
+            )
 
-                logger.debug(f"File uploaded successfully: {result['file_id']}")
+            background_tasks.add_task(
+                processing_service.process_file_content,
+                file_id=file_id,
+                file_data=file_data,
+                filename=file.filename,
+                mime_type=mime_type,
+                api_key=x_api_key,
+                vision_prompt=prompt if mime_type.startswith('image/') else None
+            )
 
-                return UploadResponse(
-                    file_id=result['file_id'],
-                    filename=result['filename'],
-                    mime_type=result['mime_type'],
-                    file_size=result['file_size'],
-                    status=result['status'],
-                    chunk_count=result['chunk_count'],
-                    message="File uploaded and processed successfully"
-                )
+            logger.info(f"File uploaded (processing in background): {file_id}")
+
+            return UploadResponse(
+                file_id=file_id,
+                filename=file.filename,
+                mime_type=mime_type,
+                file_size=len(file_data),
+                status='processing',
+                chunk_count=0,
+                message="File uploaded, processing in background"
+            )
         
         except HTTPException:
             # Re-raise HTTP exceptions (like 401 for invalid API key)
