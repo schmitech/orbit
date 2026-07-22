@@ -18,6 +18,7 @@
 ### Bug Fixes & Technical Improvements
 - **OpenAI Realtime Barge-In**: Lowered the OpenAI Realtime VAD threshold and fixed turn tracking so late transcription events no longer create duplicate or reordered voice messages.
 - **Upload Processing**: Fixed processing-state cleanup and preserved pasted files during multi-file uploads.
+- **Multi-Worker Startup**: Fixed a startup crash (`TypeError: Multiprocess.__init__() got an unexpected keyword argument 'target'`) on newer uvicorn releases (0.51+) that dropped the `target` parameter from its multiprocess supervisor API; the server now detects which API shape is installed and uses it accordingly.
 
 ### Documentation & Configuration
 - **Realtime Voice Examples**: Added a realtime grounded assistant video/example and refreshed realtime voice materials.

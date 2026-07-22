@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 import ssl
@@ -578,7 +579,15 @@ class InferenceServer:
                 config = uvicorn.Config("main:create_app", factory=True, **config_kwargs)
                 sock = config.bind_socket()
                 from uvicorn.supervisors import Multiprocess
-                Multiprocess(config, target=uvicorn.Server(config).run, sockets=[sock]).run()
+                # Multiprocess's constructor dropped the `target` parameter in
+                # uvicorn 0.51 (each worker now builds its own Server directly
+                # from `config` internally) — introspect instead of hard-coding
+                # one signature, since `dependencies.toml` only pins
+                # uvicorn>=0.43, so either shape can be installed.
+                if 'target' in inspect.signature(Multiprocess.__init__).parameters:
+                    Multiprocess(config, target=uvicorn.Server(config).run, sockets=[sock]).run()
+                else:
+                    Multiprocess(config, sockets=[sock]).run()
             else:
                 config_kwargs["workers"] = None
                 config = uvicorn.Config(self.app, **config_kwargs)
