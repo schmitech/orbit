@@ -21,6 +21,7 @@ The database contains the following tables:
 - `audit_admin_logs` - Audit trail records for admin/auth mutations (user CRUD, API-key management, config changes, login/logout, etc.)
 - `feedback` - User feedback (thumbs up/down) on chat responses
 - `system_state` - Small durable key/value store for cross-process server coordination state (e.g. the server pause flag)
+- `adapter_reload_state` - Durable generation counters propagating adapter/template reloads across `performance.workers` processes
 
 ## Connection Configuration
 
@@ -365,6 +366,25 @@ CREATE TABLE IF NOT EXISTS system_state (
 
 ---
 
+### adapter_reload_state
+
+Durable generation counters for propagating `POST /admin/reload-adapters` / `POST /admin/reload-templates` across all `performance.workers` processes — see `server/services/adapter_reload_state.py`. Under multiple workers, a reload request only updates the one worker that served it; every worker polls this table every 5s and fully reloads locally when it sees a stale generation.
+
+```sql
+CREATE TABLE IF NOT EXISTS adapter_reload_state (
+    id TEXT PRIMARY KEY,
+    generation INTEGER
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Row key. Two rows: `reload:adapter_config`, `reload:templates`
+- `generation` (INTEGER): Monotonic counter, incremented by 1 on every successful reload of that kind
+
+**Indexes:** none — the single-row PK lookup by `id` doesn't need one.
+
+---
+
 ## Data Types
 
 Field-level type/format conventions (ID format, timestamps, booleans, JSON columns) are identical to the SQLite backend — see [`docs/sqlite-schema.md#data-types`](sqlite-schema.md#data-types). The one Postgres-specific wrinkle is the `CURRENT_TIMESTAMP::TEXT` cast noted under `uploaded_files`/`file_chunks` above.
@@ -427,6 +447,8 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are 
 
 ## Version History
 
+- **v1.1** (2026-07-22): Multi-worker adapter reload coordination state
+  - Added `adapter_reload_state` table (matches SQLite v1.5)
 - **v1.0** (2026-07-22): Initial PostgreSQL backend documentation
   - Schema matches SQLite v1.4, including `system_state`
   - See [`docs/sqlite-schema.md#version-history`](sqlite-schema.md#version-history) for the full per-table history, since both backends have shared the same schema since PostgreSQL support was added

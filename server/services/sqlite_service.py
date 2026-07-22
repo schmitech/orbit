@@ -313,6 +313,12 @@ class SQLiteService(DatabaseService):
                     id TEXT PRIMARY KEY,
                     value INTEGER
                 )
+            ''',
+            'adapter_reload_state': '''
+                CREATE TABLE IF NOT EXISTS adapter_reload_state (
+                    id TEXT PRIMARY KEY,
+                    generation INTEGER
+                )
             '''
         }
 

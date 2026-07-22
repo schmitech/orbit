@@ -207,16 +207,38 @@ class InferenceServer:
                 app.state.thread_pool_manager = self.thread_pool_manager
                 await self._initialize_services(app)
                 self.configuration_summary_logger.log_configuration_summary(app)
+
+                # Under performance.workers > 1, each worker has its own
+                # DynamicAdapterManager/config cache, so an admin-triggered
+                # adapter/template reload only affects whichever worker served
+                # that request. Only actual workers reach this point (the
+                # dormant supervisor process never runs its own lifespan - see
+                # inference_server.py's run()), so gating on
+                # ORBIT_SUPERVISOR_PID alone is sufficient to skip this in
+                # single-process mode, where there's nothing to sync.
+                if os.environ.get('ORBIT_SUPERVISOR_PID'):
+                    from services.adapter_reload_state import poll_and_apply_reloads
+                    app.state._adapter_reload_poll_task = asyncio.create_task(
+                        poll_and_apply_reloads(app.state)
+                    )
+
                 logger.info("Startup complete")
             except Exception as e:
                 logger.error("Failed to initialize services: %s", e)
                 raise
-            
+
             yield
-            
+
             # Cleanup resources
             try:
                 logger.info("Shutting down services...")
+                poll_task = getattr(app.state, '_adapter_reload_poll_task', None)
+                if poll_task is not None:
+                    poll_task.cancel()
+                    try:
+                        await poll_task
+                    except asyncio.CancelledError:
+                        pass
                 await self._shutdown_services(app)
                 logger.info("Services shut down successfully")
             except Exception as e:

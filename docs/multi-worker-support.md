@@ -53,6 +53,27 @@ was a no-op — see "History" below for why.
   routed to a specific worker deterministically. If this becomes a real
   problem, it needs a shared store (same pattern as
   `server/services/pause_state.py`'s database-backed coordination).
+- **`/admin/reload-adapters` / `/admin/reload-templates`**: each worker has
+  its own `DynamicAdapterManager`, `config_manager` cache, and
+  `adapter_cache` — a reload request only updated the one worker that
+  happened to `accept()` that connection off the shared socket, leaving
+  every other worker serving stale adapter config/templates until
+  restarted. Fixed via `server/services/adapter_reload_state.py`, following
+  the exact same durable-database pattern as `pause_state.py` (no
+  push/pub-sub primitive exists anywhere in this codebase, and uvicorn's
+  `Multiprocess` supervisor exposes no way to message a specific worker or
+  all workers): after a successful local reload, the handling worker bumps
+  a durable generation counter (one for `adapter_config`, one for
+  `templates`); every worker runs a background poll loop (every 5s) that
+  detects a stale counter and performs a full reload
+  (`reload_adapter_configs(config, None)` / `reload_templates(None)`)
+  locally to catch up. Deliberately does **not** track a per-adapter hint —
+  `update_one()` only supports `$set` (no atomic `$inc`), so bumping is
+  read-then-write; a lost update under concurrent bumps just means a
+  sibling does one full reload instead of two, which is always safe since
+  "reload everything" is the existing no-`adapter_name` behavior anyway.
+  Skipped entirely in single-process mode (nothing to sync). `PUT
+  /admin/config` and `/admin/jobs` are unaffected — see their own entries.
 - **Log files**: each worker independently builds its own `InferenceServer`
   (see "How it works" above), so without this each would open its own
   `RotatingFileHandler`/`TimedRotatingFileHandler` on the same `orbit.log`

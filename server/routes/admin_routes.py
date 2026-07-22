@@ -1312,6 +1312,23 @@ async def reload_adapters(
         # Reload adapters using the adapter manager
         summary = await adapter_manager.reload_adapter_configs(new_config, adapter_name)
 
+        # Under performance.workers > 1, this only reloaded the worker that
+        # served this request - bump the durable generation counter so
+        # sibling workers pick up the change on their next poll tick (see
+        # services/adapter_reload_state.py). No-op in single-process mode.
+        import os
+        if os.environ.get('ORBIT_SUPERVISOR_PID'):
+            from services import adapter_reload_state
+            new_generation = await adapter_reload_state.bump_generation(request.app.state, "adapter_config")
+            if new_generation is not None:
+                last_seen = getattr(request.app.state, "_adapter_reload_last_seen", None)
+                if last_seen is not None:
+                    # Avoid this same worker redundantly reloading itself again
+                    # on its own next poll tick.
+                    last_seen["adapter_config"] = new_generation
+            else:
+                logger.warning("Failed to propagate adapter reload to other workers")
+
         # Generate appropriate message
         if adapter_name:
             action = summary.get('action', 'reloaded')
@@ -1423,6 +1440,21 @@ async def reload_templates(
 
     try:
         summary = await adapter_manager.reload_templates(adapter_name)
+
+        # Under performance.workers > 1, this only reloaded the worker that
+        # served this request - bump the durable generation counter so
+        # sibling workers pick up the change on their next poll tick (see
+        # services/adapter_reload_state.py). No-op in single-process mode.
+        import os
+        if os.environ.get('ORBIT_SUPERVISOR_PID'):
+            from services import adapter_reload_state
+            new_generation = await adapter_reload_state.bump_generation(request.app.state, "templates")
+            if new_generation is not None:
+                last_seen = getattr(request.app.state, "_adapter_reload_last_seen", None)
+                if last_seen is not None:
+                    last_seen["templates"] = new_generation
+            else:
+                logger.warning("Failed to propagate template reload to other workers")
 
         # Generate appropriate message
         if adapter_name:

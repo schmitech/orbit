@@ -19,6 +19,7 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `audit_admin_logs` - Audit trail records for admin/auth mutations (user CRUD, API-key management, config changes, login/logout, etc.)
 - `feedback` - User feedback (thumbs up/down) on chat responses
 - `system_state` - Small durable key/value store for cross-process server coordination state (e.g. the server pause flag)
+- `adapter_reload_state` - Durable generation counters propagating adapter/template reloads across `performance.workers` processes
 
 ## Database File Location
 
@@ -562,6 +563,25 @@ CREATE TABLE IF NOT EXISTS system_state (
 
 ---
 
+### adapter_reload_state
+
+Durable generation counters for propagating `POST /admin/reload-adapters` / `POST /admin/reload-templates` across all `performance.workers` processes — see `server/services/adapter_reload_state.py`. Under multiple workers, a reload request only updates the one worker that served it; every worker polls this table every 5s and fully reloads locally when it sees a stale generation.
+
+```sql
+CREATE TABLE IF NOT EXISTS adapter_reload_state (
+    id TEXT PRIMARY KEY,
+    generation INTEGER
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Row key. Two rows: `reload:adapter_config`, `reload:templates`
+- `generation` (INTEGER): Monotonic counter, incremented by 1 on every successful reload of that kind
+
+**Indexes:** none — the single-row PK lookup by `id` doesn't need one.
+
+---
+
 ## Data Types
 
 ### ID Fields
@@ -729,6 +749,9 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.5** (2026-07-22): Multi-worker adapter reload coordination state
+  - Added `adapter_reload_state` table (propagates `/admin/reload-adapters` and `/admin/reload-templates` across `performance.workers` processes; see `server/services/adapter_reload_state.py`)
+  - Created automatically on existing databases via `CREATE TABLE IF NOT EXISTS` on startup (no manual migration needed)
 - **v1.4** (2026-07-22): Server pause coordination state
   - Added `system_state` table (server pause flag; see `server/services/pause_state.py`)
   - Created automatically on existing databases via `CREATE TABLE IF NOT EXISTS` on startup (no manual migration needed)
