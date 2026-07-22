@@ -136,7 +136,7 @@ export interface ApiClient {
     chunk_count: number;
     storage_type: string;
   }>>;
-  getFileInfo?(fileId: string): Promise<{
+  getFileInfo?(fileId: string, signal?: AbortSignal): Promise<{
     file_id: string;
     filename: string;
     mime_type: string;
@@ -616,11 +616,12 @@ function createProxyApi(): ApiFunctions {
         return Array.isArray(data) ? data : (data.files || []);
       },
 
-      async getFileInfo(fileId: string) {
+      async getFileInfo(fileId: string, signal?: AbortSignal) {
         const response = await fetch(`/api/files/${encodePathSegment(fileId)}`, {
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
           }),
+          signal,
         });
         if (!response.ok) throw new Error(`Failed to get file info: ${response.statusText}`);
         return response.json();

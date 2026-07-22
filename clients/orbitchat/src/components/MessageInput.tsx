@@ -718,12 +718,21 @@ export function MessageInput({
         return;
       }
       
-      const currentFileIds = new Set(files.map(f => f.file_id));
+      const conversationFileIds = store.conversations
+        .find(conversation => conversation.id === conversationId)
+        ?.attachedFiles
+        ?.map(file => file.file_id) || [];
+      const currentFileIds = new Set([
+        ...conversationFileIds,
+        ...files.map(file => file.file_id),
+      ]);
+      const conversationKeyPrefix = `${conversationId}-`;
       const keysToRemove: string[] = [];
       processedFilesRef.current.forEach((_, key) => {
-        const [, ...fileIdParts] = key.split('-');
-        const fileId = fileIdParts.join('-');
-        if (!currentFileIds.has(fileId)) {
+        if (
+          key.startsWith(conversationKeyPrefix) &&
+          !currentFileIds.has(key.slice(conversationKeyPrefix.length))
+        ) {
           keysToRemove.push(key);
         }
       });
@@ -1221,7 +1230,6 @@ export function MessageInput({
 
       setConversationUploading(pasteConversationId, true);
       const uploadedAttachments: FileAttachment[] = [];
-      const completionPromises: Promise<void>[] = [];
 
       for (let index = 0; index < filesFromClipboard.length; index++) {
         const file = filesFromClipboard[index];
@@ -1270,29 +1278,11 @@ export function MessageInput({
           });
         };
 
-        const markEntryComplete = () => {
-          return new Promise<void>((resolve) => {
-            setPasteUploadingFiles(prev => {
-              const next = new Map(prev);
-              const existing = next.get(progressKey);
-              if (!existing) {
-                return next;
-              }
-              next.set(progressKey, {
-                ...existing,
-                progress: 100,
-                status: 'completed'
-              });
-              return next;
-            });
-            setTimeout(() => {
-              setPasteUploadingFiles(prev => {
-                const next = new Map(prev);
-                next.delete(progressKey);
-                return next;
-              });
-              resolve();
-            }, 2500);
+        const removeProgressEntry = () => {
+          setPasteUploadingFiles(prev => {
+            const next = new Map(prev);
+            next.delete(progressKey);
+            return next;
           });
         };
         debugLog(`[MessageInput] Pasting file: ${file.name}, type: ${file.type || 'unknown'}, size: ${file.size}`);
@@ -1307,27 +1297,19 @@ export function MessageInput({
           conversationAdapterName
         );
         uploadedAttachments.push(uploadedAttachment);
-        completionPromises.push(markEntryComplete());
+
+        if (pasteConversationId && pasteConversationId === currentConversationId) {
+          setAttachedFiles(prev => (
+            prev.some(file => file.file_id === uploadedAttachment.file_id)
+              ? prev
+              : [...prev, uploadedAttachment]
+          ));
+        }
+        syncFilesWithConversation([uploadedAttachment], pasteConversationId);
+        removeProgressEntry();
       }
 
       if (uploadedAttachments.length > 0) {
-        let filesForSync = uploadedAttachments;
-        if (pasteConversationId && pasteConversationId === currentConversationId) {
-          const existingIds = new Set(attachedFiles.map(f => f.file_id));
-          const filteredAdds = uploadedAttachments.filter(f => !existingIds.has(f.file_id));
-          if (filteredAdds.length > 0) {
-            setAttachedFiles(prev => [...prev, ...filteredAdds]);
-            filesForSync = filteredAdds;
-          } else {
-            filesForSync = [];
-          }
-        }
-
-        if (filesForSync.length > 0) {
-          syncFilesWithConversation(filesForSync, pasteConversationId);
-        }
-
-        await Promise.all(completionPromises);
         showUploadSuccessToast(uploadedAttachments);
       }
     } catch (error: unknown) {
@@ -1346,7 +1328,7 @@ export function MessageInput({
     } finally {
       setConversationUploading(pasteConversationId, false);
     }
-  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isGuest, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled, t]);
+  }, [currentConversationId, isFocused, isFileSupported, isGuest, isInputDisabled, setConversationUploading, settings.soundEnabled, showUploadSuccessToast, syncFilesWithConversation, uploadFeatureEnabled, t]);
 
   const adapterInputPlaceholder = getAdapterInputPlaceholder(currentConversation?.adapterName);
   let effectivePlaceholder: string | null | undefined;

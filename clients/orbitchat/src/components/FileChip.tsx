@@ -48,7 +48,14 @@ export function FileChip({
         }`}
       >
         {thumbnailUrl && !isError ? (
-          <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
+          <div className="relative h-full w-full">
+            <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
+            {isBusy && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+                <Loader2 className="h-[18px] w-[18px] animate-spin text-white drop-shadow" />
+              </div>
+            )}
+          </div>
         ) : isBusy ? (
           <Loader2 className="h-[18px] w-[18px] animate-spin" />
         ) : isError ? (

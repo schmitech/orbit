@@ -112,14 +112,28 @@ export function FileUpload({
     const conversation = conversations.find(conv => conv.id === targetConversationId);
     const mergedUploads = new Map(uploads);
 
-    if (conversation?.attachedFiles) {
+    if (conversation) {
+      const attachedFileIds = new Set(
+        (conversation.attachedFiles || []).map(f => f.file_id)
+      );
       const finishedFileIds = new Set(
-        conversation.attachedFiles
+        (conversation.attachedFiles || [])
           .filter(f => f.processing_status === 'completed' || f.processing_status === 'failed' || f.processing_status === 'error')
           .map(f => f.file_id)
       );
       mergedUploads.forEach((progress, key) => {
         if (progress.fileId && finishedFileIds.has(progress.fileId)) {
+          mergedUploads.delete(key);
+          return;
+        }
+
+        if (
+          progress.fileId &&
+          seenConversationFileIdsRef.current.has(progress.fileId) &&
+          !attachedFileIds.has(progress.fileId)
+        ) {
+          debugLog(`[FileUpload] Removing progress for deleted file ${progress.fileId}`);
+          uploadedFileIdsRef.current.delete(progress.fileId);
           mergedUploads.delete(key);
         }
       });
@@ -234,6 +248,7 @@ export function FileUpload({
               await removeFileFromConversation(conversationId, fileId);
             } else {
               const adapterName = getStoredAdapterName();
+              FileUploadService.cancelFilePoll(fileId);
               await FileUploadService.deleteFile(fileId, undefined, undefined, adapterName ?? undefined);
               revokeFileThumbnail(fileId);
             }
@@ -403,6 +418,24 @@ export function FileUpload({
         });
 
         if (uploadedAttachment) {
+          const latestConversation = useChatStore
+            .getState()
+            .conversations.find(conv => conv.id === activeConversationId);
+          const stillAttached = latestConversation?.attachedFiles?.some(
+            attachedFile => attachedFile.file_id === uploadedAttachment.file_id
+          ) ?? false;
+
+          if (seenConversationFileIdsRef.current.has(uploadedAttachment.file_id) && !stillAttached) {
+            debugLog(`[FileUpload] Skipping final update for deleted file ${uploadedAttachment.file_id}`);
+            uploadedFileIdsRef.current.delete(uploadedAttachment.file_id);
+            seenConversationFileIdsRef.current.delete(uploadedAttachment.file_id);
+            updateUploadingStore(activeConversationId, (prev) => {
+              prev.delete(progressKey);
+              return prev;
+            });
+            continue;
+          }
+
           uploadedFileIdsRef.current.set(uploadedAttachment.file_id, activeConversationId);
           seenConversationFileIdsRef.current.add(uploadedAttachment.file_id);
           
@@ -462,6 +495,10 @@ export function FileUpload({
           } else if (localThumbnailUrl) {
             URL.revokeObjectURL(localThumbnailUrl);
           }
+          updateUploadingStore(activeConversationId, (prev) => {
+            prev.delete(progressKey);
+            return prev;
+          });
           continue;
         }
         if (message.includes('was deleted')) {
@@ -473,6 +510,10 @@ export function FileUpload({
           if (fileIdMatch && fileIdMatch[1]) {
             uploadedFileIdsRef.current.delete(fileIdMatch[1]);
           }
+          updateUploadingStore(activeConversationId, (prev) => {
+            prev.delete(progressKey);
+            return prev;
+          });
           continue;
         }
         if (isMountedRef.current) {
@@ -606,7 +647,7 @@ export function FileUpload({
     <div className="w-full max-w-full overflow-hidden space-y-2">
       {isUploading && progressContent}
 
-      {!isUploading && (
+      {!isUploading && !disabled && (
         <button
           type="button"
           onClick={handleClick}

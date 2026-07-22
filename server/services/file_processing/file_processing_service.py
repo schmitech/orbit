@@ -9,6 +9,7 @@ import json
 import logging
 import uuid
 import hashlib
+import weakref
 from typing import Dict, Any, List, Optional
 from datetime import datetime, UTC
 
@@ -93,6 +94,9 @@ class FileProcessingService:
         self.chunker = self._init_chunker()
         self.magika_config = processing_config.get('magika', {})
         self.magika_detector = self._init_magika_detector()
+        # Serializes final persistence and deletion for each file. Weak references
+        # keep completed uploads from accumulating locks for process lifetime.
+        self._file_operation_locks: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
 
         # Configuration - get from adapter config first, then files.processing, then default
         self.max_file_size = config.get('max_file_size') or \
@@ -740,6 +744,14 @@ class FileProcessingService:
         
         return file_id
     
+    def _get_file_operation_lock(self, file_id: str) -> asyncio.Lock:
+        """Return the lock shared by processing and deletion for a file."""
+        lock = self._file_operation_locks.get(file_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._file_operation_locks[file_id] = lock
+        return lock
+
     async def process_file_content(
         self,
         file_id: str,
@@ -775,47 +787,53 @@ class FileProcessingService:
                 # Chunk content
                 chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
 
-                # Encrypt chunk metadata if this file was stored encrypted (data-driven,
-                # not the adapter's current capability — mirrors _select_storage_for_read).
-                file_info = await self.metadata_store.get_file_info(file_id)
-                requires_encryption = bool((file_info or {}).get('metadata', {}).get('encrypted', False))
-                self._encrypt_chunk_metadata(chunks, requires_encryption)
+                # A user can cancel while an async processor is extracting content.
+                # Serialize persistence with deletion so we either observe the missing
+                # file and stop, or finish atomically before deletion cleans it up.
+                async with self._get_file_operation_lock(file_id):
+                    # Encrypt chunk metadata if this file was stored encrypted (data-driven,
+                    # not the adapter's current capability — mirrors _select_storage_for_read).
+                    file_info = await self.metadata_store.get_file_info(file_id)
+                    if not file_info:
+                        logger.info(f"Skipping persistence for cancelled file {file_id}")
+                        return
 
-                # Index chunks into vector store
-                index_result = await self._index_chunks_in_vector_store(
-                    file_id=file_id,
-                    api_key=api_key,
-                    chunks=chunks,
-                    requires_encryption=requires_encryption,
-                )
+                    requires_encryption = bool(file_info.get('metadata', {}).get('encrypted', False))
+                    self._encrypt_chunk_metadata(chunks, requires_encryption)
 
-            # Extract collection info
-            collection_name = None
-            embedding_provider = None
-            embedding_dimensions = None
-            if index_result:
-                collection_name, embedding_provider, embedding_dimensions = index_result
+                    # Index chunks into vector store.
+                    index_result = await self._index_chunks_in_vector_store(
+                        file_id=file_id,
+                        api_key=api_key,
+                        chunks=chunks,
+                        requires_encryption=requires_encryption,
+                    )
 
-            # Record chunks in metadata store (with collection name)
-            for chunk in chunks:
-                await self.metadata_store.record_chunk(
-                    chunk_id=chunk.chunk_id,
-                    file_id=file_id,
-                    chunk_index=chunk.chunk_index,
-                    vector_store_id=chunk.chunk_id,
-                    collection_name=collection_name,
-                    metadata=chunk.metadata
-                )
+                    collection_name = None
+                    embedding_provider = None
+                    embedding_dimensions = None
+                    if index_result:
+                        collection_name, embedding_provider, embedding_dimensions = index_result
 
-            # Update metadata store with chunk count, collection name, and provider info
-            await self.metadata_store.update_processing_status(
-                file_id,
-                'completed',
-                chunk_count=len(chunks),
-                collection_name=collection_name,
-                embedding_provider=embedding_provider,
-                embedding_dimensions=embedding_dimensions
-            )
+                    # Record chunks in metadata store (with collection name).
+                    for chunk in chunks:
+                        await self.metadata_store.record_chunk(
+                            chunk_id=chunk.chunk_id,
+                            file_id=file_id,
+                            chunk_index=chunk.chunk_index,
+                            vector_store_id=chunk.chunk_id,
+                            collection_name=collection_name,
+                            metadata=chunk.metadata
+                        )
+
+                    await self.metadata_store.update_processing_status(
+                        file_id,
+                        'completed',
+                        chunk_count=len(chunks),
+                        collection_name=collection_name,
+                        embedding_provider=embedding_provider,
+                        embedding_dimensions=embedding_dimensions
+                    )
 
             logger.debug(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
 
@@ -1418,6 +1436,11 @@ class FileProcessingService:
         return await storage.get_file(storage_key)
     
     async def delete_file(self, file_id: str, api_key: str) -> bool:
+        """Delete a file without racing its background processor."""
+        async with self._get_file_operation_lock(file_id):
+            return await self._delete_file_locked(file_id, api_key)
+
+    async def _delete_file_locked(self, file_id: str, api_key: str) -> bool:
         """Delete file and all associated chunks from vector store, storage, and metadata store."""
         file_info = await self.metadata_store.get_file_info(file_id)
         

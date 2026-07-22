@@ -22,6 +22,27 @@ const resolveAdapterName = (explicit?: string | null): string | null => {
   return null;
 };
 
+// Only exists while a file is being polled after its upload response. This lets
+// deletion stop the next status request before the backend removes the file.
+const activeFilePolls = new Map<string, AbortController>();
+
+const waitForPollInterval = (milliseconds: number, signal?: AbortSignal): Promise<void> => {
+  return new Promise(resolve => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+
+    const finish = () => {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', finish);
+      resolve();
+    };
+    const timeout = setTimeout(finish, milliseconds);
+    signal?.addEventListener('abort', finish, { once: true });
+  });
+};
+
 export interface FileUploadProgress {
   filename: string;
   progress: number;  // 0-100
@@ -31,6 +52,10 @@ export interface FileUploadProgress {
 }
 
 export class FileUploadService {
+  static cancelFilePoll(fileId: string): void {
+    activeFilePolls.get(fileId)?.abort();
+  }
+
   /**
    * Upload a file to the server
    *
@@ -175,6 +200,8 @@ export class FileUploadService {
 
       // Poll file status until processing is complete
       let fileInfo: FileAttachment;
+      const pollController = new AbortController();
+      activeFilePolls.set(response.file_id, pollController);
       try {
         fileInfo = await this.pollFileStatus(
           response.file_id,
@@ -182,7 +209,8 @@ export class FileUploadService {
           2000,
           undefined, // checkMounted
           resolvedApiUrl,
-          resolvedAdapterName
+          resolvedAdapterName,
+          pollController.signal
         );
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -202,6 +230,10 @@ export class FileUploadService {
           chunk_count: response.chunk_count,
           error_message: isProcessingError ? errorMessage : undefined
         };
+      } finally {
+        if (activeFilePolls.get(response.file_id) === pollController) {
+          activeFilePolls.delete(response.file_id);
+        }
       }
 
       // Report completion
@@ -362,7 +394,13 @@ export class FileUploadService {
    * @returns Promise resolving to file attachment metadata
    * @throws Error if request fails
    */
-  static async getFileInfo(fileId: string, _reserved?: string, apiUrl?: string, adapterName?: string): Promise<FileAttachment> {
+  static async getFileInfo(
+    fileId: string,
+    _reserved?: string,
+    apiUrl?: string,
+    adapterName?: string,
+    signal?: AbortSignal
+  ): Promise<FileAttachment> {
     try {
       const api = await getApi();
       const resolvedApiUrl = apiUrl?.trim() || getApiUrl();
@@ -382,7 +420,7 @@ export class FileUploadService {
         throw new Error('File info retrieval is not available.');
       }
 
-      const fileInfo = await client.getFileInfo(fileId) as {
+      const fileInfo = await client.getFileInfo(fileId, signal) as {
         file_id: string;
         filename: string;
         mime_type: string;
@@ -404,9 +442,17 @@ export class FileUploadService {
         error_message: fileInfo.error_message
       };
     } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error(`File ${fileId} was deleted`);
+      }
+
       if (
         error instanceof Error &&
-        (error.message.includes('404') || error.message.includes('File not found'))
+        (
+          error.message.includes('404') ||
+          error.message.includes('File not found') ||
+          error.message.includes('Not Found')
+        )
       ) {
         throw new Error(`File ${fileId} was deleted`);
       }
@@ -434,15 +480,20 @@ export class FileUploadService {
     pollInterval: number = 2000,
     checkMounted?: () => boolean,
     apiUrl?: string,
-    adapterName?: string
+    adapterName?: string,
+    signal?: AbortSignal
   ): Promise<FileAttachment> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
+        if (signal?.aborted) {
+          throw new Error(`File ${fileId} was deleted during upload`);
+        }
+
         if (checkMounted && !checkMounted()) {
           throw new Error(`Polling cancelled - component unmounted`);
         }
 
-        const fileInfo = await this.getFileInfo(fileId, undefined, apiUrl, adapterName);
+        const fileInfo = await this.getFileInfo(fileId, undefined, apiUrl, adapterName, signal);
 
         if (fileInfo.processing_status === 'completed') {
           return fileInfo;
@@ -454,7 +505,7 @@ export class FileUploadService {
         }
 
         if (attempt < maxAttempts - 1) {
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          await waitForPollInterval(pollInterval, signal);
         }
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -492,7 +543,7 @@ export class FileUploadService {
         }
 
         if (attempt < maxAttempts - 1) {
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          await waitForPollInterval(pollInterval, signal);
           continue;
         }
         throw error;

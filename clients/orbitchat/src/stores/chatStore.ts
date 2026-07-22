@@ -733,6 +733,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       const messageAttachmentFileIds = (conversation.messages || []).flatMap(
         m => (m.attachments || []).map(f => f.file_id)
       );
+      [...attachmentFileIds, ...messageAttachmentFileIds].forEach(FileUploadService.cancelFilePoll);
       [...attachmentFileIds, ...messageAttachmentFileIds].forEach(revokeFileThumbnail);
     }
 
@@ -816,6 +817,13 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     debugLog(`🗑️ Deleting all conversations (${conversationsToDelete.length} total)`);
     audioStreamManager.stop();
+    conversationsToDelete.forEach(conversation => {
+      const attachmentFileIds = conversation.attachedFiles?.map(file => file.file_id) || [];
+      const messageAttachmentFileIds = (conversation.messages || []).flatMap(
+        message => (message.attachments || []).map(file => file.file_id)
+      );
+      [...attachmentFileIds, ...messageAttachmentFileIds].forEach(FileUploadService.cancelFilePoll);
+    });
 
     const deletionTasks = conversationsToDelete.map(async conversation => {
       if (!conversation?.sessionId) return;
@@ -1707,6 +1715,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   removeFileFromConversation: async (conversationId: string, fileId: string) => {
     debugLog(`[chatStore] removeFileFromConversation called`, { conversationId, fileId });
+    FileUploadService.cancelFilePoll(fileId);
     try {
       const conversation = get().conversations.find(conv => conv.id === conversationId);
       if (!conversation) throw new Error('Conversation not found');
