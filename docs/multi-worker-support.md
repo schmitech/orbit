@@ -144,3 +144,29 @@ was a no-op — see "History" below for why.
   even before this fix (in case operators had been running true multi-worker
   via a manual `uvicorn main:app --workers N` invocation outside ORBIT's own
   `run()`), and now applies to ORBIT's own supervised startup too.
+- **Admin dashboard metrics and `/metrics` (Prometheus)**: `MetricsService`
+  (`server/services/metrics_service.py`) is built once per worker in
+  `service_factory.py`, with its own `psutil.Process(os.getpid())`, its own
+  private `CollectorRegistry`, and its own in-memory `deque`s fed only by
+  requests that same process handled — no shared store behind any of it.
+  The admin panel's Overview tab streams from this over a single
+  `/ws/metrics` WebSocket (`server/routes/metrics_routes.py`) that sticks
+  to whichever worker accepted that connection's handshake for its
+  lifetime, so the dashboard shows one worker's view, not an aggregate —
+  and a reconnect (the client retries every 5s while idle) can land on a
+  *different* worker, visibly resetting/jumping counters and time-series
+  graphs with nothing actually wrong. `GET /metrics` has the identical
+  problem for real Prometheus scraping: it serializes only the answering
+  worker's own registry, so repeated scrapes return different, non-
+  cumulative series depending on which of the N workers happened to
+  answer. `prometheus_client`'s multiprocess mode (`MultiProcessCollector`)
+  is already wired into `metrics_service.py` behind the
+  `PROMETHEUS_MULTIPROC_DIR` env var, but ORBIT doesn't set or document
+  that anywhere — an operator relying on Prometheus-based alerting under
+  `workers > 1` should configure it themselves (the counters otherwise
+  aren't just incomplete, they can look like they reset or flatline,
+  which risks masking real problems or triggering false alerts). Not
+  fixed here — no aggregation exists for the dashboard's live WebSocket
+  view either, which would need the same durable-store pattern used for
+  pause/reload propagation if a trustworthy live view under multiple
+  workers becomes a real requirement.
