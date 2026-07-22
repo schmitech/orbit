@@ -1565,11 +1565,13 @@ async def get_server_info(
         Dictionary containing server information (PID, version, etc.)
     """
     import os
-    
+
+    from services.pause_state import is_paused
+
     return {
         "pid": os.getpid(),
         "version": "2.10.1",
-        "status": "running"
+        "status": "paused" if await is_paused(request.app.state) else "running"
     }
 
 
@@ -1819,6 +1821,58 @@ async def shutdown_server(
     return {
         "status": "success",
         "message": "Server shutdown initiated",
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+
+
+@admin_router.post("/pause", dependencies=[system_auth])
+async def pause_server(
+    request: Request,
+):
+    """
+    Pause the server: reject new chat requests without stopping the process.
+
+    Existing in-flight requests are unaffected. Health checks continue to
+    report the process as alive so monitoring/load-balancer probes are not
+    disrupted while paused. The flag is broadcast through the shared cache
+    service (when configured) so it takes effect across all worker processes,
+    not just the one that handled this request.
+    """
+    from services.pause_state import set_paused
+
+    if not await set_paused(request.app.state, True):
+        logger.error("Failed to pause server: shared cache write failed")
+        raise HTTPException(
+            status_code=503,
+            detail="Failed to pause server: could not write pause state to the shared cache backend"
+        )
+    logger.info("Server paused via /admin/pause endpoint")
+
+    return {
+        "status": "success",
+        "message": "Server paused",
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+
+
+@admin_router.post("/resume", dependencies=[system_auth])
+async def resume_server(
+    request: Request,
+):
+    """Resume normal request processing after a pause."""
+    from services.pause_state import set_paused
+
+    if not await set_paused(request.app.state, False):
+        logger.error("Failed to resume server: shared cache write failed")
+        raise HTTPException(
+            status_code=503,
+            detail="Failed to resume server: could not write pause state to the shared cache backend"
+        )
+    logger.info("Server resumed via /admin/resume endpoint")
+
+    return {
+        "status": "success",
+        "message": "Server resumed",
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 

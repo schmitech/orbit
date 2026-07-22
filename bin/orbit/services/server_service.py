@@ -537,7 +537,45 @@ class ServerService:
                 progress.update(task, completed=True)
                 self.formatter.error(f"Error stopping server: {e}")
                 return False
-    
+
+    def pause(self) -> bool:
+        """
+        Pause the server: reject new chat requests without stopping the process.
+
+        Returns:
+            True if the pause request succeeded, False otherwise
+        """
+        return self._toggle_pause("/admin/pause", "pause", "Server paused")
+
+    def resume(self) -> bool:
+        """
+        Resume a paused server.
+
+        Returns:
+            True if the resume request succeeded, False otherwise
+        """
+        return self._toggle_pause("/admin/resume", "resume", "Server resumed")
+
+    def _toggle_pause(self, endpoint: str, action: str, success_message: str) -> bool:
+        """Shared implementation for pause()/resume() — both are pure HTTP admin calls."""
+        if not self.is_running():
+            self.formatter.error("Server is not running")
+            return False
+
+        try:
+            self.auth_service.ensure_authenticated()
+            headers = {"Authorization": f"Bearer {self.auth_service.token}"}
+            response = self.api_client.post(endpoint, headers=headers, retry=False)
+            response.raise_for_status()
+            self.formatter.success(success_message)
+            return True
+        except AuthenticationError as e:
+            self.formatter.error(f"Authentication required: {e}")
+            return False
+        except Exception as e:
+            self.formatter.error(f"Error requesting server {action}: {e}")
+            return False
+
     def _get_port_from_config(self, config_path: Optional[str] = None) -> Optional[int]:
         """
         Read the port from the server's config.yaml file.
@@ -692,29 +730,31 @@ class ServerService:
             if pid:
                 logger.debug(f"Found server process by port: PID {pid}")
         
+        reported_status = (info.get('status') if info else None) or "running"
+
         if not pid:
             # Server is running but we can't get PID
             return {
-                "status": "running",
-                "message": "Server is running (unable to get detailed info - try 'orbit login' for full details)"
+                "status": reported_status,
+                "message": f"Server is {reported_status} (unable to get detailed info - try 'orbit login' for full details)"
             }
-        
+
         try:
             process = psutil.Process(pid)
             uptime_seconds = time.time() - process.create_time()
             uptime_str = self._format_uptime(uptime_seconds)
-            
+
             # Get CPU percentage with proper initialization
             cpu_percent = self._get_cpu_percent(process)
-            
+
             return {
-                "status": "running",
+                "status": reported_status,
                 "pid": pid,
                 "uptime": uptime_str,
                 "uptime_seconds": uptime_seconds,
                 "memory_mb": round(process.memory_info().rss / 1024 / 1024, 2),
                 "cpu_percent": cpu_percent,
-                "message": f"Server is running with PID {pid}"
+                "message": f"Server is {reported_status} with PID {pid}"
             }
         except psutil.NoSuchProcess:
             return {
@@ -748,28 +788,29 @@ class ServerService:
         
         info = self.get_server_info()
         pid = info.get('pid') if info else None
-        
+        reported_status = (info.get('status') if info else None) or "running"
+
         if not pid:
             return {
-                "status": "running",
-                "message": "Server is running (unable to get detailed info)"
+                "status": reported_status,
+                "message": f"Server is {reported_status} (unable to get detailed info)"
             }
-        
+
         try:
             process = psutil.Process(pid)
             uptime_seconds = time.time() - process.create_time()
             uptime_str = self._format_uptime(uptime_seconds)
-            
+
             # Get more accurate CPU measurement with interval
             cpu_percent = process.cpu_percent(interval=interval)
-            
+
             # Get additional system information
             memory_info = process.memory_info()
             memory_percent = process.memory_percent()
-            
+
             # Get number of threads
             num_threads = process.num_threads()
-            
+
             # Get I/O counters if available
             try:
                 io_counters = process.io_counters()
@@ -777,9 +818,9 @@ class ServerService:
                 io_write_mb = round(io_counters.write_bytes / 1024 / 1024, 2)
             except (psutil.AccessDenied, AttributeError):
                 io_read_mb = io_write_mb = 0.0
-            
+
             return {
-                "status": "running",
+                "status": reported_status,
                 "pid": pid,
                 "uptime": uptime_str,
                 "uptime_seconds": uptime_seconds,
@@ -789,7 +830,7 @@ class ServerService:
                 "num_threads": num_threads,
                 "io_read_mb": io_read_mb,
                 "io_write_mb": io_write_mb,
-                "message": f"Server is running with PID {pid}"
+                "message": f"Server is {reported_status} with PID {pid}"
             }
         except psutil.NoSuchProcess:
             return {

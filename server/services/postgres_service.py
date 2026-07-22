@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
 from datetime import datetime
 
-from services.database_service import DatabaseService
+from services.database_service import DatabaseOperationError, DatabaseService
 from services.sqlite_service import _make_json_serializable
 from utils.id_utils import generate_id, ensure_id, id_to_string
 
@@ -279,6 +279,12 @@ class PostgresService(DatabaseService):
                     user_agent TEXT,
                     error_message TEXT,
                     request_summary TEXT
+                )
+            ''',
+            'system_state': '''
+                CREATE TABLE IF NOT EXISTS system_state (
+                    id TEXT PRIMARY KEY,
+                    value INTEGER
                 )
             '''
         }
@@ -849,6 +855,39 @@ class PostgresService(DatabaseService):
         except Exception as e:
             logger.error(f"Error finding document in {collection_name}: {str(e)}")
             return None
+
+    async def find_one_strict(
+        self,
+        collection_name: str,
+        query: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            where_clause, params = self._convert_query_to_sql(collection_name, query)
+
+            if where_clause:
+                sql = f"SELECT * FROM {collection_name} WHERE {where_clause} LIMIT 1"
+            else:
+                sql = f"SELECT * FROM {collection_name} LIMIT 1"
+
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                self.executor,
+                self._execute_sql_fetchone,
+                sql,
+                params
+            )
+
+            if result:
+                return self._convert_row_to_document(collection_name, result)
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error finding document in {collection_name}: {str(e)}")
+            raise DatabaseOperationError(str(e)) from e
 
     async def find_many(
         self,

@@ -127,6 +127,31 @@ class DatabaseService(ABC):
         pass
 
     @abstractmethod
+    async def find_one_strict(
+        self,
+        collection_name: str,
+        query: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Like find_one(), but raises DatabaseOperationError on a query failure
+        instead of swallowing it to None. A None return here means the document
+        is genuinely absent; find_one() cannot make that distinction, which is
+        unsafe for callers that must fail closed on an outage (e.g. cross-process
+        coordination flags) rather than misread it as "not set".
+
+        Args:
+            collection_name: Name of the collection/table
+            query: Query criteria
+
+        Returns:
+            The document/record if found, None if genuinely absent
+
+        Raises:
+            DatabaseOperationError: if the query itself failed
+        """
+        pass
+
+    @abstractmethod
     async def find_many(
         self,
         collection_name: str,

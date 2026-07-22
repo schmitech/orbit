@@ -281,6 +281,7 @@ class InferenceServer:
         # Store config and config path in app state
         app.state.config = self.config
         app.state.config_path = self.config_path
+        app.state.paused = False
         
         # Resolve provider configurations
         self.config_resolver.resolve_all_providers()
@@ -290,6 +291,12 @@ class InferenceServer:
 
         # Use service factory to initialize all services
         await self.service_factory.initialize_all_services(app)
+
+        # Ensure the durable pause-state row exists before any request can reach
+        # it, so a later read failure can only mean a real outage, never "row not
+        # created yet" (see services/pause_state.py).
+        from services.pause_state import ensure_initialized
+        await ensure_initialized(app.state)
 
     async def _shutdown_services(self, app: FastAPI) -> None:
         """

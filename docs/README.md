@@ -200,6 +200,7 @@ Contribute to ORBIT or extend its capabilities.
 | [Testing PRs Locally](testing-prs-locally.md) | Guide for testing pull requests |
 | [Template Diagnostics](template-diagnostics.md) | Test intent templates without the full LLM pipeline |
 | [SQLite Schema](sqlite-schema.md) | Database schema reference |
+| [PostgreSQL Schema](postgres-schema.md) | Database schema reference |
 | [Code of Conduct](../CODE_OF_CONDUCT.md) | Community guidelines |
 | [Changelog](../CHANGELOG.md) | Release history and updates |
 

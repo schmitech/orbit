@@ -42,7 +42,6 @@ APPLICATION_CACHE_PATTERNS = [
     ("temp:*", "temporary data"),
 ]
 
-
 class CircuitBreaker:
     """Simple circuit breaker to avoid permanently disabling a cache backend on transient failures."""
 

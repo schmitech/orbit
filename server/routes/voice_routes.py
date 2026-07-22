@@ -198,6 +198,10 @@ async def _handle_voice_websocket(
     handler = None
 
     try:
+        from services.pause_state import is_paused
+        if await is_paused(websocket.app.state):
+            raise HTTPException(status_code=503, detail="Server is paused")
+
         adapter_name, system_prompt_id = await _resolve_voice_adapter_from_api_key(
             websocket,
             adapter_name,

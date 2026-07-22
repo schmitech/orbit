@@ -18,6 +18,7 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `audit_logs` - Audit trail records for conversation logging and compliance
 - `audit_admin_logs` - Audit trail records for admin/auth mutations (user CRUD, API-key management, config changes, login/logout, etc.)
 - `feedback` - User feedback (thumbs up/down) on chat responses
+- `system_state` - Small durable key/value store for cross-process server coordination state (e.g. the server pause flag)
 
 ## Database File Location
 
@@ -542,6 +543,25 @@ CREATE TABLE IF NOT EXISTS feedback (
 
 ---
 
+### system_state
+
+Small durable key/value store for cross-process coordination state that must survive cache flushes and worker restarts — currently just the server pause flag set via `POST /admin/pause` / `POST /admin/resume`. Not a cache: rows here are never cleared on startup or by any cache-invalidation path.
+
+```sql
+CREATE TABLE IF NOT EXISTS system_state (
+    id TEXT PRIMARY KEY,
+    value INTEGER
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Row key. Currently one row: `server_paused`
+- `value` (INTEGER): Boolean value for the row (1=true, 0=false)
+
+**Indexes:** none — the single-row PK lookup by `id` doesn't need one.
+
+---
+
 ## Data Types
 
 ### ID Fields
@@ -709,6 +729,9 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.4** (2026-07-22): Server pause coordination state
+  - Added `system_state` table (server pause flag; see `server/services/pause_state.py`)
+  - Created automatically on existing databases via `CREATE TABLE IF NOT EXISTS` on startup (no manual migration needed)
 - **v1.3** (2026-07-18): Feedback comments
   - Added nullable `feedback.comment` for the optional free-text comment captured on thumbs-down
   - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`)

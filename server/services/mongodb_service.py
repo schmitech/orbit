@@ -17,7 +17,7 @@ from fastapi import HTTPException
 from datetime import datetime
 from bson import ObjectId
 
-from services.database_service import DatabaseService
+from services.database_service import DatabaseOperationError, DatabaseService
 from utils.id_utils import id_to_string
 
 logger = logging.getLogger(__name__)
@@ -329,7 +329,20 @@ class MongoDBService(DatabaseService):
         except Exception as e:
             logger.error(f"Error finding document in {collection_name}: {str(e)}")
             return None
-    
+
+    async def find_one_strict(self, collection_name: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            collection = self.get_collection(collection_name)
+            converted_query = self._convert_string_ids_to_objectid(query)
+            result = await collection.find_one(converted_query)
+            return self._convert_objectids_to_string(result) if result else None
+        except Exception as e:
+            logger.error(f"Error finding document in {collection_name}: {str(e)}")
+            raise DatabaseOperationError(str(e)) from e
+
     async def find_many(
         self,
         collection_name: str,

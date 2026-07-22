@@ -80,6 +80,11 @@ def create_a2a_router() -> APIRouter:
         method = body.get("method", "")
         params = body.get("params") or {}
 
+        if method in ("tasks/send", "tasks/sendSubscribe"):
+            from services.pause_state import is_paused
+            if await is_paused(request.app.state):
+                return JSONResponse(content=_err(rpc_id, -32000, "Server is paused"))
+
         # Resolve adapter from API key (same logic as REST/OpenAI endpoints)
         adapter_name = await _resolve_adapter(request)
 

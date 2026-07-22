@@ -73,6 +73,8 @@
     reloadTemplates: "/admin/reload-templates",
     restart: "/admin/restart",
     shutdown: "/admin/shutdown",
+    pause: "/admin/pause",
+    resume: "/admin/resume",
     adminExport: "/admin/export",
     login: "/admin/login",
     configSections: "/admin/config/sections",
@@ -4448,6 +4450,41 @@
     var actionBar = el("div", { className: "ops-action-bar" });
 
     // Server control
+    var pauseResumeBtn = el("button", { className: "secondary", type: "button" }, "Pause Server");
+    var isPaused = false;
+
+    function setPauseResumeUI(paused) {
+      isPaused = paused;
+      pauseResumeBtn.textContent = paused ? "Resume Server" : "Pause Server";
+    }
+
+    pauseResumeBtn.addEventListener("click", function () {
+      var action = isPaused ? "resume" : "pause";
+      confirmDialog(
+        isPaused ? "Resume Server" : "Pause Server",
+        isPaused
+          ? "The server will resume accepting new chat requests."
+          : "The server will reject new chat requests until resumed. The process stays running and existing connections are unaffected.",
+        async function () {
+          pauseResumeBtn.disabled = true;
+          try {
+            await api("POST", ENDPOINTS[action]);
+            setPauseResumeUI(!isPaused);
+          } catch (err) {
+            showError("Failed to " + action + " server: " + err.message);
+          } finally {
+            pauseResumeBtn.disabled = false;
+          }
+        },
+        isPaused ? "Resume" : "Pause",
+        false
+      );
+    });
+
+    api("GET", ENDPOINTS.serverInfo)
+      .then(function (info) { setPauseResumeUI(info && info.status === "paused"); })
+      .catch(function () {});
+
     var restartBtn = el("button", { className: "secondary", type: "button" }, "Restart Server");
     restartBtn.addEventListener("click", function () {
       requireTypedConfirmation({
@@ -4497,6 +4534,7 @@
       });
     });
 
+    actionBar.appendChild(pauseResumeBtn);
     actionBar.appendChild(restartBtn);
     actionBar.appendChild(shutdownBtn);
     container.appendChild(actionBar);

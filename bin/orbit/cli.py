@@ -25,6 +25,7 @@ from bin.orbit.utils.exceptions import OrbitError, AuthenticationError, NetworkE
 # Import all commands
 from bin.orbit.commands.server import (
     ServerStartCommand, ServerStopCommand, ServerRestartCommand, ServerStatusCommand,
+    ServerPauseCommand, ServerResumeCommand,
     WorkerRunCommand, WorkerStartCommand, WorkerStopCommand, WorkerRestartCommand, WorkerStatusCommand
 )
 from bin.orbit.services.worker_service import WorkerService
@@ -273,6 +274,16 @@ Report issues at: https://github.com/schmitech/orbit/issues
         status_cmd = ServerStatusCommand(self._get_server_service(), self.formatter)
         status_cmd.add_arguments(status_parser)
         status_parser.set_defaults(func=lambda args, cmd=status_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
+        pause_parser = subparsers.add_parser('pause', help='Pause the ORBIT server (reject new requests without stopping it)')
+        pause_cmd = ServerPauseCommand(self._get_server_service(), self.formatter)
+        pause_cmd.add_arguments(pause_parser)
+        pause_parser.set_defaults(func=lambda args, cmd=pause_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
+        resume_parser = subparsers.add_parser('resume', help='Resume a paused ORBIT server')
+        resume_cmd = ServerResumeCommand(self._get_server_service(), self.formatter)
+        resume_cmd.add_arguments(resume_parser)
+        resume_parser.set_defaults(func=lambda args, cmd=resume_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
 
         # MQ worker: managed lifecycle (start/stop/status/restart) + foreground run
         worker_parser = subparsers.add_parser('worker', help='Manage the ORBIT message-queue (MQ) worker')

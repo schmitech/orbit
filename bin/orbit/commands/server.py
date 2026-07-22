@@ -79,6 +79,52 @@ class ServerStopCommand(BaseCommand):
         return 0 if success else 1
 
 
+class ServerPauseCommand(BaseCommand):
+    """Command to pause the ORBIT server (reject new requests without stopping it)."""
+
+    def __init__(self, server_service: ServerService, formatter: OutputFormatter):
+        self.server_service = server_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "pause"
+
+    @property
+    def description(self) -> str:
+        return "Pause the ORBIT server (reject new requests without stopping it)"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        pass
+
+    def execute(self, args: argparse.Namespace) -> int:
+        success = self.server_service.pause()
+        return 0 if success else 1
+
+
+class ServerResumeCommand(BaseCommand):
+    """Command to resume a paused ORBIT server."""
+
+    def __init__(self, server_service: ServerService, formatter: OutputFormatter):
+        self.server_service = server_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "resume"
+
+    @property
+    def description(self) -> str:
+        return "Resume a paused ORBIT server"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        pass
+
+    def execute(self, args: argparse.Namespace) -> int:
+        success = self.server_service.resume()
+        return 0 if success else 1
+
+
 class ServerRestartCommand(BaseCommand):
     """Command to restart the ORBIT server."""
     
@@ -264,12 +310,15 @@ class ServerStatusCommand(BaseCommand):
         else:
             status = self.server_service.status()
             self._display_status(status)
-            return 0 if status['status'] == 'running' else 1
-    
+            return 0 if status['status'] in ('running', 'paused') else 1
+
     def _display_status(self, status: dict) -> None:
         """Display server status in a formatted way."""
-        if status['status'] == 'running':
-            self.formatter.success(status['message'])
+        if status['status'] in ('running', 'paused'):
+            if status['status'] == 'paused':
+                self.formatter.warning(status['message'])
+            else:
+                self.formatter.success(status['message'])
             if 'pid' in status:
                 console.print(f"[bold]PID:[/bold] {status['pid']}")
             if 'uptime' in status:
@@ -287,9 +336,12 @@ class ServerStatusCommand(BaseCommand):
     
     def _display_enhanced_status(self, status: dict) -> None:
         """Display enhanced server status with additional metrics."""
-        if status['status'] == 'running':
-            self.formatter.success(status['message'])
-            
+        if status['status'] in ('running', 'paused'):
+            if status['status'] == 'paused':
+                self.formatter.warning(status['message'])
+            else:
+                self.formatter.success(status['message'])
+
             # Create a table for better organization
             table = Table(show_header=False, box=None, padding=(0, 2))
             table.add_column("Metric", style="bold")

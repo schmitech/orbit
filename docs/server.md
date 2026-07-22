@@ -58,6 +58,18 @@ ORBIT uses a unified CLI tool for all server management operations. The `orbit` 
 ./bin/orbit.sh stop --force
 ```
 
+### Pausing the Server
+
+Pause temporarily rejects new chat requests without stopping the server process — useful when you need to bounce traffic momentarily (e.g. during a maintenance window) without a full stop/start cycle. Existing connections are unaffected, and `/health` keeps reporting the process as alive.
+
+```bash
+# Pause the server (new chat requests get a 503 until resumed)
+./bin/orbit.sh pause
+
+# Resume normal request processing
+./bin/orbit.sh resume
+```
+
 ### Restarting the Server
 
 ```bash

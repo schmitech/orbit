@@ -106,9 +106,19 @@ class RouteConfigurator:
             'get_autocomplete_service': self._create_autocomplete_service_dependency(),
             'validate_session_id': self._create_session_validator(),
             'get_user_id': self._create_user_id_extractor(),
-            'get_api_key': self._create_api_key_validator()
+            'get_api_key': self._create_api_key_validator(),
+            'check_not_paused': self._create_pause_check()
         }
-    
+
+    def _create_pause_check(self):
+        """Create dependency that rejects new chat requests while the server is paused."""
+        from services.pause_state import is_paused
+
+        async def check_not_paused(request: Request):
+            if await is_paused(request.app.state):
+                raise HTTPException(status_code=503, detail="Server is paused")
+        return check_not_paused
+
     def _create_chat_service_dependency(self):
         """Create chat service dependency."""
         async def get_chat_service(request: Request):
@@ -436,6 +446,7 @@ class RouteConfigurator:
         async def chat_endpoint(
             chat_request: ChatRequest,
             request: Request,
+            _paused_check: None = Depends(dependencies['check_not_paused']),
             chat_service = Depends(dependencies['get_chat_service']),
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
             session_id: str = Depends(dependencies['validate_session_id']),
@@ -521,6 +532,7 @@ class RouteConfigurator:
         async def openai_chat_completions(
             chat_request: OpenAIChatCompletionRequest,
             request: Request,
+            _paused_check: None = Depends(dependencies['check_not_paused']),
             chat_service = Depends(dependencies['get_chat_service']),
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
             session_id: str = Depends(dependencies['validate_session_id']),
