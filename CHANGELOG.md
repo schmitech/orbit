@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.11.0] - 2026-07-23
+
+### Core System Updates
+- **Realtime Voice Conversations**: Added full-duplex realtime voice conversations with secure WebSocket proxying, microphone capture, interruptible playback, live transcripts, adapter capability detection, and responsive call controls.
+- **Voice History Persistence**: Persisted OpenAI Realtime and Gemini Live voice turns through the chat history service, returning message IDs so feedback can attach to voice messages and cleared conversations behave consistently.
+- **Realtime Voice Architecture**: Extracted shared realtime voice handler scaffolding into a base class so provider implementations only carry their protocol-specific bridge logic.
+- **Gemini OCR**: Added a native Gemini OCR backend for single-call document understanding without rasterization, with config wiring, documentation, and tests.
+- **Async Document Uploads**: Moved document uploads onto the same quick-upload/background-processing path as other file types so clients get immediate processing state, polling, and cancellation semantics.
+- **Server Pause/Resume**: Added `orbit pause`/`orbit resume` and admin pause/resume APIs to reject new chat, A2A, and realtime voice requests without stopping the server.
+- **Multi-Worker Support**: Implemented real multi-worker startup with uvicorn's multiprocess supervisor and updated admin/CLI process controls for stop, shutdown, restart behavior, and force-stop safety.
+
+### Chat-app & UI Improvements
+- **Voice UX**: Added realtime voice conversation UI support with call status, duration, mute controls, localized errors, agent info, accessibility improvements, and light/dark styling.
+- **Upload UX**: Improved upload progress and cancellation for images, documents, pasted files, and conversation cleanup while reducing polling races and deletion-related 404 noise.
+
+### Bug Fixes & Technical Improvements
+- **OpenAI Realtime Barge-In**: Lowered the OpenAI Realtime VAD threshold and fixed turn tracking so late transcription events no longer create duplicate or reordered voice messages.
+- **Upload Processing**: Fixed processing-state cleanup and preserved pasted files during multi-file uploads.
+
+### Documentation & Configuration
+- **Realtime Voice Examples**: Added a realtime grounded assistant video/example and refreshed realtime voice materials.
+- **Operations Docs**: Documented pause/resume, multi-worker startup and shutdown, force-stop safety, and the new durable system state schema.
+
 ## [2.10.1] - 2026-07-20
 
 ### Core System Updates

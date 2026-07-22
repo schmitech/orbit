@@ -235,7 +235,7 @@ RUN pip install --no-cache-dir \
     aiohttp>=3.11.1 \
     ollama==0.4.8 \
     redis>=6.1.0 \
-    pydantic>=2.10.1 \
+    pydantic>=2.11.0 \
     PyYAML>=6.0.1 \
     python-multipart>=0.0.14 \
     langid==1.1.6 \

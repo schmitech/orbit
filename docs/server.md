@@ -6,9 +6,9 @@ Follow the main installation guide in the project root:
 
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v2.10.1/orbit-2.10.1.tar.gz -o orbit-2.10.1.tar.gz
-tar -xzf orbit-2.10.1.tar.gz
-cd orbit-2.10.1
+curl -L https://github.com/schmitech/orbit/releases/download/v2.11.0/orbit-2.11.0.tar.gz -o orbit-2.11.0.tar.gz
+tar -xzf orbit-2.11.0.tar.gz
+cd orbit-2.11.0
 
 # Activate virtual environment
 source venv/bin/activate
