@@ -19,6 +19,7 @@
 - **OpenAI Realtime Barge-In**: Lowered the OpenAI Realtime VAD threshold and fixed turn tracking so late transcription events no longer create duplicate or reordered voice messages.
 - **Upload Processing**: Fixed processing-state cleanup and preserved pasted files during multi-file uploads.
 - **Multi-Worker Startup**: Fixed a startup crash (`TypeError: Multiprocess.__init__() got an unexpected keyword argument 'target'`) on newer uvicorn releases (0.51+) that dropped the `target` parameter from its multiprocess supervisor API; the server now detects which API shape is installed and uses it accordingly.
+- **Multi-Worker Logging**: Fixed a log-rotation race under `performance.workers > 1` where every worker wrote to the same `orbit.log`, causing lost log lines when two processes rotated it independently. Each worker now logs to its own PID-scoped file, swept clean 24 hours after a crashed worker's replacement starts (capped at 20 retained dead-worker log families) so crash evidence survives long enough to be inspected without accumulating unbounded disk usage.
 
 ### Documentation & Configuration
 - **Realtime Voice Examples**: Added a realtime grounded assistant video/example and refreshed realtime voice materials.

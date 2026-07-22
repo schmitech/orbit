@@ -53,6 +53,36 @@ was a no-op — see "History" below for why.
   routed to a specific worker deterministically. If this becomes a real
   problem, it needs a shared store (same pattern as
   `server/services/pause_state.py`'s database-backed coordination).
+- **Log files**: each worker independently builds its own `InferenceServer`
+  (see "How it works" above), so without this each would open its own
+  `RotatingFileHandler`/`TimedRotatingFileHandler` on the same `orbit.log`
+  path. Concurrent line writes are fine, but rotation isn't — two processes
+  rotating the same file independently can race, with one left writing into
+  a now-orphaned, renamed file, silently losing log lines. Fixed in
+  `server/config/logging_configurator.py`: a worker (detected via
+  `ORBIT_SUPERVISOR_PID` differing from its own PID) suffixes its filename
+  with its own PID (`orbit.log.worker<pid>`), so each process only ever
+  rotates a file it exclusively owns. The supervisor keeps the plain
+  `orbit.log` (its own logging is configured before `run()` knows whether
+  `workers > 1`, and it writes far less volume — mostly startup/shutdown —
+  so no race there). No admin panel changes were needed: `/admin/logs/files`
+  and `/admin/logs/tail` already glob `orbit.log*` and list/tail whichever
+  file is requested.
+
+  PID-scoped filenames introduce their own retention gap: `backup_count`
+  only bounds a single worker's own rotation history, not the number of
+  distinct PID families that accumulate as uvicorn's `Multiprocess`
+  recycles crashed/unhealthy workers over the server's lifetime — each dead
+  worker's family would otherwise sit untouched forever, since no other
+  process owns that filename. `LoggingConfigurator._cleanup_stale_worker_logs`
+  runs from every worker's own startup (before it opens its own file) and
+  removes `orbit.log.worker<pid>*` families whose PID is no longer running
+  — but not immediately: a crashed worker's own logs are usually the main
+  evidence for diagnosing why it died, so each dead family is kept for 24h
+  after its last write (`_DEAD_WORKER_LOG_RETENTION_SECONDS`) before being
+  swept, with a hard cap of 20 retained dead families
+  (`_DEAD_WORKER_LOG_MAX_RETAINED_FAMILIES`) as a backstop against a fast
+  crash loop piling up many families within that window.
 - **Shutdown and force-stop**:
   - `/admin/shutdown` and normal `orbit stop` target the supervisor, which
     terminates and joins every worker.
