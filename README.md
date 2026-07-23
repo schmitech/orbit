@@ -69,6 +69,8 @@ The first run downloads the local chat/vision model (`gemma4:e2b`) and can take 
 Prefer a hosted model? Same pull/run flow, just add your provider's key:
 
 ```bash
+export OPENAI_API_KEY=sk-...
+
 docker pull schmitech/orbit-openai:latest
 docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
   -e OPENAI_API_KEY \
@@ -77,6 +79,8 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
 ```
 
 ```bash
+export GOOGLE_API_KEY=...
+
 docker pull schmitech/orbit-gemini:latest
 docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
   -e GOOGLE_API_KEY \
@@ -84,7 +88,7 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
   schmitech/orbit-gemini:latest
 ```
 
-Each cloud flavor needs exactly one credential — the same key powers chat, vision, and embeddings, so nothing silently falls back to a different provider. `docker pull` never needs, receives, or persists a credential; only `docker run` does.
+`-e OPENAI_API_KEY` (no `=value`) passes through whatever that variable is already set to in your shell — export it first, don't paste the key inline as `-e OPENAI_API_KEY=sk-...`, which would leave it sitting in your shell history. Each cloud flavor needs exactly one credential — the same key powers chat, vision, and embeddings, so nothing silently falls back to a different provider. `docker pull` never needs, receives, or persists a credential; only `docker run` does.
 
 Port `5173` is the chat UI, `3000` is the OpenAI-compatible API if you want to call ORBIT directly:
 

@@ -111,6 +111,32 @@ def test_resolve_config_points_sqlite_at_data_volume_and_drops_audio_imports(run
     assert "tts.yaml" not in config["import"]
 
 
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+def test_resolve_config_sets_global_default_inference_provider(profile_id, runtime_config_dir):
+    profile = rp.get_profile(profile_id)
+    rp.resolve_config(profile, runtime_config_dir)
+
+    config = yaml.safe_load((runtime_config_dir / "config.yaml").read_text())
+    assert config["general"]["inference_provider"] == profile.inference_provider
+
+
+@pytest.mark.parametrize("profile_id", ["openai", "gemini"])
+def test_cloud_profiles_disable_ollama_inference_to_avoid_warmup_against_nothing(profile_id, runtime_config_dir):
+    profile = rp.get_profile(profile_id)
+    rp.resolve_config(profile, runtime_config_dir)
+
+    inference = yaml.safe_load((runtime_config_dir / "inference.yaml").read_text())
+    assert inference["inference"]["ollama"]["enabled"] is False
+
+
+def test_ollama_profile_keeps_ollama_inference_enabled(runtime_config_dir):
+    profile = rp.get_profile("ollama")
+    rp.resolve_config(profile, runtime_config_dir)
+
+    inference = yaml.safe_load((runtime_config_dir / "inference.yaml").read_text())
+    assert inference["inference"]["ollama"]["enabled"] is True
+
+
 def test_resolve_config_limits_adapter_registry_to_multimodal(runtime_config_dir):
     profile = rp.get_profile("gemini")
     rp.resolve_config(profile, runtime_config_dir)

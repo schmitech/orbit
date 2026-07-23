@@ -134,7 +134,7 @@ def resolve_config(profile: RuntimeProfile, config_dir: Path) -> None:
     _resolve_adapter(profile, config_dir / ADAPTER_FILE)
     _resolve_inference_preset(profile, config_dir / "inference.yaml")
     _resolve_provider_enablement(profile, config_dir)
-    _resolve_docker_paths(config_dir / "config.yaml")
+    _resolve_docker_paths(profile, config_dir / "config.yaml")
     _resolve_adapter_registry(config_dir / "adapters.yaml")
 
 
@@ -158,16 +158,33 @@ def _resolve_provider_enablement(profile: RuntimeProfile, config_dir: Path) -> N
             provider_block["enabled"] = True
         _dump_yaml(vision_path, data)
 
+    # The canonical default ships "ollama" enabled as the out-of-the-box local
+    # provider. On a cloud profile there's no bundled Ollama to warm up
+    # against, so leaving it enabled makes the server eagerly try (and fail)
+    # to connect to a local Ollama that doesn't exist in this image.
+    if inference_path.exists() and profile.inference_provider != "ollama":
+        data = _load_yaml(inference_path)
+        ollama_block = data.get("inference", {}).get("ollama")
+        if ollama_block is not None:
+            ollama_block["enabled"] = False
+        _dump_yaml(inference_path, data)
 
-def _resolve_docker_paths(config_path: Path) -> None:
-    """Point the sqlite backend at the container's persistent /orbit/data volume
-    and drop the STT/TTS import — flavor images ship text+vision+file chat only."""
+
+def _resolve_docker_paths(profile: RuntimeProfile, config_path: Path) -> None:
+    """Point the sqlite backend at the container's persistent /orbit/data volume,
+    drop the STT/TTS import, and make the selected profile the global default
+    inference provider — flavor images ship text+vision+file chat only, and
+    the canonical default (general.inference_provider: "ollama") would
+    otherwise stay wired to a provider a cloud flavor doesn't bundle."""
     if not config_path.exists():
         return
     data = _load_yaml(config_path)
 
     imports = data.get("import", [])
     data["import"] = [name for name in imports if name not in ("stt.yaml", "tts.yaml")]
+
+    general = data.setdefault("general", {})
+    general["inference_provider"] = profile.inference_provider
 
     backend = data.get("internal_services", {}).get("backend", {})
     sqlite_block = backend.get("sqlite")
