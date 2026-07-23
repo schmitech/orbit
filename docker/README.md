@@ -384,7 +384,11 @@ docker compose restart orbit
 `docker/publish-flavor.sh` builds and publishes the pull-and-run flavor
 images (`docker/Dockerfile.flavor`) described above. Unlike `publish.sh`
 below, it only builds from the current checkout — `clients/orbitchat/dist`
-isn't part of the release tarball yet, so build orbitchat first:
+isn't part of the release tarball yet, so build orbitchat first.
+
+Updating these images after a code change? Follow
+[`docker/FLAVOR_IMAGES_PLAYBOOK.md`](FLAVOR_IMAGES_PLAYBOOK.md) for the full
+rebuild → test → version-bump → publish → verify checklist.
 
 ```bash
 cd clients/orbitchat && npm ci && npm run build && cd ../..

@@ -52,41 +52,54 @@ ORBIT sits between your applications and the models, data, and tools they need. 
 
 ## 🚀 Quick Start
 
-Run a complete local stack with ORBIT, Ollama, and preconfigured models. No cloud account or external provider API key is required.
+No clone, no build, no config file to hand-edit. Pull a flavor image and run it — ORBIT, the orbitchat web UI, and a full multimodal document-chat setup (PDF, Word, Excel, images, Markdown) are all inside.
 
-**Prerequisites:** Docker Compose, 4 GB of free RAM, and 3 GB of disk space.
+**Prerequisites:** Docker, 4 GB of free RAM, and 3 GB of disk space.
 
 ```bash
-git clone https://github.com/schmitech/orbit.git
-cd orbit/docker
-docker compose up -d
+docker pull schmitech/orbit-ollama:latest
+docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
+  -v orbit-data:/orbit/data \
+  -v orbit-models:/orbit/models \
+  schmitech/orbit-ollama:latest
 ```
 
-The first run downloads the local chat and embedding models and can take a few minutes. When the containers are healthy, open the admin panel at [http://localhost:3000/admin](http://localhost:3000/admin) and sign in with `admin` / `admin123`.
+The first run downloads the local chat/vision model (`gemma4:e2b`) and can take a few minutes. Open [http://localhost:5173](http://localhost:5173) and start chatting — upload a PDF, a spreadsheet, or an image and ask about it. No cloud account or API key required.
 
-Make your first request:
+Prefer a hosted model? Same pull/run flow, just add your provider's key:
 
 ```bash
-curl -X POST http://localhost:3000/v1/chat \
+docker pull schmitech/orbit-openai:latest
+docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
+  -e OPENAI_API_KEY \
+  -v orbit-data:/orbit/data \
+  schmitech/orbit-openai:latest
+```
+
+```bash
+docker pull schmitech/orbit-gemini:latest
+docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
+  -e GOOGLE_API_KEY \
+  -v orbit-data:/orbit/data \
+  schmitech/orbit-gemini:latest
+```
+
+Each cloud flavor needs exactly one credential — the same key powers chat, vision, and embeddings, so nothing silently falls back to a different provider. `docker pull` never needs, receives, or persists a credential; only `docker run` does.
+
+Port `5173` is the chat UI, `3000` is the OpenAI-compatible API if you want to call ORBIT directly:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -H 'X-API-Key: default-key' \
+  -H 'X-API-Key: multimodal' \
   -H 'X-Session-ID: local-test' \
-  -d '{"messages":[{"role":"user","content":"What can ORBIT connect to?"}],"stream":false}'
+  -d '{"messages":[{"role":"user","content":"What can ORBIT connect to?"}]}'
 ```
-
-Or add the optional browser chat client:
-
-```bash
-npm install -g orbitchat@latest
-ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' orbitchat --open
-```
-
-You now have a local model behind an authenticated API, a browser chat client, and an admin panel showing adapters, health, metrics, sessions, and logs.
 
 > [!IMPORTANT]
-> The bundled credentials are for localhost evaluation only. Create your own keys and change the admin password before exposing ORBIT to a network.
+> These images ship with a default database and API key for first-run convenience. Rotate the default API key/admin password before exposing ORBIT beyond localhost.
 
-Prefer a stable native installation? Download the latest [release](https://github.com/schmitech/orbit/releases), or follow the [Docker guide](docker/README.md), [full tutorial](docs/tutorial.md), or [Windows guide](install/windows.md).
+Prefer a stable native installation, or want Ollama/postgres/vector-store services split into their own containers? Download the latest [release](https://github.com/schmitech/orbit/releases), or follow the [Docker guide](docker/README.md) (flavor images, docker-compose, and build-from-source options), [full tutorial](docs/tutorial.md), or [Windows guide](install/windows.md).
 
 **Building private AI infrastructure? [Star ORBIT](https://github.com/schmitech/orbit) to follow new model, datasource, and agent integrations.**
 
