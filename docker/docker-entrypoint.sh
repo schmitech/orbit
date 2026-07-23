@@ -107,26 +107,42 @@ if [ ! -f /orbit/data/orbit.db ]; then
     chmod 660 /orbit/data/orbit.db
 fi
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Runtime profile resolution (published flavor images: ollama, openai, gemini)
+# ═══════════════════════════════════════════════════════════════════════════
+# ORBIT_PROFILE selects a flavor's provider wiring for the simple-chat-with-files
+# adapter (inference/vision/embeddings) via docker/runtime_profiles.py. Skips
+# the smollm2 GPU/CPU preset-swap logic below, which is for the profile-less
+# lean image only.
+if [ -n "${ORBIT_PROFILE:-}" ]; then
+    echo "Resolving runtime profile: $ORBIT_PROFILE"
+    if ! python3 /orbit/docker/runtime_profiles.py --profile "$ORBIT_PROFILE" --config-dir "$RUNTIME_CONFIG_DIR"; then
+        exit 1
+    fi
+fi
+
 # Update inference.yaml with selected preset. Source templates under /orbit/config
 # are never changed; this keeps restarts idempotent when env vars or hardware change.
-if [ -f "$RUNTIME_CONFIG_DIR/inference.yaml" ]; then
+if [ -z "${ORBIT_PROFILE:-}" ] && [ -f "$RUNTIME_CONFIG_DIR/inference.yaml" ]; then
     echo "Configuring inference with preset: $SELECTED_PRESET"
     sed -i "s/use_preset: \".*\"/use_preset: \"$SELECTED_PRESET\"/" "$RUNTIME_CONFIG_DIR/inference.yaml"
 fi
 
-# Update adapter configs with selected preset
-for adapter_file in "$RUNTIME_CONFIG_DIR"/adapters/*.yaml; do
-    if [ -f "$adapter_file" ]; then
-        # Replace model references for smollm2 presets (cpu <-> gpu). Both
-        # presets use the smollm2 Ollama tag pulled by ollama-init.
-        if echo "$SELECTED_PRESET" | grep -q "gpu"; then
-            sed -i 's/model: "smollm2-1.7b-cpu"/model: "smollm2-1.7b-gpu"/' "$adapter_file"
-        else
-            sed -i 's/model: "smollm2-1.7b-gpu"/model: "smollm2-1.7b-cpu"/' "$adapter_file"
+if [ -z "${ORBIT_PROFILE:-}" ]; then
+    # Update adapter configs with selected preset
+    for adapter_file in "$RUNTIME_CONFIG_DIR"/adapters/*.yaml; do
+        if [ -f "$adapter_file" ]; then
+            # Replace model references for smollm2 presets (cpu <-> gpu). Both
+            # presets use the smollm2 Ollama tag pulled by ollama-init.
+            if echo "$SELECTED_PRESET" | grep -q "gpu"; then
+                sed -i 's/model: "smollm2-1.7b-cpu"/model: "smollm2-1.7b-gpu"/' "$adapter_file"
+            else
+                sed -i 's/model: "smollm2-1.7b-gpu"/model: "smollm2-1.7b-cpu"/' "$adapter_file"
+            fi
         fi
-    fi
-done
-echo "Updated adapter configs with preset: $SELECTED_PRESET"
+    done
+    echo "Updated adapter configs with preset: $SELECTED_PRESET"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Rewrite Ollama URLs for docker-compose networking

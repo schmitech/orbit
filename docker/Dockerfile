@@ -137,8 +137,9 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
   CMD curl -sf http://localhost:3000/health | jq -e '.status == "healthy"' > /dev/null || exit 1
 
-# Copy entrypoint script
+# Copy entrypoint script and runtime profile resolver
 COPY docker/docker-entrypoint.sh /orbit/docker-entrypoint.sh
+COPY docker/runtime_profiles.py /orbit/docker/runtime_profiles.py
 RUN chmod +x /orbit/docker-entrypoint.sh && \
     if ! getent group "${GID}" >/dev/null; then groupadd -r -g "${GID}" orbit; fi && \
     useradd -r -u "${UID}" -g "${GID}" orbit && \

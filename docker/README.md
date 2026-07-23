@@ -1,6 +1,83 @@
-# ORBIT Docker - Quick Start Guide
+# ORBIT Docker Guide
 
-This guide will help you get started with ORBIT using docker-compose. The setup uses separate containers for better isolation, flexibility, and GPU configuration.
+## Flavor Images (Recommended: Pull and Run)
+
+The fastest way to try ORBIT: no clone, no build, no Compose file. Each flavor
+image bundles ORBIT, the orbitchat web UI, and a multimodal document-chat
+setup (PDF, Word, Excel, images, Markdown) in one container.
+
+| Flavor | `ORBIT_PROFILE` | Inference / Vision / Embeddings | Runtime credential |
+| :--- | :--- | :--- | :--- |
+| `schmitech/orbit-ollama` | `ollama` | Local Ollama (`gemma4:e2b` — chat + vision) | None |
+| `schmitech/orbit-openai` | `openai` | OpenAI (`gpt-5.4-mini` / vision / embeddings) | `OPENAI_API_KEY` |
+| `schmitech/orbit-gemini` | `gemini` | Gemini (`gemini-3.1-pro-preview` / vision / embeddings) | `GOOGLE_API_KEY` |
+
+Each cloud flavor uses the **same provider for chat, vision, and embeddings**
+— one credential powers the entire multimodal stack, never a silent fallback
+to a different provider or to local Ollama.
+
+```bash
+# Local, no API key
+docker pull schmitech/orbit-ollama:latest
+docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
+  -v orbit-data:/orbit/data \
+  -v orbit-models:/orbit/models \
+  schmitech/orbit-ollama:latest
+```
+
+```bash
+# OpenAI
+docker pull schmitech/orbit-openai:latest
+docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
+  -e OPENAI_API_KEY \
+  -v orbit-data:/orbit/data \
+  schmitech/orbit-openai:latest
+```
+
+```bash
+# Gemini
+docker pull schmitech/orbit-gemini:latest
+docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
+  -e GOOGLE_API_KEY \
+  -v orbit-data:/orbit/data \
+  schmitech/orbit-gemini:latest
+```
+
+Open the chat UI at `http://localhost:5173`; the OpenAI-compatible API is at
+`http://localhost:3000`. `docker pull` never needs, receives, or persists a
+credential — only `docker run` does.
+
+- `orbit-data` persists the ORBIT database, uploaded files, and logs.
+- `orbit-models` (ollama flavor only) persists downloaded Ollama models so
+  they aren't re-pulled on restart.
+- The only adapter exposed is `simple-chat-with-files` (API key `multimodal`
+  in the bundled default database) — chat, PDF/Word/Excel/image/Markdown
+  Q&A. STT/TTS are not wired up in these images yet.
+- Runtime provider wiring is resolved by `docker/runtime_profiles.py`
+  from `install/default-config/`, the single source of truth — see
+  [`docs/docker-bundle-plan.md`](../docs/docker-bundle-plan.md) for the
+  design.
+
+**Security:** these images ship a default database and API key for first-run
+convenience. Rotate the default API key/admin password (`ORBIT_DEFAULT_ADMIN_PASSWORD`)
+before exposing ORBIT beyond localhost. Set `ORBIT_ALLOW_DEFAULT_CREDENTIALS=true`
+to silence the startup warning once you've done so.
+
+**Building/publishing these images** (maintainers) — see
+[Building and Publishing Flavor Images](#building-and-publishing-flavor-images)
+below.
+
+---
+
+## Advanced: Docker Compose / Lean Server Image
+
+The rest of this guide covers the profile-less server-only image
+(`docker/Dockerfile`, published as `schmitech/orbit:basic`) run via
+docker-compose with Ollama in a separate container. Use this path if you want
+Ollama, the vector store, or other datasources split into their own
+containers, or you're building a custom targeted config image. It does not
+include orbitchat or the bundled multimodal setup — those are the flavor
+images above.
 
 ## Architecture
 
@@ -302,7 +379,37 @@ The ORBIT entrypoint waits for Ollama to be ready, but if Ollama takes too long 
 docker compose restart orbit
 ```
 
-## Building and Publishing
+## Building and Publishing Flavor Images
+
+`docker/publish-flavor.sh` builds and publishes the pull-and-run flavor
+images (`docker/Dockerfile.flavor`) described above. Unlike `publish.sh`
+below, it only builds from the current checkout — `clients/orbitchat/dist`
+isn't part of the release tarball yet, so build orbitchat first:
+
+```bash
+cd clients/orbitchat && npm ci && npm run build && cd ../..
+
+cd docker
+chmod +x publish-flavor.sh
+
+# Build one flavor
+./publish-flavor.sh --build --flavor ollama --tag 1.0.0
+
+# Build all three
+./publish-flavor.sh --build --all-flavors --tag 1.0.0
+
+# Build and push to Docker Hub
+./publish-flavor.sh --publish --flavor openai --tag 1.0.0
+./publish-flavor.sh --publish --all-flavors --tag 1.0.0
+```
+
+Each flavor publishes to its own repository (`schmitech/orbit-ollama`,
+`schmitech/orbit-openai`, `schmitech/orbit-gemini`) with both `:latest` and
+the given version tag. `--flavor ollama` builds with `INCLUDE_OLLAMA=true`
+(bundles the Ollama runtime); `openai`/`gemini` build without it, so a
+runtime `ORBIT_PROFILE=ollama` override is rejected on those images.
+
+## Building and Publishing the Lean Server Image
 
 ### Prerequisites for Building
 
