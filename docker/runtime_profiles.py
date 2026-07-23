@@ -129,6 +129,10 @@ def _dump_yaml(path: Path, data: dict) -> None:
         yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False, allow_unicode=True)
 
 
+UPLOADS_DIR = "/orbit/data/uploads"
+CHROMA_DIR = "/orbit/data/chroma_db"
+
+
 def resolve_config(profile: RuntimeProfile, config_dir: Path) -> None:
     """Mutate the runtime config copy at config_dir in place for `profile`."""
     _resolve_adapter(profile, config_dir / ADAPTER_FILE)
@@ -136,6 +140,7 @@ def resolve_config(profile: RuntimeProfile, config_dir: Path) -> None:
     _resolve_provider_enablement(profile, config_dir)
     _resolve_docker_paths(profile, config_dir / "config.yaml")
     _resolve_adapter_registry(config_dir / "adapters.yaml")
+    _resolve_stores(config_dir / "stores.yaml")
 
 
 def _resolve_provider_enablement(profile: RuntimeProfile, config_dir: Path) -> None:
@@ -191,7 +196,28 @@ def _resolve_docker_paths(profile: RuntimeProfile, config_path: Path) -> None:
     if sqlite_block is not None:
         sqlite_block["database_path"] = "/orbit/data/orbit.db"
 
+    # WORKDIR /orbit is root-owned; the container runs as the non-root
+    # "orbit" user, so the canonical relative default ("./uploads") fails
+    # with a permission error when the file service tries to create it.
+    files_block = data.get("files")
+    if files_block is not None:
+        files_block["storage_root"] = UPLOADS_DIR
+
     _dump_yaml(config_path, data)
+
+
+def _resolve_stores(stores_path: Path) -> None:
+    """Same root cause as storage_root above: Chroma's relative default
+    persist_directory ("./chroma_db") isn't writable by the non-root
+    container user under WORKDIR /orbit."""
+    if not stores_path.exists():
+        return
+    data = _load_yaml(stores_path)
+    chroma = data.get("vector_stores", {}).get("chroma")
+    if chroma is not None:
+        connection_params = chroma.setdefault("connection_params", {})
+        connection_params["persist_directory"] = CHROMA_DIR
+    _dump_yaml(stores_path, data)
 
 
 def _resolve_adapter_registry(adapters_registry_path: Path) -> None:
@@ -220,6 +246,10 @@ def _resolve_adapter(profile: RuntimeProfile, adapter_path: Path) -> None:
             adapter["allowed_models"] = [dict(m) for m in profile.allowed_models]
         else:
             adapter.pop("allowed_models", None)
+        # Same non-root/WORKDIR permission issue as config.yaml's files.storage_root.
+        adapter_config = adapter.get("config")
+        if adapter_config is not None and "storage_root" in adapter_config:
+            adapter_config["storage_root"] = UPLOADS_DIR
     _dump_yaml(adapter_path, data)
 
 
@@ -251,6 +281,7 @@ def generate_orbitchat_config(profile: RuntimeProfile, template_path: Path, outp
         }
     ]
     data.setdefault("features", {})
+    data["features"]["enableUpload"] = True
     data["features"]["enableAudioInput"] = False
     data["features"]["enableAudioOutput"] = False
 

@@ -145,6 +145,25 @@ def test_resolve_config_limits_adapter_registry_to_multimodal(runtime_config_dir
     assert adapters_registry["import"] == [rp.ADAPTER_FILE]
 
 
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+def test_resolve_config_uses_writable_absolute_paths_for_uploads_and_chroma(profile_id, runtime_config_dir):
+    # WORKDIR /orbit is root-owned; the container runs as a non-root user, so
+    # the canonical relative defaults ("./uploads", "./chroma_db") fail with
+    # a permission error instead of falling back gracefully.
+    profile = rp.get_profile(profile_id)
+    rp.resolve_config(profile, runtime_config_dir)
+
+    config = yaml.safe_load((runtime_config_dir / "config.yaml").read_text())
+    assert config["files"]["storage_root"] == rp.UPLOADS_DIR
+
+    stores = yaml.safe_load((runtime_config_dir / "stores.yaml").read_text())
+    assert stores["vector_stores"]["chroma"]["connection_params"]["persist_directory"] == rp.CHROMA_DIR
+
+    adapters = yaml.safe_load((runtime_config_dir / rp.ADAPTER_FILE).read_text())
+    adapter = next(a for a in adapters["adapters"] if a["name"] == rp.ADAPTER_NAME)
+    assert adapter["config"]["storage_root"] == rp.UPLOADS_DIR
+
+
 @pytest.mark.skipif(not ORBITCHAT_TEMPLATE.exists(), reason="orbitchat template not present in this checkout")
 def test_generate_orbitchat_config_single_mode(tmp_path):
     profile = rp.get_profile("openai")
@@ -156,5 +175,6 @@ def test_generate_orbitchat_config_single_mode(tmp_path):
     assert generated["agentMode"]["defaultAdapterId"] == rp.ADAPTER_NAME
     assert len(generated["adapters"]) == 1
     assert generated["adapters"][0]["id"] == rp.ADAPTER_NAME
+    assert generated["features"]["enableUpload"] is True
     assert generated["features"]["enableAudioInput"] is False
     assert generated["features"]["enableAudioOutput"] is False

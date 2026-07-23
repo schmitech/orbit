@@ -82,6 +82,19 @@ COPY LICENSE* /orbit/
 # Canonical default-config tree is the single source of truth for generated
 # runtime config; see docker/runtime_profiles.py.
 COPY install/default-config/ /orbit/config/
+
+# server/vector_stores/base/store_manager.py's StoreManager() defaults to
+# loading "config/stores.yaml" relative to CWD (/orbit) directly off disk —
+# it does not go through the --config/config-runtime resolution path, so
+# docker/runtime_profiles.py patching config-runtime/stores.yaml at container
+# start never reaches it. Bake the same writable, non-root-safe path here
+# instead; it is not profile-dependent, so a build-time fix is correct.
+RUN python3 -c "\
+import yaml; \
+p = '/orbit/config/stores.yaml'; \
+data = yaml.safe_load(open(p)); \
+data['vector_stores']['chroma']['connection_params']['persist_directory'] = '/orbit/data/chroma_db'; \
+yaml.safe_dump(data, open(p, 'w'), sort_keys=False, default_flow_style=False, allow_unicode=True)"
 COPY install/orbit.db.default /orbit/orbit.db.default
 COPY env.example /orbit/env.example
 
