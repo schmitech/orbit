@@ -99,6 +99,7 @@ def test_resolve_config_enables_selected_inference_and_vision_providers(profile_
 
     vision = yaml.safe_load((runtime_config_dir / "vision.yaml").read_text())
     assert vision["visions"][profile.vision_provider]["enabled"] is True
+    assert vision["visions"][profile.vision_provider]["model"] == profile.vision_model
 
 
 @pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])

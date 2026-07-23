@@ -67,7 +67,7 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
   schmitech/orbit-ollama:latest
 ```
 
-The first run downloads the local chat/vision model (`gemma4:e2b`) and can take a few minutes. Open [http://localhost:5173](http://localhost:5173) and start chatting — upload a PDF, a spreadsheet, or an image and ask about it. No cloud account or API key required.
+The first run downloads the local chat/vision model (`gemma4:e2b`, ~7.2 GB) inside the container and will take some time to complete startup depending on your internet connection speed. Once pulled, open [http://localhost:5173](http://localhost:5173) and start chatting — upload a PDF, a spreadsheet, or an image and ask about it. No cloud account or API key required.
 </details>
 
 <details>

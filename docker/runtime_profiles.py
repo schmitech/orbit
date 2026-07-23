@@ -161,6 +161,7 @@ def _resolve_provider_enablement(profile: RuntimeProfile, config_dir: Path) -> N
         provider_block = data.get("visions", {}).get(profile.vision_provider)
         if provider_block is not None:
             provider_block["enabled"] = True
+            provider_block["model"] = profile.vision_model
         # The canonical default also ships a GLOBAL vision.enabled: false (on
         # top of the per-provider visions.<name>.enabled above).
         # file_processing_service.py reads this as self.enable_vision and,
