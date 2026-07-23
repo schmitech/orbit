@@ -101,6 +101,32 @@ def test_resolve_config_enables_selected_inference_and_vision_providers(profile_
     assert vision["visions"][profile.vision_provider]["enabled"] is True
 
 
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+def test_resolve_config_enables_global_vision_flag(profile_id, runtime_config_dir):
+    # file_processing_service.py reads the global vision.enabled (default
+    # false) as self.enable_vision; if false, image uploads are routed
+    # through MarkItDown/OCR instead of the vision LLM path entirely,
+    # regardless of the adapter's own vision_provider override.
+    profile = rp.get_profile(profile_id)
+    rp.resolve_config(profile, runtime_config_dir)
+
+    vision = yaml.safe_load((runtime_config_dir / "vision.yaml").read_text())
+    assert vision["vision"]["enabled"] is True
+    assert vision["vision"]["provider"] == profile.vision_provider
+
+
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+def test_resolve_config_enables_global_embedding_flag(profile_id, runtime_config_dir):
+    # base_retriever.py treats embedding.enabled: false as an explicit
+    # disable and skips creating any embedding service at all, independent
+    # of the adapter's own embedding_provider override.
+    profile = rp.get_profile(profile_id)
+    rp.resolve_config(profile, runtime_config_dir)
+
+    embeddings = yaml.safe_load((runtime_config_dir / "embeddings.yaml").read_text())
+    assert embeddings["embedding"]["enabled"] is True
+
+
 def test_resolve_config_points_sqlite_at_data_volume_and_drops_audio_imports(runtime_config_dir):
     profile = rp.get_profile("openai")
     rp.resolve_config(profile, runtime_config_dir)

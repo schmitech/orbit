@@ -56,6 +56,9 @@ No clone, no build, no config file to hand-edit. Pull a flavor image and run it 
 
 **Prerequisites:** Docker, 4 GB of free RAM, and 3 GB of disk space.
 
+<details open>
+<summary><strong>Option 1: Local / Offline (Ollama)</strong></summary>
+
 ```bash
 docker pull schmitech/orbit-ollama:latest
 docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
@@ -65,8 +68,10 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
 ```
 
 The first run downloads the local chat/vision model (`gemma4:e2b`) and can take a few minutes. Open [http://localhost:5173](http://localhost:5173) and start chatting — upload a PDF, a spreadsheet, or an image and ask about it. No cloud account or API key required.
+</details>
 
-Prefer a hosted model? Same pull/run flow, just add your provider's key:
+<details>
+<summary><strong>Option 2: OpenAI Hosted Model</strong></summary>
 
 ```bash
 export OPENAI_API_KEY=sk-...
@@ -77,6 +82,10 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
   -v orbit-data:/orbit/data \
   schmitech/orbit-openai:latest
 ```
+</details>
+
+<details>
+<summary><strong>Option 3: Gemini Hosted Model</strong></summary>
 
 ```bash
 export GOOGLE_API_KEY=...
@@ -87,8 +96,10 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
   -v orbit-data:/orbit/data \
   schmitech/orbit-gemini:latest
 ```
+</details>
 
-`-e OPENAI_API_KEY` (no `=value`) passes through whatever that variable is already set to in your shell — export it first, don't paste the key inline as `-e OPENAI_API_KEY=sk-...`, which would leave it sitting in your shell history. Each cloud flavor needs exactly one credential — the same key powers chat, vision, and embeddings, so nothing silently falls back to a different provider. `docker pull` never needs, receives, or persists a credential; only `docker run` does.
+> [!NOTE]
+> `-e OPENAI_API_KEY` (no `=value`) passes through whatever that variable is already set to in your shell — export it first, don't paste the key inline as `-e OPENAI_API_KEY=sk-...`, which would leave it sitting in your shell history. Each cloud flavor needs exactly one credential — the same key powers chat, vision, and embeddings, so nothing silently falls back to a different provider. `docker pull` never needs, receives, or persists a credential; only `docker run` does.
 
 Port `5173` is the chat UI, `3000` is the OpenAI-compatible API if you want to call ORBIT directly:
 
@@ -99,6 +110,8 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   -H 'X-Session-ID: local-test' \
   -d '{"messages":[{"role":"user","content":"What can ORBIT connect to?"}]}'
 ```
+
+You can also access the Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `admin123` — which can be changed inside the admin panel).
 
 > [!IMPORTANT]
 > These images ship with a default database and API key for first-run convenience. Rotate the default API key/admin password before exposing ORBIT beyond localhost.

@@ -161,6 +161,16 @@ def _resolve_provider_enablement(profile: RuntimeProfile, config_dir: Path) -> N
         provider_block = data.get("visions", {}).get(profile.vision_provider)
         if provider_block is not None:
             provider_block["enabled"] = True
+        # The canonical default also ships a GLOBAL vision.enabled: false (on
+        # top of the per-provider visions.<name>.enabled above).
+        # file_processing_service.py reads this as self.enable_vision and,
+        # if false, routes image uploads through MarkItDown/OCR instead of
+        # the vision LLM path entirely — regardless of the adapter's own
+        # vision_provider override.
+        global_vision_block = data.get("vision")
+        if global_vision_block is not None:
+            global_vision_block["enabled"] = True
+            global_vision_block["provider"] = profile.vision_provider
         _dump_yaml(vision_path, data)
 
     # The canonical default ships "ollama" enabled as the out-of-the-box local
@@ -173,6 +183,18 @@ def _resolve_provider_enablement(profile: RuntimeProfile, config_dir: Path) -> N
         if ollama_block is not None:
             ollama_block["enabled"] = False
         _dump_yaml(inference_path, data)
+
+    # base_retriever.py treats the global embedding.enabled flag (default
+    # false in the canonical config) as an explicit disable and never
+    # initializes an embedding service at all — independent of the adapter's
+    # own embedding_provider override — so file uploads fail to index/query.
+    embeddings_path = config_dir / "embeddings.yaml"
+    if embeddings_path.exists():
+        data = _load_yaml(embeddings_path)
+        embedding_block = data.get("embedding")
+        if embedding_block is not None:
+            embedding_block["enabled"] = True
+        _dump_yaml(embeddings_path, data)
 
 
 def _resolve_docker_paths(profile: RuntimeProfile, config_path: Path) -> None:
