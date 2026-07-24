@@ -222,7 +222,7 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 ## Used in production
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/b599906b-50ec-4199-ad4d-b314000143f9" controls muted playsinline width="80%"></video>
+  <video src="https://github.com/user-attachments/assets/82b92525-cc37-47af-bd47-b3ef9dd6ece8" controls muted playsinline width="80%"></video>
   <br />
   <em><a href="https://dialoga.ca">Dialoga</a>, a Canadian AI chat product, is built on ORBIT. The hosted service is currently limited to Canadian IP addresses.</em>
 </p>
