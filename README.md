@@ -137,9 +137,9 @@ You can also access the Admin Panel at [http://localhost:3000/admin](http://loca
 > [!IMPORTANT]
 > These images ship with a default database and API key for first-run convenience. Rotate the default API key/admin password before exposing ORBIT beyond localhost.
 
-Prefer a stable native installation, or want Ollama/postgres/vector-store services split into their own containers? Download the latest [release](https://github.com/schmitech/orbit/releases), or follow the [Docker guide](docker/README.md) (flavor images, docker-compose, and build-from-source options), [full tutorial](docs/tutorial.md), or [Windows guide](install/windows.md).
+For production deployments, **ALWAYS** use the latest stable [release](https://github.com/schmitech/orbit/releases).
 
-**Building private AI infrastructure? [Star ORBIT](https://github.com/schmitech/orbit) to follow new model, datasource, and agent integrations.**
+You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutorial.md), or [Windows guide](install/windows.md).
 
 ---
 
@@ -245,8 +245,6 @@ ORBIT is actively maintained, Apache 2.0 licensed, and developed in the open. Se
 Contributions are welcome: new retrievers and provider integrations, deployment guides, tests, fixes, and documentation. Read [CONTRIBUTING.md](CONTRIBUTING.md), pick an [open issue](https://github.com/schmitech/orbit/issues), or start a discussion.
 
 Maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
-
-If ORBIT is useful to you, **[give the project a star](https://github.com/schmitech/orbit)**. It helps other developers discover the project and tells us which integrations to keep building.
 
 ## License
 
