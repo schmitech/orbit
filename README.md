@@ -68,6 +68,12 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
 ```
 
 The first run downloads the local chat/vision model (`gemma4:e2b`, ~7.2 GB) inside the container and will take some time to complete startup depending on your internet connection speed. Once pulled, open [http://localhost:5173](http://localhost:5173) and start chatting — upload a PDF, a spreadsheet, or an image and ask about it. No cloud account or API key required.
+
+| | Model |
+| :--- | :--- |
+| Chat | `gemma4:e2b` (Ollama) |
+| Vision | `gemma4:e2b` (Ollama) |
+| Embeddings | `nomic-embed-text` (Ollama) |
 </details>
 
 <details>
@@ -82,6 +88,12 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
   -v orbit-data:/orbit/data \
   schmitech/orbit-openai:latest
 ```
+
+| | Model |
+| :--- | :--- |
+| Chat | `gpt-5.4-mini` (also selectable: `gpt-5.4`, `gpt-5.4-nano`) |
+| Vision | `gpt-5.5` |
+| Embeddings | `text-embedding-3-small` |
 </details>
 
 <details>
@@ -96,7 +108,16 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
   -v orbit-data:/orbit/data \
   schmitech/orbit-gemini:latest
 ```
+
+| | Model |
+| :--- | :--- |
+| Chat | `gemini-3.1-pro-preview` (also selectable: `gemini-3.6-flash`) |
+| Vision | `gemini-3.6-flash` |
+| Embeddings | `gemini-embedding-2-preview` |
 </details>
+
+> [!TIP]
+> These are just the defaults. Change the active model per adapter from the Admin Panel's adapter settings (persists across restarts, stored in the `orbit-data` volume), or inspect/edit the resolved YAML directly at `/orbit/config-runtime/adapters/multimodal.yaml` inside the running container (`docker exec -it orbit sh`) — note that a container restart regenerates this file from the image default, so edits there don't survive a restart on their own.
 
 > [!NOTE]
 > `-e OPENAI_API_KEY` (no `=value`) passes through whatever that variable is already set to in your shell — export it first, don't paste the key inline as `-e OPENAI_API_KEY=sk-...`, which would leave it sitting in your shell history. Each cloud flavor needs exactly one credential — the same key powers chat, vision, and embeddings, so nothing silently falls back to a different provider. `docker pull` never needs, receives, or persists a credential; only `docker run` does.
