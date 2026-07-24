@@ -52,7 +52,9 @@ ORBIT sits between your applications and the models, data, and tools they need. 
 
 ## 🚀 Quick Start
 
-No clone, no build, no config file to hand-edit. Pull a flavor image and run it — ORBIT, the orbitchat web UI, and a full multimodal document-chat setup (PDF, Word, Excel, images, Markdown) are all inside.
+Want to try ORBIT immediately without installing anything? Try the live [ORBIT Sandbox](https://orbit.schmitech.ca/).
+
+Otherwise, no clone, no build, no config file to hand-edit. Pull a flavor image and run it — ORBIT, the orbitchat web UI, and a full multimodal document-chat setup (PDF, Word, Excel, images, Markdown) are all inside.
 
 **Prerequisites:** Docker, 4 GB of free RAM, and 3 GB of disk space.
 
