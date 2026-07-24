@@ -410,7 +410,7 @@ function createProxyApi(): ApiFunctions {
         });
 
         if (!response.ok) {
-          throw new Error(await buildErrorMessage(response));
+          throw new ApiRequestError(await buildErrorMessage(response), response);
         }
 
         if (response.headers.get('content-type')?.includes('text/event-stream')) {
@@ -483,7 +483,7 @@ function createProxyApi(): ApiFunctions {
           }),
           body: JSON.stringify({ message_id: messageId, session_id: sessId }),
         });
-        if (!response.ok) throw new Error(`Failed to create thread: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -493,7 +493,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(`Failed to get thread info: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -504,7 +504,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(`Failed to delete thread: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -526,7 +526,7 @@ function createProxyApi(): ApiFunctions {
           }),
           body: JSON.stringify(body),
         });
-        if (!response.ok) throw new Error(`Failed to submit feedback: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -536,7 +536,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(`Failed to get feedback: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -551,7 +551,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(`Failed to clear history: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -569,7 +569,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(`Failed to load history: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -585,7 +585,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(`Failed to delete conversation: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -601,7 +601,7 @@ function createProxyApi(): ApiFunctions {
           }),
           body: formData,
         });
-        if (!response.ok) throw new Error(`Failed to upload file: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -611,7 +611,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(`Failed to list files: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         const data = await response.json();
         return Array.isArray(data) ? data : (data.files || []);
       },
@@ -623,7 +623,7 @@ function createProxyApi(): ApiFunctions {
           }),
           signal,
         });
-        if (!response.ok) throw new Error(`Failed to get file info: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -636,7 +636,7 @@ function createProxyApi(): ApiFunctions {
           }),
           body: JSON.stringify({ query, max_results: maxResults }),
         });
-        if (!response.ok) throw new Error(`Failed to query file: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -647,7 +647,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(`Failed to delete file: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -657,7 +657,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(`Failed to validate API key: ${response.statusText}`);
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -740,7 +740,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(await buildErrorMessage(response));
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -750,7 +750,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(await buildErrorMessage(response));
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -760,7 +760,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(await buildErrorMessage(response));
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
 
@@ -770,7 +770,7 @@ function createProxyApi(): ApiFunctions {
             'X-Adapter-Name': clientAdapterName,
           }),
         });
-        if (!response.ok) throw new Error(await buildErrorMessage(response));
+        if (!response.ok) throw new ApiRequestError(await buildErrorMessage(response), response);
         return response.json();
       },
     };

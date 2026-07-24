@@ -472,6 +472,11 @@
     "emptyStateHeading": "Deine Nachrichten werden hier angezeigt.",
     "emptyStateSubheading": "Starte die Konversation, indem du unten einen Prompt sendest."
   },
+  "chat": {
+    "errors": {
+      "servicePaused": "Der ORBIT-Server ist pausiert. Bitte versuche es später erneut."
+    }
+  },
   "voice": {
     "browserNotSupported": "Spracherkennung wird in diesem Browser nicht unterstützt. Bitte versuche es mit Chrome, Edge oder Safari.",
     "error": {

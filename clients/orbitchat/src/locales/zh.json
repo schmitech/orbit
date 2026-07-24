@@ -472,6 +472,11 @@
     "emptyStateHeading": "你的消息将显示在这里。",
     "emptyStateSubheading": "在下方发送提示词以开始会话。"
   },
+  "chat": {
+    "errors": {
+      "servicePaused": "ORBIT 服务器已暂停。请稍后重试。"
+    }
+  },
   "voice": {
     "browserNotSupported": "此浏览器不支持语音识别。请尝试使用 Chrome、Edge 或 Safari。",
     "error": {

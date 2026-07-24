@@ -472,6 +472,11 @@
     "emptyStateHeading": "ここにメッセージが表示されます。",
     "emptyStateSubheading": "下にプロンプトを送信して会話を開始してください。"
   },
+  "chat": {
+    "errors": {
+      "servicePaused": "ORBIT サーバーは一時停止中です。時間をおいてもう一度お試しください。"
+    }
+  },
   "voice": {
     "browserNotSupported": "このブラウザーでは音声認識がサポートされていません。Chrome、Edge、または Safari をお試しください。",
     "error": {

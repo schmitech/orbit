@@ -1,5 +1,6 @@
 import { create, type StoreApi } from 'zustand';
-import { getApi, ApiClient } from '../apiClient';
+import { getApi, ApiClient, ApiRequestError } from '../apiClient';
+import i18n from '../i18n';
 import { Message, Conversation, ChatState, FileAttachment, AdapterInfo, RealtimeVoiceState } from '../types';
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
@@ -40,6 +41,27 @@ let activeAbortController: AbortController | null = null;
 let activeRequestId: string | null = null;
 let activeStreamSessionId: string | null = null;
 let activeStreamConversationId: string | null = null;
+
+function isServicePausedError(error: unknown): error is ApiRequestError {
+  return error instanceof ApiRequestError && error.status === 503;
+}
+
+function getChatErrorMessage(error: unknown, fallbackMessage: string): string {
+  if (isServicePausedError(error)) {
+    return i18n.t('chat.errors.servicePaused');
+  }
+
+  if (error instanceof Error) {
+    if (error.message.startsWith('Server error:')) {
+      return error.message.substring('Server error: '.length);
+    }
+    if (error.message.includes('Could not connect') || error.message.includes('timed out')) {
+      return error.message;
+    }
+  }
+
+  return fallbackMessage;
+}
 
 const flushStreamingBuffer = (
   conversationId: string,
@@ -361,18 +383,13 @@ async function _runStreamIntoMessage(
       debugLog(`[chatStore] ${logLabel === 'edit-regenerate' ? 'Edit-regenerate' : 'Regeneration'} stream was cancelled by user`);
       receivedAnyText = true;
     } else {
-      logError(`${logLabel === 'edit-regenerate' ? 'Edit-regenerate' : 'Regenerate'} API error:`, error);
-      let errorMessage = 'Sorry, there was an error regenerating the response.';
-      if (error instanceof Error) {
-        if (error.message.startsWith('Server error:')) {
-          errorMessage = error.message.substring('Server error: '.length);
-        } else if (
-          error.message.includes('Could not connect') ||
-          error.message.includes('timed out')
-        ) {
-          errorMessage = error.message;
-        }
-      }
+      const isPaused = isServicePausedError(error);
+      const log = isPaused ? debugWarn : logError;
+      log(`${logLabel === 'edit-regenerate' ? 'Edit-regenerate' : 'Regenerate'} API ${isPaused ? 'warning' : 'error'}:`, error);
+      const errorMessage = getChatErrorMessage(
+        error,
+        'Sorry, there was an error regenerating the response.'
+      );
       get().appendToLastMessage(errorMessage, conversationId, assistantMessageId);
     }
   }
@@ -1301,18 +1318,13 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           debugLog('[chatStore] Stream was cancelled by user');
           receivedAnyText = true;
         } else {
-          logError('Chat API error:', error);
-          let errorMessage = 'Sorry, there was an error processing your request.';
-          if (error instanceof Error) {
-            if (error.message.startsWith('Server error:')) {
-              errorMessage = error.message.substring('Server error: '.length);
-            } else if (
-              error.message.includes('Could not connect') ||
-              error.message.includes('timed out')
-            ) {
-              errorMessage = error.message;
-            }
-          }
+          const isPaused = isServicePausedError(error);
+          const log = isPaused ? debugWarn : logError;
+          log(`Chat API ${isPaused ? 'warning' : 'error'}:`, error);
+          const errorMessage = getChatErrorMessage(
+            error,
+            'Sorry, there was an error processing your request.'
+          );
           get().appendToLastMessage(errorMessage, streamingConversationId, assistantMessageId);
         }
       }

@@ -289,6 +289,23 @@ interface ApiClientConfig {
   middlewareBaseUrl?: string | null;
 }
 
+export class ApiRequestError extends Error {
+  status: number;
+  statusText: string;
+
+  constructor(message: string, status: number, statusText: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.statusText = statusText;
+  }
+}
+
+function isServicePausedError(error: unknown): error is ApiRequestError {
+  return error instanceof ApiRequestError && error.status === 503;
+}
+
+const SERVICE_PAUSED_MESSAGE = 'The server is currently paused. Please try again shortly.';
 const NETWORK_ERROR_MESSAGE = 'Could not connect to the server. Please check if the server is running.';
 // Keep in sync with the server's MAX_COMMENT_LENGTH (server/services/feedback_service.py).
 export const FEEDBACK_COMMENT_MAX_LENGTH = 2000;
@@ -1464,7 +1481,7 @@ export class ApiClient {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Network response was not ok: ${response.status} ${errorText}`);
+        throw new ApiRequestError(`Network response was not ok: ${response.status} ${errorText}`, response.status, response.statusText);
       }
 
       if (!stream) {
@@ -1638,6 +1655,9 @@ export class ApiClient {
           throw new Error('Stream cancelled by user');
         }
         throw new Error('Connection timed out. Please check if the server is running.');
+      } else if (isServicePausedError(error)) {
+        console.warn(`[ApiClient] ${SERVICE_PAUSED_MESSAGE}`);
+        throw new Error(SERVICE_PAUSED_MESSAGE);
       } else if (this.hasFailedToFetch(error)) {
         throw new Error(NETWORK_ERROR_MESSAGE);
       } else {

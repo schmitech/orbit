@@ -472,6 +472,11 @@
     "emptyStateHeading": "Tus mensajes aparecerán aquí.",
     "emptyStateSubheading": "Inicia la conversación enviando un prompt abajo."
   },
+  "chat": {
+    "errors": {
+      "servicePaused": "El servidor ORBIT está en pausa. Vuelve a intentarlo más tarde."
+    }
+  },
   "voice": {
     "browserNotSupported": "El reconocimiento de voz no es compatible con este navegador. Prueba Chrome, Edge o Safari.",
     "error": {

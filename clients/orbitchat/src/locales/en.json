@@ -472,6 +472,11 @@
     "emptyStateHeading": "Your messages will appear here.",
     "emptyStateSubheading": "Start the conversation by sending a prompt below."
   },
+  "chat": {
+    "errors": {
+      "servicePaused": "The ORBIT server is paused. Please try again later."
+    }
+  },
   "voice": {
     "browserNotSupported": "Speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.",
     "error": {
