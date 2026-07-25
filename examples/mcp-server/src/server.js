@@ -4,7 +4,8 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 import { data, money, normalize } from "./data.js";
 
-const PORT = Number(process.env.PORT || 9999);
+const portArg = process.argv.find((arg) => arg.startsWith("--port="))?.slice("--port=".length);
+const PORT = Number(process.env.PORT || portArg || 9999);
 const HOST = process.env.HOST || "127.0.0.1";
 const MCP_PATH = process.env.MCP_PATH || "/mcp";
 const REQUIRED_TOKEN = process.env.MCP_TOKEN || process.argv.find((arg) => arg.startsWith("--token="))?.slice("--token=".length) || "test-secret";
@@ -198,6 +199,142 @@ function createMcpServer() {
       });
     }
   );
+
+  server.tool(
+    "get_product_telemetry",
+    "Get detailed product adoption metrics, seat utilization, and inactivity risks for a customer.",
+    {
+      customerId: z.string().describe("Customer ID, e.g. cus_0007.")
+    },
+    async ({ customerId }) => {
+      const customer = data.customers.find((c) => c.id === customerId);
+      if (!customer) {
+        return textResult({ error: `Customer '${customerId}' was not found.` }, true);
+      }
+
+      const utilizationPct = Math.round((customer.activeSeats / customer.purchasedSeats) * 100);
+      const assignmentPct = Math.round((customer.assignedSeats / customer.purchasedSeats) * 100);
+      const unassignedSeats = customer.purchasedSeats - customer.assignedSeats;
+
+      return textResult({
+        customerId: customer.id,
+        customerName: customer.name,
+        seats: {
+          purchased: customer.purchasedSeats,
+          assigned: customer.assignedSeats,
+          activeWeekly: customer.activeSeats,
+          unassigned: unassignedSeats,
+          assignmentRatePct: assignmentPct,
+          utilizationRatePct: utilizationPct
+        },
+        healthStatus: utilizationPct < 50 ? "At Risk - Severe Underutilization" : utilizationPct < 70 ? "Needs Adoption Push" : "Healthy Adoption",
+        telemetryAlerts: customer.riskSignals.concat(
+          utilizationPct < 50 ? ["License seat utilization is under 50%"] : []
+        )
+      });
+    }
+  );
+
+  server.tool(
+    "list_support_tickets",
+    "List and filter customer support tickets by customer ID, region, owner, priority, status, or SLA breach status.",
+    {
+      customerId: z.string().optional().describe("Filter by specific customer ID."),
+      region: z.string().optional().describe("Filter by region (e.g. North America, EMEA)."),
+      owner: z.string().optional().describe("Filter by account owner name."),
+      priority: z.string().optional().describe("Filter priority: P1 - Critical, P2 - High, P3 - Medium, or P4 - Low."),
+      status: z.string().optional().describe("Filter status: open, in_progress, or resolved."),
+      slaBreachedOnly: z.boolean().optional().describe("Set true to only return SLA breached tickets."),
+      limit: z.coerce.number().int().optional().describe("Maximum tickets to return (max 25).")
+    },
+    async ({ customerId, region, owner, priority, status, slaBreachedOnly, limit }) => {
+      const resultLimit = clampLimit(limit);
+      const rows = data.supportTickets
+        .filter((t) => !customerId || t.customerId === customerId)
+        .filter((t) => !region || normalize(t.region) === normalize(region))
+        .filter((t) => !owner || normalize(t.owner).includes(normalize(owner)))
+        .filter((t) => !priority || normalize(t.priority).includes(normalize(priority)))
+        .filter((t) => !status || normalize(t.status) === normalize(status))
+        .filter((t) => !slaBreachedOnly || t.slaBreached === true)
+        .slice(0, resultLimit);
+
+      return textResult({ count: rows.length, tickets: rows });
+    }
+  );
+
+  server.tool(
+    "simulate_churn_risk_scenario",
+    "Run hypothetical churn & ARR impact simulations based on current health score, seat utilization, and support escalations.",
+    {
+      customerId: z.string().describe("Customer ID to model."),
+      arrImpactPct: z.number().min(0).max(100).optional().default(100).describe("Percentage of ARR affected if renewed at risk (0-100%).")
+    },
+    async ({ customerId, arrImpactPct }) => {
+      const customer = data.customers.find((c) => c.id === customerId);
+      if (!customer) {
+        return textResult({ error: `Customer '${customerId}' was not found.` }, true);
+      }
+
+      const tickets = data.supportTickets.filter((t) => t.customerId === customerId && t.status !== "resolved");
+      const criticalTickets = tickets.filter((t) => t.priority.startsWith("P1") || t.priority.startsWith("P2"));
+      const utilizationPct = Math.round((customer.activeSeats / customer.purchasedSeats) * 100);
+
+      let baseRiskPoints = 100 - customer.healthScore;
+      if (criticalTickets.length > 0) baseRiskPoints += criticalTickets.length * 15;
+      if (utilizationPct < 50) baseRiskPoints += 20;
+
+      const churnProbabilityPct = Math.min(Math.max(baseRiskPoints, 5), 95);
+      const estimatedArrAtRisk = Math.round(customer.annualRecurringRevenue * (arrImpactPct / 100) * (churnProbabilityPct / 100));
+
+      return textResult({
+        customerId: customer.id,
+        customerName: customer.name,
+        currentArr: money(customer.annualRecurringRevenue),
+        healthScore: customer.healthScore,
+        openEscalationsCount: criticalTickets.length,
+        utilizationPct: `${utilizationPct}%`,
+        simulationResults: {
+          churnProbabilityPct: `${churnProbabilityPct}%`,
+          estimatedArrAtRisk: money(estimatedArrAtRisk),
+          riskCategory: churnProbabilityPct > 60 ? "High Churn Danger" : churnProbabilityPct > 30 ? "Moderate Renewal Risk" : "Low Risk",
+          keyDrivers: [
+            customer.healthScore < 60 ? `Low health score (${customer.healthScore})` : null,
+            criticalTickets.length > 0 ? `${criticalTickets.length} open P1/P2 support escalations` : null,
+            utilizationPct < 50 ? `Severe underutilization (${utilizationPct}% active)` : null
+          ].filter(Boolean)
+        }
+      });
+    }
+  );
+
+  server.tool(
+    "get_sales_rep_performance",
+    "Get quota attainment, active pipeline health, and support ticket burden for account representatives.",
+    {
+      owner: z.string().optional().describe("Case-insensitive account owner filter.")
+    },
+    async ({ owner }) => {
+      const reps = data.salesReps
+        .filter((rep) => !owner || normalize(rep.name).includes(normalize(owner)))
+        .map((rep) => {
+          const repTickets = data.supportTickets.filter((t) => normalize(t.owner).includes(normalize(rep.name)) && t.status !== "resolved");
+          const slaBreachedCount = repTickets.filter((t) => t.slaBreached).length;
+          return {
+            name: rep.name,
+            quota: money(rep.quota),
+            closedWon: money(rep.closedWon),
+            attainmentPct: `${rep.attainmentPct}%`,
+            activePipeline: money(rep.activePipeline),
+            dealCount: rep.dealCount,
+            unresolvedSupportTickets: repTickets.length,
+            slaBreachedTickets: slaBreachedCount
+          };
+        });
+
+      return textResult({ count: reps.length, salesReps: reps });
+    }
+  );
+
 
   return server;
 }

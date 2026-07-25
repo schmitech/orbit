@@ -24,15 +24,60 @@ The server listens at `http://127.0.0.1:9999/mcp` by default and requires:
 Authorization: Bearer test-secret
 ```
 
-You can override the host, port, path, and token:
+You can override the host, port, path, and token via environment variables or CLI flags:
 
 ```bash
-HOST=127.0.0.1 PORT=9999 MCP_PATH=/mcp MCP_TOKEN=test-secret npm start
+# Using environment variables:
+PORT=8080 MCP_TOKEN=test-secret npm start
+
+# Or using CLI flags:
+npm start -- --port=8080 --token=test-secret
 ```
 
 Set `MCP_TOKEN=""` to disable auth for local experiments.
 
+---
+
+## Running as a Daemon (pm2)
+
+### Install pm2
+
+```bash
+sudo npm install -g pm2
+```
+
+### Production / Daemon Setup
+
+Start the MCP server process via `pm2` on your desired port:
+
+```bash
+cd examples/mcp-server
+
+# Option A: Specify port via environment variable
+PORT=8080 MCP_TOKEN=test-secret npx pm2 start npm --name "orbit-mcp-server" -- run start
+
+# Option B: Pass port via CLI arguments
+MCP_TOKEN=test-secret npx pm2 start npm --name "orbit-mcp-server" -- run start -- --port=8080
+
+npx pm2 save
+npx pm2 startup
+```
+
+Run the command printed by `pm2 startup` (requires sudo) to enable auto-start on reboot.
+
+### Common pm2 commands
+
+```bash
+npx pm2 status                  # check running processes
+npx pm2 logs orbit-mcp-server   # tail logs
+npx pm2 restart orbit-mcp-server # restart the server
+npx pm2 stop orbit-mcp-server    # stop the server
+```
+
+---
+
 ## ORBIT Config
+
 
 Use this in `config/mcp_client.yaml`. You can replace the existing `test-server`
 entry that points to `server/tests/test_services/mcp_http_test_server.py`:

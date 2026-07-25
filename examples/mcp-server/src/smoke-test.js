@@ -24,7 +24,19 @@ try {
   const names = tools.tools.map((tool) => tool.name).sort();
   console.log("Discovered tools:", names.join(", "));
 
-  for (const expected of ["list_customers", "get_customer_health", "search_opportunities", "summarize_pipeline", "build_account_plan"]) {
+  const expectedTools = [
+    "list_customers",
+    "get_customer_health",
+    "search_opportunities",
+    "summarize_pipeline",
+    "build_account_plan",
+    "get_product_telemetry",
+    "list_support_tickets",
+    "simulate_churn_risk_scenario",
+    "get_sales_rep_performance"
+  ];
+
+  for (const expected of expectedTools) {
     if (!names.includes(expected)) {
       throw new Error(`Missing expected tool: ${expected}`);
     }
@@ -34,21 +46,50 @@ try {
     name: "list_customers",
     arguments: { region: "North America", limit: 3 }
   });
-  console.log("list_customers result:");
-  console.log(listResult.content[0].text);
-
   const parsed = JSON.parse(listResult.content[0].text);
   const customerId = parsed.customers[0]?.id;
   if (!customerId) {
     throw new Error("No customer id returned from list_customers.");
   }
+  console.log("✓ list_customers passed.");
 
   const healthResult = await client.callTool({
     name: "get_customer_health",
     arguments: { customerId }
   });
-  console.log("get_customer_health result:");
-  console.log(healthResult.content[0].text);
+  console.log("✓ get_customer_health passed.");
+
+  const telemetryResult = await client.callTool({
+    name: "get_product_telemetry",
+    arguments: { customerId }
+  });
+  const telemetryParsed = JSON.parse(telemetryResult.content[0].text);
+  if (!telemetryParsed.seats) {
+    throw new Error("Missing seats object in telemetry response.");
+  }
+  console.log("✓ get_product_telemetry passed.");
+
+  const ticketsResult = await client.callTool({
+    name: "list_support_tickets",
+    arguments: { customerId, limit: 5 }
+  });
+  console.log("✓ list_support_tickets passed.");
+
+  const churnSimResult = await client.callTool({
+    name: "simulate_churn_risk_scenario",
+    arguments: { customerId, arrImpactPct: 80 }
+  });
+  const churnParsed = JSON.parse(churnSimResult.content[0].text);
+  if (!churnParsed.simulationResults) {
+    throw new Error("Missing simulationResults in churn scenario response.");
+  }
+  console.log("✓ simulate_churn_risk_scenario passed.");
+
+  const repPerfResult = await client.callTool({
+    name: "get_sales_rep_performance",
+    arguments: { owner: "Avery Chen" }
+  });
+  console.log("✓ get_sales_rep_performance passed.");
 
   const oversizedLimitResult = await client.callTool({
     name: "search_opportunities",
@@ -58,11 +99,13 @@ try {
   if (oversizedLimitPayload.count > 25) {
     throw new Error(`Expected oversized limit to be clamped to 25, got ${oversizedLimitPayload.count}`);
   }
+  console.log("✓ Clamp limit assertion passed.");
 
   await client.close();
-  console.log("Smoke test passed.");
+  console.log("\nAll smoke tests passed successfully!");
 } catch (error) {
   await client.close().catch(() => {});
   console.error(error);
   process.exitCode = 1;
 }
+

@@ -17,6 +17,9 @@ function buildData() {
     });
     const healthScore = faker.number.int({ min: 38, max: 96 });
     const renewalDays = faker.number.int({ min: 15, max: 330 });
+    const purchasedSeats = faker.number.int({ min: 50, max: segment === "Enterprise" ? 5000 : 1000 });
+    const assignedSeats = Math.round(purchasedSeats * faker.number.float({ min: 0.4, max: 0.98 }));
+    const activeSeats = Math.round(assignedSeats * faker.number.float({ min: 0.35, max: 0.95 }));
 
     return {
       id: `cus_${String(index + 1).padStart(4, "0")}`,
@@ -28,7 +31,9 @@ function buildData() {
       annualRecurringRevenue: arr,
       healthScore,
       renewalDate: faker.date.soon({ days: renewalDays }).toISOString().slice(0, 10),
-      activeSeats: faker.number.int({ min: 25, max: segment === "Enterprise" ? 4500 : 800 }),
+      purchasedSeats,
+      assignedSeats,
+      activeSeats,
       openSupportCases: faker.number.int({ min: 0, max: healthScore < 60 ? 12 : 4 }),
       lastExecutiveMeeting: faker.date.recent({ days: 90 }).toISOString().slice(0, 10),
       primaryContact: {
@@ -86,7 +91,61 @@ function buildData() {
     };
   });
 
-  return { customers, opportunities };
+  const supportTickets = [];
+  let ticketIndex = 1;
+  for (const customer of customers) {
+    const ticketCount = faker.number.int({ min: 1, max: customer.healthScore < 60 ? 6 : 3 });
+    for (let i = 0; i < ticketCount; i++) {
+      const priority = faker.helpers.weightedArrayElement([
+        { weight: 1, value: "P1 - Critical" },
+        { weight: 3, value: "P2 - High" },
+        { weight: 4, value: "P3 - Medium" },
+        { weight: 2, value: "P4 - Low" }
+      ]);
+      const status = faker.helpers.weightedArrayElement([
+        { weight: 4, value: "open" },
+        { weight: 1, value: "in_progress" },
+        { weight: 5, value: "resolved" }
+      ]);
+      const slaBreached = priority.startsWith("P1") || priority.startsWith("P2") ? faker.datatype.boolean(0.3) : false;
+
+      supportTickets.push({
+        id: `tkt_${String(ticketIndex++).padStart(4, "0")}`,
+        customerId: customer.id,
+        customerName: customer.name,
+        region: customer.region,
+        owner: customer.owner,
+        priority,
+        status,
+        subject: faker.hacker.phrase(),
+        slaBreached,
+        createdAt: faker.date.recent({ days: 30 }).toISOString().slice(0, 10),
+        resolutionDays: status === "resolved" ? faker.number.int({ min: 1, max: 7 }) : null
+      });
+    }
+  }
+
+  const salesReps = OWNERS.map((owner) => {
+    const repOpportunities = opportunities.filter((o) => o.owner === owner);
+    const quota = 1500000;
+    const closedWon = repOpportunities
+      .filter((o) => o.stage === "Closed Won")
+      .reduce((sum, o) => sum + o.amount, 0);
+    const activePipeline = repOpportunities
+      .filter((o) => !o.stage.startsWith("Closed"))
+      .reduce((sum, o) => sum + o.amount, 0);
+
+    return {
+      name: owner,
+      quota,
+      closedWon,
+      attainmentPct: Math.round((closedWon / quota) * 100),
+      activePipeline,
+      dealCount: repOpportunities.length
+    };
+  });
+
+  return { customers, opportunities, supportTickets, salesReps };
 }
 
 export const data = buildData();
@@ -102,3 +161,4 @@ export function money(value) {
 export function normalize(value) {
   return String(value ?? "").trim().toLowerCase();
 }
+

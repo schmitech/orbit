@@ -21,6 +21,10 @@ This listens at `http://127.0.0.1:9999/mcp` and exposes:
 - `search_opportunities`
 - `summarize_pipeline`
 - `build_account_plan`
+- `get_product_telemetry`
+- `list_support_tickets`
+- `simulate_churn_risk_scenario`
+- `get_sales_rep_performance`
 
 ## 2. Enable MCP + opportunistic mode
 
@@ -208,6 +212,38 @@ the same round or across consecutive iterations, depending on the model.
 Confirm both regions' numbers appear correctly attributed in the final
 answer and both show up as separate entries in `sources`.
 
+### I. Multi-dimensional churn risk & telemetry audit (3+ step tool chain)
+
+> "Find the Enterprise customer in EMEA with open P1 support cases, check their product telemetry for seat utilization, and run a churn risk simulation."
+
+This multi-step query requires cross-tool reasoning:
+1. `list_support_tickets` (priority="P1", region="EMEA") or `list_customers` (segment="Enterprise", region="EMEA").
+2. `get_product_telemetry` for the target customer ID to evaluate seat utilization and active usage.
+3. `simulate_churn_risk_scenario` with `arrImpactPct` to forecast potential revenue loss.
+
+Confirm `sources` captures the sequence of tool calls and that the final synthesized response correlates the SLA breaches and product usage with the simulated churn probability.
+
+### J. Rep performance & quota risk aggregation
+
+> "Which sales representative in APAC has the highest revenue pipeline at risk due to open SLA breaches?"
+
+Requires:
+1. `search_opportunities` (region="APAC") or `list_support_tickets` (region="APAC", slaBreachedOnly=true).
+2. `get_sales_rep_performance` to evaluate rep attainment, active deal count, and SLA breach burden.
+
+Confirm the model aggregates rep metrics correctly and identifies the rep with highest at-risk pipeline.
+
+### K. Comprehensive account save playbook synthesis
+
+> "Generate an executive account plan for customer cus_0005 incorporating their recent support tickets and seat utilization trends."
+
+Requires:
+1. `get_customer_health` or `list_support_tickets` (customerId="cus_0005").
+2. `get_product_telemetry` (customerId="cus_0005").
+3. `build_account_plan` (customerId="cus_0005", objective="renewal save and product adoption").
+
+Confirm that telemetry metrics (active vs purchased seats) and unresolved ticket details are merged into the final account plan structure.
+
 ## Troubleshooting
 
 - `401 Unauthorized` from the MCP server: the `MCP_TOKEN` used to start
@@ -216,3 +252,4 @@ answer and both show up as separate entries in `sources`.
   `PORT=10099` and update the `url` in `config/mcp_client.yaml` to match.
 - Health check: `curl http://127.0.0.1:9999/health`.
 - Smoke test the server standalone: `cd examples/mcp-server && MCP_TOKEN=test-secret npm run smoke`.
+
