@@ -182,6 +182,17 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 </details>
 
 <details>
+<summary><strong>Real-Time Business & Revenue Intelligence (MCP Tool Calling)</strong></summary>
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/b177b234-e64f-491a-8c3e-8294774c548c" controls muted playsinline width="80%"></video>
+  <br />
+  <em>Multi-step agent reasoning across 9 synthetic MCP tools: CRM health, telemetry seat utilization, P1 support escalations, and churn risk simulation.</em>
+  <br />
+  👉 <a href="https://orbit.schmitech.ca/mcp-business-sample"><strong>Try the Business & Revenue Intelligence MCP demo live →</strong></a>
+</p>
+</details>
+
+<details>
 <summary><strong>Operate the gateway</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/81730186-8dba-4cfa-8613-af5efd82e4c8" controls muted playsinline width="80%"></video>
