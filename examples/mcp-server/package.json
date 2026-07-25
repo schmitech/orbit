@@ -8,11 +8,13 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "smoke": "node src/smoke-test.js",
-    "lint": "node --check src/server.js src/data.js src/smoke-test.js"
+    "lint": "node --check src/server.js src/data.js src/smoke-test.js",
+    "build": "npm run lint && esbuild src/server.js --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js"
   },
   "dependencies": {
     "@faker-js/faker": "^10.1.0",
     "@modelcontextprotocol/sdk": "^1.23.0",
+    "esbuild": "^0.25.0",
     "express": "^5.1.0",
     "pm2": "^5.4.3",
     "zod": "^3.25.76"
@@ -21,4 +23,5 @@
     "node": ">=20"
   }
 }
+
 

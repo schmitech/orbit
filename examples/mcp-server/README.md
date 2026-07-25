@@ -48,10 +48,11 @@ sudo npm install -g pm2
 
 ### Production / Daemon Setup
 
-Start the MCP server process via `pm2` on your desired port:
+Build the project first, then start the MCP server process via `pm2`:
 
 ```bash
 cd examples/mcp-server
+npm run build
 
 # Option A: Specify port via environment variable
 PORT=8080 MCP_TOKEN=test-secret npx pm2 start npm --name "orbit-mcp-server" -- run start
