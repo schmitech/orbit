@@ -199,24 +199,23 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         tools: List[Dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
-        """Single round of tool-enabled generation using OpenAI chat.completions."""
+        """Single round of tool-enabled generation using the Responses API."""
         if not self.initialized:
             await self.initialize()
 
         kw = kwargs.copy()
-        token_param = self._get_token_parameter_name()
-        token_value = self._resolve_token_value(token_param, kw)
+        token_value = self._resolve_token_value("max_output_tokens", kw)
 
         params: Dict[str, Any] = {
             "model": self.model,
-            "messages": messages,
-            token_param: token_value,
+            "input": self._messages_to_responses_input(messages),
+            "max_output_tokens": token_value,
         }
         # Omit tools entirely when none are offered — the OpenAI API rejects an
         # empty tools array, and the final synthesis call passes [] on purpose
         # to force a text answer instead of further tool calls.
         if tools:
-            params["tools"] = tools
+            params["tools"] = self._tools_to_responses_format(tools)
             params["tool_choice"] = "auto"
         temp = kw.pop("temperature", self.temperature)
         if temp is not None and self._supports_temperature():
@@ -224,46 +223,120 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         if self._supports_top_p():
             params["top_p"] = kw.pop("top_p", self.top_p)
 
+        # Chat Completions calls this ``reasoning_effort``; Responses nests it
+        # under ``reasoning`` and supports reasoning together with functions.
+        reasoning_effort = kw.pop("reasoning_effort", None)
+        if reasoning_effort is None:
+            reasoning_effort = self._extract_provider_config().get("reasoning_effort")
+        if reasoning_effort:
+            params["reasoning"] = {"effort": reasoning_effort}
+
         try:
-            response = await self.client.chat.completions.create(**params)
+            response = await self.client.responses.create(**params)
         except Exception as e:
             self._handle_openai_error(e, "tool-calling generation")
             raise
 
-        choice = response.choices[0]
-        msg = choice.message
+        output_items = self._response_output_to_dicts(response)
+        function_calls = [item for item in output_items if item.get("type") == "function_call"]
+        text = getattr(response, "output_text", None)
 
-        # Build OpenAI-format assistant message for the conversation history
-        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+        # Keep the MCP loop's OpenAI-compatible history contract, while
+        # retaining the typed Responses output items.  The latter includes
+        # reasoning items and is fed back on the next turn with the function
+        # outputs, which preserves the model's reasoning context.
+        assistant_msg: Dict[str, Any] = {
+            "role": "assistant",
+            "content": text,
+            "_openai_responses_output": output_items,
+        }
         tool_calls_result = None
 
-        if msg.tool_calls:
+        if function_calls:
             assistant_msg["tool_calls"] = [
                 {
-                    "id": tc.id,
+                    "id": tc["call_id"],
                     "type": "function",
                     "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
+                        "name": tc["name"],
+                        "arguments": tc["arguments"],
                     },
                 }
-                for tc in msg.tool_calls
+                for tc in function_calls
             ]
             tool_calls_result = [
                 {
-                    "id": tc.id,
-                    "name": tc.function.name,
-                    "arguments": json.loads(tc.function.arguments or "{}"),
+                    "id": tc["call_id"],
+                    "name": tc["name"],
+                    "arguments": json.loads(tc.get("arguments") or "{}"),
                 }
-                for tc in msg.tool_calls
+                for tc in function_calls
             ]
 
         return ToolCallingResult(
-            text=msg.content,
+            text=text,
             tool_calls=tool_calls_result,
             assistant_message=assistant_msg,
-            finish_reason=choice.finish_reason or "stop",
+            finish_reason="tool_calls" if function_calls else "stop",
         )
+
+    @staticmethod
+    def _tools_to_responses_format(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Convert Chat Completions function schemas to Responses tool schemas."""
+        converted = []
+        for tool in tools:
+            if tool.get("type") != "function" or "function" not in tool:
+                converted.append(tool)
+                continue
+            function = tool["function"]
+            response_tool = {"type": "function", **function}
+            # Chat Completions defaults functions to non-strict, whereas
+            # Responses prefers strict mode when it can. Preserve the existing
+            # MCP schema behavior unless the caller opted into strict mode.
+            response_tool.setdefault("strict", False)
+            converted.append(response_tool)
+        return converted
+
+    @classmethod
+    def _messages_to_responses_input(cls, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Convert the MCP loop's Chat Completions history to Responses items."""
+        input_items = []
+        for message in messages:
+            if message.get("role") == "assistant" and message.get("_openai_responses_output"):
+                input_items.extend(message["_openai_responses_output"])
+            elif message.get("role") == "tool":
+                input_items.append({
+                    "type": "function_call_output",
+                    "call_id": message["tool_call_id"],
+                    "output": message.get("content", ""),
+                })
+            elif message.get("role") == "assistant" and message.get("tool_calls"):
+                # Support histories produced before this provider migrated.
+                input_items.extend({
+                    "type": "function_call",
+                    "call_id": call["id"],
+                    "name": call["function"]["name"],
+                    "arguments": call["function"].get("arguments", "{}"),
+                } for call in message["tool_calls"])
+            else:
+                input_items.append({
+                    key: value for key, value in message.items()
+                    if not key.startswith("_")
+                })
+        return input_items
+
+    @staticmethod
+    def _response_output_to_dicts(response: Any) -> List[Dict[str, Any]]:
+        """Return SDK response output items as plain dictionaries for replay."""
+        output_items = []
+        for item in getattr(response, "output", []) or []:
+            if isinstance(item, dict):
+                output_items.append(item)
+            elif hasattr(item, "model_dump"):
+                output_items.append(item.model_dump(exclude_none=True))
+            else:
+                output_items.append(dict(vars(item)))
+        return output_items
 
     def _build_web_search_params(self, messages: list, stream: bool = False, **kwargs) -> Dict[str, Any]:
         """
