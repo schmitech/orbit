@@ -1,8 +1,8 @@
 """
-Google Gemini video generation service (Veo 2).
+Google Gemini video generation service (Veo).
 
 Uses the google-genai SDK with polling to wait for the async operation to complete.
-Requires the Veo 2 model which is available via Google AI Studio API key.
+Requires a Veo model which is available via Google AI Studio API key.
 """
 
 import asyncio
@@ -17,10 +17,10 @@ from ...services import VideoGenerationService
 
 class GeminiVideoService(VideoGenerationService, GoogleBaseService):
     """
-    Google Veo 2 video generation service.
+    Google Veo video generation service.
 
     Requires: pip install google-genai
-    Supported models: veo-2.0-generate-001
+    Supported models: veo-3.1-generate-preview, veo-3.1-generate-001, veo-2.0-generate-001
     """
 
     def __init__(self, config: Dict[str, Any]):
@@ -28,7 +28,10 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
         provider_config = self._extract_provider_config()
         self.aspect_ratio = provider_config.get("aspect_ratio", "16:9")
         self.number_of_videos = provider_config.get("number_of_videos", 1)
-        self.person_generation = provider_config.get("person_generation", "allow_adult")
+        # None (the default) omits personGeneration entirely — Veo 3.x preview models
+        # reject "allow_adult" for text-to-video with a 400 INVALID_ARGUMENT; only set
+        # this if your account/model combination is confirmed to accept a specific value.
+        self.person_generation = provider_config.get("person_generation")
         self._genai_client = None
 
     def _get_client(self):
@@ -68,14 +71,17 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
 
             client = self._get_client()
 
+            config_kwargs = {
+                "aspect_ratio": aspect_ratio,
+                "number_of_videos": number_of_videos,
+            }
+            if person_generation:
+                config_kwargs["person_generation"] = person_generation
+
             operation = client.models.generate_videos(
                 model=self.model,
                 prompt=prompt,
-                config=genai_types.GenerateVideosConfig(
-                    aspect_ratio=aspect_ratio,
-                    number_of_videos=number_of_videos,
-                    person_generation=person_generation,
-                ),
+                config=genai_types.GenerateVideosConfig(**config_kwargs),
             )
 
             while not operation.done:

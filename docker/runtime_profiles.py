@@ -374,6 +374,14 @@ def _resolve_extra_adapters(profile: RuntimeProfile, config_dir: Path) -> None:
             provider_block = global_data.get(global_entry["section"], {}).get(global_entry["provider"])
             if provider_block is not None:
                 provider_block["enabled"] = True
+            # Some sections (e.g. video.yaml) also gate registration behind a
+            # top-level singular flag (config['video']['enabled']) on top of
+            # the per-provider block above — same two-flag pattern as vision.
+            global_key = global_entry.get("global_key")
+            if global_key:
+                top_block = global_data.get(global_key)
+                if top_block is not None:
+                    top_block["enabled"] = True
             _dump_yaml(global_path, global_data)
 
     _dump_yaml(registry_path, registry)

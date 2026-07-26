@@ -87,10 +87,10 @@ def test_cloud_profiles_never_fall_back_to_ollama_embeddings(profile_id, provide
     assert adapter["allowed_models"], "cloud profiles should expose allowed_models"
 
 
-def test_gemini_profile_has_no_audio_wiring(runtime_config_dir):
-    # gemini has no audio: section yet (unlike openai) — stt/tts_provider
+def test_ollama_profile_has_no_audio_wiring(runtime_config_dir):
+    # ollama has no audio: section (unlike openai/gemini) — stt/tts_provider
     # should stay absent from the adapter rather than silently defaulting.
-    profile = rp.get_profile("gemini")
+    profile = rp.get_profile("ollama")
     rp.resolve_config(profile, runtime_config_dir)
 
     adapters = yaml.safe_load((runtime_config_dir / rp.ADAPTER_FILE).read_text())
@@ -151,6 +151,56 @@ def test_openai_profile_enables_audio_and_skill_routing(runtime_config_dir):
     assert image_config["image_generation"]["openai"]["enabled"] is True
 
 
+def test_gemini_profile_enables_audio_video_and_skill_routing(runtime_config_dir):
+    profile = rp.get_profile("gemini")
+    rp.resolve_config(profile, runtime_config_dir)
+
+    adapters = yaml.safe_load((runtime_config_dir / rp.ADAPTER_FILE).read_text())
+    adapter = next(a for a in adapters["adapters"] if a["name"] == rp.ADAPTER_NAME)
+    assert adapter["stt_provider"] == "gemini"
+    assert adapter["tts_provider"] == "gemini"
+    assert set(adapter["capabilities"]["auto_routable_skills"]) == {
+        "Audio", "Image", "Video", "PDF", "Word", "Excel", "PowerPoint", "Fetch", "Markdown", "web-search",
+    }
+    assert adapter["capabilities"]["auto_skill_routing"] is True
+
+    stt = yaml.safe_load((runtime_config_dir / "stt.yaml").read_text())
+    assert stt["stt"]["enabled"] is True
+    assert stt["stt_providers"]["gemini"]["enabled"] is True
+
+    tts = yaml.safe_load((runtime_config_dir / "tts.yaml").read_text())
+    assert tts["tts"]["enabled"] is True
+    assert tts["tts_providers"]["gemini"]["enabled"] is True
+
+    config = yaml.safe_load((runtime_config_dir / "config.yaml").read_text())
+    assert config["skill_routing"]["router_provider"] == "gemini"
+    assert config["skill_routing"]["router_model"] == "gemini-3.6-flash"
+
+    registry = yaml.safe_load((runtime_config_dir / "adapters.yaml").read_text())
+    for expected_file in (
+        "adapters/web-search.yaml", "adapters/audio-generator.yaml", "adapters/image-generator.yaml",
+        "adapters/video-generator.yaml", "adapters/pdf-generator.yaml", "adapters/word-generator.yaml",
+        "adapters/excel-generator.yaml", "adapters/pptx-generator.yaml", "adapters/markdown-generator.yaml",
+        "adapters/fetch.yaml",
+    ):
+        assert expected_file in registry["import"]
+
+    image_generator = yaml.safe_load((runtime_config_dir / "adapters/image-generator.yaml").read_text())
+    assert image_generator["adapters"][0]["image_provider"] == "gemini"
+    image_config = yaml.safe_load((runtime_config_dir / "image.yaml").read_text())
+    assert image_config["image_generation"]["gemini"]["enabled"] is True
+
+    video_generator = yaml.safe_load((runtime_config_dir / "adapters/video-generator.yaml").read_text())
+    vg_adapter = video_generator["adapters"][0]
+    assert vg_adapter["video_provider"] == "gemini"
+    assert vg_adapter["rewrite_provider"] == "gemini"
+    assert vg_adapter["rewrite_model"] == "gemini-3.6-flash"
+
+    video_config = yaml.safe_load((runtime_config_dir / "video.yaml").read_text())
+    assert video_config["video"]["enabled"] is True
+    assert video_config["video_generation"]["gemini"]["enabled"] is True
+
+
 @pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
 def test_resolve_config_enables_selected_inference_and_vision_providers(profile_id, runtime_config_dir):
     profile = rp.get_profile(profile_id)
@@ -191,8 +241,8 @@ def test_resolve_config_enables_global_embedding_flag(profile_id, runtime_config
 
 
 def test_resolve_config_points_sqlite_at_data_volume_and_drops_audio_imports(runtime_config_dir):
-    # gemini has no audio: section, so stt.yaml/tts.yaml should still be dropped.
-    profile = rp.get_profile("gemini")
+    # ollama has no audio: section, so stt.yaml/tts.yaml should still be dropped.
+    profile = rp.get_profile("ollama")
     rp.resolve_config(profile, runtime_config_dir)
 
     config = yaml.safe_load((runtime_config_dir / "config.yaml").read_text())
@@ -228,7 +278,8 @@ def test_ollama_profile_keeps_ollama_inference_enabled(runtime_config_dir):
 
 
 def test_resolve_config_limits_adapter_registry_to_multimodal(runtime_config_dir):
-    profile = rp.get_profile("gemini")
+    # ollama has no extra_adapters, so the registry should only ever import multimodal.yaml.
+    profile = rp.get_profile("ollama")
     rp.resolve_config(profile, runtime_config_dir)
 
     adapters_registry = yaml.safe_load((runtime_config_dir / "adapters.yaml").read_text())

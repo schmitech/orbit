@@ -28,8 +28,88 @@ allowed_models:
     context_window: 1048576
     max_tokens: 65536
 
-# See docker/flavors/ollama.yaml for the extra_adapters schema. Gemini is the
-# only one of these three flavors whose provider supports video generation
-# (config/video.yaml only wires up gemini/xai) — a future video-generator
-# entry belongs here, not in ollama.yaml/openai.yaml.
-extra_adapters: []
+# Single-provider audio: STT/TTS both use Gemini so the whole stack still
+# needs only GOOGLE_API_KEY.
+audio:
+  stt_provider: gemini
+  tts_provider: gemini
+
+# Natural-language skill auto-routing (docs/adapters/auto-skill-intent-detection.md).
+# Gemini is the only one of these three flavors whose provider supports video
+# generation (config/video.yaml only wires up gemini/xai) — hence Video here
+# but not in ollama.yaml/openai.yaml.
+skills:
+  auto_routable:
+    - Audio
+    - Image
+    - Video
+    - PDF
+    - Word
+    - Excel
+    - PowerPoint
+    - Fetch
+    - Markdown
+    - web-search
+  router_provider: gemini
+  router_model: gemini-3.6-flash
+
+# See docker/flavors/openai.yaml for the extra_adapters/enable_global schema.
+extra_adapters:
+  - name: web-search
+    file: adapters/web-search.yaml
+    provider_fields:
+      inference_provider: gemini
+      model: gemini-3.1-pro-preview
+  - name: audio-generator
+    file: adapters/audio-generator.yaml
+    provider_fields:
+      tts_provider: gemini
+    rewrite_provider: gemini
+    rewrite_model: gemini-3.6-flash
+  - name: image-generator
+    file: adapters/image-generator.yaml
+    provider_fields:
+      image_provider: gemini
+    rewrite_provider: gemini
+    rewrite_model: gemini-3.6-flash
+    # image_generation.gemini.enabled defaults to false (server/ai_services/registry.py).
+    enable_global:
+      - file: image.yaml
+        section: image_generation
+        provider: gemini
+  - name: video-generator
+    file: adapters/video-generator.yaml
+    provider_fields:
+      video_provider: gemini
+    rewrite_provider: gemini
+    rewrite_model: gemini-3.6-flash
+    # video_generation.gemini.enabled AND the top-level video.enabled both
+    # default to false (server/ai_services/registry.py) — video has no local
+    # Ollama fallback, so it's opt-in even for the gemini flavor's own provider.
+    enable_global:
+      - file: video.yaml
+        section: video_generation
+        provider: gemini
+        global_key: video
+  - name: pdf-generator
+    file: adapters/pdf-generator.yaml
+    rewrite_provider: gemini
+    rewrite_model: gemini-3.6-flash
+  - name: word-generator
+    file: adapters/word-generator.yaml
+    rewrite_provider: gemini
+    rewrite_model: gemini-3.6-flash
+  - name: excel-generator
+    file: adapters/excel-generator.yaml
+    rewrite_provider: gemini
+    rewrite_model: gemini-3.6-flash
+  - name: pptx-generator
+    file: adapters/pptx-generator.yaml
+    rewrite_provider: gemini
+    rewrite_model: gemini-3.6-flash
+  - name: markdown-generator
+    file: adapters/markdown-generator.yaml
+    rewrite_provider: gemini
+    rewrite_model: gemini-3.6-flash
+  - name: fetch
+    file: adapters/fetch.yaml
