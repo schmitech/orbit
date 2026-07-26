@@ -85,6 +85,9 @@ def test_cloud_profiles_never_fall_back_to_ollama_embeddings(profile_id, provide
     assert adapter["embedding_provider"] != "ollama"
     assert adapter["vision_provider"] == provider
     assert adapter["allowed_models"], "cloud profiles should expose allowed_models"
+    assert all(m.get("effort") == "low" for m in adapter["allowed_models"]), (
+        "allowed_models should ship a conservative default reasoning effort"
+    )
 
 
 def test_ollama_profile_has_no_audio_wiring(runtime_config_dir):

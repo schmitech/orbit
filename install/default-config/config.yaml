@@ -550,7 +550,12 @@ skill_routing:
   embedding_threshold: 0.35     # Permissive pre-filter cosine threshold (recall-oriented)
   max_candidates: 3             # Top-N skills passed from pre-filter to the confirm LLM
   history_turns: 4              # Recent conversation turns given to the confirm LLM
-  confirm_max_tokens: 12        # The confirm LLM only emits a skill name or NONE
+  # The confirm LLM only emits a skill name or NONE, but "thinking"-capable
+  # router models (Gemini 3.x, GPT-5 reasoning, etc.) can spend the whole
+  # max_tokens budget on internal reasoning and return zero visible text —
+  # logged as "No content parts in response" — if this is too tight. 40 gives
+  # enough headroom for a short thinking pass plus the one-word answer.
+  confirm_max_tokens: 40
   # Small/fast LLM for the confirm step. Omit to reuse the adapter's own provider.
   router_provider: "openai"
   router_model: "gpt-5.4-mini"

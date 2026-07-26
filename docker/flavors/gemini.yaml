@@ -16,17 +16,22 @@ vision:
   provider: gemini
   model: gemini-3.6-flash
 
+# effort: "low" is a conservative default (see EFFORT_PARAMETER_CHANGES.md) —
+# keeps reasoning-token spend down on a pull-and-run image; users can raise it
+# per model from the Admin Panel's adapter settings.
 allowed_models:
   - name: gemini-3.6-flash
     provider: gemini
     model: gemini-3.6-flash
     context_window: 1048576
     max_tokens: 32000
+    effort: low
   - name: gemini-3.1-pro-preview
     provider: gemini
     model: gemini-3.1-pro-preview
     context_window: 1048576
     max_tokens: 65536
+    effort: low
 
 # Single-provider audio: STT/TTS both use Gemini so the whole stack still
 # needs only GOOGLE_API_KEY.

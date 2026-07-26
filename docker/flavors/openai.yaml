@@ -16,32 +16,40 @@ vision:
   provider: openai
   model: gpt-5.5
 
+# effort: "low" is a conservative default (see EFFORT_PARAMETER_CHANGES.md) —
+# keeps reasoning-token spend down on a pull-and-run image; users can raise it
+# per model from the Admin Panel's adapter settings.
 allowed_models:
   - name: gpt-5.6
     provider: openai
     model: gpt-5.6
     context_window: 400000
     max_tokens: 64000
+    effort: low
   - name: gpt-5.5
     provider: openai
     model: gpt-5.5
     context_window: 400000
     max_tokens: 64000
+    effort: low
   - name: gpt-5.4-mini
     provider: openai
     model: gpt-5.4-mini
     context_window: 400000
     max_tokens: 32000
+    effort: low
   - name: gpt-5.4
     provider: openai
     model: gpt-5.4
     context_window: 400000
     max_tokens: 64000
+    effort: low
   - name: gpt-5.4-nano
     provider: openai
     model: gpt-5.4-nano
     context_window: 400000
     max_tokens: 16000
+    effort: low
 
 # Single-provider audio: STT/TTS both use OpenAI so the whole stack still
 # needs only OPENAI_API_KEY. Enables stt.yaml/tts.yaml, sets stt_provider/
