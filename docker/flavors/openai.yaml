@@ -58,6 +58,7 @@ audio:
 skills:
   auto_routable:
     - Audio
+    - Image
     - PDF
     - Word
     - Excel
@@ -85,6 +86,18 @@ extra_adapters:
       tts_provider: openai
     rewrite_provider: openai
     rewrite_model: gpt-5.4-mini
+  - name: image-generator
+    file: adapters/image-generator.yaml
+    provider_fields:
+      image_provider: openai
+    rewrite_provider: openai
+    rewrite_model: gpt-5.4-mini
+    # image_generation.openai.enabled defaults to false (server/ai_services/registry.py) —
+    # enable it so the openai image provider actually registers.
+    enable_global:
+      - file: image.yaml
+        section: image_generation
+        provider: openai
   - name: pdf-generator
     file: adapters/pdf-generator.yaml
     rewrite_provider: openai

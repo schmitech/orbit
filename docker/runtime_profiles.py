@@ -362,6 +362,20 @@ def _resolve_extra_adapters(profile: RuntimeProfile, config_dir: Path) -> None:
         if adapter_file not in imports:
             imports.append(adapter_file)
 
+        # Some generation adapters (image/video/...) route through a provider
+        # registered via server/ai_services/registry.py, which only activates
+        # providers whose <section>.<provider>.enabled is true (default false) —
+        # same pattern as inference/vision/embedding above, just a different file.
+        for global_entry in entry.get("enable_global", []):
+            global_path = config_dir / global_entry["file"]
+            if not global_path.exists():
+                continue
+            global_data = _load_yaml(global_path)
+            provider_block = global_data.get(global_entry["section"], {}).get(global_entry["provider"])
+            if provider_block is not None:
+                provider_block["enabled"] = True
+            _dump_yaml(global_path, global_data)
+
     _dump_yaml(registry_path, registry)
 
 

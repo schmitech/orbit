@@ -108,7 +108,7 @@ def test_openai_profile_enables_audio_and_skill_routing(runtime_config_dir):
     assert adapter["stt_provider"] == "openai"
     assert adapter["tts_provider"] == "openai"
     assert set(adapter["capabilities"]["auto_routable_skills"]) == {
-        "Audio", "PDF", "Word", "Excel", "PowerPoint", "Fetch", "Markdown", "web-search",
+        "Audio", "Image", "PDF", "Word", "Excel", "PowerPoint", "Fetch", "Markdown", "web-search",
     }
     assert adapter["capabilities"]["auto_skill_routing"] is True
 
@@ -130,9 +130,9 @@ def test_openai_profile_enables_audio_and_skill_routing(runtime_config_dir):
 
     registry = yaml.safe_load((runtime_config_dir / "adapters.yaml").read_text())
     for expected_file in (
-        "adapters/web-search.yaml", "adapters/audio-generator.yaml", "adapters/pdf-generator.yaml",
-        "adapters/word-generator.yaml", "adapters/excel-generator.yaml", "adapters/pptx-generator.yaml",
-        "adapters/markdown-generator.yaml", "adapters/fetch.yaml",
+        "adapters/web-search.yaml", "adapters/audio-generator.yaml", "adapters/image-generator.yaml",
+        "adapters/pdf-generator.yaml", "adapters/word-generator.yaml", "adapters/excel-generator.yaml",
+        "adapters/pptx-generator.yaml", "adapters/markdown-generator.yaml", "adapters/fetch.yaml",
     ):
         assert expected_file in registry["import"]
 
@@ -140,6 +140,15 @@ def test_openai_profile_enables_audio_and_skill_routing(runtime_config_dir):
     ws_adapter = web_search["adapters"][0]
     assert ws_adapter["inference_provider"] == "openai"
     assert ws_adapter["model"] == "gpt-5.4-mini"
+
+    image_generator = yaml.safe_load((runtime_config_dir / "adapters/image-generator.yaml").read_text())
+    ig_adapter = image_generator["adapters"][0]
+    assert ig_adapter["image_provider"] == "openai"
+    assert ig_adapter["rewrite_provider"] == "openai"
+    assert ig_adapter["rewrite_model"] == "gpt-5.4-mini"
+
+    image_config = yaml.safe_load((runtime_config_dir / "image.yaml").read_text())
+    assert image_config["image_generation"]["openai"]["enabled"] is True
 
 
 @pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])

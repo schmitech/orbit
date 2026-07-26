@@ -1,0 +1,37 @@
+# Dedicated image generation adapter — converts text prompts to images via DALL-E 3 or Imagen 3
+  # Handled by ImageGenerationStep; LLMInferenceStep is skipped for this adapter type.
+adapters:
+  - name: "image-generator"
+    enabled: true
+    type: "image_generation"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    image_provider: "gemini"            # Optional adapter override; omit to use config/image.yaml
+    rewrite_provider: "openai"          # Text LLM used to enrich prompts before image generation
+    rewrite_model: "gpt-5.4-mini"       # Text LLM used to enrich prompts before image generation
+
+    capabilities:
+      expose_as_skill: true
+      skill_name: "Image"
+      skill_description: "Generate images from text descriptions using AI (imagine, Imagen, or Ollama)"
+      # Phrases that boost the skill-intent embedding pre-filter (auto-routing).
+      routing_examples:
+        - "draw a picture of"
+        - "generate an image of"
+        - "create an image"
+        - "paint a"
+        - "make a picture"
+        - "illustrate"
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"
+
+    config:
+      storage_backend: "filesystem"
+      storage_root: "./uploads"
