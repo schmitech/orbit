@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.11.1] - 2026-07-26
+
+### Core System Updates
+- **Reasoning Effort**: Added a provider-agnostic reasoning-effort override across inference config, adapter config, and allowed model entries, mapping to each provider's native effort/thinking controls.
+- **OpenAI MCP Tool Calls**: Migrated OpenAI MCP function calling from Chat Completions to the Responses API, enabling reasoning-enabled tool workflows and replay of reasoning/function-call context.
+- **MCP Mount**: Fixed the broken `/mcp` FastMCP mount path and chained its lifespan into the server lifecycle so real MCP requests initialize correctly.
+- **Docker Images**: Added missing OpenAI image-generation skill support and Gemini video-generation support to the relevant Docker images.
+
+### Chat-app & UI Improvements
+- **Paused Backend UX**: Display 503 paused-server chat responses as localized try-again-later warnings instead of application errors.
+- **orbitchat**: Published orbitchat v3.13.2.
+
+### Bug Fixes & Technical Improvements
+- **Gemini Video Generation**: Fixed Gemini video generation behavior and packaging.
+- **MCP Security & Tests**: Added Host/Origin validation for the MCP mount and integration coverage against the real FastMCP mount.
+- **Provider Effort Overrides**: Fixed dropped Anthropic per-request effort overrides and applied effort overrides to xAI web-search paths.
+
+### Documentation & Configuration
+- **MCP Examples**: Improved the MCP server sample and added a business example intro/persona plus a tool-calling demo video.
+- **MCP Docs**: Added a conformance baseline and corrected MCP protocol documentation.
+- **Docker Setup**: Improved custom Docker image scripts, added document-generation adapter support, and refreshed the default installation database.
+
 ## [2.11.0] - 2026-07-23
 
 ### Core System Updates
