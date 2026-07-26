@@ -152,9 +152,8 @@ export function AgentSelectionList({
         setIsLoading(true);
         setError(null);
         const adapterList = await fetchAdapters();
-        const sortedAdapters = adapterList.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
         if (mounted) {
-          setAdapters(sortedAdapters);
+          setAdapters(adapterList);
         }
       } catch (err) {
         debugError('[AgentSelectionList] Failed to load adapters', err);
