@@ -45,6 +45,8 @@ class DeepSeekInferenceService(InferenceService, OpenAICompatibleBaseService):
             if messages is None:
                 messages = [{"role": "user", "content": prompt}]
 
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
             params = {
                 "model": self.model,
                 "messages": messages,
@@ -53,6 +55,8 @@ class DeepSeekInferenceService(InferenceService, OpenAICompatibleBaseService):
                 "top_p": kwargs.pop('top_p', self.top_p),
                 **kwargs
             }
+            if reasoning_effort:
+                params["reasoning_effort"] = reasoning_effort
 
             response = await self.client.chat.completions.create(**params)
             return response.choices[0].message.content
@@ -71,6 +75,8 @@ class DeepSeekInferenceService(InferenceService, OpenAICompatibleBaseService):
             if messages is None:
                 messages = [{"role": "user", "content": prompt}]
 
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
             params = {
                 "model": self.model,
                 "messages": messages,
@@ -80,6 +86,8 @@ class DeepSeekInferenceService(InferenceService, OpenAICompatibleBaseService):
                 "stream": True,
                 **kwargs
             }
+            if reasoning_effort:
+                params["reasoning_effort"] = reasoning_effort
 
             stream = await self.client.chat.completions.create(**params)
             async for chunk in stream:

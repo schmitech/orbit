@@ -101,6 +101,10 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             if self._supports_top_p():
                 params["top_p"] = top_p_value
 
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+            if reasoning_effort:
+                params["reasoning_effort"] = reasoning_effort
+
             params.update(kwargs)  # Any other parameters
 
             response = await self.client.chat.completions.create(**params)
@@ -166,6 +170,10 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             if self._supports_top_p():
                 params["top_p"] = top_p_value
 
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+            if reasoning_effort:
+                params["reasoning_effort"] = reasoning_effort
+
             params.update(kwargs)  # Any other parameters
 
             logger.debug(f"Creating OpenAI stream with params: model={params['model']}, stream={params['stream']}")
@@ -225,9 +233,7 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
 
         # Chat Completions calls this ``reasoning_effort``; Responses nests it
         # under ``reasoning`` and supports reasoning together with functions.
-        reasoning_effort = kw.pop("reasoning_effort", None)
-        if reasoning_effort is None:
-            reasoning_effort = self._extract_provider_config().get("reasoning_effort")
+        reasoning_effort = self._resolve_reasoning_effort(kw)
         if reasoning_effort:
             params["reasoning"] = {"effort": reasoning_effort}
 
@@ -441,6 +447,43 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         )
 
         return not model_name.startswith(unsupported_prefixes)
+
+    def _supports_reasoning_effort(self) -> bool:
+        """Return whether the current model supports the reasoning_effort parameter."""
+        model_name = (self.model or "").lower()
+
+        # Only OpenAI's reasoning models (gpt-5, o-series) accept reasoning_effort;
+        # other models reject the parameter.
+        reasoning_prefixes = (
+            "gpt-5",
+            "o1",
+            "o2",
+            "o3",
+        )
+
+        return model_name.startswith(reasoning_prefixes)
+
+    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+        """
+        Resolve the reasoning effort level for the current request.
+
+        Accepts either the OpenAI-native ``reasoning_effort`` kwarg or the
+        provider-agnostic ``effort`` override (shared with allowed_models
+        overrides), falling back to the same keys in inference.yaml. Returns
+        None when the current model doesn't support reasoning effort.
+        """
+        if not self._supports_reasoning_effort():
+            kwargs.pop("reasoning_effort", None)
+            kwargs.pop("effort", None)
+            return None
+
+        reasoning_effort = kwargs.pop("reasoning_effort", None)
+        if reasoning_effort is None:
+            reasoning_effort = kwargs.pop("effort", None)
+        if reasoning_effort is None:
+            provider_config = self._extract_provider_config()
+            reasoning_effort = provider_config.get("reasoning_effort") or provider_config.get("effort")
+        return reasoning_effort
 
     def _supports_top_p(self) -> bool:
         """Return whether the current model supports the top_p parameter."""

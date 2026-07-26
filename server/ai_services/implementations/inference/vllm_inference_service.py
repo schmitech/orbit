@@ -50,6 +50,25 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
         self.presence_penalty = provider_config.get("presence_penalty", 0.0)
         self.frequency_penalty = provider_config.get("frequency_penalty", 0.0)
 
+    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+        """
+        Resolve the reasoning effort level for the current request, popping it
+        out of ``kwargs`` so it never leaks into the raw chat.completions params.
+
+        Accepts either the native ``reasoning_effort`` kwarg or the
+        provider-agnostic ``effort`` override, falling back to inference.yaml.
+        Only meaningful in API mode, for a vLLM server hosting a reasoning
+        model with a chat template that honors it; direct mode has no
+        equivalent SamplingParams field, so this is unused there.
+        """
+        reasoning_effort = kwargs.pop("reasoning_effort", None)
+        if reasoning_effort is None:
+            reasoning_effort = kwargs.pop("effort", None)
+        if reasoning_effort is None:
+            provider_config = self._extract_provider_config()
+            reasoning_effort = provider_config.get("reasoning_effort") or provider_config.get("effort")
+        return reasoning_effort
+
     def _build_messages(self, prompt: str, messages: list = None) -> list:
         """Build messages in the format expected by vLLM."""
         if messages:
@@ -83,6 +102,8 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
                 "<parser> and configure this provider in API mode."
             )
 
+        reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
         params: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -97,6 +118,8 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
         if tools:
             params["tools"] = tools
             params["tool_choice"] = "auto"
+        if reasoning_effort:
+            params["reasoning_effort"] = reasoning_effort
 
         try:
             response = await self.client.chat.completions.create(**params)
@@ -155,6 +178,8 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
 
     async def _generate_api(self, messages: list, **kwargs) -> str:
         """Generate response using vLLM API mode."""
+        reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
         params = {
             "model": self.model,
             "messages": messages,
@@ -169,6 +194,8 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
         # Add stop tokens if configured
         if self.stop_tokens:
             params["stop"] = self.stop_tokens
+        if reasoning_effort:
+            params["reasoning_effort"] = reasoning_effort
 
         response = await self.client.chat.completions.create(**params)
         return response.choices[0].message.content
@@ -255,6 +282,8 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
 
     async def _generate_stream_api(self, messages: list, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming response using vLLM API mode."""
+        reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
         params = {
             "model": self.model,
             "messages": messages,
@@ -270,6 +299,8 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
         # Add stop tokens if configured
         if self.stop_tokens:
             params["stop"] = self.stop_tokens
+        if reasoning_effort:
+            params["reasoning_effort"] = reasoning_effort
 
         stream = await self.client.chat.completions.create(**params)
         async for chunk in stream:

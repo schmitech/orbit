@@ -145,7 +145,7 @@ class RequestContextBuilder:
 
         runtime_param_overrides = {
             key: match[key]
-            for key in ('temperature', 'max_tokens', 'context_window')
+            for key in ('temperature', 'max_tokens', 'context_window', 'effort')
             if key in match and match[key] is not None
         } or None
 

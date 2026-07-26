@@ -75,10 +75,27 @@ class OllamaCloudInferenceService(InferenceService):
 
         self._stop_sequences: List[str] = provider_config.get("stop", [])
 
-        # Think mode (shows reasoning in <think> tags) - matches local Ollama behavior
-        self.think: bool = provider_config.get("think", False)
+        # Think mode (shows reasoning in <think> tags) - matches local Ollama behavior.
+        # bool to toggle, or "low"/"medium"/"high" for models with graduated
+        # reasoning effort (gpt-oss requires a level, not a bool). Falls back
+        # to the provider-agnostic 'effort' key when 'think' isn't set.
+        self.think: Any = provider_config.get("think", provider_config.get("effort", False))
 
         self.client: Optional[AsyncClient] = None
+
+    def _resolve_think(self, kwargs: Dict[str, Any]) -> Any:
+        """
+        Resolve the think value for the current request, popping both the
+        native ``think`` kwarg and the provider-agnostic ``effort`` override
+        out of ``kwargs`` so neither leaks into the Ollama SDK call.
+        """
+        think = kwargs.pop("think", None)
+        effort = kwargs.pop("effort", None)
+        if think is None:
+            think = effort
+        if think is None:
+            think = self.think
+        return think
 
     async def initialize(self) -> bool:
         """Initialise the Ollama Cloud client and verify connectivity."""
@@ -174,7 +191,7 @@ class OllamaCloudInferenceService(InferenceService):
                 options["stop"] = stop
 
             # Extract think parameter (shows reasoning in <think> tags)
-            think = kwargs.pop("think", self.think)
+            think = self._resolve_think(kwargs)
 
             response = await self.client.chat(
                 model=self.model,
@@ -207,7 +224,7 @@ class OllamaCloudInferenceService(InferenceService):
                 options["stop"] = stop
 
             # Extract think parameter (shows reasoning in <think> tags)
-            think = kwargs.pop("think", self.think)
+            think = self._resolve_think(kwargs)
 
             stream = await self.client.chat(
                 model=self.model,
@@ -260,7 +277,7 @@ class OllamaCloudInferenceService(InferenceService):
             "model": self.model,
             "messages": ollama_messages,
             "options": options,
-            "think": kwargs.get("think", self.think),
+            "think": self._resolve_think(kwargs),
         }
         # Omit tools when none are offered — the final synthesis call passes []
         # on purpose to force a text answer instead of further tool calls.

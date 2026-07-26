@@ -48,7 +48,24 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
         # Ollama doesn't have max_tokens, uses num_predict instead
         provider_config = self._extract_provider_config()
         self.num_predict = provider_config.get('num_predict', -1)  # -1 means no limit
-        self.think = provider_config.get('think', False)  # Enable/disable think mode
+        # think: bool to toggle <think> tags, or "low"/"medium"/"high" for models
+        # with graduated reasoning effort (gpt-oss requires a level, not a bool).
+        # Falls back to the provider-agnostic 'effort' key when 'think' isn't set.
+        self.think = provider_config.get('think', provider_config.get('effort', False))
+
+    def _resolve_think(self, kwargs: Dict[str, Any]) -> Any:
+        """
+        Resolve the think value for the current request, popping both the
+        native ``think`` kwarg and the provider-agnostic ``effort`` override
+        out of ``kwargs`` so neither leaks into Ollama's ``options`` dict.
+        """
+        think = kwargs.pop('think', None)
+        effort = kwargs.pop('effort', None)
+        if think is None:
+            think = effort
+        if think is None:
+            think = self.think
+        return think
 
     @staticmethod
     def _normalize_messages_for_ollama(
@@ -134,7 +151,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
             # Honor the preset's think setting (mirrors generate/generate_stream).
             # Disabling thinking keeps each loop iteration fast; some presets
             # (e.g. functiongemma) require it off.
-            "think": kwargs.get("think", self.think),
+            "think": self._resolve_think(kwargs),
             "options": {
                 "temperature": kwargs.get("temperature", self.temperature),
                 "top_p": kwargs.get("top_p", self.top_p),
@@ -227,7 +244,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                     "model": self.model,
                     "messages": messages,
                     "stream": False,
-                    "think": kwargs.pop('think', self.think),
+                    "think": self._resolve_think(kwargs),
                     "options": {
                         "temperature": kwargs.pop('temperature', self.temperature),
                         "top_p": kwargs.pop('top_p', self.top_p),
@@ -240,7 +257,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                     "model": self.model,
                     "prompt": prompt,
                     "stream": False,
-                    "think": kwargs.pop('think', self.think),
+                    "think": self._resolve_think(kwargs),
                     "options": {
                         "temperature": kwargs.pop('temperature', self.temperature),
                         "top_p": kwargs.pop('top_p', self.top_p),
@@ -295,7 +312,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                     "model": self.model,
                     "messages": messages,
                     "stream": True,
-                    "think": kwargs.pop('think', self.think),
+                    "think": self._resolve_think(kwargs),
                     "options": {
                         "temperature": kwargs.pop('temperature', self.temperature),
                         "top_p": kwargs.pop('top_p', self.top_p),
@@ -308,7 +325,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                     "model": self.model,
                     "prompt": prompt,
                     "stream": True,
-                    "think": kwargs.pop('think', self.think),
+                    "think": self._resolve_think(kwargs),
                     "options": {
                         "temperature": kwargs.pop('temperature', self.temperature),
                         "top_p": kwargs.pop('top_p', self.top_p),

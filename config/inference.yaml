@@ -21,7 +21,11 @@ inference:
     api_key: ${OLLAMA_CLOUD_API_KEY}
     model: "gpt-oss:120b" # Supported models: https://docs.ollama.com/cloud
     stream: true
-    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
+    # think: bool to toggle <think> tags (most models), or "low"/"medium"/"high"
+    # for graduated reasoning effort. gpt-oss ignores plain booleans and
+    # requires a level string, hence "low" below for the default model above.
+    # Also settable via the shared 'effort' key. https://docs.ollama.com/capabilities/thinking
+    think: "low"
     # Generation parameters - Optimized for large SQL result sets
     temperature: 0.3  # Lower for more factual, deterministic outputs
     top_p: 0.8  # More focused outputs for data analysis
@@ -264,6 +268,8 @@ inference:
     transport: "rest"
     # Safety settings - set to true to disable all safety filters (useful for reducing false positives)
     disable_safety: true
+    # thinking_level: "low"  # minimal | low | medium | high — gemini-2.5+/3.x only
+    # https://ai.google.dev/gemini-api/docs/thinking
   groq:
     enabled: true
     api_key: ${GROQ_API_KEY}
@@ -325,6 +331,8 @@ inference:
     top_p: 0.8
     max_tokens: 16000
     stream: true
+    # reasoning_effort: "low"  # minimal | low | medium | high — reasoning models only (gpt-5.x, o-series)
+    # https://developers.openai.com/api/docs/guides/reasoning
   mistral:
     enabled: true
     api_key: ${MISTRAL_API_KEY}
@@ -335,6 +343,8 @@ inference:
     top_p: 0.8
     max_tokens: 1024
     stream: true
+    # reasoning_effort: "none"  # none | high — mistral-small / mistral-medium-3-5 only
+    # https://docs.mistral.ai/studio-api/conversations/reasoning
   anthropic:
     enabled: true
     api_key: ${ANTHROPIC_API_KEY}
@@ -343,6 +353,10 @@ inference:
     context_window: 200000  # Claude 3/4 supports 200K context
     max_tokens: 1024
     stream: true
+    # Effort controls how many tokens Claude spends on a response (low, medium, high, xhigh, max).
+    # Only applied for models that support it: Sonnet 5/4.6, Opus 5/4.8/4.7/4.6/4.5, Fable 5, Mythos 5/Preview.
+    # https://platform.claude.com/docs/en/build-with-claude/effort
+    effort: "low"
   together:
     enabled: false
     api_key: ${TOGETHER_API_KEY}
@@ -365,6 +379,8 @@ inference:
     max_tokens: 16000
     stream: true
     show_thinking: false
+    # reasoning_effort: "low"  # low | medium | high (grok-4.5 xhigh too) — grok-4.5/4.20 only
+    # https://docs.x.ai/developers/model-capabilities/text/reasoning#the-reasoning_effort-parameter
   # Hugging Face Inference API (serverless or dedicated Inference Endpoints).
   # Use any model ID from https://huggingface.co/models
   huggingface:

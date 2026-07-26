@@ -99,6 +99,9 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
         if system_content:
             params["system"] = system_content
         kwargs.pop("temperature", None)
+        effort = self._resolve_effort(kwargs)
+        if self._supports_effort():
+            params["output_config"] = {"effort": effort}
 
         try:
             response = await self.client.messages.create(**params)
@@ -221,6 +224,7 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
             # Note: Anthropic no longer accepts temperature/top_p for current Claude models
             kwargs.pop('temperature', None)
             kwargs.pop('top_p', None)
+            effort = self._resolve_effort(kwargs)
 
             params = {
                 "model": self.model,
@@ -231,6 +235,8 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
 
             if system_content:
                 params["system"] = system_content
+            if self._supports_effort():
+                params["output_config"] = {"effort": effort}
 
             response = await self.client.messages.create(**params)
 
@@ -269,6 +275,7 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
             # Note: Anthropic no longer accepts temperature/top_p for current Claude models
             kwargs.pop('temperature', None)
             kwargs.pop('top_p', None)
+            effort = self._resolve_effort(kwargs)
 
             params = {
                 "model": self.model,
@@ -279,6 +286,8 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
 
             if system_content:
                 params["system"] = system_content
+            if self._supports_effort():
+                params["output_config"] = {"effort": effort}
 
             async with self.client.messages.stream(**params) as stream:
                 async for text in stream.text_stream:

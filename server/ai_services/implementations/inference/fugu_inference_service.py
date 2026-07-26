@@ -30,11 +30,27 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
         OpenAICompatibleBaseService.__init__(self, config, ServiceType.INFERENCE, "fugu")
         InferenceService.__init__(self, config, "fugu")
 
-        provider_config = self._extract_provider_config()
         self.temperature = self._get_temperature(default=0.7)
         self.max_tokens = self._get_max_tokens(default=4096)
         self.top_p = self._get_top_p(default=1.0)
-        self.reasoning_effort = provider_config.get("reasoning_effort", "high")
+
+    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+        """
+        Resolve the reasoning effort level for the current request, popping it
+        out of ``kwargs`` so it never leaks into the raw chat.completions params.
+
+        Accepts either the native ``reasoning_effort`` kwarg or the
+        provider-agnostic ``effort`` override (shared with allowed_models
+        overrides), falling back to inference.yaml. Defaults to "high" to
+        preserve prior behavior when nothing is configured.
+        """
+        reasoning_effort = kwargs.pop("reasoning_effort", None)
+        if reasoning_effort is None:
+            reasoning_effort = kwargs.pop("effort", None)
+        if reasoning_effort is None:
+            provider_config = self._extract_provider_config()
+            reasoning_effort = provider_config.get("reasoning_effort") or provider_config.get("effort")
+        return reasoning_effort or "high"
 
     async def verify_connection(self) -> bool:
         """Verify connection by listing models only — skip the test-chat fallback.
@@ -65,12 +81,15 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
         if not self.initialized:
             await self.initialize()
 
+        reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
         params: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": kwargs.pop("temperature", self.temperature),
             "max_completion_tokens": kwargs.pop("max_tokens", self.max_tokens),
             "top_p": kwargs.pop("top_p", self.top_p),
+            "reasoning_effort": reasoning_effort,
             **kwargs,
         }
         if tools:
@@ -133,12 +152,15 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
                 response = await self.client.responses.create(**params)
                 return response.output_text
 
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
             params = {
                 "model": self.model,
                 "messages": messages,
                 "temperature": kwargs.pop("temperature", self.temperature),
                 "max_completion_tokens": kwargs.pop("max_tokens", self.max_tokens),
                 "top_p": kwargs.pop("top_p", self.top_p),
+                "reasoning_effort": reasoning_effort,
                 **kwargs,
             }
             response = await self.client.chat.completions.create(**params)
@@ -169,12 +191,15 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
                             yield delta
                 return
 
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
             params = {
                 "model": self.model,
                 "messages": messages,
                 "temperature": kwargs.pop("temperature", self.temperature),
                 "max_completion_tokens": kwargs.pop("max_tokens", self.max_tokens),
                 "top_p": kwargs.pop("top_p", self.top_p),
+                "reasoning_effort": reasoning_effort,
                 "stream": True,
                 **kwargs,
             }
@@ -213,7 +238,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
             "input": input_items,
             "tools": [{"type": "web_search"}],
             "max_output_tokens": kwargs.pop("max_tokens", self.max_tokens),
-            "reasoning": {"effort": self.reasoning_effort},
+            "reasoning": {"effort": self._resolve_reasoning_effort(kwargs)},
         }
 
         if instructions_parts:

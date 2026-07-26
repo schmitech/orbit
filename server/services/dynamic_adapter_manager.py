@@ -358,7 +358,7 @@ class DynamicAdapterManager:
             return None
         overrides = {
             key: adapter_config[key]
-            for key in ('temperature', 'max_tokens', 'context_window')
+            for key in ('temperature', 'max_tokens', 'context_window', 'effort')
             if key in adapter_config and adapter_config[key] is not None
         }
         return overrides or None

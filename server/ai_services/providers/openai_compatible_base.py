@@ -365,6 +365,27 @@ class OpenAICompatibleBaseService(ProviderAIService):
         provider_config = self._extract_provider_config()
         return provider_config.get('top_p', default)
 
+    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+        """
+        Resolve the reasoning effort level for the current request, popping it
+        out of ``kwargs`` so it never leaks into the raw chat.completions params.
+
+        Accepts either the native ``reasoning_effort`` kwarg or the
+        provider-agnostic ``effort`` override (shared with allowed_models
+        overrides), falling back to the same keys in inference.yaml. Not
+        gated by model name — these providers host a wide range of models
+        under one API, so it's the caller's responsibility to only set this
+        for a reasoning-capable model (e.g. gpt-oss, DeepSeek-R1, Qwen3
+        thinking variants). Left unset, nothing is sent.
+        """
+        reasoning_effort = kwargs.pop("reasoning_effort", None)
+        if reasoning_effort is None:
+            reasoning_effort = kwargs.pop("effort", None)
+        if reasoning_effort is None:
+            provider_config = self._extract_provider_config()
+            reasoning_effort = provider_config.get("reasoning_effort") or provider_config.get("effort")
+        return reasoning_effort
+
     def _get_batch_size(self, default: int = 10) -> int:
         """
         Get batch size configuration.

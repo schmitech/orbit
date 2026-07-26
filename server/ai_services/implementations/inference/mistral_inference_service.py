@@ -46,6 +46,8 @@ class MistralInferenceService(InferenceService, OpenAICompatibleBaseService):
             if messages is None:
                 messages = [{"role": "user", "content": prompt}]
 
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
             params = {
                 "model": self.model,
                 "messages": messages,
@@ -54,6 +56,8 @@ class MistralInferenceService(InferenceService, OpenAICompatibleBaseService):
                 "top_p": kwargs.pop('top_p', self.top_p),
                 **kwargs
             }
+            if reasoning_effort:
+                params["reasoning_effort"] = reasoning_effort
 
             response = await self.client.chat.completions.create(**params)
             return response.choices[0].message.content
@@ -72,6 +76,8 @@ class MistralInferenceService(InferenceService, OpenAICompatibleBaseService):
             if messages is None:
                 messages = [{"role": "user", "content": prompt}]
 
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
             params = {
                 "model": self.model,
                 "messages": messages,
@@ -81,6 +87,8 @@ class MistralInferenceService(InferenceService, OpenAICompatibleBaseService):
                 "stream": True,
                 **kwargs
             }
+            if reasoning_effort:
+                params["reasoning_effort"] = reasoning_effort
 
             stream = await self.client.chat.completions.create(**params)
             async for chunk in stream:
@@ -90,3 +98,38 @@ class MistralInferenceService(InferenceService, OpenAICompatibleBaseService):
         except Exception as e:
             self._handle_openai_compatible_error(e, "streaming generation")
             yield f"Error: {str(e)}"
+
+    def _supports_reasoning_effort(self) -> bool:
+        """
+        Return whether the current model supports the reasoning_effort parameter.
+
+        See https://docs.mistral.ai/studio-api/conversations/reasoning
+        """
+        model_name = (self.model or "").lower()
+        reasoning_prefixes = (
+            "mistral-small",
+            "mistral-medium-3-5",
+        )
+        return model_name.startswith(reasoning_prefixes)
+
+    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+        """
+        Resolve the reasoning effort level for the current request.
+
+        Accepts either the Mistral-native ``reasoning_effort`` kwarg or the
+        provider-agnostic ``effort`` override (shared with allowed_models
+        overrides), falling back to the same keys in inference.yaml. Returns
+        None when the current model doesn't support reasoning effort.
+        """
+        if not self._supports_reasoning_effort():
+            kwargs.pop("reasoning_effort", None)
+            kwargs.pop("effort", None)
+            return None
+
+        reasoning_effort = kwargs.pop("reasoning_effort", None)
+        if reasoning_effort is None:
+            reasoning_effort = kwargs.pop("effort", None)
+        if reasoning_effort is None:
+            provider_config = self._extract_provider_config()
+            reasoning_effort = provider_config.get("reasoning_effort") or provider_config.get("effort")
+        return reasoning_effort

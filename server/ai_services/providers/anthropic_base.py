@@ -212,6 +212,53 @@ class AnthropicBaseService(ProviderAIService):
         provider_config = self._extract_provider_config()
         return provider_config.get('top_p', default)
 
+    def _supports_effort(self) -> bool:
+        """
+        Return whether the current model accepts the `output_config.effort` parameter.
+
+        See https://platform.claude.com/docs/en/build-with-claude/effort
+        """
+        model_name = (self.model or "").lower()
+        supported_prefixes = (
+            "claude-fable-5",
+            "claude-mythos-5",
+            "claude-mythos-preview",
+            "claude-opus-5",
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-opus-4-6",
+            "claude-opus-4-5",
+            "claude-sonnet-5",
+            "claude-sonnet-4-6",
+        )
+        return model_name.startswith(supported_prefixes)
+
+    def _get_effort(self, default: str = "low") -> str:
+        """
+        Get the effort configuration (low, medium, high, xhigh, max).
+
+        Args:
+            default: Default value if not configured
+
+        Returns:
+            Effort level string
+        """
+        provider_config = self._extract_provider_config()
+        return provider_config.get('effort', default)
+
+    def _resolve_effort(self, kwargs: Dict[str, Any]) -> str:
+        """
+        Resolve the effort level for the current request, popping it out of
+        ``kwargs`` so it never leaks into the raw Messages API params.
+
+        A per-request ``effort`` override (from an adapter or allowed_models
+        entry) takes precedence over the static inference.yaml config.
+        """
+        effort = kwargs.pop('effort', None)
+        if effort is None:
+            effort = self._get_effort()
+        return effort
+
     def _handle_anthropic_error(self, error: Exception, operation: str = "operation") -> None:
         """
         Handle Anthropic-specific errors with appropriate logging.

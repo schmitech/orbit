@@ -81,6 +81,8 @@ class GroqInferenceService(InferenceService, OpenAICompatibleBaseService):
                 else:
                     messages = [{"role": "user", "content": prompt}]
 
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
             # Build parameters using configured values
             params = {
                 "model": self.model,
@@ -90,6 +92,8 @@ class GroqInferenceService(InferenceService, OpenAICompatibleBaseService):
                 "top_p": kwargs.pop('top_p', self.top_p),
                 **kwargs  # Any other Groq-specific parameters
             }
+            if reasoning_effort:
+                params["reasoning_effort"] = reasoning_effort
 
             # Use the OpenAI client (pointing to Groq's API)
             response = await self.client.chat.completions.create(**params)
@@ -132,6 +136,8 @@ class GroqInferenceService(InferenceService, OpenAICompatibleBaseService):
                 else:
                     messages = [{"role": "user", "content": prompt}]
 
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+
             # Build parameters using configured values
             params = {
                 "model": self.model,
@@ -142,6 +148,8 @@ class GroqInferenceService(InferenceService, OpenAICompatibleBaseService):
                 "stream": True,
                 **kwargs  # Any other Groq-specific parameters
             }
+            if reasoning_effort:
+                params["reasoning_effort"] = reasoning_effort
 
             # Use the OpenAI client (pointing to Groq's API)
             stream = await self.client.chat.completions.create(**params)

@@ -78,7 +78,46 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                 types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
             ]
 
+        thinking_level = self._resolve_thinking_level(kwargs)
+        if thinking_level:
+            config_params["thinking_config"] = types.ThinkingConfig(thinking_level=thinking_level)
+
         return types.GenerateContentConfig(**config_params)
+
+    def _supports_thinking_level(self) -> bool:
+        """
+        Return whether the current model supports the thinking_level parameter.
+
+        See https://ai.google.dev/gemini-api/docs/thinking
+        """
+        model_name = (self.model or "").lower()
+        supported_prefixes = (
+            "gemini-2.5",
+            "gemini-3",
+        )
+        return model_name.startswith(supported_prefixes)
+
+    def _resolve_thinking_level(self, kwargs: Dict[str, Any]) -> Any:
+        """
+        Resolve the thinking level for the current request.
+
+        Accepts either the Gemini-native ``thinking_level`` kwarg or the
+        provider-agnostic ``effort`` override (shared with allowed_models
+        overrides), falling back to the same keys in inference.yaml. Returns
+        None when the current model doesn't support thinking level control.
+        """
+        if not self._supports_thinking_level():
+            kwargs.pop("thinking_level", None)
+            kwargs.pop("effort", None)
+            return None
+
+        thinking_level = kwargs.pop("thinking_level", None)
+        if thinking_level is None:
+            thinking_level = kwargs.pop("effort", None)
+        if thinking_level is None:
+            provider_config = self._extract_provider_config()
+            thinking_level = provider_config.get("thinking_level") or provider_config.get("effort")
+        return thinking_level
 
     @staticmethod
     def _extract_system_and_contents(
@@ -174,6 +213,10 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             config_kwargs["tools"] = [
                 gtypes.Tool(function_declarations=function_declarations)
             ]
+
+        thinking_level = self._resolve_thinking_level(kwargs)
+        if thinking_level:
+            config_kwargs["thinking_config"] = gtypes.ThinkingConfig(thinking_level=thinking_level)
 
         try:
             response = await asyncio.to_thread(

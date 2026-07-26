@@ -19,6 +19,9 @@ class NVIDIAInferenceService(InferenceService, NVIDIABaseService):
             await self.initialize()
         try:
             messages = kwargs.pop('messages', None) or [{"role": "user", "content": prompt}]
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+            if reasoning_effort:
+                kwargs['reasoning_effort'] = reasoning_effort
             response = await self.client.chat.completions.create(
                 model=self.model, messages=messages,
                 temperature=kwargs.get('temperature', self.temperature),
@@ -34,6 +37,9 @@ class NVIDIAInferenceService(InferenceService, NVIDIABaseService):
             await self.initialize()
         try:
             messages = kwargs.pop('messages', None) or [{"role": "user", "content": prompt}]
+            reasoning_effort = self._resolve_reasoning_effort(kwargs)
+            if reasoning_effort:
+                kwargs['reasoning_effort'] = reasoning_effort
             stream = await self.client.chat.completions.create(
                 model=self.model, messages=messages,
                 temperature=kwargs.get('temperature', self.temperature),
@@ -45,3 +51,22 @@ class NVIDIAInferenceService(InferenceService, NVIDIABaseService):
         except Exception as e:
             self._handle_nvidia_error(e, "streaming")
             yield f"Error: {str(e)}"
+
+    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+        """
+        Resolve the reasoning effort level for the current request, popping it
+        out of ``kwargs`` so it never leaks into the raw chat.completions params.
+
+        Accepts either the native ``reasoning_effort`` kwarg or the
+        provider-agnostic ``effort`` override, falling back to inference.yaml.
+        Not gated by model name — NIM hosts a wide range of models under one
+        API, so it's the caller's responsibility to only set this for a
+        reasoning-capable model. Left unset, nothing is sent.
+        """
+        reasoning_effort = kwargs.pop("reasoning_effort", None)
+        if reasoning_effort is None:
+            reasoning_effort = kwargs.pop("effort", None)
+        if reasoning_effort is None:
+            provider_config = self._extract_provider_config()
+            reasoning_effort = provider_config.get("reasoning_effort") or provider_config.get("effort")
+        return reasoning_effort
