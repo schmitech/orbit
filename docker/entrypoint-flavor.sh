@@ -113,7 +113,7 @@ if [ "$PROFILE_NEEDS_OLLAMA" = "true" ]; then
     done
     echo "Ollama is ready"
 
-    # Must match runtime_profiles.PROFILES["ollama"].ollama_models.
+    # Must match docker/flavors/ollama.yaml's ollama_models.
     REQUIRED_OLLAMA_MODELS="${REQUIRED_OLLAMA_MODELS:-gemma4:e2b nomic-embed-text}"
     for model in $REQUIRED_OLLAMA_MODELS; do
         if ! ollama list 2>/dev/null | grep -q "^${model}"; then

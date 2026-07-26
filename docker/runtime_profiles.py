@@ -27,9 +27,15 @@ ADAPTER_FILE = "adapters/multimodal.yaml"
 # The Ollama flavor uses gemma4:e2b — the smallest "edge" tier in the gemma4
 # family. It is the only tier that comfortably runs multimodal (text+vision)
 # inference on a CPU-only container with modest RAM; e4b/12b need far more
-# memory/compute than a pull-and-run quick start should require.
+# memory/compute than a pull-and-run quick start should require. Must match
+# docker/flavors/ollama.yaml's inference.model / vision.model.
 OLLAMA_GEMMA4_MODEL = "gemma4-e2b-cpu"  # preset name in install/default-config/ollama.yaml
 OLLAMA_GEMMA4_TAG = "gemma4:e2b"  # resolved Ollama model tag, must match the preset
+
+# Per-flavor profile definitions live in docker/flavors/*.yaml so new flavors,
+# generator adapters (config/adapters/*-generator.yaml), and provider
+# overrides can be added without touching this script.
+FLAVORS_DIR = Path(__file__).resolve().parent / "flavors"
 
 
 @dataclass(frozen=True)
@@ -45,70 +51,65 @@ class RuntimeProfile:
     needs_ollama: bool
     ollama_models: tuple[str, ...] = field(default_factory=tuple)
     allowed_models: tuple[dict, ...] = field(default_factory=tuple)
-
-
-PROFILES: dict[str, RuntimeProfile] = {
-    "ollama": RuntimeProfile(
-        profile_id="ollama",
-        inference_provider="ollama",
-        inference_model=OLLAMA_GEMMA4_MODEL,
-        embedding_provider="ollama",
-        embedding_model="nomic-embed-text",
-        vision_provider="ollama",
-        vision_model=OLLAMA_GEMMA4_TAG,
-        required_env_var=None,
-        needs_ollama=True,
-        ollama_models=(OLLAMA_GEMMA4_TAG, "nomic-embed-text"),
-    ),
-    "openai": RuntimeProfile(
-        profile_id="openai",
-        inference_provider="openai",
-        inference_model="gpt-5.4-mini",
-        embedding_provider="openai",
-        embedding_model="text-embedding-3-small",
-        vision_provider="openai",
-        vision_model="gpt-5.5",
-        required_env_var="OPENAI_API_KEY",
-        needs_ollama=False,
-        allowed_models=(
-            {"name": "gpt-5.4-mini", "provider": "openai", "model": "gpt-5.4-mini",
-             "context_window": 400000, "max_tokens": 32000},
-            {"name": "gpt-5.4", "provider": "openai", "model": "gpt-5.4",
-             "context_window": 400000, "max_tokens": 64000},
-            {"name": "gpt-5.4-nano", "provider": "openai", "model": "gpt-5.4-nano",
-             "context_window": 400000, "max_tokens": 16000},
-        ),
-    ),
-    "gemini": RuntimeProfile(
-        profile_id="gemini",
-        inference_provider="gemini",
-        inference_model="gemini-3.1-pro-preview",
-        embedding_provider="gemini",
-        embedding_model="gemini-embedding-2-preview",
-        vision_provider="gemini",
-        vision_model="gemini-3.6-flash",
-        required_env_var="GOOGLE_API_KEY",
-        needs_ollama=False,
-        allowed_models=(
-            {"name": "gemini-3.6-flash", "provider": "gemini", "model": "gemini-3.6-flash",
-             "context_window": 1048576, "max_tokens": 32000},
-            {"name": "gemini-3.1-pro-preview", "provider": "gemini", "model": "gemini-3.1-pro-preview",
-             "context_window": 1048576, "max_tokens": 65536},
-        ),
-    ),
-}
+    extra_adapters: tuple[dict, ...] = field(default_factory=tuple)
+    # Skill names to expose as available_skills/auto_routable_skills on
+    # simple-chat-with-files, e.g. "PDF", "web-search". Empty = no auto-routing.
+    auto_routable_skills: tuple[str, ...] = field(default_factory=tuple)
+    skill_router_provider: str | None = None
+    skill_router_model: str | None = None
+    # Global STT/TTS provider for this flavor. None = audio stays disabled
+    # and stt.yaml/tts.yaml are dropped from config.yaml's import list.
+    audio_stt_provider: str | None = None
+    audio_tts_provider: str | None = None
 
 
 class ProfileError(ValueError):
     pass
 
 
-def get_profile(profile_id: str) -> RuntimeProfile:
-    try:
-        return PROFILES[profile_id]
-    except KeyError:
+def _available_flavor_ids() -> list[str]:
+    return sorted(p.stem for p in FLAVORS_DIR.glob("*.yaml"))
+
+
+def _load_flavor_file(profile_id: str) -> dict:
+    path = FLAVORS_DIR / f"{profile_id}.yaml"
+    if not path.exists():
         raise ProfileError(
-            f"Unknown ORBIT_PROFILE '{profile_id}'. Supported profiles: {', '.join(sorted(PROFILES))}"
+            f"Unknown ORBIT_PROFILE '{profile_id}'. Supported profiles: {', '.join(_available_flavor_ids())}"
+        )
+    return _load_yaml(path)
+
+
+def get_profile(profile_id: str) -> RuntimeProfile:
+    data = _load_flavor_file(profile_id)
+    inference = data.get("inference", {})
+    embedding = data.get("embedding", {})
+    vision = data.get("vision", {})
+    skills = data.get("skills") or {}
+    audio = data.get("audio") or {}
+    try:
+        return RuntimeProfile(
+            profile_id=profile_id,
+            inference_provider=inference["provider"],
+            inference_model=inference["model"],
+            embedding_provider=embedding["provider"],
+            embedding_model=embedding["model"],
+            vision_provider=vision["provider"],
+            vision_model=vision["model"],
+            required_env_var=data.get("required_env_var"),
+            needs_ollama=bool(data.get("needs_ollama", False)),
+            ollama_models=tuple(data.get("ollama_models") or ()),
+            allowed_models=tuple(data.get("allowed_models") or ()),
+            extra_adapters=tuple(data.get("extra_adapters") or ()),
+            auto_routable_skills=tuple(skills.get("auto_routable") or ()),
+            skill_router_provider=skills.get("router_provider"),
+            skill_router_model=skills.get("router_model"),
+            audio_stt_provider=audio.get("stt_provider"),
+            audio_tts_provider=audio.get("tts_provider"),
+        )
+    except KeyError as exc:
+        raise ProfileError(
+            f"docker/flavors/{profile_id}.yaml is missing required field {exc}"
         ) from None
 
 
@@ -141,6 +142,8 @@ def resolve_config(profile: RuntimeProfile, config_dir: Path) -> None:
     _resolve_docker_paths(profile, config_dir / "config.yaml")
     _resolve_adapter_registry(config_dir / "adapters.yaml")
     _resolve_stores(config_dir / "stores.yaml")
+    _resolve_extra_adapters(profile, config_dir)
+    _resolve_skill_routing(profile, config_dir / "config.yaml")
 
 
 def _resolve_provider_enablement(profile: RuntimeProfile, config_dir: Path) -> None:
@@ -197,19 +200,51 @@ def _resolve_provider_enablement(profile: RuntimeProfile, config_dir: Path) -> N
             embedding_block["enabled"] = True
         _dump_yaml(embeddings_path, data)
 
+    # Audio (STT/TTS) is opt-in per flavor via docker/flavors/<id>.yaml's `audio:`
+    # section. Same enablement pattern as inference/vision above: the global
+    # singular flag AND the specific provider block both need enabled: true.
+    stt_path = config_dir / "stt.yaml"
+    if profile.audio_stt_provider and stt_path.exists():
+        data = _load_yaml(stt_path)
+        stt_block = data.get("stt")
+        if stt_block is not None:
+            stt_block["enabled"] = True
+            stt_block["provider"] = profile.audio_stt_provider
+        provider_block = data.get("stt_providers", {}).get(profile.audio_stt_provider)
+        if provider_block is not None:
+            provider_block["enabled"] = True
+        _dump_yaml(stt_path, data)
+
+    tts_path = config_dir / "tts.yaml"
+    if profile.audio_tts_provider and tts_path.exists():
+        data = _load_yaml(tts_path)
+        tts_block = data.get("tts")
+        if tts_block is not None:
+            tts_block["enabled"] = True
+            tts_block["provider"] = profile.audio_tts_provider
+        provider_block = data.get("tts_providers", {}).get(profile.audio_tts_provider)
+        if provider_block is not None:
+            provider_block["enabled"] = True
+        _dump_yaml(tts_path, data)
+
 
 def _resolve_docker_paths(profile: RuntimeProfile, config_path: Path) -> None:
     """Point the sqlite backend at the container's persistent /orbit/data volume,
-    drop the STT/TTS import, and make the selected profile the global default
-    inference provider — flavor images ship text+vision+file chat only, and
-    the canonical default (general.inference_provider: "ollama") would
-    otherwise stay wired to a provider a cloud flavor doesn't bundle."""
+    drop the STT/TTS import unless the flavor enables audio, and make the
+    selected profile the global default inference provider — the canonical
+    default (general.inference_provider: "ollama") would otherwise stay wired
+    to a provider a cloud flavor doesn't bundle."""
     if not config_path.exists():
         return
     data = _load_yaml(config_path)
 
+    drop = set()
+    if not profile.audio_stt_provider:
+        drop.add("stt.yaml")
+    if not profile.audio_tts_provider:
+        drop.add("tts.yaml")
     imports = data.get("import", [])
-    data["import"] = [name for name in imports if name not in ("stt.yaml", "tts.yaml")]
+    data["import"] = [name for name in imports if name not in drop]
 
     general = data.setdefault("general", {})
     general["inference_provider"] = profile.inference_provider
@@ -263,8 +298,14 @@ def _resolve_adapter(profile: RuntimeProfile, adapter_path: Path) -> None:
         adapter["embedding_provider"] = profile.embedding_provider
         adapter["embedding_model"] = profile.embedding_model
         adapter["vision_provider"] = profile.vision_provider
-        adapter.pop("stt_provider", None)
-        adapter.pop("tts_provider", None)
+        if profile.audio_stt_provider:
+            adapter["stt_provider"] = profile.audio_stt_provider
+        else:
+            adapter.pop("stt_provider", None)
+        if profile.audio_tts_provider:
+            adapter["tts_provider"] = profile.audio_tts_provider
+        else:
+            adapter.pop("tts_provider", None)
         if profile.allowed_models:
             adapter["allowed_models"] = [dict(m) for m in profile.allowed_models]
         else:
@@ -273,7 +314,75 @@ def _resolve_adapter(profile: RuntimeProfile, adapter_path: Path) -> None:
         adapter_config = adapter.get("config")
         if adapter_config is not None and "storage_root" in adapter_config:
             adapter_config["storage_root"] = UPLOADS_DIR
+
+        capabilities = adapter.setdefault("capabilities", {})
+        if profile.auto_routable_skills:
+            capabilities["available_skills"] = list(profile.auto_routable_skills)
+            capabilities["auto_routable_skills"] = list(profile.auto_routable_skills)
+            capabilities["auto_skill_routing"] = True
     _dump_yaml(adapter_path, data)
+
+
+def _resolve_extra_adapters(profile: RuntimeProfile, config_dir: Path) -> None:
+    """Enable optional adapters (document/image/video generators, etc.) declared
+    in the flavor's extra_adapters list — see docker/flavors/ollama.yaml for the
+    entry schema. Each referenced file must already exist under config_dir; add
+    it to install/default-config/adapters/ and Dockerfile.flavor's COPY first."""
+    if not profile.extra_adapters:
+        return
+
+    registry_path = config_dir / "adapters.yaml"
+    registry = _load_yaml(registry_path) if registry_path.exists() else {"import": []}
+    imports = registry.setdefault("import", [])
+
+    for entry in profile.extra_adapters:
+        adapter_file = entry["file"]
+        adapter_path = config_dir / adapter_file
+        if not adapter_path.exists():
+            raise ProfileError(
+                f"extra_adapters entry '{entry.get('name', adapter_file)}' references "
+                f"{adapter_file}, which does not exist in the runtime config directory. "
+                "Add it to install/default-config/adapters/ (and Dockerfile.flavor's COPY) first."
+            )
+
+        data = _load_yaml(adapter_path)
+        for adapter in data.get("adapters", []):
+            for field_name, value in entry.get("provider_fields", {}).items():
+                adapter[field_name] = value
+            if "rewrite_provider" in entry:
+                adapter["rewrite_provider"] = entry["rewrite_provider"]
+            if "rewrite_model" in entry:
+                adapter["rewrite_model"] = entry["rewrite_model"]
+            # Same non-root/WORKDIR permission issue as the main adapter's storage_root.
+            adapter_config = adapter.get("config")
+            if adapter_config is not None and "storage_root" in adapter_config:
+                adapter_config["storage_root"] = UPLOADS_DIR
+        _dump_yaml(adapter_path, data)
+
+        if adapter_file not in imports:
+            imports.append(adapter_file)
+
+    _dump_yaml(registry_path, registry)
+
+
+def _resolve_skill_routing(profile: RuntimeProfile, config_path: Path) -> None:
+    """When the flavor declares auto_routable_skills, turn on the natural-language
+    skill router: conversation_threading.enabled (required by supports_threading
+    skills) and skill_routing.auto_detect, with a small/fast confirm-LLM."""
+    if not profile.auto_routable_skills or not config_path.exists():
+        return
+    data = _load_yaml(config_path)
+
+    threading_block = data.get("conversation_threading")
+    if threading_block is not None:
+        threading_block["enabled"] = True
+
+    skill_routing_block = data.setdefault("skill_routing", {})
+    skill_routing_block["auto_detect"] = True
+    skill_routing_block["router_provider"] = profile.skill_router_provider or profile.inference_provider
+    skill_routing_block["router_model"] = profile.skill_router_model or profile.inference_model
+
+    _dump_yaml(config_path, data)
 
 
 def _resolve_inference_preset(profile: RuntimeProfile, inference_path: Path) -> None:
@@ -305,8 +414,11 @@ def generate_orbitchat_config(profile: RuntimeProfile, template_path: Path, outp
     ]
     data.setdefault("features", {})
     data["features"]["enableUpload"] = True
-    data["features"]["enableAudioInput"] = False
-    data["features"]["enableAudioOutput"] = False
+    data["features"]["enableAudioOutput"] = True
+    data["features"]["enableAudioInput"] = True
+    data["features"]["enableFeedbackButtons"] = True
+    data["features"]["enableConversationThreads"] = True
+    data["features"]["enableAutocomplete"] = True
 
     with output_path.open("w") as f:
         yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False, allow_unicode=True)

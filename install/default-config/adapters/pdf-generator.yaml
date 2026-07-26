@@ -1,0 +1,37 @@
+# PDF generation adapter — converts text/data into PDF documents via reportlab.
+# Handled by DocumentGenerationStep; LLMInferenceStep is skipped for this adapter type.
+adapters:
+  - name: "pdf-generator"
+    enabled: true
+    type: "document_generation"
+    document_format: "pdf"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    rewrite_provider: "openai"          # Text LLM used to enrich prompts before image generation
+    rewrite_model: "gpt-5.4-mini"       # Text LLM used to enrich prompts before image generation
+
+    capabilities:
+      expose_as_skill: true
+      skill_name: "PDF"
+      skill_description: "Generate PDF documents from text descriptions or structured data"
+      # Phrases that boost the skill-intent embedding pre-filter (auto-routing).
+      routing_examples:
+        - "make a pdf"
+        - "create a pdf document"
+        - "export this as a pdf"
+        - "save this as a pdf"
+        - "turn this into a pdf"
+        - "generate a pdf report"
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"
+
+    config:
+      storage_backend: "filesystem"
+      storage_root: "./uploads"

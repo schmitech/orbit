@@ -1,0 +1,109 @@
+# Runtime profile for the schmitech/orbit-openai flavor image.
+# Loaded by docker/runtime_profiles.py — see that file's module docstring.
+
+required_env_var: OPENAI_API_KEY
+needs_ollama: false
+
+inference:
+  provider: openai
+  model: gpt-5.4-mini
+
+embedding:
+  provider: openai
+  model: text-embedding-3-small
+
+vision:
+  provider: openai
+  model: gpt-5.5
+
+allowed_models:
+  - name: gpt-5.6
+    provider: openai
+    model: gpt-5.6
+    context_window: 400000
+    max_tokens: 64000
+  - name: gpt-5.5
+    provider: openai
+    model: gpt-5.5
+    context_window: 400000
+    max_tokens: 64000
+  - name: gpt-5.4-mini
+    provider: openai
+    model: gpt-5.4-mini
+    context_window: 400000
+    max_tokens: 32000
+  - name: gpt-5.4
+    provider: openai
+    model: gpt-5.4
+    context_window: 400000
+    max_tokens: 64000
+  - name: gpt-5.4-nano
+    provider: openai
+    model: gpt-5.4-nano
+    context_window: 400000
+    max_tokens: 16000
+
+# Single-provider audio: STT/TTS both use OpenAI so the whole stack still
+# needs only OPENAI_API_KEY. Enables stt.yaml/tts.yaml, sets stt_provider/
+# tts_provider on simple-chat-with-files, and enables the Audio skill below.
+audio:
+  stt_provider: openai
+  tts_provider: openai
+
+# Natural-language skill auto-routing (docs/adapters/auto-skill-intent-detection.md).
+# Turns on conversation_threading.enabled + skill_routing.auto_detect in
+# config.yaml and sets these as available_skills/auto_routable_skills on
+# simple-chat-with-files. router_provider/model is the confirm-LLM used to
+# disambiguate detected intent.
+skills:
+  auto_routable:
+    - Audio
+    - PDF
+    - Word
+    - Excel
+    - PowerPoint
+    - Fetch
+    - Markdown
+    - web-search
+  router_provider: openai
+  router_model: gpt-5.4-mini
+
+# See this file's `skills:`/`audio:` sections above for how each entry below
+# gets exposed. Each `file` must exist under install/default-config/adapters/
+# (and be COPYed by Dockerfile.flavor's `COPY install/default-config/`, which
+# already copies the whole tree). `provider_fields` is patched onto every
+# adapter block in that file.
+extra_adapters:
+  - name: web-search
+    file: adapters/web-search.yaml
+    provider_fields:
+      inference_provider: openai
+      model: gpt-5.4-mini
+  - name: audio-generator
+    file: adapters/audio-generator.yaml
+    provider_fields:
+      tts_provider: openai
+    rewrite_provider: openai
+    rewrite_model: gpt-5.4-mini
+  - name: pdf-generator
+    file: adapters/pdf-generator.yaml
+    rewrite_provider: openai
+    rewrite_model: gpt-5.4-mini
+  - name: word-generator
+    file: adapters/word-generator.yaml
+    rewrite_provider: openai
+    rewrite_model: gpt-5.4-mini
+  - name: excel-generator
+    file: adapters/excel-generator.yaml
+    rewrite_provider: openai
+    rewrite_model: gpt-5.4-mini
+  - name: pptx-generator
+    file: adapters/pptx-generator.yaml
+    rewrite_provider: openai
+    rewrite_model: gpt-5.4-mini
+  - name: markdown-generator
+    file: adapters/markdown-generator.yaml
+    rewrite_provider: openai
+    rewrite_model: gpt-5.4-mini
+  - name: fetch
+    file: adapters/fetch.yaml

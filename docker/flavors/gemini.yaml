@@ -1,0 +1,35 @@
+# Runtime profile for the schmitech/orbit-gemini flavor image.
+# Loaded by docker/runtime_profiles.py — see that file's module docstring.
+
+required_env_var: GOOGLE_API_KEY
+needs_ollama: false
+
+inference:
+  provider: gemini
+  model: gemini-3.1-pro-preview
+
+embedding:
+  provider: gemini
+  model: gemini-embedding-2-preview
+
+vision:
+  provider: gemini
+  model: gemini-3.6-flash
+
+allowed_models:
+  - name: gemini-3.6-flash
+    provider: gemini
+    model: gemini-3.6-flash
+    context_window: 1048576
+    max_tokens: 32000
+  - name: gemini-3.1-pro-preview
+    provider: gemini
+    model: gemini-3.1-pro-preview
+    context_window: 1048576
+    max_tokens: 65536
+
+# See docker/flavors/ollama.yaml for the extra_adapters schema. Gemini is the
+# only one of these three flavors whose provider supports video generation
+# (config/video.yaml only wires up gemini/xai) — a future video-generator
+# entry belongs here, not in ollama.yaml/openai.yaml.
+extra_adapters: []

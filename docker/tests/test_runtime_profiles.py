@@ -85,8 +85,61 @@ def test_cloud_profiles_never_fall_back_to_ollama_embeddings(profile_id, provide
     assert adapter["embedding_provider"] != "ollama"
     assert adapter["vision_provider"] == provider
     assert adapter["allowed_models"], "cloud profiles should expose allowed_models"
+
+
+def test_gemini_profile_has_no_audio_wiring(runtime_config_dir):
+    # gemini has no audio: section yet (unlike openai) — stt/tts_provider
+    # should stay absent from the adapter rather than silently defaulting.
+    profile = rp.get_profile("gemini")
+    rp.resolve_config(profile, runtime_config_dir)
+
+    adapters = yaml.safe_load((runtime_config_dir / rp.ADAPTER_FILE).read_text())
+    adapter = next(a for a in adapters["adapters"] if a["name"] == rp.ADAPTER_NAME)
     assert "stt_provider" not in adapter
     assert "tts_provider" not in adapter
+
+
+def test_openai_profile_enables_audio_and_skill_routing(runtime_config_dir):
+    profile = rp.get_profile("openai")
+    rp.resolve_config(profile, runtime_config_dir)
+
+    adapters = yaml.safe_load((runtime_config_dir / rp.ADAPTER_FILE).read_text())
+    adapter = next(a for a in adapters["adapters"] if a["name"] == rp.ADAPTER_NAME)
+    assert adapter["stt_provider"] == "openai"
+    assert adapter["tts_provider"] == "openai"
+    assert set(adapter["capabilities"]["auto_routable_skills"]) == {
+        "Audio", "PDF", "Word", "Excel", "PowerPoint", "Fetch", "Markdown", "web-search",
+    }
+    assert adapter["capabilities"]["auto_skill_routing"] is True
+
+    stt = yaml.safe_load((runtime_config_dir / "stt.yaml").read_text())
+    assert stt["stt"]["enabled"] is True
+    assert stt["stt_providers"]["openai"]["enabled"] is True
+
+    tts = yaml.safe_load((runtime_config_dir / "tts.yaml").read_text())
+    assert tts["tts"]["enabled"] is True
+    assert tts["tts_providers"]["openai"]["enabled"] is True
+
+    config = yaml.safe_load((runtime_config_dir / "config.yaml").read_text())
+    assert config["conversation_threading"]["enabled"] is True
+    assert config["skill_routing"]["auto_detect"] is True
+    assert config["skill_routing"]["router_provider"] == "openai"
+    assert config["skill_routing"]["router_model"] == "gpt-5.4-mini"
+    assert "stt.yaml" in config["import"]
+    assert "tts.yaml" in config["import"]
+
+    registry = yaml.safe_load((runtime_config_dir / "adapters.yaml").read_text())
+    for expected_file in (
+        "adapters/web-search.yaml", "adapters/audio-generator.yaml", "adapters/pdf-generator.yaml",
+        "adapters/word-generator.yaml", "adapters/excel-generator.yaml", "adapters/pptx-generator.yaml",
+        "adapters/markdown-generator.yaml", "adapters/fetch.yaml",
+    ):
+        assert expected_file in registry["import"]
+
+    web_search = yaml.safe_load((runtime_config_dir / "adapters/web-search.yaml").read_text())
+    ws_adapter = web_search["adapters"][0]
+    assert ws_adapter["inference_provider"] == "openai"
+    assert ws_adapter["model"] == "gpt-5.4-mini"
 
 
 @pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
@@ -129,7 +182,8 @@ def test_resolve_config_enables_global_embedding_flag(profile_id, runtime_config
 
 
 def test_resolve_config_points_sqlite_at_data_volume_and_drops_audio_imports(runtime_config_dir):
-    profile = rp.get_profile("openai")
+    # gemini has no audio: section, so stt.yaml/tts.yaml should still be dropped.
+    profile = rp.get_profile("gemini")
     rp.resolve_config(profile, runtime_config_dir)
 
     config = yaml.safe_load((runtime_config_dir / "config.yaml").read_text())
@@ -203,5 +257,8 @@ def test_generate_orbitchat_config_single_mode(tmp_path):
     assert len(generated["adapters"]) == 1
     assert generated["adapters"][0]["id"] == rp.ADAPTER_NAME
     assert generated["features"]["enableUpload"] is True
-    assert generated["features"]["enableAudioInput"] is False
-    assert generated["features"]["enableAudioOutput"] is False
+    assert generated["features"]["enableAudioInput"] is True
+    assert generated["features"]["enableAudioOutput"] is True
+    assert generated["features"]["enableFeedbackButtons"] is True
+    assert generated["features"]["enableConversationThreads"] is True
+    assert generated["features"]["enableAutocomplete"] is True

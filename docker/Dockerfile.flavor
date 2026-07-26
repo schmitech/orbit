@@ -113,6 +113,7 @@ COPY clients/orbitchat/orbitchat.yaml.example /orbit/orbitchat/orbitchat.yaml.ex
 # Runtime profile resolver
 # ═══════════════════════════════════════════════════════════════════════════
 COPY docker/runtime_profiles.py /orbit/docker/runtime_profiles.py
+COPY docker/flavors/ /orbit/docker/flavors/
 COPY docker/entrypoint-flavor.sh /orbit/entrypoint-flavor.sh
 RUN chmod +x /orbit/entrypoint-flavor.sh
 

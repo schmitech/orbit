@@ -1,0 +1,34 @@
+# Runtime profile for the schmitech/orbit-ollama flavor image.
+# Loaded by docker/runtime_profiles.py — see that file's module docstring.
+
+required_env_var: null  # no credential required, fully offline
+needs_ollama: true
+ollama_models:
+  - "gemma4:e2b"
+  - "nomic-embed-text"
+
+inference:
+  provider: ollama
+  model: gemma4-e2b-cpu  # preset name in install/default-config/ollama.yaml
+
+embedding:
+  provider: ollama
+  model: nomic-embed-text
+
+vision:
+  provider: ollama
+  model: "gemma4:e2b"
+
+allowed_models: []
+
+# Optional adapters to enable in addition to simple-chat-with-files (e.g. the
+# *-generator.yaml adapters under config/adapters/). Each entry:
+#   name: bookkeeping label
+#   file: path relative to the runtime config dir, e.g. "adapters/image-generator.yaml"
+#         (must already exist in install/default-config/adapters/ and be COPYed
+#         by Dockerfile.flavor — add it there first if it isn't yet)
+#   provider_fields: {field_name: value} patched onto the adapter block,
+#         e.g. {image_provider: ollama} or {video_provider: gemini}
+#   rewrite_provider / rewrite_model: optional, the text LLM used to enrich
+#         prompts before generation
+extra_adapters: []

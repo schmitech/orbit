@@ -1,0 +1,34 @@
+# Word document generation adapter — converts text/data into .docx files via python-docx.
+# Handled by DocumentGenerationStep; LLMInferenceStep is skipped for this adapter type.
+adapters:
+  - name: "word-generator"
+    enabled: true
+    type: "document_generation"
+    document_format: "docx"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    rewrite_provider: "openai"     # LLM used to produce the JSON document spec
+    # rewrite_model: "gpt-5.4-mini" # Optional: override the model within rewrite_provider
+
+    capabilities:
+      expose_as_skill: true
+      skill_name: "Word"
+      skill_description: "Generate Word documents (.docx) from text descriptions or structured data"
+      routing_examples:
+        - "make a word document"
+        - "create a docx"
+        - "write this up as a word doc"
+        - "export this to word"
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"
+
+    config:
+      storage_backend: "filesystem"
+      storage_root: "./uploads"

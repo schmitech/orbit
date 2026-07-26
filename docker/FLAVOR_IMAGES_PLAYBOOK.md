@@ -13,7 +13,7 @@ Rebuild when you changed any of:
 
 - `server/`, `bin/` (ORBIT code)
 - `install/default-config/` (canonical config — the resolver's source of truth)
-- `docker/runtime_profiles.py`, `docker/entrypoint-flavor.sh`, `docker/Dockerfile.flavor`
+- `docker/runtime_profiles.py`, `docker/flavors/*.yaml`, `docker/entrypoint-flavor.sh`, `docker/Dockerfile.flavor`
 - `clients/orbitchat/` (UI code)
 
 You do **not** need a flavor rebuild for changes to `docker/Dockerfile`,

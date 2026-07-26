@@ -94,7 +94,7 @@ dependencies = [
 [profiles.vector-stores]
 description = "Vector store backends (ChromaDB, Pinecone, Qdrant, etc.)"
 dependencies = [
-    "chromadb>=1.5.5",
+    "chromadb>=1.5.9",
     "pinecone>=8.1.1",
     "qdrant-client>=1.17.1",
     "faiss-cpu>=1.14.2",
