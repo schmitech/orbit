@@ -112,6 +112,9 @@ class MiddlewareConfigurator:
         # Configure CORS middleware
         MiddlewareConfigurator._configure_cors_middleware(app, config)
 
+        # Configure MCP Host/Origin validation (DNS rebinding protection for /mcp)
+        MiddlewareConfigurator._configure_mcp_host_validation_middleware(app, config)
+
         # Configure request logging middleware (logger captured in closure)
         MiddlewareConfigurator._configure_logging_middleware(app, logger)
 
@@ -226,6 +229,31 @@ class MiddlewareConfigurator:
         )
 
         _logger.info("CORS middleware configured successfully")
+
+    @staticmethod
+    def _configure_mcp_host_validation_middleware(app: FastAPI, config: Dict[str, Any]) -> None:
+        """
+        Configure Host/Origin validation on the /mcp mount.
+
+        The /mcp mount (fastmcp) bypasses ORBIT's normal API-key auth, so this
+        guards against DNS rebinding: always allows loopback hosts (localhost,
+        127.0.0.1, ::1), plus any hostname from configured CORS origins for
+        deployments that front /mcp with a real domain.
+        """
+        from middleware.mcp_host_validation_middleware import MCPHostValidationMiddleware
+
+        cors_config = (config.get('security', {}) or {}).get('cors', {}) or config.get('cors', {}) or {}
+        allowed_origins: List[str] = cors_config.get('allowed_origins', [])
+        allowed_hosts = []
+        for origin in allowed_origins:
+            if origin and origin != "*":
+                from urllib.parse import urlparse
+                host = urlparse(origin).hostname
+                if host:
+                    allowed_hosts.append(host)
+
+        app.add_middleware(MCPHostValidationMiddleware, allowed_hosts=allowed_hosts)
+        _logger.info("MCP Host/Origin validation middleware configured (allowed hosts: localhost + %s)", allowed_hosts)
 
     @staticmethod
     def _configure_logging_middleware(app: FastAPI, logger: logging.Logger) -> None:

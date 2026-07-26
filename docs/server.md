@@ -365,7 +365,7 @@ These endpoints are enabled by default in development. Set `ENVIRONMENT=producti
 }
 ```
 
-### MCP Protocol Chat
+### Chat with Message History
 - **Endpoint**: `POST /v1/chat`
 - **Headers**:
   ```json
@@ -373,21 +373,13 @@ These endpoints are enabled by default in development. Set `ENVIRONMENT=producti
     "X-API-Key": "your-api-key"
   }
   ```
-- **Request Body**:
+- **Request Body** (`messages[].content` is a plain string; only the last `user` message is used):
 ```json
 {
   "messages": [
     {
-      "id": "msg_1234567890",
-      "object": "thread.message",
       "role": "user",
-      "content": [
-        {
-          "type": "text",
-          "text": "Your message here"
-        }
-      ],
-      "created_at": 1683753347
+      "content": "Your message here"
     }
   ],
   "stream": true
@@ -396,19 +388,11 @@ These endpoints are enabled by default in development. Set `ENVIRONMENT=producti
 - **Response**:
 ```json
 {
-  "id": "resp_1234567890",
-  "object": "thread.message",
-  "created_at": 1683753348,
-  "role": "assistant",
-  "content": [
-    {
-      "type": "text",
-      "text": "Generated response..."
-    }
-  ]
+  "response": "Generated response..."
 }
 ```
-- **See documentation**: [MCP Protocol](mcp_protocol.md)
+
+This endpoint accepts the same shape as `/chat` above, plus an optional `messages` array (thread/history-style requests) instead of a flat `message` string. It is unrelated to the Model Context Protocol — for ORBIT's actual MCP server (`POST /mcp`), see [MCP Protocol](mcp_protocol.md).
 
 ### Message Queue (Async) Protocol
 

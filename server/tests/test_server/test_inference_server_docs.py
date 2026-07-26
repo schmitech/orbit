@@ -3,11 +3,10 @@ Tests for FastAPI docs exposure in InferenceServer.
 """
 
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
-
-from fastapi import FastAPI
 
 # Add server directory to Python path
 SCRIPT_DIR = Path(__file__).parent.absolute()
@@ -27,12 +26,17 @@ class _DummyStaticFiles:
         return None
 
 
+@asynccontextmanager
+async def _dummy_mcp_lifespan(app):
+    yield
+
+
 class _DummyFastMCP:
     """Minimal MCP adapter used to avoid external initialization in tests."""
 
     @staticmethod
     def from_fastapi(app, name):
-        return SimpleNamespace(http_app=lambda: FastAPI())
+        return SimpleNamespace(http_app=lambda path=None: SimpleNamespace(lifespan=_dummy_mcp_lifespan))
 
 
 class TestInferenceServerDocsExposure:

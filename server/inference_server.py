@@ -138,7 +138,10 @@ class InferenceServer:
         # Initialize MCP server
         logger.info("Initializing MCP server with fastmcp")
         self.mcp_server = FastMCP.from_fastapi(self.app, name="ORBIT")
-        self.app.mount("/mcp", self.mcp_server.http_app())
+        # http_app() already serves at "/mcp" internally, so mount at "/" to get
+        # the final path right (mounting at "/mcp" would double it to "/mcp/mcp").
+        self.mcp_app = self.mcp_server.http_app(path="/mcp")
+        self.app.mount("/", self.mcp_app)
 
         logger.info(
             "OpenAPI docs %s (ENVIRONMENT=%s)",
@@ -200,50 +203,55 @@ class InferenceServer:
         @asynccontextmanager
         async def lifespan(app: FastAPI):
             logger.info("Starting up FastAPI application")
-            
-            # Initialize services and clients
-            try:
-                # Store thread pool manager in app state for service access
-                app.state.thread_pool_manager = self.thread_pool_manager
-                await self._initialize_services(app)
-                self.configuration_summary_logger.log_configuration_summary(app)
 
-                # Under performance.workers > 1, each worker has its own
-                # DynamicAdapterManager/config cache, so an admin-triggered
-                # adapter/template reload only affects whichever worker served
-                # that request. Only actual workers reach this point (the
-                # dormant supervisor process never runs its own lifespan - see
-                # inference_server.py's run()), so gating on
-                # ORBIT_SUPERVISOR_PID alone is sufficient to skip this in
-                # single-process mode, where there's nothing to sync.
-                if os.environ.get('ORBIT_SUPERVISOR_PID'):
-                    from services.adapter_reload_state import poll_and_apply_reloads
-                    app.state._adapter_reload_poll_task = asyncio.create_task(
-                        poll_and_apply_reloads(app.state)
-                    )
+            # The mounted MCP sub-app (self.mcp_app, set later in __init__) has its
+            # own lifespan that starts its StreamableHTTP session manager task group.
+            # Without chaining it in here, every request to /mcp fails with
+            # "StreamableHTTPSessionManager task group was not initialized".
+            async with self.mcp_app.lifespan(app):
+                # Initialize services and clients
+                try:
+                    # Store thread pool manager in app state for service access
+                    app.state.thread_pool_manager = self.thread_pool_manager
+                    await self._initialize_services(app)
+                    self.configuration_summary_logger.log_configuration_summary(app)
 
-                logger.info("Startup complete")
-            except Exception as e:
-                logger.error("Failed to initialize services: %s", e)
-                raise
+                    # Under performance.workers > 1, each worker has its own
+                    # DynamicAdapterManager/config cache, so an admin-triggered
+                    # adapter/template reload only affects whichever worker served
+                    # that request. Only actual workers reach this point (the
+                    # dormant supervisor process never runs its own lifespan - see
+                    # inference_server.py's run()), so gating on
+                    # ORBIT_SUPERVISOR_PID alone is sufficient to skip this in
+                    # single-process mode, where there's nothing to sync.
+                    if os.environ.get('ORBIT_SUPERVISOR_PID'):
+                        from services.adapter_reload_state import poll_and_apply_reloads
+                        app.state._adapter_reload_poll_task = asyncio.create_task(
+                            poll_and_apply_reloads(app.state)
+                        )
 
-            yield
+                    logger.info("Startup complete")
+                except Exception as e:
+                    logger.error("Failed to initialize services: %s", e)
+                    raise
 
-            # Cleanup resources
-            try:
-                logger.info("Shutting down services...")
-                poll_task = getattr(app.state, '_adapter_reload_poll_task', None)
-                if poll_task is not None:
-                    poll_task.cancel()
-                    try:
-                        await poll_task
-                    except asyncio.CancelledError:
-                        pass
-                await self._shutdown_services(app)
-                logger.info("Services shut down successfully")
-            except Exception as e:
-                logger.error("Error during shutdown: %s", e)
-        
+                yield
+
+                # Cleanup resources
+                try:
+                    logger.info("Shutting down services...")
+                    poll_task = getattr(app.state, '_adapter_reload_poll_task', None)
+                    if poll_task is not None:
+                        poll_task.cancel()
+                        try:
+                            await poll_task
+                        except asyncio.CancelledError:
+                            pass
+                    await self._shutdown_services(app)
+                    logger.info("Services shut down successfully")
+                except Exception as e:
+                    logger.error("Error during shutdown: %s", e)
+
         return lifespan
 
     def _initialize_retrievers(self):

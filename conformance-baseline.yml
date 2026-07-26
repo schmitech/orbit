@@ -1,0 +1,40 @@
+# Expected-failures baseline for the official MCP conformance suite:
+#   https://github.com/modelcontextprotocol/conformance
+#
+# Usage:  npx @modelcontextprotocol/conformance server --url <url>/mcp --expected-failures conformance-baseline.yml
+# Full docs on how/why this file exists: docs/mcp_protocol.md#the-conformance-baselineyml-file-repo-root
+#
+# ORBIT's /mcp endpoint auto-generates MCP tools by reflecting the existing FastAPI
+# routes (fastmcp's FastMCP.from_fastapi in server/inference_server.py) rather than
+# hand-authoring an "everything server" with the specific named fixtures the
+# conformance suite's server scenarios expect (e.g. a resource at
+# "test://static-text", a tool called "test_image_content", a prompt named
+# "test_prompt_with_arguments"). These scenarios fail for that reason alone, not
+# because of a protocol violation — listing them here lets `--expected-failures`
+# pass CI on known limitations while still catching real regressions.
+#
+# Do not add a scenario here to silence a genuine spec violation — investigate and
+# fix it instead. Re-run without this file periodically to see if a scenario has
+# started passing (e.g. after adding a resources/prompts capability) and remove it.
+server:
+  - completion-complete        # no completion/complete support (fastmcp doesn't advertise it)
+  - tools-call-image           # no tool returns the fixture's test_image_content
+  - tools-call-audio           # no tool returns the fixture's test_audio_content
+  - tools-call-embedded-resource
+  - tools-call-mixed-content
+  - tools-call-with-logging
+  - tools-call-with-progress
+  - tools-call-sampling
+  - tools-call-elicitation
+  - elicitation-sep1034-defaults
+  - elicitation-sep1330-enums
+  - resources-read-text        # no resource at test://static-text
+  - resources-read-binary
+  - resources-templates-read
+  - resources-subscribe
+  - resources-unsubscribe
+  - prompts-get-simple         # no prompt named test_prompt_with_arguments etc.
+  - prompts-get-with-args
+  - prompts-get-embedded-resource
+  - prompts-get-with-image
+client: []
