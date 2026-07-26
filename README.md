@@ -52,7 +52,13 @@ ORBIT sits between your applications and the models, data, and tools they need. 
 
 ## 🚀 Quick Start
 
-Want to try ORBIT immediately without installing anything? Try the live [ORBIT Sandbox](https://orbit.schmitech.ca/).
+<div align="center">
+  <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/TRY%20ORBIT%20LIVE-Explore%20the%20Sandbox%20%E2%86%92-7C3AED?style=for-the-badge" alt="Try ORBIT live — explore the sandbox" /></a>
+  <br />
+  <strong>See what ORBIT can do before you install:</strong> explore the live sandbox instantly—no download, Docker, or setup required.
+</div>
+
+<br />
 
 Otherwise, skip the clone and config-file editing — pull a flavor image and run it. ORBIT, the orbitchat web UI, and a minimalistic document-chat setup are all inside to get you started in minutes.
 
