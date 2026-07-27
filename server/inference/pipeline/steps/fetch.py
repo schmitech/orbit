@@ -59,7 +59,7 @@ class FetchStep(PipelineStep):
     Executes only for adapters whose 'type' is 'fetch'.
     Tries Jina Reader (r.jina.ai) first for clean markdown output;
     falls back to direct httpx fetch + BeautifulSoup parsing.
-    Stores result in context.response.
+    Stores fetched content in context.formatted_context for the LLM step.
     """
 
     def should_execute(self, context: ProcessingContext) -> bool:
@@ -106,7 +106,6 @@ class FetchStep(PipelineStep):
             if content:
                 logger.debug("FetchStep: Jina Reader succeeded for %s", url)
                 context.formatted_context = f"Source: {url}\n\n{content}"
-                context.response = context.formatted_context
                 return context
 
             logger.debug("FetchStep: Jina Reader failed or returned thin content, falling back to direct fetch")
@@ -144,7 +143,6 @@ class FetchStep(PipelineStep):
                 return context
 
             context.formatted_context = _parse_html(response.text, url)
-            context.response = context.formatted_context
         return context
 
 

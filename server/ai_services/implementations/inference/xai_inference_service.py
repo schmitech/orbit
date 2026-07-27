@@ -9,6 +9,7 @@ Compare with: server/inference/pipeline/providers/xai_provider.py (old implement
 
 import json
 from typing import Dict, Any, AsyncGenerator, List
+from urllib.parse import urlparse
 
 from ...base import ServiceType
 from ...providers import OpenAICompatibleBaseService
@@ -122,7 +123,7 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
             if web_search:
                 params = self._build_web_search_params(messages, **kwargs)
                 response = await self.client.responses.create(**params)
-                return response.output_text
+                return response.output_text + self._format_url_citations(self._extract_annotations(response))
 
             reasoning_effort = self._resolve_reasoning_effort(kwargs)
 
@@ -159,11 +160,20 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
             if web_search:
                 params = self._build_web_search_params(messages, stream=True, **kwargs)
                 response_stream = await self.client.responses.create(**params)
+                annotations = []
                 async for event in response_stream:
-                    if getattr(event, "type", None) == "response.output_text.delta":
+                    event_type = getattr(event, "type", None)
+                    if event_type == "response.output_text.delta":
                         delta = getattr(event, "delta", None)
                         if delta:
                             yield delta
+                    elif event_type == "response.output_text.annotation.added":
+                        annotation = getattr(event, "annotation", None)
+                        if annotation:
+                            annotations.append(annotation)
+                sources = self._format_url_citations(annotations)
+                if sources:
+                    yield sources
                 return
 
             reasoning_effort = self._resolve_reasoning_effort(kwargs)
@@ -230,6 +240,48 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
             params["stream"] = True
 
         return params
+
+    @staticmethod
+    def _extract_annotations(response: Any) -> List[Any]:
+        """Collect url_citation annotations from a non-streaming Responses API result."""
+        annotations = []
+        for item in getattr(response, "output", []) or []:
+            if getattr(item, "type", None) != "message":
+                continue
+            for part in getattr(item, "content", []) or []:
+                annotations.extend(getattr(part, "annotations", []) or [])
+        return annotations
+
+    @staticmethod
+    def _format_url_citations(annotations: List[Any]) -> str:
+        """Format Responses API url_citation annotations as a markdown source list.
+
+        xAI populates ``title`` with the citation index (e.g. "1") rather than
+        a real page title, so a bare-digit title is treated as absent and the
+        URL's hostname is used as the display text instead.
+        """
+        seen_urls = set()
+        lines = []
+        for annotation in annotations:
+            if isinstance(annotation, dict):
+                url = annotation.get("url")
+                title = annotation.get("title")
+            else:
+                url = getattr(annotation, "url", None)
+                title = getattr(annotation, "title", None)
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+
+            if not title or title.strip().isdigit():
+                title = urlparse(url).hostname or url
+
+            lines.append(f"- [{title}]({url})")
+
+        if not lines:
+            return ""
+
+        return "\n\n**Sources:**\n" + "\n".join(lines)
 
     def _supports_reasoning_effort(self) -> bool:
         """

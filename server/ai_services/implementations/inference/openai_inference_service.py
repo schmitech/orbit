@@ -9,6 +9,7 @@ Compare with: server/inference/pipeline/providers/openai_provider.py (old implem
 
 import json
 from typing import Dict, Any, AsyncGenerator, List
+from urllib.parse import urlparse
 
 import logging
 
@@ -80,7 +81,8 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             if web_search:
                 params = self._build_web_search_params(messages, **kwargs)
                 response = await self.client.responses.create(**params)
-                return response.output_text
+                sources = self._extract_annotations(response) or self._extract_web_search_urls(response)
+                return response.output_text + self._format_url_citations(sources)
 
             # Build parameters using configured values
             # Handle max_tokens-style variants for different models/endpoints
@@ -142,11 +144,30 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             if web_search:
                 params = self._build_web_search_params(messages, stream=True, **kwargs)
                 response_stream = await self.client.responses.create(**params)
+                annotations = []
+                final_response = None
                 async for event in response_stream:
-                    if getattr(event, "type", None) == "response.output_text.delta":
+                    event_type = getattr(event, "type", None)
+                    if event_type == "response.output_text.delta":
                         delta = getattr(event, "delta", None)
                         if delta:
                             yield delta
+                    elif event_type == "response.output_text.annotation.added":
+                        annotation = getattr(event, "annotation", None)
+                        if annotation:
+                            annotations.append(annotation)
+                    elif event_type == "response.completed":
+                        final_response = getattr(event, "response", None)
+
+                # Some models don't emit annotation.added events even when the
+                # search tool found real pages - fall back to the completed
+                # response's web_search_call sources in that case.
+                if not annotations and final_response is not None:
+                    annotations = self._extract_web_search_urls(final_response)
+
+                sources = self._format_url_citations(annotations)
+                if sources:
+                    yield sources
                 return
 
             # Build parameters using configured values
@@ -368,6 +389,9 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             "input": input_items,
             "tools": [{"type": "web_search"}],
             "max_output_tokens": self._resolve_token_value("max_output_tokens", kwargs),
+            # Without this, some models omit url_citation annotations from the
+            # response even though the search tool ran.
+            "include": ["web_search_call.action.sources"],
         }
 
         if instructions_parts:
@@ -381,6 +405,68 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             params["stream"] = True
 
         return params
+
+    @staticmethod
+    def _extract_annotations(response: Any) -> List[Any]:
+        """Collect url_citation annotations from a non-streaming Responses API result."""
+        annotations = []
+        for item in getattr(response, "output", []) or []:
+            if getattr(item, "type", None) != "message":
+                continue
+            for part in getattr(item, "content", []) or []:
+                annotations.extend(getattr(part, "annotations", []) or [])
+        return annotations
+
+    @staticmethod
+    def _extract_web_search_urls(response: Any, limit: int = 6) -> List[str]:
+        """
+        Fall back to the raw URLs a web_search_call visited when the message
+        carries no url_citation annotations.
+
+        Some models (e.g. gpt-5.6) don't populate annotations even when the
+        search tool ran and found real pages, so this is the only source
+        metadata OpenAI gives us for those. It reflects pages the search
+        considered, not necessarily ones the final answer drew from.
+        """
+        urls = []
+        seen_urls = set()
+        for item in getattr(response, "output", []) or []:
+            if getattr(item, "type", None) != "web_search_call":
+                continue
+            action = getattr(item, "action", None)
+            for source in getattr(action, "sources", None) or []:
+                url = source.get("url") if isinstance(source, dict) else getattr(source, "url", None)
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                urls.append(url)
+                if len(urls) >= limit:
+                    return urls
+        return urls
+
+    @staticmethod
+    def _format_url_citations(annotations: List[Any]) -> str:
+        """Format Responses API url_citation annotations (or bare URL strings) as a markdown source list."""
+        seen_urls = set()
+        lines = []
+        for annotation in annotations:
+            if isinstance(annotation, str):
+                url, title = annotation, None
+            elif isinstance(annotation, dict):
+                url, title = annotation.get("url"), annotation.get("title")
+            else:
+                url, title = getattr(annotation, "url", None), getattr(annotation, "title", None)
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            if not title:
+                title = urlparse(url).hostname or url
+            lines.append(f"- [{title}]({url})")
+
+        if not lines:
+            return ""
+
+        return "\n\n**Sources:**\n" + "\n".join(lines)
 
     def _get_token_parameter_name(self) -> str:
         """Return the correct token-count parameter name for the active model."""

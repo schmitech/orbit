@@ -7,6 +7,7 @@ the new unified AI services architecture.
 
 import json
 from typing import Dict, Any, AsyncGenerator, List
+from urllib.parse import urlparse
 
 from ...base import ServiceType
 from ...providers import AnthropicBaseService
@@ -63,6 +64,45 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
                 filtered.append(msg)
         system_content = "\n\n".join(system_parts) if system_parts else None
         return system_content, filtered
+
+    @staticmethod
+    def _extract_text_and_citations(content_blocks):
+        """
+        Concatenate text blocks from a Messages API response and collect any
+        web_search_result_location citations attached to them.
+
+        The web_search tool runs server-side; Claude interleaves
+        server_tool_use / web_search_tool_result blocks with the text blocks
+        that cite them, so the final text is every text block joined in order.
+        """
+        text_parts = []
+        citations = []
+        for block in content_blocks:
+            if getattr(block, "type", None) != "text":
+                continue
+            text_parts.append(block.text)
+            citations.extend(getattr(block, "citations", None) or [])
+        return "".join(text_parts), citations
+
+    @staticmethod
+    def _format_citations(citations: List[Any]) -> str:
+        """Format web_search_result_location citations as a markdown source list."""
+        seen_urls = set()
+        lines = []
+        for citation in citations:
+            if getattr(citation, "type", None) != "web_search_result_location":
+                continue
+            url = getattr(citation, "url", None)
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            title = getattr(citation, "title", None) or urlparse(url).hostname or url
+            lines.append(f"- [{title}]({url})")
+
+        if not lines:
+            return ""
+
+        return "\n\n**Sources:**\n" + "\n".join(lines)
 
     async def generate_with_tools(
         self,
@@ -212,6 +252,7 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
         try:
             # Check if we have messages format in kwargs
             messages = kwargs.pop('messages', None)
+            web_search = kwargs.pop('web_search', False)
 
             if messages is None:
                 # Traditional format - convert to messages
@@ -237,10 +278,15 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
                 params["system"] = system_content
             if self._supports_effort():
                 params["output_config"] = {"effort": effort}
+            if web_search:
+                params["tools"] = [{"type": "web_search_20250305", "name": "web_search"}]
 
             response = await self.client.messages.create(**params)
 
-            return response.content[0].text
+            text, citations = self._extract_text_and_citations(response.content)
+            if web_search:
+                text += self._format_citations(citations)
+            return text
 
         except Exception as e:
             self._handle_anthropic_error(e, "text generation")
@@ -263,6 +309,7 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
         try:
             # Check if we have messages format in kwargs
             messages = kwargs.pop('messages', None)
+            web_search = kwargs.pop('web_search', False)
 
             if messages is None:
                 # Traditional format - convert to messages
@@ -288,10 +335,19 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
                 params["system"] = system_content
             if self._supports_effort():
                 params["output_config"] = {"effort": effort}
+            if web_search:
+                params["tools"] = [{"type": "web_search_20250305", "name": "web_search"}]
 
             async with self.client.messages.stream(**params) as stream:
                 async for text in stream.text_stream:
                     yield text
+
+                if web_search:
+                    final_message = await stream.get_final_message()
+                    _, citations = self._extract_text_and_citations(final_message.content)
+                    sources = self._format_citations(citations)
+                    if sources:
+                        yield sources
 
         except Exception as e:
             self._handle_anthropic_error(e, "streaming generation")

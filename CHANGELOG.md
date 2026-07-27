@@ -3,6 +3,7 @@
 ## [2.11.1] - 2026-07-26
 
 ### Core System Updates
+- **Web Search Source Citations**: Gemini, OpenAI, xAI, and Anthropic native web-search responses now append a `Sources:` list of the pages the model actually cited, for both streaming and non-streaming generation. OpenAI falls back to the search call's visited URLs when the model omits inline citations; query types OpenAI backs with an internal data feed (e.g. weather) have no citable URL and remain source-less by design.
 - **Reasoning Effort**: Added a provider-agnostic reasoning-effort override across inference config, adapter config, and allowed model entries, mapping to each provider's native effort/thinking controls.
 - **OpenAI MCP Tool Calls**: Migrated OpenAI MCP function calling from Chat Completions to the Responses API, enabling reasoning-enabled tool workflows and replay of reasoning/function-call context.
 - **MCP Mount**: Fixed the broken `/mcp` FastMCP mount path and chained its lifespan into the server lifecycle so real MCP requests initialize correctly.
@@ -10,9 +11,11 @@
 
 ### Chat-app & UI Improvements
 - **Paused Backend UX**: Display 503 paused-server chat responses as localized try-again-later warnings instead of application errors.
-- **orbitchat**: Published orbitchat v3.13.2.
+- **orbitchat**: Published orbitchat v3.13.3.
 
 ### Bug Fixes & Technical Improvements
+- **Autocomplete for Conversational Adapters**: Autocomplete now also draws suggestions from skills' `routing_examples` (e.g. "search the web for", "make a pdf of"), so passthrough/conversational adapters with no retriever templates of their own (e.g. `simple-chat`) surface discovery hints, not just intent-template `nl_examples`.
+- **Adapter Reload Cache Invalidation**: Fixed a bug where toggling an adapter's `supports_autocomplete`, `auto_routable_skills`, or `available_skills` on reload didn't take effect until the autocomplete cache TTL lapsed or the server restarted; adapter reload now clears the full autocomplete cache since dependent adapters can embed another adapter's skill examples.
 - **Gemini Video Generation**: Fixed Gemini video generation behavior and packaging.
 - **MCP Security & Tests**: Added Host/Origin validation for the MCP mount and integration coverage against the real FastMCP mount.
 - **Provider Effort Overrides**: Fixed dropped Anthropic per-request effort overrides and applied effort overrides to xAI web-search paths.

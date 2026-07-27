@@ -168,6 +168,33 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
 
         return first_part.text
 
+    @staticmethod
+    def _format_grounding_sources(candidate) -> str:
+        """Format grounding_metadata web sources as a markdown citation list, if present."""
+        grounding_metadata = getattr(candidate, 'grounding_metadata', None)
+        if not grounding_metadata:
+            return ""
+
+        chunks = getattr(grounding_metadata, 'grounding_chunks', None)
+        if not chunks:
+            return ""
+
+        seen_uris = set()
+        lines = []
+        for chunk in chunks:
+            web = getattr(chunk, 'web', None)
+            uri = getattr(web, 'uri', None) if web else None
+            if not uri or uri in seen_uris:
+                continue
+            seen_uris.add(uri)
+            title = getattr(web, 'title', None) or uri
+            lines.append(f"- [{title}]({uri})")
+
+        if not lines:
+            return ""
+
+        return "\n\n**Sources:**\n" + "\n".join(lines)
+
     async def generate_with_tools(
         self,
         messages: List[Dict[str, Any]],
@@ -403,7 +430,10 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                 config=config,
             )
 
-            return self._extract_text(response)
+            text = self._extract_text(response)
+            if web_search:
+                text += self._format_grounding_sources(response.candidates[0])
+            return text
 
         except Exception as e:
             self._handle_google_error(e, "text generation")
@@ -433,12 +463,20 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                 config=config,
             )
 
+            last_candidate = None
             for chunk in response_iter:
-                if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
-                    part = chunk.candidates[0].content.parts[0]
-                    if hasattr(part, 'text') and part.text:
-                        yield part.text
-                        await asyncio.sleep(0)
+                if chunk.candidates:
+                    last_candidate = chunk.candidates[0]
+                    if last_candidate.content and last_candidate.content.parts:
+                        part = last_candidate.content.parts[0]
+                        if hasattr(part, 'text') and part.text:
+                            yield part.text
+                            await asyncio.sleep(0)
+
+            if web_search and last_candidate is not None:
+                sources = self._format_grounding_sources(last_candidate)
+                if sources:
+                    yield sources
 
         except Exception as e:
             self._handle_google_error(e, "streaming generation")
