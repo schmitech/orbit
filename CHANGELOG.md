@@ -19,6 +19,7 @@
 - **Gemini Video Generation**: Fixed Gemini video generation behavior and packaging.
 - **MCP Security & Tests**: Added Host/Origin validation for the MCP mount and integration coverage against the real FastMCP mount.
 - **Provider Effort Overrides**: Fixed dropped Anthropic per-request effort overrides and applied effort overrides to xAI web-search paths.
+- **Prompt Update `timestamp` Crash**: Fixed a `'str' object has no attribute 'timestamp'` 500 error when updating a system prompt via the admin/persona panel with a cache service (Redis) in front of the database — the cache stampede-lock fallback wasn't converting cached ISO date strings back to `datetime`, and prompt response serialization assumed `created_at`/`updated_at` were always `datetime`. Added regression tests in `server/tests/test_admin/test_prompt_service.py`.
 
 ### Documentation & Configuration
 - **MCP Examples**: Improved the MCP server sample and added a business example intro/persona plus a tool-calling demo video.

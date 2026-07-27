@@ -1094,8 +1094,8 @@ async def create_prompt(
         "name": prompt.get("name"),
         "prompt": prompt.get("prompt"),
         "version": prompt.get("version"),
-        "created_at": prompt.get("created_at").timestamp() if prompt.get("created_at") else 0,
-        "updated_at": prompt.get("updated_at").timestamp() if prompt.get("updated_at") else 0
+        "created_at": _serialize_created_at(prompt.get("created_at")) or 0,
+        "updated_at": _serialize_created_at(prompt.get("updated_at")) or 0
     }
 
 
@@ -1139,9 +1139,9 @@ async def get_prompt(
     # Convert ObjectId to string and datetime to timestamp
     prompt["_id"] = str(prompt["_id"])
     if "created_at" in prompt:
-        prompt["created_at"] = prompt["created_at"].timestamp()
+        prompt["created_at"] = _serialize_created_at(prompt["created_at"]) or 0
     if "updated_at" in prompt:
-        prompt["updated_at"] = prompt["updated_at"].timestamp()
+        prompt["updated_at"] = _serialize_created_at(prompt["updated_at"]) or 0
         
     return prompt
 
@@ -1210,8 +1210,8 @@ async def update_prompt(
         "name": prompt.get("name"),
         "prompt": prompt.get("prompt"),
         "version": prompt.get("version"),
-        "created_at": prompt.get("created_at").timestamp() if prompt.get("created_at") else 0,
-        "updated_at": prompt.get("updated_at").timestamp() if prompt.get("updated_at") else 0
+        "created_at": _serialize_created_at(prompt.get("created_at")) or 0,
+        "updated_at": _serialize_created_at(prompt.get("updated_at")) or 0
     }
 
 

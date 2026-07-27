@@ -220,7 +220,14 @@ class PromptService:
                     cached_value = await self.cache_service.get(cache_key)
                     if cached_value:
                         try:
-                            return json.loads(cached_value)
+                            retried_prompt = json.loads(cached_value)
+                            for key, value in list(retried_prompt.items()):
+                                if isinstance(value, str) and key in ['created_at', 'updated_at']:
+                                    try:
+                                        retried_prompt[key] = datetime.fromisoformat(value)
+                                    except (ValueError, TypeError):
+                                        pass
+                            return retried_prompt
                         except Exception:
                             pass
                     # Still no cache — fall through to DB query
