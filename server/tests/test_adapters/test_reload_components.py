@@ -437,6 +437,161 @@ class TestAdapterReloader:
         self.adapter_cache.put.assert_not_called()
 
 
+class TestAdapterReloaderAutocompleteInvalidation:
+    """Test AdapterReloader invalidates the autocomplete cache on reload.
+
+    Covers the bug where toggling capabilities like supports_autocomplete,
+    auto_routable_skills, or available_skills on a conversational adapter kept
+    serving stale suggestions until the autocomplete cache TTL lapsed.
+
+    Invalidation clears the WHOLE autocomplete cache rather than just the
+    reloaded adapter's own key: a consumer adapter's cached suggestions embed
+    routing_examples from every skill it can reach, and a composite adapter's
+    cache embeds its children's nl_examples. So changing/disabling/removing
+    any one adapter can make other adapters' cached suggestions stale too.
+    """
+
+    def setup_method(self):
+        """Setup test fixtures with a fake app_state carrying autocomplete_service"""
+        self.config_manager = Mock()
+        self.adapter_cache = Mock()
+        self.adapter_loader = Mock()
+        self.dependency_cleaner = Mock()
+
+        self.adapter_cache.remove = AsyncMock(return_value=Mock())
+        self.adapter_cache.contains = Mock(return_value=False)
+        self.adapter_loader.load_adapter = AsyncMock(return_value=Mock())
+        self.dependency_cleaner.clear_adapter_dependencies = AsyncMock(return_value=[])
+
+        self.autocomplete_service = Mock()
+        self.autocomplete_service.invalidate_cache = AsyncMock()
+        self.app_state = Mock()
+        self.app_state.autocomplete_service = self.autocomplete_service
+
+        self.reloader = AdapterReloader(
+            self.config_manager,
+            self.adapter_cache,
+            self.adapter_loader,
+            self.dependency_cleaner,
+            app_state=self.app_state,
+        )
+
+    @pytest.mark.asyncio
+    async def test_reload_single_adapter_updated_invalidates_autocomplete_cache(self):
+        """Toggling a capability (e.g. supports_autocomplete) on update clears the whole
+        autocomplete cache, since a consumer's cached suggestions may embed this
+        adapter's routing_examples/nl_examples via skill or composite-child references."""
+        old_config = {'name': 'simple-chat', 'enabled': True, 'capabilities': {'supports_autocomplete': True}}
+        new_adapter_config = {'name': 'simple-chat', 'enabled': True, 'capabilities': {'supports_autocomplete': False}}
+        new_config = {'adapters': [new_adapter_config]}
+
+        self.config_manager.get = Mock(return_value=old_config)
+        self.config_manager.contains = Mock(return_value=True)
+        self.config_manager.put = Mock()
+        self.adapter_cache.contains = Mock(return_value=True)
+        self.adapter_cache.get = Mock(return_value=Mock())
+        self.adapter_cache.put = Mock()
+
+        await self.reloader.reload_single_adapter("simple-chat", new_config)
+
+        self.autocomplete_service.invalidate_cache.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_reload_single_adapter_disabled_invalidates_autocomplete_cache(self):
+        """Disabling an adapter clears the whole autocomplete cache too (it may back a skill/child)."""
+        old_config = {'name': 'simple-chat', 'enabled': True, 'capabilities': {'supports_autocomplete': True}}
+        new_config = {'adapters': [{'name': 'simple-chat', 'enabled': False}]}
+
+        self.config_manager.get = Mock(return_value=old_config)
+        self.config_manager.remove = Mock()
+        self.adapter_cache.contains = Mock(return_value=True)
+
+        await self.reloader.reload_single_adapter("simple-chat", new_config)
+
+        self.autocomplete_service.invalidate_cache.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_reload_all_adapters_updated_invalidates_autocomplete_cache(self):
+        """Bulk reload of an updated adapter clears the whole autocomplete cache."""
+        old_config = {'name': 'simple-chat', 'enabled': True, 'capabilities': {'supports_autocomplete': True}}
+        new_adapter_config = {'name': 'simple-chat', 'enabled': True, 'capabilities': {'supports_autocomplete': False}}
+        new_config = {'adapters': [new_adapter_config]}
+
+        self.config_manager.get = Mock(return_value=old_config)
+        self.config_manager.get_available_adapters = Mock(return_value=['simple-chat'])
+        self.config_manager.put = Mock()
+        self.config_manager.get_adapter_count = Mock(return_value=1)
+        self.adapter_cache.contains = Mock(return_value=True)
+        self.adapter_cache.put = Mock()
+
+        await self.reloader.reload_all_adapters(new_config)
+
+        self.autocomplete_service.invalidate_cache.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_reload_all_adapters_removed_invalidates_autocomplete_cache(self):
+        """Bulk reload of a removed adapter clears the whole autocomplete cache
+        (a removed skill/child adapter can invalidate other adapters' cached suggestions)."""
+        new_config = {'adapters': []}
+
+        old_config = {'name': 'simple-chat', 'enabled': True, 'capabilities': {'supports_autocomplete': True}}
+        self.config_manager.get = Mock(return_value=old_config)
+        self.config_manager.get_available_adapters = Mock(return_value=['simple-chat'])
+        self.config_manager.remove = Mock()
+        self.config_manager.get_adapter_count = Mock(return_value=0)
+        self.adapter_cache.contains = Mock(return_value=True)
+
+        await self.reloader.reload_all_adapters(new_config)
+
+        self.autocomplete_service.invalidate_cache.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_invalidation_skipped_when_autocomplete_service_unavailable(self):
+        """No app_state (or no autocomplete_service yet) must not raise - just skip invalidation."""
+        reloader = AdapterReloader(
+            self.config_manager,
+            self.adapter_cache,
+            self.adapter_loader,
+            self.dependency_cleaner,
+            app_state=None,
+        )
+
+        old_config = {'name': 'simple-chat', 'enabled': True, 'capabilities': {'supports_autocomplete': True}}
+        new_adapter_config = {'name': 'simple-chat', 'enabled': True, 'capabilities': {'supports_autocomplete': False}}
+        new_config = {'adapters': [new_adapter_config]}
+
+        self.config_manager.get = Mock(return_value=old_config)
+        self.config_manager.contains = Mock(return_value=True)
+        self.config_manager.put = Mock()
+        self.adapter_cache.contains = Mock(return_value=True)
+        self.adapter_cache.get = Mock(return_value=Mock())
+        self.adapter_cache.put = Mock()
+
+        result = await reloader.reload_single_adapter("simple-chat", new_config)
+
+        assert result['action'] == 'updated'
+
+    @pytest.mark.asyncio
+    async def test_invalidation_failure_does_not_break_reload(self):
+        """An exception from invalidate_cache is swallowed - reload must still complete."""
+        self.autocomplete_service.invalidate_cache = AsyncMock(side_effect=Exception("cache down"))
+
+        old_config = {'name': 'simple-chat', 'enabled': True, 'capabilities': {'supports_autocomplete': True}}
+        new_adapter_config = {'name': 'simple-chat', 'enabled': True, 'capabilities': {'supports_autocomplete': False}}
+        new_config = {'adapters': [new_adapter_config]}
+
+        self.config_manager.get = Mock(return_value=old_config)
+        self.config_manager.contains = Mock(return_value=True)
+        self.config_manager.put = Mock()
+        self.adapter_cache.contains = Mock(return_value=True)
+        self.adapter_cache.get = Mock(return_value=Mock())
+        self.adapter_cache.put = Mock()
+
+        result = await self.reloader.reload_single_adapter("simple-chat", new_config)
+
+        assert result['action'] == 'updated'
+
+
 class TestAdapterLoaderInferencePreload:
     """Test AdapterLoader inference provider preload functionality"""
 

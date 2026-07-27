@@ -3,7 +3,7 @@
 # Connection parameters are inherited from config/datasources.yaml
 adapters:
   - name: "intent-elasticsearch-app-logs"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "elasticsearch"  # References datasources.yaml elasticsearch config
     adapter: "intent"

@@ -530,11 +530,18 @@ class AutocompleteService:
 
             logger.debug(f"[Autocomplete] Adapter {adapter_name} supports autocomplete")
 
+            # Skill routing phrases are independent of the adapter instance (e.g. a
+            # passthrough adapter with no retriever templates can still expose them),
+            # so fetch them before the adapter-instance lookup below.
+            skill_examples = await self._get_skill_routing_examples(adapter_name)
+
             # Get the adapter
             adapter = await self.adapter_manager.get_adapter(adapter_name)
             if not adapter:
                 logger.debug(f"[Autocomplete] Could not get adapter instance: {adapter_name}")
-                return []
+                examples = self._deduplicate_preserving_order(skill_examples)
+                await self._set_cached_examples(adapter_name, examples)
+                return examples
 
             # Check if this is a composite adapter
             if hasattr(adapter, 'child_adapter_names') and adapter.child_adapter_names:
@@ -547,6 +554,8 @@ class AutocompleteService:
             else:
                 # Get examples from single adapter
                 examples = self._extract_examples_from_adapter(adapter)
+
+            examples = self._deduplicate_preserving_order(examples + skill_examples)
 
             # Cache the examples
             await self._set_cached_examples(adapter_name, examples)
@@ -677,6 +686,60 @@ class AutocompleteService:
 
         # Deduplicate while preserving order
         return self._deduplicate_preserving_order(all_examples)
+
+    async def _get_skill_routing_examples(self, adapter_name: str) -> List[str]:
+        """
+        Collect skill-routing example phrases reachable from this adapter.
+
+        Mirrors SkillIntentRouter's candidate scoping (auto_routable_skills union
+        available_skills) but only reads routing_examples - no embeddings, no LLM
+        confirm - since this is a cheap autocomplete hint, not intent detection.
+
+        Args:
+            adapter_name: Name of the calling (consumer) adapter
+
+        Returns:
+            List of routing_examples strings from reachable, enabled skills
+        """
+        try:
+            adapter_config = self.adapter_manager.config_manager.get(adapter_name)
+            if not adapter_config:
+                return []
+
+            from adapters.capabilities import AdapterCapabilities
+            caps = AdapterCapabilities.from_config(adapter_config)
+
+            allowed = set(caps.auto_routable_skills) | set(caps.available_skills)
+            if not allowed:
+                return []
+
+            examples: List[str] = []
+            for skill in self.adapter_manager.get_all_skills():
+                if skill['name'] not in allowed or not skill.get('enabled', True):
+                    continue
+
+                backing_config = self.adapter_manager.config_manager.get(skill['adapter_name'])
+                if not backing_config:
+                    continue
+
+                routing_examples = (backing_config.get('capabilities', {}) or {}).get('routing_examples', [])
+                if isinstance(routing_examples, list):
+                    examples.extend(
+                        self._sanitize_examples(
+                            routing_examples,
+                            source=f"skill {skill['name']}"
+                        )
+                    )
+
+            logger.debug(
+                f"[Autocomplete] Found {len(examples)} skill routing_examples "
+                f"for {adapter_name}"
+            )
+            return examples
+
+        except Exception as e:
+            logger.warning(f"[Autocomplete] Error fetching skill routing_examples for {adapter_name}: {e}")
+            return []
 
     def _sanitize_examples(self, examples: List[Any], source: str) -> List[str]:
         """Normalize template examples and discard malformed entries."""

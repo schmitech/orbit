@@ -18,12 +18,12 @@ adapters:
     # Capabilities: Standard intent retriever
     # Note: Intent adapters use the same capabilities as QA adapters (always retrieve, standard formatting)
     allowed_models:
-      - name: "llama-cpp-gemma4"
-        provider: "llama_cpp"
-        model: "gemma4-e2b-direct-cpu"
-      - name: "ollama-gemma4-e2b"
-        provider: "ollama"
-        model: "gemma4-e2b-cpu"
+      # - name: "llama-cpp-gemma4"
+      #   provider: "llama_cpp"
+      #   model: "gemma4-e2b-direct-cpu"
+      # - name: "ollama-gemma4-e2b"
+      #   provider: "ollama"
+      #   model: "gemma4-e2b-cpu"
       - name: "deepseek"
         provider: "deepseek"
         model: "deepseek-chat"

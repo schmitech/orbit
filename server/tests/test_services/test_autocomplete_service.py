@@ -832,6 +832,212 @@ class TestEdgeCases:
 
 
 # ============================================================================
+# Skill Routing Examples Tests
+# ============================================================================
+
+class TestSkillRoutingExamples:
+    """Tests for surfacing skill capabilities.routing_examples as autocomplete suggestions."""
+
+    def _make_adapter_manager(self, configs, skills):
+        """Build a fake adapter_manager with a config_manager.get(name) and get_all_skills()."""
+        config_manager = MagicMock()
+        config_manager.get.side_effect = lambda name: configs.get(name)
+
+        adapter_manager = MagicMock()
+        adapter_manager.config_manager = config_manager
+        adapter_manager.get_all_skills.return_value = skills
+        adapter_manager.get_adapter = AsyncMock(return_value=None)
+        return adapter_manager
+
+    @pytest.mark.asyncio
+    async def test_skill_examples_returned_for_reachable_skill(self, enabled_config):
+        """Adapter with no templates still surfaces routing_examples from an allowed skill."""
+        configs = {
+            "simple-chat": {
+                "enabled": True,
+                "capabilities": {
+                    "supports_autocomplete": True,
+                    "auto_routable_skills": ["web-search"],
+                },
+            },
+            "web-search": {
+                "enabled": True,
+                "capabilities": {
+                    "expose_as_skill": True,
+                    "skill_name": "web-search",
+                    "skill_description": "Search the web",
+                    "routing_examples": ["search the web for", "look this up online"],
+                },
+            },
+        }
+        skills = [
+            {"name": "web-search", "description": "Search the web", "adapter_name": "web-search", "enabled": True},
+        ]
+        service = AutocompleteService(enabled_config, adapter_manager=self._make_adapter_manager(configs, skills))
+
+        examples = await service._fetch_adapter_examples("simple-chat")
+
+        assert examples == ["search the web for", "look this up online"]
+
+    @pytest.mark.asyncio
+    async def test_skill_examples_merge_with_template_examples(self, enabled_config):
+        """Template nl_examples and skill routing_examples merge and deduplicate."""
+        configs = {
+            "simple-chat": {
+                "enabled": True,
+                "capabilities": {
+                    "supports_autocomplete": True,
+                    "available_skills": ["web-search"],
+                },
+            },
+            "web-search": {
+                "enabled": True,
+                "capabilities": {
+                    "expose_as_skill": True,
+                    "skill_name": "web-search",
+                    "routing_examples": ["search the web for"],
+                },
+            },
+        }
+        skills = [
+            {"name": "web-search", "description": "", "adapter_name": "web-search", "enabled": True},
+        ]
+        adapter_manager = self._make_adapter_manager(configs, skills)
+
+        domain_adapter = MagicMock()
+        domain_adapter.get_all_templates.return_value = [
+            {"id": "t1", "nl_examples": ["show me movies from 2020", "search the web for"]}
+        ]
+        adapter = MagicMock()
+        adapter.domain_adapter = domain_adapter
+        adapter.child_adapter_names = []
+        adapter_manager.get_adapter = AsyncMock(return_value=adapter)
+
+        service = AutocompleteService(enabled_config, adapter_manager=adapter_manager)
+
+        examples = await service._fetch_adapter_examples("simple-chat")
+
+        # Template example kept first on the duplicate; skill example is deduplicated.
+        assert examples == ["show me movies from 2020", "search the web for"]
+
+    @pytest.mark.asyncio
+    async def test_skill_not_in_allowlist_is_excluded(self, enabled_config):
+        """A registered skill not listed in auto_routable_skills/available_skills is dropped."""
+        configs = {
+            "simple-chat": {
+                "enabled": True,
+                "capabilities": {
+                    "supports_autocomplete": True,
+                    "auto_routable_skills": ["web-search"],
+                },
+            },
+            "pdf-generator": {
+                "enabled": True,
+                "capabilities": {
+                    "expose_as_skill": True,
+                    "skill_name": "PDF",
+                    "routing_examples": ["make a pdf"],
+                },
+            },
+        }
+        skills = [
+            {"name": "PDF", "description": "", "adapter_name": "pdf-generator", "enabled": True},
+        ]
+        service = AutocompleteService(enabled_config, adapter_manager=self._make_adapter_manager(configs, skills))
+
+        examples = await service._get_skill_routing_examples("simple-chat")
+
+        assert examples == []
+
+    @pytest.mark.asyncio
+    async def test_disabled_skill_is_excluded(self, enabled_config):
+        """A skill flagged enabled=False is dropped even if allowlisted."""
+        configs = {
+            "simple-chat": {
+                "enabled": True,
+                "capabilities": {
+                    "supports_autocomplete": True,
+                    "auto_routable_skills": ["web-search"],
+                },
+            },
+            "web-search": {
+                "enabled": False,
+                "capabilities": {
+                    "expose_as_skill": True,
+                    "skill_name": "web-search",
+                    "routing_examples": ["search the web for"],
+                },
+            },
+        }
+        skills = [
+            {"name": "web-search", "description": "", "adapter_name": "web-search", "enabled": False},
+        ]
+        service = AutocompleteService(enabled_config, adapter_manager=self._make_adapter_manager(configs, skills))
+
+        examples = await service._get_skill_routing_examples("simple-chat")
+
+        assert examples == []
+
+    @pytest.mark.asyncio
+    async def test_supports_autocomplete_false_yields_no_skill_examples(self, enabled_config):
+        """An adapter without supports_autocomplete still returns [] even with reachable skills."""
+        configs = {
+            "simple-chat": {
+                "enabled": True,
+                "capabilities": {
+                    "supports_autocomplete": False,
+                    "auto_routable_skills": ["web-search"],
+                },
+            },
+            "web-search": {
+                "enabled": True,
+                "capabilities": {
+                    "expose_as_skill": True,
+                    "skill_name": "web-search",
+                    "routing_examples": ["search the web for"],
+                },
+            },
+        }
+        skills = [
+            {"name": "web-search", "description": "", "adapter_name": "web-search", "enabled": True},
+        ]
+        service = AutocompleteService(enabled_config, adapter_manager=self._make_adapter_manager(configs, skills))
+
+        examples = await service._fetch_adapter_examples("simple-chat")
+
+        assert examples == []
+
+    @pytest.mark.asyncio
+    async def test_malformed_routing_examples_are_sanitized(self, enabled_config):
+        """Non-string/blank routing_examples entries are dropped via the existing sanitizer."""
+        configs = {
+            "simple-chat": {
+                "enabled": True,
+                "capabilities": {
+                    "supports_autocomplete": True,
+                    "auto_routable_skills": ["web-search"],
+                },
+            },
+            "web-search": {
+                "enabled": True,
+                "capabilities": {
+                    "expose_as_skill": True,
+                    "skill_name": "web-search",
+                    "routing_examples": ["search the web for", "", None, 42, "  look   this up  "],
+                },
+            },
+        }
+        skills = [
+            {"name": "web-search", "description": "", "adapter_name": "web-search", "enabled": True},
+        ]
+        service = AutocompleteService(enabled_config, adapter_manager=self._make_adapter_manager(configs, skills))
+
+        examples = await service._get_skill_routing_examples("simple-chat")
+
+        assert examples == ["search the web for", "look this up"]
+
+
+# ============================================================================
 # AutocompleteSuggestion Tests
 # ============================================================================
 

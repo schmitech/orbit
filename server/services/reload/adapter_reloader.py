@@ -28,7 +28,8 @@ class AdapterReloader:
         config_manager,
         adapter_cache,
         adapter_loader,
-        dependency_cleaner
+        dependency_cleaner,
+        app_state: Any = None
     ):
         """
         Initialize the adapter reloader.
@@ -38,11 +39,15 @@ class AdapterReloader:
             adapter_cache: Adapter cache manager
             adapter_loader: Adapter loader
             dependency_cleaner: Dependency cache cleaner
+            app_state: Optional FastAPI application state, used to reach
+                autocomplete_service so its per-adapter cache (nl_examples +
+                skill routing_examples) is invalidated on reload
         """
         self.config_manager = config_manager
         self.adapter_cache = adapter_cache
         self.adapter_loader = adapter_loader
         self.dependency_cleaner = dependency_cleaner
+        self.app_state = app_state
 
     async def reload_single_adapter(
         self,
@@ -108,6 +113,11 @@ class AdapterReloader:
             # Update config
             self.config_manager.put(adapter_name, adapter_config_full)
 
+            # Invalidate stale cached suggestions (nl_examples + skill routing_examples)
+            # regardless of whether preload below succeeds - the config change itself
+            # (e.g. supports_autocomplete, auto_routable_skills) is what matters here.
+            await self._invalidate_autocomplete_cache(adapter_name)
+
             # Log changes if applicable
             if old_config and action in ["updated", "enabled"]:
                 changes = ConfigChangeDetector.detect_changes(old_config, adapter_config_full)
@@ -142,6 +152,7 @@ class AdapterReloader:
         else:
             # Disable/remove the adapter
             self.config_manager.remove(adapter_name)
+            await self._invalidate_autocomplete_cache(adapter_name)
             action = "disabled"
             logger.info(f"Disabled adapter '{adapter_name}'")
 
@@ -224,6 +235,7 @@ class AdapterReloader:
 
                 # Remove from configs
                 self.config_manager.remove(name)
+                await self._invalidate_autocomplete_cache(name)
 
         total = self.config_manager.get_adapter_count()
 
@@ -257,6 +269,11 @@ class AdapterReloader:
             adapter_config: Adapter configuration
             action_desc: Description of the action for logging
         """
+        # Invalidate stale cached suggestions (nl_examples + skill routing_examples)
+        # regardless of whether preload below succeeds - the config change itself
+        # (e.g. supports_autocomplete, auto_routable_skills) is what matters here.
+        await self._invalidate_autocomplete_cache(adapter_name)
+
         try:
             logger.debug(f"Preloading {action_desc} adapter '{adapter_name}'...")
 
@@ -271,6 +288,28 @@ class AdapterReloader:
         except Exception as e:
             logger.warning(f"Failed to preload {action_desc} adapter '{adapter_name}': {str(e)}. "
                           f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
+
+    async def _invalidate_autocomplete_cache(self, adapter_name: str) -> None:
+        """
+        Invalidate the autocomplete cache after a reloaded/removed adapter.
+
+        Clears the ENTIRE autocomplete cache, not just adapter_name's own key.
+        A consumer adapter's cached suggestions also embed routing_examples from
+        every skill it can reach (auto_routable_skills/available_skills), and a
+        composite adapter's cache embeds its children's nl_examples - so changing,
+        disabling, or removing *any* adapter can make *other* adapters' cached
+        suggestions stale, not just its own. Tracing that reverse dependency graph
+        precisely isn't worth it: rebuilding the cache is just re-reading configs
+        (no LLM/embedding calls), so a full clear is cheap and always correct.
+        """
+        autocomplete_service = getattr(self.app_state, 'autocomplete_service', None) if self.app_state else None
+        if not autocomplete_service:
+            return
+        try:
+            await autocomplete_service.invalidate_cache()
+            logger.debug(f"Invalidated autocomplete cache (all adapters) after '{adapter_name}' reload")
+        except Exception as e:
+            logger.warning(f"Failed to invalidate autocomplete cache after '{adapter_name}' reload: {e}")
 
     def _register_capabilities(self, adapter_name: str, adapter_config: Dict[str, Any]) -> None:
         """Re-register adapter capabilities (including available_skills) after reload."""

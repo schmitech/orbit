@@ -113,7 +113,8 @@ class DynamicAdapterManager:
             self.config_manager,
             self.adapter_cache,
             self.adapter_loader,
-            self.dependency_cleaner
+            self.dependency_cleaner,
+            app_state=self.app_state
         )
 
     async def get_adapter(self, adapter_name: str) -> Any:

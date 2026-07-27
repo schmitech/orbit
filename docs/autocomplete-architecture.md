@@ -4,10 +4,13 @@
 
 The autocomplete system provides query suggestions based on `nl_examples` from intent adapter templates. As users type in the chat input, they receive real-time suggestions that help discover available queries without guessing the exact phrasing.
 
+Conversational adapters with no retriever templates of their own (e.g. `simple-chat`) can also opt in: autocomplete then draws on `capabilities.routing_examples` from the skills reachable via that adapter's `auto_routable_skills`/`available_skills` (the same phrases the [automatic skill router](adapters/auto-skill-intent-detection.md) matches against), merged with any template examples.
+
 **Key Features:**
 - Query suggestions from intent template `nl_examples`
+- Query suggestions from skill `routing_examples` (auto skill routing phrases)
 - Fuzzy matching with Levenshtein and Jaro-Winkler algorithms
-- Redis caching with in-memory fallback
+- Distributed caching via ORBIT's shared cache provider (SQLite, Redis, or Memcached), with in-memory fallback
 - Configurable via `config.yaml`
 - Fast C library implementations with pure Python fallback
 - Composite adapter aggregation support
@@ -23,7 +26,8 @@ Central service for fetching and filtering autocomplete suggestions.
 
 **Responsibilities:**
 - Extract `nl_examples` from adapter templates
-- Cache examples in Redis or memory
+- Collect `routing_examples` from skills reachable via `auto_routable_skills`/`available_skills`
+- Cache examples (templates + skill phrases, merged) via the configured cache provider, or in-memory
 - Filter and rank suggestions based on query
 - Support multiple matching algorithms
 - Aggregate suggestions from composite adapters
@@ -33,9 +37,22 @@ Central service for fetching and filtering autocomplete suggestions.
 async def get_suggestions(query: str, adapter_name: str, limit: int = 5) -> List[AutocompleteSuggestion]
 async def _get_adapter_nl_examples(adapter_name: str) -> List[str]
 async def _get_composite_examples(adapter) -> List[str]
+async def _get_skill_routing_examples(adapter_name: str) -> List[str]
 def _filter_and_rank(examples: List[str], query: str, limit: int) -> List[AutocompleteSuggestion]
 async def invalidate_cache(adapter_name: Optional[str] = None) -> None
 ```
+
+**Skill routing examples (`_get_skill_routing_examples`):**
+
+For adapters with `supports_autocomplete: true`, this reads the calling adapter's
+`capabilities.auto_routable_skills` and `capabilities.available_skills` (their union),
+looks up each matching skill via `adapter_manager.get_all_skills()`, and pulls
+`capabilities.routing_examples` from that skill's *backing* adapter config — the same
+phrases the [skill intent router](adapters/auto-skill-intent-detection.md) embeds for
+detection (e.g. `config/adapters/web-search.yaml`'s `routing_examples: ["search the web
+for", ...]`). Disabled skills and skills outside the allowlist are excluded. These
+phrases are typically sentence stems rather than full queries — accepting one fills the
+stem and leaves the caret at the end for the user to finish typing.
 
 **AutocompleteSuggestion Structure:**
 ```python
@@ -176,6 +193,17 @@ In adapter YAML configuration:
 
 Autocomplete is automatically enabled for adapters with names starting with `intent-` or `composite-`.
 
+On a conversational adapter with no retriever templates (e.g. `simple-chat`),
+`supports_autocomplete: true` instead publishes the `routing_examples` of whatever
+skills that adapter can reach — see [`config/adapters/passthrough.yaml`](../config/adapters/passthrough.yaml):
+```yaml
+- name: "simple-chat"
+  capabilities:
+    auto_routable_skills: ["Image", "PDF", "web-search", ...]
+    available_skills: ["mcp-agent", "HR", ...]
+    supports_autocomplete: true   # suggestions come from the skills above
+```
+
 ## Configuration
 
 ### Server Configuration (`config/config.yaml`)
@@ -190,9 +218,9 @@ autocomplete:
 
   # Caching configuration
   cache:
-    use_redis: false          # Use Redis when available; otherwise use memory cache
+    use_cache: true           # Use the configured cache provider (see below) when available; otherwise use memory cache
     ttl_seconds: 1800         # 30 minutes cache TTL
-    redis_key_prefix: "autocomplete:"
+    cache_key_prefix: "autocomplete:"
 
   # Fuzzy matching configuration
   fuzzy_matching:
@@ -201,6 +229,30 @@ autocomplete:
     threshold: 0.75           # Minimum similarity score (0.0-1.0)
     max_candidates: 250       # Fuzzy ranking shortlist after cheap relevance prefilter
 ```
+
+`cache.use_cache` does not pick a specific backend itself — it toggles whether autocomplete
+uses ORBIT's shared cache provider at all. Which backend that provider actually is comes
+from `internal_services.cache.provider` (`config/config.yaml`):
+
+```yaml
+internal_services:
+  cache:
+    enabled: true
+    provider: "sqlite"  # sqlite | redis | memcached
+```
+
+- **`sqlite`** (default) — file-backed (`internal_services.sqlite_cache.database_path`), no
+  external service required; fine for single-instance deployments.
+- **`redis`** — distributed, shared across instances; needs `internal_services.redis.*`
+  configured and a running Redis server.
+- **`memcached`** — lighter-weight distributed alternative; no key-pattern matching, so
+  `invalidate_cache()` (see [Cache Invalidation](#cache-invalidation)) falls back to a full
+  flush instead of a targeted delete.
+
+Autocomplete is provider-agnostic: `AutocompleteService` calls the injected `cache_service`
+(`get`/`set`/`delete`/`clear_by_pattern`), and whichever backend is configured serves those
+calls. If `internal_services.cache.enabled: false`, or `autocomplete.cache.use_cache: false`,
+autocomplete transparently falls back to the in-memory cache described below.
 
 ### Client Configuration
 
@@ -237,12 +289,13 @@ window.ORBIT_CHAT_CONFIG = {
             │   get_suggestions()   │
             └───────────┬───────────┘
                         │
-          ┌─────────────┼─────────────┐
-          ▼             ▼             ▼
-    ┌───────────┐ ┌───────────┐ ┌───────────┐
-    │   Redis   │ │  Memory   │ │  Adapter  │
-    │   Cache   │ │   Cache   │ │ Templates │
-    └───────────┘ └───────────┘ └───────────┘
+          ┌───────────────┼─────────────┐
+          ▼               ▼             ▼
+    ┌────────────────┐ ┌───────────┐ ┌───────────────────┐
+    │ Cache Provider  │ │  Memory   │ │ Templates + Skill │
+    │ (SQLite/Redis/  │ │   Cache   │ │      Phrases       │
+    │   Memcached)    │ │(fallback) │ │                     │
+    └────────────────┘ └───────────┘ └───────────────────┘
                         │
                         ▼
             ┌───────────────────────┐
@@ -261,15 +314,22 @@ window.ORBIT_CHAT_CONFIG = {
 
 ### Cache Hierarchy
 
-1. **Redis Cache (Primary)**
-   - Distributed across server instances
-   - Automatic TTL expiration
-   - Persists across server restarts
+1. **Cache Provider (Primary)** — whichever backend `internal_services.cache.provider`
+   selects:
+   - **SQLite** (default) — file-backed, single-instance; no external service to run.
+   - **Redis** — distributed across server instances, needs a running Redis server.
+   - **Memcached** — distributed, lighter-weight than Redis; no key-pattern matching
+     (see Cache Invalidation below).
+
+   All three share the same behavior from `AutocompleteService`'s point of view:
+   - Automatic TTL expiration (`autocomplete.cache.ttl_seconds`)
+   - Persists across server restarts (SQLite/Redis/Memcached are all external to the
+     process — only the in-memory fallback below is lost on restart)
    - Key format: `autocomplete:{adapter_name}`
 
 2. **Memory Cache (Fallback)**
-   - Per-instance cache
-   - Used when Redis unavailable
+   - Per-instance, in-process cache
+   - Used when the cache provider is disabled/unavailable, or `autocomplete.cache.use_cache: false`
    - Automatic TTL expiration
    - Lost on server restart
 
@@ -283,10 +343,21 @@ await autocomplete_service.invalidate_cache("intent-mongodb-mflix")
 await autocomplete_service.invalidate_cache()
 ```
 
+With SQLite or Redis, "invalidate all" deletes only autocomplete's own keys via
+pattern matching (`autocomplete:*`). Memcached has no pattern-matching primitive, so
+the same call falls back to a full cache flush there — see
+`CacheProvider.clear_by_pattern` (`server/services/cache_backends/base.py`).
+
 **When to Invalidate:**
 - After updating intent templates
 - After adding/removing `nl_examples`
 - After changing adapter configuration
+- After adding/removing/editing skill `capabilities.routing_examples`
+
+**Known gap:** none of the above currently happen automatically — `invalidate_cache()`
+is called from the test suite but not from production code (e.g. the adapter hot-reload
+path). Until that's wired up, edited templates/`routing_examples` only take effect after
+`ttl_seconds` elapses or the server restarts.
 
 ## Scoring Algorithm
 
@@ -344,8 +415,10 @@ Client-side 300ms debounce prevents excessive API calls while typing.
 ### Caching
 
 - 30-minute default TTL
-- Templates rarely change, so cache hit rate is high
-- Redis reduces database/adapter queries
+- Templates and `routing_examples` rarely change, so cache hit rate is high
+- A distributed provider (Redis/Memcached) avoids re-extracting templates/skills on
+  every instance in a multi-node deployment; SQLite still avoids re-extraction on a
+  single instance across requests, just without cross-instance sharing
 
 ### C Library Usage
 
@@ -408,7 +481,7 @@ Located at `server/tests/test_services/test_autocomplete_service.py`
 - FuzzyMatcher algorithms (Levenshtein, Jaro, Jaro-Winkler, substring)
 - AutocompleteService initialization
 - Suggestion filtering and ranking
-- Memory and Redis caching
+- Memory and cache-provider (Redis-backed) caching
 - Cache invalidation
 - Edge cases (Unicode, special characters, long strings)
 - C library availability detection
@@ -433,23 +506,27 @@ python -m pytest tests/test_services/test_autocomplete_service.py -v
 
 1. Check if autocomplete is enabled in `config.yaml`
 2. Verify adapter has `supports_autocomplete: true`
-3. Ensure adapter has templates with `nl_examples`
+3. Ensure adapter has templates with `nl_examples`, and/or (for conversational adapters)
+   reachable skills whose backing adapter defines `capabilities.routing_examples`
 4. Check query meets minimum length (3 chars)
 5. Review debug logs for errors
 
 ### Slow Response Times
 
 1. Ensure C libraries are installed (`pip install Levenshtein jarowinkler`)
-2. Check Redis connection
+2. Check the configured cache provider's connection (Redis/Memcached) or disk I/O (SQLite)
 3. Reduce `max_candidates` if fuzzy matching is slow
 4. Consider using `substring` algorithm instead of fuzzy
 
 ### Cache Not Working
 
-1. Verify Redis is enabled and connected
-2. Check `cache.use_redis` setting
-3. Review Redis connection logs
+1. Verify `internal_services.cache.enabled: true` and check which `provider` is selected
+2. Check `autocomplete.cache.use_cache` setting
+3. Review connection/health logs for the selected provider (Redis/Memcached), or confirm
+   the SQLite cache file (`internal_services.sqlite_cache.database_path`) is writable
 4. Ensure `ttl_seconds` is set correctly
+5. Remember edited templates/`routing_examples` only refresh after the TTL lapses or a
+   restart — see the invalidation gap noted under [Cache Invalidation](#cache-invalidation)
 
 ## Future Enhancements
 

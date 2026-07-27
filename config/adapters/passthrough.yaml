@@ -10,9 +10,9 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "openai"  # Override default inference provider
-    model: "gpt-5.4-mini"         # Specific model for this adapter (default / fallback)
-    tts_provider: "cohere"          # TTS provider for audio output (see tts.yaml)
+    inference_provider: "ollama_cloud"  # Override default inference provider
+    model: "gpt-oss:120b"         # Specific model for this adapter (default / fallback)
+    tts_provider: "gemini"          # TTS provider for audio output (see tts.yaml)
 
     # Optional generation parameter overrides - fall back to config/inference.yaml
     # defaults for the resolved inference_provider when omitted. Useful since context
@@ -20,11 +20,12 @@ adapters:
     # context_window: 200000  # Also reshapes the conversation-history token budget
     # max_tokens: 4096
     # temperature: 0.3         # Omitted automatically for models that reject it (e.g. gpt-5.x, o-series)
+    # effort: "low"            # Claude/OpenAI/Mistral/Gemini/xAI reasoning effort; ignored by providers that don't support it
 
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above. Each entry may also
-    # carry its own optional temperature/max_tokens/context_window overrides, which take
-    # precedence over the adapter-level overrides above for that request only (also
+    # carry its own optional temperature/max_tokens/context_window/effort overrides, which
+    # take precedence over the adapter-level overrides above for that request only (also
     # reshapes the conversation-history token budget for that turn, same as context_window
     # above).
     allowed_models:
@@ -33,6 +34,7 @@ adapters:
         model: "mistral-small-2603"
         context_window: 32768
         max_tokens: 1024
+        effort: "none"          # Maps to reasoning_effort (none | high)
       - name: "minimax-m3"
         provider: "ollama_cloud"
         model: "minimax-m3"
@@ -43,11 +45,13 @@ adapters:
         model: "grok-4.3"
         context_window: 1000000
         max_tokens: 16000
+        effort: "low"           # Maps to reasoning_effort; ignored for models that don't support it (e.g. grok-4.3)
       - name: "openai"
         provider: "openai"
-        model: "gpt-5.4-mini"
+        model: "gpt-5.6"
         context_window: 400000
         max_tokens: 128000
+        effort: "low"           # Maps to reasoning_effort; ignored for non-reasoning models
       - name: "gpt-oss-120b"
         provider: "ollama_cloud"
         model: "gpt-oss:20b"
@@ -58,11 +62,13 @@ adapters:
         model: "claude-sonnet-4-5-20250929"
         context_window: 1000000  # e.g. Claude's extended-context variant
         max_tokens: 64000
+        effort: "low"           # Ignored for Claude models that don't support the effort parameter
       - name: "gemini"
         provider: "gemini"
-        model: "gemini-3.1-pro-preview"
+        model: "gemini-3.6-flash"
         context_window: 1048576
         max_tokens: 65536
+        effort: "low"           # Maps to thinking_level (minimal | low | medium | high)
       - name: "nemotron-3-ultra"
         provider: "openrouter"
         model: "nvidia/nemotron-3-ultra-550b-a55b"
@@ -98,6 +104,12 @@ adapters:
       supports_file_ids: false           # Does not support file filtering
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: false # No API key validation needed
+      # Surface reachable skills' routing_examples (e.g. "search the web for",
+      # "make a pdf of") as chat-input autocomplete suggestions. Since this adapter
+      # has no retriever templates of its own, autocomplete draws entirely on the
+      # routing_examples of the skills listed in auto_routable_skills/available_skills
+      # above, rather than on nl_examples. See docs/autocomplete-architecture.md.
+      supports_autocomplete: false
       # Automatic skill intent detection: infer a skill (PDF, Image, web-search, ...)
       # from plain natural language without the client sending skill=<name>.
       # Requires skill_routing.auto_detect: true in config.yaml to take effect.
@@ -110,6 +122,6 @@ adapters:
       # same thread throughout. Requires mcp_client.enabled: true AND
       # mcp_client.allow_opportunistic: true in config/mcp_client.yaml.
       # See docs/adapters/mcp-agent.md#opportunistic-mode.
-      mcp_tools: false
+      mcp_tools: true
       mcp_servers:
         - "business-sample"
