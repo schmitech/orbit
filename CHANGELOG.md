@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.11.1] - 2026-07-26
+## [2.11.1] - 2026-07-27
 
 ### Core System Updates
 - **Web Search Source Citations**: Gemini, OpenAI, xAI, and Anthropic native web-search responses now append a `Sources:` list of the pages the model actually cited, for both streaming and non-streaming generation. OpenAI falls back to the search call's visited URLs when the model omits inline citations; query types OpenAI backs with an internal data feed (e.g. weather) have no citable URL and remain source-less by design.
