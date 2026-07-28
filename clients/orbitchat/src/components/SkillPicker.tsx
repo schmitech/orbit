@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, ImageIcon, Sparkles, Zap } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SkillInfo } from '../types';
 
@@ -12,16 +12,6 @@ interface SkillPickerProps {
   onSelect: (skill: SkillInfo) => void;
   onActiveSkillChange?: (skill: SkillInfo) => void;
   onClose: () => void;
-}
-
-function getSkillIcon(skillName: string) {
-  if (skillName.includes('image')) {
-    return <ImageIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />;
-  }
-  if (skillName.includes('video') || skillName.includes('audio')) {
-    return <Zap className="h-4 w-4 flex-shrink-0" aria-hidden="true" />;
-  }
-  return <Sparkles className="h-4 w-4 flex-shrink-0" aria-hidden="true" />;
 }
 
 function formatSkillName(skillName: string) {
@@ -98,13 +88,6 @@ export function SkillPicker({
                     : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-[#1a1a1a]'
                 }`}
               >
-                <div className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center transition-colors ${
-                  isActive
-                    ? 'text-gray-900 dark:text-white'
-                    : 'text-gray-500 group-hover:text-gray-700 dark:text-[#bfc2cd] dark:group-hover:text-gray-200'
-                }`}>
-                  {getSkillIcon(skill.name)}
-                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="truncate text-sm font-medium capitalize leading-5 text-current">
@@ -125,6 +108,38 @@ export function SkillPicker({
           })}
         </div>
       )}
+      {/* One hint, not a legend: arrows and Enter are already implied by a
+          highlighted list. The slash is the thing nobody can guess, and this is
+          where people who arrived by tapping the Skills button learn it. */}
+      {!isLoading && filteredSkills.length > 0 && (
+        <div className="flex items-center gap-1 border-t border-gray-100 px-3 py-2 text-[11px] text-gray-500 dark:border-[#1f1f1f] dark:text-[#8b8b99]">
+          <KeyCap>/</KeyCap>
+          {t('skillPicker.footer.slashAnytime')}
+        </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * A keycap, not a glyph: the raised bottom border is what reads as "this is a key
+ * you press". Shared by the picker footer, the Skills buttons, and the composer
+ * placeholder hint so every surface teaches the shortcut in the same language.
+ * The glyph inherits `currentColor`, so a keycap always matches the text it sits
+ * in — muted inside a placeholder, full strength inside a button.
+ *
+ * `align-middle` centres the cap on the surrounding text's optical centre
+ * (baseline + half x-height) when it sits in a run of inline text; flex parents
+ * such as the picker footer and the Skills button ignore it and centre it
+ * themselves.
+ */
+export function KeyCap({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span
+      className={`inline-flex h-[17px] min-w-[17px] items-center justify-center rounded border border-gray-300 border-b-2 bg-white px-1 align-middle font-mono text-[10px] leading-none text-current dark:border-[#3a3a3a] dark:bg-[#1f1f1f] ${className}`}
+      aria-hidden="true"
+    >
+      {children}
+    </span>
   );
 }

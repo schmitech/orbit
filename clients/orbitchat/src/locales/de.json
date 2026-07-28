@@ -148,8 +148,11 @@
     },
     "skillsHint": {
       "ariaLabel": "Verfügbare Skills anzeigen (oder einen Schrägstrich eingeben)",
-      "title": "Skill verwenden",
-      "text": "Skills"
+      "title": "Tippe / um einen Skill zu nutzen",
+      "text": "Skills",
+      "keyLabel": "Schrägstrich",
+      "placeholderBeforeKey": "oder tippe",
+      "placeholderAfterKey": "für Skills"
     },
     "selectedSkill": {
       "removeAriaLabel": "Skill entfernen"
@@ -243,7 +246,10 @@
     },
     "conversationNotFoundShort": "Konversation nicht gefunden. Bitte wähle zuerst eine Konversation aus.",
     "fileRemoveFailed": "Datei konnte nicht entfernt werden",
-    "fileProcessingFailedTitle": "Dateiverarbeitung fehlgeschlagen"
+    "fileProcessingFailedTitle": "Dateiverarbeitung fehlgeschlagen",
+    "characterCount": {
+      "title": "{{count}} Zeichen übrig"
+    }
   },
   "authStatus": {
     "signOutButton": {
@@ -419,7 +425,10 @@
     "loadingLabel": "Skills werden geladen...",
     "noMatchingSkills": "Keine passenden Skills für \"{{query}}\".",
     "noMatchingSkillsGeneric": "Keine passenden Skills.",
-    "listboxLabel": "Verfügbare Skills"
+    "listboxLabel": "Verfügbare Skills",
+    "footer": {
+      "slashAnytime": "jederzeit für Skills"
+    }
   },
   "message": {
     "edit": {
@@ -452,7 +461,7 @@
       "clearAriaLabel": "Antworten leeren",
       "hideRepliesAriaLabel": "Antworten ausblenden",
       "hideRepliesLabel": "Antworten ausblenden",
-      "placeholder": "Im Thread antworten...",
+      "placeholder": "Im Thread antworten",
       "skillsHint": "Skill verwenden",
       "skillsHintAriaLabel": "Verfügbare Skills anzeigen (oder einen Schrägstrich eingeben)",
       "removeSkillAriaLabel": "Thread-Skill entfernen",

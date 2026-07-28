@@ -9,7 +9,6 @@ import {
   Edit2,
   MessageSquare,
   RotateCcw,
-  Sparkles,
   ThumbsDown,
   ThumbsUp,
   X
@@ -31,7 +30,7 @@ import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { useSkills } from '../hooks/useSkills';
 import { useLoginPromptStore } from '../stores/loginPromptStore';
 import { useChatStore } from '../stores/chatStore';
-import { SkillPicker } from './SkillPicker';
+import { KeyCap, SkillPicker } from './SkillPicker';
 import { ModelPickerButton } from './ModelPickerButton';
 import { FileChip } from './FileChip';
 import { FeedbackCommentBox } from './FeedbackCommentBox';
@@ -309,6 +308,9 @@ export function Message({
   const latestSelectedModelRef = useRef<string | null>(selectedModel);
   const prevThreadIdRef = useRef<string | null>(message.threadInfo?.thread_id || null);
   const threadTextareaRef = useRef<HTMLTextAreaElement>(null);
+  // Holds the reply draft that was in the composer when the picker was opened
+  // from the Skills affordance, so choosing a skill gives the draft back.
+  const threadStashedDraftRef = useRef<string | null>(null);
   const threadComposerRef = useRef<HTMLDivElement>(null);
   const threadRepliesRef = useRef<HTMLDivElement>(null);
   const pendingThreadFocusRef = useRef(false);
@@ -345,6 +347,12 @@ export function Message({
   const { theme, isDark } = useTheme();
   const threadPlaceholder = t('message.thread.placeholder');
   const threadInputId = `thread-input-${message.id}`;
+  const threadSkillHintBefore = t('messageInput.skillsHint.placeholderBeforeKey');
+  const threadSkillHintAfter = t('messageInput.skillsHint.placeholderAfterKey');
+  // The visible placeholder becomes an overlay so the "/" can be a keycap; the
+  // real attribute keeps a plain-text hint for screen readers. Set below, once
+  // it is known whether the thread exposes skills.
+  const threadPlaceholderWithHint = `${threadPlaceholder} ${threadSkillHintBefore} / ${threadSkillHintAfter}`;
   const { skills, isLoading: skillsLoading, selectedSkill, selectSkill, clearSkill } = useSkills({
     adapterName: currentConversation?.adapterName,
     enabled: threadsEnabled && Boolean(message.threadInfo),
@@ -666,22 +674,29 @@ export function Message({
   const selectThreadSkillAndClose = useCallback((skill: typeof skills[number]) => {
     selectSkill(skill);
     setShowThreadSkillPicker(false);
-    setThreadInput('');
+    setThreadInput(threadStashedDraftRef.current ?? '');
+    threadStashedDraftRef.current = null;
     setActiveThreadSkillIndex(0);
     threadTextareaRef.current?.focus();
   }, [selectSkill]);
 
   const closeThreadSkillPicker = useCallback(() => {
     setShowThreadSkillPicker(false);
-    setThreadInput('');
+    setThreadInput(threadStashedDraftRef.current ?? '');
+    threadStashedDraftRef.current = null;
     setActiveThreadSkillIndex(0);
     threadTextareaRef.current?.focus();
   }, []);
 
   // Opens the thread skill picker from the "/ Skills" hint — mirrors typing "/"
   // so the existing thread picker logic applies unchanged (and covers mobile).
+  // Skill matching is anchored to the start of the input, so an existing reply
+  // draft is stashed and restored once the picker closes.
   const openThreadSkillPicker = useCallback(() => {
-    setThreadInput('/');
+    setThreadInput(prev => {
+      threadStashedDraftRef.current = prev.length > 0 ? prev : null;
+      return '/';
+    });
     setShowThreadSkillPicker(true);
     setActiveThreadSkillIndex(0);
     threadTextareaRef.current?.focus();
@@ -745,6 +760,11 @@ export function Message({
     threadHasStreaming ||
     isSendingThreadMessage ||
     threadLimitReached;
+  const showThreadSkillPlaceholderHint =
+    !selectedSkill && skills.length > 0 && !threadComposerDisabled && threadInput.length === 0;
+  const threadPlaceholderAttr = showThreadSkillPlaceholderHint
+    ? threadPlaceholderWithHint
+    : threadPlaceholder;
   const canClearThread =
     !!message.threadInfo &&
     !!onClearThread &&
@@ -1259,7 +1279,6 @@ export function Message({
                   <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-[#242424] dark:bg-[#101010]">
                     {selectedSkill && (
                       <div className="flex h-8 shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200">
-                        <Sparkles className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
                         <span className="min-w-0 truncate font-medium capitalize">
                           {selectedSkill.name.replace(/-/g, ' ')}
                         </span>
@@ -1273,23 +1292,19 @@ export function Message({
                         </button>
                       </div>
                     )}
-                    {/* Skills hint — shown when the thread exposes skills, none
-                        is selected, and the reply input is empty. Mirrors the
-                        main composer's "/ Skills" affordance. */}
-                    {!selectedSkill && skills.length > 0 && threadInput.length === 0 && !threadComposerDisabled && (
+                    {/* Mobile only, mirroring the main composer: on desktop the
+                        placeholder teaches the shortcut, so the button would
+                        repeat it on the same line. */}
+                    {!selectedSkill && skills.length > 0 && !threadComposerDisabled && (
                       <button
                         type="button"
                         onClick={openThreadSkillPicker}
-                        className="flex h-8 shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600"
+                        className="flex h-8 shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600 md:hidden"
                         aria-label={t('message.thread.skillsHintAriaLabel')}
                         title={t('message.thread.skillsHint')}
                       >
-                        <span
-                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gray-200 font-mono text-[10px] leading-none text-gray-600 dark:bg-[#2a2a2a] dark:text-gray-300"
-                          aria-hidden="true"
-                        >
-                          /
-                        </span>
+                        <KeyCap>/</KeyCap>
+                        <span className="sr-only">{t('messageInput.skillsHint.keyLabel')}</span>
                         {t('messageInput.skillsHint.text')}
                       </button>
                     )}
@@ -1306,20 +1321,54 @@ export function Message({
                           <span>{threadSkillInlineSuggestion}</span>
                         </div>
                       )}
+                      {/* The native placeholder goes transparent so this overlay
+                          can render the "/" as a real keycap. The hint carries no
+                          colour of its own — it inherits the placeholder tone so
+                          the line reads as one piece of text in both themes. */}
+                      {showThreadSkillPlaceholderHint && (
+                        <div
+                          className="pointer-events-none absolute inset-0 truncate whitespace-nowrap px-0 py-0 text-base leading-8 text-slate-500 dark:text-[#70707c] sm:text-sm sm:leading-8"
+                          aria-hidden="true"
+                        >
+                          {threadPlaceholder}
+                          <span className="ml-1 hidden md:inline">
+                            {threadSkillHintBefore} <KeyCap className="mx-0.5">/</KeyCap> {threadSkillHintAfter}
+                          </span>
+                        </div>
+                      )}
                       <textarea
                         id={threadInputId}
                         ref={threadTextareaRef}
-                        className="relative z-10 block h-8 w-full min-w-0 resize-none overflow-hidden bg-transparent px-0 py-0 text-base leading-8 text-[#353740] placeholder-slate-500 outline-none transition focus:outline-none disabled:opacity-60 dark:text-[#ececf1] dark:placeholder-[#70707c] sm:text-sm sm:leading-8"
-                        placeholder={threadPlaceholder}
+                        className={`relative z-10 block h-8 w-full min-w-0 resize-none overflow-hidden bg-transparent px-0 py-0 text-base leading-8 text-[#353740] outline-none transition focus:outline-none disabled:opacity-60 dark:text-[#ececf1] sm:text-sm sm:leading-8 ${
+                          showThreadSkillPlaceholderHint
+                            ? 'placeholder-transparent dark:placeholder-transparent'
+                            : 'placeholder-slate-500 dark:placeholder-[#70707c]'
+                        }`}
+                        placeholder={threadPlaceholderAttr}
                         aria-label={t('message.thread.placeholder')}
                         value={threadInput}
                         onChange={e => {
                           const value = e.target.value;
-                          setThreadInput(value);
                           if (value.startsWith('/')) {
+                            setThreadInput(value);
                             setActiveThreadSkillIndex(0);
+                            setShowThreadSkillPicker(true);
+                            return;
                           }
-                          setShowThreadSkillPicker(value.startsWith('/'));
+                          if (value.length === 0 && threadStashedDraftRef.current !== null) {
+                            // Deleting the "/" back to an empty composer dismisses
+                            // the picker, so treat it like Escape and hand the
+                            // reply draft back rather than dropping it.
+                            setThreadInput(threadStashedDraftRef.current);
+                            threadStashedDraftRef.current = null;
+                            setShowThreadSkillPicker(false);
+                            return;
+                          }
+                          // Typing past the leading "/" turns this back into a
+                          // normal draft — drop the stash so it can't reappear.
+                          threadStashedDraftRef.current = null;
+                          setThreadInput(value);
+                          setShowThreadSkillPicker(false);
                         }}
                         onKeyDown={handleThreadKeyDown}
                         disabled={threadComposerDisabled}

@@ -148,8 +148,11 @@
     },
     "skillsHint": {
       "ariaLabel": "Afficher les compétences disponibles (ou tapez une barre oblique)",
-      "title": "Utiliser une compétence",
-      "text": "Compétences"
+      "title": "Tapez / pour utiliser une compétence",
+      "text": "Compétences",
+      "keyLabel": "Barre oblique",
+      "placeholderBeforeKey": "ou tapez",
+      "placeholderAfterKey": "pour les compétences"
     },
     "selectedSkill": {
       "removeAriaLabel": "Retirer la compétence"
@@ -243,7 +246,10 @@
     },
     "conversationNotFoundShort": "Conversation introuvable. Veuillez sélectionner une conversation d'abord.",
     "fileRemoveFailed": "Échec du retrait du fichier",
-    "fileProcessingFailedTitle": "Le traitement du fichier a échoué"
+    "fileProcessingFailedTitle": "Le traitement du fichier a échoué",
+    "characterCount": {
+      "title": "{{count}} caractères restants"
+    }
   },
   "authStatus": {
     "signOutButton": {
@@ -419,7 +425,10 @@
     "loadingLabel": "Chargement des compétences...",
     "noMatchingSkills": "Aucune compétence ne correspond à « {{query}} ».",
     "noMatchingSkillsGeneric": "Aucune compétence correspondante.",
-    "listboxLabel": "Compétences disponibles"
+    "listboxLabel": "Compétences disponibles",
+    "footer": {
+      "slashAnytime": "à tout moment pour ouvrir les compétences"
+    }
   },
   "message": {
     "edit": {
@@ -452,7 +461,7 @@
       "clearAriaLabel": "Effacer les réponses",
       "hideRepliesAriaLabel": "Masquer les réponses",
       "hideRepliesLabel": "Masquer les réponses",
-      "placeholder": "Répondre dans le fil...",
+      "placeholder": "Répondre dans le fil",
       "skillsHint": "Utiliser une compétence",
       "skillsHintAriaLabel": "Afficher les compétences disponibles (ou tapez une barre oblique)",
       "removeSkillAriaLabel": "Retirer la compétence du fil",

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
-import { ArrowUp, CircleHelp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square, CircleAlert, TriangleAlert, Sparkles } from 'lucide-react';
+import { ArrowUp, CircleHelp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX, Square, CircleAlert, TriangleAlert } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useVoice } from '../hooks/useVoice';
@@ -7,7 +7,7 @@ import { useAutocomplete } from '../hooks/useAutocomplete';
 import type { UseSkillsResult } from '../hooks/useSkills';
 import { FileUpload } from './FileUpload';
 import { ConfirmationModal } from './ConfirmationModal';
-import { SkillPicker } from './SkillPicker';
+import { KeyCap, SkillPicker } from './SkillPicker';
 import { FileAttachment } from '../types';
 import type { AllowedModel } from '../types';
 import { useChatStore } from '../stores/chatStore';
@@ -219,6 +219,9 @@ export function MessageInput({
   const uploadPanelRef = useRef<HTMLDivElement>(null);
   const autocompletePanelRef = useRef<HTMLDivElement>(null);
   const skillPickerPanelRef = useRef<HTMLDivElement>(null);
+  // Holds the draft that was in the composer when the picker was opened from the
+  // Skills affordance, so choosing (or dismissing) a skill gives the draft back.
+  const stashedDraftRef = useRef<string | null>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
   const voiceMessageRef = useRef('');
   const pendingVoiceAutoSendRef = useRef(false);
@@ -394,7 +397,8 @@ export function MessageInput({
   const selectSkillAndClose = useCallback((skill: typeof skills[number]) => {
     selectSkill(skill);
     setShowSkillPicker(false);
-    setMessage('');
+    setMessage(stashedDraftRef.current ?? '');
+    stashedDraftRef.current = null;
     clearSuggestions();
     setActiveSkillIndex(0);
     textareaRef.current?.focus();
@@ -403,9 +407,13 @@ export function MessageInput({
   // Opens the skill picker from the "/ Skills" hint affordance — mirrors the
   // user typing "/" so all the existing picker logic (filter, keyboard nav,
   // Escape-to-close) applies unchanged. Also covers mobile, where typing "/"
-  // is less discoverable.
+  // is less discoverable. Skill matching is anchored to the start of the input,
+  // so an existing draft is stashed and restored once the picker closes.
   const openSkillPicker = useCallback(() => {
-    setMessage('/');
+    setMessage(prev => {
+      stashedDraftRef.current = prev.length > 0 ? prev : null;
+      return '/';
+    });
     setShowSkillPicker(true);
     setActiveSkillIndex(0);
     textareaRef.current?.focus();
@@ -413,7 +421,8 @@ export function MessageInput({
 
   const closeSkillPicker = useCallback(() => {
     setShowSkillPicker(false);
-    setMessage('');
+    setMessage(stashedDraftRef.current ?? '');
+    stashedDraftRef.current = null;
     setActiveSkillIndex(0);
     textareaRef.current?.focus();
   }, []);
@@ -1332,6 +1341,9 @@ export function MessageInput({
 
   const adapterInputPlaceholder = getAdapterInputPlaceholder(currentConversation?.adapterName);
   let effectivePlaceholder: string | null | undefined;
+  // Limit and upload states are telling the user something more urgent than a
+  // shortcut, so the skill hint only rides along on the ordinary placeholders.
+  let placeholderAllowsSkillHint = false;
   if (workspaceMessageLimitReached) {
     effectivePlaceholder = isGuest
       ? t('messageInput.placeholder.guestLimitTotal', { count: AppConfig.maxTotalMessages })
@@ -1344,11 +1356,41 @@ export function MessageInput({
     effectivePlaceholder = t('messageInput.placeholder.filesUploading');
   } else if (adapterInputPlaceholder) {
     effectivePlaceholder = adapterInputPlaceholder;
+    placeholderAllowsSkillHint = true;
   } else if (canUseFileUploads) {
     effectivePlaceholder = t('messageInput.placeholder.messageOrbit');
+    placeholderAllowsSkillHint = true;
   } else {
     effectivePlaceholder = placeholder;
+    placeholderAllowsSkillHint = true;
   }
+
+  // The placeholder is the one line everyone reads before typing, so that is
+  // where the "/" shortcut is taught. Split into two strings so the keycap can
+  // be rendered between them.
+  const showSkillPlaceholderHint =
+    placeholderAllowsSkillHint && !selectedSkill && skills.length > 0 && !isInputDisabled;
+  const skillHintBefore = t('messageInput.skillsHint.placeholderBeforeKey');
+  const skillHintAfter = t('messageInput.skillsHint.placeholderAfterKey');
+  // The visible placeholder is a styled overlay; the real attribute stays plain
+  // text so screen readers still announce the shortcut.
+  const placeholderAttr = showSkillPlaceholderHint && effectivePlaceholder
+    ? `${effectivePlaceholder} ${skillHintBefore} / ${skillHintAfter}`
+    : effectivePlaceholder;
+
+  // The counter is only information worth showing when the limit is within
+  // reach — "5/10000" tells nobody anything. Scaled to the limit so it behaves
+  // the same whether that is 500 characters or 10,000.
+  const charactersRemaining = AppConfig.maxMessageLength - message.length;
+  const showCharacterCount = charactersRemaining <= AppConfig.maxMessageLength * 0.1;
+  // Three states, each earning its colour: grey while there is room, amber for
+  // the last 2% (running out), red only once typing has actually stopped.
+  const characterCountTone =
+    charactersRemaining <= 0
+      ? 'font-semibold text-red-600 dark:text-red-400'
+      : charactersRemaining <= AppConfig.maxMessageLength * 0.02
+      ? 'font-medium text-amber-700 dark:text-amber-400'
+      : 'text-gray-500 dark:text-[#bfc2cd]';
 
   const limitWarnings: string[] = [];
   if (workspaceMessageLimitReached && AppConfig.maxTotalMessages !== null) {
@@ -1502,7 +1544,6 @@ export function MessageInput({
           <div className="col-span-full flex w-full shrink-0 basis-full items-center justify-between gap-2 md:contents">
             {selectedSkill && (
               <div className="flex h-8 max-w-[45%] shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200 sm:max-w-[38%] md:self-center md:max-w-[32%]">
-                <Sparkles className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
                 <span className="min-w-0 truncate font-medium capitalize">
                   {selectedSkill.name.replace(/-/g, ' ')}
                 </span>
@@ -1520,24 +1561,22 @@ export function MessageInput({
               </div>
             )}
 
-            {/* Keep the Skills affordance visible whenever the adapter exposes
-                skills. Disable it while a draft exists (opening it would replace
-                the draft with "/") or while the composer is unavailable. */}
+            {/* Mobile only: typing "/" is awkward on a touch keyboard, and the
+                composer is too narrow for the placeholder hint. On desktop the
+                placeholder teaches the shortcut instead, so the button would be
+                the same instruction twice on one line. A draft is stashed and
+                restored by the picker, so the button never goes dead mid-sentence. */}
             {!selectedSkill && skills.length > 0 && (
               <button
                 type="button"
                 onClick={openSkillPicker}
-                disabled={message.length > 0 || isInputDisabled}
-                className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white disabled:hover:text-gray-600 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600 dark:disabled:hover:bg-[#1a1a1a] dark:disabled:hover:text-gray-300 md:self-center"
+                disabled={isInputDisabled}
+                className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white disabled:hover:text-gray-600 dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 dark:focus-visible:ring-gray-600 dark:disabled:hover:bg-[#1a1a1a] dark:disabled:hover:text-gray-300 md:hidden"
                 aria-label={t('messageInput.skillsHint.ariaLabel')}
                 title={t('messageInput.skillsHint.title')}
               >
-                <span
-                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-gray-200 font-mono text-[10px] leading-none text-gray-600 dark:bg-[#2a2a2a] dark:text-gray-300"
-                  aria-hidden="true"
-                >
-                  /
-                </span>
+                <KeyCap>/</KeyCap>
+                <span className="sr-only">{t('messageInput.skillsHint.keyLabel')}</span>
                 {t('messageInput.skillsHint.text')}
               </button>
             )}
@@ -1569,6 +1608,14 @@ export function MessageInput({
                 aria-hidden="true"
               >
                 {effectivePlaceholder}
+                {/* The hint carries no colour of its own — it inherits the
+                    placeholder tone so the whole line reads as one piece of text
+                    in both themes. */}
+                {showSkillPlaceholderHint && (
+                  <span className="ml-1 hidden md:inline">
+                    {skillHintBefore} <KeyCap className="mx-0.5">/</KeyCap> {skillHintAfter}
+                  </span>
+                )}
               </div>
             )}
             {activeInlineSuggestion && isFocused && (
@@ -1593,11 +1640,26 @@ export function MessageInput({
               value={message}
               onChange={(e) => {
                 const val = e.target.value;
-                setMessage(val);
                 if (val.startsWith('/')) {
+                  setMessage(val);
                   setActiveSkillIndex(0);
+                  setShowSkillPicker(skills.length > 0);
+                  return;
                 }
-                setShowSkillPicker(val.startsWith('/') && skills.length > 0);
+                if (val.length === 0 && stashedDraftRef.current !== null) {
+                  // Deleting the "/" back to an empty composer dismisses the
+                  // picker, so treat it exactly like Escape and hand the draft
+                  // back rather than dropping it.
+                  setMessage(stashedDraftRef.current);
+                  stashedDraftRef.current = null;
+                  setShowSkillPicker(false);
+                  return;
+                }
+                // Typing past the leading "/" turns this back into a normal
+                // draft — drop the stash so it can't reappear later.
+                stashedDraftRef.current = null;
+                setMessage(val);
+                setShowSkillPicker(false);
               }}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
@@ -1605,7 +1667,7 @@ export function MessageInput({
               onCompositionEnd={() => setIsComposing(false)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              placeholder={effectivePlaceholder}
+              placeholder={placeholderAttr ?? undefined}
               disabled={isInputDisabled}
               rows={1}
               maxLength={AppConfig.maxMessageLength}
@@ -1676,12 +1738,16 @@ export function MessageInput({
                 </button>
               )}
 
-              {/* Character count - hidden on mobile to save space */}
-              {message.length > 0 && (
-                <div className="hidden md:block px-2 text-xs text-gray-500 dark:text-[#bfc2cd] md:min-w-[72px] md:text-right">
-                  <span className={message.length >= AppConfig.maxMessageLength ? 'text-red-600 font-semibold' : ''}>
-                    {message.length}/{AppConfig.maxMessageLength}
-                  </span>
+              {/* Character count — appears only once it is actionable, so it
+                  costs the textarea no width for the whole of a normal message,
+                  and no width is reserved for it while it is hidden. Shown on
+                  mobile too: without it, typing just stops at the cap. */}
+              {showCharacterCount && (
+                <div
+                  className={`shrink-0 px-1.5 text-xs tabular-nums transition-colors md:px-2 ${characterCountTone}`}
+                  title={t('messageInput.characterCount.title', { count: charactersRemaining })}
+                >
+                  {message.length}/{AppConfig.maxMessageLength}
                 </div>
               )}
             </div>

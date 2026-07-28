@@ -148,8 +148,11 @@
     },
     "skillsHint": {
       "ariaLabel": "利用可能なスキルを表示（またはスラッシュを入力）",
-      "title": "スキルを使用",
-      "text": "スキル"
+      "title": "/ を入力してスキルを使用",
+      "text": "スキル",
+      "keyLabel": "スラッシュ",
+      "placeholderBeforeKey": "スキルを使うには",
+      "placeholderAfterKey": "を入力"
     },
     "selectedSkill": {
       "removeAriaLabel": "スキルを削除"
@@ -243,7 +246,10 @@
     },
     "conversationNotFoundShort": "会話が見つかりません。先に会話を選択してください。",
     "fileRemoveFailed": "ファイルの削除に失敗しました",
-    "fileProcessingFailedTitle": "ファイル処理に失敗しました"
+    "fileProcessingFailedTitle": "ファイル処理に失敗しました",
+    "characterCount": {
+      "title": "残り {{count}} 文字"
+    }
   },
   "authStatus": {
     "signOutButton": {
@@ -419,7 +425,10 @@
     "loadingLabel": "スキルを読み込み中...",
     "noMatchingSkills": "\"{{query}}\" に一致するスキルはありません。",
     "noMatchingSkillsGeneric": "一致するスキルはありません。",
-    "listboxLabel": "利用可能なスキル"
+    "listboxLabel": "利用可能なスキル",
+    "footer": {
+      "slashAnytime": "でいつでもスキルを表示"
+    }
   },
   "message": {
     "edit": {
@@ -452,7 +461,7 @@
       "clearAriaLabel": "返信をクリア",
       "hideRepliesAriaLabel": "返信を非表示",
       "hideRepliesLabel": "返信を非表示",
-      "placeholder": "スレッドに返信...",
+      "placeholder": "スレッドに返信",
       "skillsHint": "スキルを使用",
       "skillsHintAriaLabel": "利用可能なスキルを表示（またはスラッシュを入力）",
       "removeSkillAriaLabel": "スレッドのスキルを削除",

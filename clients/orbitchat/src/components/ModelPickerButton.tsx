@@ -299,15 +299,24 @@ export function ModelPickerButton({
             ref={triggerRef}
             type="button"
             onClick={toggleDropdown}
-            className={`group inline-flex h-8 min-w-[124px] ${maxWidthClass} items-center gap-2 rounded-full border border-gray-200 bg-white/80 ${triggerPaddingClass} shadow-sm transition-all motion-reduce:transition-none hover:border-gray-300 hover:bg-white hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/20 dark:hover:bg-white/[0.08] dark:focus-visible:ring-white/20`}
+            className={`group inline-flex h-8 min-w-[124px] ${maxWidthClass} items-center gap-1.5 rounded-full border border-gray-300 bg-white ${triggerPaddingClass} shadow-sm transition-all motion-reduce:transition-none hover:border-gray-400 hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:border-white/20 dark:bg-white/[0.07] dark:hover:border-white/35 dark:hover:bg-white/[0.11] dark:focus-visible:ring-white/20`}
             aria-haspopup="listbox"
             aria-expanded={open}
             aria-controls={open ? listboxId : undefined}
             title={resolvedTriggerTitle}
           >
             {label}
+            {/* A divider plus a chevron is the universal "this opens a list"
+                signal. Without it the pill reads as a status label — the only
+                text in a row of icons — rather than a control. */}
+            <span
+              className="h-4 w-px shrink-0 bg-gray-300 transition-colors motion-reduce:transition-none group-hover:bg-gray-400 dark:bg-white/20 dark:group-hover:bg-white/35"
+              aria-hidden="true"
+            />
             <ChevronDown
-              className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
+              className={`-mr-0.5 h-4 w-4 shrink-0 text-gray-500 transition-all duration-200 motion-reduce:transition-none dark:text-gray-300 ${
+                open ? 'rotate-180' : 'group-hover:translate-y-px'
+              }`}
               aria-hidden="true"
             />
           </button>

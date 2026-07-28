@@ -148,8 +148,11 @@
     },
     "skillsHint": {
       "ariaLabel": "Mostrar habilidades disponíveis (ou digite uma barra)",
-      "title": "Usar uma habilidade",
-      "text": "Habilidades"
+      "title": "Digite / para usar uma habilidade",
+      "text": "Habilidades",
+      "keyLabel": "Barra",
+      "placeholderBeforeKey": "ou digite",
+      "placeholderAfterKey": "para habilidades"
     },
     "selectedSkill": {
       "removeAriaLabel": "Remover habilidade"
@@ -243,7 +246,10 @@
     },
     "conversationNotFoundShort": "Conversa não encontrada. Selecione uma conversa primeiro.",
     "fileRemoveFailed": "Falha ao remover arquivo",
-    "fileProcessingFailedTitle": "Falha no processamento do arquivo"
+    "fileProcessingFailedTitle": "Falha no processamento do arquivo",
+    "characterCount": {
+      "title": "Restam {{count}} caracteres"
+    }
   },
   "authStatus": {
     "signOutButton": {
@@ -419,7 +425,10 @@
     "loadingLabel": "Carregando habilidades...",
     "noMatchingSkills": "Nenhuma habilidade corresponde a \"{{query}}\".",
     "noMatchingSkillsGeneric": "Nenhuma habilidade correspondente.",
-    "listboxLabel": "Habilidades disponíveis"
+    "listboxLabel": "Habilidades disponíveis",
+    "footer": {
+      "slashAnytime": "a qualquer momento para abrir habilidades"
+    }
   },
   "message": {
     "edit": {
@@ -452,7 +461,7 @@
       "clearAriaLabel": "Limpar respostas",
       "hideRepliesAriaLabel": "Ocultar respostas",
       "hideRepliesLabel": "Ocultar respostas",
-      "placeholder": "Responder no fio...",
+      "placeholder": "Responder no fio",
       "skillsHint": "Usar uma habilidade",
       "skillsHintAriaLabel": "Mostrar habilidades disponíveis (ou digite uma barra)",
       "removeSkillAriaLabel": "Remover habilidade do fio",

@@ -148,8 +148,11 @@
     },
     "skillsHint": {
       "ariaLabel": "显示可用技能（或输入正斜杠）",
-      "title": "使用技能",
-      "text": "技能"
+      "title": "输入 / 使用技能",
+      "text": "技能",
+      "keyLabel": "正斜杠",
+      "placeholderBeforeKey": "输入",
+      "placeholderAfterKey": "使用技能"
     },
     "selectedSkill": {
       "removeAriaLabel": "移除技能"
@@ -243,7 +246,10 @@
     },
     "conversationNotFoundShort": "未找到会话。请先选择一个会话。",
     "fileRemoveFailed": "移除文件失败",
-    "fileProcessingFailedTitle": "文件处理失败"
+    "fileProcessingFailedTitle": "文件处理失败",
+    "characterCount": {
+      "title": "还剩 {{count}} 个字符"
+    }
   },
   "authStatus": {
     "signOutButton": {
@@ -419,7 +425,10 @@
     "loadingLabel": "正在加载技能...",
     "noMatchingSkills": "没有技能匹配“{{query}}”。",
     "noMatchingSkillsGeneric": "没有匹配的技能。",
-    "listboxLabel": "可用技能"
+    "listboxLabel": "可用技能",
+    "footer": {
+      "slashAnytime": "随时打开技能"
+    }
   },
   "message": {
     "edit": {
@@ -452,7 +461,7 @@
       "clearAriaLabel": "清除回复",
       "hideRepliesAriaLabel": "隐藏回复",
       "hideRepliesLabel": "隐藏回复",
-      "placeholder": "在线程中回复...",
+      "placeholder": "在线程中回复",
       "skillsHint": "使用技能",
       "skillsHintAriaLabel": "显示可用技能（或输入正斜杠）",
       "removeSkillAriaLabel": "移除线程技能",

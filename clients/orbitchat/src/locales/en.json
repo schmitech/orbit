@@ -148,8 +148,11 @@
     },
     "skillsHint": {
       "ariaLabel": "Show available skills (or type a forward slash)",
-      "title": "Use a skill",
-      "text": "Skills"
+      "title": "Type / to use a skill",
+      "text": "Skills",
+      "keyLabel": "Slash",
+      "placeholderBeforeKey": "or type",
+      "placeholderAfterKey": "for skills"
     },
     "selectedSkill": {
       "removeAriaLabel": "Remove skill"
@@ -243,7 +246,10 @@
     },
     "conversationNotFoundShort": "Conversation not found. Please select a conversation first.",
     "fileRemoveFailed": "Failed to remove file",
-    "fileProcessingFailedTitle": "File processing failed"
+    "fileProcessingFailedTitle": "File processing failed",
+    "characterCount": {
+      "title": "{{count}} characters left"
+    }
   },
   "authStatus": {
     "signOutButton": {
@@ -419,7 +425,10 @@
     "loadingLabel": "Loading skills...",
     "noMatchingSkills": "No matching skills for \"{{query}}\".",
     "noMatchingSkillsGeneric": "No matching skills.",
-    "listboxLabel": "Available skills"
+    "listboxLabel": "Available skills",
+    "footer": {
+      "slashAnytime": "anytime to open skills"
+    }
   },
   "message": {
     "edit": {
@@ -452,7 +461,7 @@
       "clearAriaLabel": "Clear replies",
       "hideRepliesAriaLabel": "Hide replies",
       "hideRepliesLabel": "Hide replies",
-      "placeholder": "Reply in thread...",
+      "placeholder": "Reply in thread",
       "skillsHint": "Use a skill",
       "skillsHintAriaLabel": "Show available skills (or type a forward slash)",
       "removeSkillAriaLabel": "Remove thread skill",
