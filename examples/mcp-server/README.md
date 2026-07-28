@@ -115,7 +115,7 @@ With the server running:
 
 ```bash
 cd examples/mcp-server
-MCP_TOKEN=test-secret npm run smoke
+MCP_URL=http://127.0.0.1:9999/mcp MCP_TOKEN=test-secret npm run smoke
 ```
 
 You can also check the non-MCP health endpoint:

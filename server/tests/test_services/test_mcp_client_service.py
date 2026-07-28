@@ -15,6 +15,7 @@ The actual transport (_call_tool_on_server / _list_tools_on_server) is mocked
 so no subprocess is spawned.
 """
 
+import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -35,6 +36,19 @@ class _FakeMCPTool:
         self.name = name
         self.description = description
         self.inputSchema = input_schema
+
+
+class _FakeClock:
+    """Stand-in for time.monotonic with an explicitly advanced value."""
+
+    def __init__(self, now=1000.0):
+        self._now = now
+
+    def __call__(self):
+        return self._now
+
+    def advance(self, seconds):
+        self._now += seconds
 
 
 def _manager_with_cache():
@@ -109,6 +123,116 @@ class TestGetAllTools:
         mgr = _manager_with_cache()
         tools = await mgr.get_all_tools(allowed_servers=None)
         assert len(tools) == 2
+
+    async def test_failed_discovery_is_retried_after_retry_interval(self):
+        tool = _FakeMCPTool(
+            "recovered_tool", "Available after recovery", {"type": "object", "properties": {}}
+        )
+        mgr = MCPClientManager({
+            "servers": [{"name": "remote", "transport": "http", "url": "http://example.test/mcp"}],
+            "discovery_retry_interval": 30,
+        })
+        mgr._list_tools_on_server = AsyncMock(side_effect=[RuntimeError("server unavailable"), [tool]])
+
+        clock = _FakeClock()
+        with patch("services.mcp_client_service.time.monotonic", clock):
+            assert await mgr.get_all_tools() == []
+            assert mgr._failed_discovery_servers == {"remote"}
+
+            # Inside the retry interval, an unavailable server is not re-dialed.
+            clock.advance(29)
+            assert await mgr.get_all_tools() == []
+            assert mgr._list_tools_on_server.await_count == 1
+
+            # Once the interval has elapsed, the recovered endpoint is rediscovered.
+            clock.advance(2)
+            tools = await mgr.get_all_tools()
+
+        assert [tool_["function"]["name"] for tool_ in tools] == ["remote__recovered_tool"]
+        assert mgr._failed_discovery_servers == set()
+
+    async def test_retry_interval_measured_from_end_of_dial_loop(self):
+        """A server that hangs until discovery_timeout must still be throttled."""
+        mgr = MCPClientManager({
+            "servers": [{"name": "remote", "transport": "http", "url": "http://example.test/mcp"}],
+            "discovery_timeout": 30,
+            "discovery_retry_interval": 30,
+        })
+        clock = _FakeClock()
+
+        async def _hang(_server_config):
+            # Simulate a black-holed connection burning the whole discovery_timeout.
+            clock.advance(30)
+            raise RuntimeError("timed out")
+
+        mgr._list_tools_on_server = AsyncMock(side_effect=_hang)
+
+        with patch("services.mcp_client_service.time.monotonic", clock):
+            assert await mgr.get_all_tools() == []
+            assert mgr._list_tools_on_server.await_count == 1
+
+            # The next request must not immediately re-dial (and stall again).
+            assert await mgr.get_all_tools() == []
+            assert mgr._list_tools_on_server.await_count == 1
+
+    async def test_unreachable_servers_are_dialed_concurrently(self):
+        """N unreachable servers must cost one discovery_timeout, not N."""
+        mgr = MCPClientManager({
+            "servers": [
+                {"name": f"remote{i}", "transport": "http", "url": "http://example.test/mcp"}
+                for i in range(3)
+            ],
+        })
+        # Sub-second budget: the config value is coerced to int, so set it directly.
+        mgr._discovery_timeout = 0.05
+        async def _hang(_server_config):
+            # Never resolves, so each dial can only end via wait_for's timeout.
+            await asyncio.Event().wait()
+
+        mgr._list_tools_on_server = AsyncMock(side_effect=_hang)
+
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        assert await mgr.get_all_tools() == []
+        elapsed = loop.time() - started
+
+        assert mgr._failed_discovery_servers == {"remote0", "remote1", "remote2"}
+        # Serial dials would take ~0.15s; concurrent ones ~0.05s.
+        assert elapsed < 0.12, f"dials appear serial ({elapsed:.3f}s)"
+
+    async def test_healthy_server_cache_survives_another_servers_outage(self):
+        healthy_tool = _FakeMCPTool("ok", "Healthy", {"type": "object", "properties": {}})
+        mgr = MCPClientManager({
+            "servers": [
+                {"name": "healthy", "command": "noop", "enabled": True},
+                {"name": "broken", "command": "noop", "enabled": True},
+            ],
+            "discovery_retry_interval": 30,
+        })
+
+        async def _list(server_config):
+            if server_config["name"] == "healthy":
+                return [healthy_tool]
+            raise RuntimeError("server unavailable")
+
+        mgr._list_tools_on_server = AsyncMock(side_effect=_list)
+
+        clock = _FakeClock()
+        with patch("services.mcp_client_service.time.monotonic", clock):
+            tools = await mgr.get_all_tools()
+            assert [t["function"]["name"] for t in tools] == ["healthy__ok"]
+            assert mgr._failed_discovery_servers == {"broken"}
+
+            # The retry pass only re-dials 'broken' and leaves the healthy cache intact.
+            clock.advance(31)
+            tools = await mgr.get_all_tools()
+
+        assert [t["function"]["name"] for t in tools] == ["healthy__ok"]
+        assert [c.args[0]["name"] for c in mgr._list_tools_on_server.await_args_list] == [
+            "healthy",
+            "broken",
+            "broken",
+        ]
 
 
 class TestValidateArguments:

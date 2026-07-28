@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.11.1] - 2026-07-27
+## [2.11.1] - 2026-07-28
 
 ### Core System Updates
 - **Web Search Source Citations**: Gemini, OpenAI, xAI, and Anthropic native web-search responses now append a `Sources:` list of the pages the model actually cited, for both streaming and non-streaming generation. OpenAI falls back to the search call's visited URLs when the model omits inline citations; query types OpenAI backs with an internal data feed (e.g. weather) have no citable URL and remain source-less by design.
@@ -14,6 +14,7 @@
 - **orbitchat**: Published orbitchat v3.13.3.
 
 ### Bug Fixes & Technical Improvements
+- **MCP Discovery Recovery**: Failed MCP tool discovery now retries automatically after a configurable interval, using concurrent, short-lived discovery attempts while preserving cached tools from healthy servers; recovered MCP servers become available without restarting ORBIT.
 - **Autocomplete for Conversational Adapters**: Autocomplete now also draws suggestions from skills' `routing_examples` (e.g. "search the web for", "make a pdf of"), so passthrough/conversational adapters with no retriever templates of their own (e.g. `simple-chat`) surface discovery hints, not just intent-template `nl_examples`.
 - **Adapter Reload Cache Invalidation**: Fixed a bug where toggling an adapter's `supports_autocomplete`, `auto_routable_skills`, or `available_skills` on reload didn't take effect until the autocomplete cache TTL lapsed or the server restarted; adapter reload now clears the full autocomplete cache since dependent adapters can embed another adapter's skill examples.
 - **Gemini Video Generation**: Fixed Gemini video generation behavior and packaging.

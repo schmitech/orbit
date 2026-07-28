@@ -23,6 +23,8 @@ mcp_client:
   enabled: false                     # Set to false to disable MCP tool calling
 
   tool_timeout: 30                  # Seconds before a tool call is aborted
+  discovery_retry_interval: 30      # Retry failed tool discovery after this many seconds; no restart needed
+  discovery_timeout: 5              # Seconds before tool discovery on one server is abandoned (dials run in parallel)
   max_tool_iterations: 5            # Maximum tool-calling rounds per request
   tool_result_max_chars: 8000       # Cap on result text injected into model context (prevents context overflow)
 

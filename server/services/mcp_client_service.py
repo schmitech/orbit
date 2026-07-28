@@ -22,6 +22,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from typing import Dict, List, Optional, Any
 
@@ -60,6 +61,16 @@ class MCPClientManager:
             s["name"]: s for s in servers_list if s.get("enabled", True)
         }
         self._tool_timeout: int = int(mcp_config.get("tool_timeout", 30))
+        # Servers that are unavailable during startup remain retryable.  A
+        # retry is triggered by the next request after this interval, so a
+        # temporary remote MCP outage does not require restarting ORBIT.
+        self._discovery_retry_interval: int = max(
+            0, int(mcp_config.get("discovery_retry_interval", 30))
+        )
+        # Discovery is only initialize + tools/list, so it gets a much tighter
+        # budget than tool_timeout (which is sized for real tool work).  This
+        # bounds how long a request can stall on an unreachable server.
+        self._discovery_timeout: int = int(mcp_config.get("discovery_timeout", 5))
         self._max_tool_iterations: int = int(mcp_config.get("max_tool_iterations", 5))
         # Defense-in-depth gate for opportunistic (non-skill) tool calling.
         # Does not affect the explicit "mcp-agent" skill, which is governed
@@ -73,6 +84,8 @@ class MCPClientManager:
         self._tools_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._cache_lock = asyncio.Lock()
         self._cache_populated = False
+        self._failed_discovery_servers: set[str] = set()
+        self._next_discovery_retry_at = 0.0
 
     # ------------------------------------------------------------------
     # Public API
@@ -194,26 +207,50 @@ class MCPClientManager:
 
     async def _ensure_cache_populated(self) -> None:
         async with self._cache_lock:
-            if self._cache_populated:
+            if self._cache_populated and not self._failed_discovery_servers:
                 return
-            for server_name, server_config in self._server_configs.items():
-                try:
-                    tools = await asyncio.wait_for(
-                        self._list_tools_on_server(server_config),
-                        timeout=self._tool_timeout,
-                    )
-                    self._tools_cache[server_name] = [
-                        self._to_openai_tool(server_name, t) for t in tools
-                    ]
-                    logger.info(
-                        "MCP server '%s': discovered %d tools", server_name, len(tools)
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "MCP server '%s': failed to list tools: %s", server_name, exc
-                    )
-                    self._tools_cache[server_name] = []
+
+            if self._cache_populated and time.monotonic() < self._next_discovery_retry_at:
+                return
+
+            # On first discovery, try every enabled server. After that, only
+            # retry servers whose prior discovery failed; healthy tool caches
+            # remain usable while another server recovers.
+            server_names = (
+                list(self._server_configs.keys())
+                if not self._cache_populated
+                else sorted(self._failed_discovery_servers)
+            )
+            # Dial concurrently so the worst case is one discovery_timeout
+            # rather than one per unreachable server.
+            await asyncio.gather(*(self._discover_server(n) for n in server_names))
             self._cache_populated = True
+            if self._failed_discovery_servers:
+                # Measure the interval from the end of the dial loop: a server
+                # that black-holes connections burns the whole discovery_timeout,
+                # which would otherwise leave the deadline already in the past.
+                self._next_discovery_retry_at = (
+                    time.monotonic() + self._discovery_retry_interval
+                )
+            else:
+                self._next_discovery_retry_at = 0.0
+
+    async def _discover_server(self, server_name: str) -> None:
+        """List tools on one server, recording it as failed on any error."""
+        try:
+            tools = await asyncio.wait_for(
+                self._list_tools_on_server(self._server_configs[server_name]),
+                timeout=self._discovery_timeout,
+            )
+            self._tools_cache[server_name] = [
+                self._to_openai_tool(server_name, t) for t in tools
+            ]
+            logger.info("MCP server '%s': discovered %d tools", server_name, len(tools))
+            self._failed_discovery_servers.discard(server_name)
+        except Exception as exc:
+            logger.warning("MCP server '%s': failed to list tools: %s", server_name, exc)
+            self._tools_cache[server_name] = []
+            self._failed_discovery_servers.add(server_name)
 
     # ------------------------------------------------------------------
     # Low-level transport helpers
