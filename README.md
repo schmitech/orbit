@@ -34,6 +34,8 @@
   <em>Upload PDFs, spreadsheets, and images, then query them together with context preserved across the conversation.</em>
 </div>
 
+<br>
+
 > ⭐ **Cloning ORBIT?** If it looks useful, [star the repository](https://github.com/schmitech/orbit). It helps other developers discover the project and signals that we should keep investing in new model, datasource, and agent integrations.
 
 ---
@@ -49,6 +51,8 @@
 ORBIT sits between your applications and the models, data, and tools they need. Define adapters in YAML, expose them through one OpenAI-compatible endpoint, and move from a local prototype to a governed deployment without replacing the architecture.
 
 > **Where does it fit?** ORBIT combines an AI gateway with retrieval and tool execution. It is a backend API rather than just a chat UI, and it includes production controls rather than leaving them to application code. See [ORBIT vs. Open WebUI](docs/openwebui/orbit-vs-openwebui.md) and [ORBIT vs. LiteLLM](docs/litellm/orbit-vs-litellm.md).
+
+ORBIT is actively maintained. See the [release history](https://github.com/schmitech/orbit/releases), [changelog](CHANGELOG.md), and [commit history](https://github.com/schmitech/orbit/commits/main).
 
 ## 🚀 Quick Start
 
@@ -237,16 +241,6 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
   <br />
   <em>Authenticate and route REST, OpenAI-compatible, MCP, A2A, or message-queue requests to models, private data, and tools.</em>
 </p>
-
-## Used in production
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/82b92525-cc37-47af-bd47-b3ef9dd6ece8" controls muted playsinline width="80%"></video>
-  <br />
-  <em><a href="https://dialoga.ca">Dialoga</a>, a Canadian AI chat product, is built on ORBIT. The hosted service is currently limited to Canadian IP addresses.</em>
-</p>
-
-ORBIT is actively maintained, Apache 2.0 licensed, and developed in the open. See the [release history](https://github.com/schmitech/orbit/releases), [changelog](CHANGELOG.md), [security policy](SECURITY.md), and [commit history](https://github.com/schmitech/orbit/commits/main).
 
 ## Clients and documentation
 
