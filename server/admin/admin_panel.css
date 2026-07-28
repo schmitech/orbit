@@ -1188,6 +1188,71 @@ th {
   border-bottom: 2px solid var(--border);
 }
 
+/* Sortable headers: the button inherits the header cell's type styling, so
+   a sortable column reads identically to a fixed one until you hover it. */
+th:has(.th-sort) {
+  padding: 0;
+}
+
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  width: 100%;
+  min-height: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: inherit;
+  white-space: nowrap;
+}
+
+th[style*="text-align:right"] .th-sort {
+  justify-content: flex-end;
+}
+
+th[style*="text-align:center"] .th-sort {
+  justify-content: center;
+}
+
+.th-sort:hover:not(:disabled) {
+  background: var(--surface-sunken);
+  color: var(--ink-secondary);
+  box-shadow: none;
+}
+
+.th-sort:active:not(:disabled) {
+  background: var(--surface-sunken);
+  transform: none;
+  box-shadow: none;
+}
+
+.th-sort.is-sorted {
+  color: var(--brand-600);
+}
+
+/* The chevron is revealed on hover or focus, so nine idle columns don't
+   each advertise themselves. */
+.th-sort-icon {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.25;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.th-sort:hover .th-sort-icon,
+.th-sort:focus-visible .th-sort-icon,
+.th-sort.is-sorted .th-sort-icon {
+  opacity: 1;
+}
+
 td {
   padding: var(--sp-3);
   border-bottom: 1px solid var(--border-light);

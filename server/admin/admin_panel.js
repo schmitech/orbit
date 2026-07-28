@@ -49,6 +49,9 @@
   let overviewAdapterPaginator = null;
   let overviewDatasourcePaginator = null;
   let overviewThreadPoolPaginator = null;
+  let overviewAdapterSorter = null;
+  let overviewDatasourceSorter = null;
+  let overviewThreadPoolSorter = null;
 
   // ------------------------------------------------------------------
   // Stored UI preferences
@@ -344,10 +347,123 @@
 
   var ITEMS_PER_PAGE = 10;
 
+  // ------------------------------------------------------------------
+  // Sortable column headers
+  //
+  // Client-paged tables all render from an array held by their paginator,
+  // so sorting means installing a comparator and letting the paginator
+  // reorder and redraw. Columns declare how to read their own value; the
+  // sorter keeps only the state, since each table rebuilds its header on
+  // every render.
+  // ------------------------------------------------------------------
+  var SORT_LEADING_NUMBER = /^-?[\d,]*\.?\d+/;
+  var ICON_SORT_NONE = ["M5 10.5l3-3 3 3", "M5 13.5l3 3 3-3"];
+  var ICON_SORT_ASC = ["M5 14l3-3 3 3"];
+  var ICON_SORT_DESC = ["M5 10l3 3 3-3"];
+
+  // "5 / 30", "12 ms" and "42.5%" all sort on their leading number rather
+  // than as text, which is what the formatted cells actually contain.
+  function sortNumber(value) {
+    if (typeof value === "number") return isFinite(value) ? value : null;
+    if (value == null) return null;
+    var match = SORT_LEADING_NUMBER.exec(String(value).trim());
+    return match ? parseFloat(match[0].replace(/,/g, "")) : null;
+  }
+
+  function isBlankSortValue(value) {
+    if (value == null) return true;
+    var text = String(value).trim();
+    return text === "" || text === "\u2014" || text === "N/A";
+  }
+
+  function compareSortValues(a, b) {
+    var numA = sortNumber(a);
+    var numB = sortNumber(b);
+    if (numA !== null && numB !== null) return numA - numB;
+    return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+  }
+
+  function sortIndicator(dir) {
+    var paths = dir === 0 ? ICON_SORT_NONE : dir > 0 ? ICON_SORT_ASC : ICON_SORT_DESC;
+    var icon = svgIcon(paths);
+    icon.setAttribute("class", "th-sort-icon");
+    icon.setAttribute("aria-hidden", "true");
+    return icon;
+  }
+
+  function createColumnSorter(paginator) {
+    var state = { key: null, dir: 1 };
+    var columns = [];
+    var mountedRow = null;
+
+    function comparator() {
+      var column = columns.filter(function (c) { return c.key === state.key; })[0];
+      if (!column || !column.sortValue) return null;
+      return function (rowA, rowB) {
+        var a = column.sortValue(rowA);
+        var b = column.sortValue(rowB);
+        // Blanks sort last in both directions, so an empty cell never
+        // wins a descending sort.
+        var blankA = isBlankSortValue(a);
+        var blankB = isBlankSortValue(b);
+        if (blankA || blankB) return blankA && blankB ? 0 : (blankA ? 1 : -1);
+        return compareSortValues(a, b) * state.dir;
+      };
+    }
+
+    function toggle(key) {
+      if (state.key === key) state.dir = -state.dir;
+      else { state.key = key; state.dir = 1; }
+      // Some tables rebuild their header when the data is reordered and
+      // some only rebuild the body, so refresh it here for the latter.
+      if (mountedRow && mountedRow.parentNode) {
+        var previousRow = mountedRow;
+        var replacement = headerRow(columns);
+        previousRow.parentNode.replaceChild(replacement, previousRow);
+      }
+      if (paginator) paginator.setComparator(comparator());
+      // Only now is mountedRow the row that survived, so keyboard focus
+      // stays on the header that was just activated.
+      var active = mountedRow && mountedRow.querySelector(".th-sort.is-sorted");
+      if (active) active.focus();
+    }
+
+    function headerRow(nextColumns) {
+      columns = nextColumns || columns;
+      var row = el("tr", null, columns.map(function (column) {
+        var attrs = {};
+        Object.keys(column.attrs || {}).forEach(function (k) { attrs[k] = column.attrs[k]; });
+        if (!column.sortValue) return el("th", attrs, column.content || column.label || null);
+        var isSorted = column.key === state.key;
+        attrs["aria-sort"] = isSorted ? (state.dir === 1 ? "ascending" : "descending") : "none";
+        var button = el("button", {
+          type: "button",
+          className: "th-sort" + (isSorted ? " is-sorted" : ""),
+        }, el("span", null, column.label), sortIndicator(isSorted ? state.dir : 0));
+        button.addEventListener("click", function () { toggle(column.key); });
+        return el("th", attrs, button);
+      }));
+      mountedRow = row;
+      return row;
+    }
+
+    return {
+      headerRow: headerRow,
+      isSortedBy: function (key) { return state.key === key; },
+      // For when an in-place edit changes the value the table is ordered
+      // by. Keeps the current page: the user didn't ask to navigate.
+      reapply: function () {
+        if (paginator) paginator.setComparator(comparator(), true);
+      },
+    };
+  }
+
   function createPaginator(opts) {
     var pageSize = opts.pageSize || ITEMS_PER_PAGE;
     var onPageChange = opts.onPageChange || function () {};
     var allItems = [];
+    var sourceItems = [];
+    var comparator = null;
     var currentPage = 1;
     var totalPages = 1;
     var barEl = el("div", { className: "pagination-bar" });
@@ -431,11 +547,19 @@
     }
 
     function setData(items, preservePage) {
-      allItems = items || [];
+      sourceItems = items || [];
+      allItems = comparator ? sourceItems.slice().sort(comparator) : sourceItems;
       if (!preservePage) currentPage = 1;
       computePages();
       renderControls();
       onPageChange(getSlice(), currentPage, totalPages);
+    }
+
+    // Held on the paginator so a live-refreshing table keeps its sort when
+    // the next snapshot replaces the data.
+    function setComparator(compare, preservePage) {
+      comparator = compare || null;
+      setData(sourceItems, preservePage);
     }
 
     function ensureItemVisible(predicate) {
@@ -455,6 +579,7 @@
     return {
       setData: setData,
       setItems: setData,
+      setComparator: setComparator,
       setPageChangeHandler: function (handler) {
         onPageChange = handler || function () {};
       },
@@ -1665,7 +1790,7 @@
     }, "Circuit breaker reset for " + adapterName);
   }
 
-  function renderMonitoringTable(container, columns, rows, emptyMessage, paginator) {
+  function renderMonitoringTable(container, columns, rows, emptyMessage, paginator, sorter) {
     clear(container);
     if (!rows.length) {
       container.appendChild(el("p", { style: "color:var(--ink-muted);font-size:var(--text-sm)" }, emptyMessage));
@@ -1673,9 +1798,22 @@
       return;
     }
     var table = el("table", { className: "monitoring-table" });
-    table.appendChild(el("thead", null, el("tr", null, columns.map(function (column) {
-      return el("th", column.attrs || null, column.label);
-    }))));
+    // Monitoring rows are arrays of built cells, so a column sorts on the
+    // text of its own cell.
+    var sortColumns = columns.map(function (column, index) {
+      if (column.sortable === false) return column;
+      return {
+        label: column.label,
+        attrs: column.attrs,
+        key: String(index),
+        sortValue: function (row) { return row[index] ? row[index].textContent : ""; },
+      };
+    });
+    table.appendChild(el("thead", null, sorter
+      ? sorter.headerRow(sortColumns)
+      : el("tr", null, columns.map(function (column) {
+        return el("th", column.attrs || null, column.label);
+      }))));
     var tbody = el("tbody");
     table.appendChild(tbody);
     container.appendChild(table);
@@ -1817,8 +1955,8 @@
       { label: "Recovery Attempts", attrs: { style: "text-align:right" } },
       { label: "Next Retry", attrs: { style: "text-align:right" } },
       { label: "Avg Latency", attrs: { style: "text-align:right" } },
-      { label: "Actions", attrs: { style: "text-align:right" } }
-    ], rows, "No adapters match the current filters.", overviewAdapterPaginator);
+      { label: "Actions", attrs: { style: "text-align:right" }, sortable: false }
+    ], rows, "No adapters match the current filters.", overviewAdapterPaginator, overviewAdapterSorter);
   }
 
   function updateMonitoringThreadPools(pools) {
@@ -1856,7 +1994,7 @@
       { label: "Active Threads", attrs: { style: "text-align:right" } },
       { label: "Queued", attrs: { style: "text-align:right" } },
       { label: "Utilization", attrs: { style: "text-align:right" } }
-    ], rows, "No thread pools match the current filter.", overviewThreadPoolPaginator);
+    ], rows, "No thread pools match the current filter.", overviewThreadPoolPaginator, overviewThreadPoolSorter);
   }
 
   function updateMonitoringRedisHealth(data) {
@@ -1915,7 +2053,7 @@
       { label: "Connection" },
       { label: "References", attrs: { style: "text-align:right" } },
       { label: "Status" }
-    ], rows, "No datasource pool entries match the current filter.", overviewDatasourcePaginator);
+    ], rows, "No datasource pool entries match the current filter.", overviewDatasourcePaginator, overviewDatasourceSorter);
   }
 
   function updateMonitoringConnections(conn) {
@@ -1940,6 +2078,9 @@
     overviewAdapterPaginator = createPaginator({ pageSize: ITEMS_PER_PAGE, onPageChange: function () {} });
     overviewDatasourcePaginator = createPaginator({ pageSize: ITEMS_PER_PAGE, onPageChange: function () {} });
     overviewThreadPoolPaginator = createPaginator({ pageSize: ITEMS_PER_PAGE, onPageChange: function () {} });
+    overviewAdapterSorter = createColumnSorter(overviewAdapterPaginator);
+    overviewDatasourceSorter = createColumnSorter(overviewDatasourcePaginator);
+    overviewThreadPoolSorter = createColumnSorter(overviewThreadPoolPaginator);
 
     // 1. Toolbar
     var toolbar = el("div", { className: "monitoring-toolbar" },
@@ -2488,10 +2629,12 @@
           onSelectionChange: function () {
             syncBulkActionButton(bulkDeleteBtn, selectedUserIds.size, "users");
           },
-          currentUserId: currentUser && currentUser.id
+          currentUserId: currentUser && currentUser.id,
+          sorter: userSorter
         });
       }
     });
+    var userSorter = createColumnSorter(userPaginator);
 
     layout.appendChild(listPanel);
     layout.appendChild(detailPanel);
@@ -2934,14 +3077,18 @@
       syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, selectableUserIds);
     });
     table.appendChild(el("colgroup", null, el("col", { className: "selection-col-width" })));
-    var thead = el("thead", null,
-      el("tr", null,
-        el("th", { className: "selection-col" }, selectAllBox),
-        el("th", null, "Username"),
-        el("th", null, "Role"),
-        el("th", null, "Status")
-      )
-    );
+    var thead = el("thead", null, selection.sorter.headerRow([
+      { attrs: { className: "selection-col" }, content: selectAllBox },
+      { label: "Username", key: "username", sortValue: function (u) { return u.email || u.username; } },
+      {
+        label: "Role",
+        key: "role",
+        sortValue: function (u) {
+          return (u.roles && u.roles.length ? u.roles : [u.role]).filter(Boolean).join(", ");
+        },
+      },
+      { label: "Status", key: "status", sortValue: function (u) { return u.active !== false ? "Active" : "Inactive"; } },
+    ]));
     var tbody = el("tbody");
     users.forEach(function (u) {
       var isSelected = selectedUser && selectedUser.id === u.id;
@@ -3335,10 +3482,12 @@
           selectedIds: selectedKeyIds,
           onSelectionChange: function () {
             syncBulkActionButton(bulkDeleteBtn, selectedKeyIds.size, "API keys");
-          }
+          },
+          sorter: keySorter
         }, loadKeys);
       }
     });
+    var keySorter = createColumnSorter(keyPaginator);
     listPanel.appendChild(keyPaginator.getControlsEl());
 
     function showEmptyKeyDetail() {
@@ -3656,15 +3805,13 @@
       syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, keyIds);
     });
     table.appendChild(el("colgroup", null, el("col", { className: "selection-col-width" })));
-    var thead = el("thead", null,
-      el("tr", null,
-        el("th", { className: "selection-col" }, selectAllBox),
-        el("th", null, "Client"),
-        el("th", null, "Adapter"),
-        el("th", null, "Persona"),
-        el("th", null, "Active")
-      )
-    );
+    var thead = el("thead", null, selection.sorter.headerRow([
+      { attrs: { className: "selection-col" }, content: selectAllBox },
+      { label: "Client", key: "client", sortValue: function (k) { return k.client_name || ""; } },
+      { label: "Adapter", key: "adapter", sortValue: function (k) { return k.adapter_name || "default"; } },
+      { label: "Persona", key: "persona", sortValue: function (k) { return k.system_prompt_name || "None"; } },
+      { label: "Active", key: "active", sortValue: function (k) { return k.active !== false ? "Active" : "Inactive"; } },
+    ]));
     var tbody = el("tbody");
     keys.forEach(function (k) {
       var isSelected = selectedKey && selectedKey._id && k._id && selectedKey._id === k._id;
@@ -4234,10 +4381,12 @@
           selectedIds: selectedPromptIds,
           onSelectionChange: function () {
             syncBulkActionButton(bulkDeleteBtn, selectedPromptIds.size, "personas");
-          }
+          },
+          sorter: promptSorter
         });
       }
     });
+    var promptSorter = createColumnSorter(promptPaginator);
     listPanel.appendChild(promptPaginator.getControlsEl());
 
     createBtn.addEventListener("click", function () {
@@ -4382,14 +4531,12 @@
       syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, promptIds);
     });
     table.appendChild(el("colgroup", null, el("col", { className: "selection-col-width" })));
-    var thead = el("thead", null,
-      el("tr", null,
-        el("th", { className: "selection-col" }, selectAllBox),
-        el("th", { className: "persona-id-col" }, "ID"),
-        el("th", null, "Name"),
-        el("th", null, "Version")
-      )
-    );
+    var thead = el("thead", null, selection.sorter.headerRow([
+      { attrs: { className: "selection-col" }, content: selectAllBox },
+      { label: "ID", key: "id", attrs: { className: "persona-id-col" }, sortValue: promptIdentifier },
+      { label: "Name", key: "name", sortValue: function (p) { return p.name || ""; } },
+      { label: "Version", key: "version", sortValue: function (p) { return p.version || ""; } },
+    ]));
     var tbody = el("tbody");
     prompts.forEach(function (p) {
       var promptId = promptIdentifier(p);
@@ -5055,13 +5202,8 @@
     leftPanel.appendChild(leftHeader);
 
     var table = el("table");
-    var thead = el("thead", null,
-      el("tr", null,
-        el("th", null, "Name"),
-        el("th", null, "Type"),
-        el("th", { style: "width:70px;text-align:center" }, "Enabled")
-      )
-    );
+    // Filled in below, once the paginator the sorter drives exists.
+    var thead = el("thead");
     table.appendChild(thead);
     var tbody = el("tbody");
     table.appendChild(tbody);
@@ -5086,12 +5228,30 @@
       });
     });
 
+    // Reordering rebuilds the body, which discards the toggle that was just
+    // activated. Put focus back on its replacement so keyboard use survives.
+    function refocusAdapterToggle(name) {
+      var toggles = tbody.querySelectorAll(".adapter-toggle");
+      for (var i = 0; i < toggles.length; i++) {
+        if (toggles[i].dataset.adapter === name) {
+          toggles[i].focus();
+          return;
+        }
+      }
+      // The row crossed a page boundary and has no replacement here, so
+      // fall back to the header that ordered it rather than dropping focus
+      // to the document.
+      var sortedHeader = thead.querySelector(".th-sort.is-sorted");
+      if (sortedHeader) sortedHeader.focus();
+    }
+
     function makeToggle(a) {
       var track = el("button", {
         type: "button",
         className: "adapter-toggle" + (a.enabled ? " on" : ""),
         "aria-label": (a.enabled ? "Disable" : "Enable") + " adapter " + a.name,
         "aria-pressed": String(a.enabled),
+        dataset: { adapter: a.name },
       });
       var knob = el("span", { className: "adapter-toggle-knob" });
       track.appendChild(knob);
@@ -5113,6 +5273,12 @@
               });
             });
             showStatus("Adapter '" + a.name + "' " + (newState ? "enabled" : "disabled") + ". Reload to apply.");
+            // Toggling changed the value the table is ordered by, so the
+            // row has to move or the list is visibly out of order.
+            if (adapterSorter.isSortedBy("enabled")) {
+              adapterSorter.reapply();
+              refocusAdapterToggle(a.name);
+            }
           })
           .catch(function (err) { showError("Toggle failed: " + err.message); })
           .finally(function () { track.disabled = false; });
@@ -5152,6 +5318,17 @@
         buildAdapterRows(pageItems);
       }
     });
+    var adapterSorter = createColumnSorter(adapterPaginator);
+    thead.appendChild(adapterSorter.headerRow([
+      { label: "Name", key: "name", sortValue: function (a) { return a.name || ""; } },
+      { label: "Type", key: "type", sortValue: function (a) { return a.adapter || a.type || ""; } },
+      {
+        label: "Enabled",
+        key: "enabled",
+        attrs: { style: "width:70px;text-align:center" },
+        sortValue: function (a) { return a.enabled ? "Enabled" : "Disabled"; },
+      },
+    ]));
     leftPanel.appendChild(adapterPaginator.getControlsEl());
 
     function renderAdapterRows(filter) {
