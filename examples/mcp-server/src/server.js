@@ -6,7 +6,7 @@ import { data, money, normalize } from "./data.js";
 
 const portArg = process.argv.find((arg) => arg.startsWith("--port="))?.slice("--port=".length);
 const PORT = Number(process.env.PORT || portArg || 9999);
-const HOST = process.env.HOST || "127.0.0.1";
+const HOST = process.env.HOST || "0.0.0.0";
 const MCP_PATH = process.env.MCP_PATH || "/mcp";
 const REQUIRED_TOKEN = process.env.MCP_TOKEN || process.argv.find((arg) => arg.startsWith("--token="))?.slice("--token=".length) || "test-secret";
 const DEFAULT_LIMIT = 10;
