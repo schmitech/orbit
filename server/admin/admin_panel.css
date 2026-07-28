@@ -14,6 +14,8 @@
   --border-light:  #e8ecf3;
 
   /* Brand */
+  --brand-300:     #8dbdec;
+  --brand-400:     #4d94dd;
   --brand-500:     #2b6cb0;
   --brand-600:     #1f5a96;
   --brand-700:     #16497c;
@@ -72,6 +74,15 @@
   /* Transitions */
   --transition-fast: 120ms ease;
   --transition-base: 180ms ease;
+
+  /* Side rail */
+  --rail-w:           244px;
+  --rail-w-collapsed: 68px;
+  --rail-ink:         rgba(206, 221, 243, 0.80);
+  --rail-ink-dim:     rgba(180, 200, 228, 0.62);
+  --rail-label:       rgba(203, 221, 245, 0.92);
+  --rail-line:        rgba(255, 255, 255, 0.09);
+  --workbar-h:        68px;
 }
 
 /* ============================================================
@@ -113,14 +124,23 @@ textarea {
 }
 
 /* ============================================================
-   App Shell & Topbar
+   App Shell
    ============================================================ */
 
 .app-shell {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
   min-height: 100vh;
-  padding: var(--sp-4);
-  max-width: 1400px;
-  margin: 0 auto;
+}
+
+.app-shell.rail-collapsed {
+  grid-template-columns: var(--rail-w-collapsed) minmax(0, 1fr);
+}
+
+.app-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .skip-link {
@@ -141,130 +161,328 @@ textarea {
 .app-main {
   display: grid;
   gap: var(--sp-4);
+  align-content: start;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-6) var(--sp-10);
 }
 
 .toast-region {
   position: sticky;
-  top: var(--sp-3);
+  top: var(--workbar-h);
   z-index: 30;
   display: grid;
   gap: var(--sp-2);
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--sp-3) var(--sp-6) 0;
 }
 
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  align-items: center;
-  padding: var(--sp-4) var(--sp-6);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, #0f2343 0%, #133a6b 60%, #145872 100%);
-  color: #f0f4ff;
-  box-shadow: var(--shadow-md);
-  animation: rise-in 260ms ease-out;
-}
-
-.topbar h1 {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.brand-block {
-  display: grid;
-  gap: var(--sp-3);
-}
-
-.brand-logo {
-  height: 2.25rem;
-  width: auto;
-}
-
-.topbar p {
-  margin: var(--sp-1) 0 0;
-  font-size: var(--text-md);
-  color: rgba(244, 248, 255, 0.9);
-  font-family: var(--font-mono);
-  font-weight: 600;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
-.topbar-actions > span {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  opacity: 0.9;
-}
-
-.topbar-actions > button {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  font-size: var(--text-sm);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
-}
-
-.topbar-actions > button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.22);
+.toast-region:empty {
+  display: none;
 }
 
 /* ============================================================
-   Topbar Navigation (inline tabs)
+   Side Rail — grouped vertical navigation
    ============================================================ */
 
-.topbar-nav {
+.rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: linear-gradient(180deg, #0f2343 0%, #0b1a30 42%, #091528 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--rail-ink);
+}
+
+.rail-brand {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+}
+
+.rail-logo {
+  display: block;
+  line-height: 0;
+}
+
+.brand-logo {
+  height: 1.75rem;
+  width: auto;
+  max-width: 100%;
+}
+
+/* Shown only when the rail is narrow, where the wordmark won't fit. */
+.brand-mark {
+  display: none;
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.rail-version {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--rail-label);
+}
+
+.rail-nav {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-2) var(--sp-3) var(--sp-5);
+}
+
+/* Signature: a single trace threading every section, the way a request
+   threads the gateway. The active section is the lit node on the wire. */
+.app-shell:not(.rail-collapsed) .rail-nav::before {
+  content: "";
+  position: absolute;
+  top: var(--sp-4);
+  bottom: var(--sp-6);
+  left: 30px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--rail-line) 8%, var(--rail-line) 92%, transparent);
+}
+
+.rail-group + .rail-group {
+  margin-top: var(--sp-5);
+}
+
+.rail-group-label {
+  margin: 0 0 var(--sp-2);
+  padding: 0 var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--rail-label);
+}
+
+.rail-link {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
-  flex: 1;
-  justify-content: center;
-}
-
-.topbar-nav-link {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--sp-2) var(--sp-3);
+  gap: var(--sp-3);
+  min-height: 38px;
+  padding: var(--sp-2) var(--sp-2);
+  border-radius: var(--radius-sm);
   font-size: var(--text-sm);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: rgba(220, 232, 255, 0.82);
+  font-weight: 500;
+  color: var(--rail-ink);
   text-decoration: none;
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-fast), background var(--transition-fast);
-  min-height: 36px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.rail-link-icon {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+}
+
+.rail-link-icon svg,
+.rail-collapse-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.6;
+}
+
+.rail-link-label {
+  min-width: 0;
+  overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.topbar-nav-link:hover:not(.active) {
-  color: rgba(240, 244, 255, 0.9);
-  background: rgba(255, 255, 255, 0.08);
+.rail-link:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.055);
+  color: #e8f0fb;
 }
 
-.topbar-nav-link.active {
+.rail-link.active {
+  background: rgba(77, 148, 221, 0.14);
   color: #fff;
-  background: rgba(255, 255, 255, 0.15);
+  font-weight: 600;
 }
 
-.topbar-logout {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  font-size: var(--text-sm);
-  padding: var(--sp-2) var(--sp-3);
+.rail-link.active .rail-link-icon {
+  color: var(--brand-300);
+}
+
+/* The lit node, centred on the trace. */
+.rail-link.active::before {
+  content: "";
+  position: absolute;
+  left: var(--sp-2);
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  border-radius: var(--radius-pill);
+  background: rgba(77, 148, 221, 0.28);
+  box-shadow: 0 0 0 4px rgba(77, 148, 221, 0.10);
+}
+
+/* The default focus ring is a mid blue — too close to the rail to read. */
+.rail :focus-visible {
+  outline-color: var(--brand-300);
+}
+
+.rail-footer {
+  padding: var(--sp-3);
+  border-top: 1px solid var(--rail-line);
+}
+
+.rail-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 36px;
+  padding: var(--sp-2);
+  border: none;
   border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
+  background: transparent;
+  color: var(--rail-ink-dim);
+  font-size: var(--text-xs);
+  font-weight: 500;
 }
 
-.topbar-logout:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.22);
+.rail-collapse-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--rail-ink);
   box-shadow: none;
+}
+
+.rail-collapse-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.055);
+  transform: none;
+  box-shadow: none;
+}
+
+.rail-collapse-icon {
+  flex: 0 0 20px;
+  display: grid;
+  place-items: center;
+  transition: transform var(--transition-base);
+}
+
+/* ============================================================
+   Side Rail — collapsed (icon-only) state
+   ============================================================ */
+
+.rail-collapsed .rail-brand {
+  padding: var(--sp-5) var(--sp-2) var(--sp-4);
+  justify-items: center;
+}
+
+.rail-collapsed .brand-logo {
+  display: none;
+}
+
+.rail-collapsed .brand-mark {
+  display: block;
+}
+
+.rail-collapsed .rail-version,
+.rail-collapsed .rail-link-label {
+  display: none;
+}
+
+.rail-collapsed .rail-nav,
+.rail-collapsed .rail-footer {
+  padding-left: var(--sp-2);
+  padding-right: var(--sp-2);
+}
+
+.rail-collapsed .rail-link,
+.rail-collapsed .rail-collapse-btn {
+  justify-content: center;
+  gap: 0;
+}
+
+.rail-collapsed .rail-link.active::before {
+  left: 50%;
+  margin-left: -10px;
+}
+
+.rail-collapsed .rail-collapse-icon {
+  transform: rotate(180deg);
+}
+
+/* Group boundaries survive as hairlines when the labels go. */
+.rail-collapsed .rail-group-label {
+  height: 1px;
+  width: 20px;
+  margin: 0 auto var(--sp-2);
+  padding: 0;
+  overflow: hidden;
+  color: transparent;
+  background: var(--rail-line);
+}
+
+/* ============================================================
+   Workbar — current location and account
+   ============================================================ */
+
+.workbar {
+  position: sticky;
+  top: 0;
+  z-index: 28;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  min-height: var(--workbar-h);
+  padding: var(--sp-3) var(--sp-6);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+
+.workbar-heading {
+  min-width: 0;
+}
+
+.workbar-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.workbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.workbar-user {
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 22ch;
+}
+
+.workbar-logout {
+  min-height: 36px;
+  padding: var(--sp-2) var(--sp-3);
 }
 
 /* ============================================================
@@ -297,7 +515,7 @@ textarea {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: var(--sp-5);
+  padding: var(--sp-6);
   box-shadow: var(--shadow-sm);
   animation: rise-in 240ms ease-out;
 }
@@ -1012,13 +1230,21 @@ tbody tr:nth-child(even) {
 
 .panel-header-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
+  min-height: 44px;
 }
 
 .panel-header-row h2 {
   margin-bottom: 0;
+}
+
+/* Keep the account action clear of both the panel edge and summary card. */
+.account-panel .panel-header-row {
+  padding-right: var(--sp-2);
+  margin-bottom: var(--sp-3);
 }
 
 .collapsible-panel-body {
@@ -1948,15 +2174,70 @@ code.plain-code {
    Responsive
    ============================================================ */
 
-@media (max-width: 800px) {
-  .app-shell {
-    padding: var(--sp-3);
+/* Below this width the rail is icon-only: labels would crowd the content. */
+@media (max-width: 900px) {
+  .app-shell,
+  .app-shell.rail-collapsed {
+    grid-template-columns: var(--rail-w-collapsed) minmax(0, 1fr);
   }
 
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
+  .rail-version,
+  .rail-link-label,
+  .rail-nav::before,
+  .brand-logo {
+    display: none;
+  }
+
+  .rail-brand {
+    padding: var(--sp-5) var(--sp-2) var(--sp-4);
+    justify-items: center;
+  }
+
+  .brand-mark {
+    display: block;
+  }
+
+  .rail-link,
+  .rail-collapse-btn {
+    justify-content: center;
+    gap: 0;
+  }
+
+  .rail-link.active::before {
+    left: 50%;
+    margin-left: -10px;
+  }
+
+  .rail-footer {
+    display: none;
+  }
+
+  .rail-group-label {
+    height: 1px;
+    width: 20px;
+    margin: 0 auto var(--sp-2);
+    padding: 0;
+    overflow: hidden;
+    color: transparent;
+    background: var(--rail-line);
+  }
+}
+
+@media (max-width: 800px) {
+  .app-main {
+    padding: var(--sp-4) var(--sp-4) var(--sp-8);
+  }
+
+  .toast-region {
+    padding: var(--sp-3) var(--sp-4) 0;
+  }
+
+  .workbar {
     padding: var(--sp-3) var(--sp-4);
+  }
+
+  .workbar-user {
+    display: none;
   }
 
   .split-layout {
@@ -2020,13 +2301,6 @@ code.plain-code {
 
   .table-wrap table {
     min-width: 640px;
-  }
-
-  .topbar-nav {
-    order: 3;
-    width: 100%;
-    justify-content: flex-start;
-    overflow-x: auto;
   }
 
   .ops-action-bar {

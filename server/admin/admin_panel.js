@@ -11,6 +11,7 @@
   let currentUser = null;
   let activeTab = "overview";
   let serverVersion = null;
+  let railCollapsed = readStoredFlag("orbit.admin.railCollapsed");
 
   // Cached data
   let cachedAdapters = null;
@@ -48,6 +49,28 @@
   let overviewAdapterPaginator = null;
   let overviewDatasourcePaginator = null;
   let overviewThreadPoolPaginator = null;
+
+  // ------------------------------------------------------------------
+  // Stored UI preferences
+  // Web storage can be blocked outright (embedded views, hardened
+  // browsers), so persistence is best-effort: on failure the preference
+  // just lives in memory for the session.
+  // ------------------------------------------------------------------
+  function readStoredFlag(key) {
+    try {
+      return localStorage.getItem(key) === "1";
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function writeStoredFlag(key, value) {
+    try {
+      localStorage.setItem(key, value ? "1" : "0");
+    } catch (err) {
+      /* Preference is not persisted; the in-memory value still applies. */
+    }
+  }
 
   // ------------------------------------------------------------------
   // API endpoint paths
@@ -885,19 +908,67 @@
   }
 
   // ------------------------------------------------------------------
-  // Shell: topbar + tabs + content area
+  // Shell: side rail + workbar + content area
   // ------------------------------------------------------------------
-  var TABS = [
-    { id: "overview", label: "Overview" },
-    { id: "feedback", label: "Feedback", permission: "feedback.read" },
-    { id: "users", label: "Users", permission: "users.manage" },
-    { id: "keys", label: "API Keys", permission: "apikeys.manage" },
-    { id: "prompts", label: "Personas", permission: "prompts.manage" },
-    { id: "adapters", label: "Adapters", permission: "adapters.manage" },
-    { id: "ops", label: "Ops", permission: "system.manage" },
-    { id: "audit", label: "Audit", permission: "audit.read" },
-    { id: "settings", label: "Settings", permission: "config.manage" },
+  var ICON_NAV_OVERVIEW = ["M22 12h-4l-3 9L9 3l-3 9H2"];
+  var ICON_NAV_FEEDBACK = ["M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"];
+  var ICON_NAV_USERS = [
+    "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2",
+    "M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+    "M23 21v-2a4 4 0 0 0-3-3.87",
+    "M16 3.13A4 4 0 0 1 16 11",
   ];
+  var ICON_NAV_KEYS = [
+    "M10.5 13.5a4.5 4.5 0 1 1-3.2-1.3 4.5 4.5 0 0 1 3.2 1.3z",
+    "M10.5 13.5L19 5",
+    "M16 8l3 3 3-3-3-3",
+  ];
+  var ICON_NAV_PERSONAS = [
+    "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
+    "M9 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
+    "M5.5 17c.6-1.8 1.9-2.6 3.5-2.6s2.9.8 3.5 2.6",
+    "M16 9.5h3",
+    "M16 13.5h3",
+  ];
+  var ICON_NAV_ADAPTERS = [
+    "M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+    "M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+    "M18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+    "M8.6 10.5l6.8-3.9",
+    "M8.6 13.5l6.8 3.9",
+  ];
+  var ICON_NAV_SETTINGS = [
+    "M4 21v-7", "M4 10V3", "M12 21v-9", "M12 8V3", "M20 21v-5", "M20 12V3",
+    "M1 14h6", "M9 8h6", "M17 16h6",
+  ];
+  var ICON_NAV_OPS = ["M4 17l6-6-6-6", "M12 19h8"];
+  var ICON_NAV_AUDIT = ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z", "M9 12l2 2 4-4"];
+  var ICON_CHEVRONS_LEFT = ["M11 17l-5-5 5-5", "M18 17l-5-5 5-5"];
+
+  var TABS = [
+    { id: "overview", label: "Dashboard", group: "observe", icon: ICON_NAV_OVERVIEW },
+    { id: "feedback", label: "Feedback", permission: "feedback.read", group: "observe", icon: ICON_NAV_FEEDBACK },
+    { id: "users", label: "Users", permission: "users.manage", group: "access", icon: ICON_NAV_USERS },
+    { id: "keys", label: "API Keys", permission: "apikeys.manage", group: "access", icon: ICON_NAV_KEYS },
+    { id: "prompts", label: "Personas", permission: "prompts.manage", group: "configure", icon: ICON_NAV_PERSONAS },
+    { id: "adapters", label: "Adapters", permission: "adapters.manage", group: "configure", icon: ICON_NAV_ADAPTERS },
+    { id: "settings", label: "Settings", permission: "config.manage", group: "configure", icon: ICON_NAV_SETTINGS },
+    { id: "ops", label: "Ops", permission: "system.manage", group: "system", icon: ICON_NAV_OPS },
+    { id: "audit", label: "Audit", permission: "audit.read", group: "system", icon: ICON_NAV_AUDIT },
+  ];
+
+  // Groups describe what each section lets you do, and label the current
+  // location in the workbar eyebrow.
+  var NAV_GROUPS = [
+    { id: "observe", label: "Observe" },
+    { id: "access", label: "Access" },
+    { id: "configure", label: "Configure" },
+    { id: "system", label: "System" },
+  ];
+
+  function tabById(id) {
+    return TABS.filter(function (t) { return t.id === id; })[0] || null;
+  }
 
   function userHasPermission(permission) {
     var permissions = (currentUser && currentUser.permissions) || [];
@@ -930,51 +1001,89 @@
       activeTab = candidates.length ? candidates[0].id : "overview";
     }
 
-    // Topbar with inline nav
-    var logoutBtn = el("button", { type: "button", className: "topbar-logout" }, "Logout");
-    logoutBtn.addEventListener("click", doLogout);
-
-    var nav = el("nav", { className: "topbar-nav", role: "tablist", "aria-label": "Admin sections" });
-    visibleTabs.forEach(function (t) {
-      var isSelected = t.id === activeTab;
-      var btn = el("a", {
-        id: "tab-" + t.id,
-        role: "tab",
-        href: "#",
-        "aria-selected": String(isSelected),
-        "aria-controls": "tab-content",
-        tabindex: isSelected ? "0" : "-1",
-        className: "topbar-nav-link" + (isSelected ? " active" : ""),
-        dataset: { tab: t.id },
-      }, t.label);
-      btn.addEventListener("click", function (e) { e.preventDefault(); switchTab(t.id); });
-      btn.addEventListener("keydown", function (e) {
-        var currentIndex = visibleTabs.findIndex(function (tab) { return tab.id === t.id; });
-        if (e.key === "ArrowRight") {
-          e.preventDefault();
-          switchTab(visibleTabs[(currentIndex + 1) % visibleTabs.length].id);
-        } else if (e.key === "ArrowLeft") {
-          e.preventDefault();
-          switchTab(visibleTabs[(currentIndex - 1 + visibleTabs.length) % visibleTabs.length].id);
-        }
+    // Side rail: grouped vertical nav
+    var nav = el("nav", { className: "rail-nav", role: "tablist", "aria-label": "Admin sections" });
+    NAV_GROUPS.forEach(function (group) {
+      var tabsInGroup = visibleTabs.filter(function (t) { return t.group === group.id; });
+      if (!tabsInGroup.length) return;
+      // role=presentation keeps the tabs as direct tablist children for AT
+      // while still letting us group them visually.
+      var section = el("div", { className: "rail-group", role: "presentation" },
+        el("p", { className: "rail-group-label", "aria-hidden": "true" }, group.label)
+      );
+      tabsInGroup.forEach(function (t) {
+        var isSelected = t.id === activeTab;
+        var link = el("a", {
+          id: "tab-" + t.id,
+          role: "tab",
+          href: "#",
+          title: t.label,
+          "aria-selected": String(isSelected),
+          "aria-controls": "tab-content",
+          tabindex: isSelected ? "0" : "-1",
+          className: "rail-link" + (isSelected ? " active" : ""),
+          dataset: { tab: t.id },
+        },
+          el("span", { className: "rail-link-icon" }, svgIcon(t.icon)),
+          el("span", { className: "rail-link-label" }, t.label)
+        );
+        link.addEventListener("click", function (e) { e.preventDefault(); switchTab(t.id); });
+        link.addEventListener("keydown", function (e) {
+          var currentIndex = visibleTabs.findIndex(function (tab) { return tab.id === t.id; });
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            switchTab(visibleTabs[(currentIndex + 1) % visibleTabs.length].id);
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            switchTab(visibleTabs[(currentIndex - 1 + visibleTabs.length) % visibleTabs.length].id);
+          }
+        });
+        section.appendChild(link);
       });
-      nav.appendChild(btn);
+      nav.appendChild(section);
     });
 
-    var topbar = el("header", { className: "topbar", role: "banner" },
-      el("div", { className: "brand-block" },
-        el("a", { href: "/admin" },
+    var collapseBtn = el("button", {
+      type: "button",
+      className: "rail-collapse-btn",
+      "aria-expanded": String(!railCollapsed),
+    },
+      el("span", { className: "rail-collapse-icon" }, svgIcon(ICON_CHEVRONS_LEFT)),
+      el("span", { className: "rail-link-label" }, "Collapse")
+    );
+    collapseBtn.addEventListener("click", toggleRail);
+
+    var rail = el("header", { className: "rail", role: "banner" },
+      el("div", { className: "rail-brand" },
+        el("a", { className: "rail-logo", href: "/admin", title: "ORBIT home" },
           el("img", {
             src: "/static/orbit-logo-dark.png",
             alt: "ORBIT home",
             className: "brand-logo",
+          }),
+          el("img", {
+            src: "/static/favicon.svg",
+            alt: "",
+            className: "brand-mark",
           })
         ),
-        serverVersion ? el("p", null, "v" + serverVersion) : null
+        serverVersion ? el("p", { className: "rail-version" }, "v" + serverVersion) : null
       ),
       nav,
-      el("div", { className: "topbar-actions" },
-        el("span", null, currentUser ? (currentUser.email || currentUser.username) : ""),
+      el("div", { className: "rail-footer" }, collapseBtn)
+    );
+
+    // Workbar: where you are, who you are
+    var logoutBtn = el("button", { type: "button", className: "secondary workbar-logout" }, "Log out");
+    logoutBtn.addEventListener("click", doLogout);
+
+    var current = tabById(activeTab);
+    var workbar = el("div", { className: "workbar" },
+      el("div", { className: "workbar-heading" },
+        el("h1", { className: "workbar-title", id: "workbar-title" }, current ? current.label : "Admin")
+      ),
+      el("div", { className: "workbar-actions" },
+        el("span", { className: "workbar-user" }, currentUser ? (currentUser.email || currentUser.username) : ""),
         logoutBtn
       )
     );
@@ -994,10 +1103,21 @@
       "aria-labelledby": "tab-" + activeTab,
     });
 
-    var shell = el("div", { className: "app-shell" }, topbar, toastRegion, content);
+    var shell = el("div", {
+      className: "app-shell" + (railCollapsed ? " rail-collapsed" : ""),
+    }, rail, el("div", { className: "app-body" }, workbar, toastRegion, content));
     app.appendChild(shell);
 
     renderTab();
+  }
+
+  function toggleRail() {
+    railCollapsed = !railCollapsed;
+    writeStoredFlag("orbit.admin.railCollapsed", railCollapsed);
+    var shell = document.querySelector(".app-shell");
+    if (shell) shell.classList.toggle("rail-collapsed", railCollapsed);
+    var btn = document.querySelector(".rail-collapse-btn");
+    if (btn) btn.setAttribute("aria-expanded", String(!railCollapsed));
   }
 
   function switchTab(id) {
@@ -1032,13 +1152,16 @@
       destroyAllSettingsEditors();
     }
     activeTab = id;
-    document.querySelectorAll(".topbar-nav-link").forEach(function (b) {
+    document.querySelectorAll(".rail-link").forEach(function (b) {
       var isActive = b.dataset.tab === id;
       b.classList.toggle("active", isActive);
       b.setAttribute("aria-selected", String(isActive));
       b.setAttribute("tabindex", isActive ? "0" : "-1");
       if (isActive) b.focus();
     });
+    var current = tabById(id);
+    var title = document.getElementById("workbar-title");
+    if (title) title.textContent = current ? current.label : "Admin";
     var panel = document.getElementById("tab-content");
     if (panel) panel.setAttribute("aria-labelledby", "tab-" + id);
     renderTab();
@@ -2339,7 +2462,7 @@
     var layout = el("div", { className: "tab-stacked-layout" });
     var listPanel = el("div", { className: "panel" });
     var detailPanel = el("div", { className: "panel", style: "display:none" });
-    var accountPanel = el("div", { className: "panel" });
+    var accountPanel = el("div", { className: "panel account-panel" });
     var createPanel = el("div", { className: "panel", style: "display:none" });
     var userSearchFilter = "";
     var userSearchInteracted = false;
