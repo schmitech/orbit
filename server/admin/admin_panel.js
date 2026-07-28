@@ -868,10 +868,16 @@
       var data = await resp.json();
       authToken = data.token;
       currentUser = data.user;
-      try {
-        var infoResp = await fetch(ENDPOINTS.serverInfo, { headers: { "Authorization": "Bearer " + authToken }, credentials: "same-origin" });
-        if (infoResp.ok) { var infoData = await infoResp.json(); serverVersion = infoData.version || null; }
-      } catch (_) {}
+      // /admin/info requires system.manage; skip the call for roles without
+      // it (auditor, analyst, user-manager) rather than firing a request that
+      // can only 401. serverVersion just stays null and the version display
+      // is omitted.
+      if (userHasPermission("system.manage")) {
+        try {
+          var infoResp = await fetch(ENDPOINTS.serverInfo, { headers: { "Authorization": "Bearer " + authToken }, credentials: "same-origin" });
+          if (infoResp.ok) { var infoData = await infoResp.json(); serverVersion = infoData.version || null; }
+        } catch (_) {}
+      }
       renderShell();
     } catch (err) {
       document.getElementById("app").textContent = "Failed to initialize: " + err.message;
@@ -893,11 +899,15 @@
     { id: "settings", label: "Settings", permission: "config.manage" },
   ];
 
+  function userHasPermission(permission) {
+    var permissions = (currentUser && currentUser.permissions) || [];
+    return permissions.indexOf("*") !== -1 || permissions.indexOf(permission) !== -1;
+  }
+
   // A tab with no `permission` is visible to anyone who can load the panel.
   function hasTabPermission(tab) {
     if (!tab.permission) return true;
-    var permissions = (currentUser && currentUser.permissions) || [];
-    return permissions.indexOf("*") !== -1 || permissions.indexOf(tab.permission) !== -1;
+    return userHasPermission(tab.permission);
   }
 
   function getVisibleTabs() {
@@ -908,8 +918,16 @@
     var app = document.getElementById("app");
     clear(app);
     var visibleTabs = getVisibleTabs();
-    if (visibleTabs.every(function (t) { return t.id !== activeTab; })) {
-      activeTab = visibleTabs.length ? visibleTabs[0].id : "overview";
+    // Overview is visible to everyone but its content needs metrics.read;
+    // don't land a user there when it would only show a permission notice.
+    // This also covers the initial load, where activeTab defaults to
+    // "overview" and is always in visibleTabs.
+    var landable = visibleTabs.filter(function (t) {
+      return t.id !== "overview" || userHasPermission("metrics.read");
+    });
+    var candidates = landable.length ? landable : visibleTabs;
+    if (candidates.every(function (t) { return t.id !== activeTab; })) {
+      activeTab = candidates.length ? candidates[0].id : "overview";
     }
 
     // Topbar with inline nav
@@ -1176,11 +1194,18 @@
       } catch (e) { console.error("Metrics parse error:", e); }
     };
 
-    ws.onclose = function () {
+    ws.onclose = function (event) {
       var dot = document.getElementById("mon-status-dot");
       var txt = document.getElementById("mon-status-text");
       if (dot) { dot.className = "status-dot disconnected"; }
-      if (txt) { txt.textContent = "Reconnecting..."; }
+      // 4401/4403 are the auth/permission close codes from
+      // authenticate_websocket_admin - retrying can never succeed.
+      var denied = event && (event.code === 4401 || event.code === 4403);
+      if (txt) { txt.textContent = denied ? "Not permitted" : "Reconnecting..."; }
+      if (denied) {
+        if (metricsReconnectTimer) { clearInterval(metricsReconnectTimer); metricsReconnectTimer = null; }
+        return;
+      }
       if (!metricsReconnectTimer && activeTab === "overview") {
         metricsReconnectTimer = setInterval(function () { connectMetricsWs(); }, 5000);
       }
@@ -1777,6 +1802,18 @@
 
   // --- Render Overview ---
   async function renderOverview(container) {
+    // Live metrics arrive over the /ws/metrics WebSocket, which requires
+    // metrics.read (analyst and user-manager, for example, don't have it).
+    // Skip building the dashboard - and opening a socket the server will
+    // refuse - rather than showing charts stuck on "Reconnecting...".
+    if (!userHasPermission("metrics.read")) {
+      clear(container);
+      container.appendChild(el("p", { className: "muted" },
+        "Live metrics require the metrics.read permission (the operator or auditor role, for example)."
+      ));
+      return;
+    }
+
     overviewAdapterPaginator = createPaginator({ pageSize: ITEMS_PER_PAGE, onPageChange: function () {} });
     overviewDatasourcePaginator = createPaginator({ pageSize: ITEMS_PER_PAGE, onPageChange: function () {} });
     overviewThreadPoolPaginator = createPaginator({ pageSize: ITEMS_PER_PAGE, onPageChange: function () {} });

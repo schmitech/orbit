@@ -218,7 +218,7 @@ gates each tab by a required permission:
 
 | Tab | Required permission | `rb-operator` | `rb-auditor` | `rb-analyst` | `rb-user-manager` | `rb-user` |
 |---|---|:---:|:---:|:---:|:---:|:---:|
-| Overview | *(none)* | ✅ | ✅ | ✅ | ✅ | — |
+| Overview | *(none)*, content needs `metrics.read` | ✅ | ✅ | ✅ (notice only) | ✅ (notice only) | — |
 | Feedback | `feedback.read` | ❌ | ❌ | ✅ | ❌ | — |
 | Users | `users.manage` | ❌ | ❌ | ❌ | ✅ | — |
 | API Keys | `apikeys.manage` | ✅ | ❌ | ❌ | ❌ | — |
@@ -273,8 +273,14 @@ Open **Create User** and confirm the redesigned picker:
 Open the Overview tab (which opens the metrics WebSocket) as `rb-operator`
 or `rb-auditor` (both have `metrics.read`) — confirm live metrics stream in.
 As `rb-analyst` or `rb-user-manager` (neither has `metrics.read`), confirm
-the WebSocket connection is refused (check the browser Network tab for a
-4401/4403 close code) rather than silently hanging.
+the panel does **not** open the socket at all: the Overview tab shows "Live
+metrics require the metrics.read permission" instead of dashboard cards, and
+the session lands on the first usable tab (Feedback for `rb-analyst`, Users
+for `rb-user-manager`) rather than on Overview. Check the browser Network tab
+to confirm no repeating `/ws/metrics` attempts. If a socket does get opened
+(e.g. by an existing session predating a role change), the server closes it
+with 4401/4403 and the status text reads "Not permitted" — it must not retry
+every 5s forever.
 
 ---
 

@@ -139,6 +139,8 @@ User and role management lives in [auth_service.py](file:///Users/remsyschmilins
 
 A tab can also bundle sub-sections gated by a *different* permission than the tab itself. The Ops tab is visible on `system.manage` alone (it holds restart/shutdown), but its server-log viewer additionally requires `logs.read` — `renderOps()` checks this client-side and skips building the log viewer (and its network calls) entirely rather than rendering a panel that would just 401, since `operator` has `system.manage` but not `logs.read`.
 
+The Overview tab follows the same pattern in the opposite direction: it declares no required permission (anyone who can load the panel sees it), but its entire content is the live-metrics dashboard fed by the `/ws/metrics` WebSocket, which requires `metrics.read`. `renderOverview()` therefore checks `metrics.read` client-side and renders a permission notice without opening the socket — otherwise roles like `analyst` and `user-manager` would sit on empty charts and a 5-second reconnect loop against a socket the server will always refuse. For the same reason, `renderShell()` won't *land* a user on Overview when they lack `metrics.read` (it picks the first tab whose content they can actually use), and the WebSocket `onclose` handler stops retrying on the 4401/4403 permission close codes instead of looping.
+
 ### F. CLI
 `orbit register --roles operator,auditor` and `orbit user set-roles --username NAME --roles operator,auditor` assign multiple roles; `orbit user roles` lists all registered role names from the server (`GET /auth/roles`).
 
