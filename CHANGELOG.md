@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.12.0] - 2026-07-29
+
+### Core System Updates
+- **Token Usage & Cost Tracking**: Added per-request token usage and estimated cost tracking across paid inference providers, with prompt/completion/total/reasoning token fields, pricing metadata, and automatic audit-schema migrations.
+- **Pricing Service**: Added `config/pricing.yaml` and local pricing resolution with exact, glob, and provider-default matching while distinguishing unpriced models from explicit free local-model rates.
+- **Usage Reporting Pipeline**: Added tracked generation paths and a capability-gated usage sink across OpenAI, Anthropic, Gemini/Vertex, Ollama, and OpenAI-compatible providers, including streamed web-search branches and reasoning/thinking token visibility.
+- **SGLang Inference**: Added SGLang inference service support.
+
+### Chat-app & UI Improvements
+- **Admin Costs**: Added admin-panel usage and cost visibility through expanded audit fields and a new Costs tab backed by aggregate usage metrics.
+- **Admin Panel**: Improved admin panel UX and general interface polish.
+- **General UX**: Applied additional user experience refinements across the client.
+
+### Bug Fixes & Technical Improvements
+- **Usage Aggregation**: Added `GET /admin/observability/usage` aggregation support across SQLite, Postgres, MongoDB, and Elasticsearch backends.
+- **Pricing Drift Checks**: Added a read-only pricing drift checker that compares local pricing against LiteLLM and OpenRouter sources for mismatches, missing models, and retired exact-key entries.
+
+### Documentation & Configuration
+- **Cost Tracking Docs**: Added token usage and cost tracking documentation covering architecture, provider wiring, pricing updates, and known follow-up work for non-token-billed media/OCR services.
+- **Pricing Config**: Added the new pricing configuration file for local rate management.
+
 ## [2.11.1] - 2026-07-28
 
 ### Core System Updates

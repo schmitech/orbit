@@ -379,7 +379,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     session_id TEXT,
     user_id TEXT,
     adapter_name TEXT,
-    model TEXT
+    model TEXT,
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
+    total_tokens INTEGER,
+    reasoning_tokens INTEGER,
+    cost_usd REAL,
+    input_rate_per_1m REAL,
+    output_rate_per_1m REAL,
+    pricing_source TEXT
 )
 ```
 
@@ -402,6 +410,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `user_id` (TEXT): User identifier (if authenticated)
 - `adapter_name` (TEXT): Adapter used to service the request
 - `model` (TEXT): Actual model used for the request after all adapter/default/runtime resolution
+- `prompt_tokens` (INTEGER): Input token count reported by the provider; `NULL` if usage was unreported (un-migrated provider, cancelled stream, cache hit)
+- `completion_tokens` (INTEGER): Output token count reported by the provider, inclusive of any billed reasoning tokens
+- `total_tokens` (INTEGER): `prompt_tokens + completion_tokens`
+- `reasoning_tokens` (INTEGER): Reasoning/thinking tokens broken out from `completion_tokens` where the provider reports them separately (OpenAI-shaped `completion_tokens_details`/`output_tokens_details`, Gemini/Vertex `thoughts_token_count`); `NULL` when the provider doesn't report this breakdown
+- `cost_usd` (REAL): Estimated cost from `config/pricing.yaml` (see `docs/token-usage-and-cost-tracking.md`). `NULL` means unpriced (no matching rate), distinct from `0.0` which means an explicit free/local rate
+- `input_rate_per_1m` (REAL): Input rate ($/1M tokens) used for this estimate, captured at write time so historical rows stay auditable after `pricing.yaml` changes
+- `output_rate_per_1m` (REAL): Output rate ($/1M tokens) used for this estimate
+- `pricing_source` (TEXT): How the rate was resolved — `exact`, `pattern`, `provider_default`, `local_zero`, or `unpriced`
 
 **Indexes:**
 - `idx_audit_logs_timestamp` on `timestamp`
@@ -749,6 +765,9 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.6** (2026-07-29): Token usage and cost tracking
+  - Added `audit_logs.prompt_tokens`, `completion_tokens`, `total_tokens`, `reasoning_tokens`, `cost_usd`, `input_rate_per_1m`, `output_rate_per_1m`, `pricing_source`
+  - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`); see `docs/token-usage-and-cost-tracking.md`
 - **v1.5** (2026-07-22): Multi-worker adapter reload coordination state
   - Added `adapter_reload_state` table (propagates `/admin/reload-adapters` and `/admin/reload-templates` across `performance.workers` processes; see `server/services/adapter_reload_state.py`)
   - Created automatically on existing databases via `CREATE TABLE IF NOT EXISTS` on startup (no manual migration needed)
