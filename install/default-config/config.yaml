@@ -6,6 +6,7 @@ import:
   - "llama_cpp.yaml"
   - "adapters.yaml"
   - "inference.yaml"
+  - "pricing.yaml"
   - "datasources.yaml"
   - "embeddings.yaml"
   - "rerankers.yaml"
