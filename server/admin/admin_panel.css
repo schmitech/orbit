@@ -174,7 +174,7 @@ textarea {
   gap: var(--sp-4);
   align-content: start;
   width: 100%;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: var(--sp-5) var(--sp-6) var(--sp-10);
 }
@@ -186,7 +186,7 @@ textarea {
   display: grid;
   gap: var(--sp-2);
   width: 100%;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: var(--sp-3) var(--sp-6) 0;
 }
@@ -3371,8 +3371,10 @@ code.plain-code {
 }
 
 @media (min-width: 1280px) {
+  /* The dossier is a fixed-width field list, so it takes a fixed column and
+     every remaining pixel goes to the ledger — the table is what needs room. */
   .audit-view {
-    grid-template-columns: minmax(0, 1.4fr) minmax(360px, 0.6fr);
+    grid-template-columns: minmax(0, 1fr) 360px;
   }
 
   .audit-view__detail {
@@ -3392,20 +3394,11 @@ code.plain-code {
   .audit-view__search {
     min-width: 0;
   }
-
-  .audit-view__actions {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
-  }
-
-  .audit-view__table-wrap {
-    overflow-x: auto;
-  }
 }
 
 .audit-view__filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(160px, 220px)) minmax(260px, 1fr) auto;
+  grid-template-columns: repeat(3, minmax(160px, 220px)) minmax(260px, 1fr);
   align-items: end;
   gap: var(--sp-3);
   padding: var(--sp-3) 0;
@@ -3464,11 +3457,6 @@ code.plain-code {
 .audit-view__search-input:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-}
-
-.audit-view__actions {
-  display: flex;
-  gap: var(--sp-2);
 }
 
 .audit-view__table-wrap {
@@ -3547,7 +3535,7 @@ code.plain-code {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--ink);
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .audit-event-meta,
@@ -3592,6 +3580,7 @@ code.plain-code {
 .audit-actor-name {
   font-weight: 500;
   color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
 .audit-actor-anon {
@@ -3611,7 +3600,7 @@ code.plain-code {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--ink-secondary);
-  word-break: break-all;
+  overflow-wrap: anywhere;
   max-width: 260px;
 }
 

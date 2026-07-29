@@ -1106,6 +1106,20 @@
     heading.appendChild(el("span", null, tab ? tab.label : "Admin"));
   }
 
+  // One refresh control across the panel: a circular arrow at the right of the
+  // panel heading. The label has to name what gets refreshed, because unlike
+  // the old text button the glyph cannot say it.
+  function refreshButton(label, onClick) {
+    var btn = el("button", {
+      type: "button",
+      className: "btn btn--neutral btn--icon",
+      "aria-label": label,
+      title: label,
+    }, svgIcon(ICON_REFRESH));
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
   function userHasPermission(permission) {
     var permissions = (currentUser && currentUser.permissions) || [];
     return permissions.indexOf("*") !== -1 || permissions.indexOf(permission) !== -1;
@@ -2502,7 +2516,8 @@
               load();
             });
             return button;
-          })
+          }),
+          refreshButton("Refresh feedback analytics", function () { load(); })
         )
       )
     );
@@ -2665,8 +2680,7 @@
     layout.appendChild(createPanel);
     container.appendChild(layout);
 
-    var usersRefreshBtn = el("button", { type: "button", className: "secondary" }, "Refresh");
-    usersRefreshBtn.addEventListener("click", function () { loadUsers({}); });
+    var usersRefreshBtn = refreshButton("Refresh the user list", function () { loadUsers({}); });
     listPanel.appendChild(el("div", { className: "panel-header-row" },
       el("h2", null, "Users"),
       usersRefreshBtn
@@ -3411,8 +3425,7 @@
     layout.appendChild(createPanel);
     container.appendChild(layout);
 
-    var keysRefreshBtn = el("button", { type: "button", className: "secondary" }, "Refresh");
-    keysRefreshBtn.addEventListener("click", function () { loadKeys(); });
+    var keysRefreshBtn = refreshButton("Refresh the API key list", function () { loadKeys(); });
     listPanel.appendChild(el("div", { className: "panel-header-row" },
       el("h2", null, "API Keys"),
       keysRefreshBtn
@@ -4323,8 +4336,7 @@
     layout.appendChild(createPanel);
     container.appendChild(layout);
 
-    var personasRefreshBtn = el("button", { type: "button", className: "secondary" }, "Refresh");
-    personasRefreshBtn.addEventListener("click", function () { refreshPrompts(); });
+    var personasRefreshBtn = refreshButton("Refresh the persona list", function () { refreshPrompts(); });
     listPanel.appendChild(el("div", { className: "panel-header-row" },
       el("h2", null, "Personas"),
       personasRefreshBtn
@@ -5980,7 +5992,14 @@
     layout.appendChild(detailPanel);
     container.appendChild(layout);
 
-    listPanel.appendChild(el("h2", null, "Audit Ledger"));
+    // Refresh sits beside the ledger title, not in the filter strip: it acts on
+    // the whole register, while every control in the strip narrows it.
+    var refreshBtn = refreshButton("Refresh the register", function () { load(); });
+
+    listPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "Audit Ledger"),
+      refreshBtn
+    ));
     listPanel.appendChild(el("p", { className: "muted" },
       "A unified register of admin/auth activity and inference requests captured by the audit service. ",
       "Use the stream filter to isolate operational events from live inference traffic."));
@@ -6072,9 +6091,6 @@
       }, 250);
     });
 
-    var refreshBtn = el("button", { type: "button", className: "secondary" }, "Refresh");
-    refreshBtn.addEventListener("click", function () { load(); });
-
     listPanel.appendChild(el("div", { className: "audit-view__filters" },
       el("label", { className: "audit-view__filter-field" },
         el("span", { className: "audit-view__filter-label" }, "Stream"),
@@ -6088,8 +6104,7 @@
         el("span", { className: "audit-view__filter-label" }, "Domain"),
         domainSelect
       ),
-      el("div", { className: "audit-view__search" }, searchInput),
-      el("div", { className: "audit-view__actions" }, refreshBtn)
+      el("div", { className: "audit-view__search" }, searchInput)
     ));
     renderFilters();
 
