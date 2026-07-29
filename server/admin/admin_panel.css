@@ -201,8 +201,9 @@ textarea {
 }
 
 .rail-brand {
-  display: grid;
-  gap: var(--sp-2);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
   padding: var(--sp-5) var(--sp-5) var(--sp-4);
 }
 
@@ -227,10 +228,12 @@ textarea {
 .rail-version {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 500;
   letter-spacing: 0.08em;
   color: var(--rail-label);
+  white-space: nowrap;
+  transform: translateY(1px);
 }
 
 .rail-nav {
@@ -386,7 +389,7 @@ textarea {
 
 .rail-collapsed .rail-brand {
   padding: var(--sp-5) var(--sp-2) var(--sp-4);
-  justify-items: center;
+  justify-content: center;
 }
 
 .rail-collapsed .brand-logo {
@@ -2255,7 +2258,7 @@ code.plain-code {
 
   .rail-brand {
     padding: var(--sp-5) var(--sp-2) var(--sp-4);
-    justify-items: center;
+    justify-content: center;
   }
 
   .brand-mark {

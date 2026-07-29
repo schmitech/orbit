@@ -3380,7 +3380,7 @@
     var layout = el("div", { className: "tab-stacked-layout" });
     var listPanel = el("div", { className: "panel" });
     var createPanel = el("div", { className: "panel", style: "display:none" });
-    var detailPanel = el("div", { className: "panel" });
+    var detailPanel = el("div", { className: "panel", style: "display:none" });
     var keySearchFilter = "";
     var selectedKeyIds = new Set();
     layout.appendChild(listPanel);
@@ -3490,12 +3490,10 @@
     var keySorter = createColumnSorter(keyPaginator);
     listPanel.appendChild(keyPaginator.getControlsEl());
 
-    function showEmptyKeyDetail() {
+    function hideKeyDetail() {
       clear(detailPanel);
-      detailPanel.appendChild(el("h2", null, "Key Details"));
-      detailPanel.appendChild(el("p", { className: "muted" }, "Select an API key to manage"));
+      detailPanel.style.display = "none";
     }
-    showEmptyKeyDetail();
 
     createBtn.addEventListener("click", function () {
       var cn = clientInput.value.trim();
@@ -3585,6 +3583,7 @@
             selectedKey = refreshedSelection;
             keyPaginator.ensureItemVisible(function (k) { return k._id === selectedKey._id; });
             clear(detailPanel);
+            detailPanel.style.display = "";
             detailPanel.appendChild(el("p", { className: "muted" }, "Loading key details..."));
             try {
               var detail = await loadKeyDetail(refreshedSelection._id);
@@ -3604,10 +3603,10 @@
             }
           } else {
             selectedKey = null;
-            showEmptyKeyDetail();
+            hideKeyDetail();
           }
         } else {
-          showEmptyKeyDetail();
+          hideKeyDetail();
         }
       } catch (err) {
         showTableLoadError(tableWrap, "Failed to load API keys");
@@ -3848,6 +3847,7 @@
         selectedKey = { _id: k._id };
         markSelectedRow(tbody, tr);
         clear(rightPanel);
+        rightPanel.style.display = "";
         rightPanel.appendChild(el("p", { className: "muted" }, "Loading key details..."));
         try {
           var detail = await loadKeyDetail(k._id);
@@ -3881,6 +3881,7 @@
 
   function renderKeyDetail(panel, key, onRefresh) {
     clear(panel);
+    panel.style.display = "";
     var keyId = key._id || "";
     var keyVal = key.api_key || key.key || "";
     panel.appendChild(el("h2", { className: "detail-title" }, key.client_name || "API Key Details"));
