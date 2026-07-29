@@ -9,10 +9,11 @@ from typing import Dict, Any, AsyncGenerator
 
 from ...base import ServiceType
 from ...providers import ZaiBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService
 
 
-class ZaiInferenceService(InferenceService, ZaiBaseService):
+class ZaiInferenceService(UsageReportingMixin, InferenceService, ZaiBaseService):
     """
     Z.AI inference service using unified architecture.
 
@@ -49,6 +50,7 @@ class ZaiInferenceService(InferenceService, ZaiBaseService):
         Returns:
             The generated response text
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -83,6 +85,14 @@ class ZaiInferenceService(InferenceService, ZaiBaseService):
 
             response = await self.client.chat.completions.create(**params)
 
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_tokens", None),
+                    getattr(usage, "completion_tokens", None),
+                )
+
             return response.choices[0].message.content
 
         except Exception as e:
@@ -100,6 +110,7 @@ class ZaiInferenceService(InferenceService, ZaiBaseService):
         Yields:
             Response chunks as they are generated
         """
+        usage_sink = self._take_usage_sink(kwargs)  # noqa: F841 - streaming usage unreported (ZaiClient SDK, not OpenAI python client)
         if not self.initialized:
             await self.initialize()
 

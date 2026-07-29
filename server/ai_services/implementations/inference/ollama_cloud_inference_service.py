@@ -16,12 +16,13 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 from ollama import AsyncClient
 
 from ...errors import sanitize_provider_error
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService, ToolCallingResult
 
 logger = logging.getLogger(__name__)
 
 
-class OllamaCloudInferenceService(InferenceService):
+class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
     """Inference service for the managed Ollama Cloud offering."""
 
     _OPTION_KEYS = (
@@ -175,6 +176,7 @@ class OllamaCloudInferenceService(InferenceService):
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate a non-streaming response using Ollama Cloud."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized and not await self.initialize():
             raise ValueError("Failed to initialize Ollama Cloud inference service")
 
@@ -201,6 +203,13 @@ class OllamaCloudInferenceService(InferenceService):
                 **kwargs,
             )
 
+            if getattr(response, "prompt_eval_count", None) is not None or getattr(response, "eval_count", None) is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(response, "prompt_eval_count", None),
+                    getattr(response, "eval_count", None),
+                )
+
             return self._extract_content(response)
         except Exception as exc:
             logger.error("Error generating response with Ollama Cloud: %s", exc)
@@ -208,6 +217,7 @@ class OllamaCloudInferenceService(InferenceService):
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate a streaming response using Ollama Cloud."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized and not await self.initialize():
             raise ValueError("Failed to initialize Ollama Cloud inference service")
 
@@ -239,6 +249,14 @@ class OllamaCloudInferenceService(InferenceService):
                 content = self._extract_content(chunk)
                 if content:
                     yield content
+
+                if getattr(chunk, "done", False):
+                    if getattr(chunk, "prompt_eval_count", None) is not None or getattr(chunk, "eval_count", None) is not None:
+                        self._report_usage(
+                            usage_sink,
+                            getattr(chunk, "prompt_eval_count", None),
+                            getattr(chunk, "eval_count", None),
+                        )
         except Exception as exc:
             logger.exception("Error generating streaming response with Ollama Cloud")
             yield sanitize_provider_error(

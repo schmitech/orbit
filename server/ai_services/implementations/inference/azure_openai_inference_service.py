@@ -12,10 +12,11 @@ from typing import Dict, Any, AsyncGenerator, List
 
 from ...base import ServiceType
 from ...providers import AzureBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService, ToolCallingResult
 
 
-class AzureOpenAIInferenceService(InferenceService, AzureBaseService):
+class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBaseService):
     """
     Azure OpenAI inference service using unified architecture.
 
@@ -66,6 +67,7 @@ class AzureOpenAIInferenceService(InferenceService, AzureBaseService):
         Returns:
             The generated response text
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -91,6 +93,14 @@ class AzureOpenAIInferenceService(InferenceService, AzureBaseService):
             if not response.choices or not response.choices[0].message:
                 raise ValueError("No valid response from Azure AI API")
 
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_tokens", None),
+                    getattr(usage, "completion_tokens", None),
+                )
+
             return response.choices[0].message.content
 
         except Exception as e:
@@ -108,6 +118,7 @@ class AzureOpenAIInferenceService(InferenceService, AzureBaseService):
         Yields:
             Response chunks as they are generated
         """
+        usage_sink = self._take_usage_sink(kwargs)  # noqa: F841 - streaming usage unreported (azure-ai-inference SDK support unconfirmed)
         if not self.initialized:
             await self.initialize()
 

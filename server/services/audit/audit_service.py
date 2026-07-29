@@ -298,7 +298,8 @@ class AuditService:
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
         adapter_name: Optional[str] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        usage: Optional[Dict[str, Any]] = None
     ) -> None:
         """
         Log a conversation interaction to the configured audit backend.
@@ -314,6 +315,7 @@ class AuditService:
             user_id: The user ID if available
             adapter_name: The name of the adapter used for this request
             model: The actual model used for this request
+            usage: Optional token usage/cost dict (see LLMInferenceStep._record_usage)
         """
         if not self._enabled or not self._strategy or not self._strategy.is_initialized():
             return
@@ -334,6 +336,8 @@ class AuditService:
                     "timestamp": timestamp.isoformat()
                 }
 
+            usage = usage or {}
+
             # Create audit record
             record = AuditRecord(
                 timestamp=timestamp,
@@ -347,7 +351,15 @@ class AuditService:
                 session_id=session_id,
                 user_id=user_id,
                 adapter_name=adapter_name,
-                model=model
+                model=model,
+                prompt_tokens=usage.get("prompt_tokens"),
+                completion_tokens=usage.get("completion_tokens"),
+                total_tokens=usage.get("total_tokens"),
+                reasoning_tokens=usage.get("reasoning_tokens"),
+                cost_usd=usage.get("cost_usd"),
+                input_rate_per_1m=usage.get("input_rate_per_1m"),
+                output_rate_per_1m=usage.get("output_rate_per_1m"),
+                pricing_source=usage.get("pricing_source"),
             )
 
             # Store the record
@@ -395,6 +407,44 @@ class AuditService:
         except Exception as e:
             logger.error(f"Error querying audit logs: {e}")
             return []
+
+    _EMPTY_USAGE_AGGREGATE = {
+        "totals": {
+            "requests": 0, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+            "cost_usd": 0.0, "unpriced_requests": 0, "unreported_requests": 0,
+        },
+        "series": [],
+        "groups": [],
+    }
+
+    async def aggregate_usage(
+        self,
+        since: str,
+        until: str,
+        bucket: str = "day",
+        group_by: str = "model",
+        filters: Optional[Dict[str, Any]] = None,
+        limit_groups: int = 10,
+    ) -> Dict[str, Any]:
+        """
+        Aggregate token usage/cost for the Observability page. Always returns
+        the zeroed skeleton (never raises) when audit is disabled or the
+        active backend doesn't implement aggregation, so the route can 200
+        with empty data instead of 500ing.
+        """
+        if not self._enabled or not self._strategy or not self._strategy.is_initialized():
+            return dict(self._EMPTY_USAGE_AGGREGATE)
+        try:
+            return await self._strategy.aggregate_usage(
+                since=since, until=until, bucket=bucket, group_by=group_by,
+                filters=filters, limit_groups=limit_groups,
+            )
+        except NotImplementedError:
+            logger.debug(f"aggregate_usage not implemented for backend {self._strategy.backend_name}")
+            return dict(self._EMPTY_USAGE_AGGREGATE)
+        except Exception as e:
+            logger.error(f"Error aggregating usage: {e}")
+            return dict(self._EMPTY_USAGE_AGGREGATE)
 
     async def log_admin_event(self, record: AdminAuditRecord) -> None:
         """

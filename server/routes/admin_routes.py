@@ -13,9 +13,9 @@ import importlib
 import re
 import uuid
 import yaml
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Request, Depends, HTTPException, Query, Body
 import markdown
 import nh3
@@ -2121,6 +2121,14 @@ async def list_admin_audit_events(
                 "api_key": masked_key,
                 "blocked": bool(row.get("blocked")),
                 "response_compressed": bool(row.get("response_compressed")),
+                "prompt_tokens": row.get("prompt_tokens"),
+                "completion_tokens": row.get("completion_tokens"),
+                "total_tokens": row.get("total_tokens"),
+                "reasoning_tokens": row.get("reasoning_tokens"),
+                "cost_usd": row.get("cost_usd"),
+                "input_rate_per_1m": row.get("input_rate_per_1m"),
+                "output_rate_per_1m": row.get("output_rate_per_1m"),
+                "pricing_source": row.get("pricing_source"),
             },
             "title": model or provider,
             "subtitle": adapter_name or "inference request",
@@ -2259,4 +2267,83 @@ async def list_admin_audit_events(
             "admin": admin_enabled,
             "inference": inference_enabled,
         },
+    }
+
+
+# -------------------------------------------------------------------------
+# Observability — token usage / cost aggregation (admin panel "Costs" tab)
+# -------------------------------------------------------------------------
+
+@admin_router.get("/observability/usage", dependencies=[audit_auth])
+async def get_observability_usage(
+    request: Request,
+    days: int = Query(7, ge=1, le=365),
+    bucket: str = Query("day", pattern="^(hour|day)$"),
+    group_by: str = Query("model", pattern="^(model|provider|adapter_name|user_id|none)$"),
+    provider: Optional[str] = Query(None),
+    adapter_name: Optional[str] = Query(None),
+    limit_groups: int = Query(10, ge=1, le=100),
+):
+    """
+    Aggregate token usage and estimated cost over a time window, for the
+    admin panel's Costs tab. Cost is an ESTIMATE from the local
+    rate table in config/pricing.yaml, not a provider invoice.
+
+    Reuses the audit.read permission (the same dependency that gates
+    /admin/audit/events) — it already grants reading full inference
+    queries/responses, which is strictly more sensitive than aggregate
+    token counts, so a separate permission would only create a role that
+    could never be granted meaningfully.
+    """
+    audit_service = getattr(request.app.state, "audit_service", None)
+    if audit_service is None or not audit_service.inference_events_enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="Inference request audit is not enabled. Set internal_services.audit.enabled: true.",
+        )
+
+    # Audit records are stored with naive local timestamps (see
+    # AuditService.log_conversation's `datetime.now()`), not UTC — the
+    # since/until bounds must be constructed in that same naive-local domain,
+    # or the string-based range predicates used by every aggregate_usage
+    # backend shift the window by the host's UTC offset. `now` (UTC-aware) is
+    # kept separately for the response envelope and pricing-staleness check.
+    now = datetime.now(timezone.utc)
+    now_local = datetime.now()
+    since_dt = now_local - timedelta(days=days)
+    since = since_dt.isoformat()
+    until = now_local.isoformat()
+
+    filters: Dict[str, Any] = {}
+    if provider:
+        filters["provider"] = provider
+    if adapter_name:
+        filters["adapter_name"] = adapter_name
+
+    result = await audit_service.aggregate_usage(
+        since=since,
+        until=until,
+        bucket=bucket,
+        group_by=group_by,
+        filters=filters,
+        limit_groups=limit_groups,
+    )
+
+    pricing_service = getattr(request.app.state, "pricing_service", None)
+    pricing_updated = getattr(pricing_service, "updated", None) if pricing_service else None
+    stale = False
+    if pricing_updated:
+        try:
+            updated_dt = datetime.fromisoformat(pricing_updated).replace(tzinfo=timezone.utc)
+            stale_after_days = getattr(pricing_service, "_stale_after_days", 120)
+            stale = (now - updated_dt).days > stale_after_days
+        except ValueError:
+            pass
+
+    return {
+        "window": {"since": since, "until": until, "bucket": bucket, "days": days},
+        "totals": result.get("totals", {}),
+        "series": result.get("series", []),
+        "groups": result.get("groups", []),
+        "pricing": {"updated": pricing_updated, "stale": stale},
     }

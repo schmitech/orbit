@@ -143,6 +143,11 @@ class TestLLMInferenceMissingAdapterManager:
         container = ServiceContainer()
         mock_provider = AsyncMock()
         mock_provider.generate = AsyncMock(return_value="test response")
+
+        async def mock_generate_tracked(prompt, usage_sink=None, **kwargs):
+            return await mock_provider.generate(prompt, **kwargs)
+
+        mock_provider.generate_tracked = mock_generate_tracked
         container.register_singleton('llm_provider', mock_provider)
 
         step = LLMInferenceStep(container)
@@ -175,6 +180,12 @@ class TestLLMInferenceMissingAdapterManager:
             yield "chunk2"
 
         mock_provider.generate_stream = mock_stream
+
+        async def mock_generate_stream_tracked(prompt, usage_sink=None, **kwargs):
+            async for chunk in mock_stream(prompt, **kwargs):
+                yield chunk
+
+        mock_provider.generate_stream_tracked = mock_generate_stream_tracked
         container.register_singleton('llm_provider', mock_provider)
 
         step = LLMInferenceStep(container)

@@ -40,7 +40,6 @@ class ProcessingContext:
     # Output data
     response: str = ""
     sources: List[Dict[str, Any]] = field(default_factory=list)
-    tokens: int = 0
     processing_time: float = 0.0
     
     # Control flow

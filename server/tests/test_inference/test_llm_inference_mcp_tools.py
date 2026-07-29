@@ -60,6 +60,9 @@ class _FakeProvider:
         self.generate_calls += 1
         return self._generate_text
 
+    async def generate_tracked(self, prompt, usage_sink=None, **kwargs):
+        return await self.generate(prompt, **kwargs)
+
     async def generate_with_tools(self, messages, tools, **kwargs):
         self.generate_with_tools_calls += 1
         if self._gwt_error:

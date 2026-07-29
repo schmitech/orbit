@@ -12,10 +12,11 @@ and response handling by using the standard OpenAI chat completions interface.
 from typing import Dict, Any, AsyncGenerator
 
 from ...providers import OpenAICompatibleBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService
 
 
-class CohereInferenceService(InferenceService, OpenAICompatibleBaseService):
+class CohereInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibleBaseService):
     """
     Cohere inference service using OpenAI-compatible API.
 
@@ -34,6 +35,7 @@ class CohereInferenceService(InferenceService, OpenAICompatibleBaseService):
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using Cohere via OpenAI-compatible API."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -65,6 +67,15 @@ class CohereInferenceService(InferenceService, OpenAICompatibleBaseService):
 
             response = await self.client.chat.completions.create(**params)
 
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_tokens", None),
+                    getattr(usage, "completion_tokens", None),
+                    reasoning_tokens=self._extract_reasoning_tokens(usage),
+                )
+
             return response.choices[0].message.content
 
         except Exception as e:
@@ -73,6 +84,7 @@ class CohereInferenceService(InferenceService, OpenAICompatibleBaseService):
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming response using Cohere via OpenAI-compatible API."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -99,6 +111,7 @@ class CohereInferenceService(InferenceService, OpenAICompatibleBaseService):
                 "max_tokens": kwargs.pop('max_tokens', self.max_tokens),
                 "top_p": kwargs.pop('top_p', self.top_p),
                 "stream": True,
+                "stream_options": {"include_usage": True},
                 **kwargs
             }
 
@@ -107,6 +120,13 @@ class CohereInferenceService(InferenceService, OpenAICompatibleBaseService):
             async for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
+                elif getattr(chunk, "usage", None):
+                    self._report_usage(
+                        usage_sink,
+                        getattr(chunk.usage, "prompt_tokens", None),
+                        getattr(chunk.usage, "completion_tokens", None),
+                        reasoning_tokens=self._extract_reasoning_tokens(chunk.usage),
+                    )
 
         except Exception as e:
             self._handle_openai_compatible_error(e, "streaming generation")

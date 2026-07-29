@@ -13,12 +13,13 @@ import uuid
 
 from ...errors import sanitize_provider_error
 from ...providers import OllamaBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService, ToolCallingResult
 
 logger = logging.getLogger(__name__)
 
 
-class OllamaInferenceService(InferenceService, OllamaBaseService):
+class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseService):
     """
     Ollama inference service using unified architecture.
 
@@ -227,6 +228,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
         Returns:
             The generated response text
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             if not await self.initialize():
                 raise ValueError("Failed to initialize Ollama inference service")
@@ -275,6 +277,13 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
 
                 data = await response.json()
 
+                if 'prompt_eval_count' in data or 'eval_count' in data:
+                    self._report_usage(
+                        usage_sink,
+                        data.get('prompt_eval_count'),
+                        data.get('eval_count'),
+                    )
+
                 # Get response based on endpoint used
                 if messages:
                     return data.get('message', {}).get('content', '')
@@ -295,6 +304,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
         Yields:
             Response chunks as they are generated
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             if not await self.initialize():
                 raise ValueError("Failed to initialize Ollama inference service")
@@ -370,6 +380,12 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
 
                             # Check if done
                             if chunk.get('done', False):
+                                if 'prompt_eval_count' in chunk or 'eval_count' in chunk:
+                                    self._report_usage(
+                                        usage_sink,
+                                        chunk.get('prompt_eval_count'),
+                                        chunk.get('eval_count'),
+                                    )
                                 break
 
                         except json.JSONDecodeError:

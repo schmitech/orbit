@@ -7,7 +7,8 @@ Uses the existing MongoDBService/DatabaseService interface for storage operation
 """
 
 import logging
-from typing import Dict, Any, List
+from datetime import datetime
+from typing import Dict, Any, List, Optional
 
 from .audit_storage_strategy import AuditStorageStrategy, AuditRecord, decompress_text
 
@@ -122,6 +123,17 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
                 [('session_id', 1), ('timestamp', -1)]
             )
 
+            # Compound indexes for usage/cost aggregation ($group by provider/model
+            # within a timestamp range)
+            await self._database_service.create_index(
+                self._collection_name,
+                [('timestamp', -1), ('provider', 1)]
+            )
+            await self._database_service.create_index(
+                self._collection_name,
+                [('timestamp', -1), ('model', 1)]
+            )
+
             self._indexes_created = True
             logger.debug(f"Created indexes on {self._collection_name} collection")
 
@@ -211,6 +223,114 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         except Exception as e:
             logger.error(f"Error querying audit records from MongoDB: {e}")
             return []
+
+    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id"}
+
+    async def aggregate_usage(
+        self,
+        since: str,
+        until: str,
+        bucket: str = "day",
+        group_by: str = "model",
+        filters: Optional[Dict[str, Any]] = None,
+        limit_groups: int = 10,
+    ) -> Dict[str, Any]:
+        """MongoDB implementation: $match + $group aggregation pipeline."""
+        if not self._initialized:
+            await self.initialize()
+
+        collection = self._database_service.get_collection(self._collection_name)
+
+        match: Dict[str, Any] = {"timestamp": {"$gte": since, "$lt": until}}
+        for key, value in (filters or {}).items():
+            if key in {"provider", "adapter_name", "model"}:
+                match[key] = value
+
+        totals_pipeline = [
+            {"$match": match},
+            {"$group": {
+                "_id": None,
+                "requests": {"$sum": 1},
+                "prompt_tokens": {"$sum": {"$ifNull": ["$prompt_tokens", 0]}},
+                "completion_tokens": {"$sum": {"$ifNull": ["$completion_tokens", 0]}},
+                "total_tokens": {"$sum": {"$ifNull": ["$total_tokens", 0]}},
+                "cost_usd": {"$sum": {"$ifNull": ["$cost_usd", 0]}},
+                "unpriced_requests": {"$sum": {
+                    "$cond": [{"$and": [
+                        {"$eq": ["$cost_usd", None]}, {"$ne": ["$total_tokens", None]},
+                    ]}, 1, 0]
+                }},
+                "unreported_requests": {"$sum": {
+                    "$cond": [{"$eq": ["$total_tokens", None]}, 1, 0]
+                }},
+            }},
+        ]
+        totals_result = await collection.aggregate(totals_pipeline).to_list(length=1)
+        totals_doc = totals_result[0] if totals_result else {}
+
+        date_unit = "hour" if bucket == "hour" else "day"
+        series_pipeline = [
+            {"$match": match},
+            {"$addFields": {"_ts": {"$dateFromString": {"dateString": "$timestamp"}}}},
+            {"$group": {
+                "_id": {"$dateTrunc": {"date": "$_ts", "unit": date_unit}},
+                "requests": {"$sum": 1},
+                "prompt_tokens": {"$sum": {"$ifNull": ["$prompt_tokens", 0]}},
+                "completion_tokens": {"$sum": {"$ifNull": ["$completion_tokens", 0]}},
+                "total_tokens": {"$sum": {"$ifNull": ["$total_tokens", 0]}},
+                "cost_usd": {"$sum": {"$ifNull": ["$cost_usd", 0]}},
+            }},
+            {"$sort": {"_id": 1}},
+        ]
+        series_docs = await collection.aggregate(series_pipeline).to_list(length=10000)
+        series = [
+            {
+                "bucket": doc["_id"].isoformat() if isinstance(doc["_id"], datetime) else str(doc["_id"]),
+                "requests": doc["requests"],
+                "prompt_tokens": doc["prompt_tokens"], "completion_tokens": doc["completion_tokens"],
+                "total_tokens": doc["total_tokens"], "cost_usd": doc["cost_usd"],
+            }
+            for doc in series_docs
+        ]
+
+        groups: List[Dict[str, Any]] = []
+        group_column = group_by if group_by in self._GROUP_BY_COLUMNS else None
+        if group_column:
+            groups_pipeline = [
+                {"$match": {**match, group_column: {"$ne": None}}},
+                {"$group": {
+                    "_id": f"${group_column}",
+                    "requests": {"$sum": 1},
+                    "total_tokens": {"$sum": {"$ifNull": ["$total_tokens", 0]}},
+                    "cost_usd": {"$sum": {"$ifNull": ["$cost_usd", 0]}},
+                    "unpriced": {"$sum": {"$cond": [{"$eq": ["$cost_usd", None]}, 1, 0]}},
+                }},
+                {"$sort": {"cost_usd": -1}},
+                {"$limit": limit_groups},
+            ]
+            group_docs = await collection.aggregate(groups_pipeline).to_list(length=limit_groups)
+            groups = [
+                {
+                    "key": doc["_id"], "requests": doc["requests"],
+                    "total_tokens": doc["total_tokens"], "cost_usd": doc["cost_usd"],
+                    "unpriced": bool(doc["unpriced"]),
+                }
+                for doc in group_docs
+            ]
+
+        return {
+            "totals": {
+                "requests": totals_doc.get("requests", 0),
+                "prompt_tokens": totals_doc.get("prompt_tokens", 0),
+                "completion_tokens": totals_doc.get("completion_tokens", 0),
+                "total_tokens": totals_doc.get("total_tokens", 0),
+                "cost_usd": totals_doc.get("cost_usd", 0.0),
+                "unpriced_requests": totals_doc.get("unpriced_requests", 0),
+                "unreported_requests": totals_doc.get("unreported_requests", 0),
+            },
+            "series": series,
+            "groups": groups,
+        }
 
     async def close(self) -> None:
         """Close MongoDB audit storage resources."""

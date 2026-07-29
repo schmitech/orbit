@@ -15,12 +15,13 @@ import logging
 
 from ...base import ServiceType
 from ...providers import OpenAIBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService, ToolCallingResult
 
 logger = logging.getLogger(__name__)
 
 
-class OpenAIInferenceService(InferenceService, OpenAIBaseService):
+class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseService):
     """
     OpenAI inference service using unified architecture.
 
@@ -65,6 +66,7 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         Returns:
             The generated response text
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -81,6 +83,14 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
             if web_search:
                 params = self._build_web_search_params(messages, **kwargs)
                 response = await self.client.responses.create(**params)
+                usage = getattr(response, "usage", None)
+                if usage is not None:
+                    self._report_usage(
+                        usage_sink,
+                        getattr(usage, "input_tokens", None),
+                        getattr(usage, "output_tokens", None),
+                        reasoning_tokens=self._extract_reasoning_tokens(usage),
+                    )
                 sources = self._extract_annotations(response) or self._extract_web_search_urls(response)
                 return response.output_text + self._format_url_citations(sources)
 
@@ -111,6 +121,15 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
 
             response = await self.client.chat.completions.create(**params)
 
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_tokens", None),
+                    getattr(usage, "completion_tokens", None),
+                    reasoning_tokens=self._extract_reasoning_tokens(usage),
+                )
+
             return response.choices[0].message.content
 
         except Exception as e:
@@ -128,6 +147,7 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         Yields:
             Response chunks as they are generated
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -164,6 +184,16 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
                 # response's web_search_call sources in that case.
                 if not annotations and final_response is not None:
                     annotations = self._extract_web_search_urls(final_response)
+
+                if final_response is not None:
+                    usage = getattr(final_response, "usage", None)
+                    if usage is not None:
+                        self._report_usage(
+                            usage_sink,
+                            getattr(usage, "input_tokens", None),
+                            getattr(usage, "output_tokens", None),
+                            reasoning_tokens=self._extract_reasoning_tokens(usage),
+                        )
 
                 sources = self._format_url_citations(annotations)
                 if sources:
@@ -215,6 +245,14 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
                     if debug_enabled and chunk_count <= 3:
                         logger.debug("Yielding chunk #%s: %r", chunk_count, content[:50])
                     yield content
+                elif getattr(chunk, "usage", None):
+                    # Final usage-only chunk (choices == []), enabled by stream_options.include_usage above.
+                    self._report_usage(
+                        usage_sink,
+                        getattr(chunk.usage, "prompt_tokens", None),
+                        getattr(chunk.usage, "completion_tokens", None),
+                        reasoning_tokens=self._extract_reasoning_tokens(chunk.usage),
+                    )
 
             logger.debug(f"Streaming complete. Total chunks: {chunk_count}")
 

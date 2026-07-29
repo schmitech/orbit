@@ -267,7 +267,15 @@ class SQLiteService(DatabaseService):
                     session_id TEXT,
                     user_id TEXT,
                     adapter_name TEXT,
-                    model TEXT
+                    model TEXT,
+                    prompt_tokens INTEGER,
+                    completion_tokens INTEGER,
+                    total_tokens INTEGER,
+                    reasoning_tokens INTEGER,
+                    cost_usd REAL,
+                    input_rate_per_1m REAL,
+                    output_rate_per_1m REAL,
+                    pricing_source TEXT
                 )
             ''',
             'feedback': '''

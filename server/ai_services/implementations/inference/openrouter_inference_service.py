@@ -13,13 +13,14 @@ from typing import Dict, Any, AsyncGenerator, Optional
 from openrouter import OpenRouter
 
 from ...errors import raise_sanitized
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService
 
 
 logger = logging.getLogger(__name__)
 
 
-class OpenRouterInferenceService(InferenceService):
+class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
     """
     OpenRouter inference service using the native OpenRouter SDK.
 
@@ -109,6 +110,7 @@ class OpenRouterInferenceService(InferenceService):
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using OpenRouter."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -126,11 +128,19 @@ class OpenRouterInferenceService(InferenceService):
                 **kwargs
             )
 
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_tokens", None),
+                    getattr(usage, "completion_tokens", None),
+                )
+
             content = response.choices[0].message.content
             if content:
                 # Filter out specific model artifacts
                 content = content.replace("<|begin_of_box|>", "").replace("<|end_of_box|>", "")
-            
+
             return content
 
         except Exception as e:
@@ -139,6 +149,7 @@ class OpenRouterInferenceService(InferenceService):
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming response using OpenRouter."""
+        usage_sink = self._take_usage_sink(kwargs)  # noqa: F841 - streaming usage unreported (native OpenRouter SDK, stream_options support unconfirmed)
         if not self.initialized:
             await self.initialize()
 

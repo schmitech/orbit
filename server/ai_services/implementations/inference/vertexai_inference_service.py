@@ -11,10 +11,11 @@ from typing import Dict, Any, AsyncGenerator
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService
 
 
-class VertexAIInferenceService(InferenceService, GoogleBaseService):
+class VertexAIInferenceService(UsageReportingMixin, InferenceService, GoogleBaseService):
     """
     Vertex AI inference service using unified architecture.
 
@@ -28,6 +29,17 @@ class VertexAIInferenceService(InferenceService, GoogleBaseService):
     - Custom model training
     - Model versioning and deployment
     """
+
+    @staticmethod
+    def _billed_completion_tokens(usage) -> int:
+        """
+        Completion-side token count actually billed. candidates_token_count
+        alone excludes thoughts_token_count (reasoning/thinking tokens on
+        models with thinking enabled), which are billed as output.
+        """
+        candidates = getattr(usage, "candidates_token_count", None) or 0
+        thoughts = getattr(usage, "thoughts_token_count", None) or 0
+        return candidates + thoughts
 
     def __init__(self, config: Dict[str, Any]):
         """Initialize the Vertex AI inference service."""
@@ -43,6 +55,7 @@ class VertexAIInferenceService(InferenceService, GoogleBaseService):
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using Vertex AI."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -63,6 +76,15 @@ class VertexAIInferenceService(InferenceService, GoogleBaseService):
                 }
             )
 
+            usage = getattr(response, "usage_metadata", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_token_count", None),
+                    self._billed_completion_tokens(usage),
+                    reasoning_tokens=getattr(usage, "thoughts_token_count", None),
+                )
+
             return response.text
 
         except Exception as e:
@@ -71,6 +93,7 @@ class VertexAIInferenceService(InferenceService, GoogleBaseService):
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming response using Vertex AI."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -90,9 +113,20 @@ class VertexAIInferenceService(InferenceService, GoogleBaseService):
                 stream=True
             )
 
+            last_usage = None
             async for chunk in response:
+                if getattr(chunk, "usage_metadata", None) is not None:
+                    last_usage = chunk.usage_metadata
                 if chunk.text:
                     yield chunk.text
+
+            if last_usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(last_usage, "prompt_token_count", None),
+                    self._billed_completion_tokens(last_usage),
+                    reasoning_tokens=getattr(last_usage, "thoughts_token_count", None),
+                )
 
         except Exception as e:
             self._handle_google_error(e, "streaming generation")

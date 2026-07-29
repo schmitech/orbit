@@ -55,6 +55,13 @@ class InferenceService(ProviderAIService):
         - Streaming support
     """
 
+    # Set True (via UsageReportingMixin) on implementations that read token
+    # usage out of the provider's response and report it through a
+    # caller-supplied usage_sink kwarg. Left False here so generate_tracked/
+    # generate_stream_tracked never pass usage_sink to an implementation
+    # that would forward it, unrecognized, straight into the provider SDK.
+    SUPPORTS_USAGE_REPORTING: bool = False
+
     def __init__(self, config: Dict[str, Any], provider_name: str):
         """
         Initialize the inference service.
@@ -127,6 +134,30 @@ class InferenceService(ProviderAIService):
             ...     print(chunk, end='', flush=True)
         """
         pass
+
+    async def generate_tracked(
+        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> str:
+        """
+        Same as generate(), but fills usage_sink with token usage when this
+        implementation supports it. Safe to call on any implementation —
+        usage_sink is only forwarded when SUPPORTS_USAGE_REPORTING is True,
+        so un-migrated implementations never see the extra kwarg.
+        """
+        if usage_sink is not None and self.SUPPORTS_USAGE_REPORTING:
+            return await self.generate(prompt, usage_sink=usage_sink, **kwargs)
+        return await self.generate(prompt, **kwargs)
+
+    async def generate_stream_tracked(
+        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> AsyncGenerator[str, None]:
+        """Streaming counterpart of generate_tracked()."""
+        if usage_sink is not None and self.SUPPORTS_USAGE_REPORTING:
+            async for chunk in self.generate_stream(prompt, usage_sink=usage_sink, **kwargs):
+                yield chunk
+        else:
+            async for chunk in self.generate_stream(prompt, **kwargs):
+                yield chunk
 
     async def validate_config(self) -> bool:
         """

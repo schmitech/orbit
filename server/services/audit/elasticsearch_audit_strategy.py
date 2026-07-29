@@ -175,17 +175,58 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                             "session_id": {"type": "keyword"},
                             "user_id": {"type": "keyword"},
                             "adapter_name": {"type": "keyword"},
-                            "model": {"type": "keyword"}
+                            "model": {"type": "keyword"},
+                            **self._usage_mapping_properties(),
                         }
                     }
                 )
                 logger.debug(f"Created audit index: {self._index_name}")
             else:
                 logger.debug(f"Using existing audit index: {self._index_name}")
+                await self._ensure_usage_mapping()
 
         except Exception as e:
             logger.error(f"Failed to setup Elasticsearch index: {e}")
             raise
+
+    @staticmethod
+    def _usage_mapping_properties() -> Dict[str, Any]:
+        """Explicit mapping for the token-usage/cost fields.
+
+        Applied on both index creation and (via put_mapping) on an existing
+        index, so cost_usd is never dynamically typed from the first document
+        seen — a document with an integer 0 would otherwise map it as "long"
+        and silently truncate every later fractional cost to 0.
+        """
+        return {
+            "prompt_tokens": {"type": "integer"},
+            "completion_tokens": {"type": "integer"},
+            "total_tokens": {"type": "integer"},
+            "reasoning_tokens": {"type": "integer"},
+            "cost_usd": {"type": "double"},
+            "input_rate_per_1m": {"type": "double"},
+            "output_rate_per_1m": {"type": "double"},
+            "pricing_source": {"type": "keyword"},
+        }
+
+    async def _ensure_usage_mapping(self) -> None:
+        """
+        Idempotent put_mapping so pre-existing indexes get the explicit
+        usage/cost field types too. put_mapping can only add new fields to an
+        existing index (it cannot retype a field already indexed dynamically);
+        an index that already ingested an integer 0 for cost_usd before this
+        change needs a reindex to fix the type. Never blocks startup.
+        """
+        try:
+            await self._es_client.indices.put_mapping(
+                index=self._index_name,
+                properties=self._usage_mapping_properties(),
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to ensure usage-field mapping on {self._index_name} "
+                f"(non-fatal, existing dynamic mapping may mistype cost_usd): {e}"
+            )
 
     async def store(self, record: AuditRecord) -> bool:
         """
@@ -375,6 +416,101 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         except Exception as e:
             logger.error(f"Error clearing audit records from Elasticsearch: {e}")
             return False
+
+    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id"}
+
+    async def aggregate_usage(
+        self,
+        since: str,
+        until: str,
+        bucket: str = "day",
+        group_by: str = "model",
+        filters: Optional[Dict[str, Any]] = None,
+        limit_groups: int = 10,
+    ) -> Dict[str, Any]:
+        """Elasticsearch implementation: date_histogram + terms aggs, size 0."""
+        if not self._initialized or not self._es_client:
+            raise NotImplementedError("Elasticsearch client not available for aggregation")
+
+        must = [{"range": {"timestamp": {"gte": since, "lt": until}}}]
+        for key, value in (filters or {}).items():
+            if key in {"provider", "adapter_name", "model"}:
+                must.append({"term": {key: value}})
+        query = {"bool": {"must": must}}
+
+        sum_aggs = {
+            "prompt_tokens": {"sum": {"field": "prompt_tokens"}},
+            "completion_tokens": {"sum": {"field": "completion_tokens"}},
+            "total_tokens": {"sum": {"field": "total_tokens"}},
+            "cost_usd": {"sum": {"field": "cost_usd"}},
+        }
+        group_column = group_by if group_by in self._GROUP_BY_COLUMNS else None
+        aggs = {
+            **sum_aggs,
+            "unpriced_requests": {"filter": {"bool": {"must": [
+                {"exists": {"field": "total_tokens"}},
+            ], "must_not": [{"exists": {"field": "cost_usd"}}]}}},
+            "unreported_requests": {"filter": {"bool": {"must_not": [
+                {"exists": {"field": "total_tokens"}}
+            ]}}},
+            "series": {
+                "date_histogram": {
+                    "field": "timestamp",
+                    "calendar_interval": "hour" if bucket == "hour" else "day",
+                },
+                "aggs": sum_aggs,
+            },
+        }
+        if group_column:
+            aggs["groups"] = {
+                "terms": {"field": group_column, "size": limit_groups, "order": {"cost_usd": "desc"}},
+                "aggs": sum_aggs,
+            }
+
+        response = await self._es_client.search(
+            index=self._index_name, query=query, size=0, aggs=aggs,
+            track_total_hits=True,
+        )
+        es_aggs = response.get("aggregations", {})
+
+        series = [
+            {
+                "bucket": bucket_doc.get("key_as_string") or bucket_doc.get("key"),
+                "requests": bucket_doc.get("doc_count", 0),
+                "prompt_tokens": bucket_doc.get("prompt_tokens", {}).get("value") or 0,
+                "completion_tokens": bucket_doc.get("completion_tokens", {}).get("value") or 0,
+                "total_tokens": bucket_doc.get("total_tokens", {}).get("value") or 0,
+                "cost_usd": bucket_doc.get("cost_usd", {}).get("value") or 0.0,
+            }
+            for bucket_doc in es_aggs.get("series", {}).get("buckets", [])
+        ]
+
+        groups: List[Dict[str, Any]] = []
+        if group_column:
+            for bucket_doc in es_aggs.get("groups", {}).get("buckets", []):
+                cost = bucket_doc.get("cost_usd", {}).get("value") or 0.0
+                groups.append({
+                    "key": bucket_doc.get("key"),
+                    "requests": bucket_doc.get("doc_count", 0),
+                    "total_tokens": bucket_doc.get("total_tokens", {}).get("value") or 0,
+                    "cost_usd": cost,
+                    "unpriced": cost == 0.0,
+                })
+
+        total_requests = response.get("hits", {}).get("total", {}).get("value", 0)
+        return {
+            "totals": {
+                "requests": total_requests,
+                "prompt_tokens": es_aggs.get("prompt_tokens", {}).get("value") or 0,
+                "completion_tokens": es_aggs.get("completion_tokens", {}).get("value") or 0,
+                "total_tokens": es_aggs.get("total_tokens", {}).get("value") or 0,
+                "cost_usd": es_aggs.get("cost_usd", {}).get("value") or 0.0,
+                "unpriced_requests": es_aggs.get("unpriced_requests", {}).get("doc_count", 0),
+                "unreported_requests": es_aggs.get("unreported_requests", {}).get("doc_count", 0),
+            },
+            "series": series,
+            "groups": groups,
+        }
 
     async def close(self) -> None:
         """Close the Elasticsearch client."""

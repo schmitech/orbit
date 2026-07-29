@@ -13,10 +13,11 @@ from urllib.parse import urlparse
 
 from ...base import ServiceType
 from ...providers import OpenAICompatibleBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService, ToolCallingResult
 
 
-class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
+class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibleBaseService):
     """
     xAI (Grok) inference service using unified architecture.
 
@@ -109,6 +110,7 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using xAI (Grok)."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -123,6 +125,14 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
             if web_search:
                 params = self._build_web_search_params(messages, **kwargs)
                 response = await self.client.responses.create(**params)
+                usage = getattr(response, "usage", None)
+                if usage is not None:
+                    self._report_usage(
+                        usage_sink,
+                        getattr(usage, "input_tokens", None),
+                        getattr(usage, "output_tokens", None),
+                        reasoning_tokens=self._extract_reasoning_tokens(usage),
+                    )
                 return response.output_text + self._format_url_citations(self._extract_annotations(response))
 
             reasoning_effort = self._resolve_reasoning_effort(kwargs)
@@ -139,6 +149,16 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
                 params["reasoning"] = {"effort": reasoning_effort}
 
             response = await self.client.chat.completions.create(**params)
+
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_tokens", None),
+                    getattr(usage, "completion_tokens", None),
+                    reasoning_tokens=self._extract_reasoning_tokens(usage),
+                )
+
             return response.choices[0].message.content
 
         except Exception as e:
@@ -147,6 +167,7 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming response using xAI (Grok)."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -161,6 +182,7 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
                 params = self._build_web_search_params(messages, stream=True, **kwargs)
                 response_stream = await self.client.responses.create(**params)
                 annotations = []
+                final_response = None
                 async for event in response_stream:
                     event_type = getattr(event, "type", None)
                     if event_type == "response.output_text.delta":
@@ -171,6 +193,19 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
                         annotation = getattr(event, "annotation", None)
                         if annotation:
                             annotations.append(annotation)
+                    elif event_type == "response.completed":
+                        final_response = getattr(event, "response", None)
+
+                if final_response is not None:
+                    usage = getattr(final_response, "usage", None)
+                    if usage is not None:
+                        self._report_usage(
+                            usage_sink,
+                            getattr(usage, "input_tokens", None),
+                            getattr(usage, "output_tokens", None),
+                            reasoning_tokens=self._extract_reasoning_tokens(usage),
+                        )
+
                 sources = self._format_url_citations(annotations)
                 if sources:
                     yield sources
@@ -185,6 +220,7 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
                 "max_tokens": kwargs.pop('max_tokens', self.max_tokens),
                 "top_p": kwargs.pop('top_p', self.top_p),
                 "stream": True,
+                "stream_options": {"include_usage": True},
                 **kwargs
             }
             if reasoning_effort:
@@ -194,6 +230,13 @@ class XAIInferenceService(InferenceService, OpenAICompatibleBaseService):
             async for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
+                elif getattr(chunk, "usage", None):
+                    self._report_usage(
+                        usage_sink,
+                        getattr(chunk.usage, "prompt_tokens", None),
+                        getattr(chunk.usage, "completion_tokens", None),
+                        reasoning_tokens=self._extract_reasoning_tokens(chunk.usage),
+                    )
 
         except Exception as e:
             self._handle_openai_compatible_error(e, "streaming generation")

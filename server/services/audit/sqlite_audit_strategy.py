@@ -6,8 +6,10 @@ Implementation of AuditStorageStrategy for SQLite backend.
 Uses the existing SQLiteService/DatabaseService interface for storage operations.
 """
 
+import asyncio
 import logging
-from typing import Dict, Any, List
+from contextlib import nullcontext as _NullContext
+from typing import Dict, Any, List, Optional
 
 from .audit_storage_strategy import AuditStorageStrategy, AuditRecord, decompress_text
 from utils.id_utils import generate_id
@@ -64,9 +66,11 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             if not self._database_service._initialized:
                 await self._database_service.initialize()
 
-            # The audit_logs table and indexes are now part of SQLiteService schema
-            # They will be created automatically during database initialization
-            await self._ensure_audit_columns()
+            # The audit_logs table, its columns (including token/cost usage),
+            # and migration of missing columns on existing installs are all
+            # handled by SQLiteService's schema + _migrate_table_schema.
+            # This strategy only needs to ensure its own indexes exist.
+            await self._ensure_audit_indexes()
 
             logger.debug(f"SQLite audit storage initialized with collection: {self._collection_name}")
             self._initialized = True
@@ -75,8 +79,8 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             logger.error(f"Failed to initialize SQLite audit storage: {e}")
             raise
 
-    async def _ensure_audit_columns(self) -> None:
-        """Ensure current audit columns exist for existing SQLite audit tables."""
+    async def _ensure_audit_indexes(self) -> None:
+        """Ensure lookup indexes exist for the SQLite audit table."""
         connection = getattr(self._database_service, "connection", None)
         executor = getattr(self._database_service, "executor", None)
         db_lock = getattr(self._database_service, "_db_lock", None)
@@ -85,7 +89,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
 
         import asyncio
 
-        def ensure_column() -> None:
+        def ensure_indexes() -> None:
             def run() -> None:
                 cursor = connection.cursor()
                 cursor.execute(
@@ -94,19 +98,15 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
                 )
                 if cursor.fetchone() is None:
                     return
-                cursor.execute(f"PRAGMA table_info({self._collection_name})")
-                columns = {row[1] for row in cursor.fetchall()}
-                for column in ("provider", "model"):
-                    if column not in columns:
-                        cursor.execute(f"ALTER TABLE {self._collection_name} ADD COLUMN {column} TEXT")
-                cursor.execute(
-                    f"CREATE INDEX IF NOT EXISTS idx_{self._collection_name}_provider "
-                    f"ON {self._collection_name}(provider)"
-                )
-                cursor.execute(
-                    f"CREATE INDEX IF NOT EXISTS idx_{self._collection_name}_model "
-                    f"ON {self._collection_name}(model)"
-                )
+                for index_name, column in (
+                    ("provider", "provider"),
+                    ("model", "model"),
+                    ("timestamp", "timestamp"),
+                ):
+                    cursor.execute(
+                        f"CREATE INDEX IF NOT EXISTS idx_{self._collection_name}_{index_name} "
+                        f"ON {self._collection_name}({column})"
+                    )
                 connection.commit()
 
             if db_lock is not None:
@@ -116,7 +116,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
                 run()
 
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(executor, ensure_column)
+        await loop.run_in_executor(executor, ensure_indexes)
 
     async def store(self, record: AuditRecord) -> bool:
         """
@@ -202,6 +202,125 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error querying audit records from SQLite: {e}")
             return []
 
+    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id"}
+
+    async def aggregate_usage(
+        self,
+        since: str,
+        until: str,
+        bucket: str = "day",
+        group_by: str = "model",
+        filters: Optional[Dict[str, Any]] = None,
+        limit_groups: int = 10,
+    ) -> Dict[str, Any]:
+        """SQLite implementation: SUM/COUNT via raw SQL, no full-row transfer."""
+        if not self._initialized:
+            await self.initialize()
+
+        connection = getattr(self._database_service, "connection", None)
+        executor = getattr(self._database_service, "executor", None)
+        db_lock = getattr(self._database_service, "_db_lock", None)
+        if connection is None or executor is None:
+            raise NotImplementedError("SQLite connection not available for aggregation")
+
+        # timestamp is stored as an ISO string; substr(timestamp,1,10) buckets
+        # by day, substr(timestamp,1,13) buckets by hour (both index-friendly
+        # alongside the range predicate below).
+        bucket_expr = "substr(timestamp,1,13)" if bucket == "hour" else "substr(timestamp,1,10)"
+        group_column = group_by if group_by in self._GROUP_BY_COLUMNS else None
+
+        where_clauses = ["timestamp >= ?", "timestamp < ?"]
+        params: List[Any] = [since, until]
+        for key, value in (filters or {}).items():
+            if key not in {"provider", "adapter_name", "model"}:
+                continue
+            where_clauses.append(f"{key} = ?")
+            params.append(value)
+        where_sql = " AND ".join(where_clauses)
+
+        def run() -> Dict[str, Any]:
+            with db_lock if db_lock is not None else _NullContext():
+                cursor = connection.cursor()
+
+                cursor.execute(
+                    f"""
+                    SELECT
+                        COUNT(*),
+                        SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens),
+                        SUM(cost_usd),
+                        SUM(CASE WHEN cost_usd IS NULL AND total_tokens IS NOT NULL THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN total_tokens IS NULL THEN 1 ELSE 0 END)
+                    FROM {self._collection_name}
+                    WHERE {where_sql}
+                    """,
+                    params,
+                )
+                (
+                    requests, prompt_tokens, completion_tokens, total_tokens,
+                    cost_usd, unpriced_requests, unreported_requests,
+                ) = cursor.fetchone()
+
+                cursor.execute(
+                    f"""
+                    SELECT {bucket_expr} AS b, COUNT(*),
+                        SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens), SUM(cost_usd)
+                    FROM {self._collection_name}
+                    WHERE {where_sql}
+                    GROUP BY b
+                    ORDER BY b ASC
+                    """,
+                    params,
+                )
+                series = [
+                    {
+                        "bucket": row[0], "requests": row[1],
+                        "prompt_tokens": row[2] or 0, "completion_tokens": row[3] or 0,
+                        "total_tokens": row[4] or 0, "cost_usd": row[5] or 0.0,
+                    }
+                    for row in cursor.fetchall()
+                ]
+
+                groups: List[Dict[str, Any]] = []
+                if group_column:
+                    cursor.execute(
+                        f"""
+                        SELECT {group_column} AS g, COUNT(*),
+                            SUM(total_tokens), SUM(cost_usd),
+                            SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END)
+                        FROM {self._collection_name}
+                        WHERE {where_sql} AND {group_column} IS NOT NULL
+                        GROUP BY g
+                        ORDER BY SUM(cost_usd) DESC
+                        LIMIT ?
+                        """,
+                        params + [limit_groups],
+                    )
+                    groups = [
+                        {
+                            "key": row[0], "requests": row[1],
+                            "total_tokens": row[2] or 0, "cost_usd": row[3] or 0.0,
+                            "unpriced": bool(row[4]),
+                        }
+                        for row in cursor.fetchall()
+                    ]
+
+                return {
+                    "totals": {
+                        "requests": requests or 0,
+                        "prompt_tokens": prompt_tokens or 0,
+                        "completion_tokens": completion_tokens or 0,
+                        "total_tokens": total_tokens or 0,
+                        "cost_usd": cost_usd or 0.0,
+                        "unpriced_requests": unpriced_requests or 0,
+                        "unreported_requests": unreported_requests or 0,
+                    },
+                    "series": series,
+                    "groups": groups,
+                }
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(executor, run)
+
     async def close(self) -> None:
         """Close SQLite audit storage resources."""
         if self._database_service and self._owns_database_service:
@@ -268,6 +387,13 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             result['model'] = flat_record.get('model')
         if flat_record.get('_id'):
             result['_id'] = flat_record.get('_id')
+
+        for field in (
+            'prompt_tokens', 'completion_tokens', 'total_tokens', 'reasoning_tokens',
+            'cost_usd', 'input_rate_per_1m', 'output_rate_per_1m', 'pricing_source',
+        ):
+            if flat_record.get(field) is not None:
+                result[field] = flat_record.get(field)
 
         return result
 

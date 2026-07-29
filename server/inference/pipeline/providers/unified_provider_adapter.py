@@ -82,6 +82,23 @@ class UnifiedProviderAdapter(LLMProvider):
         async for chunk in self.service.generate_stream(prompt, **kwargs):
             yield chunk
 
+    async def generate_tracked(
+        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> str:
+        """Same as generate(), filling usage_sink when the service supports it."""
+        if not self.service:
+            raise RuntimeError("Provider not initialized. Call initialize() first.")
+        return await self.service.generate_tracked(prompt, usage_sink=usage_sink, **kwargs)
+
+    async def generate_stream_tracked(
+        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> AsyncGenerator[str, None]:
+        """Streaming counterpart of generate_tracked()."""
+        if not self.service:
+            raise RuntimeError("Provider not initialized. Call initialize() first.")
+        async for chunk in self.service.generate_stream_tracked(prompt, usage_sink=usage_sink, **kwargs):
+            yield chunk
+
     async def generate_with_tools(
         self,
         messages: List[Dict[str, Any]],

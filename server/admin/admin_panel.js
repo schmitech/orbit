@@ -44,6 +44,7 @@
   let threadPoolSearchFilter = "";
   let overviewCharts = {};
   let feedbackCharts = {};
+  let costsCharts = {};
   let selectedFeedbackWindowDays = 30;
   let monitoringThresholds = { cpu: 90, memory: 85, error_rate: 5, response_time_ms: 5000 };
   let overviewAdapterPaginator = null;
@@ -106,6 +107,7 @@
     configSections: "/admin/config/sections",
     adapterConfigs: "/admin/adapters/config",
     auditEvents: "/admin/audit/events",
+    costsUsage: "/admin/observability/usage",
     feedbackAnalytics: "/admin/api/feedback-analytics",
     serverInfo: "/admin/info",
   };
@@ -1068,11 +1070,13 @@
   ];
   var ICON_NAV_OPS = ["M4 17l6-6-6-6", "M12 19h8"];
   var ICON_NAV_AUDIT = ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z", "M9 12l2 2 4-4"];
+  var ICON_NAV_COSTS = ["M3 3v18h18", "M7 15l4-6 3 4 4-7"];
   var ICON_CHEVRONS_LEFT = ["M11 17l-5-5 5-5", "M18 17l-5-5 5-5"];
 
   var TABS = [
     { id: "overview", label: "Dashboard", group: "observe", icon: ICON_NAV_OVERVIEW },
     { id: "feedback", label: "Feedback", permission: "feedback.read", group: "observe", icon: ICON_NAV_FEEDBACK },
+    { id: "costs", label: "Costs", permission: "audit.read", group: "observe", icon: ICON_NAV_COSTS },
     { id: "users", label: "Users", permission: "users.manage", group: "access", icon: ICON_NAV_USERS },
     { id: "keys", label: "API Keys", permission: "apikeys.manage", group: "access", icon: ICON_NAV_KEYS },
     { id: "prompts", label: "Personas", permission: "prompts.manage", group: "configure", icon: ICON_NAV_PERSONAS },
@@ -1295,6 +1299,9 @@
     if (activeTab === "feedback" && id !== "feedback") {
       destroyFeedbackCharts();
     }
+    if (activeTab === "costs" && id !== "costs") {
+      destroyCostsCharts();
+    }
     // Destroy adapter editor when leaving adapters tab
     if (activeTab === "adapters" && id !== "adapters") {
       if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
@@ -1333,6 +1340,7 @@
       case "adapters": renderAdapters(c); break;
       case "ops": renderOps(c); break;
       case "audit": renderAudit(c); break;
+      case "costs": renderCosts(c); break;
       case "settings": renderSettings(c); break;
     }
   }
@@ -2331,15 +2339,25 @@
         y: {
           beginAtZero: true,
           grid: { color: "rgba(15,29,51,0.06)" },
-          ticks: { color: "#6b7a96", precision: 0, font: { size: 10 } }
+          ticks: { color: "#526684", precision: 0, font: { size: 12 } }
         },
         x: {
           grid: { display: false },
-          ticks: { color: "#6b7a96", maxRotation: 0, autoSkip: true, maxTicksLimit: 10, font: { size: 10 } }
+          ticks: { color: "#526684", maxRotation: 0, autoSkip: true, maxTicksLimit: 10, font: { size: 12 } }
         }
       },
       plugins: {
-        legend: { labels: { color: "#3d4f6f", usePointStyle: true, boxWidth: 10, font: { size: 11 } } },
+        legend: {
+          labels: {
+            color: "#3d4f6f",
+            usePointStyle: true,
+            pointStyle: "circle",
+            pointStyleWidth: 8,
+            boxWidth: 8,
+            boxHeight: 8,
+            font: { size: 12 }
+          }
+        },
         tooltip: {
           backgroundColor: "rgba(10,14,23,0.96)",
           titleColor: "#f4f6fa",
@@ -5911,6 +5929,228 @@
   }
 
   // ==================================================================
+  // TAB: Costs — token usage / cost estimate
+  // ==================================================================
+
+  let selectedCostsWindowDays = 7;
+  let selectedCostsGroupBy = "model";
+
+  function destroyCostsCharts() {
+    Object.keys(costsCharts).forEach(function (key) {
+      try { costsCharts[key].destroy(); } catch (_) {}
+    });
+    costsCharts = {};
+  }
+
+  function obsCost(value) {
+    if (value == null) return "—";
+    if (value === 0) return "$0.00";
+    // Scale precision to magnitude — a per-request average can be a few
+    // hundredths of a cent, and 4 decimal places (the old fixed precision)
+    // rounds anything below $0.00005 down to a misleading "$0.0000".
+    var frac = value < 0.001 ? 8 : value < 1 ? 4 : 2;
+    return "$" + formatNum(value, frac);
+  }
+
+  var OBS_MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  // Bucket keys are wall-clock values in the audit log's storage timezone
+  // (naive local, not UTC) — never run them through `new Date(string)`.
+  // JS parses a date-only string ("2026-07-29") as UTC midnight, which
+  // renders as the previous day in any timezone behind UTC; a bucket key
+  // carrying an explicit UTC marker (Elasticsearch's "Z"-suffixed
+  // key_as_string) is equally misleading here, since the underlying value
+  // was naive-local, not a real UTC instant. Parse the numeric components
+  // directly and format them as literal text instead of converting through
+  // any timezone at all.
+  function formatObsBucketLabel(bucketKey, isHourly) {
+    var match = String(bucketKey).match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}))?/);
+    if (!match) return String(bucketKey);
+    var month = parseInt(match[2], 10);
+    var day = parseInt(match[3], 10);
+    var label = OBS_MONTH_NAMES[month - 1] + " " + day;
+    if (isHourly && match[4] != null) {
+      var hour = parseInt(match[4], 10);
+      var hour12 = hour % 12 || 12;
+      label += " " + hour12 + (hour >= 12 ? "PM" : "AM");
+    }
+    return label;
+  }
+
+  function initCostsCharts(data) {
+    destroyCostsCharts();
+    if (typeof Chart === "undefined") return;
+
+    var tokensCanvas = document.getElementById("obs-tokens-chart");
+    if (tokensCanvas && data.series.length) {
+      var opts = feedbackChartOptions();
+      costsCharts.tokens = new Chart(tokensCanvas, {
+        type: "bar",
+        data: {
+          labels: data.series.map(function (item) {
+            return formatObsBucketLabel(item.bucket, data.window.bucket === "hour");
+          }),
+          datasets: [
+            { label: "Prompt tokens", data: data.series.map(function (item) { return item.prompt_tokens; }), backgroundColor: "#5794f2", stack: "tokens" },
+            { label: "Completion tokens", data: data.series.map(function (item) { return item.completion_tokens; }), backgroundColor: "#28a66a", stack: "tokens" }
+          ]
+        },
+        options: Object.assign(opts, { scales: Object.assign(opts.scales, { x: Object.assign(opts.scales.x, { stacked: true }), y: Object.assign(opts.scales.y, { stacked: true }) }) })
+      });
+    }
+
+    var costCanvas = document.getElementById("obs-cost-chart");
+    if (costCanvas && data.series.length) {
+      var costOpts = feedbackChartOptions();
+      var cumulative = 0;
+      costsCharts.cost = new Chart(costCanvas, {
+        type: "line",
+        data: {
+          labels: data.series.map(function (item) {
+            return formatObsBucketLabel(item.bucket, data.window.bucket === "hour");
+          }),
+          datasets: [
+            { label: "Cost / bucket", data: data.series.map(function (item) { return item.cost_usd; }), borderColor: "#e0a22f", backgroundColor: "rgba(224,162,47,0.10)", fill: true, tension: 0.25 },
+            { label: "Cumulative", data: data.series.map(function (item) { cumulative += item.cost_usd; return cumulative; }), borderColor: "#5794f2", backgroundColor: "transparent", borderDash: [5, 4], yAxisID: "y1", tension: 0.2 }
+          ]
+        },
+        options: Object.assign(costOpts, {
+          scales: Object.assign(costOpts.scales, {
+            y1: { beginAtZero: true, position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#526684", font: { size: 12 } } }
+          })
+        })
+      });
+    }
+
+    var modelsCanvas = document.getElementById("obs-models-chart");
+    var groupRows = data.groups.slice(0, 10);
+    if (modelsCanvas && groupRows.length) {
+      var modelOpts = feedbackChartOptions();
+      modelOpts.indexAxis = "y";
+      modelOpts.plugins.legend.display = false;
+      costsCharts.models = new Chart(modelsCanvas, {
+        type: "bar",
+        data: {
+          labels: groupRows.map(function (row) { return row.key || "(unknown)"; }),
+          datasets: [{ data: groupRows.map(function (row) { return row.cost_usd; }), backgroundColor: "#5794f2" }]
+        },
+        options: modelOpts
+      });
+    }
+
+    var providerCanvas = document.getElementById("obs-provider-chart");
+    if (providerCanvas && groupRows.length) {
+      costsCharts.provider = new Chart(providerCanvas, {
+        type: "doughnut",
+        data: {
+          labels: groupRows.map(function (row) { return row.key || "(unknown)"; }),
+          datasets: [{ data: groupRows.map(function (row) { return row.cost_usd; }), backgroundColor: ["#5794f2", "#28a66a", "#e0a22f", "#e05260", "#9b7ede", "#4fb8b0", "#f28cb1", "#c0ca33", "#8d6e63", "#78909c"], borderWidth: 0, hoverOffset: 4 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, cutout: "68%", plugins: feedbackChartOptions().plugins }
+      });
+    }
+  }
+
+  async function renderCosts(container) {
+    var requestVersion = 0;
+    var header = el("div", { className: "panel" },
+      el("div", { className: "panel-header-row" },
+        el("div", null,
+          el("h2", null, "Costs"),
+          el("p", { className: "muted" }, "Token usage and estimated cost across inference providers. Cost is an estimate from the local rate table in config/pricing.yaml, not a provider invoice.")
+        ),
+        el("div", { className: "monitoring-toolbar-right", id: "obs-window-controls" },
+          [1, 7, 30].map(function (days) {
+            var button = el("button", {
+              type: "button",
+              className: "time-window-btn",
+              "aria-pressed": days === selectedCostsWindowDays ? "true" : "false"
+            }, days === 1 ? "24h" : days + "d");
+            button.addEventListener("click", function () {
+              if (selectedCostsWindowDays === days) return;
+              selectedCostsWindowDays = days;
+              load();
+            });
+            return button;
+          }),
+          el("select", {
+            className: "select-input",
+            id: "obs-group-by",
+            onchange: function (e) { selectedCostsGroupBy = e.target.value; load(); }
+          },
+            ["model", "provider", "adapter_name", "user_id"].map(function (opt) {
+              return el("option", { value: opt, selected: opt === selectedCostsGroupBy ? "selected" : null }, opt);
+            })
+          ),
+          refreshButton("Refresh costs data", function () { load(); })
+        )
+      )
+    );
+    var content = el("div", { style: "display:grid;gap:var(--sp-4)" }, skeleton());
+    container.appendChild(header);
+    container.appendChild(content);
+
+    async function load() {
+      var version = ++requestVersion;
+      header.querySelectorAll(".time-window-btn").forEach(function (button) {
+        var label = selectedCostsWindowDays === 1 ? "24h" : selectedCostsWindowDays + "d";
+        button.setAttribute("aria-pressed", button.textContent === label ? "true" : "false");
+      });
+      destroyCostsCharts();
+      clear(content);
+      content.appendChild(skeleton());
+      try {
+        var params = new URLSearchParams();
+        params.set("days", String(selectedCostsWindowDays));
+        params.set("bucket", selectedCostsWindowDays <= 1 ? "hour" : "day");
+        params.set("group_by", selectedCostsGroupBy);
+        var data = await api("GET", ENDPOINTS.costsUsage + "?" + params.toString());
+        if (version !== requestVersion || activeTab !== "costs") return;
+        clear(content);
+
+        if (data.pricing && data.pricing.stale) {
+          content.appendChild(el("div", {
+            className: "panel",
+            style: "border-color:#e0a22f;background:rgba(224,162,47,0.08);font-size:var(--text-sm)"
+          }, "Pricing table last updated " + data.pricing.updated + " — cost estimates may be stale."));
+        }
+
+        var totals = data.totals;
+        content.appendChild(el("div", { className: "metric-cards-grid" },
+          feedbackMetricCard(formatNum(totals.total_tokens), "Total tokens", formatNum(totals.prompt_tokens) + " prompt / " + formatNum(totals.completion_tokens) + " completion"),
+          feedbackMetricCard(obsCost(totals.cost_usd), "Estimated cost", "Across " + formatNum(totals.requests) + " requests"),
+          feedbackMetricCard(obsCost(totals.requests ? totals.cost_usd / totals.requests : null), "Avg cost / request", ""),
+          feedbackMetricCard(formatNum(totals.unpriced_requests), "Unpriced requests", formatNum(totals.unreported_requests) + " with no usage reported")
+        ));
+
+        if (data.series.length) {
+          content.appendChild(el("div", { className: "charts-grid" },
+            el("div", { className: "chart-card" }, el("h3", null, "Tokens over time"), el("canvas", { id: "obs-tokens-chart" })),
+            el("div", { className: "chart-card" }, el("h3", null, "Cost over time"), el("canvas", { id: "obs-cost-chart" })),
+            el("div", { className: "chart-card" }, el("h3", null, "Top " + selectedCostsGroupBy + " by cost"), el("canvas", { id: "obs-models-chart" })),
+            el("div", { className: "chart-card feedback-distribution-card" },
+              el("h3", null, "Cost share"),
+              el("div", { className: "feedback-donut-wrap cost-share-donut-wrap" }, el("canvas", { id: "obs-provider-chart" }))
+            )
+          ));
+        } else {
+          content.appendChild(el("div", { className: "panel empty-state" },
+            el("p", null, "No inference usage recorded in this time window.")));
+        }
+
+        initCostsCharts(data);
+      } catch (err) {
+        if (version !== requestVersion || activeTab !== "costs") return;
+        clear(content);
+        var msg = (err && err.message) || "Failed to load costs data.";
+        content.appendChild(el("div", { className: "panel empty-state" }, el("p", null, msg)));
+      }
+    }
+
+    load();
+  }
+
+  // ==================================================================
   // TAB: Audit — admin/auth + inference request ledger
   // ==================================================================
 
@@ -6211,6 +6451,8 @@
         el("th", null, "Event"),
         el("th", null, "Principal"),
         el("th", null, "Resource"),
+        el("th", { className: "audit-col-tokens" }, "Tokens"),
+        el("th", { className: "audit-col-cost" }, "Cost"),
         el("th", { className: "audit-col-status" }, "Status")
       )
     );
@@ -6250,6 +6492,10 @@
         ),
         el("td", null, actorCell),
         el("td", { className: "audit-col-resource" }, resourceText),
+        el("td", { className: "audit-col-tokens" },
+          isInferenceAudit(ev) && ev.total_tokens != null ? formatNum(ev.total_tokens) : "—"),
+        el("td", { className: "audit-col-cost", title: isInferenceAudit(ev) ? (ev.pricing_source || "") : "" },
+          isInferenceAudit(ev) ? obsCost(ev.cost_usd) : "—"),
         el("td", { className: "audit-col-status" },
           el("span", { className: "audit-status-code" }, isInferenceAudit(ev) ? (ev.provider || "") : String(ev.status_code != null ? ev.status_code : "")),
           el("span", { className: "badge " + statusCls }, statusLabel)
@@ -6394,6 +6640,26 @@
         ["Event type", ev.event_type || ""],
         ["Action", ev.action || ""],
       ]));
+    }
+
+    if (isInferenceAudit(ev)) {
+      panel.appendChild(el("h3", { className: "audit-section-heading" }, "Usage & cost"));
+      var usageRows = [
+        ["Prompt tokens", ev.prompt_tokens != null ? formatNum(ev.prompt_tokens) : "—"],
+        ["Completion tokens", ev.completion_tokens != null ? formatNum(ev.completion_tokens) : "—"],
+        ["Total tokens", ev.total_tokens != null ? formatNum(ev.total_tokens) : "—"],
+        ["Estimated cost", obsCost(ev.cost_usd)],
+        ["Input rate / 1M", ev.input_rate_per_1m != null ? "$" + formatNum(ev.input_rate_per_1m, 4) : "—"],
+        ["Output rate / 1M", ev.output_rate_per_1m != null ? "$" + formatNum(ev.output_rate_per_1m, 4) : "—"],
+        ["Pricing source", ev.pricing_source || "—"],
+      ];
+      // Only shown when the provider actually breaks reasoning/thinking
+      // tokens out separately (OpenAI o-series/gpt-5, Gemini) — already
+      // included in "Completion tokens" above, purely informational.
+      if (ev.reasoning_tokens != null) {
+        usageRows.splice(2, 0, ["Reasoning tokens", formatNum(ev.reasoning_tokens)]);
+      }
+      panel.appendChild(renderAuditFieldGrid(usageRows));
     }
 
     panel.appendChild(el("h3", { className: "audit-section-heading" }, "Origin"));

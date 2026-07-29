@@ -6,8 +6,9 @@ Implementation of AuditStorageStrategy for PostgreSQL backend.
 Uses the existing PostgresService/DatabaseService interface for storage operations.
 """
 
+import asyncio
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from .audit_storage_strategy import AuditStorageStrategy, AuditRecord, decompress_text
 from utils.id_utils import generate_id
@@ -149,6 +150,125 @@ class PostgresAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error querying audit records from Postgres: {e}")
             return []
 
+    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id"}
+
+    async def aggregate_usage(
+        self,
+        since: str,
+        until: str,
+        bucket: str = "day",
+        group_by: str = "model",
+        filters: Optional[Dict[str, Any]] = None,
+        limit_groups: int = 10,
+    ) -> Dict[str, Any]:
+        """Postgres implementation: SUM/COUNT via raw SQL, no full-row transfer."""
+        if not self._initialized:
+            await self.initialize()
+
+        connection = getattr(self._database_service, "connection", None)
+        executor = getattr(self._database_service, "executor", None)
+        db_lock = getattr(self._database_service, "_db_lock", None)
+        if connection is None or executor is None:
+            raise NotImplementedError("Postgres connection not available for aggregation")
+
+        # timestamp is stored as TEXT (ISO), so date_trunc needs an explicit cast.
+        trunc_unit = "hour" if bucket == "hour" else "day"
+        bucket_expr = f"date_trunc('{trunc_unit}', timestamp::timestamptz)"
+        group_column = group_by if group_by in self._GROUP_BY_COLUMNS else None
+
+        where_clauses = ["timestamp >= %s", "timestamp < %s"]
+        params: List[Any] = [since, until]
+        for key, value in (filters or {}).items():
+            if key not in {"provider", "adapter_name", "model"}:
+                continue
+            where_clauses.append(f"{key} = %s")
+            params.append(value)
+        where_sql = " AND ".join(where_clauses)
+
+        def run() -> Dict[str, Any]:
+            with db_lock:
+                cursor = connection.cursor()
+
+                cursor.execute(
+                    f"""
+                    SELECT
+                        COUNT(*),
+                        SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens),
+                        SUM(cost_usd),
+                        SUM(CASE WHEN cost_usd IS NULL AND total_tokens IS NOT NULL THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN total_tokens IS NULL THEN 1 ELSE 0 END)
+                    FROM {self._collection_name}
+                    WHERE {where_sql}
+                    """,
+                    params,
+                )
+                (
+                    requests, prompt_tokens, completion_tokens, total_tokens,
+                    cost_usd, unpriced_requests, unreported_requests,
+                ) = cursor.fetchone()
+
+                cursor.execute(
+                    f"""
+                    SELECT {bucket_expr} AS b, COUNT(*),
+                        SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens), SUM(cost_usd)
+                    FROM {self._collection_name}
+                    WHERE {where_sql}
+                    GROUP BY b
+                    ORDER BY b ASC
+                    """,
+                    params,
+                )
+                series = [
+                    {
+                        "bucket": row[0].isoformat() if row[0] is not None else None,
+                        "requests": row[1],
+                        "prompt_tokens": row[2] or 0, "completion_tokens": row[3] or 0,
+                        "total_tokens": row[4] or 0, "cost_usd": float(row[5] or 0.0),
+                    }
+                    for row in cursor.fetchall()
+                ]
+
+                groups: List[Dict[str, Any]] = []
+                if group_column:
+                    cursor.execute(
+                        f"""
+                        SELECT {group_column} AS g, COUNT(*),
+                            SUM(total_tokens), SUM(cost_usd),
+                            SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END)
+                        FROM {self._collection_name}
+                        WHERE {where_sql} AND {group_column} IS NOT NULL
+                        GROUP BY g
+                        ORDER BY SUM(cost_usd) DESC NULLS LAST
+                        LIMIT %s
+                        """,
+                        params + [limit_groups],
+                    )
+                    groups = [
+                        {
+                            "key": row[0], "requests": row[1],
+                            "total_tokens": row[2] or 0, "cost_usd": float(row[3] or 0.0),
+                            "unpriced": bool(row[4]),
+                        }
+                        for row in cursor.fetchall()
+                    ]
+
+                return {
+                    "totals": {
+                        "requests": requests or 0,
+                        "prompt_tokens": prompt_tokens or 0,
+                        "completion_tokens": completion_tokens or 0,
+                        "total_tokens": total_tokens or 0,
+                        "cost_usd": float(cost_usd or 0.0),
+                        "unpriced_requests": unpriced_requests or 0,
+                        "unreported_requests": unreported_requests or 0,
+                    },
+                    "series": series,
+                    "groups": groups,
+                }
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(executor, run)
+
     async def close(self) -> None:
         """Close Postgres audit storage resources."""
         if self._database_service and self._owns_database_service:
@@ -211,6 +331,13 @@ class PostgresAuditStrategy(AuditStorageStrategy):
             result['model'] = flat_record.get('model')
         if flat_record.get('_id'):
             result['_id'] = flat_record.get('_id')
+
+        for field in (
+            'prompt_tokens', 'completion_tokens', 'total_tokens', 'reasoning_tokens',
+            'cost_usd', 'input_rate_per_1m', 'output_rate_per_1m', 'pricing_source',
+        ):
+            if flat_record.get(field) is not None:
+                result[field] = flat_record.get(field)
 
         return result
 

@@ -2736,7 +2736,7 @@ code.plain-code {
   margin: 0 0 var(--sp-3);
   padding: 0;
   border: none;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--ink-muted);
   text-transform: uppercase;
@@ -2759,6 +2759,14 @@ code.plain-code {
 .feedback-donut-wrap canvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+/* Cost share can have ten legend entries. Give Chart.js enough vertical
+   layout space for the wrapped legend without shrinking it into the ring. */
+.cost-share-donut-wrap {
+  width: min(100%, 360px);
+  height: 320px;
+  aspect-ratio: auto;
 }
 
 /* Monitoring badges */
@@ -3608,6 +3616,15 @@ code.plain-code {
   text-align: right;
   white-space: nowrap;
   width: 1%;
+}
+
+.audit-col-tokens,
+.audit-col-cost {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+  text-align: right;
+  white-space: nowrap;
 }
 
 .audit-status-code {

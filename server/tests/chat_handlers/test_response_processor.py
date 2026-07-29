@@ -160,6 +160,74 @@ class TestResponseProcessor:
         )
 
     @pytest.mark.asyncio
+    async def test_log_conversation_no_usage_omits_usage_kwarg(
+        self, base_config, mock_conversation_handler, mock_logger_service
+    ):
+        """usage=None must not add a 'usage' key to the audit_service call — back-compat
+        with callers/tests that assert an exact kwarg set (see test_log_conversation_success)."""
+        mock_audit_service = AsyncMock()
+        mock_audit_service.log_conversation = AsyncMock()
+
+        processor = ResponseProcessor(
+            config=base_config,
+            conversation_handler=mock_conversation_handler,
+            logger_service=mock_logger_service,
+            audit_service=mock_audit_service
+        )
+
+        await processor.log_conversation(
+            query="User query",
+            response="Assistant response",
+            client_ip="127.0.0.1",
+            backend="openai",
+            api_key="key123",
+            session_id="session456",
+            user_id="user789",
+            adapter_name="test_adapter"
+        )
+
+        call_kwargs = mock_audit_service.log_conversation.call_args.kwargs
+        assert "usage" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_log_conversation_forwards_usage(
+        self, base_config, mock_conversation_handler, mock_logger_service
+    ):
+        """A non-empty usage dict must be forwarded verbatim to audit_service."""
+        mock_audit_service = AsyncMock()
+        mock_audit_service.log_conversation = AsyncMock()
+
+        processor = ResponseProcessor(
+            config=base_config,
+            conversation_handler=mock_conversation_handler,
+            logger_service=mock_logger_service,
+            audit_service=mock_audit_service
+        )
+
+        usage_payload = {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+            "cost_usd": 0.0123,
+            "pricing_source": "exact",
+        }
+
+        await processor.log_conversation(
+            query="User query",
+            response="Assistant response",
+            client_ip="127.0.0.1",
+            backend="openai",
+            api_key="key123",
+            session_id="session456",
+            user_id="user789",
+            adapter_name="test_adapter",
+            usage=usage_payload,
+        )
+
+        call_kwargs = mock_audit_service.log_conversation.call_args.kwargs
+        assert call_kwargs["usage"] == usage_payload
+
+    @pytest.mark.asyncio
     async def test_log_conversation_handles_logger_error(
         self, base_config, mock_conversation_handler, mock_logger_service
     ):

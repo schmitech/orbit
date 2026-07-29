@@ -1142,5 +1142,215 @@ class TestClearOnStartup:
         assert len(results) == 0
 
 
+# ============================================================================
+# Token usage / cost fields — round trip and aggregation
+# ============================================================================
+
+class TestUsageFieldsRoundTrip:
+    """AuditRecord usage/cost fields must survive to_dict/to_flat_dict/store/query,
+    distinguishing None (unreported/unpriced) from 0.0 (a real free/local rate)."""
+
+    def test_to_dict_omits_none_usage_fields(self):
+        record = AuditRecord(
+            timestamp=datetime.now(), query="q", response="r",
+            provider="ollama", blocked=False, ip="127.0.0.1",
+        )
+        result = record.to_dict()
+        assert 'prompt_tokens' not in result
+        assert 'cost_usd' not in result
+
+    def test_to_dict_includes_zero_cost_explicitly(self):
+        record = AuditRecord(
+            timestamp=datetime.now(), query="q", response="r",
+            provider="ollama", blocked=False, ip="127.0.0.1",
+            prompt_tokens=10, completion_tokens=5, total_tokens=15,
+            cost_usd=0.0, input_rate_per_1m=0.0, output_rate_per_1m=0.0,
+            pricing_source="local_zero",
+        )
+        result = record.to_dict()
+        assert result['cost_usd'] == 0.0
+        assert result['pricing_source'] == "local_zero"
+
+    def test_to_flat_dict_always_has_usage_keys(self):
+        record = AuditRecord(
+            timestamp=datetime.now(), query="q", response="r",
+            provider="openai", blocked=False, ip="127.0.0.1",
+        )
+        flat = record.to_flat_dict()
+        assert flat['prompt_tokens'] is None
+        assert flat['reasoning_tokens'] is None
+        assert flat['cost_usd'] is None
+        assert flat['pricing_source'] is None
+
+    @pytest.mark.asyncio
+    async def test_sqlite_store_and_query_preserves_usage_fields(self, sqlite_service_with_audit):
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+
+        record = AuditRecord(
+            timestamp=datetime.now(), query="q", response="r",
+            provider="openai", blocked=False, ip="127.0.0.1",
+            model="gpt-4o-mini",
+            prompt_tokens=1000, completion_tokens=200, total_tokens=1200,
+            reasoning_tokens=80,
+            cost_usd=0.00027, input_rate_per_1m=0.15, output_rate_per_1m=0.60,
+            pricing_source="exact",
+        )
+        success = await audit_service._strategy.store(record)
+        assert success is True
+
+        results = await audit_service.query_audit_logs({})
+        assert len(results) == 1
+        stored = results[0]
+        assert stored['prompt_tokens'] == 1000
+        assert stored['completion_tokens'] == 200
+        assert stored['total_tokens'] == 1200
+        assert stored['reasoning_tokens'] == 80
+        assert stored['cost_usd'] == pytest.approx(0.00027)
+        assert stored['pricing_source'] == "exact"
+
+    @pytest.mark.asyncio
+    async def test_sqlite_store_local_zero_cost_is_not_dropped(self, sqlite_service_with_audit):
+        """A real $0.00 local-model cost must round-trip as 0.0, not be
+        indistinguishable from an unreported/unpriced request."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+
+        record = AuditRecord(
+            timestamp=datetime.now(), query="q", response="r",
+            provider="ollama", blocked=False, ip="127.0.0.1",
+            model="granite4:1b",
+            prompt_tokens=50, completion_tokens=10, total_tokens=60,
+            cost_usd=0.0, input_rate_per_1m=0.0, output_rate_per_1m=0.0,
+            pricing_source="local_zero",
+        )
+        await audit_service._strategy.store(record)
+
+        results = await audit_service.query_audit_logs({})
+        stored = results[0]
+        assert stored['cost_usd'] == 0.0
+        assert stored['pricing_source'] == "local_zero"
+
+    @pytest.mark.asyncio
+    async def test_sqlite_migration_adds_usage_columns_to_old_table(self, tmp_path):
+        """A table created before this feature (no usage columns) must gain
+        them automatically on the next SQLiteService initialization, via the
+        existing _migrate_table_schema DDL-diff mechanism."""
+        db_path = os.path.join(tmp_path, "test_migrate.db")
+
+        # Create an old-shape audit_logs table directly, bypassing SQLiteService's
+        # current (already-migrated) schema.
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        conn.execute('''
+            CREATE TABLE audit_logs (
+                id TEXT PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                query TEXT NOT NULL,
+                response TEXT NOT NULL,
+                response_compressed INTEGER NOT NULL DEFAULT 0,
+                provider TEXT,
+                blocked INTEGER NOT NULL DEFAULT 0,
+                ip TEXT,
+                ip_type TEXT,
+                ip_is_local INTEGER DEFAULT 0,
+                ip_source TEXT,
+                ip_original_value TEXT,
+                api_key_value TEXT,
+                api_key_timestamp TEXT,
+                session_id TEXT,
+                user_id TEXT,
+                adapter_name TEXT,
+                model TEXT
+            )
+        ''')
+        conn.commit()
+        conn.close()
+
+        config = {
+            'general': {'inference_provider': 'test'},
+            'internal_services': {
+                'backend': {'type': 'sqlite', 'sqlite': {'database_path': db_path}},
+            }
+        }
+        sqlite_service = SQLiteService(config)
+        await sqlite_service.initialize()
+
+        conn = sqlite3.connect(db_path)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(audit_logs)").fetchall()}
+        conn.close()
+
+        for expected in (
+            'prompt_tokens', 'completion_tokens', 'total_tokens', 'reasoning_tokens',
+            'cost_usd', 'input_rate_per_1m', 'output_rate_per_1m', 'pricing_source',
+        ):
+            assert expected in columns, f"migration did not add column {expected}"
+
+        sqlite_service.close()
+        SQLiteService.clear_cache()
+
+
+class TestAggregateUsage:
+    """SQLite aggregate_usage: bucketing, group-by, unpriced counting, window exclusion."""
+
+    async def _seed(self, audit_service, rows):
+        for row in rows:
+            await audit_service._strategy.store(AuditRecord(**row))
+
+    @pytest.mark.asyncio
+    async def test_aggregate_totals_and_series(self, sqlite_service_with_audit):
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+
+        base = {"query": "q", "response": "r", "provider": "openai", "blocked": False, "ip": "127.0.0.1"}
+        await self._seed(audit_service, [
+            {**base, "timestamp": datetime(2026, 1, 1, 10, 0, 0), "model": "gpt-4o-mini",
+             "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150, "cost_usd": 0.01},
+            {**base, "timestamp": datetime(2026, 1, 1, 11, 0, 0), "model": "gpt-4o-mini",
+             "prompt_tokens": 200, "completion_tokens": 100, "total_tokens": 300, "cost_usd": 0.02},
+            {**base, "timestamp": datetime(2026, 1, 2, 9, 0, 0), "model": "gpt-4o-mini",
+             "prompt_tokens": 50, "completion_tokens": 25, "total_tokens": 75, "cost_usd": None},
+            # Outside the query window — must be excluded.
+            {**base, "timestamp": datetime(2025, 1, 1, 9, 0, 0), "model": "gpt-4o-mini",
+             "prompt_tokens": 999, "completion_tokens": 999, "total_tokens": 1998, "cost_usd": 5.0},
+        ])
+
+        result = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-03T00:00:00",
+            bucket="day", group_by="model",
+        )
+
+        assert result['totals']['requests'] == 3
+        assert result['totals']['total_tokens'] == 525
+        assert result['totals']['cost_usd'] == pytest.approx(0.03)
+        assert result['totals']['unpriced_requests'] == 1
+
+        assert len(result['series']) == 2  # two distinct days
+        day_totals = {s['bucket']: s['requests'] for s in result['series']}
+        assert sum(day_totals.values()) == 3
+
+        assert len(result['groups']) == 1
+        assert result['groups'][0]['key'] == "gpt-4o-mini"
+        assert result['groups'][0]['requests'] == 3
+
+    @pytest.mark.asyncio
+    async def test_aggregate_usage_disabled_audit_returns_empty_skeleton(self, tmp_path):
+        """AuditService.aggregate_usage must never raise — a disabled/unsupported
+        backend returns the zeroed skeleton so the route can 200 with empty data."""
+        config = {
+            'general': {'inference_provider': 'test'},
+            'internal_services': {'audit': {'enabled': False}},
+        }
+        audit_service = AuditService(config)
+        await audit_service.initialize()
+
+        result = await audit_service.aggregate_usage(since="2026-01-01", until="2026-01-02")
+
+        assert result['totals']['requests'] == 0
+        assert result['totals']['cost_usd'] == 0.0
+        assert result['series'] == []
+        assert result['groups'] == []
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

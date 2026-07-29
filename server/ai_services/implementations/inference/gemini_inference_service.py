@@ -11,12 +11,13 @@ import logging
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService, ToolCallingResult
 
 logger = logging.getLogger(__name__)
 
 
-class GeminiInferenceService(InferenceService, GoogleBaseService):
+class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseService):
     """
     Gemini inference service using unified architecture.
 
@@ -405,8 +406,24 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             cleaned[k] = v
         return cleaned
 
+    @staticmethod
+    def _billed_completion_tokens(usage) -> int:
+        """
+        Completion-side token count actually billed by Gemini.
+
+        candidates_token_count alone excludes thoughts_token_count (the
+        separately reported reasoning/thinking tokens on models with
+        thinking enabled), even though those tokens are billed as output —
+        omitting them understates both tokens and estimated cost for
+        reasoning-enabled requests.
+        """
+        candidates = getattr(usage, "candidates_token_count", None) or 0
+        thoughts = getattr(usage, "thoughts_token_count", None) or 0
+        return candidates + thoughts
+
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using Gemini."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -430,6 +447,15 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                 config=config,
             )
 
+            usage = getattr(response, "usage_metadata", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_token_count", None),
+                    self._billed_completion_tokens(usage),
+                    reasoning_tokens=getattr(usage, "thoughts_token_count", None),
+                )
+
             text = self._extract_text(response)
             if web_search:
                 text += self._format_grounding_sources(response.candidates[0])
@@ -441,6 +467,7 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming response using Gemini."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -464,7 +491,10 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             )
 
             last_candidate = None
+            last_usage = None
             for chunk in response_iter:
+                if getattr(chunk, "usage_metadata", None) is not None:
+                    last_usage = chunk.usage_metadata
                 if chunk.candidates:
                     last_candidate = chunk.candidates[0]
                     if last_candidate.content and last_candidate.content.parts:
@@ -472,6 +502,14 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                         if hasattr(part, 'text') and part.text:
                             yield part.text
                             await asyncio.sleep(0)
+
+            if last_usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(last_usage, "prompt_token_count", None),
+                    self._billed_completion_tokens(last_usage),
+                    reasoning_tokens=getattr(last_usage, "thoughts_token_count", None),
+                )
 
             if web_search and last_candidate is not None:
                 sources = self._format_grounding_sources(last_candidate)

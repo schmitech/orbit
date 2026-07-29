@@ -169,6 +169,11 @@ class ServiceFactory:
         # Initialize Logger Service (always needed)
         await self._initialize_logger_service(app)
 
+        # Initialize Pricing Service (for token-usage cost estimation; audit
+        # service reads it indirectly via the pipeline, admin routes read
+        # app.state.pricing_service directly)
+        self._initialize_pricing_service(app)
+
         # Initialize Audit Service (for audit trail storage)
         await self._initialize_audit_service(app)
 
@@ -211,6 +216,7 @@ class ServiceFactory:
         database_service = getattr(app.state, 'database_service', None)
         thread_dataset_service = getattr(app.state, 'thread_dataset_service', None)
         file_processing_service = getattr(app.state, 'file_processing_service', None)
+        pricing_service = getattr(app.state, 'pricing_service', None)
         app.state.chat_service = PipelineChatService(
             config=self.config,
             logger_service=app.state.logger_service,
@@ -225,7 +231,8 @@ class ServiceFactory:
             audit_service=audit_service,  # Pass audit service for audit trail storage
             database_service=database_service,  # Pass shared database service for thread operations
             thread_dataset_service=thread_dataset_service,  # Pass shared thread dataset service
-            file_processing_service=file_processing_service  # Pass for generated image persistence
+            file_processing_service=file_processing_service,  # Pass for generated image persistence
+            pricing_service=pricing_service  # Pass for token-usage cost estimation
         )
         # Initialize the pipeline provider
         try:
@@ -594,6 +601,16 @@ class ServiceFactory:
         app.state.logger_service = LoggerService(self.config)
         await app.state.logger_service.initialize_elasticsearch()
         logger.info("Logger Service initialized successfully")
+
+    def _initialize_pricing_service(self, app: FastAPI) -> None:
+        """Initialize the local pricing table used to estimate inference cost."""
+        try:
+            from services.pricing_service import PricingService
+            app.state.pricing_service = PricingService(self.config)
+            logger.debug("Pricing Service initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Pricing Service: {str(e)}")
+            app.state.pricing_service = None
 
     async def _initialize_audit_service(self, app: FastAPI) -> None:
         """Initialize Audit Service for audit trail storage."""

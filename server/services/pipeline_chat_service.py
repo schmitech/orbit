@@ -43,7 +43,7 @@ class PipelineChatService:
                  retriever=None, reranker_service=None, prompt_service=None, clock_service=None,
                  cache_service=None, adapter_manager=None, audit_service=None,
                  database_service=None, thread_dataset_service=None,
-                 file_processing_service=None):
+                 file_processing_service=None, pricing_service=None):
         """
         Initialize the pipeline chat service.
 
@@ -95,7 +95,8 @@ class PipelineChatService:
             clock_service=self.clock_service,
             cache_service=self.cache_service,
             database_service=database_service,
-            thread_dataset_service=thread_dataset_service
+            thread_dataset_service=thread_dataset_service,
+            pricing_service=pricing_service
         )
 
         self._init_handlers(adapter_manager)
@@ -750,6 +751,7 @@ class PipelineChatService:
                 regenerate_of_message_id=regenerate_of_message_id,
                 runtime_param_overrides=context.runtime_param_overrides,
                 runtime_provider=context.runtime_provider,
+                usage=result.metadata.get("usage") if result.metadata else None,
             )
 
             audio_data, audio_format_str = await self._maybe_generate_full_audio(
@@ -1038,6 +1040,7 @@ class PipelineChatService:
             regenerate_of_message_id=regenerate_of_message_id,
             runtime_param_overrides=context.runtime_param_overrides,
             runtime_provider=context.runtime_provider,
+            usage=context.metadata.get("usage") if context.metadata else None,
         )
 
         warning = await self.conversation_handler.check_limit_warning(

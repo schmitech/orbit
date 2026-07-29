@@ -11,10 +11,11 @@ from urllib.parse import urlparse
 
 from ...base import ServiceType
 from ...providers import AnthropicBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService, ToolCallingResult
 
 
-class AnthropicInferenceService(InferenceService, AnthropicBaseService):
+class AnthropicInferenceService(UsageReportingMixin, InferenceService, AnthropicBaseService):
     """
     Anthropic inference service using unified architecture.
 
@@ -246,6 +247,7 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
         Returns:
             The generated response text
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -283,6 +285,14 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
 
             response = await self.client.messages.create(**params)
 
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "input_tokens", None),
+                    getattr(usage, "output_tokens", None),
+                )
+
             text, citations = self._extract_text_and_citations(response.content)
             if web_search:
                 text += self._format_citations(citations)
@@ -303,6 +313,7 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
         Yields:
             Response chunks as they are generated
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -342,12 +353,25 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
                 async for text in stream.text_stream:
                     yield text
 
-                if web_search:
+                # get_final_message() is available once the stream is exhausted
+                # and carries the message-level usage totals (input/output
+                # tokens are cumulative on Anthropic's message_delta events —
+                # this is the final, already-summed value, not something to add to).
+                if usage_sink is not None or web_search:
                     final_message = await stream.get_final_message()
-                    _, citations = self._extract_text_and_citations(final_message.content)
-                    sources = self._format_citations(citations)
-                    if sources:
-                        yield sources
+                    if usage_sink is not None:
+                        usage = getattr(final_message, "usage", None)
+                        if usage is not None:
+                            self._report_usage(
+                                usage_sink,
+                                getattr(usage, "input_tokens", None),
+                                getattr(usage, "output_tokens", None),
+                            )
+                    if web_search:
+                        _, citations = self._extract_text_and_citations(final_message.content)
+                        sources = self._format_citations(citations)
+                        if sources:
+                            yield sources
 
         except Exception as e:
             self._handle_anthropic_error(e, "streaming generation")

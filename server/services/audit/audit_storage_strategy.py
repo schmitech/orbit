@@ -89,6 +89,14 @@ class AuditRecord:
     adapter_name: Optional[str] = None  # Name of the adapter used for this request
     model: Optional[str] = None  # Actual model used for this request
     response_compressed: bool = False  # Flag indicating if response is compressed
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    reasoning_tokens: Optional[int] = None  # Subset of completion_tokens; informational, already priced within it
+    cost_usd: Optional[float] = None
+    input_rate_per_1m: Optional[float] = None
+    output_rate_per_1m: Optional[float] = None
+    pricing_source: Optional[str] = None  # exact | pattern | provider_default | local_zero | unpriced | unreported
 
     def to_dict(self, compress: bool = False) -> Dict[str, Any]:
         """
@@ -128,6 +136,22 @@ class AuditRecord:
             result['adapter_name'] = self.adapter_name
         if self.model:
             result['model'] = self.model
+        if self.prompt_tokens is not None:
+            result['prompt_tokens'] = self.prompt_tokens
+        if self.completion_tokens is not None:
+            result['completion_tokens'] = self.completion_tokens
+        if self.total_tokens is not None:
+            result['total_tokens'] = self.total_tokens
+        if self.reasoning_tokens is not None:
+            result['reasoning_tokens'] = self.reasoning_tokens
+        if self.cost_usd is not None:
+            result['cost_usd'] = self.cost_usd
+        if self.input_rate_per_1m is not None:
+            result['input_rate_per_1m'] = self.input_rate_per_1m
+        if self.output_rate_per_1m is not None:
+            result['output_rate_per_1m'] = self.output_rate_per_1m
+        if self.pricing_source:
+            result['pricing_source'] = self.pricing_source
 
         return result
 
@@ -191,6 +215,15 @@ class AuditRecord:
             result['model'] = self.model
         else:
             result['model'] = None
+
+        result['prompt_tokens'] = self.prompt_tokens
+        result['completion_tokens'] = self.completion_tokens
+        result['total_tokens'] = self.total_tokens
+        result['reasoning_tokens'] = self.reasoning_tokens
+        result['cost_usd'] = self.cost_usd
+        result['input_rate_per_1m'] = self.input_rate_per_1m
+        result['output_rate_per_1m'] = self.output_rate_per_1m
+        result['pricing_source'] = self.pricing_source
 
         return result
 
@@ -264,6 +297,35 @@ class AuditStorageStrategy(ABC):
             List of matching audit records as dictionaries
         """
         pass
+
+    async def aggregate_usage(
+        self,
+        since: str,
+        until: str,
+        bucket: str = "day",
+        group_by: str = "model",
+        filters: Optional[Dict[str, Any]] = None,
+        limit_groups: int = 10,
+    ) -> Dict[str, Any]:
+        """
+        Aggregate token usage/cost over a time window for the Observability page.
+
+        Not abstract (default raises NotImplementedError) so out-of-tree
+        strategies don't break; AuditService.aggregate_usage catches this and
+        returns a zeroed skeleton rather than propagating a 500.
+
+        Args:
+            since: ISO timestamp, inclusive lower bound
+            until: ISO timestamp, exclusive upper bound
+            bucket: "hour" or "day" — time-series bucketing granularity
+            group_by: "model" | "provider" | "adapter_name" | "user_id" | "none"
+            filters: Optional extra equality filters (e.g. {'provider': 'openai'})
+            limit_groups: Max number of distinct groups to return, ranked by cost
+
+        Returns:
+            {"totals": {...}, "series": [...], "groups": [...]}
+        """
+        raise NotImplementedError
 
     @abstractmethod
     async def close(self) -> None:

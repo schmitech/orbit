@@ -5,7 +5,7 @@ This module defines the base interface for LLM providers in the pipeline archite
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Dict, Optional
 
 
 class LLMProvider(ABC):
@@ -50,6 +50,24 @@ class LLMProvider(ABC):
             Response chunks as they are generated
         """
         pass
+
+    async def generate_tracked(
+        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> str:
+        """
+        Same as generate(), but fills usage_sink with token usage when the
+        underlying service supports it. Non-abstract with a plain delegation
+        default so legacy provider implementations and test doubles that only
+        implement generate() keep working unchanged.
+        """
+        return await self.generate(prompt, **kwargs)
+
+    async def generate_stream_tracked(
+        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> AsyncGenerator[str, None]:
+        """Streaming counterpart of generate_tracked()."""
+        async for chunk in self.generate_stream(prompt, **kwargs):
+            yield chunk
 
     @abstractmethod
     async def close(self) -> None:

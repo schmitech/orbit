@@ -51,7 +51,8 @@ class PipelineFactory:
         clock_service=None,
         cache_service=None,
         database_service=None,
-        thread_dataset_service=None
+        thread_dataset_service=None,
+        pricing_service=None
     ) -> ServiceContainer:
         """
         Create a service container with all required services.
@@ -121,6 +122,10 @@ class PipelineFactory:
         # Register thread dataset service for conversation threading
         if thread_dataset_service:
             container.register_singleton('thread_dataset_service', thread_dataset_service)
+
+        # Register pricing service for token-usage cost estimation
+        if pricing_service:
+            container.register_singleton('pricing_service', pricing_service)
 
         logger.info(f"Created service container with {len(container.list_services())} services")
         return container
@@ -192,6 +197,7 @@ class PipelineFactory:
         cache_service=None,
         database_service=None,
         thread_dataset_service=None,
+        pricing_service=None,
         pipeline_type: str = "standard"
     ) -> InferencePipeline:
         """
@@ -228,7 +234,8 @@ class PipelineFactory:
             clock_service=clock_service,
             cache_service=cache_service,
             database_service=database_service,
-            thread_dataset_service=thread_dataset_service
+            thread_dataset_service=thread_dataset_service,
+            pricing_service=pricing_service
         )
 
-        return self.create_pipeline(container, pipeline_type) 
+        return self.create_pipeline(container, pipeline_type)

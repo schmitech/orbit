@@ -171,7 +171,8 @@ class ResponseProcessor:
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
         adapter_name: Optional[str] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        usage: Optional[Dict[str, Any]] = None
     ) -> None:
         """
         Log conversation asynchronously.
@@ -186,6 +187,7 @@ class ResponseProcessor:
             user_id: Optional user ID
             adapter_name: Optional adapter name used for this request
             model: Optional actual model used for this request
+            usage: Optional token usage/cost dict from context.metadata["usage"]
         """
         # Log metadata to Elasticsearch via LoggerService (query/response excluded - handled by audit)
         try:
@@ -218,6 +220,8 @@ class ResponseProcessor:
                 }
                 if model:
                     audit_kwargs["model"] = model
+                if usage:
+                    audit_kwargs["usage"] = usage
                 await self.audit_service.log_conversation(**audit_kwargs)
             except Exception as e:
                 logger.error(f"Error logging conversation to AuditService: {str(e)}", exc_info=True)
@@ -237,7 +241,8 @@ class ResponseProcessor:
         model: Optional[str] = None,
         regenerate_of_message_id: Optional[str] = None,
         runtime_param_overrides: Optional[Dict[str, Any]] = None,
-        runtime_provider: Optional[str] = None
+        runtime_provider: Optional[str] = None,
+        usage: Optional[Dict[str, Any]] = None
     ) -> tuple[str, Optional[str]]:
         """
         Complete post-processing of a chat response.
@@ -327,7 +332,8 @@ class ResponseProcessor:
             api_key=api_key,
             session_id=session_id,
             user_id=user_id,
-            adapter_name=adapter_name
+            adapter_name=adapter_name,
+            usage=usage
         )
 
         return displayed_response, assistant_message_id

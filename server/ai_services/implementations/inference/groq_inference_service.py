@@ -10,10 +10,11 @@ Compare with: server/inference/pipeline/providers/groq_provider.py (old implemen
 from typing import Dict, Any, AsyncGenerator
 
 from ...providers import OpenAICompatibleBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService
 
 
-class GroqInferenceService(InferenceService, OpenAICompatibleBaseService):
+class GroqInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibleBaseService):
     """
     Groq inference service using unified architecture.
 
@@ -59,6 +60,7 @@ class GroqInferenceService(InferenceService, OpenAICompatibleBaseService):
         Returns:
             The generated response text
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -98,6 +100,15 @@ class GroqInferenceService(InferenceService, OpenAICompatibleBaseService):
             # Use the OpenAI client (pointing to Groq's API)
             response = await self.client.chat.completions.create(**params)
 
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_tokens", None),
+                    getattr(usage, "completion_tokens", None),
+                    reasoning_tokens=self._extract_reasoning_tokens(usage),
+                )
+
             return response.choices[0].message.content
 
         except Exception as e:
@@ -115,6 +126,7 @@ class GroqInferenceService(InferenceService, OpenAICompatibleBaseService):
         Yields:
             Response chunks as they are generated
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -146,6 +158,7 @@ class GroqInferenceService(InferenceService, OpenAICompatibleBaseService):
                 "max_tokens": kwargs.pop('max_tokens', self.max_tokens),
                 "top_p": kwargs.pop('top_p', self.top_p),
                 "stream": True,
+                "stream_options": {"include_usage": True},
                 **kwargs  # Any other Groq-specific parameters
             }
             if reasoning_effort:
@@ -157,6 +170,13 @@ class GroqInferenceService(InferenceService, OpenAICompatibleBaseService):
             async for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
+                elif getattr(chunk, "usage", None):
+                    self._report_usage(
+                        usage_sink,
+                        getattr(chunk.usage, "prompt_tokens", None),
+                        getattr(chunk.usage, "completion_tokens", None),
+                        reasoning_tokens=self._extract_reasoning_tokens(chunk.usage),
+                    )
 
         except Exception as e:
             self._handle_openai_compatible_error(e, "streaming generation")
