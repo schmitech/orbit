@@ -54,6 +54,14 @@ ORBIT sits between your applications and the models, data, and tools they need. 
 
 ORBIT is actively maintained. See the [release history](https://github.com/schmitech/orbit/releases), [changelog](CHANGELOG.md), and [commit history](https://github.com/schmitech/orbit/commits/main).
 
+<br>
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/17b2521c-b65a-4717-a842-074bfea9ffb7" controls muted playsinline width="85%"></video>
+  <br />
+  <em>Switch to any allowed model mid-conversation, with the active adapter policy defined in <a href="https://github.com/schmitech/orbit/blob/main/config/adapters/multimodal.yaml">config/adapters/multimodal.yaml</a>.</em>
+</div>
+
 ## 🚀 Quick Start
 
 <div align="center">

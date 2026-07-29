@@ -21,7 +21,9 @@ adapters:
     # defaults for the resolved inference_provider when omitted.
     # context_window: 128000
     # max_tokens: 16000
-    # effort: "low"            # Claude/OpenAI/Mistral/Gemini/xAI reasoning effort; ignored by providers that don't support it
+    # effort: "low"
+    # Claude/OpenAI/Mistral/Gemini/xAI reasoning effort; ignored by providers that don't support it
+    #
     # Optional: clients may request any of these models at runtime via the "model" field.
     # If omitted, the adapter always uses the model defined above. Each entry may also
     # carry its own optional temperature/max_tokens/context_window/effort overrides.
@@ -29,10 +31,82 @@ adapters:
     # OpenAI/Mistral/xAI reasoning_effort, Gemini thinking_level); ignored where unsupported.
     allowed_models:
       - name: "minimax-m3"
-        provider: "openrouter"
-        model: "minimax/minimax-m3"
+        provider: "ollama_cloud"
+        model: "minimax-m3:cloud"
+        context_window: 512000
+        max_tokens: 32768
+        effort: "high"
+      - name: "minimax-m2.7"
+        provider: "ollama_cloud"
+        model: "minimax-m2.7:cloud"
+        context_window: 200000
+        max_tokens: 24576
+        effort: "medium"
+      - name: "glm-5.2"
+        provider: "ollama_cloud"
+        model: "glm-5.2:cloud"
+        context_window: 976000
+        max_tokens: 32768
+        effort: "high"
+      - name: "glm-5.1"
+        provider: "ollama_cloud"
+        model: "glm-5.1:cloud"
+        context_window: 198000
+        max_tokens: 24576
+        effort: "high"
+      - name: "kimi-k3"
+        provider: "ollama_cloud"
+        model: "kimi-k3:cloud"
         context_window: 1000000
-        max_tokens: 128000
+        max_tokens: 32768
+        effort: "high"
+      - name: "kimi-k2.7-code"
+        provider: "ollama_cloud"
+        model: "kimi-k2.7-code:cloud"
+        context_window: 256000
+        max_tokens: 24576
+        effort: "high"
+      - name: "deepseek-v4-flash"
+        provider: "ollama_cloud"
+        model: "deepseek-v4-flash:cloud"
+        context_window: 1000000
+        max_tokens: 32768
+        effort: "medium"
+      - name: "deepseek-v4-pro"
+        provider: "ollama_cloud"
+        model: "deepseek-v4-pro:cloud"
+        context_window: 1000000
+        max_tokens: 49152
+        effort: "high"
+      - name: "qwen3.5"
+        provider: "ollama_cloud"
+        model: "qwen3.5:cloud"
+        context_window: 256000
+        max_tokens: 16384
+        effort: "medium"
+      - name: "qwen3.5-397b"
+        provider: "ollama_cloud"
+        model: "qwen3.5:397b-cloud"
+        context_window: 256000
+        max_tokens: 32768
+        effort: "high"
+      - name: "gemma4"
+        provider: "ollama_cloud"
+        model: "gemma4:cloud"
+        context_window: 256000
+        max_tokens: 16384
+        effort: "low"
+      - name: "gemma4-31b"
+        provider: "ollama_cloud"
+        model: "gemma4:31b-cloud"
+        context_window: 256000
+        max_tokens: 24576
+        effort: "low"
+      - name: "mistral-large-3"
+        provider: "ollama_cloud"
+        model: "mistral-large-3:675b-cloud"
+        context_window: 256000
+        max_tokens: 32768
       - name: "deepseek"
         provider: "deepseek"
         model: "deepseek-chat"
@@ -55,10 +129,17 @@ adapters:
         context_window: 8192
         max_tokens: 2048
       - name: "gpt-oss-120b"
-        provider: "openrouter"
-        model: "openai/gpt-oss-120b:free"
+        provider: "ollama_cloud"
+        model: "gpt-oss:120b-cloud"
         context_window: 131072
         max_tokens: 32768
+        effort: "medium"
+      - name: "gpt-oss-20b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b-cloud"
+        context_window: 131072
+        max_tokens: 16384
+        effort: "low"
       - name: "claude"
         provider: "anthropic"
         model: "claude-sonnet-4-5-20250929"
@@ -67,15 +148,22 @@ adapters:
         effort: "low"           # Ignored for Claude models that don't support the effort parameter
       - name: "gemini"
         provider: "gemini"
-        model: "gemini-3.1-pro-preview"
+        model: "gemini-3.6-flash"
         context_window: 1048576
         max_tokens: 65536
         effort: "low"           # Maps to thinking_level (minimal | low | medium | high)
       - name: "nemotron-3-ultra"
-        provider: "openrouter"
-        model: "nvidia/nemotron-3-ultra-550b-a55b"
-        context_window: 1048576
-        max_tokens: 65536
+        provider: "ollama_cloud"
+        model: "nemotron-3-ultra:cloud"
+        context_window: 256000
+        max_tokens: 32768
+        effort: "high"
+      - name: "nemotron-3-super"
+        provider: "ollama_cloud"
+        model: "nemotron-3-super:cloud"
+        context_window: 256000
+        max_tokens: 32768
+        effort: "high"
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
       retrieval_behavior: "conditional"  # Only retrieves when file_ids are present
