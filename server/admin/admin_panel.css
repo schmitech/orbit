@@ -3357,6 +3357,52 @@ code.plain-code {
    Audit Ledger (Audit tab)
    ============================================================ */
 
+/* Picking a row and reading it are one motion, so the dossier belongs beside
+   the ledger, not below it. Above the split breakpoint it holds its own column
+   and stays pinned under the workbar — no selection ever costs a scroll. */
+.audit-view {
+  align-items: start;
+}
+
+/* Below the breakpoint the dossier stacks under the table and is scrolled to
+   on selection; this keeps it clear of the sticky workbar when it lands. */
+.audit-view__detail {
+  scroll-margin-top: calc(var(--workbar-h) + var(--sp-4));
+}
+
+@media (min-width: 1280px) {
+  .audit-view {
+    grid-template-columns: minmax(0, 1.4fr) minmax(360px, 0.6fr);
+  }
+
+  .audit-view__detail {
+    position: sticky;
+    top: calc(var(--workbar-h) + var(--sp-5));
+    max-height: calc(100vh - var(--workbar-h) - var(--sp-10));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* The ledger column is narrower than the width the filter strip was built
+     for, so it wraps into rows rather than overflowing its panel. */
+  .audit-view__filters {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .audit-view__search {
+    min-width: 0;
+  }
+
+  .audit-view__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+
+  .audit-view__table-wrap {
+    overflow-x: auto;
+  }
+}
+
 .audit-view__filters {
   display: grid;
   grid-template-columns: repeat(3, minmax(160px, 220px)) minmax(260px, 1fr) auto;
@@ -3585,6 +3631,15 @@ code.plain-code {
 /* Dossier */
 .audit-view__detail h2 {
   margin-top: 0;
+}
+
+/* The dossier's waiting state is prose to be read, not a centred notice in the
+   middle of a table, so it sets flush with the headings above and below it. */
+.audit-view__detail .empty-state {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-4) 0;
+  text-align: left;
 }
 
 .audit-dossier__close {

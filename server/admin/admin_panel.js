@@ -6102,6 +6102,15 @@
     // ----- Dossier: empty initial state -----
     renderAuditDossierEmpty(detailPanel);
 
+    // At narrow widths the dossier stacks under the ledger, so bring it into
+    // view on selection instead of leaving the reader to hunt for it. Above the
+    // split breakpoint it is already beside the table and must not move.
+    function revealDossier() {
+      if (window.matchMedia("(min-width: 1280px)").matches) return;
+      var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      detailPanel.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    }
+
     // ----- Data loading -----
     async function load() {
       if (state.loading) return;
@@ -6136,6 +6145,7 @@
             tableWrap.querySelectorAll("tr.audit-row"),
             function (tr, i) { tr.classList.toggle("audit-row--active", i === idx); }
           );
+          revealDossier();
         });
         renderAuditPager(pagerBar, state, resp, load);
       } catch (err) {
