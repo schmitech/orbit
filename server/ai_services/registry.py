@@ -102,6 +102,7 @@ def register_inference_services(config: Dict[str, Any] = None) -> None:
         ("replicate", "ReplicateInferenceService", "Replicate"),
         ("watson", "WatsonInferenceService", "IBM Watson"),
         ("vllm", "VLLMInferenceService", "vLLM"),
+        ("sglang", "SGLangInferenceService", "SGLang"),
         ("llama_cpp", "LlamaCppInferenceService", "Llama.cpp"),
         ("shimmy", "ShimmyInferenceService", "Shimmy"),
         ("huggingface", "HuggingFaceInferenceService", "Hugging Face"),

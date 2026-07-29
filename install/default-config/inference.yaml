@@ -157,6 +157,34 @@ inference:
       initial_wait_ms: 1000
       max_wait_ms: 30000
       exponential_base: 2
+  sglang:
+    enabled: false
+    # Connect to a running SGLang server. Orbit does not install or launch SGLang.
+    # Example: python3 -m sglang.launch_server --model-path Qwen/Qwen2.5-1.5B-Instruct --host 0.0.0.0 --port 30000
+    # For MCP tool calling, start the server with the model-appropriate --tool-call-parser.
+    host: "localhost"
+    port: 30000
+    base_url: null  # Optional full override, e.g. "http://sglang.example:30000/v1"
+    api_key: null   # Optional; set this when the server is started with --api-key
+    model: "Qwen/Qwen2.5-1.5B-Instruct"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20                     # Omit with -1; supported by SGLang sampling parameters
+    max_tokens: 2048
+    repetition_penalty: 1.0
+    presence_penalty: 0.0
+    frequency_penalty: 0.0
+    stream: true
+    stop: ["<|eot_id|>"]
+    timeout:
+      connect: 10000
+      total: 120000
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
   tensorrt:
     enabled: false
     # Mode: "direct" (load model locally with TensorRT-LLM) or "api" (connect to trtllm-serve)

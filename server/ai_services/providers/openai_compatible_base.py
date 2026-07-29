@@ -61,6 +61,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "cerebras": "https://api.cerebras.ai/v1",
         "deepinfra": "https://api.deepinfra.com/v1/openai",
         "lmstudio": "http://localhost:1234/v1",
+        "sglang": "http://localhost:30000/v1",
         "moonshot": "https://api.moonshot.cn/v1",
         "minimax": "https://api.minimax.chat/v1",
         "nearai": "https://cloud-api.near.ai/v1",
@@ -84,6 +85,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "cerebras": "CEREBRAS_API_KEY",
         "deepinfra": "DEEPINFRA_API_KEY",
         "lmstudio": "LMSTUDIO_API_KEY",
+        "sglang": "SGLANG_API_KEY",
         "moonshot": "MOONSHOT_API_KEY",
         "minimax": "MINIMAX_API_KEY",
         "nearai": "NEARAI_API_KEY",
@@ -152,10 +154,17 @@ class OpenAICompatibleBaseService(ProviderAIService):
         # Get endpoint (optional, some providers may use this)
         self.endpoint = self._get_endpoint("/chat/completions")  # Default for inference
 
-        # Initialize AsyncOpenAI client with optimized httpx settings for streaming
-        # HTTP/2 provides better multiplexing and connection reuse
+        # Initialize AsyncOpenAI client with optimized httpx settings for streaming.
+        # HTTP/2 is optional in httpx and may not be installed in lightweight
+        # local deployments, so retain a working HTTP/1.1 client in that case.
+        try:
+            import h2  # noqa: F401
+            http2_enabled = True
+        except ImportError:
+            http2_enabled = False
+            logger.debug("HTTP/2 support is unavailable; using HTTP/1.1 for %s", self.provider_name)
         http_client = httpx.AsyncClient(
-            http2=True,  # Enable HTTP/2 for better performance
+            http2=http2_enabled,
             limits=httpx.Limits(
                 max_keepalive_connections=20,
                 max_connections=100,

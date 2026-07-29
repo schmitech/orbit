@@ -61,6 +61,7 @@ class TestInferenceProviderRegistration:
                 "replicate": {"enabled": False},
                 "watson": {"enabled": False},
                 "vllm": {"enabled": False},
+                "sglang": {"enabled": True, "model": "Qwen/Qwen2.5-1.5B-Instruct"},
                 "llama_cpp": {"enabled": False},
                 "huggingface": {"enabled": False},
                 "ollama_cloud": {"enabled": False},
@@ -116,6 +117,7 @@ class TestInferenceProviderRegistration:
             mock_module.OpenAIInferenceService = MagicMock()
             mock_module.AnthropicInferenceService = MagicMock()
             mock_module.GroqInferenceService = MagicMock()
+            mock_module.SGLangInferenceService = MagicMock()
 
             # Configure mock_import to return our mock module for ai_services.implementations
             def side_effect(name, *args, **kwargs):
@@ -137,6 +139,7 @@ class TestInferenceProviderRegistration:
             assert 'openai' in inference_providers
             assert 'anthropic' in inference_providers
             assert 'groq' in inference_providers
+            assert 'sglang' in inference_providers
 
             # Verify that disabled providers are NOT registered
             assert 'ollama' not in inference_providers

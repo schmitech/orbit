@@ -22,6 +22,7 @@ Available providers:
     - ReplicateInferenceService: Replicate inference
     - WatsonInferenceService: IBM Watson inference
     - VLLMInferenceService: vLLM inference
+    - SGLangInferenceService: SGLang inference server
     - LlamaCppInferenceService: Llama.cpp inference
     - ShimmyInferenceService: Shimmy inference
     - HuggingFaceInferenceService: Hugging Face inference
@@ -71,6 +72,7 @@ _implementations = [
     ('replicate_inference_service', 'ReplicateInferenceService'),
     ('watson_inference_service', 'WatsonInferenceService'),
     ('vllm_inference_service', 'VLLMInferenceService'),
+    ('sglang_inference_service', 'SGLangInferenceService'),
     ('llama_cpp_inference_service', 'LlamaCppInferenceService'),
     ('shimmy_inference_service', 'ShimmyInferenceService'),
     ('huggingface_inference_service', 'HuggingFaceInferenceService'),
