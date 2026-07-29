@@ -10,8 +10,19 @@
   --surface:       #ffffff;
   --surface-raised:#f7f9fc;
   --surface-sunken:#eef1f7;
-  --border:        #d6dce8;
-  --border-light:  #e8ecf3;
+  --border:        #d5e0ed;
+  --border-light:  #e4ecf5;
+
+  /* Panel surfaces: the canvas recedes, a panel you are working in comes
+     forward to white and lights its leading edge. */
+  --canvas:        #e8eef6;
+  --panel:         #f8fafc;
+  --panel-hover:   #f1f6fc;
+  --panel-active:  #ffffff;
+  --panel-border-active: #b9cce5;
+  --panel-accent:  #3b82c4;
+  --row-alt:       #f1f6fc;
+  --th-bg:         #edf3fa;
 
   /* Brand */
   --brand-300:     #8dbdec;
@@ -101,7 +112,7 @@ body {
   font-size: var(--text-base);
   line-height: 1.5;
   color: var(--ink);
-  background: var(--surface-sunken);
+  background: var(--canvas);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -241,18 +252,6 @@ textarea {
   flex: 1;
   overflow-y: auto;
   padding: var(--sp-2) var(--sp-3) var(--sp-5);
-}
-
-/* Signature: a single trace threading every section, the way a request
-   threads the gateway. The active section is the lit node on the wire. */
-.app-shell:not(.rail-collapsed) .rail-nav::before {
-  content: "";
-  position: absolute;
-  top: var(--sp-4);
-  bottom: var(--sp-6);
-  left: 30px;
-  width: 1px;
-  background: linear-gradient(180deg, transparent, var(--rail-line) 8%, var(--rail-line) 92%, transparent);
 }
 
 .rail-group + .rail-group {
@@ -461,11 +460,27 @@ textarea {
 }
 
 .workbar-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   margin: 0;
   font-size: 1.0625rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ink);
+}
+
+/* The selected tab's rail icon, repeated under the rail item that lit it.
+   Sized below the heading's cap height so it reads as a mark, not a glyph. */
+.workbar-title-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--panel-accent);
+}
+
+.workbar-title-icon svg {
+  width: 17px;
+  height: 17px;
 }
 
 .workbar-actions {
@@ -515,12 +530,35 @@ textarea {
    ============================================================ */
 
 .panel {
-  background: var(--surface);
+  position: relative;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--sp-6);
   box-shadow: var(--shadow-sm);
   animation: rise-in 240ms ease-out;
+  transition: background var(--transition-base), border-color var(--transition-base),
+    box-shadow var(--transition-base);
+}
+
+/* The panel you are working in becomes the only white surface on screen and
+   lights its leading edge, so the eye always knows where it left off. The
+   inset shadow draws the accent without shifting a single pixel of layout. */
+.panel:focus-within,
+.panel.is-active {
+  background: var(--panel-active);
+  border-color: var(--panel-border-active);
+  box-shadow: var(--shadow-md), inset 3px 0 0 var(--panel-accent);
+}
+
+/* Panels that respond to a click say so before you commit to one. */
+.panel.is-interactive {
+  cursor: pointer;
+}
+
+.panel.is-interactive:hover:not(:focus-within):not(.is-active) {
+  background: var(--panel-hover);
+  border-color: var(--panel-border-active);
 }
 
 .panel h2 {
@@ -1187,7 +1225,7 @@ th {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--ink-muted);
-  background: var(--surface-raised);
+  background: var(--th-bg);
   border-bottom: 2px solid var(--border);
 }
 
@@ -1224,13 +1262,13 @@ th[style*="text-align:center"] .th-sort {
 }
 
 .th-sort:hover:not(:disabled) {
-  background: var(--surface-sunken);
+  background: var(--brand-50);
   color: var(--ink-secondary);
   box-shadow: none;
 }
 
 .th-sort:active:not(:disabled) {
-  background: var(--surface-sunken);
+  background: var(--brand-50);
   transform: none;
   box-shadow: none;
 }
@@ -1264,7 +1302,7 @@ td {
 }
 
 tbody tr:nth-child(even) {
-  background: var(--surface-raised);
+  background: var(--row-alt);
 }
 
 .selectable-row {
@@ -2251,7 +2289,6 @@ code.plain-code {
 
   .rail-version,
   .rail-link-label,
-  .rail-nav::before,
   .brand-logo {
     display: none;
   }
@@ -2709,6 +2746,19 @@ code.plain-code {
 .chart-card canvas {
   width: 100% !important;
   height: 240px !important;
+}
+
+/* Doughnuts need a square drawing area; a full-width, fixed-height canvas
+   turns the ring into an ellipse on wider cards. */
+.feedback-donut-wrap {
+  width: min(100%, 240px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+.feedback-donut-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* Monitoring badges */
@@ -3333,17 +3383,22 @@ code.plain-code {
 .audit-view__select {
   width: 100%;
   min-height: 40px;
-  padding: 8px 12px;
+  padding: 8px var(--sp-8) 8px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font: inherit;
   color: var(--ink);
-  background: var(--surface);
+  background-color: var(--surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' fill='none'%3E%3Cpath d='M1.5 1.5 7 7l5.5-5.5' stroke='%233d4f6f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--sp-3) center;
+  cursor: pointer;
 }
 
 .audit-view__select:disabled {
-  background: var(--surface-sunken);
+  background-color: var(--surface-sunken);
   color: var(--ink-muted);
+  cursor: not-allowed;
 }
 
 .audit-view__search {

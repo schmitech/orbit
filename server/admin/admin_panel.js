@@ -1095,6 +1095,17 @@
     return TABS.filter(function (t) { return t.id === id; })[0] || null;
   }
 
+  // The workbar repeats the rail icon of the selected tab, so the heading and
+  // the nav item that lit it read as one object. Rebuilt on every tab switch
+  // because the icon changes with the title.
+  function fillWorkbarTitle(heading, tab) {
+    clear(heading);
+    if (tab && tab.icon) {
+      heading.appendChild(el("span", { className: "workbar-title-icon", "aria-hidden": "true" }, svgIcon(tab.icon)));
+    }
+    heading.appendChild(el("span", null, tab ? tab.label : "Admin"));
+  }
+
   function userHasPermission(permission) {
     var permissions = (currentUser && currentUser.permissions) || [];
     return permissions.indexOf("*") !== -1 || permissions.indexOf(permission) !== -1;
@@ -1203,9 +1214,11 @@
     logoutBtn.addEventListener("click", doLogout);
 
     var current = tabById(activeTab);
+    var workbarTitle = el("h1", { className: "workbar-title", id: "workbar-title" });
+    fillWorkbarTitle(workbarTitle, current);
     var workbar = el("div", { className: "workbar" },
       el("div", { className: "workbar-heading" },
-        el("h1", { className: "workbar-title", id: "workbar-title" }, current ? current.label : "Admin")
+        workbarTitle
       ),
       el("div", { className: "workbar-actions" },
         el("span", { className: "workbar-user" }, currentUser ? (currentUser.email || currentUser.username) : ""),
@@ -1286,7 +1299,7 @@
     });
     var current = tabById(id);
     var title = document.getElementById("workbar-title");
-    if (title) title.textContent = current ? current.label : "Admin";
+    if (title) fillWorkbarTitle(title, current);
     var panel = document.getElementById("tab-content");
     if (panel) panel.setAttribute("aria-labelledby", "tab-" + id);
     renderTab();
@@ -2317,8 +2330,10 @@
           backgroundColor: "rgba(10,14,23,0.96)",
           titleColor: "#f4f6fa",
           bodyColor: "#e4e8f0",
-          padding: 12,
-          cornerRadius: 6
+          padding: 16,
+          cornerRadius: 6,
+          titleFont: { family: "'JetBrains Mono', monospace", size: 18, weight: "500" },
+          bodyFont: { family: "'JetBrains Mono', monospace", size: 17, weight: "400" }
         }
       }
     };
@@ -2534,7 +2549,10 @@
         if (summary.total) {
           var charts = el("div", { className: "charts-grid" },
             el("div", { className: "chart-card" }, el("h3", null, "Ratings and satisfaction over time"), el("canvas", { id: "feedback-trend-chart" })),
-            el("div", { className: "chart-card" }, el("h3", null, "Overall distribution"), el("canvas", { id: "feedback-distribution-chart" })),
+            el("div", { className: "chart-card feedback-distribution-card" },
+              el("h3", null, "Overall distribution"),
+              el("div", { className: "feedback-donut-wrap" }, el("canvas", { id: "feedback-distribution-chart" }))
+            ),
             el("div", { className: "chart-card" }, el("h3", null, "Satisfaction by adapter (top 10 by volume)"), el("canvas", { id: "feedback-adapter-chart" }))
           );
           content.appendChild(charts);
@@ -2612,11 +2630,16 @@
     var selectedUserIds = new Set();
     var tableWrap = el("div", null, skeleton());
     var searchInput = el("input", {
-      type: "text",
+      type: "search",
       name: "user-search",
+      value: "",
+      maxlength: "64",
       placeholder: "Search users",
       "aria-label": "Search users",
-      autocomplete: "off"
+      autocomplete: "off",
+      autocapitalize: "none",
+      autocorrect: "off",
+      spellcheck: "false"
     });
     var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
     bulkDeleteBtn.style.visibility = "hidden";
