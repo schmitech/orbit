@@ -261,6 +261,15 @@ def _resolve_docker_paths(profile: RuntimeProfile, config_path: Path) -> None:
     if files_block is not None:
         files_block["storage_root"] = UPLOADS_DIR
 
+    # The admin panel's Costs tab (GET /admin/observability/usage) aggregates
+    # token usage and estimated cost straight out of the audit records, and
+    # returns 503 when inference auditing is off — which the canonical config
+    # defaults to. Enable it so cost tracking works out of the box. Everything
+    # stays in the container's own sqlite DB under the orbit-data volume.
+    audit_block = data.get("internal_services", {}).get("audit")
+    if audit_block is not None:
+        audit_block["enabled"] = True
+
     _dump_yaml(config_path, data)
 
 

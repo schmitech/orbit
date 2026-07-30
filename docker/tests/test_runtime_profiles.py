@@ -255,6 +255,30 @@ def test_resolve_config_points_sqlite_at_data_volume_and_drops_audio_imports(run
 
 
 @pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+def test_resolve_config_enables_audit_for_cost_tracking(profile_id, runtime_config_dir):
+    # /admin/observability/usage (the Costs tab) 503s unless inference
+    # auditing is on — usage/cost rows are read straight from audit records.
+    profile = rp.get_profile(profile_id)
+    rp.resolve_config(profile, runtime_config_dir)
+
+    config = yaml.safe_load((runtime_config_dir / "config.yaml").read_text())
+    assert config["internal_services"]["audit"]["enabled"] is True
+
+
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+def test_resolve_config_keeps_pricing_import(profile_id, runtime_config_dir):
+    # pricing.yaml backs the local rate table the Costs tab estimates from;
+    # _resolve_docker_paths prunes the import list, so guard against it
+    # being dropped along with stt.yaml/tts.yaml.
+    profile = rp.get_profile(profile_id)
+    rp.resolve_config(profile, runtime_config_dir)
+
+    config = yaml.safe_load((runtime_config_dir / "config.yaml").read_text())
+    assert "pricing.yaml" in config["import"]
+    assert (runtime_config_dir / "pricing.yaml").exists()
+
+
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
 def test_resolve_config_sets_global_default_inference_provider(profile_id, runtime_config_dir):
     profile = rp.get_profile(profile_id)
     rp.resolve_config(profile, runtime_config_dir)
