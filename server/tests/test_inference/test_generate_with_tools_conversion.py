@@ -14,6 +14,7 @@ without any network access or full service construction:
 import json
 import os
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -192,6 +193,71 @@ class TestAnthropicConvertMessages:
         assert len(results) == 2
         assert results[0] == {"type": "tool_result", "tool_use_id": "tu_1", "content": "r1"}
         assert results[1] == {"type": "tool_result", "tool_use_id": "tu_2", "content": "r2"}
+
+
+class _FakeAnthropicStream:
+    def __init__(self, response):
+        self._response = response
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        return False
+
+    async def get_final_message(self):
+        return self._response
+
+
+class _FakeAnthropicMessages:
+    def __init__(self, response):
+        self._response = response
+        self.stream_params = None
+
+    def stream(self, **params):
+        self.stream_params = params
+        return _FakeAnthropicStream(self._response)
+
+
+class TestAnthropicToolCallingStreaming:
+    async def test_tool_calls_are_read_from_final_stream_message(self):
+        service = AnthropicInferenceService({
+            "inference": {
+                "anthropic": {
+                    "api_key": "test-key",
+                    "model": "claude-sonnet-4-5-20250929",
+                }
+            }
+        })
+        service.initialized = True
+        messages = _FakeAnthropicMessages(SimpleNamespace(
+            content=[SimpleNamespace(
+                type="tool_use",
+                id="toolu_1",
+                name="read_file",
+                input={"path": "/tmp/example.txt"},
+            )],
+            stop_reason="tool_use",
+        ))
+        service.client = SimpleNamespace(messages=messages)
+
+        result = await service.generate_with_tools(
+            [{"role": "user", "content": "Read the file"}],
+            [{
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read a file",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }],
+        )
+
+        assert messages.stream_params is not None
+        assert result.tool_calls == [
+            {"id": "toolu_1", "name": "read_file", "arguments": {"path": "/tmp/example.txt"}}
+        ]
+        assert result.assistant_message["tool_calls"][0]["function"]["name"] == "read_file"
 
 
 # ----------------------------------------------------------------------------

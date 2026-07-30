@@ -145,7 +145,12 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
             params["output_config"] = {"effort": effort}
 
         try:
-            response = await self.client.messages.create(**params)
+            # Claude's extended-running requests must use the streaming API.
+            # This loop still needs a complete message (including all tool_use
+            # blocks), so consume the stream internally and normalize its final
+            # message rather than exposing token chunks to the MCP tool loop.
+            async with self.client.messages.stream(**params) as stream:
+                response = await stream.get_final_message()
         except Exception as e:
             self._handle_anthropic_error(e, "tool-calling generation")
             raise
