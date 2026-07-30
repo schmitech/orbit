@@ -75,3 +75,54 @@ class UsageReportingMixin:
             "provider": getattr(self, "provider_name", None),
             "reported": True,
         })
+
+    def _report_media_usage(
+        self,
+        sink: Optional[Dict[str, Any]],
+        unit: str,
+        quantity: Optional[float],
+    ) -> None:
+        """
+        Fill the caller-supplied sink with a discrete-unit media usage report
+        (images, video seconds, TTS characters, STT seconds, OCR pages) — the
+        media counterpart of _report_usage() above, for services billed per
+        unit rather than per token. Only reports when quantity is known; never
+        guesses a quantity from unrelated data (e.g. byte length).
+        """
+        if sink is None or quantity is None:
+            return
+        sink.update({
+            "usage_unit": unit,
+            "usage_quantity": quantity,
+            "model": getattr(self, "model", None),
+            "provider": getattr(self, "provider_name", None),
+            "reported": True,
+        })
+
+
+def accumulate_usage_sink(target: Dict[str, Any], source: Optional[Dict[str, Any]]) -> None:
+    """
+    Sum a per-call usage_sink into a caller-owned accumulator, for callers
+    (like the MCP tool-calling loop) that make multiple provider calls.
+
+    _report_usage() above overwrites its sink on every call, so it is never
+    safe to pass one shared sink across multiple provider calls — each call
+    needs its own fresh sink, summed here. Token counts are additive; model/
+    provider are taken from the first reporting call (they don't change
+    mid-loop); reported/calls track whether *any* call actually reported so
+    a partial loop (some calls reported, some didn't) is still visible.
+    """
+    if not source or not source.get("reported"):
+        return
+
+    target["calls"] = target.get("calls", 0) + 1
+    target["reported"] = True
+    target.setdefault("provider", source.get("provider"))
+    target.setdefault("model", source.get("model"))
+
+    for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        target[key] = (target.get(key) or 0) + (source.get(key) or 0)
+
+    source_reasoning = source.get("reasoning_tokens")
+    if source_reasoning is not None:
+        target["reasoning_tokens"] = (target.get("reasoning_tokens") or 0) + source_reasoning

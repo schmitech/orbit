@@ -10,7 +10,10 @@ import logging
 from typing import Optional, Dict, Any
 
 from ..base import PipelineStep, ProcessingContext
-from ._utils import get_generation_memory, get_rewrite_prompt_config, store_generation_memory
+from ._utils import (
+    get_generation_memory, get_rewrite_prompt_config, record_media_generation_usage,
+    store_generation_memory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,7 @@ class VideoGenerationStep(PipelineStep):
             return context
 
         prompt = context.message
+        rewrite_sink: dict = {}
         memory = await get_generation_memory(self.container, context.adapter_name, context.session_id)
         logger.debug(
             "Video generation context: context_messages=%d, formatted_context_len=%d, has_memory=%s",
@@ -66,7 +70,7 @@ class VideoGenerationStep(PipelineStep):
                     "Video generation has conversation history but no structured retrieval "
                     "context. Prompt rewrite will use conversation text only."
                 )
-            prompt = await self._rewrite_prompt(context, memory)
+            prompt = await self._rewrite_prompt(context, memory, rewrite_sink)
             logger.debug("Video generation prompt after rewrite: %r", prompt[:200])
 
         try:
@@ -79,6 +83,10 @@ class VideoGenerationStep(PipelineStep):
             # not the rewrite LLM used to refine the prompt above.
             context.runtime_provider = self._resolve_provider(context, self.container.get_or_none('config') or {})
             context.runtime_model_name = getattr(video_service, "model", None)
+            record_media_generation_usage(
+                self.container, context, context.runtime_provider, context.runtime_model_name,
+                media_usage=result.get("media_usage"), rewrite_sink=rewrite_sink,
+            )
             await store_generation_memory(
                 self.container, context.adapter_name, context.session_id,
                 {"prompt": context.video_revised_prompt},
@@ -145,7 +153,10 @@ class VideoGenerationStep(PipelineStep):
 
         return self.container.get_or_none('llm_provider')
 
-    async def _rewrite_prompt(self, context: ProcessingContext, memory: Optional[Dict[str, Any]] = None) -> str:
+    async def _rewrite_prompt(
+        self, context: ProcessingContext, memory: Optional[Dict[str, Any]] = None,
+        rewrite_sink: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """Rewrite the user's message into a descriptive video prompt using history, context,
         and (if this is a follow-up) the previous turn's generation prompt."""
         if not context.context_messages and not context.formatted_context and not memory:
@@ -195,7 +206,9 @@ class VideoGenerationStep(PipelineStep):
             return context.message
 
         try:
-            rewritten = await llm_provider.generate(rewrite_prompt, max_tokens=max_tokens, temperature=temperature)
+            rewritten = await llm_provider.generate_tracked(
+                rewrite_prompt, usage_sink=rewrite_sink, max_tokens=max_tokens, temperature=temperature,
+            )
             rewritten = rewritten.strip()
             for quote in ('"', "'"):
                 if rewritten.startswith(quote) and rewritten.endswith(quote) and len(rewritten) > 2:

@@ -387,7 +387,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     cost_usd REAL,
     input_rate_per_1m REAL,
     output_rate_per_1m REAL,
-    pricing_source TEXT
+    pricing_source TEXT,
+    usage_unit TEXT,
+    usage_quantity REAL
 )
 ```
 
@@ -418,6 +420,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `input_rate_per_1m` (REAL): Input rate ($/1M tokens) used for this estimate, captured at write time so historical rows stay auditable after `pricing.yaml` changes
 - `output_rate_per_1m` (REAL): Output rate ($/1M tokens) used for this estimate
 - `pricing_source` (TEXT): How the rate was resolved — `exact`, `pattern`, `provider_default`, `local_zero`, or `unpriced`
+- `usage_unit` (TEXT): Discrete billing unit for media requests (`images`, `seconds`, `characters`, `audio_seconds`, `pages`, `audio_tokens`); `NULL` for token-billed requests
+- `usage_quantity` (REAL): Quantity in `usage_unit` for this request; `NULL` for token-billed requests. `cost_usd` is the single summable cost column across both token- and unit-billed requests
 
 **Indexes:**
 - `idx_audit_logs_timestamp` on `timestamp`
@@ -765,6 +769,9 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.7** (2026-07-30): Media (image/video/audio/OCR) usage and cost tracking
+  - Added `audit_logs.usage_unit`, `usage_quantity` — discrete-unit billing (images, video seconds, TTS characters, STT seconds, OCR pages) for non-token media requests, alongside the existing token columns; `cost_usd` remains the single summable cost column across both
+  - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`); see `docs/token-usage-and-cost-tracking.md`
 - **v1.6** (2026-07-29): Token usage and cost tracking
   - Added `audit_logs.prompt_tokens`, `completion_tokens`, `total_tokens`, `reasoning_tokens`, `cost_usd`, `input_rate_per_1m`, `output_rate_per_1m`, `pricing_source`
   - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`); see `docs/token-usage-and-cost-tracking.md`

@@ -207,6 +207,13 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             "input_rate_per_1m": {"type": "double"},
             "output_rate_per_1m": {"type": "double"},
             "pricing_source": {"type": "keyword"},
+            "usage_unit": {"type": "keyword"},
+            # Explicitly "double", not left to dynamic mapping — a first
+            # document with an integer quantity (e.g. "images": 1) would
+            # otherwise map this as "long" and silently truncate later
+            # fractional quantities (e.g. "seconds": 2.5), the same trap
+            # cost_usd above is guarding against.
+            "usage_quantity": {"type": "double"},
         }
 
     async def _ensure_usage_mapping(self) -> None:

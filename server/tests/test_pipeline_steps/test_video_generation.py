@@ -137,12 +137,13 @@ class TestVideoGenerationStepProcess:
 
         captured = {}
 
-        async def capture_generate(prompt, **kwargs):
+        async def capture_generate(prompt, usage_sink=None, **kwargs):
             captured["prompt"] = prompt
             return "a golden retriever puppy bounding through a sunlit forest, camera tracking alongside"
 
         llm_provider = MagicMock()
         llm_provider.generate = capture_generate
+        llm_provider.generate_tracked = capture_generate
         container = _make_container(llm_provider=llm_provider)
 
         step = self.StepClass(container)
@@ -163,12 +164,13 @@ class TestVideoGenerationStepProcess:
 
         captured = {}
 
-        async def capture_generate(prompt, **kwargs):
+        async def capture_generate(prompt, usage_sink=None, **kwargs):
             captured["prompt"] = prompt
             return "a fluffy dog wearing a miniature space suit bounding across a lunar landscape"
 
         llm_provider = MagicMock()
         llm_provider.generate = capture_generate
+        llm_provider.generate_tracked = capture_generate
         memory_service = _make_memory_service()
         container = _make_container(llm_provider=llm_provider, thread_dataset_service=memory_service)
 

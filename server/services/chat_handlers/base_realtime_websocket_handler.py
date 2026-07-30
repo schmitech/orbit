@@ -51,6 +51,8 @@ class BaseRealtimeWebSocketHandler:
         adapter_manager: Optional[Any] = None,
         api_key: Optional[str] = None,
         chat_history_service: Optional[Any] = None,
+        audit_service: Optional[Any] = None,
+        pricing_service: Optional[Any] = None,
     ):
         self.websocket = websocket
         self.adapter_name = adapter_name
@@ -64,9 +66,15 @@ class BaseRealtimeWebSocketHandler:
         self.adapter_manager = adapter_manager
         self.api_key = api_key
         self.chat_history_service = chat_history_service
+        self.audit_service = audit_service
+        self.pricing_service = pricing_service
         self._grounding = resolve_grounding_config(adapter_config)
         self._pending_user_message = ""
         self._pending_assistant_text = ""
+        # Usage summed across every response.done/usageMetadata event this
+        # session receives — flushed as ONE audit record on disconnect, not
+        # per-turn (a session can produce hundreds of turns).
+        self._usage_accumulator: Dict[str, Any] = {}
 
         self.is_connected = False
         self._client_task: Optional[asyncio.Task] = None
@@ -178,6 +186,102 @@ class BaseRealtimeWebSocketHandler:
             return None, None
         finally:
             self._discard_pending_turn()
+
+    def _accumulate_realtime_usage(
+        self,
+        provider: str,
+        model: Optional[str],
+        prompt_tokens: Optional[int] = None,
+        completion_tokens: Optional[int] = None,
+        audio_prompt_tokens: Optional[int] = None,
+        audio_completion_tokens: Optional[int] = None,
+    ) -> None:
+        """
+        Sum usage from one turn's response.done/usageMetadata event into the
+        session-lifetime accumulator. Called from each provider's receive loop
+        as soon as a turn's usage event arrives — before any discard/cancel
+        early-return, since a cancelled or tool-call-only turn still bills
+        tokens on the provider side.
+        """
+        acc = self._usage_accumulator
+        acc["reported"] = True
+        acc.setdefault("provider", provider)
+        acc.setdefault("model", model)
+        for key, value in (
+            ("prompt_tokens", prompt_tokens),
+            ("completion_tokens", completion_tokens),
+            ("audio_prompt_tokens", audio_prompt_tokens),
+            ("audio_completion_tokens", audio_completion_tokens),
+        ):
+            if value is not None:
+                acc[key] = (acc.get(key) or 0) + value
+        acc["total_tokens"] = (acc.get("prompt_tokens") or 0) + (acc.get("completion_tokens") or 0)
+
+    async def _flush_realtime_usage(self) -> None:
+        """
+        Write ONE audit record for the whole session's accumulated usage.
+        Call at the very top of cleanup(), before any upstream teardown —
+        this is the only guaranteed once-per-session hook; the receive loops
+        may be cancelled or end abnormally, so nothing should depend on them
+        completing normally.  Best-effort: never raises, never blocks
+        session teardown.
+        """
+        acc = self._usage_accumulator
+        if not acc.get("reported") or not self.audit_service:
+            return
+        try:
+            if not getattr(self.audit_service, "inference_events_enabled", False):
+                return
+        except Exception:
+            return
+
+        provider = acc.get("provider")
+        model = acc.get("model")
+        prompt_tokens = acc.get("prompt_tokens")
+        completion_tokens = acc.get("completion_tokens")
+        usage: Dict[str, Any] = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": acc.get("total_tokens"),
+            "cost_usd": None,
+            "input_rate_per_1m": None,
+            "output_rate_per_1m": None,
+            "pricing_source": "unreported",
+        }
+        audio_prompt_tokens = acc.get("audio_prompt_tokens")
+        audio_completion_tokens = acc.get("audio_completion_tokens")
+        if audio_prompt_tokens or audio_completion_tokens:
+            usage["usage_unit"] = "audio_tokens"
+            usage["usage_quantity"] = (audio_prompt_tokens or 0) + (audio_completion_tokens or 0)
+
+        if self.pricing_service:
+            try:
+                estimate = self.pricing_service.estimate(
+                    provider, model, prompt_tokens, completion_tokens,
+                    audio_prompt_tokens=audio_prompt_tokens, audio_completion_tokens=audio_completion_tokens,
+                )
+                usage["input_rate_per_1m"] = estimate.input_rate_per_1m
+                usage["output_rate_per_1m"] = estimate.output_rate_per_1m
+                usage["pricing_source"] = estimate.pricing_source
+                usage["cost_usd"] = estimate.cost_usd
+            except Exception:
+                logger.debug("Pricing estimate failed for realtime voice session", exc_info=True)
+
+        try:
+            await self.audit_service.log_conversation(
+                query=f"[realtime voice session] adapter={self.adapter_name}",
+                response="",
+                provider=provider,
+                blocked=False,
+                api_key=self.api_key,
+                session_id=self.orbit_session_id,
+                user_id=self.user_id,
+                adapter_name=self.adapter_name,
+                model=model,
+                usage=usage,
+            )
+        except Exception:
+            logger.debug("Failed to write audit record for realtime voice session", exc_info=True)
 
     @staticmethod
     async def _run_until_either(task_a: asyncio.Task, task_b: asyncio.Task) -> None:

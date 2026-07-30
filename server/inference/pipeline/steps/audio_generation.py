@@ -15,7 +15,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from ..base import PipelineStep, ProcessingContext
-from ._utils import get_rewrite_prompt_config
+from ._utils import get_rewrite_prompt_config, record_media_generation_usage
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,8 @@ class AudioGenerationStep(PipelineStep):
             context.set_error("No audio generation service is available for this adapter.")
             return context
 
-        text = await self._rewrite_text(context)
+        rewrite_sink: dict = {}
+        text = await self._rewrite_text(context, rewrite_sink)
         try:
             audio_bytes = await audio_service.text_to_speech(text, voice=context.tts_voice)
             context.generated_audio = base64.b64encode(audio_bytes).decode("utf-8")
@@ -68,6 +69,13 @@ class AudioGenerationStep(PipelineStep):
             # not the rewrite LLM used to resolve the text to speak above.
             context.runtime_provider = self._resolve_provider(context, self.container.get_or_none('config') or {})
             context.runtime_model_name = getattr(audio_service, "tts_model", None) or getattr(audio_service, "model", None)
+            # TTS is billed per character — an exact, locally-known quantity,
+            # not something to read back from the (bare-bytes) response.
+            record_media_generation_usage(
+                self.container, context, context.runtime_provider, context.runtime_model_name,
+                media_usage={"unit": "characters", "quantity": len(text)},
+                rewrite_sink=rewrite_sink,
+            )
         except Exception as e:
             logger.error(f"Audio generation failed: {e}", exc_info=True)
             context.set_error(f"Audio generation failed: {e}")
@@ -132,7 +140,9 @@ class AudioGenerationStep(PipelineStep):
 
         return self.container.get_or_none('llm_provider')
 
-    async def _rewrite_text(self, context: ProcessingContext) -> str:
+    async def _rewrite_text(
+        self, context: ProcessingContext, rewrite_sink: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """Resolve the text to speak from the user's request + conversation history/context.
 
         A one-shot request with no conversation history and no retrieved context (e.g. a bare
@@ -183,7 +193,9 @@ class AudioGenerationStep(PipelineStep):
             return context.message
 
         try:
-            rewritten = await llm_provider.generate(rewrite_prompt, max_tokens=max_tokens, temperature=temperature)
+            rewritten = await llm_provider.generate_tracked(
+                rewrite_prompt, usage_sink=rewrite_sink, max_tokens=max_tokens, temperature=temperature,
+            )
             rewritten = rewritten.strip()
             for quote in ('"', "'"):
                 if rewritten.startswith(quote) and rewritten.endswith(quote) and len(rewritten) > 2:

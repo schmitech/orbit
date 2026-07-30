@@ -140,17 +140,105 @@ class TestImageGenerationStepProcess:
         assert result.response == "a dog in a forest"
 
     @pytest.mark.asyncio
+    async def test_process_records_media_usage_from_image_service(self):
+        """generate_image()'s media_usage dict (images billed per unit, not
+        token) must land in context.metadata["usage"] so it reaches the audit
+        record — this is what makes image-generation cost visible at all."""
+        from inference.pipeline.base import ProcessingContext
+
+        service = MagicMock()
+        service.generate_image = AsyncMock(return_value={
+            "image_bytes": b"\x89PNGfakepng", "format": "png",
+            "media_usage": {"unit": "images", "quantity": 1},
+        })
+        container = _make_container(image_service=service)
+        step = self.StepClass(container)
+        ctx = ProcessingContext(adapter_name="image-generator", message="a dog in a forest")
+        result = await step.process(ctx)
+
+        assert result.error is None
+        usage = result.metadata["usage"]
+        assert usage["usage_unit"] == "images"
+        assert usage["usage_quantity"] == 1
+        assert usage["reported"] is True
+
+    @pytest.mark.asyncio
+    async def test_process_records_token_usage_from_image_service(self):
+        """gpt-image-1/gemini-image style responses report token usage
+        (the "usage" key) instead of media_usage — must also land in
+        context.metadata["usage"]."""
+        from inference.pipeline.base import ProcessingContext
+
+        service = MagicMock()
+        service.generate_image = AsyncMock(return_value={
+            "image_bytes": b"\x89PNGfakepng", "format": "png",
+            "usage": {"prompt_tokens": 50, "completion_tokens": 1500, "reported": True},
+        })
+        container = _make_container(image_service=service)
+        step = self.StepClass(container)
+        ctx = ProcessingContext(adapter_name="image-generator", message="a dog in a forest")
+        result = await step.process(ctx)
+
+        assert result.error is None
+        usage = result.metadata["usage"]
+        assert usage["prompt_tokens"] == 50
+        assert usage["completion_tokens"] == 1500
+        assert usage["total_tokens"] == 1550
+        assert usage["reported"] is True
+
+    @pytest.mark.asyncio
+    async def test_process_sums_rewrite_llm_usage_with_media_usage(self):
+        """The prompt-rewrite LLM call is a real, separate spend for the same
+        request — its tokens must be captured (not silently lost) alongside
+        the image generation's own media usage."""
+        from inference.pipeline.base import ProcessingContext
+
+        async def capture_generate(prompt, usage_sink=None, **kwargs):
+            if usage_sink is not None:
+                usage_sink.update({
+                    "reported": True, "provider": "openai", "model": "gpt-5.4-mini",
+                    "prompt_tokens": 200, "completion_tokens": 40, "total_tokens": 240,
+                })
+            return "a fluffy golden retriever puppy running through a sunlit forest"
+
+        llm_provider = MagicMock()
+        llm_provider.generate = capture_generate
+        llm_provider.generate_tracked = capture_generate
+
+        service = MagicMock()
+        service.generate_image = AsyncMock(return_value={
+            "image_bytes": b"\x89PNGfakepng", "format": "png",
+            "media_usage": {"unit": "images", "quantity": 1},
+        })
+        container = _make_container(llm_provider=llm_provider, image_service=service)
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="image-generator",
+            message="draw a dog",
+            context_messages=[{"role": "user", "content": "I love golden retrievers"}],
+        )
+        result = await step.process(ctx)
+
+        assert result.error is None
+        usage = result.metadata["usage"]
+        assert usage["usage_unit"] == "images"
+        assert usage["rewrite_prompt_tokens"] == 200
+        assert usage["rewrite_completion_tokens"] == 40
+        assert usage["rewrite_provider"] == "openai"
+
+    @pytest.mark.asyncio
     async def test_process_rewrites_using_conversation_history(self):
         from inference.pipeline.base import ProcessingContext
 
         captured = {}
 
-        async def capture_generate(prompt, **kwargs):
+        async def capture_generate(prompt, usage_sink=None, **kwargs):
             captured["prompt"] = prompt
             return "a fluffy golden retriever puppy running through a sunlit forest"
 
         llm_provider = MagicMock()
         llm_provider.generate = capture_generate
+        llm_provider.generate_tracked = capture_generate
         container = _make_container(llm_provider=llm_provider)
 
         step = self.StepClass(container)
@@ -173,12 +261,13 @@ class TestImageGenerationStepProcess:
 
         captured = {}
 
-        async def capture_generate(prompt, **kwargs):
+        async def capture_generate(prompt, usage_sink=None, **kwargs):
             captured["prompt"] = prompt
             return "a fluffy dog wearing a miniature space suit standing on an asteroid"
 
         llm_provider = MagicMock()
         llm_provider.generate = capture_generate
+        llm_provider.generate_tracked = capture_generate
         memory_service = _make_memory_service()
         container = _make_container(llm_provider=llm_provider, thread_dataset_service=memory_service)
 

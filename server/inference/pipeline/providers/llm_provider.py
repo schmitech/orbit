@@ -69,6 +69,31 @@ class LLMProvider(ABC):
         async for chunk in self.generate_stream(prompt, **kwargs):
             yield chunk
 
+    async def generate_with_tools(self, messages: Any, tools: Any, **kwargs) -> Any:
+        """
+        Single round of tool-enabled generation. Non-abstract with a raising
+        default — most LLMProvider implementations don't support native tool
+        calling; concrete providers that do (UnifiedProviderAdapter) override it.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement generate_with_tools."
+        )
+
+    async def generate_with_tools_tracked(
+        self,
+        messages: Any,
+        tools: Any,
+        usage_sink: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> Any:
+        """
+        Same as generate_with_tools(), but fills usage_sink with token usage
+        when the underlying service supports it. Non-abstract with a plain
+        delegation default so legacy providers and test doubles that only
+        implement generate_with_tools() keep working unchanged.
+        """
+        return await self.generate_with_tools(messages, tools, **kwargs)
+
     @abstractmethod
     async def close(self) -> None:
         """Clean up resources."""

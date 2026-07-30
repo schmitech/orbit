@@ -110,6 +110,18 @@ class UnifiedProviderAdapter(LLMProvider):
             raise RuntimeError("Provider not initialized. Call initialize() first.")
         return await self.service.generate_with_tools(messages, tools, **kwargs)
 
+    async def generate_with_tools_tracked(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        usage_sink: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ):
+        """Same as generate_with_tools(), filling usage_sink when the service supports it."""
+        if not self.service:
+            raise RuntimeError("Provider not initialized. Call initialize() first.")
+        return await self.service.generate_with_tools_tracked(messages, tools, usage_sink=usage_sink, **kwargs)
+
     async def close(self) -> None:
         """Clean up resources."""
         if self.service:

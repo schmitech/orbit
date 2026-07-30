@@ -143,3 +143,78 @@ async def test_run_until_either_cancels_pending_task_and_logs_exception(caplog):
 
     assert task_b.cancelled()
     assert any("boom" in record.message for record in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Realtime usage accumulation + session-level audit flush
+# ---------------------------------------------------------------------------
+
+def test_accumulate_realtime_usage_sums_across_turns():
+    handler = _make_handler()
+
+    handler._accumulate_realtime_usage("openai", "gpt-realtime", 100, 20, audio_prompt_tokens=50, audio_completion_tokens=10)
+    handler._accumulate_realtime_usage("openai", "gpt-realtime", 200, 40, audio_prompt_tokens=80, audio_completion_tokens=15)
+
+    acc = handler._usage_accumulator
+    assert acc["reported"] is True
+    assert acc["prompt_tokens"] == 300
+    assert acc["completion_tokens"] == 60
+    assert acc["total_tokens"] == 360
+    assert acc["audio_prompt_tokens"] == 130
+    assert acc["audio_completion_tokens"] == 25
+    assert acc["provider"] == "openai"
+    assert acc["model"] == "gpt-realtime"
+
+
+@pytest.mark.asyncio
+async def test_flush_realtime_usage_writes_one_audit_record_with_audio_tier():
+    audit_service = AsyncMock()
+    audit_service.inference_events_enabled = True
+    pricing_service = MagicMock()
+    pricing_service.estimate.return_value = MagicMock(
+        input_rate_per_1m=4.0, output_rate_per_1m=16.0, pricing_source="pattern", cost_usd=1.23,
+    )
+
+    handler = _make_handler(
+        audit_service=audit_service, pricing_service=pricing_service,
+        session_id="sess-1", user_id="user-1", api_key="key-1",
+    )
+    handler._accumulate_realtime_usage(
+        "openai", "gpt-realtime", 100, 20, audio_prompt_tokens=50, audio_completion_tokens=10,
+    )
+
+    await handler._flush_realtime_usage()
+
+    audit_service.log_conversation.assert_awaited_once()
+    kwargs = audit_service.log_conversation.call_args.kwargs
+    assert kwargs["provider"] == "openai"
+    assert kwargs["model"] == "gpt-realtime"
+    assert kwargs["session_id"] == "sess-1"
+    assert kwargs["usage"]["usage_unit"] == "audio_tokens"
+    assert kwargs["usage"]["usage_quantity"] == 60
+    assert kwargs["usage"]["cost_usd"] == 1.23
+    pricing_service.estimate.assert_called_once_with(
+        "openai", "gpt-realtime", 100, 20, audio_prompt_tokens=50, audio_completion_tokens=10,
+    )
+
+
+@pytest.mark.asyncio
+async def test_flush_realtime_usage_noop_when_nothing_accumulated():
+    """A session that never received a usage event must never write a
+    fabricated audit row (e.g. a session that disconnected before any turn)."""
+    audit_service = AsyncMock()
+    audit_service.inference_events_enabled = True
+    handler = _make_handler(audit_service=audit_service)
+
+    await handler._flush_realtime_usage()
+
+    audit_service.log_conversation.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_flush_realtime_usage_noop_without_audit_service():
+    handler = _make_handler(audit_service=None)
+    handler._accumulate_realtime_usage("openai", "gpt-realtime", 100, 20)
+
+    # Must not raise even with no audit_service configured.
+    await handler._flush_realtime_usage()

@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import OcrService
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ _DEFAULT_OCR_PROMPT = (
 )
 
 
-class GeminiOcrService(OcrService, GoogleBaseService):
+class GeminiOcrService(UsageReportingMixin, OcrService, GoogleBaseService):
     """Gemini native document OCR service (single call, no rasterization)."""
 
     def __init__(self, config: Dict[str, Any]):
@@ -53,6 +54,7 @@ class GeminiOcrService(OcrService, GoogleBaseService):
         file_data: bytes,
         mime_type: str,
         filename: Optional[str] = None,
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Extract markdown from a PDF or image via a single Gemini call."""
         if not self.initialized:
@@ -69,6 +71,14 @@ class GeminiOcrService(OcrService, GoogleBaseService):
                 model=self.model,
                 contents=[document_part, self.prompt],
             )
+
+            usage = getattr(response, "usage_metadata", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_token_count", None),
+                    getattr(usage, "candidates_token_count", None),
+                )
 
             if not response.candidates or not response.candidates[0].content:
                 raise ValueError("No content returned from Gemini")

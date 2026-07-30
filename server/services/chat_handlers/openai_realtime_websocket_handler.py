@@ -80,6 +80,8 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
         adapter_manager: Optional[Any] = None,
         api_key: Optional[str] = None,
         chat_history_service: Optional[Any] = None,
+        audit_service: Optional[Any] = None,
+        pricing_service: Optional[Any] = None,
     ):
         super().__init__(
             websocket=websocket,
@@ -94,6 +96,8 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
             adapter_manager=adapter_manager,
             api_key=api_key,
             chat_history_service=chat_history_service,
+            audit_service=audit_service,
+            pricing_service=pricing_service,
         )
         self._assistant_transcript_prefixes: Dict[str, str] = {}
         self._finalized_transcript_keys: set[str] = set()
@@ -289,6 +293,22 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
         elif etype == "response.done":
             self._response_in_progress = False
             response_obj = event.get("response") or {}
+
+            # Accumulate usage for every response.done, before the discard/
+            # cancel and tool-call-only branches below — a cancelled or
+            # tool-call-only turn still bills tokens on OpenAI's side.
+            usage = response_obj.get("usage") or {}
+            total_input = usage.get("input_tokens")
+            total_output = usage.get("output_tokens")
+            audio_input = (usage.get("input_token_details") or {}).get("audio_tokens")
+            audio_output = (usage.get("output_token_details") or {}).get("audio_tokens")
+            text_input = total_input - audio_input if (total_input is not None and audio_input is not None) else total_input
+            text_output = total_output - audio_output if (total_output is not None and audio_output is not None) else total_output
+            if usage:
+                self._accumulate_realtime_usage(
+                    "openai", self._realtime_model, text_input, text_output, audio_input, audio_output,
+                )
+
             if self._discarding_response:
                 self._discarding_response = False
                 self._discard_pending_turn()
@@ -503,6 +523,8 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
 
     async def cleanup(self) -> None:
         self.is_connected = False
+
+        await self._flush_realtime_usage()
 
         if self._openai_ws and not self._openai_ws.closed:
             try:

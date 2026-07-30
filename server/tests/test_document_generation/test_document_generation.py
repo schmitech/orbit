@@ -325,6 +325,7 @@ class TestDocumentGenerationStepProcess:
 
         llm_provider = MagicMock()
         llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
         container = _make_container(document_format="pdf", llm_provider=llm_provider)
 
         step = self.StepClass(container)
@@ -340,11 +341,220 @@ class TestDocumentGenerationStepProcess:
         assert result.response == SAMPLE_SPEC["title"]
 
     @pytest.mark.asyncio
+    async def test_process_records_usage_from_spec_generation_llm_call(self):
+        """The spec-generation LLM call IS the entire cost of document
+        generation (rendering is local reportlab, no further API call) — it
+        must land in context.metadata["usage"], the same way LLMInferenceStep
+        records a plain text generation. Regression for a gap where this step
+        used plain generate() instead of generate_tracked() and document
+        generation never appeared in the audit log at all."""
+        from inference.pipeline.base import ProcessingContext
+
+        async def tracked_generate(prompt, usage_sink=None, **kwargs):
+            if usage_sink is not None:
+                usage_sink.update({
+                    "reported": True, "provider": "openai", "model": "gpt-5.4-mini",
+                    "prompt_tokens": 300, "completion_tokens": 150, "total_tokens": 450,
+                })
+            return json.dumps(SAMPLE_SPEC)
+
+        llm_provider = MagicMock()
+        llm_provider.generate_tracked = tracked_generate
+        container = _make_container(document_format="pdf", llm_provider=llm_provider)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(adapter_name="pdf-generator", message="Write a Q1 sales report")
+        result = await step.process(ctx)
+
+        assert result.error is None
+        usage = result.metadata["usage"]
+        assert usage["reported"] is True
+        assert usage["provider"] == "openai"
+        assert usage["model"] == "gpt-5.4-mini"
+        assert usage["prompt_tokens"] == 300
+        assert usage["completion_tokens"] == 150
+        assert usage["total_tokens"] == 450
+        # No pricing_service configured (see _make_container) — reported
+        # usage with no rate resolution is "unpriced", not "unreported",
+        # which would incorrectly imply usage itself wasn't reported.
+        assert usage["pricing_source"] == "unpriced"
+        assert usage["cost_usd"] is None
+        # Regression: document generation has no separate media service (its
+        # only API call is this spec LLM), so context.runtime_provider/model
+        # must be set from the winning attempt here — otherwise the audit
+        # record's top-level provider/model columns fall back to the
+        # server's default inference provider, misattributing the request
+        # away from the actual billed provider (e.g. showing as ollama_cloud
+        # instead of openai) in the Costs tab.
+        assert result.runtime_provider == "openai"
+        assert result.runtime_model_name == "gpt-5.4-mini"
+
+    @pytest.mark.asyncio
+    async def test_process_records_usage_for_malformed_response_that_falls_back(self):
+        """A billed call that returns malformed/incomplete JSON still cost
+        money, even though the step falls through to the local fallback spec.
+        Usage must be recorded right after generate_tracked() returns — before
+        JSON parsing/validation — not only on the eventual successful path."""
+        from inference.pipeline.base import ProcessingContext
+
+        async def tracked_generate_malformed(prompt, usage_sink=None, **kwargs):
+            if usage_sink is not None:
+                usage_sink.update({
+                    "reported": True, "provider": "openai", "model": "gpt-5.4-mini",
+                    "prompt_tokens": 200, "completion_tokens": 80, "total_tokens": 280,
+                })
+            return "This is not JSON at all."
+
+        llm_provider = MagicMock()
+        llm_provider.generate_tracked = tracked_generate_malformed
+        container = _make_container(document_format="pdf", llm_provider=llm_provider)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(adapter_name="pdf-generator", message="Write a Q1 sales report")
+        result = await step.process(ctx)
+
+        assert result.error is None
+        assert result.document is not None  # local fallback spec still renders
+        usage = result.metadata["usage"]
+        assert usage["reported"] is True
+        assert usage["provider"] == "openai"
+        assert usage["prompt_tokens"] == 200
+        assert usage["completion_tokens"] == 80
+        assert usage["total_tokens"] == 280
+
+    @pytest.mark.asyncio
+    async def test_process_sums_usage_across_multiple_billed_attempts(self):
+        """When a first provider's malformed response falls through to a
+        second provider that succeeds, BOTH billed calls' tokens must be
+        reflected in the final usage — not just the successful one's."""
+        from inference.pipeline.base import ProcessingContext
+
+        async def failing_tracked(prompt, usage_sink=None, **kwargs):
+            if usage_sink is not None:
+                usage_sink.update({
+                    "reported": True, "provider": "openai", "model": "gpt-5.4-mini",
+                    "prompt_tokens": 200, "completion_tokens": 80, "total_tokens": 280,
+                })
+            return "not valid json"
+
+        async def working_tracked(prompt, usage_sink=None, **kwargs):
+            if usage_sink is not None:
+                usage_sink.update({
+                    "reported": True, "provider": "anthropic", "model": "claude-sonnet-4",
+                    "prompt_tokens": 300, "completion_tokens": 150, "total_tokens": 450,
+                })
+            return json.dumps(SAMPLE_SPEC)
+
+        failing_provider = MagicMock()
+        failing_provider.generate_tracked = failing_tracked
+        working_provider = MagicMock()
+        working_provider.generate_tracked = working_tracked
+
+        # rewrite_provider 'openai' resolves to the failing (malformed) provider;
+        # the global llm_provider fallback is the working one.
+        adapter_manager = MagicMock()
+        adapter_manager.get_adapter_config.return_value = {
+            "type": "document_generation", "document_format": "pdf", "rewrite_provider": "openai",
+        }
+        adapter_manager.get_overridden_provider = AsyncMock(return_value=failing_provider)
+        container = MagicMock()
+        container.has.side_effect = lambda k: k in ("adapter_manager", "llm_provider", "config")
+        container.get.side_effect = lambda k: (
+            adapter_manager if k == "adapter_manager" else
+            working_provider if k == "llm_provider" else TEST_CONFIG
+        )
+        container.get_or_none.side_effect = lambda k: (
+            working_provider if k == "llm_provider" else TEST_CONFIG if k == "config" else None
+        )
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(adapter_name="pdf-generator", message="Write a Q1 sales report")
+        result = await step.process(ctx)
+
+        assert result.error is None
+        usage = result.metadata["usage"]
+        assert usage["prompt_tokens"] == 500  # 200 + 300
+        assert usage["completion_tokens"] == 230  # 80 + 150
+        assert usage["total_tokens"] == 730
+
+    @pytest.mark.asyncio
+    async def test_process_prices_mixed_provider_attempts_independently(self):
+        """A fallback chain spanning two different providers must price each
+        attempt against its OWN rate and sum the costs — never sum the
+        cross-provider token counts and price them against a single rate,
+        which would misstate cost whenever the rates differ."""
+        from unittest.mock import Mock
+        from inference.pipeline.base import ProcessingContext
+
+        async def failing_tracked(prompt, usage_sink=None, **kwargs):
+            if usage_sink is not None:
+                usage_sink.update({
+                    "reported": True, "provider": "openai", "model": "gpt-5.4-mini",
+                    "prompt_tokens": 1_000_000, "completion_tokens": 0,
+                })
+            return "not valid json"
+
+        async def working_tracked(prompt, usage_sink=None, **kwargs):
+            if usage_sink is not None:
+                usage_sink.update({
+                    "reported": True, "provider": "anthropic", "model": "claude-sonnet-4",
+                    "prompt_tokens": 1_000_000, "completion_tokens": 0,
+                })
+            return json.dumps(SAMPLE_SPEC)
+
+        failing_provider = MagicMock()
+        failing_provider.generate_tracked = failing_tracked
+        working_provider = MagicMock()
+        working_provider.generate_tracked = working_tracked
+
+        def fake_estimate(provider, model, prompt_tokens, completion_tokens):
+            # Deliberately different rates AND pricing_source labels per
+            # provider — if the buggy cross-provider-sum behavior regresses,
+            # this fake would be invoked with a combined 2,000,000-token
+            # count against a single provider instead of 1,000,000 each
+            # against two.
+            rate, source = {"openai": (1.0, "exact"), "anthropic": (10.0, "pattern")}[provider]
+            return Mock(cost_usd=(prompt_tokens / 1_000_000.0) * rate, pricing_source=source,
+                        input_rate_per_1m=rate, output_rate_per_1m=rate)
+
+        pricing_service = Mock()
+        pricing_service.estimate.side_effect = fake_estimate
+
+        adapter_manager = MagicMock()
+        adapter_manager.get_adapter_config.return_value = {
+            "type": "document_generation", "document_format": "pdf", "rewrite_provider": "openai",
+        }
+        adapter_manager.get_overridden_provider = AsyncMock(return_value=failing_provider)
+        known = {
+            "adapter_manager": adapter_manager, "llm_provider": working_provider,
+            "config": TEST_CONFIG, "pricing_service": pricing_service,
+        }
+        container = MagicMock()
+        container.has.side_effect = lambda k: k in known and known[k] is not None
+        container.get.side_effect = lambda k: known.get(k)
+        container.get_or_none.side_effect = lambda k: known.get(k)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(adapter_name="pdf-generator", message="Write a Q1 sales report")
+        result = await step.process(ctx)
+
+        assert result.error is None
+        usage = result.metadata["usage"]
+        # 1M tokens @ $1/1M (openai) + 1M tokens @ $10/1M (anthropic) = $11,
+        # NOT 2M combined tokens priced at a single rate.
+        assert usage["cost_usd"] == pytest.approx(11.0)
+        assert usage["pricing_source"] == "mixed"
+        assert pricing_service.estimate.call_count == 2
+        pricing_service.estimate.assert_any_call("openai", "gpt-5.4-mini", 1_000_000, 0)
+        pricing_service.estimate.assert_any_call("anthropic", "claude-sonnet-4", 1_000_000, 0)
+
+    @pytest.mark.asyncio
     async def test_process_docx_format(self):
         from inference.pipeline.base import ProcessingContext
 
         llm_provider = MagicMock()
         llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
         container = _make_container(document_format="docx", llm_provider=llm_provider)
 
         step = self.StepClass(container)
@@ -362,6 +572,7 @@ class TestDocumentGenerationStepProcess:
 
         llm_provider = MagicMock()
         llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
         container = _make_container(document_format="xlsx", llm_provider=llm_provider)
 
         step = self.StepClass(container)
@@ -377,6 +588,7 @@ class TestDocumentGenerationStepProcess:
 
         llm_provider = MagicMock()
         llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
         container = _make_container(document_format="pptx", llm_provider=llm_provider)
 
         step = self.StepClass(container)
@@ -392,6 +604,7 @@ class TestDocumentGenerationStepProcess:
 
         llm_provider = MagicMock()
         llm_provider.generate = AsyncMock(return_value="This is not JSON at all.")
+        llm_provider.generate_tracked = AsyncMock(return_value="This is not JSON at all.")
         container = _make_container(document_format="pdf", llm_provider=llm_provider)
 
         step = self.StepClass(container)
@@ -423,6 +636,7 @@ class TestDocumentGenerationStepProcess:
         fenced = f"```json\n{json.dumps(SAMPLE_SPEC)}\n```"
         llm_provider = MagicMock()
         llm_provider.generate = AsyncMock(return_value=fenced)
+        llm_provider.generate_tracked = AsyncMock(return_value=fenced)
         container = _make_container(document_format="pdf", llm_provider=llm_provider)
 
         step = self.StepClass(container)
@@ -444,6 +658,7 @@ class TestDocumentGenerationStepProcess:
 
         llm_provider = MagicMock()
         llm_provider.generate = capture_generate
+        llm_provider.generate_tracked = capture_generate
         container = _make_container(document_format="pdf", llm_provider=llm_provider)
 
         step = self.StepClass(container)
@@ -467,8 +682,10 @@ class TestDocumentGenerationStepProcess:
 
         failing_provider = MagicMock()
         failing_provider.generate = AsyncMock(side_effect=Exception("Invalid API key"))
+        failing_provider.generate_tracked = AsyncMock(side_effect=Exception("Invalid API key"))
         working_provider = MagicMock()
         working_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        working_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
 
         # rewrite_provider 'openai' resolves to the failing provider; the global provider works.
         adapter_manager = MagicMock()
@@ -493,8 +710,8 @@ class TestDocumentGenerationStepProcess:
         result = await step.process(ctx)
 
         assert result.error is None
-        failing_provider.generate.assert_awaited()      # first provider was tried
-        working_provider.generate.assert_awaited()       # and we fell through to the next
+        failing_provider.generate_tracked.assert_awaited()      # first provider was tried
+        working_provider.generate_tracked.assert_awaited()       # and we fell through to the next
         # The real spec (not the message-only fallback) was used.
         assert result.document_revised_prompt == SAMPLE_SPEC["title"]
 
@@ -505,6 +722,7 @@ class TestDocumentGenerationStepProcess:
 
         llm_provider = MagicMock()
         llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
 
         adapter_manager = MagicMock()
         adapter_manager.get_adapter_config.return_value = {
@@ -540,8 +758,10 @@ class TestDocumentGenerationStepProcess:
 
         failing_provider = MagicMock()
         failing_provider.generate = AsyncMock(side_effect=Exception("model unavailable"))
+        failing_provider.generate_tracked = AsyncMock(side_effect=Exception("model unavailable"))
         working_provider = MagicMock()
         working_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        working_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
 
         adapter_manager = MagicMock()
         adapter_manager.get_adapter_config.return_value = {
@@ -567,8 +787,8 @@ class TestDocumentGenerationStepProcess:
         result = await step.process(ctx)
 
         assert result.error is None
-        failing_provider.generate.assert_awaited()
-        working_provider.generate.assert_awaited()
+        failing_provider.generate_tracked.assert_awaited()
+        working_provider.generate_tracked.assert_awaited()
         assert result.document_revised_prompt == SAMPLE_SPEC["title"]
 
     def test_fallback_spec_uses_prior_analysis_and_context(self):
@@ -655,6 +875,7 @@ class TestDocumentGenerationStepProcess:
 
         llm_provider = MagicMock()
         llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
 
         # Build container that returns an unsupported format
         adapter_manager = MagicMock()
@@ -696,6 +917,7 @@ class TestDocumentGenerationStepMemory:
 
         llm_provider = MagicMock()
         llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
         memory_service = _make_memory_service()
         container = _make_container(
             document_format="pdf", llm_provider=llm_provider, thread_dataset_service=memory_service,
@@ -718,6 +940,7 @@ class TestDocumentGenerationStepMemory:
 
         llm_provider = MagicMock()
         llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
         memory_service = _make_memory_service()
         container = _make_container(
             document_format="pdf", llm_provider=llm_provider, thread_dataset_service=memory_service,
@@ -744,6 +967,7 @@ class TestDocumentGenerationStepMemory:
 
         llm_provider = MagicMock()
         llm_provider.generate = capture_generate
+        llm_provider.generate_tracked = capture_generate
         memory_service = _make_memory_service()
         container = _make_container(
             document_format="pdf", llm_provider=llm_provider, thread_dataset_service=memory_service,

@@ -139,6 +139,7 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
         - Tool result messages use role "tool"; Ollama accepts tool_call_id
           being present but does not require it.
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             if not await self.initialize():
                 raise ValueError("Failed to initialize Ollama inference service")
@@ -176,6 +177,14 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
                 return await response.json()
 
         data = await self.execute_with_retry(_call)
+
+        if 'prompt_eval_count' in data or 'eval_count' in data:
+            self._report_usage(
+                usage_sink,
+                data.get('prompt_eval_count'),
+                data.get('eval_count'),
+            )
+
         msg_data = data.get("message", {})
         content = msg_data.get("content") or None
         raw_tool_calls = msg_data.get("tool_calls") or []

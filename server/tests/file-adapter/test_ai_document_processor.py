@@ -111,6 +111,30 @@ async def test_extract_text_and_metadata_with_mocked_service():
     assert metadata['page_count'] == 2
 
 
+async def test_extract_text_captures_resolved_service_model_not_override():
+    """last_model must be the OCR service's actually-resolved model (e.g.
+    "mistral-ocr-latest" from ocr.yaml's default), not model_override — which
+    is usually unset. Pricing must match against what was actually billed."""
+    pdf = _make_pdf(1)
+
+    mock_service = MagicMock()
+    mock_service.initialized = True
+    mock_service.model = "mistral-ocr-latest"
+    mock_service.extract_document = AsyncMock(
+        return_value={'text': 'page', 'page_count': 1, 'media_usage': {'unit': 'pages', 'quantity': 1}}
+    )
+
+    proc = AIDocumentProcessor(enabled=True, config=AI_CONFIG)
+    assert proc.model_override is None
+
+    with patch('ai_services.AIServiceFactory.create_service', return_value=mock_service):
+        await proc.extract_text(pdf, 'doc.pdf')
+
+    assert proc.last_model == "mistral-ocr-latest"
+    assert proc.last_usage["usage_unit"] == "pages"
+    assert proc.last_usage["usage_quantity"] == 1
+
+
 async def test_metadata_page_count_capped_for_vision_backed():
     """Vision-backed page_count reflects OCR'd pages (capped at max_pages)."""
     pdf = _make_pdf(3)

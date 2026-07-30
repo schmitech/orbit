@@ -72,6 +72,7 @@ class OllamaImageService(ImageGenerationService, OllamaBaseService):
                     "image_bytes": base64.b64decode(b64_json),
                     "format": self._infer_format(image_data),
                     "revised_prompt": image_data.get("revised_prompt"),
+                    "media_usage": {"unit": "images", "quantity": len(items)},
                 }
 
         return await self.execute_with_retry(_generate)

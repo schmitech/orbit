@@ -6659,6 +6659,12 @@
       if (ev.reasoning_tokens != null) {
         usageRows.splice(2, 0, ["Reasoning tokens", formatNum(ev.reasoning_tokens)]);
       }
+      // Only shown for discrete-unit media requests (images/video seconds/
+      // TTS characters/STT seconds/OCR pages) — token-billed requests never
+      // set these, so the row is omitted entirely rather than showing "—".
+      if (ev.usage_unit != null && ev.usage_quantity != null) {
+        usageRows.push(["Usage", formatNum(ev.usage_quantity) + " " + ev.usage_unit]);
+      }
       panel.appendChild(renderAuditFieldGrid(usageRows));
     }
 

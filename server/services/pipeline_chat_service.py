@@ -752,6 +752,7 @@ class PipelineChatService:
                 runtime_param_overrides=context.runtime_param_overrides,
                 runtime_provider=context.runtime_provider,
                 usage=result.metadata.get("usage") if result.metadata else None,
+                audit_adapter_name=context.adapter_name,
             )
 
             audio_data, audio_format_str = await self._maybe_generate_full_audio(
@@ -1041,6 +1042,7 @@ class PipelineChatService:
             runtime_param_overrides=context.runtime_param_overrides,
             runtime_provider=context.runtime_provider,
             usage=context.metadata.get("usage") if context.metadata else None,
+            audit_adapter_name=context.adapter_name,
         )
 
         warning = await self.conversation_handler.check_limit_warning(

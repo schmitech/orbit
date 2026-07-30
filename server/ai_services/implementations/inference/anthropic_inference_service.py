@@ -112,6 +112,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using the Anthropic Messages API."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -154,6 +155,14 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
         except Exception as e:
             self._handle_anthropic_error(e, "tool-calling generation")
             raise
+
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            self._report_usage(
+                usage_sink,
+                getattr(usage, "input_tokens", None),
+                getattr(usage, "output_tokens", None),
+            )
 
         text = None
         tool_calls_result = None

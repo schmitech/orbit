@@ -11,10 +11,11 @@ import wave
 
 from ...base import ServiceType
 from ...providers import OpenAIBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import AudioService
 
 
-class OpenAIAudioService(AudioService, OpenAIBaseService):
+class OpenAIAudioService(UsageReportingMixin, AudioService, OpenAIBaseService):
     """
     OpenAI audio service using unified architecture.
 
@@ -174,6 +175,7 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
         self,
         audio: Union[str, bytes],
         language: Optional[str] = None,
+        usage_sink: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """Convert speech audio to text using OpenAI Whisper."""
@@ -235,6 +237,13 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
                 **kwargs
             )
 
+            # Authoritative audio duration is only present when the caller
+            # opted into response_format="verbose_json" — never estimated
+            # from byte length, per the "no guessed quantities" rule.
+            duration = getattr(transcript, "duration", None)
+            if duration is not None:
+                self._report_media_usage(usage_sink, "audio_seconds", duration)
+
             return transcript.text
 
         except ValueError:
@@ -247,10 +256,11 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
         self,
         audio: Union[str, bytes],
         language: Optional[str] = None,
+        usage_sink: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """Transcribe audio to text (alias for speech_to_text)."""
-        return await self.speech_to_text(audio, language, **kwargs)
+        return await self.speech_to_text(audio, language, usage_sink=usage_sink, **kwargs)
 
     async def translate(
         self,

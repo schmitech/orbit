@@ -348,6 +348,87 @@ class TestResponseProcessor:
         mock_audit_service.log_conversation.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_process_response_audit_uses_swapped_adapter_not_calling_adapter(
+        self, base_config, mock_conversation_handler, mock_logger_service
+    ):
+        """
+        When a skill is auto-detected mid-conversation (e.g. "export this as
+        a pdf" routes from "simple-chat" to "pdf-generator"), the audit record
+        must attribute the request to the adapter that actually ran
+        (audit_adapter_name), while conversation history storage must stay
+        keyed to the calling session's original adapter — history for the
+        next turn is fetched under that same original adapter regardless of
+        whether this particular turn skill-swapped.
+
+        Regression: previously both used the single `adapter_name` param, so
+        every skill-swapped request's audit row (and Costs tab attribution)
+        was silently logged under the calling adapter instead of the skill
+        that actually produced the response.
+        """
+        mock_audit_service = AsyncMock()
+        mock_audit_service.log_conversation = AsyncMock()
+
+        processor = ResponseProcessor(
+            config=base_config,
+            conversation_handler=mock_conversation_handler,
+            logger_service=mock_logger_service,
+            audit_service=mock_audit_service
+        )
+
+        await processor.process_response(
+            response="Your PDF is ready.",
+            message="export this as a pdf",
+            client_ip="127.0.0.1",
+            adapter_name="simple-chat",
+            session_id="session123",
+            user_id="user456",
+            api_key="key789",
+            backend="openai",
+            processing_time=1.5,
+            audit_adapter_name="pdf-generator",
+        )
+
+        # Conversation history stays keyed to the calling adapter.
+        history_call = mock_conversation_handler.store_turn.call_args
+        assert history_call[1]['adapter_name'] == "simple-chat"
+
+        # The audit record attributes to the adapter that actually ran.
+        audit_call = mock_audit_service.log_conversation.call_args
+        assert audit_call[1]['adapter_name'] == "pdf-generator"
+
+    @pytest.mark.asyncio
+    async def test_process_response_audit_falls_back_to_adapter_name_when_no_swap(
+        self, base_config, mock_conversation_handler, mock_logger_service
+    ):
+        """When no skill swap occurred, audit_adapter_name is omitted and the
+        audit record must fall back to the plain adapter_name — the common,
+        non-skill-swapped case must be unaffected."""
+        mock_audit_service = AsyncMock()
+        mock_audit_service.log_conversation = AsyncMock()
+
+        processor = ResponseProcessor(
+            config=base_config,
+            conversation_handler=mock_conversation_handler,
+            logger_service=mock_logger_service,
+            audit_service=mock_audit_service
+        )
+
+        await processor.process_response(
+            response="Hello!",
+            message="hi",
+            client_ip="127.0.0.1",
+            adapter_name="simple-chat",
+            session_id="session123",
+            user_id="user456",
+            api_key="key789",
+            backend="openai",
+            processing_time=1.5,
+        )
+
+        audit_call = mock_audit_service.log_conversation.call_args
+        assert audit_call[1]['adapter_name'] == "simple-chat"
+
+    @pytest.mark.asyncio
     async def test_process_response_with_warning(
         self, base_config, mock_conversation_handler, mock_logger_service
     ):

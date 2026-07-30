@@ -267,6 +267,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using the Responses API."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -301,6 +302,15 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         except Exception as e:
             self._handle_openai_error(e, "tool-calling generation")
             raise
+
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            self._report_usage(
+                usage_sink,
+                getattr(usage, "input_tokens", None),
+                getattr(usage, "output_tokens", None),
+                reasoning_tokens=self._extract_reasoning_tokens(usage),
+            )
 
         output_items = self._response_output_to_dicts(response)
         function_calls = [item for item in output_items if item.get("type") == "function_call"]

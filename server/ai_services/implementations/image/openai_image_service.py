@@ -76,10 +76,32 @@ class OpenAIImageService(ImageGenerationService, OpenAIBaseService):
 
             image_bytes = base64.b64decode(image_data.b64_json)
             revised_prompt = getattr(image_data, "revised_prompt", None)
+
+            # gpt-image-1 bills per token (response.usage); DALL-E bills per
+            # image instead (params["n"] above, always 1) and reports no usage.
+            usage_dict = None
+            media_usage = None
+            usage = getattr(response, "usage", None)
+            if is_gpt_image and usage is not None:
+                prompt_tokens = getattr(usage, "input_tokens", None) or 0
+                completion_tokens = getattr(usage, "output_tokens", None) or 0
+                usage_dict = {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": prompt_tokens + completion_tokens,
+                    "provider": self.provider_name,
+                    "model": self.model,
+                    "reported": True,
+                }
+            elif is_dalle:
+                media_usage = {"unit": "images", "quantity": params["n"]}
+
             return {
                 "image_bytes": image_bytes,
                 "format": output_format if is_gpt_image and output_format else "png",
                 "revised_prompt": revised_prompt,
+                "usage": usage_dict,
+                "media_usage": media_usage,
             }
         except Exception as e:
             self._handle_openai_error(e, "image generation")

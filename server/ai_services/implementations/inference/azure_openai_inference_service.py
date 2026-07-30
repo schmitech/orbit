@@ -157,6 +157,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using Azure AI Inference."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -176,6 +177,14 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
         except Exception as e:
             self._handle_azure_error(e, "tool-calling generation")
             raise
+
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            self._report_usage(
+                usage_sink,
+                getattr(usage, "prompt_tokens", None),
+                getattr(usage, "completion_tokens", None),
+            )
 
         choice = response.choices[0]
         msg = choice.message

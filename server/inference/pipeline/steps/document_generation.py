@@ -250,9 +250,32 @@ class DocumentGenerationStep(PipelineStep):
             logger.warning("Malformed 'document' rewrite config — using fallback document spec")
             return self._fallback_spec(context)
 
+        # Each attempted provider call IS a real, billed request — even one
+        # that returns malformed/incomplete JSON and falls through to the
+        # next provider (or the local fallback) still cost money. Attempts
+        # are kept separate (not summed into one token count) because a
+        # fallback chain can span different providers/models — pricing a
+        # cross-provider token sum against a single rate would misstate cost.
+        attempts: List[Dict[str, Any]] = []
+
         for label, llm_provider in providers:
+            usage_sink: dict = {}
             try:
-                raw = await llm_provider.generate(prompt, max_tokens=max_tokens, temperature=temperature)
+                raw = await llm_provider.generate_tracked(
+                    prompt, usage_sink=usage_sink, max_tokens=max_tokens, temperature=temperature,
+                )
+                # Record immediately after the call returns — before any
+                # parsing/validation that might `continue` to the next
+                # provider or raise, so a billed-but-malformed response is
+                # never silently dropped from the attempt list.
+                if usage_sink.get("reported"):
+                    attempts.append({
+                        "provider": usage_sink.get("provider") or label,
+                        "model": usage_sink.get("model") or getattr(llm_provider, "model", None),
+                        "prompt_tokens": usage_sink.get("prompt_tokens") or 0,
+                        "completion_tokens": usage_sink.get("completion_tokens") or 0,
+                    })
+
                 raw = raw.strip()
                 # Strip markdown code fences if the LLM ignored the instruction
                 if raw.startswith("```"):
@@ -272,6 +295,10 @@ class DocumentGenerationStep(PipelineStep):
                     "Document spec generated via '%s': title=%r, sections=%d",
                     label, spec['title'], len(spec['sections']),
                 )
+                # This LLM call IS the entire cost of document generation —
+                # rendering itself is local (reportlab etc.), no further API
+                # call happens.
+                self._record_spec_usage(context, attempts)
                 return spec
             except Exception as e:
                 logger.warning(
@@ -281,7 +308,72 @@ class DocumentGenerationStep(PipelineStep):
                 continue
 
         logger.warning("All providers failed for document spec — using fallback")
+        self._record_spec_usage(context, attempts)
         return self._fallback_spec(context)
+
+    def _record_spec_usage(self, context: ProcessingContext, attempts: List[Dict[str, Any]]) -> None:
+        """
+        Record usage/cost for the document spec-generation LLM call(s) into
+        context.metadata["usage"]. Each attempt is priced independently
+        against its own provider/model and the costs summed — a fallback
+        chain can span different providers, so pricing the combined token
+        count against a single rate would misstate cost. If any attempt
+        can't be priced, the whole request is reported unpriced rather than
+        silently understating cost from the attempts that could be priced.
+        Never raises — usage/cost is best-effort.
+        """
+        if not attempts:
+            return
+
+        prompt_tokens = sum(a["prompt_tokens"] for a in attempts)
+        completion_tokens = sum(a["completion_tokens"] for a in attempts)
+        last = attempts[-1]
+
+        # Unlike image/video/audio generation (which call a separate media
+        # service and set these from it), document generation's only API
+        # call IS this spec-generation LLM — so the audit record's top-level
+        # provider/model must come from here too. Without this, they stay
+        # unset and audit_service.log_conversation() falls back to the
+        # server's globally configured default inference provider, silently
+        # misattributing every document-generation request's cost to it.
+        context.runtime_provider = last["provider"]
+        context.runtime_model_name = last["model"]
+
+        usage: Dict[str, Any] = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+            "reasoning_tokens": None,
+            "provider": last["provider"],
+            "model": last["model"],
+            "cost_usd": None,
+            "input_rate_per_1m": None,
+            "output_rate_per_1m": None,
+            "pricing_source": "unpriced",
+            "reported": True,
+        }
+
+        pricing_service = self.container.get('pricing_service') if self.container.has('pricing_service') else None
+        if pricing_service:
+            try:
+                estimates = [
+                    pricing_service.estimate(a["provider"], a["model"], a["prompt_tokens"], a["completion_tokens"])
+                    for a in attempts
+                ]
+                if all(e.cost_usd is not None for e in estimates):
+                    usage["cost_usd"] = round(sum(e.cost_usd for e in estimates), 6)
+                    sources = {e.pricing_source for e in estimates}
+                    usage["pricing_source"] = sources.pop() if len(sources) == 1 else "mixed"
+                    if len(estimates) == 1:
+                        usage["input_rate_per_1m"] = estimates[0].input_rate_per_1m
+                        usage["output_rate_per_1m"] = estimates[0].output_rate_per_1m
+            except Exception:
+                logger.debug("Pricing estimate failed for document spec generation", exc_info=True)
+
+        context.metadata["usage"] = usage
+        context.metadata["prompt_tokens"] = prompt_tokens
+        context.metadata["completion_tokens"] = completion_tokens
+        context.metadata["total_tokens"] = usage["total_tokens"]
 
     @staticmethod
     def _extract_markdown_tables(messages: List[Dict[str, str]]) -> List[List[List[str]]]:

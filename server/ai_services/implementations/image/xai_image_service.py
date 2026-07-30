@@ -124,6 +124,7 @@ class XAIImageService(ImageGenerationService):
                 "image_bytes": image_bytes,
                 "format": image_format_name,
                 "revised_prompt": None,
+                "media_usage": {"unit": "images", "quantity": int(n) if n else 1},
             }
 
         return await self.retry_handler.execute_with_retry(

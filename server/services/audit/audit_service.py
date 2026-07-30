@@ -360,6 +360,8 @@ class AuditService:
                 input_rate_per_1m=usage.get("input_rate_per_1m"),
                 output_rate_per_1m=usage.get("output_rate_per_1m"),
                 pricing_source=usage.get("pricing_source"),
+                usage_unit=usage.get("usage_unit"),
+                usage_quantity=usage.get("usage_quantity"),
             )
 
             # Store the record

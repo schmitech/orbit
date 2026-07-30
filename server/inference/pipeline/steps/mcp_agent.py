@@ -22,6 +22,7 @@ from typing import AsyncGenerator, List, Dict, Any, Optional
 from ..base import PipelineStep, ProcessingContext
 from ..prompt_builder import PromptInstructionBuilder
 from ..mcp_tool_loop import run_tool_calling_loop
+from ._utils import record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,7 @@ class MCPAgentStep(PipelineStep):
 
         messages = await self._build_initial_messages(context)
 
+        usage_sink: dict = {}
         final_text, sources, _ = await run_tool_calling_loop(
             provider=provider,
             mcp_manager=mcp_manager,
@@ -143,6 +145,14 @@ class MCPAgentStep(PipelineStep):
             max_iterations=mcp_manager.max_tool_iterations,
             cancel_event=context.cancel_event,
             is_cancelled=context.is_cancelled,
+            usage_sink=usage_sink,
+        )
+        provider_name = usage_sink.get("provider") or getattr(context, 'runtime_provider', None)
+        model_name = usage_sink.get("model") or getattr(context, 'runtime_model_name', None)
+        partial = bool(context.is_cancelled()) or not usage_sink.get("reported")
+        record_usage(
+            self.container, context, usage_sink, provider_name, model_name,
+            extra={"partial": partial, "calls": usage_sink.get("calls", 0), "source": "mcp_agent"},
         )
         return final_text, sources
 

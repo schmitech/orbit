@@ -462,6 +462,77 @@ class FileProcessingService:
             logger.debug(f"Could not access live config from adapter manager, using startup snapshot: {e}")
         return self.config
 
+    async def _log_extraction_usage(
+        self,
+        api_key: str,
+        filename: str,
+        provider: Optional[str],
+        model: Optional[str],
+        usage: Optional[Dict[str, Any]],
+    ) -> None:
+        """
+        Write an audit record for a file-extraction API call (STT/vision/OCR)
+        that reported usage.
+
+        These paths have no audit record at all today — unlike chat requests,
+        uploads never flow through response_processor.log_conversation. This
+        is a new, separate audit write (not an addition to an existing row),
+        gated on the caller having actually produced a `usage` dict with
+        `reported: True` (see UsageReportingMixin._report_usage/
+        _report_media_usage). Never raises — audit is best-effort and must
+        never block file processing.
+        """
+        if not usage or not usage.get("reported"):
+            return
+        audit_service = getattr(self.app_state, 'audit_service', None) if self.app_state else None
+        if not audit_service or not getattr(audit_service, 'inference_events_enabled', False):
+            return
+        pricing_service = getattr(self.app_state, 'pricing_service', None) if self.app_state else None
+
+        usage_dict: Dict[str, Any] = {
+            "prompt_tokens": usage.get("prompt_tokens"),
+            "completion_tokens": usage.get("completion_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+            "reasoning_tokens": usage.get("reasoning_tokens"),
+            "usage_unit": usage.get("usage_unit"),
+            "usage_quantity": usage.get("usage_quantity"),
+            "cost_usd": None,
+            "input_rate_per_1m": None,
+            "output_rate_per_1m": None,
+            "pricing_source": "unreported",
+        }
+        if pricing_service:
+            try:
+                if usage.get("usage_unit") and usage.get("usage_quantity") is not None:
+                    estimate = pricing_service.estimate_media(
+                        provider, model, usage.get("usage_unit"), usage.get("usage_quantity"),
+                    )
+                    usage_dict["pricing_source"] = estimate.pricing_source
+                    usage_dict["cost_usd"] = estimate.cost_usd
+                elif usage.get("prompt_tokens") is not None:
+                    estimate = pricing_service.estimate(
+                        provider, model, usage.get("prompt_tokens"), usage.get("completion_tokens"),
+                    )
+                    usage_dict["input_rate_per_1m"] = estimate.input_rate_per_1m
+                    usage_dict["output_rate_per_1m"] = estimate.output_rate_per_1m
+                    usage_dict["pricing_source"] = estimate.pricing_source
+                    usage_dict["cost_usd"] = estimate.cost_usd
+            except Exception:
+                logger.debug("Pricing estimate failed for file extraction usage", exc_info=True)
+
+        try:
+            await audit_service.log_conversation(
+                query=f"[file extraction] {filename}",
+                response="",
+                provider=provider,
+                blocked=False,
+                api_key=api_key,
+                model=model,
+                usage=usage_dict,
+            )
+        except Exception:
+            logger.debug("Failed to write audit record for file extraction usage", exc_info=True)
+
     def _ai_ocr_is_priority(self) -> bool:
         """Whether the AI OCR processor is enabled and set as the priority processor."""
         processing = self.config.get('files', {}).get('processing', {})
@@ -914,14 +985,34 @@ class FileProcessingService:
 
             logger.info(f"Starting audio transcription for {filename} (provider: {audio_provider})")
 
-            # Transcribe audio to text
+            # Transcribe audio to text. usage_sink is only passed to services that
+            # opted into UsageReportingMixin (currently just OpenAI) — most audio
+            # services splat **kwargs straight through, so an unrecognized kwarg
+            # on an un-migrated provider would break the request.
+            usage_sink: Dict[str, Any] = {}
+            supports_usage = getattr(audio_service, "SUPPORTS_USAGE_REPORTING", False)
             try:
-                transcribed_text = await audio_service.transcribe(
-                    audio=file_data,
-                    language=transcription_language,
-                    filename=filename,
-                    mime_type=mime_type
-                )
+                if supports_usage:
+                    # verbose_json is what makes an authoritative `duration`
+                    # available on the response at all (see
+                    # OpenAIAudioService.speech_to_text) — without requesting
+                    # it explicitly, the default response carries no duration
+                    # and this audit row would always be skipped as unreported.
+                    transcribed_text = await audio_service.transcribe(
+                        audio=file_data,
+                        language=transcription_language,
+                        filename=filename,
+                        mime_type=mime_type,
+                        usage_sink=usage_sink,
+                        response_format="verbose_json",
+                    )
+                else:
+                    transcribed_text = await audio_service.transcribe(
+                        audio=file_data,
+                        language=transcription_language,
+                        filename=filename,
+                        mime_type=mime_type
+                    )
             except asyncio.TimeoutError as e:
                 logger.error(f"Audio transcription API timeout for {filename}: {e}")
                 raise Exception("Audio transcription API request timed out. The audio file may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
@@ -930,6 +1021,11 @@ class FileProcessingService:
                 raise Exception(f"Audio transcription failed: {str(e)}")
 
             logger.info(f"Audio transcription completed for {filename}")
+
+            await self._log_extraction_usage(
+                api_key, filename, audio_provider, getattr(audio_service, "stt_model", None) or getattr(audio_service, "model", None),
+                usage_sink,
+            )
 
             metadata = {
                 'filename': filename,
@@ -1138,6 +1234,17 @@ class FileProcessingService:
                 if logger.isEnabledFor(logging.DEBUG):
                     logger.debug(f"Extraction complete for '{filename}': {len(text)} chars extracted by {processor_name}")
 
+                # AI OCR (AIDocumentProcessor) is the only processor that makes a
+                # billable API call — record it if it reported usage. Other
+                # processors (Docling, MarkItDown) never set `last_usage`.
+                last_usage = getattr(processor, "last_usage", None)
+                if last_usage:
+                    await self._log_extraction_usage(
+                        api_key, filename,
+                        getattr(processor, "provider", None), getattr(processor, "last_model", None),
+                        last_usage,
+                    )
+
                 return text, metadata
             except Exception as e:
                 last_error = e
@@ -1178,20 +1285,41 @@ class FileProcessingService:
             # This reduces total processing time from ~120s to ~60s
             logger.info(f"Starting vision processing for {filename} (provider: {vision_provider})")
 
+            # usage_sink is only passed to services that opted into
+            # UsageReportingMixin (anthropic/openai/gemini vision) — most vision
+            # services splat **kwargs straight through, so an unrecognized kwarg
+            # on an un-migrated provider would break the request. Two concurrent
+            # calls happen here, each needs its own sink (summed after).
+            supports_usage = getattr(vision_service, "SUPPORTS_USAGE_REPORTING", False)
+            usage_sink_1: Dict[str, Any] = {}
+            usage_sink_2: Dict[str, Any] = {}
+
             # Use custom prompt if provided, otherwise use default describe_image
             try:
                 if vision_prompt:
                     logger.info(f"Using custom prompt for vision analysis: {vision_prompt[:50]}...")
                     # Use analyze_image with custom prompt instead of describe_image
-                    extracted_text, description = await asyncio.gather(
-                        vision_service.extract_text_from_image(file_data),
-                        vision_service.analyze_image(file_data, prompt=vision_prompt)
-                    )
+                    if supports_usage:
+                        extracted_text, description = await asyncio.gather(
+                            vision_service.extract_text_from_image(file_data, usage_sink=usage_sink_1),
+                            vision_service.analyze_image(file_data, prompt=vision_prompt, usage_sink=usage_sink_2)
+                        )
+                    else:
+                        extracted_text, description = await asyncio.gather(
+                            vision_service.extract_text_from_image(file_data),
+                            vision_service.analyze_image(file_data, prompt=vision_prompt)
+                        )
                 else:
-                    extracted_text, description = await asyncio.gather(
-                        vision_service.extract_text_from_image(file_data),
-                        vision_service.describe_image(file_data)
-                    )
+                    if supports_usage:
+                        extracted_text, description = await asyncio.gather(
+                            vision_service.extract_text_from_image(file_data, usage_sink=usage_sink_1),
+                            vision_service.describe_image(file_data, usage_sink=usage_sink_2)
+                        )
+                    else:
+                        extracted_text, description = await asyncio.gather(
+                            vision_service.extract_text_from_image(file_data),
+                            vision_service.describe_image(file_data)
+                        )
             except asyncio.TimeoutError as e:
                 logger.error(f"Vision API timeout for {filename}: {e}")
                 raise Exception("Vision API request timed out. The image may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
@@ -1200,6 +1328,14 @@ class FileProcessingService:
                 raise Exception(f"Vision processing failed: {str(e)}")
 
             logger.info(f"Vision processing completed for {filename}")
+
+            from ai_services.providers.usage_reporting import accumulate_usage_sink
+            usage_sink: Dict[str, Any] = {}
+            accumulate_usage_sink(usage_sink, usage_sink_1)
+            accumulate_usage_sink(usage_sink, usage_sink_2)
+            await self._log_extraction_usage(
+                api_key, filename, vision_provider, getattr(vision_service, "model", None), usage_sink,
+            )
 
             metadata = {
                 'filename': filename,

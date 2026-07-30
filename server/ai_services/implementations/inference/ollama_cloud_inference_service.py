@@ -280,6 +280,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
         dicts and tool calls have no id, so synthetic ids are generated and
         results are normalised to the OpenAI shape the MCPAgentStep expects.
         """
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized and not await self.initialize():
             raise ValueError("Failed to initialize Ollama Cloud inference service")
         assert self.client is not None
@@ -307,6 +308,13 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
         except Exception as exc:
             logger.error("Error generating tool-calling response with Ollama Cloud: %s", exc)
             raise
+
+        if getattr(response, "prompt_eval_count", None) is not None or getattr(response, "eval_count", None) is not None:
+            self._report_usage(
+                usage_sink,
+                getattr(response, "prompt_eval_count", None),
+                getattr(response, "eval_count", None),
+            )
 
         message = getattr(response, "message", None)
         content = (getattr(message, "content", None) or None) if message is not None else None

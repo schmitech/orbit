@@ -4,15 +4,16 @@ OpenAI vision service implementation using unified architecture.
 This implementation provides vision capabilities using OpenAI's vision models.
 """
 
-from typing import Dict, Any, Union, List
+from typing import Dict, Any, Optional, Union, List
 from PIL import Image
 
 from ...base import ServiceType
 from ...providers import OpenAIBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import VisionService
 
 
-class OpenAIVisionService(VisionService, OpenAIBaseService):
+class OpenAIVisionService(UsageReportingMixin, VisionService, OpenAIBaseService):
     """
     OpenAI vision service using unified architecture.
 
@@ -35,7 +36,8 @@ class OpenAIVisionService(VisionService, OpenAIBaseService):
     async def analyze_image(
         self,
         image: Union[str, bytes, Image.Image],
-        prompt: str = "Analyze this image in detail. Describe what you see, including any text, objects, and overall context."
+        prompt: str = "Analyze this image in detail. Describe what you see, including any text, objects, and overall context.",
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Analyze image content with detailed response."""
         if not self.initialized:
@@ -82,6 +84,15 @@ class OpenAIVisionService(VisionService, OpenAIBaseService):
             # Call OpenAI vision API
             response = await self.client.chat.completions.create(**params)
 
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_tokens", None),
+                    getattr(usage, "completion_tokens", None),
+                    reasoning_tokens=self._extract_reasoning_tokens(usage),
+                )
+
             return response.choices[0].message.content
 
         except Exception as e:
@@ -90,34 +101,40 @@ class OpenAIVisionService(VisionService, OpenAIBaseService):
 
     async def describe_image(
         self,
-        image: Union[str, bytes, Image.Image]
+        image: Union[str, bytes, Image.Image],
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate description of image."""
         return await self.analyze_image(
             image,
-            prompt="Describe this image in detail. Include the main subjects, setting, colors, and any notable features."
+            prompt="Describe this image in detail. Include the main subjects, setting, colors, and any notable features.",
+            usage_sink=usage_sink,
         )
 
     async def extract_text_from_image(
         self,
-        image: Union[str, bytes, Image.Image]
+        image: Union[str, bytes, Image.Image],
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Extract text from image using OCR."""
         return await self.analyze_image(
             image,
-            prompt="Extract all text from this image. Return only the text content, preserving line breaks and structure."
+            prompt="Extract all text from this image. Return only the text content, preserving line breaks and structure.",
+            usage_sink=usage_sink,
         )
 
     async def detect_objects(
         self,
-        image: Union[str, bytes, Image.Image]
+        image: Union[str, bytes, Image.Image],
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Detect objects in image."""
         # OpenAI vision doesn't provide explicit object detection API,
         # so we use vision analysis to infer objects
         description = await self.analyze_image(
             image,
-            prompt="List all objects, people, and items visible in this image. For each item, describe what it is and where it appears in the image."
+            prompt="List all objects, people, and items visible in this image. For each item, describe what it is and where it appears in the image.",
+            usage_sink=usage_sink,
         )
         
         # Parse the description into structured format
@@ -139,6 +156,7 @@ class OpenAIVisionService(VisionService, OpenAIBaseService):
         self,
         image: Union[str, bytes, Image.Image],
         text_prompt: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """
@@ -193,6 +211,16 @@ class OpenAIVisionService(VisionService, OpenAIBaseService):
             params.update(kwargs)
 
             response = await self.client.chat.completions.create(**params)
+
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_tokens", None),
+                    getattr(usage, "completion_tokens", None),
+                    reasoning_tokens=self._extract_reasoning_tokens(usage),
+                )
+
             return response.choices[0].message.content
 
         except Exception as e:

@@ -46,6 +46,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using the xAI (Grok) API."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -73,6 +74,15 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
         except Exception as e:
             self._handle_openai_compatible_error(e, "tool-calling generation")
             raise
+
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            self._report_usage(
+                usage_sink,
+                getattr(usage, "prompt_tokens", None),
+                getattr(usage, "completion_tokens", None),
+                reasoning_tokens=self._extract_reasoning_tokens(usage),
+            )
 
         choice = response.choices[0]
         msg = choice.message

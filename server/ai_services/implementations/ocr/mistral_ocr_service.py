@@ -60,4 +60,8 @@ class MistralOcrService(OcrService, MistralBaseService):
         markdown = "\n\n---\n\n".join(
             (getattr(page, "markdown", "") or "") for page in pages
         )
-        return {"text": markdown, "page_count": len(pages)}
+        return {
+            "text": markdown,
+            "page_count": len(pages),
+            "media_usage": {"unit": "pages", "quantity": len(pages)},
+        }

@@ -261,9 +261,11 @@ the matching/precedence rules above don't change, and it should preserve the
   carries `prompt_tokens`, `completion_tokens`, `total_tokens`,
   `reasoning_tokens` (informational, only set for providers that break it
   out — see above), `cost_usd`, `input_rate_per_1m`, `output_rate_per_1m`,
-  `pricing_source` in `request_summary` (and at the top level of the row). Rendered as the
-  Tokens/Cost columns and the "Usage & cost" section of the record dossier
-  in the admin panel's Audit tab.
+  `pricing_source`, `usage_unit`, `usage_quantity` (the latter two only set
+  for discrete-unit media requests — see below) in `request_summary` (and at
+  the top level of the row). Rendered as the Tokens/Cost columns and the
+  "Usage & cost" section of the record dossier in the admin panel's Audit
+  tab.
 - **Aggregated**: `GET /admin/observability/usage` (admin panel: the
   **Costs** tab) — token/cost totals, a time-bucketed series, and top-N
   groups by model/provider/adapter/user, over a configurable window. Backed
@@ -274,52 +276,80 @@ the matching/precedence rules above don't change, and it should preserve the
   sensitive than the full query/response text `audit.read` already grants,
   so there's no separate permission for this.
 
-## Outstanding: image/video/audio services aren't tracked yet
+## Media services: image/video/audio/vision/OCR
 
-Everything above only covers **text inference** (`server/ai_services/implementations/inference/`).
-None of the other AI service categories report usage or cost yet, even
-though several of them are the actual bulk of provider spend per request —
-a single image or video generation call routinely costs far more than a
-text completion, and none of that shows up in the Audit table or the Costs
-tab today:
+Non-text AI services are tracked using one of three billing shapes, all
+resolved through `PricingService` and landing on the same `AuditRecord`:
 
-- `server/ai_services/implementations/image/` — gemini, openai, xai, ollama
-- `server/ai_services/implementations/video/` — gemini, xai
-- `server/ai_services/implementations/audio/` — openai, elevenlabs,
-  anthropic, cohere, gemini/google, coqui, supertonic, whisper, vllm, ollama
-  (STT and TTS both live here)
-- `server/ai_services/implementations/vision/` — anthropic, cohere, gemini,
-  openai, llama_cpp, ollama, ollama_cloud, vllm
-- `server/ai_services/implementations/ocr/` — gemini, mistral, vision-based
+| Shape | Unit | Where | Pricing |
+|---|---|---|---|
+| Text tokens | tokens | `inference/`, all of `vision/`, gemini OCR, gemini/openai (gpt-image-1) image | `pricing.providers.<provider>.<model>.{input_per_1m,output_per_1m}` — same table/matching as text |
+| Tiered tokens | text + audio tokens | realtime voice sessions (`gpt-realtime*`) | `pricing.providers` gains optional `audio_input_per_1m`/`audio_output_per_1m`; `PricingService.estimate()` takes optional `audio_prompt_tokens`/`audio_completion_tokens` and reports `unpriced` (never silently text-priced) if audio tokens are present without a configured audio tier |
+| Discrete units | images, video seconds, TTS characters, STT seconds, OCR pages | image/video/audio(TTS+STT)/mistral-OCR | new `pricing.media` section (same provider/model matching), `PricingService.estimate_media(provider, model, unit, quantity)` |
 
-None of these go through `LLMInferenceStep`/`UsageReportingMixin` at all —
-image/video generation is typically billed **per image/second/megapixel**,
-not per token, so `config/pricing.yaml`'s `input_per_1m`/`output_per_1m`
-shape and `PricingService.estimate()`'s token-based arithmetic don't apply
-as-is. Extending this feature to these categories will need:
+Two new `AuditRecord`/audit_logs columns carry the discrete-unit case:
+`usage_unit` (e.g. `"images"`, `"audio_seconds"`) and `usage_quantity`.
+`cost_usd` stays the **one** summable cost column across both shapes, so the
+Costs tab's totals need no changes to include media spend.
 
-- A per-category usage unit (images generated, video seconds, audio
-  seconds/characters) captured from each of the above services' responses,
-  analogous to `usage_sink` but not token-shaped.
-- A pricing shape in `config/pricing.yaml` (or a sibling file) keyed on that
-  unit instead of tokens per 1M — the current `resolve()`/matching logic
-  should still apply, just against a different rate shape per category.
-- New `AuditRecord` fields (or a separate record type) for non-text spend,
-  since `prompt_tokens`/`completion_tokens` don't mean anything for a video
-  generation call.
-- Corresponding columns/sections on the Audit dossier and a way to combine
-  text + media cost in the Costs tab's totals (currently `cost_usd` there
-  only sums text-inference audit rows).
+**Reporting mechanism**, mirroring text inference:
+- Media services that return a `Dict` (`generate_image`, `generate_video`,
+  `extract_document`) put a `"usage"` (token-shaped, e.g. gpt-image-1) or
+  `"media_usage"` (`{"unit", "quantity"}`) key directly in their return value
+  — no `usage_sink` needed, since the return value is already a dict.
+  DALL-E/Imagen/xai/ollama images report `images` count (the actual `n`
+  requested); xAI video reports `seconds` (the actual duration requested,
+  never guessed from output bytes); Mistral OCR reports `pages` (already
+  computed for `page_count`); Gemini's Imagen branch and OpenAI's DALL-E
+  branch report no token usage at all (no `usage_metadata`/`response.usage`
+  on those SDK calls) — only the unit.
+- Services that return a bare `str`/`bytes` (vision's `analyze_image` etc.,
+  audio's `speech_to_text`) accept an explicit `usage_sink` kwarg and mix in
+  `UsageReportingMixin`, exactly like text `generate()`. TTS characters are
+  the one exception needing no service change at all — the caller already
+  has the exact text being spoken (`len(text)`), so the pipeline step
+  computes it directly rather than reading it back from the service.
+- `server/inference/pipeline/steps/_utils.py`'s `record_media_generation_usage()`
+  combines a generation call's usage with its **separate prompt-rewrite LLM
+  call** (image/video/audio-generation adapters resolve a natural-language
+  prompt via a rewrite LLM before the actual generation call — that LLM
+  spend was previously untracked entirely) into one `context.metadata["usage"]`
+  — both are real spend for the same request and belong on one audit row.
+  The two cost components are priced independently against their own
+  provider/model and summed; a missing/unpriced component contributes `$0`
+  rather than blocking the other.
+- File-upload STT/vision/OCR (`file_processing_service.py`,
+  `ai_document_processor.py`) had **no audit record at all** before this —
+  unlike chat requests, uploads never flow through
+  `response_processor.log_conversation()`. `FileProcessingService._log_extraction_usage()`
+  writes a new, separate audit record when a call reports usage, reached via
+  `self.app_state.audit_service` (lazily fetched — it may not be wired yet
+  when the service is constructed).
+- Realtime voice sessions (OpenAI Realtime, Gemini Live) accumulate usage
+  across every `response.done`/`usageMetadata` event — including cancelled
+  and tool-call-only turns, which still bill tokens — into a per-session
+  `BaseRealtimeWebSocketHandler._usage_accumulator`, flushed as **one** audit
+  record in `cleanup()` (not per-turn; a session can produce hundreds of
+  turns, which would flood the Costs tab).
 
-This is a real gap, not a nice-to-have — flagging it here so it isn't lost
-before the next round of work on this feature.
+**Not yet covered** (explicit scope reduction, not silently dropped):
+- Cohere and the local vision providers (ollama, ollama_cloud, vllm,
+  llama_cpp) — token usage extraction for `vision/*` only reached Anthropic,
+  OpenAI, and Gemini.
+- STT duration is only captured for OpenAI (`response_format="verbose_json"`
+  gives an authoritative `duration`); other STT providers (ElevenLabs,
+  Gemini/Google, Cohere) report no usage at all yet.
+- Inline chat TTS (`return_audio`/`tts_voice` on a normal chat request, via
+  `services/chat_handlers/audio_handler.py`) is not wired — the audit record
+  for that request is written by `response_processor.process_response()`
+  *before* the TTS audio is generated, so merging TTS cost into the same row
+  would require reordering that call sequence in `pipeline_chat_service.py`.
+- `openai_realtime_translation_websocket_handler.py` does not extend
+  `BaseRealtimeWebSocketHandler` (it's a standalone class with no response
+  lifecycle), so it has no usage accumulator either.
 
 ## Known limitations
 
-- **MCP tool-calling loop**: a request that goes through the inline MCP
-  tool-calling loop (`run_tool_calling_loop`) makes multiple provider calls,
-  and usage is not currently summed across those calls — it's tagged
-  `metadata["usage"]["partial"] = True` rather than silently under-reporting.
 - **Cancelled/cached responses**: a cancelled stream never sees a final
   usage chunk, and a query-cache hit never calls the provider at all — both
   correctly leave usage unreported (`total_tokens: null`), not `0`.

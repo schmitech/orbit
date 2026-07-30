@@ -292,7 +292,9 @@ class PostgresService(DatabaseService):
                     cost_usd DOUBLE PRECISION,
                     input_rate_per_1m DOUBLE PRECISION,
                     output_rate_per_1m DOUBLE PRECISION,
-                    pricing_source TEXT
+                    pricing_source TEXT,
+                    usage_unit TEXT,
+                    usage_quantity REAL
                 )
             ''',
             'feedback': '''

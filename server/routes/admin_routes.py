@@ -2129,6 +2129,8 @@ async def list_admin_audit_events(
                 "input_rate_per_1m": row.get("input_rate_per_1m"),
                 "output_rate_per_1m": row.get("output_rate_per_1m"),
                 "pricing_source": row.get("pricing_source"),
+                "usage_unit": row.get("usage_unit"),
+                "usage_quantity": row.get("usage_quantity"),
             },
             "title": model or provider,
             "subtitle": adapter_name or "inference request",

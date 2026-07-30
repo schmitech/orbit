@@ -25,6 +25,9 @@ pricing:
       "gpt-5*":        { input_per_1m: 1.25,  output_per_1m: 10.00 }
       "gpt-4o-mini*":  { input_per_1m: 0.15,  output_per_1m: 0.60 }
       "gpt-4o*":       { input_per_1m: 2.50,  output_per_1m: 10.00 }
+      # Realtime voice models bill audio tokens at a separate, much higher
+      # tier than text — see PricingService.estimate()'s audio_* args.
+      "gpt-realtime*": { input_per_1m: 4.00, output_per_1m: 16.00, audio_input_per_1m: 32.00, audio_output_per_1m: 64.00 }
 
     anthropic:
       "claude-opus*":    { input_per_1m: 15.00, output_per_1m: 75.00 }
@@ -32,6 +35,11 @@ pricing:
       "claude-haiku*":   { input_per_1m: 0.80,  output_per_1m: 4.00 }
 
     gemini:
+      # Live/realtime voice variant — was previously falling through to the
+      # generic "gemini*flash*" TEXT glob below, which is the wrong rate for
+      # an audio-capable live session. Verify against the current Gemini
+      # Live API pricing page before relying on this for cost-sensitive use.
+      "gemini-3.1-flash-live-preview*": { input_per_1m: 0.50, output_per_1m: 3.00 }
       "gemini-3.6-flash*":      { input_per_1m: 1.50, output_per_1m: 7.50 }
       "gemini-3.5-flash-lite*": { input_per_1m: 0.30, output_per_1m: 2.50 }
       "gemini-3.5-flash*":      { input_per_1m: 1.50, output_per_1m: 9.00 }
@@ -90,3 +98,47 @@ pricing:
       "*": { input_per_1m: 0.0, output_per_1m: 0.0 }
     airllm:
       "*": { input_per_1m: 0.0, output_per_1m: 0.0 }
+
+  # Discrete-unit media pricing (images, video seconds, TTS characters, STT
+  # seconds, OCR pages) — separate from the token-based `providers` table
+  # above since these aren't priced per token. Same (provider, model)
+  # matching order as `providers`. A provider's bare "*" entry may omit
+  # `unit` entirely (see PricingService.estimate_media) since one local
+  # provider (ollama, whisper, ...) can serve several media categories.
+  media:
+    openai:
+      "dall-e-3*": { unit: "images", per_unit: 0.04 }
+      "dall-e-2*": { unit: "images", per_unit: 0.02 }
+      "tts-1-hd*": { unit: "characters", per_unit: 0.00003 }
+      "tts-1*":    { unit: "characters", per_unit: 0.000015 }
+      # Per-minute STT converted to per-second ($0.006/min / 60).
+      "whisper-1*": { unit: "audio_seconds", per_unit: 0.0001 }
+
+    gemini:
+      "imagen*": { unit: "images", per_unit: 0.04 }
+      "veo*":    { unit: "seconds", per_unit: 0.35 }
+
+    xai:
+      "grok-*-image*": { unit: "images", per_unit: 0.07 }
+      "grok-*-video*": { unit: "seconds", per_unit: 0.35 }
+
+    mistral:
+      # Mistral's document OCR endpoint bills per page (~$1/1000 pages).
+      "mistral-ocr*": { unit: "pages", per_unit: 0.001 }
+
+    elevenlabs:
+      "*": { unit: "characters", per_unit: 0.00003 }
+
+    # Local / self-hosted — free to run, reported explicitly as $0.00.
+    ollama:
+      "*": { per_unit: 0.0 }
+    whisper:
+      "*": { per_unit: 0.0 }
+    coqui:
+      "*": { per_unit: 0.0 }
+    supertonic:
+      "*": { per_unit: 0.0 }
+    vllm:
+      "*": { per_unit: 0.0 }
+    llama_cpp:
+      "*": { per_unit: 0.0 }

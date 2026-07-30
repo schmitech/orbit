@@ -42,6 +42,17 @@ class AIDocumentProcessor(FileProcessor):
         self.provider = ai_cfg.get('provider', 'mistral')
         self.model_override = ai_cfg.get('model')
         self.max_pages = ai_cfg.get('max_pages', 50)
+        # Usage from the most recent extract_text() call — {"reported": bool,
+        # "prompt_tokens"/"completion_tokens" (token-billed OCR, e.g. Gemini)
+        # OR "usage_unit"/"usage_quantity" (unit-billed, e.g. Mistral pages)}.
+        # FileProcessor.extract_text() only returns a bare str, so callers that
+        # want usage (_extract_content) read this instance attribute right
+        # after calling it, rather than widening that shared return contract.
+        self.last_usage: Optional[Dict[str, Any]] = None
+        # The OCR service's actually-resolved model (may differ from
+        # model_override, which is usually unset) — set by extract_text(),
+        # read by _extract_content() for pricing.
+        self.last_model: Optional[str] = None
 
     def supports_mime_type(self, mime_type: str) -> bool:
         """Supports PDFs and images."""
@@ -55,12 +66,39 @@ class AIDocumentProcessor(FileProcessor):
         if not self._enabled:
             raise ValueError("AI document processor is disabled")
 
+        self.last_usage = None
         mime_type = self._detect_mime_type(file_data, filename)
         service = self._get_ocr_service()
         if not service.initialized:
             await service.initialize()
+        # self.model_override is only set when the operator explicitly
+        # overrides it in config — the OCR service itself always resolves a
+        # concrete model (from ocr.yaml's default, e.g. "mistral-ocr-latest"
+        # or "gemini-3.6-flash"), so pricing must match against that resolved
+        # model, not the (usually unset) override.
+        self.last_model = getattr(service, "model", None) or self.model_override
 
-        result = await service.extract_document(file_data, mime_type, filename)
+        # usage_sink is only passed to services that opted into
+        # UsageReportingMixin (currently Gemini OCR) — un-migrated services
+        # splat **kwargs straight through, so an unrecognized kwarg would
+        # break the request.
+        if getattr(service, "SUPPORTS_USAGE_REPORTING", False):
+            usage_sink: Dict[str, Any] = {}
+            result = await service.extract_document(file_data, mime_type, filename, usage_sink=usage_sink)
+            if usage_sink.get("reported"):
+                self.last_usage = usage_sink
+        else:
+            result = await service.extract_document(file_data, mime_type, filename)
+
+        if self.last_usage is None:
+            media_usage = result.get("media_usage")
+            if media_usage:
+                self.last_usage = {
+                    "reported": True,
+                    "usage_unit": media_usage.get("unit"),
+                    "usage_quantity": media_usage.get("quantity"),
+                }
+
         return result.get('text', '')
 
     async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:

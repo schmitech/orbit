@@ -275,7 +275,9 @@ class SQLiteService(DatabaseService):
                     cost_usd REAL,
                     input_rate_per_1m REAL,
                     output_rate_per_1m REAL,
-                    pricing_source TEXT
+                    pricing_source TEXT,
+                    usage_unit TEXT,
+                    usage_quantity REAL
                 )
             ''',
             'feedback': '''

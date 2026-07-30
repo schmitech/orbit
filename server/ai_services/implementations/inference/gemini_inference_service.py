@@ -203,6 +203,7 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using the Gemini API."""
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -256,6 +257,15 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
         except Exception as e:
             self._handle_google_error(e, "tool-calling generation")
             raise
+
+        usage = getattr(response, "usage_metadata", None)
+        if usage is not None:
+            self._report_usage(
+                usage_sink,
+                getattr(usage, "prompt_token_count", None),
+                self._billed_completion_tokens(usage),
+                reasoning_tokens=getattr(usage, "thoughts_token_count", None),
+            )
 
         if not response.candidates:
             return ToolCallingResult(

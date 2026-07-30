@@ -4,7 +4,7 @@ Gemini vision service implementation using unified architecture.
 Uses the google-genai SDK (replacement for deprecated google-generativeai).
 """
 
-from typing import Dict, Any, Union, List
+from typing import Dict, Any, Optional, Union, List
 from PIL import Image
 from io import BytesIO
 import asyncio
@@ -12,12 +12,13 @@ import logging
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import VisionService
 
 logger = logging.getLogger(__name__)
 
 
-class GeminiVisionService(VisionService, GoogleBaseService):
+class GeminiVisionService(UsageReportingMixin, VisionService, GoogleBaseService):
     """
     Gemini vision service using unified architecture.
 
@@ -52,7 +53,8 @@ class GeminiVisionService(VisionService, GoogleBaseService):
     async def analyze_image(
         self,
         image: Union[str, bytes, Image.Image],
-        prompt: str = "Analyze this image in detail. Describe what you see, including any text, objects, and overall context."
+        prompt: str = "Analyze this image in detail. Describe what you see, including any text, objects, and overall context.",
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Analyze image content with detailed response."""
         if not self.initialized:
@@ -72,6 +74,14 @@ class GeminiVisionService(VisionService, GoogleBaseService):
                 contents=[prompt, pil_image],
             )
 
+            usage = getattr(response, "usage_metadata", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_token_count", None),
+                    getattr(usage, "candidates_token_count", None),
+                )
+
             if not response.candidates or not response.candidates[0].content:
                 raise ValueError("No content returned from Gemini")
 
@@ -83,32 +93,38 @@ class GeminiVisionService(VisionService, GoogleBaseService):
 
     async def describe_image(
         self,
-        image: Union[str, bytes, Image.Image]
+        image: Union[str, bytes, Image.Image],
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate description of image."""
         return await self.analyze_image(
             image,
-            prompt="Describe this image in detail. Include the main subjects, setting, colors, and any notable features."
+            prompt="Describe this image in detail. Include the main subjects, setting, colors, and any notable features.",
+            usage_sink=usage_sink,
         )
 
     async def extract_text_from_image(
         self,
-        image: Union[str, bytes, Image.Image]
+        image: Union[str, bytes, Image.Image],
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Extract text from image using OCR."""
         return await self.analyze_image(
             image,
-            prompt="Extract all text from this image. Return only the text content, preserving line breaks and structure."
+            prompt="Extract all text from this image. Return only the text content, preserving line breaks and structure.",
+            usage_sink=usage_sink,
         )
 
     async def detect_objects(
         self,
-        image: Union[str, bytes, Image.Image]
+        image: Union[str, bytes, Image.Image],
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Detect objects in image."""
         description = await self.analyze_image(
             image,
-            prompt="List all objects, people, and items visible in this image. For each item, describe what it is and where it appears in the image."
+            prompt="List all objects, people, and items visible in this image. For each item, describe what it is and where it appears in the image.",
+            usage_sink=usage_sink,
         )
 
         # Parse the description into structured format
@@ -129,6 +145,7 @@ class GeminiVisionService(VisionService, GoogleBaseService):
         self,
         image: Union[str, bytes, Image.Image],
         text_prompt: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """Perform multimodal inference with image and text."""
@@ -156,6 +173,14 @@ class GeminiVisionService(VisionService, GoogleBaseService):
                 contents=[text_prompt, pil_image],
                 config=config,
             )
+
+            usage = getattr(response, "usage_metadata", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "prompt_token_count", None),
+                    getattr(usage, "candidates_token_count", None),
+                )
 
             if not response.candidates or not response.candidates[0].content:
                 raise ValueError("No content returned from Gemini")

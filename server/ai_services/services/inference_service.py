@@ -271,6 +271,24 @@ class InferenceService(ProviderAIService):
             "Use an OpenAI, Anthropic, Gemini, or xAI inference service."
         )
 
+    async def generate_with_tools_tracked(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        usage_sink: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> "ToolCallingResult":
+        """
+        Same as generate_with_tools(), but fills usage_sink with token usage
+        when this implementation supports it. Safe to call on any
+        implementation — usage_sink is only forwarded when
+        SUPPORTS_USAGE_REPORTING is True, so un-migrated implementations
+        (which splat **kwargs straight into the provider SDK) never see it.
+        """
+        if usage_sink is not None and self.SUPPORTS_USAGE_REPORTING:
+            return await self.generate_with_tools(messages, tools, usage_sink=usage_sink, **kwargs)
+        return await self.generate_with_tools(messages, tools, **kwargs)
+
     async def generate_with_fallback(
         self,
         prompt: str,

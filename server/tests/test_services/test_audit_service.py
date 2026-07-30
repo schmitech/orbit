@@ -1181,6 +1181,55 @@ class TestUsageFieldsRoundTrip:
         assert flat['reasoning_tokens'] is None
         assert flat['cost_usd'] is None
         assert flat['pricing_source'] is None
+        assert flat['usage_unit'] is None
+        assert flat['usage_quantity'] is None
+
+    def test_to_dict_omits_usage_unit_when_none(self):
+        record = AuditRecord(
+            timestamp=datetime.now(), query="q", response="r",
+            provider="openai", blocked=False, ip="127.0.0.1",
+        )
+        result = record.to_dict()
+        assert 'usage_unit' not in result
+        assert 'usage_quantity' not in result
+
+    def test_to_dict_includes_usage_unit_when_set(self):
+        record = AuditRecord(
+            timestamp=datetime.now(), query="q", response="r",
+            provider="openai", blocked=False, ip="127.0.0.1",
+            usage_unit="images", usage_quantity=2.0,
+            cost_usd=0.08, pricing_source="pattern",
+        )
+        result = record.to_dict()
+        assert result['usage_unit'] == "images"
+        assert result['usage_quantity'] == 2.0
+
+    @pytest.mark.asyncio
+    async def test_sqlite_store_and_query_preserves_media_usage_fields(self, sqlite_service_with_audit):
+        """A discrete-unit media request (image generation, TTS, etc.) must
+        round-trip usage_unit/usage_quantity alongside the shared cost_usd
+        column, the same way a token-billed request round-trips tokens."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+
+        record = AuditRecord(
+            timestamp=datetime.now(), query="a photo of a cat", response="generated",
+            provider="openai", blocked=False, ip="127.0.0.1",
+            model="dall-e-3",
+            usage_unit="images", usage_quantity=2.0,
+            cost_usd=0.08, pricing_source="pattern",
+        )
+        success = await audit_service._strategy.store(record)
+        assert success is True
+
+        results = await audit_service.query_audit_logs({})
+        assert len(results) == 1
+        stored = results[0]
+        assert stored['usage_unit'] == "images"
+        assert stored['usage_quantity'] == pytest.approx(2.0)
+        assert stored['cost_usd'] == pytest.approx(0.08)
+        # A media-priced row has no tokens at all — must stay None, not 0.
+        assert stored.get('prompt_tokens') is None
 
     @pytest.mark.asyncio
     async def test_sqlite_store_and_query_preserves_usage_fields(self, sqlite_service_with_audit):
@@ -1283,6 +1332,7 @@ class TestUsageFieldsRoundTrip:
         for expected in (
             'prompt_tokens', 'completion_tokens', 'total_tokens', 'reasoning_tokens',
             'cost_usd', 'input_rate_per_1m', 'output_rate_per_1m', 'pricing_source',
+            'usage_unit', 'usage_quantity',
         ):
             assert expected in columns, f"migration did not add column {expected}"
 

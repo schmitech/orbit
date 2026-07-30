@@ -97,6 +97,12 @@ class AuditRecord:
     input_rate_per_1m: Optional[float] = None
     output_rate_per_1m: Optional[float] = None
     pricing_source: Optional[str] = None  # exact | pattern | provider_default | local_zero | unpriced | unreported
+    # Discrete-unit media spend (images/video seconds/TTS characters/STT
+    # seconds/OCR pages) — cost_usd above is the single summable cost column
+    # for both token-billed and unit-billed requests; these two describe what
+    # the unit-billed quantity actually was.
+    usage_unit: Optional[str] = None
+    usage_quantity: Optional[float] = None
 
     def to_dict(self, compress: bool = False) -> Dict[str, Any]:
         """
@@ -152,6 +158,10 @@ class AuditRecord:
             result['output_rate_per_1m'] = self.output_rate_per_1m
         if self.pricing_source:
             result['pricing_source'] = self.pricing_source
+        if self.usage_unit is not None:
+            result['usage_unit'] = self.usage_unit
+        if self.usage_quantity is not None:
+            result['usage_quantity'] = self.usage_quantity
 
         return result
 
@@ -224,6 +234,8 @@ class AuditRecord:
         result['input_rate_per_1m'] = self.input_rate_per_1m
         result['output_rate_per_1m'] = self.output_rate_per_1m
         result['pricing_source'] = self.pricing_source
+        result['usage_unit'] = self.usage_unit
+        result['usage_quantity'] = self.usage_quantity
 
         return result
 

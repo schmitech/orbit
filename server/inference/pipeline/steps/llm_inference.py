@@ -12,7 +12,7 @@ from ai_services.errors import sanitize_provider_error
 from ..base import PipelineStep, ProcessingContext
 from ..prompt_builder import PromptInstructionBuilder
 from ..mcp_tool_loop import run_tool_calling_loop
-from ._utils import NO_LLM_ADAPTER_TYPES
+from ._utils import NO_LLM_ADAPTER_TYPES, record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -294,6 +294,7 @@ class LLMInferenceStep(PipelineStep):
         # is for the plain generate() path today.
         await self._build_message_format(context)
 
+        usage_sink: dict = {}
         final_text, sources, _ = await run_tool_calling_loop(
             provider=llm_provider,
             mcp_manager=mcp_manager,
@@ -302,13 +303,21 @@ class LLMInferenceStep(PipelineStep):
             max_iterations=mcp_manager.max_tool_iterations,
             cancel_event=context.cancel_event,
             is_cancelled=context.is_cancelled,
+            usage_sink=usage_sink,
         )
         context.response = final_text or ""
         context.sources = (context.sources or []) + sources
-        # The tool-calling loop makes N provider calls; usage is not summed
-        # across iterations in this pass, so mark it partial rather than
-        # silently reporting zero/absent cost for MCP-adapter requests.
-        context.metadata.setdefault("usage", {})["partial"] = True
+        # Tokens are now summed across every provider call the loop made
+        # (see accumulate_usage_sink). "partial" only means a genuine gap —
+        # a cancelled loop, or a provider in the loop that never reports
+        # usage at all — never a blanket assumption for every MCP request.
+        provider_name = usage_sink.get("provider") or self._effective_provider_name(context)
+        model_name = usage_sink.get("model") or getattr(context, 'runtime_model_name', None)
+        partial = bool(context.is_cancelled()) or not usage_sink.get("reported")
+        record_usage(
+            self.container, context, usage_sink, provider_name, model_name,
+            extra={"partial": partial, "calls": usage_sink.get("calls", 0), "source": "mcp_tools"},
+        )
         return True
 
     def _record_usage(self, context: ProcessingContext, usage_sink: dict) -> None:
@@ -317,51 +326,9 @@ class LLMInferenceStep(PipelineStep):
         into context.metadata["usage"], adding a cost estimate from the pricing
         service when available. Never raises — usage/cost is best-effort.
         """
-        reported = bool(usage_sink.get("reported"))
         provider = usage_sink.get("provider") or self._effective_provider_name(context)
         model = usage_sink.get("model") or getattr(context, 'runtime_model_name', None)
-        prompt_tokens = usage_sink.get("prompt_tokens") if reported else None
-        completion_tokens = usage_sink.get("completion_tokens") if reported else None
-        total_tokens = usage_sink.get("total_tokens") if reported else None
-        # Informational only — the subset of completion_tokens spent on
-        # reasoning/thinking, when the provider breaks it out (OpenAI
-        # o-series/gpt-5, Gemini). Already folded into completion_tokens
-        # above, so this never changes the cost estimate below.
-        reasoning_tokens = usage_sink.get("reasoning_tokens") if reported else None
-
-        usage = {
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": total_tokens,
-            "reasoning_tokens": reasoning_tokens,
-            "provider": provider,
-            "model": model,
-            "cost_usd": None,
-            "input_rate_per_1m": None,
-            "output_rate_per_1m": None,
-            "pricing_source": "unreported" if not reported else "unpriced",
-            "reported": reported,
-        }
-
-        if reported and self.container.has('pricing_service'):
-            try:
-                pricing_service = self.container.get('pricing_service')
-                estimate = pricing_service.estimate(provider, model, prompt_tokens, completion_tokens)
-                usage["cost_usd"] = estimate.cost_usd
-                usage["input_rate_per_1m"] = estimate.input_rate_per_1m
-                usage["output_rate_per_1m"] = estimate.output_rate_per_1m
-                usage["pricing_source"] = estimate.pricing_source
-            except Exception:
-                logger.debug("Pricing estimate failed", exc_info=True)
-
-        # Mirror token counts at the metadata top level so
-        # OpenAIResponseFormatter.build_usage (which reads metadata directly)
-        # also reports real numbers on the /v1/chat/completions surface.
-        context.metadata["usage"] = usage
-        if reported:
-            context.metadata["prompt_tokens"] = prompt_tokens
-            context.metadata["completion_tokens"] = completion_tokens
-            context.metadata["total_tokens"] = total_tokens
+        record_usage(self.container, context, usage_sink, provider, model)
 
     def _uses_native_chat_format(self, context: ProcessingContext) -> bool:
         """Return True for providers/adapters that accept a structured messages array."""

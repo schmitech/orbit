@@ -11,6 +11,8 @@ import asyncio
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from ai_services.providers.usage_reporting import accumulate_usage_sink
+
 logger = logging.getLogger(__name__)
 
 _RESULT_TRUNCATION_CHARS = 2000
@@ -51,6 +53,19 @@ async def await_or_cancel(coro, cancel_event: Optional[asyncio.Event]):
     return task.result()
 
 
+def _call_with_tools(provider, messages, tools, usage_sink: Optional[Dict[str, Any]]):
+    """
+    Call generate_with_tools_tracked when the provider has it, else fall back
+    to plain generate_with_tools. Some test doubles and third-party providers
+    implement only generate_with_tools directly rather than subclassing
+    LLMProvider (which provides the tracked default) — this keeps the loop
+    working for them, just without usage reporting for that call.
+    """
+    if hasattr(provider, "generate_with_tools_tracked"):
+        return provider.generate_with_tools_tracked(messages, tools, usage_sink=usage_sink)
+    return provider.generate_with_tools(messages, tools)
+
+
 async def run_tool_calling_loop(
     provider,
     mcp_manager,
@@ -59,6 +74,7 @@ async def run_tool_calling_loop(
     max_iterations: int,
     cancel_event: Optional[asyncio.Event] = None,
     is_cancelled: Optional[Callable[[], bool]] = None,
+    usage_sink: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Optional[str], List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Execute the bounded tool-calling loop.
@@ -72,6 +88,11 @@ async def run_tool_calling_loop(
         cancel_event: Optional asyncio.Event; when set, in-flight calls are torn down.
         is_cancelled: Optional callable checked between iterations for a cheap
             fast-path cancellation check.
+        usage_sink: Optional caller-owned dict that accumulates token usage
+            summed across every provider call this loop makes. A fresh sink is
+            used per call (see accumulate_usage_sink) since _report_usage()
+            overwrites rather than accumulates — reusing one sink across calls
+            would silently drop all but the last iteration's counts.
 
     Returns:
         (final_text, sources, messages) — messages is the same list passed in,
@@ -101,9 +122,12 @@ async def run_tool_calling_loop(
             len(tools),
         )
 
+        iter_sink: Optional[Dict[str, Any]] = {} if usage_sink is not None else None
         result = await await_or_cancel(
-            provider.generate_with_tools(messages, tools), cancel_event
+            _call_with_tools(provider, messages, tools, iter_sink), cancel_event
         )
+        if usage_sink is not None:
+            accumulate_usage_sink(usage_sink, iter_sink)
         if result is _CANCELLED:
             logger.info("MCP tool loop cancelled during model call (iteration %d)", iteration + 1)
             return last_text or "", sources, messages
@@ -168,9 +192,12 @@ async def run_tool_calling_loop(
     if _cancelled():
         return last_text or "", sources, messages
     try:
+        final_iter_sink: Optional[Dict[str, Any]] = {} if usage_sink is not None else None
         final_result = await await_or_cancel(
-            provider.generate_with_tools(messages, []), cancel_event
+            _call_with_tools(provider, messages, [], final_iter_sink), cancel_event
         )
+        if usage_sink is not None:
+            accumulate_usage_sink(usage_sink, final_iter_sink)
         if final_result is _CANCELLED:
             return last_text or "", sources, messages
         if final_result.text:

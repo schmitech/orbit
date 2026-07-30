@@ -65,6 +65,8 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
 
             client = self._get_client()
 
+            usage_dict = None
+            media_usage = None
             if self._is_gemini_model():
                 # Gemini models (e.g. gemini-3.1-flash-image) use generate_content
                 # with IMAGE response modality, not the Imagen generate_images API.
@@ -83,8 +85,22 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
                         break
                 if image_bytes is None:
                     raise ValueError("Gemini returned no image data")
+
+                usage = getattr(response, "usage_metadata", None)
+                if usage is not None:
+                    prompt_tokens = getattr(usage, "prompt_token_count", None) or 0
+                    completion_tokens = getattr(usage, "candidates_token_count", None) or 0
+                    usage_dict = {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": prompt_tokens + completion_tokens,
+                        "provider": self.provider_name,
+                        "model": self.model,
+                        "reported": True,
+                    }
             else:
-                # Imagen models use the generate_images API
+                # Imagen models use the generate_images API — billed per image,
+                # not per token (see Phase 4 / pricing.media), no usage_metadata.
                 aspect_ratio = kwargs.get("aspect_ratio", self.aspect_ratio)
                 number_of_images = kwargs.get("number_of_images", self.number_of_images)
                 response = await asyncio.to_thread(
@@ -99,11 +115,14 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
                 if not response.generated_images:
                     raise ValueError("Gemini returned no images")
                 image_bytes = response.generated_images[0].image.image_bytes
+                media_usage = {"unit": "images", "quantity": len(response.generated_images)}
 
             return {
                 "image_bytes": image_bytes,
                 "format": "png",
                 "revised_prompt": None,
+                "usage": usage_dict,
+                "media_usage": media_usage,
             }
         except Exception as e:
             self.logger.error(f"Gemini image generation failed: {e}")

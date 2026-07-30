@@ -101,6 +101,8 @@ class GeminiLiveWebSocketHandler(BaseRealtimeWebSocketHandler):
         adapter_manager: Optional[Any] = None,
         api_key: Optional[str] = None,
         chat_history_service: Optional[Any] = None,
+        audit_service: Optional[Any] = None,
+        pricing_service: Optional[Any] = None,
     ):
         super().__init__(
             websocket=websocket,
@@ -115,6 +117,8 @@ class GeminiLiveWebSocketHandler(BaseRealtimeWebSocketHandler):
             adapter_manager=adapter_manager,
             api_key=api_key,
             chat_history_service=chat_history_service,
+            audit_service=audit_service,
+            pricing_service=pricing_service,
         )
 
         cfg = adapter_config.get("config") or {}
@@ -128,6 +132,7 @@ class GeminiLiveWebSocketHandler(BaseRealtimeWebSocketHandler):
         self._session: Optional[Any] = None
         self._gemini_task: Optional[asyncio.Task] = None
         self._chunk_index = 0
+        self._last_usage_metadata: Optional[Any] = None
 
     async def _build_live_config(self) -> Any:
         instructions = await self._resolve_realtime_instructions()
@@ -249,11 +254,30 @@ class GeminiLiveWebSocketHandler(BaseRealtimeWebSocketHandler):
                     if tool_call:
                         await self._handle_tool_call(tool_call)
 
+                    # usage_metadata is cumulative for the in-progress turn (like
+                    # generate_stream's usage_metadata), not a per-frame delta —
+                    # track the latest value seen and accumulate once at
+                    # turn_complete below, not on every frame.
+                    usage_metadata = getattr(response, "usage_metadata", None)
+                    if usage_metadata is not None:
+                        self._last_usage_metadata = usage_metadata
+
                     server_content = response.server_content
                     if not server_content:
                         continue
 
                     if server_content.interrupted:
+                        # The turn is cut short — turn_complete never fires for
+                        # it, but whatever tokens were already generated are
+                        # still billed, so flush them here instead of losing
+                        # them silently.
+                        if self._last_usage_metadata is not None:
+                            self._accumulate_realtime_usage(
+                                "gemini", self._realtime_model,
+                                getattr(self._last_usage_metadata, "prompt_token_count", None),
+                                getattr(self._last_usage_metadata, "response_token_count", None),
+                            )
+                            self._last_usage_metadata = None
                         self._discard_pending_turn()
                         await self._send_client({"type": "interrupted", "reason": "model_interrupted"})
 
@@ -288,6 +312,13 @@ class GeminiLiveWebSocketHandler(BaseRealtimeWebSocketHandler):
 
                     if server_content.turn_complete:
                         logger.debug("Gemini Live: turn_complete")
+                        if self._last_usage_metadata is not None:
+                            self._accumulate_realtime_usage(
+                                "gemini", self._realtime_model,
+                                getattr(self._last_usage_metadata, "prompt_token_count", None),
+                                getattr(self._last_usage_metadata, "response_token_count", None),
+                            )
+                            self._last_usage_metadata = None
                         user_message_id, assistant_message_id = await self._persist_turn()
                         await self._send_client({
                             "type": "done",
@@ -359,5 +390,8 @@ class GeminiLiveWebSocketHandler(BaseRealtimeWebSocketHandler):
 
     async def cleanup(self) -> None:
         self.is_connected = False
+
+        await self._flush_realtime_usage()
+
         self._session = None
         logger.debug("Gemini Live handler cleanup complete (adapter=%s)", self.adapter_name)

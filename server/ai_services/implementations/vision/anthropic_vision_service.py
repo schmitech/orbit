@@ -4,15 +4,16 @@ Anthropic vision service implementation using unified architecture.
 This implementation provides vision capabilities using Anthropic's Claude models.
 """
 
-from typing import Dict, Any, Union, List
+from typing import Dict, Any, Optional, Union, List
 from PIL import Image
 
 from ...base import ServiceType
 from ...providers import AnthropicBaseService
+from ...providers.usage_reporting import UsageReportingMixin
 from ...services import VisionService
 
 
-class AnthropicVisionService(VisionService, AnthropicBaseService):
+class AnthropicVisionService(UsageReportingMixin, VisionService, AnthropicBaseService):
     """
     Anthropic vision service using unified architecture.
 
@@ -35,7 +36,8 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
     async def analyze_image(
         self,
         image: Union[str, bytes, Image.Image],
-        prompt: str = "Analyze this image in detail. Describe what you see, including any text, objects, and overall context."
+        prompt: str = "Analyze this image in detail. Describe what you see, including any text, objects, and overall context.",
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Analyze image content with detailed response."""
         if not self.initialized:
@@ -80,44 +82,58 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
                 **params
             )
 
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "input_tokens", None),
+                    getattr(usage, "output_tokens", None),
+                )
+
             # Extract text from response
             if response.content and len(response.content) > 0:
                 return response.content[0].text
             else:
                 raise ValueError("No content returned from Anthropic")
-            
+
         except Exception as e:
             self._handle_anthropic_error(e, "image analysis")
             raise
 
     async def describe_image(
         self,
-        image: Union[str, bytes, Image.Image]
+        image: Union[str, bytes, Image.Image],
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate description of image."""
         return await self.analyze_image(
             image,
-            prompt="Describe this image in detail. Include the main subjects, setting, colors, and any notable features."
+            prompt="Describe this image in detail. Include the main subjects, setting, colors, and any notable features.",
+            usage_sink=usage_sink,
         )
 
     async def extract_text_from_image(
         self,
-        image: Union[str, bytes, Image.Image]
+        image: Union[str, bytes, Image.Image],
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Extract text from image using OCR."""
         return await self.analyze_image(
             image,
-            prompt="Extract all text from this image. Return only the text content, preserving line breaks and structure."
+            prompt="Extract all text from this image. Return only the text content, preserving line breaks and structure.",
+            usage_sink=usage_sink,
         )
 
     async def detect_objects(
         self,
-        image: Union[str, bytes, Image.Image]
+        image: Union[str, bytes, Image.Image],
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Detect objects in image."""
         description = await self.analyze_image(
             image,
-            prompt="List all objects, people, and items visible in this image. For each item, describe what it is and where it appears in the image."
+            prompt="List all objects, people, and items visible in this image. For each item, describe what it is and where it appears in the image.",
+            usage_sink=usage_sink,
         )
         
         # Parse the description into structured format
@@ -138,6 +154,7 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
         self,
         image: Union[str, bytes, Image.Image],
         text_prompt: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """Perform multimodal inference with image and text."""
@@ -182,7 +199,15 @@ class AnthropicVisionService(VisionService, AnthropicBaseService):
             params.update(kwargs)
 
             response = await self.client.messages.create(**params)
-            
+
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink,
+                    getattr(usage, "input_tokens", None),
+                    getattr(usage, "output_tokens", None),
+                )
+
             if response.content and len(response.content) > 0:
                 return response.content[0].text
             else:

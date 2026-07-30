@@ -1812,3 +1812,127 @@ async def test_cache_stats_tracking(tmp_path):
 
     service.metadata_store.close()
     cleanup_metadata_store(test_db_path)
+
+
+# ---------------------------------------------------------------------------
+# _log_extraction_usage: new audit writes for STT/vision/OCR file extraction
+# (previously these paths produced no audit record at all)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_log_extraction_usage_writes_audit_record_when_reported(tmp_path):
+    from unittest.mock import AsyncMock, Mock
+
+    config, test_db_path = create_test_config(tmp_path, db_name="test_extraction_usage.db")
+    service = FileProcessingService(config)
+
+    mock_pricing = Mock()
+    mock_pricing.estimate_media.return_value = Mock(cost_usd=0.5, pricing_source="pattern")
+    mock_audit = Mock()
+    mock_audit.inference_events_enabled = True
+    mock_audit.log_conversation = AsyncMock()
+
+    service.app_state = Mock(audit_service=mock_audit, pricing_service=mock_pricing)
+
+    await service._log_extraction_usage(
+        api_key="key1", filename="scan.pdf", provider="mistral", model="mistral-ocr-latest",
+        usage={"reported": True, "usage_unit": "pages", "usage_quantity": 3},
+    )
+
+    mock_audit.log_conversation.assert_awaited_once()
+    kwargs = mock_audit.log_conversation.call_args.kwargs
+    assert kwargs["provider"] == "mistral"
+    assert kwargs["api_key"] == "key1"
+    assert kwargs["usage"]["usage_unit"] == "pages"
+    assert kwargs["usage"]["usage_quantity"] == 3
+    assert kwargs["usage"]["cost_usd"] == 0.5
+    mock_pricing.estimate_media.assert_called_once_with("mistral", "mistral-ocr-latest", "pages", 3)
+
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_log_extraction_usage_skips_when_not_reported(tmp_path):
+    """A file-processing call that produced no usage (un-migrated provider,
+    or the API call itself failed) must never write a fabricated audit row."""
+    from unittest.mock import AsyncMock, Mock
+
+    config, test_db_path = create_test_config(tmp_path, db_name="test_extraction_usage_skip.db")
+    service = FileProcessingService(config)
+
+    mock_audit = Mock()
+    mock_audit.inference_events_enabled = True
+    mock_audit.log_conversation = AsyncMock()
+    service.app_state = Mock(audit_service=mock_audit, pricing_service=None)
+
+    await service._log_extraction_usage(
+        api_key="key1", filename="scan.pdf", provider="cohere", model="c4ai-vision",
+        usage={},
+    )
+    await service._log_extraction_usage(
+        api_key="key1", filename="scan.pdf", provider="cohere", model="c4ai-vision",
+        usage=None,
+    )
+
+    mock_audit.log_conversation.assert_not_awaited()
+
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_extract_audio_content_requests_verbose_json_for_usage_reporting(tmp_path):
+    """A usage-reporting-capable STT service must be asked for
+    response_format="verbose_json" — that's the only way OpenAI's
+    transcription response carries an authoritative `duration`; without it,
+    the STT audit row is always skipped as unreported."""
+    from unittest.mock import AsyncMock, Mock, patch
+
+    config, test_db_path = create_test_config(tmp_path, db_name="test_stt_verbose.db")
+    service = FileProcessingService(config)
+
+    mock_audio_service = Mock()
+    mock_audio_service.SUPPORTS_USAGE_REPORTING = True
+    mock_audio_service.initialized = True
+
+    async def fake_transcribe(audio, language, filename, mime_type, usage_sink=None, **kwargs):
+        assert kwargs.get("response_format") == "verbose_json"
+        if usage_sink is not None:
+            usage_sink.update({"reported": True, "usage_unit": "audio_seconds", "usage_quantity": 12.5})
+        return "hello world"
+
+    mock_audio_service.transcribe = AsyncMock(side_effect=fake_transcribe)
+
+    mock_audit = Mock()
+    mock_audit.inference_events_enabled = True
+    mock_audit.log_conversation = AsyncMock()
+    service.app_state = Mock(audit_service=mock_audit, pricing_service=None)
+
+    with patch.object(service, '_get_audio_provider_for_api_key', AsyncMock(return_value="openai")), \
+         patch('ai_services.AIServiceFactory.create_service', return_value=mock_audio_service):
+        text, metadata = await service._extract_audio_content(
+            file_data=b"fake-audio-bytes", filename="clip.mp3", mime_type="audio/mpeg", api_key="key1",
+        )
+
+    assert text == "hello world"
+    mock_audit.log_conversation.assert_awaited_once()
+    kwargs = mock_audit.log_conversation.call_args.kwargs
+    assert kwargs["usage"]["usage_unit"] == "audio_seconds"
+    assert kwargs["usage"]["usage_quantity"] == 12.5
+
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_log_extraction_usage_noop_without_app_state(tmp_path):
+    """No app_state / no audit_service configured must never raise —
+    audit is best-effort and must not block file processing."""
+    config, test_db_path = create_test_config(tmp_path, db_name="test_extraction_usage_noapp.db")
+    service = FileProcessingService(config)
+    service.app_state = None
+
+    await service._log_extraction_usage(
+        api_key="key1", filename="scan.pdf", provider="mistral", model="mistral-ocr-latest",
+        usage={"reported": True, "usage_unit": "pages", "usage_quantity": 3},
+    )
+
+    cleanup_metadata_store(test_db_path)

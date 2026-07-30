@@ -104,11 +104,17 @@ class XAIVideoService(VideoGenerationService):
 
             video_bytes = await self._download_video(response.url)
 
+            # Prefer the API's reported duration; fall back to the requested
+            # duration (an actual request parameter, not a guess) since xAI
+            # generates fixed-length video for the duration requested.
+            actual_duration = getattr(response, "duration", None) or duration
+
             return {
                 "video_bytes": video_bytes,
                 "format": "mp4",
                 "duration": getattr(response, "duration", None),
                 "revised_prompt": None,
+                "media_usage": {"unit": "seconds", "quantity": actual_duration},
             }
 
         return await self.retry_handler.execute_with_retry(

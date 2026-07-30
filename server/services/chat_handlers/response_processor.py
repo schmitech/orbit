@@ -185,7 +185,10 @@ class ResponseProcessor:
             api_key: Optional API key
             session_id: Optional session ID
             user_id: Optional user ID
-            adapter_name: Optional adapter name used for this request
+            adapter_name: The adapter that actually handled this request — the
+                caller must pass the post-skill-swap adapter (context.adapter_name)
+                here, not the calling session's original adapter, so audit rows
+                attribute cost/usage to the adapter that actually ran.
             model: Optional actual model used for this request
             usage: Optional token usage/cost dict from context.metadata["usage"]
         """
@@ -242,7 +245,8 @@ class ResponseProcessor:
         regenerate_of_message_id: Optional[str] = None,
         runtime_param_overrides: Optional[Dict[str, Any]] = None,
         runtime_provider: Optional[str] = None,
-        usage: Optional[Dict[str, Any]] = None
+        usage: Optional[Dict[str, Any]] = None,
+        audit_adapter_name: Optional[str] = None,
     ) -> tuple[str, Optional[str]]:
         """
         Complete post-processing of a chat response.
@@ -257,7 +261,11 @@ class ResponseProcessor:
             response: Raw response text
             message: Original user message
             client_ip: Client IP address
-            adapter_name: Adapter being used
+            adapter_name: The calling session's adapter — used for conversation
+                history storage/threading, which must stay keyed to this adapter
+                across turns even when a given turn auto-routes to a skill (a
+                follow-up turn's get_context() call is keyed to this same value,
+                made before any skill detection for that turn).
             session_id: Session identifier
             user_id: User identifier
             api_key: API key
@@ -273,6 +281,13 @@ class ResponseProcessor:
                 allowed_models entry — the actual LLM call uses this provider, so
                 the history token budget must be computed against it rather than
                 the adapter's configured inference_provider
+            audit_adapter_name: The adapter that actually produced this response
+                (context.adapter_name) — may differ from adapter_name when a skill
+                was auto-detected/swapped mid-conversation (e.g. "pdf-generator"
+                vs. the calling "simple-chat" adapter). Used only for the audit
+                record, so cost/usage attributes to the adapter that actually ran,
+                not the one the client originally addressed. Falls back to
+                adapter_name when not given (no swap occurred).
 
         Returns:
             Tuple of (processed_response_text, assistant_message_id)
@@ -322,7 +337,9 @@ class ResponseProcessor:
         )
         displayed_response = self.inject_warning(processed_response, warning)
 
-        # Log conversation
+        # Log conversation — audit attribution uses the adapter that actually
+        # ran (may differ from adapter_name when a skill was auto-swapped),
+        # while chat history above stays keyed to the calling adapter.
         await self.log_conversation(
             query=message,
             response=displayed_response,
@@ -332,7 +349,7 @@ class ResponseProcessor:
             api_key=api_key,
             session_id=session_id,
             user_id=user_id,
-            adapter_name=adapter_name,
+            adapter_name=audit_adapter_name or adapter_name,
             usage=usage
         )
 
