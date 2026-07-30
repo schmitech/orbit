@@ -238,7 +238,7 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 | **Agents and protocols** | MCP tool calling, bounded multi-step loops, natural-language skill routing, A2A, and asynchronous RabbitMQ requests. |
 | **Media** | Image, video, speech, PDF, Word, Excel, PowerPoint, CSV, and markdown generation. |
 | **Security** | API keys, RBAC, Entra ID and Auth0 SSO, rate limits, quotas, moderation, AES-256-GCM file encryption, and cloud secret managers. |
-| **Operations** | Admin UI, health checks, metrics, audit logs, circuit breakers, datasource pooling, and hot adapter reloads. |
+| **Operations** | Admin UI, health checks, metrics, audit logs, per-request token and estimated-cost tracking, spend analytics, circuit breakers, datasource pooling, and hot adapter reloads. [Track usage and costs →](docs/token-usage-and-cost-tracking.md) |
 
 [Browse all adapters](docs/adapters/adapters.md) · [See provider configuration](config/inference.yaml) · [Read the configuration reference](install/default-config/config.yaml)
 
@@ -258,7 +258,7 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 | **Configure adapters** | [Adapter overview](docs/adapters/adapters.md) · [Configuration guide](docs/adapters/adapter-configuration.md) |
 | **Connect private data** | [Files](docs/adapters/file-adapter-guide.md) · [Vector stores](docs/vector-stores/vector_store_integration_guide.md) · [SQL](docs/sql-retriever-architecture.md) |
 | **Build agents** | [MCP tools](docs/tutorial/mcp-tool-calling.md) · [Auto skill routing](docs/tutorial/auto-skill-routing.md) · [A2A](docs/a2a-protocol.md) |
-| **Run in production** | [Authentication](docs/authentication.md) · [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
+| **Run in production** | [Authentication](docs/authentication.md) · [Usage and cost tracking](docs/token-usage-and-cost-tracking.md) · [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
 | **Use a client** | [ORBIT Chat](clients/orbitchat/) · [Node.js SDK](clients/node-api/) · [API key and Python examples](docs/api-keys.md) |
 
 ## Contributing
