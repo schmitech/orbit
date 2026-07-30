@@ -213,9 +213,9 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 <details>
 <summary><strong>Operate the gateway</strong></summary>
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/81730186-8dba-4cfa-8613-af5efd82e4c8" controls muted playsinline width="80%"></video>
+  <video src="https://github.com/user-attachments/assets/cad506be-f6e7-4a9d-969e-e66bb5662870" controls muted playsinline width="80%"></video>
   <br />
-  <em>Monitor health, latency, tokens, sessions, adapters, and logs behind API keys, quotas, and rate limits.</em>
+  <em>Monitor health, latency, costs, tokens, sessions, adapters, and logs behind API keys, quotas, and rate limits.</em>
 </p>
 </details>
 
