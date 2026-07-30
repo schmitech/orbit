@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.12.1] - 2026-07-30
+
+### Core System Updates
+- **Media & Document Cost Tracking**: Extended token usage and cost tracking to image, video, audio, vision, and OCR generation services, plus file-upload STT/vision/OCR and realtime voice sessions (OpenAI Realtime, Gemini Live) — previously untracked billing surfaces. Added discrete-unit pricing (`pricing.media`) for per-image/second/character/page billing alongside the existing per-token model, and an optional audio-token pricing tier for realtime voice.
+- **MCP Tool-Calling Usage**: Token usage is now summed across every provider call the inline MCP tool-calling loop makes, including cancelled and tool-call-only turns, replacing the previous blanket `partial` placeholder with an accurate signal.
+- **Document Generation Usage**: Wired PDF/Word/document-generation adapters into usage tracking, including per-attempt pricing when a spec-generation fallback chain spans multiple providers/models, so cost is never misstated by pricing a cross-provider token sum against a single rate.
+
+### Bug Fixes & Technical Improvements
+- **Skill-Swap Audit Attribution**: Fixed audit records for auto-routed skills (e.g. a PDF generated mid-conversation) being logged under the *calling* adapter/provider instead of the adapter that actually ran, which hid real spend from the Costs tab. Conversation history storage remains keyed to the calling adapter for continuity; only audit attribution now reflects the adapter/skill that produced the response. Consistent across SQLite, Postgres, and MongoDB audit backends.
+- **Postgres Usage Aggregation Crash**: Fixed `not enough values to unpack` errors in Postgres usage aggregation caused by unaliased duplicate `SUM(...)` columns colliding under the shared connection's dict-row factory.
+- **OCR Pricing Model Mismatch**: Fixed AI-document-processor pricing using the (usually unset) configured model override instead of the OCR service's actually-resolved model, which left Gemini and Mistral OCR usage permanently unpriced.
+- **STT Duration Reporting**: File-upload speech-to-text now requests `verbose_json` from OpenAI so its response carries a duration, fixing a gap where STT audit rows were always skipped as unreported.
+- **Malformed-Response Usage Loss**: Fixed billed LLM responses that returned malformed/incomplete JSON going unreported when a fallback chain moved to the next provider or the local fallback spec.
+- **Gemini Pricing Drift**: Corrected stale Gemini pricing entries and added a `gpt-realtime*` audio-tiered rate and a live/realtime Gemini variant entry that previously fell through to the wrong text-pricing glob.
+
+### Documentation & Configuration
+- **Pricing Config**: Added `pricing.media` entries for image/video/audio/OCR providers and updated pricing.yaml documentation to cover the three billing shapes (token, tiered-token, discrete-unit).
+- **Schema Docs**: Documented the new `usage_unit`/`usage_quantity` audit columns and updated the token usage and cost tracking guide with the media-tracking architecture and known follow-up gaps.
+
 ## [2.12.0] - 2026-07-29
 
 ### Core System Updates
