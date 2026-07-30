@@ -442,8 +442,8 @@ class AuditService:
         except NotImplementedError:
             logger.debug(f"aggregate_usage not implemented for backend {self._strategy.backend_name}")
             return dict(self._EMPTY_USAGE_AGGREGATE)
-        except Exception as e:
-            logger.error(f"Error aggregating usage: {e}")
+        except Exception:
+            logger.exception("Error aggregating usage")
             return dict(self._EMPTY_USAGE_AGGREGATE)
 
     async def log_admin_event(self, record: AdminAuditRecord) -> None:

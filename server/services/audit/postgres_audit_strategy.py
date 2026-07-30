@@ -189,41 +189,47 @@ class PostgresAuditStrategy(AuditStorageStrategy):
             with db_lock:
                 cursor = connection.cursor()
 
+                # The shared connection uses psycopg's dict_row row_factory
+                # (see PostgresService._connect_db), so every column must be
+                # explicitly aliased and read by name — unaliased duplicate
+                # aggregate expressions (six SUM(...) calls below) would
+                # otherwise all be keyed "sum" by Postgres and collapse into
+                # a single dict entry, breaking positional/tuple access.
                 cursor.execute(
                     f"""
                     SELECT
-                        COUNT(*),
-                        SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens),
-                        SUM(cost_usd),
-                        SUM(CASE WHEN cost_usd IS NULL AND total_tokens IS NOT NULL THEN 1 ELSE 0 END),
-                        SUM(CASE WHEN total_tokens IS NULL THEN 1 ELSE 0 END)
+                        COUNT(*) AS requests,
+                        SUM(prompt_tokens) AS prompt_tokens,
+                        SUM(completion_tokens) AS completion_tokens,
+                        SUM(total_tokens) AS total_tokens,
+                        SUM(cost_usd) AS cost_usd,
+                        SUM(CASE WHEN cost_usd IS NULL AND total_tokens IS NOT NULL THEN 1 ELSE 0 END) AS unpriced_requests,
+                        SUM(CASE WHEN total_tokens IS NULL THEN 1 ELSE 0 END) AS unreported_requests
                     FROM {self._collection_name}
                     WHERE {where_sql}
                     """,
                     params,
                 )
-                (
-                    requests, prompt_tokens, completion_tokens, total_tokens,
-                    cost_usd, unpriced_requests, unreported_requests,
-                ) = cursor.fetchone()
+                totals_row = cursor.fetchone()
 
                 cursor.execute(
                     f"""
-                    SELECT {bucket_expr} AS b, COUNT(*),
-                        SUM(prompt_tokens), SUM(completion_tokens), SUM(total_tokens), SUM(cost_usd)
+                    SELECT {bucket_expr} AS bucket, COUNT(*) AS requests,
+                        SUM(prompt_tokens) AS prompt_tokens, SUM(completion_tokens) AS completion_tokens,
+                        SUM(total_tokens) AS total_tokens, SUM(cost_usd) AS cost_usd
                     FROM {self._collection_name}
                     WHERE {where_sql}
-                    GROUP BY b
-                    ORDER BY b ASC
+                    GROUP BY bucket
+                    ORDER BY bucket ASC
                     """,
                     params,
                 )
                 series = [
                     {
-                        "bucket": row[0].isoformat() if row[0] is not None else None,
-                        "requests": row[1],
-                        "prompt_tokens": row[2] or 0, "completion_tokens": row[3] or 0,
-                        "total_tokens": row[4] or 0, "cost_usd": float(row[5] or 0.0),
+                        "bucket": row["bucket"].isoformat() if row["bucket"] is not None else None,
+                        "requests": row["requests"],
+                        "prompt_tokens": row["prompt_tokens"] or 0, "completion_tokens": row["completion_tokens"] or 0,
+                        "total_tokens": row["total_tokens"] or 0, "cost_usd": float(row["cost_usd"] or 0.0),
                     }
                     for row in cursor.fetchall()
                 ]
@@ -232,12 +238,12 @@ class PostgresAuditStrategy(AuditStorageStrategy):
                 if group_column:
                     cursor.execute(
                         f"""
-                        SELECT {group_column} AS g, COUNT(*),
-                            SUM(total_tokens), SUM(cost_usd),
-                            SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END)
+                        SELECT {group_column} AS key, COUNT(*) AS requests,
+                            SUM(total_tokens) AS total_tokens, SUM(cost_usd) AS cost_usd,
+                            SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END) AS unpriced
                         FROM {self._collection_name}
                         WHERE {where_sql} AND {group_column} IS NOT NULL
-                        GROUP BY g
+                        GROUP BY key
                         ORDER BY SUM(cost_usd) DESC NULLS LAST
                         LIMIT %s
                         """,
@@ -245,22 +251,22 @@ class PostgresAuditStrategy(AuditStorageStrategy):
                     )
                     groups = [
                         {
-                            "key": row[0], "requests": row[1],
-                            "total_tokens": row[2] or 0, "cost_usd": float(row[3] or 0.0),
-                            "unpriced": bool(row[4]),
+                            "key": row["key"], "requests": row["requests"],
+                            "total_tokens": row["total_tokens"] or 0, "cost_usd": float(row["cost_usd"] or 0.0),
+                            "unpriced": bool(row["unpriced"]),
                         }
                         for row in cursor.fetchall()
                     ]
 
                 return {
                     "totals": {
-                        "requests": requests or 0,
-                        "prompt_tokens": prompt_tokens or 0,
-                        "completion_tokens": completion_tokens or 0,
-                        "total_tokens": total_tokens or 0,
-                        "cost_usd": float(cost_usd or 0.0),
-                        "unpriced_requests": unpriced_requests or 0,
-                        "unreported_requests": unreported_requests or 0,
+                        "requests": totals_row["requests"] or 0,
+                        "prompt_tokens": totals_row["prompt_tokens"] or 0,
+                        "completion_tokens": totals_row["completion_tokens"] or 0,
+                        "total_tokens": totals_row["total_tokens"] or 0,
+                        "cost_usd": float(totals_row["cost_usd"] or 0.0),
+                        "unpriced_requests": totals_row["unpriced_requests"] or 0,
+                        "unreported_requests": totals_row["unreported_requests"] or 0,
                     },
                     "series": series,
                     "groups": groups,
