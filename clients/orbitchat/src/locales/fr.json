@@ -126,8 +126,10 @@
     },
     "conversationCard": {
       "openAriaLabel": "Ouvrir la conversation : {{title}}",
+      "renameLabel": "Renommer",
       "editAriaLabel": "Renommer la conversation : {{title}}",
       "deleteAriaLabel": "Supprimer la conversation : {{title}}",
+      "moreActionsAriaLabel": "Plus d’actions pour : {{title}}",
       "editInputAriaLabel": "Modifier le titre de la conversation"
     },
     "deleteConfirm": {

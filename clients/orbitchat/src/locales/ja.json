@@ -126,8 +126,10 @@
     },
     "conversationCard": {
       "openAriaLabel": "会話を開く: {{title}}",
+      "renameLabel": "名前を変更",
       "editAriaLabel": "会話名を変更: {{title}}",
       "deleteAriaLabel": "会話を削除: {{title}}",
+      "moreActionsAriaLabel": "その他の操作: {{title}}",
       "editInputAriaLabel": "会話タイトルを編集"
     },
     "deleteConfirm": {

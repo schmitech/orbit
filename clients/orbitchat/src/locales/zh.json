@@ -126,8 +126,10 @@
     },
     "conversationCard": {
       "openAriaLabel": "打开会话：{{title}}",
+      "renameLabel": "重命名",
       "editAriaLabel": "重命名会话：{{title}}",
       "deleteAriaLabel": "删除会话：{{title}}",
+      "moreActionsAriaLabel": "更多操作：{{title}}",
       "editInputAriaLabel": "编辑会话标题"
     },
     "deleteConfirm": {

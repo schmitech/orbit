@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, Trash2, Edit2, Trash, PanelLeftClose } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Search, X, Trash2, Edit2, Trash, PanelLeftClose, MoreVertical } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
@@ -30,21 +31,26 @@ interface TimeGroup {
 // Conversation card action button (edit / delete)
 // ---------------------------------------------------------------------------
 
-interface CardActionButtonProps {
-  onClick: (e: React.MouseEvent) => void;
+interface ConversationMenuItemProps {
+  onClick?: (e: React.MouseEvent) => void;
   label: string;
-  hoverClassName: string;
   icon: React.ReactNode;
+  danger?: boolean;
 }
 
-function CardActionButton({ onClick, label, hoverClassName, icon }: CardActionButtonProps) {
+function ConversationMenuItem({ onClick, label, icon, danger }: ConversationMenuItemProps) {
   return (
     <button
+      role="menuitem"
       onClick={onClick}
-      className={`rounded-lg p-1.5 text-slate-400 transition-colors dark:text-[#6b6f7a] ${hoverClassName}`}
-      aria-label={label}
+      className={`flex w-full items-center gap-3 whitespace-nowrap px-4 py-2.5 text-left text-sm font-medium transition-colors ${
+        danger
+          ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10'
+          : 'text-slate-700 hover:bg-slate-100 dark:text-[#c5c8d6] dark:hover:bg-white/[0.06]'
+      }`}
     >
-      {icon}
+      <span className={danger ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-[#8b8fa3]'}>{icon}</span>
+      {label}
     </button>
   );
 }
@@ -117,6 +123,10 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
     isDeleting: boolean;
   }>({ isOpen: false, isDeleting: false });
 
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const openMenuRef = useRef<HTMLDivElement | null>(null);
+  const menuPanelRef = useRef<HTMLDivElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [selectedAdapter, setSelectedAdapter] = useState<{ conversationId: string | null; adapterName: string } | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -235,6 +245,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
 
   const handleDeleteConversation = (e: React.MouseEvent, conversation: Conversation) => {
     e.stopPropagation();
+    setOpenMenuId(null);
     setDeleteConfirmation({
       isOpen: true,
       conversationId: conversation.id,
@@ -259,6 +270,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
 
   const handleEditStart = (e: React.MouseEvent, conversation: Conversation) => {
     e.stopPropagation();
+    setOpenMenuId(null);
     setEditingId(conversation.id);
     setEditTitle((conversation.title || t('chatInterface.newChatTitle')).slice(0, MAX_TITLE_LENGTH));
   };
@@ -308,11 +320,37 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
   useFocusTrap(configDialogRef, { enabled: showConfig, onEscape: () => setShowConfig(false) });
 
   // -----------------------------------------------------------------------
+  // Conversation card overflow menu (close on outside click / escape)
+  // -----------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!openMenuId) return;
+
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!openMenuRef.current?.contains(target) && !menuPanelRef.current?.contains(target)) {
+        setOpenMenuId(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenMenuId(null);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openMenuId]);
+
+  // -----------------------------------------------------------------------
   // Render: Conversation card
   // -----------------------------------------------------------------------
 
   const renderConversationCard = (conversation: Conversation) => {
     const isActive = currentConversationId === conversation.id;
+    const isMenuOpen = openMenuId === conversation.id;
     const agentLabel = isSingleAdapterMode ? null : getConversationAgentLabel(conversation);
     const displayTitle = conversation.title || t('chatInterface.newChatTitle');
 
@@ -329,7 +367,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
           }
         }}
         onClick={() => handleSelectConversation(conversation.id)}
-        className={`group relative flex w-full cursor-pointer items-center overflow-hidden rounded-xl border px-3 py-2 text-left text-sm transition-all duration-150
+        className={`group relative flex w-full cursor-pointer items-center overflow-visible rounded-xl border px-3 py-2 text-left text-sm transition-all duration-150
           ${
             isActive
               ? 'border-sky-400/80 bg-sky-50/70 shadow-[0_0_0_1px_rgba(14,165,233,0.08),0_4px_14px_rgba(15,23,42,0.06)] dark:border-sky-400/45 dark:bg-sky-950/30 dark:shadow-[0_0_0_1px_rgba(56,189,248,0.07),0_6px_18px_rgba(0,0,0,0.28)]'
@@ -355,32 +393,81 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
             aria-label={t('sidebar.conversationCard.editInputAriaLabel')}
           />
         ) : (
-          <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex min-w-0 items-center gap-1">
-              <h3 className={`flex-1 truncate text-sm leading-snug tracking-[-0.006em] ${isActive ? 'font-semibold text-slate-900 dark:text-[#ececf1]' : 'font-medium text-slate-700 dark:text-[#c5c8d6]'}`}>
+          <div className="relative z-10 flex min-w-0 flex-1 items-center gap-1">
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <h3 className={`truncate text-sm leading-snug tracking-[-0.006em] ${isActive ? 'font-semibold text-slate-900 dark:text-[#ececf1]' : 'font-medium text-slate-700 dark:text-[#c5c8d6]'}`}>
                 {displayTitle}
               </h3>
-              {/* Actions: hidden until hover/focus, then fade in */}
-              <div className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover:opacity-100 group-focus-within:opacity-100">
-                <CardActionButton
-                  onClick={(e) => handleEditStart(e, conversation)}
-                  label={t('sidebar.conversationCard.editAriaLabel', { title: displayTitle })}
-                  hoverClassName="hover:bg-slate-200/80 hover:text-slate-600 dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6]"
-                  icon={<Edit2 className="h-3.5 w-3.5" />}
-                />
-                <CardActionButton
-                  onClick={(e) => handleDeleteConversation(e, conversation)}
-                  label={t('sidebar.conversationCard.deleteAriaLabel', { title: displayTitle })}
-                  hoverClassName="hover:bg-red-100/80 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                  icon={<Trash2 className="h-3.5 w-3.5" />}
-                />
-              </div>
+              {agentLabel && (
+                <span className="block max-w-full truncate text-left text-xs font-medium tracking-wide text-blue-700 dark:text-blue-300">
+                  {agentLabel}
+                </span>
+              )}
             </div>
-            {agentLabel && (
-              <span className="block max-w-full truncate text-left text-xs font-medium tracking-wide text-blue-700 dark:text-blue-300">
-                {agentLabel}
-              </span>
-            )}
+            {/* Overflow menu trigger: hidden until hover/focus/open, then fades in */}
+            <div
+              ref={isMenuOpen ? openMenuRef : undefined}
+              className={`relative ml-1 shrink-0 transition-opacity duration-100 ${
+                isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+              }`}
+            >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isMenuOpen) {
+                      setOpenMenuId(null);
+                      return;
+                    }
+
+                    const triggerBounds = e.currentTarget.getBoundingClientRect();
+                    const menuWidth = 160;
+                    const preferredLeft = triggerBounds.right + 8;
+                    setMenuPosition({
+                      top: triggerBounds.top + triggerBounds.height / 2,
+                      left:
+                        preferredLeft + menuWidth <= window.innerWidth - 12
+                          ? preferredLeft
+                          : Math.max(12, triggerBounds.left - menuWidth - 8),
+                    });
+                    setOpenMenuId(conversation.id);
+                  }}
+                  className={`rounded-lg p-1.5 text-slate-400 transition-colors dark:text-[#6b6f7a] ${
+                    isMenuOpen
+                      ? 'bg-slate-200/80 text-slate-600 dark:bg-[#3c3f4a] dark:text-[#c5c8d6]'
+                      : 'hover:bg-slate-200/80 hover:text-slate-600 dark:hover:bg-[#3c3f4a] dark:hover:text-[#c5c8d6]'
+                  }`}
+                  aria-label={t('sidebar.conversationCard.moreActionsAriaLabel', { title: displayTitle })}
+                  aria-haspopup="menu"
+                  aria-expanded={isMenuOpen}
+                >
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </button>
+
+                {isMenuOpen &&
+                  menuPosition &&
+                  createPortal(
+                    <div
+                      ref={menuPanelRef}
+                      role="menu"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ top: menuPosition.top, left: menuPosition.left }}
+                      className="fixed z-[60] w-max -translate-y-1/2 overflow-hidden rounded-2xl border border-slate-200/80 bg-white py-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.18)] dark:border-white/[0.06] dark:bg-[#1f1f1f] dark:shadow-[0_20px_44px_rgba(0,0,0,0.5)]"
+                    >
+                      <ConversationMenuItem
+                        onClick={(e) => handleEditStart(e, conversation)}
+                        label={t('sidebar.conversationCard.renameLabel')}
+                        icon={<Edit2 className="h-4 w-4" />}
+                      />
+                      <ConversationMenuItem
+                        onClick={(e) => handleDeleteConversation(e, conversation)}
+                        label={t('common.delete')}
+                        icon={<Trash2 className="h-4 w-4" />}
+                        danger
+                      />
+                    </div>,
+                    document.body
+                  )}
+            </div>
           </div>
         )}
       </div>
