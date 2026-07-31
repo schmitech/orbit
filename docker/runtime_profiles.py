@@ -198,6 +198,15 @@ def _resolve_provider_enablement(profile: RuntimeProfile, config_dir: Path) -> N
         embedding_block = data.get("embedding")
         if embedding_block is not None:
             embedding_block["enabled"] = True
+            # The global default provider is what any adapter WITHOUT its own
+            # embedding_provider resolves to — including every extra_adapters
+            # entry (the generators, fetch, web-search). Left at the canonical
+            # "ollama" default, a cloud flavor loads them against a local
+            # Ollama that isn't in the image and spins on warm-up failures.
+            embedding_block["provider"] = profile.embedding_provider
+        provider_block = data.get("embeddings", {}).get(profile.embedding_provider)
+        if provider_block is not None:
+            provider_block["model"] = profile.embedding_model
         _dump_yaml(embeddings_path, data)
 
     # Audio (STT/TTS) is opt-in per flavor via docker/flavors/<id>.yaml's `audio:`
@@ -269,6 +278,12 @@ def _resolve_docker_paths(profile: RuntimeProfile, config_path: Path) -> None:
     audit_block = data.get("internal_services", {}).get("audit")
     if audit_block is not None:
         audit_block["enabled"] = True
+        # Separate opt-in flag for the admin/auth event trail (user CRUD,
+        # API-key changes, logins) that the Audit tab lists alongside the
+        # inference records — off, that tab is empty even with audit on.
+        admin_events_block = audit_block.get("admin_events")
+        if admin_events_block is not None:
+            admin_events_block["enabled"] = True
 
     _dump_yaml(config_path, data)
 

@@ -143,9 +143,27 @@ Local build success doesn't confirm the push landed — pull it back down:
 
 ```bash
 for repo in orbit-ollama orbit-openai orbit-gemini; do
-  docker pull schmitech/$repo:latest
-  docker pull schmitech/$repo:<NEW_VERSION>
+  docker pull "schmitech/${repo}:latest"
+  docker pull "schmitech/${repo}:<NEW_VERSION>"
 done
+```
+
+> **Always brace the variable: `${repo}`, never `$repo:latest`.** In zsh,
+> `:l` after a parameter is a history-style modifier (lowercase), so
+> `schmitech/$repo:latest` expands to `schmitech/orbit-geminiatest` — a
+> different, silently auto-created repository. This has already produced
+> stray `orbit-*atest` repos on Docker Hub and, worse, `docker build -t` /
+> `docker push` loops that appeared to succeed while the real repository kept
+> serving a months-old image. Prefer `publish-flavor.sh` (which braces
+> correctly) over hand-rolled `for` loops for exactly this reason.
+
+Confirm the pulled image actually contains the current checkout rather than a
+cached layer or a mis-tagged build — compare a file that changes most releases:
+
+```bash
+shasum server/admin/admin_panel.js
+docker run --rm --entrypoint sh "schmitech/orbit-gemini:latest" \
+  -c 'shasum /orbit/server/admin/admin_panel.js'
 ```
 
 Then do a clean pull-and-run exactly as documented in the main

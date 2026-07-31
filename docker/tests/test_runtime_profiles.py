@@ -90,6 +90,20 @@ def test_cloud_profiles_never_fall_back_to_ollama_embeddings(profile_id, provide
     )
 
 
+@pytest.mark.parametrize("profile_id,provider", [("openai", "openai"), ("gemini", "gemini")])
+def test_cloud_profiles_repoint_global_embedding_default(profile_id, provider, runtime_config_dir):
+    # Adapters without their own embedding_provider (every extra_adapters entry)
+    # resolve to embeddings.yaml's global default. Left at "ollama", a cloud
+    # image loads them against an Ollama that isn't there and logs warm-up
+    # failures on every startup.
+    profile = rp.get_profile(profile_id)
+    rp.resolve_config(profile, runtime_config_dir)
+
+    embeddings = yaml.safe_load((runtime_config_dir / "embeddings.yaml").read_text())
+    assert embeddings["embedding"]["provider"] == provider
+    assert embeddings["embeddings"][provider]["model"] == profile.embedding_model
+
+
 def test_ollama_profile_has_no_audio_wiring(runtime_config_dir):
     # ollama has no audio: section (unlike openai/gemini) — stt/tts_provider
     # should stay absent from the adapter rather than silently defaulting.
@@ -263,6 +277,7 @@ def test_resolve_config_enables_audit_for_cost_tracking(profile_id, runtime_conf
 
     config = yaml.safe_load((runtime_config_dir / "config.yaml").read_text())
     assert config["internal_services"]["audit"]["enabled"] is True
+    assert config["internal_services"]["audit"]["admin_events"]["enabled"] is True
 
 
 @pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
