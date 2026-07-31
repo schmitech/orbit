@@ -171,7 +171,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             logger.debug(f"Processing Firecrawl query with chunking: {query}")
 
             # Find best matching templates
-            templates = await self._find_best_templates(query)
+            usage_sink = kwargs.get("usage_sink")
+            templates = await self._find_best_templates(query, usage_sink=usage_sink)
 
             if not templates:
                 logger.warning("No matching templates found")
@@ -218,7 +219,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                     template=template,
                     parameters=parameters,
                     similarity=similarity,
-                    query=query  # Pass query for chunk ranking
+                    query=query,  # Pass query for chunk ranking
+                    usage_sink=usage_sink,
                 )
 
                 logger.debug("Successfully processed Firecrawl query")
@@ -454,7 +456,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
     async def _format_http_results_async(self, results: Any, template: Dict,
                                          parameters: Dict, similarity: float,
-                                         query: str) -> List[Dict[str, Any]]:
+                                         query: str, usage_sink=None) -> List[Dict[str, Any]]:
         """
         Format Firecrawl results with chunking support (async version).
 
@@ -496,7 +498,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         if should_chunk:
             try:
                 content = await self._process_with_chunking(
-                    results, template, parameters, query, source_url
+                    results, template, parameters, query, source_url,
+                    usage_sink=usage_sink,
                 )
             except Exception as e:
                 logger.warning(f"Chunking failed, falling back to full content: {e}")
@@ -594,7 +597,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
     async def _process_with_chunking(self, results: List[Dict], template: Dict,
                                      parameters: Dict, query: str,
-                                     source_url: str) -> str:
+                                     source_url: str, usage_sink=None) -> str:
         """
         Process large content with chunking and ranking.
 
@@ -634,7 +637,9 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             chunks = self.content_chunker.chunk_markdown(markdown_content, chunk_metadata)
 
             # Store chunks in vector store
-            await self.chunk_manager.store_chunks(chunks, source_url, chunk_metadata)
+            await self.chunk_manager.store_chunks(
+                chunks, source_url, chunk_metadata, usage_sink=usage_sink
+            )
 
             logger.debug(f"Created and stored {len(chunks)} chunks")
 
@@ -643,7 +648,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             query=query,
             source_url=source_url,
             top_k=self.top_chunks_to_return,
-            min_score=self.min_chunk_similarity
+            min_score=self.min_chunk_similarity,
+            usage_sink=usage_sink,
         )
 
         if not relevant_chunks:

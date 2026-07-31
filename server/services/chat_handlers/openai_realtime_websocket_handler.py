@@ -437,9 +437,14 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
             self._grounding.adapter_name, query,
         )
 
-        result_text = await execute_grounding_lookup(
-            self.adapter_manager, self._grounding, query, api_key=self.api_key
-        )
+        embedding_usage = {}
+        try:
+            result_text = await execute_grounding_lookup(
+                self.adapter_manager, self._grounding, query,
+                api_key=self.api_key, usage_sink=embedding_usage,
+            )
+        finally:
+            self._accumulate_embedding_usage(embedding_usage)
         logger.debug(
             "OpenAI Realtime: grounding lookup result (%d chars): %r",
             len(result_text), result_text,

@@ -161,7 +161,8 @@ class MultimodalImplementation(BaseRetriever):
                 query=query,
                 api_key=api_key,
                 file_ids=file_ids,  # Use file_ids from request
-                collection_name=None  # Let retriever find collections by file_id
+                collection_name=None,  # Let retriever find collections by file_id
+                usage_sink=kwargs.get("usage_sink"),
             )
 
             logger.debug(f"Multimodal adapter: Retrieved {len(chunks)} chunks from {len(file_ids)} files")
@@ -174,4 +175,3 @@ class MultimodalImplementation(BaseRetriever):
             logger.error(f"Error retrieving file chunks: {e}")
             # Return empty context on error (don't break conversation)
             return []
-

@@ -121,7 +121,10 @@ class TemplateRetriever(BaseRetriever):
             
             # Implement your retrieval logic here
             # Example:
-            # 1. Generate embeddings if needed
+            # 1. Generate embeddings if needed, forwarding usage for audit:
+            #    query_embedding = await self.embed_query(
+            #        query, usage_sink=kwargs.get("usage_sink")
+            #    )
             # 2. Query your datasource 
             # 3. Process results
             
@@ -153,4 +156,4 @@ class TemplateRetriever(BaseRetriever):
             return []
 
 # Uncomment to register your retriever with the factory
-# RetrieverFactory.register_retriever('template', TemplateRetriever) 
+# RetrieverFactory.register_retriever('template', TemplateRetriever)

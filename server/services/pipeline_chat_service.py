@@ -149,6 +149,34 @@ class PipelineChatService:
         cfg = self.context_builder.get_adapter_config(adapter_name) or {}
         return bool((cfg.get('capabilities', {}) or {}).get('auto_skill_routing', False))
 
+    async def _audit_usage_only_request(
+        self,
+        context,
+        message: str,
+        client_ip: str,
+        adapter_name: str,
+        api_key: Optional[str],
+        user_id: Optional[str],
+    ) -> None:
+        """Persist billable usage when a request exits before normal response handling."""
+        usage = context.metadata.get("usage") if context.metadata else None
+        if not usage:
+            return
+        backend = usage.get("provider") or self._determine_inference_backend(context)
+        model = usage.get("model") or self._determine_inference_model(context)
+        await self.response_processor.log_conversation(
+            query=message,
+            response=context.error or "",
+            client_ip=client_ip,
+            backend=backend,
+            api_key=api_key,
+            session_id=context.session_id,
+            user_id=user_id,
+            adapter_name=context.adapter_name or adapter_name,
+            model=model,
+            usage=usage,
+        )
+
     async def _maybe_detect_skill(
         self,
         skill: Optional[str],
@@ -818,6 +846,9 @@ class PipelineChatService:
             if result.has_error():
                 error_msg = result.error or "Pipeline processing failed"
                 logger.error(f"Pipeline error: {error_msg}")
+                await self._audit_usage_only_request(
+                    context, message, client_ip, adapter_name, api_key, user_id
+                )
                 return {"error": error_msg}
 
             backend = self._determine_inference_backend(context)
@@ -1016,7 +1047,16 @@ class PipelineChatService:
                     final_state = state
             except Exception as stream_error:
                 logger.error(f"Error in pipeline streaming: {stream_error}", exc_info=True)
+                await self._audit_usage_only_request(
+                    context, message, client_ip, adapter_name, api_key, user_id
+                )
                 yield f"data: {json.dumps({'error': str(stream_error), 'done': True})}\n\n"
+                return
+
+            if context.has_error():
+                await self._audit_usage_only_request(
+                    context, message, client_ip, adapter_name, api_key, user_id
+                )
                 return
 
             # Safety filter block: the pipeline emits a single {"response": "...", "done": true} chunk.
@@ -1060,6 +1100,9 @@ class PipelineChatService:
                 logger.debug(
                     f"[PIPELINE_CHAT_SERVICE] Skipping post-stream persistence for "
                     f"cancelled request: session={session_id}"
+                )
+                await self._audit_usage_only_request(
+                    context, message, client_ip, adapter_name, api_key, user_id
                 )
                 return
 

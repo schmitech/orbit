@@ -75,6 +75,7 @@ class BaseRealtimeWebSocketHandler:
         # session receives — flushed as ONE audit record on disconnect, not
         # per-turn (a session can produce hundreds of turns).
         self._usage_accumulator: Dict[str, Any] = {}
+        self._embedding_usage_accumulator: Dict[str, Any] = {}
 
         self.is_connected = False
         self._client_task: Optional[asyncio.Task] = None
@@ -217,6 +218,13 @@ class BaseRealtimeWebSocketHandler:
                 acc[key] = (acc.get(key) or 0) + value
         acc["total_tokens"] = (acc.get("prompt_tokens") or 0) + (acc.get("completion_tokens") or 0)
 
+    def _accumulate_embedding_usage(self, usage_sink: Dict[str, Any]) -> None:
+        """Add one grounding lookup's embedding usage to the session total."""
+        if not usage_sink or not usage_sink.get("reported"):
+            return
+        from ai_services.providers.usage_reporting import accumulate_usage_sink
+        accumulate_usage_sink(self._embedding_usage_accumulator, usage_sink)
+
     async def _flush_realtime_usage(self) -> None:
         """
         Write ONE audit record for the whole session's accumulated usage.
@@ -227,7 +235,8 @@ class BaseRealtimeWebSocketHandler:
         session teardown.
         """
         acc = self._usage_accumulator
-        if not acc.get("reported") or not self.audit_service:
+        embedding_acc = self._embedding_usage_accumulator
+        if not (acc.get("reported") or embedding_acc.get("reported")) or not self.audit_service:
             return
         try:
             if not getattr(self.audit_service, "inference_events_enabled", False):
@@ -235,8 +244,11 @@ class BaseRealtimeWebSocketHandler:
         except Exception:
             return
 
-        provider = acc.get("provider")
-        model = acc.get("model")
+        from inference.pipeline.steps._utils import summarize_embedding_usage
+
+        embedding_usage = summarize_embedding_usage(embedding_acc, self.pricing_service)
+        provider = acc.get("provider") or (embedding_usage or {}).get("provider")
+        model = acc.get("model") or (embedding_usage or {}).get("model")
         prompt_tokens = acc.get("prompt_tokens")
         completion_tokens = acc.get("completion_tokens")
         usage: Dict[str, Any] = {
@@ -254,7 +266,7 @@ class BaseRealtimeWebSocketHandler:
             usage["usage_unit"] = "audio_tokens"
             usage["usage_quantity"] = (audio_prompt_tokens or 0) + (audio_completion_tokens or 0)
 
-        if self.pricing_service:
+        if self.pricing_service and acc.get("reported"):
             try:
                 estimate = self.pricing_service.estimate(
                     provider, model, prompt_tokens, completion_tokens,
@@ -266,6 +278,18 @@ class BaseRealtimeWebSocketHandler:
                 usage["cost_usd"] = estimate.cost_usd
             except Exception:
                 logger.debug("Pricing estimate failed for realtime voice session", exc_info=True)
+
+        if embedding_usage:
+            usage["embedding_prompt_tokens"] = embedding_usage["embedding_prompt_tokens"]
+            if embedding_usage.get("embedding_cost_usd") is not None:
+                usage["embedding_cost_usd"] = embedding_usage["embedding_cost_usd"]
+            embedding_cost = embedding_usage.get("cost_usd")
+            if embedding_cost is not None:
+                usage["cost_usd"] = round((usage.get("cost_usd") or 0.0) + embedding_cost, 6)
+            if acc.get("reported"):
+                usage["pricing_source"] = "mixed"
+            else:
+                usage["pricing_source"] = embedding_usage["pricing_source"]
 
         try:
             await self.audit_service.log_conversation(

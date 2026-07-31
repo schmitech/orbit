@@ -81,7 +81,8 @@ class ChunkManager:
     async def store_chunks(self,
                           chunks: List[Dict[str, Any]],
                           source_url: str,
-                          metadata: Dict[str, Any]) -> bool:
+                          metadata: Dict[str, Any],
+                          usage_sink=None) -> bool:
         """
         Store chunks in the vector store with embeddings.
 
@@ -118,7 +119,9 @@ class ChunkManager:
 
             # Generate embeddings with error handling
             try:
-                embeddings = await self._embed_chunks_safely(chunk_texts)
+                embeddings = await self._embed_chunks_safely(
+                    chunk_texts, usage_sink=usage_sink
+                )
                 # If successful, all chunks should have embeddings
                 if not embeddings or len(embeddings) != len(validated_chunks):
                     logger.error(f"Embedding count mismatch: got {len(embeddings)}, expected {len(validated_chunks)}")
@@ -128,7 +131,9 @@ class ChunkManager:
                 # Try one more time with smaller batches
                 logger.info("Retrying with individual chunk embedding...")
                 try:
-                    embeddings, successful_indices = await self._embed_chunks_individually(chunk_texts)
+                    embeddings, successful_indices = await self._embed_chunks_individually(
+                        chunk_texts, usage_sink=usage_sink
+                    )
                     # Filter validated_chunks to match successfully embedded chunks
                     if successful_indices:
                         validated_chunks = [validated_chunks[i] for i in successful_indices]
@@ -196,7 +201,8 @@ class ChunkManager:
                              query: str,
                              source_url: Optional[str] = None,
                              top_k: int = 3,
-                             min_score: Optional[float] = None) -> List[Dict[str, Any]]:
+                             min_score: Optional[float] = None,
+                             usage_sink=None) -> List[Dict[str, Any]]:
         """
         Retrieve relevant chunks based on query similarity.
 
@@ -211,7 +217,16 @@ class ChunkManager:
         """
         try:
             # Generate query embedding
-            query_embedding = await self.embedding_client.embed_query(query)
+            if hasattr(self.embedding_client, "embed_query_tracked"):
+                local_usage = {}
+                query_embedding = await self.embedding_client.embed_query_tracked(
+                    query, usage_sink=local_usage
+                )
+                if usage_sink is not None:
+                    from ai_services.providers.usage_reporting import accumulate_usage_sink
+                    accumulate_usage_sink(usage_sink, local_usage)
+            else:
+                query_embedding = await self.embedding_client.embed_query(query)
             if not query_embedding:
                 logger.error("Failed to generate query embedding")
                 return []
@@ -558,7 +573,9 @@ class ChunkManager:
         
         return pieces
 
-    async def _embed_chunks_safely(self, chunk_texts: List[str]) -> List[List[float]]:
+    async def _embed_chunks_safely(
+        self, chunk_texts: List[str], usage_sink=None
+    ) -> List[List[float]]:
         """
         Safely embed chunks with error handling.
 
@@ -572,7 +589,16 @@ class ChunkManager:
             Exception if embedding fails
         """
         try:
-            embeddings = await self.embedding_client.embed_documents(chunk_texts)
+            if hasattr(self.embedding_client, "embed_documents_tracked"):
+                local_usage = {}
+                embeddings = await self.embedding_client.embed_documents_tracked(
+                    chunk_texts, usage_sink=local_usage
+                )
+                if usage_sink is not None:
+                    from ai_services.providers.usage_reporting import accumulate_usage_sink
+                    accumulate_usage_sink(usage_sink, local_usage)
+            else:
+                embeddings = await self.embedding_client.embed_documents(chunk_texts)
             return embeddings
         except Exception as e:
             # Check if it's a token limit error
@@ -582,7 +608,9 @@ class ChunkManager:
                 logger.error("Some chunks may still be too large. Consider reducing max_chunk_tokens.")
             raise
 
-    async def _embed_chunks_individually(self, chunk_texts: List[str]) -> Tuple[List[List[float]], List[int]]:
+    async def _embed_chunks_individually(
+        self, chunk_texts: List[str], usage_sink=None
+    ) -> Tuple[List[List[float]], List[int]]:
         """
         Embed chunks one at a time after batch embedding fails.
 
@@ -607,7 +635,16 @@ class ChunkManager:
                     failed_indices.append(i)
                     continue
 
-                embedding = await self.embedding_client.embed_query(text)
+                if hasattr(self.embedding_client, "embed_query_tracked"):
+                    local_usage = {}
+                    embedding = await self.embedding_client.embed_query_tracked(
+                        text, usage_sink=local_usage
+                    )
+                    if usage_sink is not None:
+                        from ai_services.providers.usage_reporting import accumulate_usage_sink
+                        accumulate_usage_sink(usage_sink, local_usage)
+                else:
+                    embedding = await self.embedding_client.embed_query(text)
                 embeddings.append(embedding)
                 successful_indices.append(i)
             except Exception as e:

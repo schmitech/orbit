@@ -47,6 +47,85 @@ def add_usage_component(
     context.metadata.setdefault("_usage_components", []).append(component)
 
 
+def summarize_embedding_usage(
+    usage_sink: Optional[Dict[str, Any]],
+    pricing_service=None,
+) -> Optional[Dict[str, Any]]:
+    """Build an embedding-only audit usage payload from a tracked sink."""
+    if not usage_sink or not usage_sink.get("reported"):
+        return None
+
+    items = [dict(item) for item in (usage_sink.get("line_items") or [usage_sink])]
+    prompt_tokens = sum(item.get("prompt_tokens") or 0 for item in items)
+    last = items[-1]
+    usage: Dict[str, Any] = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "reasoning_tokens": None,
+        "embedding_prompt_tokens": prompt_tokens,
+        "provider": usage_sink.get("provider") or last.get("provider"),
+        "model": usage_sink.get("model") or last.get("model"),
+        "cost_usd": None,
+        "input_rate_per_1m": None,
+        "output_rate_per_1m": None,
+        "pricing_source": "unpriced",
+        "reported": True,
+    }
+
+    if not pricing_service:
+        return usage
+
+    try:
+        estimates = [
+            pricing_service.estimate(
+                item.get("provider"),
+                item.get("model"),
+                item.get("prompt_tokens") or 0,
+                item.get("completion_tokens") or 0,
+            )
+            for item in items
+        ]
+        priced = [estimate.cost_usd for estimate in estimates if estimate.cost_usd is not None]
+        if priced:
+            usage["cost_usd"] = round(sum(priced), 6)
+        if estimates and all(estimate.cost_usd is not None for estimate in estimates):
+            usage["embedding_cost_usd"] = round(sum(priced), 6)
+
+        sources = {estimate.pricing_source for estimate in estimates}
+        all_priced = len(priced) == len(estimates)
+        if len(estimates) == 1:
+            usage["pricing_source"] = estimates[0].pricing_source
+            usage["input_rate_per_1m"] = estimates[0].input_rate_per_1m
+            usage["output_rate_per_1m"] = estimates[0].output_rate_per_1m
+        elif not priced:
+            usage["pricing_source"] = "unpriced"
+        elif all_priced and len(sources) == 1:
+            usage["pricing_source"] = sources.pop()
+        else:
+            usage["pricing_source"] = "mixed"
+    except Exception:
+        logger.debug("Embedding usage pricing failed", exc_info=True)
+
+    return usage
+
+
+def finalize_usage_components(container, context) -> None:
+    """Materialize component-only usage when no generation step will run."""
+    components = [
+        component
+        for component in context.metadata.get("_usage_components", [])
+        if component and component.get("reported")
+    ]
+    if not components:
+        return
+    last = components[-1]
+    last_items = last.get("line_items") or [last]
+    provider = last.get("provider") or last_items[-1].get("provider")
+    model = last.get("model") or last_items[-1].get("model")
+    record_usage(container, context, {}, provider, model)
+
+
 def get_adapter_type(container, adapter_name: str) -> Optional[str]:
     """Return the adapter's 'type' field, or None if unavailable."""
     if not adapter_name or not container.has('adapter_manager'):
@@ -212,8 +291,8 @@ def record_usage(
                 estimate = pricing_service.estimate(
                     item.get("provider"),
                     item.get("model"),
-                    item.get("prompt_tokens"),
-                    item.get("completion_tokens"),
+                    item.get("prompt_tokens") or 0,
+                    item.get("completion_tokens") or 0,
                 )
                 if estimate.cost_usd is not None:
                     priced_costs.append(estimate.cost_usd)
@@ -244,8 +323,8 @@ def record_usage(
                     pricing_service.estimate(
                         item.get("provider"),
                         item.get("model"),
-                        item.get("prompt_tokens"),
-                        item.get("completion_tokens"),
+                        item.get("prompt_tokens") or 0,
+                        item.get("completion_tokens") or 0,
                     )
                     for item in embedding_items
                 ]

@@ -4,6 +4,8 @@ Unit tests for file upload route validation behavior.
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -15,6 +17,7 @@ sys.path.append(str(SERVER_DIR))
 
 from routes.file_routes import create_file_router
 from services.file_processing.magika_detector import FileValidationError
+from services.pricing_service import PricingService
 
 
 class DummyProcessingService:
@@ -85,3 +88,63 @@ def test_upload_uses_verified_mime_type():
     assert response.status_code == 200
     assert response.json()["mime_type"] == "text/markdown"
     assert service.received_mime_type == "text/markdown"
+
+
+def test_file_query_audits_embedding_usage(monkeypatch):
+    service = DummyProcessingService()
+    service.metadata_store = SimpleNamespace(
+        get_file_info=AsyncMock(return_value={
+            "api_key": "files",
+            "collection_name": "collection-1",
+            "filename": "notes.txt",
+        })
+    )
+    service._get_adapter_config_for_api_key = AsyncMock(return_value={})
+
+    async def get_relevant_context(**kwargs):
+        kwargs["usage_sink"].update({
+            "prompt_tokens": 500,
+            "completion_tokens": 0,
+            "total_tokens": 500,
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "reported": True,
+        })
+        return []
+
+    retriever = SimpleNamespace(get_relevant_context=get_relevant_context)
+    cache = SimpleNamespace(get_retriever=AsyncMock(return_value=retriever))
+    monkeypatch.setattr(
+        "services.retriever_cache.get_retriever_cache", lambda: cache
+    )
+
+    audit_service = AsyncMock()
+    app = FastAPI()
+    app.include_router(create_file_router())
+    app.state.file_processing_service = service
+    app.state.audit_service = audit_service
+    app.state.pricing_service = PricingService({
+        "pricing": {
+            "providers": {
+                "openai": {
+                    "text-embedding-3-small": {
+                        "input_per_1m": 0.02,
+                        "output_per_1m": 0.0,
+                    }
+                }
+            }
+        }
+    })
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/files/file-1/query",
+        headers={"X-API-Key": "files"},
+        json={"query": "find notes"},
+    )
+
+    assert response.status_code == 200
+    usage = audit_service.log_conversation.call_args.kwargs["usage"]
+    assert usage["embedding_prompt_tokens"] == 500
+    assert usage["embedding_cost_usd"] == 0.00001
+    assert audit_service.log_conversation.call_args.kwargs["adapter_name"] == "file-query"

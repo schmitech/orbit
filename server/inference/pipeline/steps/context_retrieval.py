@@ -22,7 +22,7 @@ from adapters.capabilities import (
     get_capability_registry,
     FormattingStyle
 )
-from ._utils import add_usage_component
+from ._utils import add_usage_component, finalize_usage_components
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +241,7 @@ class ContextRetrievalStep(PipelineStep):
         # Get adapter capabilities
         capabilities = self._get_capabilities(context.adapter_name)
 
+        embedding_usage: Dict[str, Any] = {}
         try:
             # Get retriever instance
             retriever = await self._get_retriever(context)
@@ -251,7 +252,6 @@ class ContextRetrievalStep(PipelineStep):
 
             # Build retriever kwargs based on capabilities
             retriever_kwargs = self._build_retriever_kwargs(context, capabilities)
-            embedding_usage = {}
             retriever_kwargs["usage_sink"] = embedding_usage
 
             # Pass cancel_event so retrievers can check for cancellation
@@ -273,6 +273,8 @@ class ContextRetrievalStep(PipelineStep):
             # Check cancellation after retrieval completes
             if context.is_cancelled():
                 logger.debug(f"Context retrieval cancelled after completing for adapter: {context.adapter_name}")
+                finalize_usage_components(self.container, context)
+                context.set_error("Request cancelled after context retrieval", block=True)
                 return context
 
             # Apply language-aware boosting/filtering if language detection is available
@@ -306,6 +308,7 @@ class ContextRetrievalStep(PipelineStep):
 
         except Exception as e:
             logger.error(f"Error during context retrieval: {str(e)}")
+            finalize_usage_components(self.container, context)
             context.set_error(f"Failed to retrieve context: {str(e)}")
 
         return context

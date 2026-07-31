@@ -212,6 +212,38 @@ async def test_flush_realtime_usage_noop_when_nothing_accumulated():
 
 
 @pytest.mark.asyncio
+async def test_flush_realtime_usage_includes_grounding_embedding_cost():
+    audit_service = AsyncMock()
+    audit_service.inference_events_enabled = True
+    pricing_service = MagicMock()
+    pricing_service.estimate.return_value = MagicMock(
+        input_rate_per_1m=0.02,
+        output_rate_per_1m=0.0,
+        pricing_source="exact",
+        cost_usd=0.00001,
+    )
+    handler = _make_handler(
+        audit_service=audit_service, pricing_service=pricing_service
+    )
+    handler._accumulate_embedding_usage({
+        "prompt_tokens": 500,
+        "completion_tokens": 0,
+        "total_tokens": 500,
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "reported": True,
+    })
+
+    await handler._flush_realtime_usage()
+
+    usage = audit_service.log_conversation.call_args.kwargs["usage"]
+    assert usage["embedding_prompt_tokens"] == 500
+    assert usage["embedding_cost_usd"] == pytest.approx(0.00001)
+    assert usage["cost_usd"] == pytest.approx(0.00001)
+    assert audit_service.log_conversation.call_args.kwargs["provider"] == "openai"
+
+
+@pytest.mark.asyncio
 async def test_flush_realtime_usage_noop_without_audit_service():
     handler = _make_handler(audit_service=None)
     handler._accumulate_realtime_usage("openai", "gpt-realtime", 100, 20)

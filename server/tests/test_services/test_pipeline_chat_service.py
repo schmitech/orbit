@@ -126,3 +126,50 @@ async def test_uncancelled_stream_still_persists_normally():
     assert any("full essay response" in c for c in chunks)
     assert not any('"error"' in c for c in chunks), chunks
     svc.response_processor.process_response.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_usage_only_failed_request_is_audited():
+    from inference.pipeline.base import ProcessingContext
+    from services.pipeline_chat_service import PipelineChatService
+
+    svc = PipelineChatService.__new__(PipelineChatService)
+    svc.response_processor = MagicMock()
+    svc.response_processor.log_conversation = AsyncMock()
+    svc._determine_inference_backend = MagicMock(return_value="fallback")
+    svc._determine_inference_model = MagicMock(return_value="fallback-model")
+    context = ProcessingContext(
+        message="find docs",
+        adapter_name="files",
+        session_id="session-1",
+    )
+    context.error = "vector store unavailable"
+    context.metadata["usage"] = {
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "embedding_prompt_tokens": 500,
+        "cost_usd": 0.00001,
+        "reported": True,
+    }
+
+    await svc._audit_usage_only_request(
+        context,
+        "find docs",
+        "127.0.0.1",
+        "files",
+        "api-key",
+        "user-1",
+    )
+
+    svc.response_processor.log_conversation.assert_awaited_once_with(
+        query="find docs",
+        response="vector store unavailable",
+        client_ip="127.0.0.1",
+        backend="openai",
+        api_key="api-key",
+        session_id="session-1",
+        user_id="user-1",
+        adapter_name="files",
+        model="text-embedding-3-small",
+        usage=context.metadata["usage"],
+    )

@@ -1,5 +1,6 @@
 """Regression tests for embedding usage extraction and request-level pricing."""
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -140,6 +141,251 @@ async def test_openai_document_batches_accumulate_every_round_trip(monkeypatch):
     assert usage["total_tokens"] == 60
     assert usage["calls"] == 3
     assert len(usage["line_items"]) == 3
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_chunk_manager_reports_query_embedding_usage():
+    from utils.chunk_manager import ChunkManager
+
+    async def embed_query_tracked(_query, usage_sink):
+        usage_sink.update({
+            "prompt_tokens": 42,
+            "completion_tokens": 0,
+            "total_tokens": 42,
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "reported": True,
+        })
+        return [0.1, 0.2]
+
+    embedding_client = SimpleNamespace(embed_query_tracked=embed_query_tracked)
+    vector_store = SimpleNamespace(
+        search_vectors=AsyncMock(return_value=[]),
+    )
+    manager = ChunkManager(vector_store, embedding_client)
+    usage = {}
+
+    await manager.retrieve_chunks("find this", usage_sink=usage)
+
+    assert usage["reported"] is True
+    assert usage["prompt_tokens"] == 42
+    assert usage["provider"] == "openai"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_chunk_manager_reports_batch_and_fallback_embedding_usage():
+    from utils.chunk_manager import ChunkManager
+
+    async def embed_documents_tracked(texts, usage_sink):
+        usage_sink.update({
+            "prompt_tokens": len(texts) * 10,
+            "completion_tokens": 0,
+            "total_tokens": len(texts) * 10,
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "reported": True,
+        })
+        return [[0.1] for _ in texts]
+
+    async def embed_query_tracked(_text, usage_sink):
+        usage_sink.update({
+            "prompt_tokens": 10,
+            "completion_tokens": 0,
+            "total_tokens": 10,
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "reported": True,
+        })
+        return [0.1]
+
+    manager = ChunkManager(
+        MagicMock(),
+        SimpleNamespace(
+            embed_documents_tracked=embed_documents_tracked,
+            embed_query_tracked=embed_query_tracked,
+        ),
+    )
+    usage = {}
+
+    await manager._embed_chunks_safely(["one", "two"], usage_sink=usage)
+    await manager._embed_chunks_individually(["three", "four"], usage_sink=usage)
+
+    assert usage["prompt_tokens"] == 40
+    assert len(usage["line_items"]) == 3
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_firecrawl_forwards_usage_to_template_matching():
+    from retrievers.implementations.intent.intent_firecrawl_retriever import (
+        IntentFirecrawlRetriever,
+    )
+
+    retriever = object.__new__(IntentFirecrawlRetriever)
+    retriever._find_best_templates = AsyncMock(return_value=[])
+    usage = {}
+
+    await retriever.get_relevant_context("find docs", usage_sink=usage)
+
+    retriever._find_best_templates.assert_awaited_once_with(
+        "find docs", usage_sink=usage
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_failed_context_retrieval_finalizes_billed_embedding_usage():
+    from inference.pipeline.steps.context_retrieval import ContextRetrievalStep
+
+    async def get_relevant_context(**kwargs):
+        kwargs["usage_sink"].update({
+            "prompt_tokens": 500,
+            "completion_tokens": 0,
+            "total_tokens": 500,
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "reported": True,
+        })
+        raise RuntimeError("vector store unavailable")
+
+    step = object.__new__(ContextRetrievalStep)
+    step.container = _container(_pricing_service())
+    step._get_retriever = AsyncMock(
+        return_value=SimpleNamespace(get_relevant_context=get_relevant_context)
+    )
+    step._get_capabilities = MagicMock(return_value=None)
+    step._build_retriever_kwargs = MagicMock(return_value={})
+    context = ProcessingContext(message="find docs", adapter_name="files")
+
+    result = await step.process(context)
+
+    assert result.has_error()
+    assert result.metadata["usage"]["embedding_prompt_tokens"] == 500
+    assert result.metadata["usage"]["embedding_cost_usd"] == pytest.approx(0.00001)
+    assert "_usage_components" not in result.metadata
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_cancelled_context_retrieval_halts_pipeline_without_losing_cost():
+    from inference.pipeline.pipeline import InferencePipeline
+    from inference.pipeline.steps.context_retrieval import ContextRetrievalStep
+
+    cancel_event = asyncio.Event()
+
+    async def get_relevant_context(**kwargs):
+        kwargs["usage_sink"].update({
+            "prompt_tokens": 500,
+            "completion_tokens": 0,
+            "total_tokens": 500,
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "reported": True,
+        })
+        cancel_event.set()
+        return []
+
+    container = _container(_pricing_service())
+    retrieval_step = object.__new__(ContextRetrievalStep)
+    retrieval_step.container = container
+    retrieval_step._get_retriever = AsyncMock(
+        return_value=SimpleNamespace(get_relevant_context=get_relevant_context)
+    )
+    retrieval_step._get_capabilities = MagicMock(return_value=None)
+    retrieval_step._build_retriever_kwargs = MagicMock(return_value={})
+    retrieval_step.should_execute = MagicMock(return_value=True)
+    retrieval_step.pre_process = AsyncMock()
+    retrieval_step.post_process = AsyncMock()
+
+    next_step = MagicMock()
+    next_step.should_execute.return_value = True
+    next_step.get_name.return_value = "GenerationStep"
+    next_step.pre_process = AsyncMock()
+    next_step.process = AsyncMock()
+    next_step.post_process = AsyncMock()
+
+    context = ProcessingContext(
+        message="find docs",
+        adapter_name="files",
+        cancel_event=cancel_event,
+    )
+    result = await InferencePipeline(
+        [retrieval_step, next_step], container
+    ).process(context)
+
+    assert result.has_error()
+    assert result.is_blocked is True
+    next_step.process.assert_not_awaited()
+    assert result.metadata["usage"]["embedding_prompt_tokens"] == 500
+    assert result.metadata["usage"]["embedding_cost_usd"] == pytest.approx(0.00001)
+
+
+@pytest.mark.unit
+def test_missing_embedding_token_fields_are_priced_as_zero():
+    context = ProcessingContext()
+    add_usage_component(
+        context,
+        {
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "reported": True,
+            "line_items": [{
+                "provider": "openai",
+                "model": "text-embedding-3-small",
+                "reported": True,
+            }],
+        },
+        "embedding",
+    )
+    pricing_service = MagicMock()
+    pricing_service.estimate.return_value = SimpleNamespace(
+        cost_usd=0.0,
+        input_rate_per_1m=0.02,
+        output_rate_per_1m=0.0,
+        pricing_source="exact",
+    )
+
+    record_usage(
+        _container(pricing_service), context, {}, "openai", "gpt-test"
+    )
+
+    assert context.metadata["usage"]["cost_usd"] == 0.0
+    assert pricing_service.estimate.call_count == 2
+    for call in pricing_service.estimate.call_args_list:
+        assert call.args[2:] == (0, 0)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_multimodal_forwards_usage_to_file_retriever(monkeypatch):
+    from implementations.passthrough.multimodal.multimodal_implementation import (
+        MultimodalImplementation,
+    )
+
+    monkeypatch.setattr(
+        "retrievers.base.base_retriever.BaseRetriever.get_relevant_context",
+        AsyncMock(return_value=[]),
+    )
+    retriever = object.__new__(MultimodalImplementation)
+    retriever.initialize = AsyncMock()
+    retriever._file_retriever = SimpleNamespace(
+        get_relevant_context=AsyncMock(return_value=[])
+    )
+    usage = {}
+
+    await retriever.get_relevant_context(
+        "find file", api_key="key", file_ids=["file-1"], usage_sink=usage
+    )
+
+    retriever._file_retriever.get_relevant_context.assert_awaited_once_with(
+        query="find file",
+        api_key="key",
+        file_ids=["file-1"],
+        collection_name=None,
+        usage_sink=usage,
+    )
 
 
 @pytest.mark.unit

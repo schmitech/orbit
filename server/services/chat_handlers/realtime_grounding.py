@@ -77,6 +77,7 @@ async def execute_grounding_lookup(
     grounding: GroundingConfig,
     query: str,
     api_key: Optional[str] = None,
+    usage_sink: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Run the grounding retriever and return a short, speakable text answer."""
     if not adapter_manager:
@@ -88,6 +89,7 @@ async def execute_grounding_lookup(
         kwargs: Dict[str, Any] = {}
         if grounding.confidence_threshold is not None:
             kwargs["confidence_threshold"] = grounding.confidence_threshold
+        kwargs["usage_sink"] = usage_sink
         docs = await adapter.get_relevant_context(query=query, api_key=api_key, **kwargs)
     except Exception as e:
         logger.error(

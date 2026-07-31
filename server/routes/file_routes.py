@@ -683,13 +683,39 @@ def create_file_router() -> APIRouter:
             
             # Query the vector store
             max_results = query_request.max_results or 10
-            results = await retriever.get_relevant_context(
-                query=query_request.query,
-                api_key=x_api_key,
-                file_ids=[file_id],  # Use file_ids array instead of legacy file_id
-                collection_name=collection_name,
-                limit=max_results
-            )
+            embedding_usage: Dict[str, Any] = {}
+            try:
+                results = await retriever.get_relevant_context(
+                    query=query_request.query,
+                    api_key=x_api_key,
+                    file_ids=[file_id],  # Use file_ids array instead of legacy file_id
+                    collection_name=collection_name,
+                    limit=max_results,
+                    usage_sink=embedding_usage,
+                )
+            finally:
+                from inference.pipeline.steps._utils import summarize_embedding_usage
+
+                usage = summarize_embedding_usage(
+                    embedding_usage,
+                    getattr(request.app.state, "pricing_service", None),
+                )
+                audit_service = getattr(request.app.state, "audit_service", None)
+                if usage and audit_service:
+                    try:
+                        await audit_service.log_conversation(
+                            query=query_request.query,
+                            response="[file semantic search]",
+                            ip=request.client.host if request.client else None,
+                            provider=usage.get("provider"),
+                            blocked=False,
+                            api_key=x_api_key,
+                            adapter_name="file-query",
+                            model=usage.get("model"),
+                            usage=usage,
+                        )
+                    except Exception:
+                        logger.debug("Failed to audit file-query embedding usage", exc_info=True)
             
             # Results are already formatted by FileVectorRetriever._format_results()
             # They have the structure: {'content': '...', 'metadata': {'chunk_id': '...', ...}}
