@@ -564,7 +564,16 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                         f"model={getattr(self.embedding_client, 'model', 'N/A')}, "
                         f"num_texts={len(embedding_texts)}"
                     )
-                    embeddings = await self.embedding_client.embed_documents(embedding_texts)
+                    usage_sink = {}
+                    if hasattr(self.embedding_client, "embed_documents_tracked"):
+                        embeddings = await self.embedding_client.embed_documents_tracked(
+                            embedding_texts, usage_sink=usage_sink
+                        )
+                    else:
+                        embeddings = await self.embedding_client.embed_documents(embedding_texts)
+                    await self.audit_embedding_usage(
+                        usage_sink, "[intent template indexing]"
+                    )
                     logger.info(f"Successfully generated {len(embeddings)} embeddings")
                     if embeddings:
                         logger.debug(
@@ -576,7 +585,16 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                     logger.info("Falling back to individual embedding generation...")
                     for text in embedding_texts:
                         try:
-                            embedding = await self.embedding_client.embed_query(text)
+                            usage_sink = {}
+                            if hasattr(self.embedding_client, "embed_query_tracked"):
+                                embedding = await self.embedding_client.embed_query_tracked(
+                                    text, usage_sink=usage_sink
+                                )
+                            else:
+                                embedding = await self.embedding_client.embed_query(text)
+                            await self.audit_embedding_usage(
+                                usage_sink, "[intent template indexing]"
+                            )
                             embeddings.append(embedding)
                         except Exception as e2:
                             logger.error(f"Failed to generate embedding: {e2}")

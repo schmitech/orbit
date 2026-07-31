@@ -202,7 +202,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error querying audit records from SQLite: {e}")
             return []
 
-    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id"}
+    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id", "call_type"}
 
     async def aggregate_usage(
         self,
@@ -232,7 +232,11 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         where_clauses = ["timestamp >= ?", "timestamp < ?"]
         params: List[Any] = [since, until]
         for key, value in (filters or {}).items():
-            if key not in {"provider", "adapter_name", "model"}:
+            if key not in {"provider", "adapter_name", "model", "call_type"}:
+                continue
+            if key == "call_type" and value == "inference":
+                where_clauses.append("(call_type = ? OR call_type IS NULL)")
+                params.append(value)
                 continue
             where_clauses.append(f"{key} = ?")
             params.append(value)

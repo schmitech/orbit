@@ -79,6 +79,34 @@ class BaseRetriever(ABC):
         
         # Flag to track initialization
         self.initialized = False
+        # Populated by AdapterLoader before async initialization.  Retrieval
+        # work done at startup (such as intent-template indexing) has no chat
+        # request context, but is still a billable embedding operation.
+        self.audit_service = None
+        self.audit_adapter_name = None
+        self.pricing_service = None
+
+    async def audit_embedding_usage(self, usage_sink: Optional[Dict[str, Any]], operation: str) -> None:
+        """Persist a standalone audit event for background embedding work."""
+        if not self.audit_service or not usage_sink or not usage_sink.get("reported"):
+            return
+        try:
+            from inference.pipeline.steps._utils import summarize_embedding_usage
+
+            usage = summarize_embedding_usage(usage_sink, self.pricing_service)
+            if not usage:
+                return
+            usage["call_type"] = "embedding"
+            await self.audit_service.log_conversation(
+                query=operation,
+                response="[embedding request]",
+                provider=usage.get("provider"),
+                adapter_name=self.audit_adapter_name,
+                model=usage.get("model"),
+                usage=usage,
+            )
+        except Exception:
+            self.logger.debug("Failed to audit background embedding usage", exc_info=True)
     
     def _initialize_domain_adapter(self, domain_adapter):
         """Initialize domain adapter from config or use provided one"""

@@ -303,6 +303,13 @@ class AdapterLoader:
 
         retriever = await loop.run_in_executor(self._thread_pool, _sync_load)
 
+        # Intent/template initialization can make paid embedding calls before a
+        # chat request exists.  Give retrievers the audit dependencies up front
+        # so those background calls remain visible in the cost audit trail.
+        retriever.audit_service = getattr(self.app_state, "audit_service", None)
+        retriever.audit_adapter_name = adapter_name
+        retriever.pricing_service = getattr(self.app_state, "pricing_service", None)
+
         # Initialize the retriever (if it's async)
         if hasattr(retriever, 'initialize'):
             if asyncio.iscoroutinefunction(retriever.initialize):

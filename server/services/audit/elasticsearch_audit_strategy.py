@@ -428,7 +428,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error clearing audit records from Elasticsearch: {e}")
             return False
 
-    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id"}
+    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id", "call_type"}
 
     async def aggregate_usage(
         self,
@@ -447,6 +447,14 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         for key, value in (filters or {}).items():
             if key in {"provider", "adapter_name", "model"}:
                 must.append({"term": {key: value}})
+            elif key == "call_type":
+                if value == "inference":
+                    must.append({"bool": {"should": [
+                        {"term": {"call_type": "inference"}},
+                        {"bool": {"must_not": [{"exists": {"field": "call_type"}}]}},
+                    ], "minimum_should_match": 1}})
+                else:
+                    must.append({"term": {key: value}})
         query = {"bool": {"must": must}}
 
         sum_aggs = {

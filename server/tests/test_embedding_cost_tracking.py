@@ -351,8 +351,9 @@ def test_missing_embedding_token_fields_are_priced_as_zero():
         _container(pricing_service), context, {}, "openai", "gpt-test"
     )
 
+    assert context.metadata["usage"]["call_type"] == "embedding"
     assert context.metadata["usage"]["cost_usd"] == 0.0
-    assert pricing_service.estimate.call_count == 2
+    assert pricing_service.estimate.call_count == 1
     for call in pricing_service.estimate.call_args_list:
         assert call.args[2:] == (0, 0)
 
@@ -389,7 +390,7 @@ async def test_multimodal_forwards_usage_to_file_retriever(monkeypatch):
 
 
 @pytest.mark.unit
-def test_embedding_and_generation_are_priced_independently_then_summed():
+def test_embedding_and_generation_are_priced_as_separate_audit_events():
     context = ProcessingContext()
     add_usage_component(
         context,
@@ -418,14 +419,13 @@ def test_embedding_and_generation_are_priced_independently_then_summed():
     )
 
     usage = context.metadata["usage"]
-    # Embedding tokens must not inflate the primary/generation token counts
-    # mirrored onto the OpenAI-compatible response — they surface only via
-    # embedding_prompt_tokens/embedding_cost_usd below.
     assert usage["prompt_tokens"] == 1_000_000
     assert usage["total_tokens"] == 1_000_000
-    assert usage["cost_usd"] == pytest.approx(1.02)
-    assert usage["embedding_prompt_tokens"] == 1_000_000
-    assert usage["embedding_cost_usd"] == pytest.approx(0.02)
+    assert usage["cost_usd"] == pytest.approx(1.0)
+    embedding_usage = context.metadata["embedding_usage"]
+    assert embedding_usage["call_type"] == "embedding"
+    assert embedding_usage["embedding_prompt_tokens"] == 1_000_000
+    assert embedding_usage["cost_usd"] == pytest.approx(0.02)
 
 
 @pytest.mark.unit
@@ -462,7 +462,8 @@ def test_unpriced_embedding_does_not_silently_understate_total_cost():
     # The unpriced embedding line item must not blank out the generation
     # call's known, real cost -- only the priceable items are summed.
     assert usage["cost_usd"] == pytest.approx(0.0012)
-    assert usage["pricing_source"] == "mixed"
+    assert usage["pricing_source"] == "exact"
+    assert context.metadata["embedding_usage"]["pricing_source"] == "unpriced"
 
 
 @pytest.mark.unit
@@ -522,11 +523,11 @@ def test_document_generation_unpriced_embedding_does_not_blank_out_cost():
     # An unpriced skill-routing embedding attempt must not blank out the
     # document-generation call's own known cost.
     assert usage["cost_usd"] == pytest.approx(0.0012)
-    assert usage["pricing_source"] == "mixed"
+    assert usage["pricing_source"] == "exact"
     # Embedding tokens must not inflate the generation call's own totals.
     assert usage["prompt_tokens"] == 1_000
     assert usage["completion_tokens"] == 100
-    assert usage["embedding_prompt_tokens"] == 1_000
+    assert context.metadata["embedding_usage"]["embedding_prompt_tokens"] == 1_000
 
 
 @pytest.mark.unit
@@ -566,8 +567,9 @@ def test_document_generation_pricing_failure_never_raises():
     usage = context.metadata["usage"]
     assert usage["reported"] is True
     assert usage["cost_usd"] is None
-    assert usage["embedding_prompt_tokens"] == 1_000
-    assert "embedding_cost_usd" not in usage
+    embedding_usage = context.metadata["embedding_usage"]
+    assert embedding_usage["embedding_prompt_tokens"] == 1_000
+    assert "embedding_cost_usd" not in embedding_usage
 
 
 @pytest.mark.unit
@@ -599,8 +601,9 @@ def test_media_generation_embedding_tokens_do_not_inflate_primary_totals():
 
     usage = context.metadata["usage"]
     assert usage["reported"] is True
-    assert usage["embedding_prompt_tokens"] == 500
-    assert usage["embedding_cost_usd"] == pytest.approx(0.00001)
+    embedding_usage = context.metadata["embedding_usage"]
+    assert embedding_usage["embedding_prompt_tokens"] == 500
+    assert embedding_usage["cost_usd"] == pytest.approx(0.00001)
     # Media-generation billing is per-image, not per-token — prompt_tokens
     # must stay None/absent, not silently become the embedding's token count.
     assert usage.get("prompt_tokens") in (None, 0)

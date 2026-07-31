@@ -151,6 +151,14 @@ async def test_usage_only_failed_request_is_audited():
         "cost_usd": 0.00001,
         "reported": True,
     }
+    context.metadata["embedding_usage"] = {
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "embedding_prompt_tokens": 500,
+        "cost_usd": 0.00001,
+        "call_type": "embedding",
+        "reported": True,
+    }
 
     await svc._audit_usage_only_request(
         context,
@@ -161,7 +169,20 @@ async def test_usage_only_failed_request_is_audited():
         "user-1",
     )
 
-    svc.response_processor.log_conversation.assert_awaited_once_with(
+    assert svc.response_processor.log_conversation.await_count == 2
+    svc.response_processor.log_conversation.assert_any_await(
+        query="find docs",
+        response="[embedding request]",
+        client_ip="127.0.0.1",
+        backend="openai",
+        api_key="api-key",
+        session_id="session-1",
+        user_id="user-1",
+        adapter_name="files",
+        model="text-embedding-3-small",
+        usage=context.metadata["embedding_usage"],
+    )
+    svc.response_processor.log_conversation.assert_any_await(
         query="find docs",
         response="vector store unavailable",
         client_ip="127.0.0.1",

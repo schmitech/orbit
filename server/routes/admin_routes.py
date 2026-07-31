@@ -2296,9 +2296,10 @@ async def get_observability_usage(
     request: Request,
     days: int = Query(7, ge=1, le=365),
     bucket: str = Query("day", pattern="^(hour|day)$"),
-    group_by: str = Query("model", pattern="^(model|provider|adapter_name|user_id|none)$"),
+    group_by: str = Query("model", pattern="^(model|provider|adapter_name|user_id|call_type|none)$"),
     provider: Optional[str] = Query(None),
     adapter_name: Optional[str] = Query(None),
+    call_type: Optional[str] = Query(None, pattern="^(inference|embedding|image|video|audio|document)$"),
     limit_groups: int = Query(10, ge=1, le=100),
 ):
     """
@@ -2336,6 +2337,11 @@ async def get_observability_usage(
         filters["provider"] = provider
     if adapter_name:
         filters["adapter_name"] = adapter_name
+    if call_type:
+        # Keep legacy NULL rows in the default/all view. An explicit
+        # inference filter intentionally follows the audit-events endpoint's
+        # semantics, where NULL is interpreted as inference by the backend.
+        filters["call_type"] = call_type
 
     result = await audit_service.aggregate_usage(
         since=since,

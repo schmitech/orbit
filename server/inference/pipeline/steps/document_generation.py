@@ -19,7 +19,12 @@ from datetime import date
 from typing import Optional, Dict, Any, List
 
 from ..base import PipelineStep, ProcessingContext
-from ._utils import get_generation_memory, get_rewrite_prompt_config, store_generation_memory
+from ._utils import (
+    extract_embedding_usage,
+    get_generation_memory,
+    get_rewrite_prompt_config,
+    store_generation_memory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -329,17 +334,7 @@ class DocumentGenerationStep(PipelineStep):
         if not attempts:
             return
 
-        embedding_attempts: List[Dict[str, Any]] = []
-        for component in context.metadata.get("_usage_components", []):
-            if not component or not component.get("reported") or component.get("source") != "embedding":
-                continue
-            for item in component.get("line_items") or [component]:
-                embedding_attempts.append({
-                    "provider": item.get("provider"),
-                    "model": item.get("model"),
-                    "prompt_tokens": item.get("prompt_tokens") or 0,
-                    "completion_tokens": item.get("completion_tokens") or 0,
-                })
+        extract_embedding_usage(self.container, context)
 
         prompt_tokens = sum(a["prompt_tokens"] for a in attempts)
         completion_tokens = sum(a["completion_tokens"] for a in attempts)
@@ -369,23 +364,17 @@ class DocumentGenerationStep(PipelineStep):
             "reported": True,
         }
 
-        priced_attempts = (
-            [(attempt, False) for attempt in attempts]
-            + [(attempt, True) for attempt in embedding_attempts]
-        )
+        priced_attempts = attempts
         pricing_service = self.container.get('pricing_service') if self.container.has('pricing_service') else None
-        embedding_costs = []
         if pricing_service:
             try:
                 priced_costs = []
                 sources = set()
-                for a, is_embedding in priced_attempts:
+                for a in priced_attempts:
                     estimate = pricing_service.estimate(a["provider"], a["model"], a["prompt_tokens"], a["completion_tokens"])
                     if estimate.cost_usd is not None:
                         priced_costs.append(estimate.cost_usd)
                         sources.add(estimate.pricing_source)
-                        if is_embedding:
-                            embedding_costs.append(estimate.cost_usd)
                     if len(priced_attempts) == 1:
                         usage["input_rate_per_1m"] = estimate.input_rate_per_1m
                         usage["output_rate_per_1m"] = estimate.output_rate_per_1m
@@ -400,15 +389,7 @@ class DocumentGenerationStep(PipelineStep):
             except Exception:
                 logger.debug("Pricing estimate failed for document spec generation", exc_info=True)
 
-        if embedding_attempts:
-            usage["embedding_prompt_tokens"] = sum(
-                attempt["prompt_tokens"] for attempt in embedding_attempts
-            )
-            if len(embedding_costs) == len(embedding_attempts):
-                usage["embedding_cost_usd"] = round(sum(embedding_costs), 6)
-
         context.metadata["usage"] = usage
-        context.metadata.pop("_usage_components", None)
         context.metadata["prompt_tokens"] = prompt_tokens
         context.metadata["completion_tokens"] = completion_tokens
         context.metadata["total_tokens"] = usage["total_tokens"]

@@ -446,7 +446,16 @@ class CompositeIntentRetriever(BaseRetriever):
 
             # Batch embed all texts
             embedding_texts = [entry[2] for entry in vector_entries]
-            embeddings = await self.embedding_client.embed_documents(embedding_texts)
+            usage_sink = {}
+            if hasattr(self.embedding_client, "embed_documents_tracked"):
+                embeddings = await self.embedding_client.embed_documents_tracked(
+                    embedding_texts, usage_sink=usage_sink
+                )
+            else:
+                embeddings = await self.embedding_client.embed_documents(embedding_texts)
+            await self.audit_embedding_usage(
+                usage_sink, "[cross-adapter template indexing]"
+            )
 
             if not embeddings or len(embeddings) != len(vector_entries):
                 logger.error("Failed to embed cross-adapter templates")

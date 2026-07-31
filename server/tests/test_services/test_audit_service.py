@@ -1384,6 +1384,30 @@ class TestAggregateUsage:
         assert result['groups'][0]['requests'] == 3
 
     @pytest.mark.asyncio
+    async def test_aggregate_usage_filters_and_groups_by_call_type(self, sqlite_service_with_audit):
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+        base = {"query": "q", "response": "r", "provider": "openai", "blocked": False, "ip": "127.0.0.1",
+                "timestamp": datetime(2026, 1, 1, 10, 0, 0), "cost_usd": 0.01}
+        await self._seed(audit_service, [
+            {**base, "model": "gpt-4o-mini", "call_type": None},
+            {**base, "model": "text-embedding-3-small", "call_type": "embedding", "cost_usd": 0.02},
+        ])
+
+        inference = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00",
+            filters={"call_type": "inference"}, group_by="call_type",
+        )
+        embeddings = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00",
+            filters={"call_type": "embedding"}, group_by="call_type",
+        )
+
+        assert inference["totals"]["requests"] == 1
+        assert embeddings["totals"]["requests"] == 1
+        assert embeddings["groups"][0]["key"] == "embedding"
+
+    @pytest.mark.asyncio
     async def test_aggregate_usage_disabled_audit_returns_empty_skeleton(self, tmp_path):
         """AuditService.aggregate_usage must never raise — a disabled/unsupported
         backend returns the zeroed skeleton so the route can 200 with empty data."""

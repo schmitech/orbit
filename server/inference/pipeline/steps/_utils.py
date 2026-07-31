@@ -110,6 +110,46 @@ def summarize_embedding_usage(
     return usage
 
 
+def extract_embedding_usage(container, context) -> Optional[Dict[str, Any]]:
+    """Detach tracked embedding components and prepare their audit event.
+
+    Embeddings are independently billable API calls.  Keep them separate from
+    the surrounding inference/media event so audit totals do not count the
+    same spend twice, while the request can still be attributed as a whole.
+    """
+    components = context.metadata.get("_usage_components", [])
+    embedding_items = []
+    remaining_components = []
+    for component in components:
+        if component and component.get("reported") and component.get("source") == "embedding":
+            embedding_items.extend(
+                dict(item) for item in (component.get("line_items") or [component])
+            )
+        else:
+            remaining_components.append(component)
+
+    if remaining_components:
+        context.metadata["_usage_components"] = remaining_components
+    else:
+        context.metadata.pop("_usage_components", None)
+
+    if not embedding_items:
+        return None
+
+    raw_usage = {
+        "reported": True,
+        "line_items": embedding_items,
+        "provider": embedding_items[-1].get("provider"),
+        "model": embedding_items[-1].get("model"),
+    }
+    pricing_service = container.get("pricing_service") if container.has("pricing_service") else None
+    usage = summarize_embedding_usage(raw_usage, pricing_service)
+    if usage:
+        usage["call_type"] = "embedding"
+        context.metadata["embedding_usage"] = usage
+    return usage
+
+
 def finalize_usage_components(container, context) -> None:
     """Materialize component-only usage when no generation step will run."""
     components = [
@@ -202,6 +242,7 @@ def record_usage(
     `source`) — set AFTER pricing so callers can't accidentally clobber the
     priced fields.
     """
+    embedding_usage = extract_embedding_usage(container, context)
     primary_reported = bool(usage_sink.get("reported"))
     components = [
         component
@@ -244,14 +285,12 @@ def record_usage(
         line_items.extend(items)
 
     reported = bool(line_items)
-    # Embedding tokens are a separate billing line (embedding_prompt_tokens/
-    # embedding_cost_usd below) and must not inflate the primary prompt/total
-    # token counts mirrored onto the OpenAI-compatible /v1/chat/completions
-    # response — those numbers must reflect the generation call only.
-    generation_items = [item for item in line_items if item.get("source") != "embedding"]
-    embedding_items = [item for item in line_items if item.get("source") == "embedding"]
-    prompt_tokens = sum(item.get("prompt_tokens") or 0 for item in generation_items) if reported else None
-    completion_tokens = sum(item.get("completion_tokens") or 0 for item in generation_items) if reported else None
+    if not reported and embedding_usage:
+        context.metadata["usage"] = embedding_usage
+        return
+
+    prompt_tokens = sum(item.get("prompt_tokens") or 0 for item in line_items) if reported else None
+    completion_tokens = sum(item.get("completion_tokens") or 0 for item in line_items) if reported else None
     total_tokens = prompt_tokens + completion_tokens if reported else None
     # Informational only — the subset of completion_tokens spent on
     # reasoning/thinking, when the provider breaks it out (OpenAI
@@ -259,7 +298,7 @@ def record_usage(
     # above, so this never changes the cost estimate below.
     reasoning_values = [
         item.get("reasoning_tokens")
-        for item in generation_items
+        for item in line_items
         if item.get("reasoning_tokens") is not None
     ]
     reasoning_tokens = sum(reasoning_values) if reasoning_values else None
@@ -276,10 +315,7 @@ def record_usage(
         "output_rate_per_1m": None,
         "pricing_source": "unreported" if not reported else "unpriced",
         "reported": reported,
-        # "embedding" only when the row has no generation call at all (e.g.
-        # the standalone file-query audit row) — a chat turn that also folds
-        # in retrieval-embedding cost is still an "inference" row.
-        "call_type": "embedding" if (embedding_items and not generation_items) else "inference",
+        "call_type": "inference",
     }
 
     # Price every line item (generation + embedding) independently against its
@@ -315,30 +351,6 @@ def record_usage(
                         usage["pricing_source"] = sources.pop() if len(sources) == 1 else "mixed"
         except Exception:
             logger.debug("Pricing estimate failed", exc_info=True)
-
-    if embedding_items:
-        usage["embedding_prompt_tokens"] = sum(
-            item.get("prompt_tokens") or 0 for item in embedding_items
-        )
-        if container.has('pricing_service'):
-            try:
-                pricing_service = container.get('pricing_service')
-                embedding_estimates = [
-                    pricing_service.estimate(
-                        item.get("provider"),
-                        item.get("model"),
-                        item.get("prompt_tokens") or 0,
-                        item.get("completion_tokens") or 0,
-                    )
-                    for item in embedding_items
-                ]
-                if all(estimate.cost_usd is not None for estimate in embedding_estimates):
-                    usage["embedding_cost_usd"] = round(
-                        sum(estimate.cost_usd for estimate in embedding_estimates),
-                        6,
-                    )
-            except Exception:
-                logger.debug("Embedding pricing estimate failed", exc_info=True)
 
     if extra:
         usage.update(extra)
@@ -382,6 +394,7 @@ def record_media_generation_usage(
     in the UI. `pricing_source` reflects the generation call, since that's
     the dominant, request-defining cost.
     """
+    embedding_usage = extract_embedding_usage(container, context)
     pricing_service = container.get('pricing_service') if container.has('pricing_service') else None
 
     usage: Dict[str, Any] = {
@@ -453,47 +466,14 @@ def record_media_generation_usage(
             except Exception:
                 logger.debug("Pricing estimate failed for rewrite LLM call", exc_info=True)
 
-    embedding_prompt_tokens = 0
-    embedding_item_count = 0
-    embedding_costs = []
-    for component in context.metadata.get("_usage_components", []):
-        if not component or not component.get("reported") or component.get("source") != "embedding":
-            continue
-        items = component.get("line_items") or [component]
-        for item in items:
-            embedding_item_count += 1
-            item_prompt_tokens = item.get("prompt_tokens") or 0
-            item_completion_tokens = item.get("completion_tokens") or 0
-            embedding_prompt_tokens += item_prompt_tokens
-            if pricing_service:
-                try:
-                    embedding_estimate = pricing_service.estimate(
-                        item.get("provider"),
-                        item.get("model"),
-                        item_prompt_tokens,
-                        item_completion_tokens,
-                    )
-                    if embedding_estimate.cost_usd is not None:
-                        embedding_costs.append(embedding_estimate.cost_usd)
-                        total_cost += embedding_estimate.cost_usd
-                        have_cost = True
-                except Exception:
-                    logger.debug("Embedding pricing estimate failed for media generation", exc_info=True)
-
-    if embedding_prompt_tokens:
-        # Kept out of prompt_tokens/total_tokens — those describe the
-        # generation call's own token usage, not the (separately priced)
-        # skill-routing/lookup embedding call that ran alongside it.
-        usage["embedding_prompt_tokens"] = embedding_prompt_tokens
-        usage["reported"] = True
-        if len(embedding_costs) == embedding_item_count:
-            usage["embedding_cost_usd"] = round(sum(embedding_costs), 6)
-
     if have_cost:
         usage["cost_usd"] = round(total_cost, 6)
 
+    if not usage["reported"] and embedding_usage:
+        context.metadata["usage"] = embedding_usage
+        return
+
     context.metadata["usage"] = usage
-    context.metadata.pop("_usage_components", None)
     if usage["reported"] and usage["total_tokens"] is not None:
         context.metadata["prompt_tokens"] = usage["prompt_tokens"]
         context.metadata["completion_tokens"] = usage["completion_tokens"]

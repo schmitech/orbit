@@ -224,7 +224,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error querying audit records from MongoDB: {e}")
             return []
 
-    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id"}
+    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id", "call_type"}
 
     async def aggregate_usage(
         self,
@@ -245,6 +245,11 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         for key, value in (filters or {}).items():
             if key in {"provider", "adapter_name", "model"}:
                 match[key] = value
+            elif key == "call_type":
+                if value == "inference":
+                    match.setdefault("$or", []).append({"call_type": {"$in": ["inference", None]}})
+                else:
+                    match[key] = value
 
         totals_pipeline = [
             {"$match": match},

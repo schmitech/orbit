@@ -5934,6 +5934,7 @@
 
   let selectedCostsWindowDays = 7;
   let selectedCostsGroupBy = "model";
+  let selectedCostsCallType = "all";
 
   function destroyCostsCharts() {
     Object.keys(costsCharts).forEach(function (key) {
@@ -6057,7 +6058,7 @@
       el("div", { className: "panel-header-row" },
         el("div", null,
           el("h2", null, "Costs"),
-          el("p", { className: "muted" }, "Token usage and estimated cost across inference providers. Cost is an estimate from the local rate table in config/pricing.yaml, not a provider invoice.")
+          el("p", { className: "muted" }, "Usage and estimated cost across inference, embedding, and media providers. Cost is an estimate from the local rate table in config/pricing.yaml, not a provider invoice.")
         ),
         el("div", { className: "monitoring-toolbar-right", id: "obs-window-controls" },
           [1, 7, 30].map(function (days) {
@@ -6078,8 +6079,17 @@
             id: "obs-group-by",
             onchange: function (e) { selectedCostsGroupBy = e.target.value; load(); }
           },
-            ["model", "provider", "adapter_name", "user_id"].map(function (opt) {
+            ["model", "provider", "adapter_name", "user_id", "call_type"].map(function (opt) {
               return el("option", { value: opt, selected: opt === selectedCostsGroupBy ? "selected" : null }, opt);
+            })
+          ),
+          el("select", {
+            className: "select-input",
+            id: "obs-call-type",
+            onchange: function (e) { selectedCostsCallType = e.target.value; load(); }
+          },
+            [["all", "All call types"], ["inference", "Inference"], ["embedding", "Embedding"], ["image", "Image"], ["video", "Video"], ["audio", "Audio"], ["document", "Document"]].map(function (option) {
+              return el("option", { value: option[0], selected: option[0] === selectedCostsCallType ? "selected" : null }, option[1]);
             })
           ),
           refreshButton("Refresh costs data", function () { load(); })
@@ -6104,6 +6114,7 @@
         params.set("days", String(selectedCostsWindowDays));
         params.set("bucket", selectedCostsWindowDays <= 1 ? "hour" : "day");
         params.set("group_by", selectedCostsGroupBy);
+        if (selectedCostsCallType !== "all") params.set("call_type", selectedCostsCallType);
         var data = await api("GET", ENDPOINTS.costsUsage + "?" + params.toString());
         if (version !== requestVersion || activeTab !== "costs") return;
         clear(content);
@@ -6135,7 +6146,7 @@
           ));
         } else {
           content.appendChild(el("div", { className: "panel empty-state" },
-            el("p", null, "No inference usage recorded in this time window.")));
+            el("p", null, "No usage recorded for this selection in this time window.")));
         }
 
         initCostsCharts(data);

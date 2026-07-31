@@ -206,7 +206,9 @@ class SkillIntentRouter:
         key = (provider, frozenset(c["name"] for c in candidates))
         phrase_index = self._phrase_cache.get(key)
         if phrase_index is None:
-            phrase_index = await self._build_phrase_index(client, candidates)
+            phrase_index = await self._build_phrase_index(
+                client, candidates, usage_sink=usage_sink
+            )
             self._phrase_cache[key] = phrase_index
 
         if hasattr(client, "embed_query_tracked"):
@@ -230,12 +232,25 @@ class SkillIntentRouter:
         return [cand for _, cand in scored[: self.max_candidates]]
 
     async def _build_phrase_index(
-        self, client, candidates: List[Dict[str, Any]]
+        self,
+        client,
+        candidates: List[Dict[str, Any]],
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, List[List[float]]]:
         index: Dict[str, List[List[float]]] = {}
         for cand in candidates:
             phrases = cand["phrases"]
-            index[cand["name"]] = await client.embed_documents(phrases) if phrases else []
+            if not phrases:
+                index[cand["name"]] = []
+            elif hasattr(client, "embed_documents_tracked"):
+                local_usage = {}
+                index[cand["name"]] = await client.embed_documents_tracked(
+                    phrases, usage_sink=local_usage
+                )
+                from ai_services.providers.usage_reporting import accumulate_usage_sink
+                accumulate_usage_sink(usage_sink, local_usage)
+            else:
+                index[cand["name"]] = await client.embed_documents(phrases)
         return index
 
     def _resolve_embedding_provider(self, adapter_name: str) -> Optional[str]:
