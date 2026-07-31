@@ -10,6 +10,7 @@
   --surface:       #ffffff;
   --surface-raised:#f7f9fc;
   --surface-sunken:#eef1f7;
+  --surface-subtle:#f4f7fb;
   --border:        #d5e0ed;
   --border-light:  #e4ecf5;
 
@@ -25,6 +26,7 @@
   --th-bg:         #edf3fa;
 
   /* Brand */
+  --brand-200:     #b7d5f2;
   --brand-300:     #8dbdec;
   --brand-400:     #4d94dd;
   --brand-500:     #2b6cb0;
@@ -40,6 +42,7 @@
 
   /* Success */
   --success-50:    #ecfdf5;
+  --success-500:   #10b981;
   --success-text:  #065f46;
 
   /* Focus */
@@ -65,6 +68,7 @@
   --radius-md:  10px;
   --radius-lg:  14px;
   --radius-pill: 999px;
+  --radius-full: 999px;
 
   /* Shadows */
   --shadow-sm:  0 1px 3px rgba(15, 29, 51, 0.06);
@@ -1110,18 +1114,24 @@ button.danger:active:not(:disabled) {
   background: #8b2419;
 }
 
-button.secondary {
+/* .btn--neutral is the icon-button equivalent of .secondary — same neutral
+   surface, used by refreshButton() and the config-editor "Reload" actions so
+   they read as secondary next to a primary Save, not as a second primary. */
+button.secondary,
+button.btn--neutral {
   background: var(--neutral-100);
   color: var(--neutral-text);
   border: 1px solid var(--neutral-200);
 }
 
-button.secondary:hover:not(:disabled) {
+button.secondary:hover:not(:disabled),
+button.btn--neutral:hover:not(:disabled) {
   background: var(--neutral-200);
   border-color: #c3cedf;
 }
 
-button.secondary:active:not(:disabled) {
+button.secondary:active:not(:disabled),
+button.btn--neutral:active:not(:disabled) {
   background: #cdd6e5;
 }
 
@@ -1210,11 +1220,6 @@ col.selection-col-width {
 
 .table-wrap {
   overflow-x: auto;
-}
-
-thead {
-  position: sticky;
-  top: 0;
 }
 
 th {
@@ -2532,7 +2537,7 @@ code.plain-code {
 
 .time-window-btn {
   padding: var(--sp-1) var(--sp-3);
-  min-height: 36px;
+  min-height: 40px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border);
   color: var(--ink-muted);
@@ -2567,7 +2572,7 @@ code.plain-code {
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
-  min-height: 36px;
+  min-height: 40px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--neutral-200);
   color: var(--neutral-text);
@@ -3395,16 +3400,6 @@ code.plain-code {
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-
-  /* The ledger column is narrower than the width the filter strip was built
-     for, so it wraps into rows rather than overflowing its panel. */
-  .audit-view__filters {
-    grid-template-columns: repeat(2, minmax(150px, 1fr));
-  }
-
-  .audit-view__search {
-    min-width: 0;
-  }
 }
 
 .audit-view__filters {
@@ -3453,6 +3448,20 @@ code.plain-code {
 
 .audit-view__search {
   min-width: 220px;
+}
+
+/* The 3-fixed-column-plus-search strip only fits a full page-width layout.
+   Once the ledger sits in its own panel — whether stacked full-width on a
+   narrower screen or split beside the dossier at 1280px+ — wrap to 2
+   columns rather than letting the filter strip overflow its panel. */
+@media (min-width: 640px) {
+  .audit-view__filters {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .audit-view__search {
+    min-width: 0;
+  }
 }
 
 .audit-view__search-input {
@@ -3523,6 +3532,12 @@ code.plain-code {
 .audit-table tbody tr.audit-row--active,
 .audit-table tbody tr.audit-row--active:hover {
   background: var(--brand-50);
+}
+
+.audit-table tbody tr.audit-row:focus-visible {
+  outline: none;
+  background: var(--brand-50);
+  box-shadow: inset 3px 0 0 var(--brand-500);
 }
 
 .audit-table tbody tr.audit-row--source-inference.audit-row--active,
