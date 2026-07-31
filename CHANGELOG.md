@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.13.0] - 2026-07-31
+
+### Core System Updates
+- **Embedding Cost Tracking**: Completed embedding usage and cost tracking across generation workflows, Firecrawl, multimodal, realtime voice, file retrieval, and background indexing.
+- **Audit Call Types**: Added call-type classification to the audit ledger so inference, embedding, image, video, audio, and document calls can be reported, filtered, and displayed separately.
+- **Tenant Isolation**: Enforced API-key tenant ownership for chat history, thread access, reads, writes, and deletes across REST, OpenAI, A2A, and thread endpoints.
+
+### Chat-app & UI Improvements
+- **Admin Panel**: Polished admin-panel controls, responsive layouts, accessibility states, design-token coverage, and table behavior.
+- **Costs Panel**: Extended cost reporting with call-type filtering and grouping so embedding spend can be reviewed separately from parent generation calls.
+
+### Bug Fixes & Technical Improvements
+- **Embedding Audit Events**: Split embedding usage into separate audit events instead of folding embedding cost into the parent request, avoiding double-counting while improving visibility.
+- **Embedding Pricing Resilience**: Preserved embedding cost records across failures and cancellations, avoided duplicate pricing calls, and added regression coverage for unpriced embeddings and pricing failures.
+- **Ollama Embeddings**: Fixed Ollama embedding warnings.
+- **Test Coverage**: Synced unit tests with the recent usage, audit, and security changes.
+
+### Documentation & Configuration
+- **Default Database**: Refreshed the default database to the latest schema.
+- **Docker Deployment**: Updated Docker deployment scripts for the latest ORBIT version and recent usage-cost features.
+- **Demos & Docs**: Updated the admin video demo and adjusted usage-cost documentation and feature links.
+
 ## [2.12.1] - 2026-07-30
 
 ### Core System Updates
