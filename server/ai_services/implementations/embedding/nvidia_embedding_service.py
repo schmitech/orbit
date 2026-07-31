@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 from openai import AsyncOpenAI
 
 from ...services import EmbeddingService
+from ...providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
 
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 
-class NvidiaEmbeddingService(EmbeddingService):
+class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
     """NVIDIA embedding service using the OpenAI-compatible NIM API."""
 
     def __init__(self, config: Dict[str, Any]):
@@ -90,7 +91,7 @@ class NvidiaEmbeddingService(EmbeddingService):
         self.initialized = False
         logger.debug("Closed NVIDIA embedding service")
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
         await self._ensure_initialized("NVIDIA embedding service")
 
         try:
@@ -100,13 +101,18 @@ class NvidiaEmbeddingService(EmbeddingService):
                 encoding_format="float",
                 extra_body={"input_type": "query", "truncate": self.truncate},
             )
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink, self._embedding_prompt_tokens(usage), 0
+                )
             return response.data[0].embedding
 
         except Exception as e:
             logger.error(f"NVIDIA embedding error: {str(e)}")
             raise
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
         await self._ensure_initialized("NVIDIA embedding service")
 
         if not texts:
@@ -124,6 +130,13 @@ class NvidiaEmbeddingService(EmbeddingService):
                     encoding_format="float",
                     extra_body={"input_type": "passage", "truncate": self.truncate},
                 )
+                batch_usage = {}
+                usage = getattr(response, "usage", None)
+                if usage is not None:
+                    self._report_usage(
+                        batch_usage, self._embedding_prompt_tokens(usage), 0
+                    )
+                accumulate_usage_sink(usage_sink, batch_usage)
 
                 sorted_data = sorted(response.data, key=lambda x: x.index)
                 all_embeddings.extend(item.embedding for item in sorted_data)

@@ -335,7 +335,7 @@ class VectorDBRetriever(BaseRetriever):
         if self._owns_embeddings and self.embeddings:
             await self.embeddings.close()
     
-    async def embed_query(self, query: str) -> List[float]:
+    async def embed_query(self, query: str, usage_sink=None) -> List[float]:
         """
         Generate an embedding for a query using the appropriate embedding service.
         
@@ -351,6 +351,15 @@ class VectorDBRetriever(BaseRetriever):
         if not self.embeddings:
             raise ValueError("Embeddings are disabled or not initialized")
 
+        if hasattr(self.embeddings, "embed_query_tracked"):
+            local_usage = {}
+            result = await self.embeddings.embed_query_tracked(
+                query, usage_sink=local_usage
+            )
+            if usage_sink is not None:
+                from ai_services.providers.usage_reporting import accumulate_usage_sink
+                accumulate_usage_sink(usage_sink, local_usage)
+            return result
         return await self.embeddings.embed_query(query)
 
 

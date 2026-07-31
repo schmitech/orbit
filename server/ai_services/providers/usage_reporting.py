@@ -45,6 +45,24 @@ class UsageReportingMixin:
         details = getattr(usage, "completion_tokens_details", None) or getattr(usage, "output_tokens_details", None)
         return getattr(details, "reasoning_tokens", None) if details is not None else None
 
+    @staticmethod
+    def _usage_value(value: Any, key: str) -> Any:
+        """Read one usage field from either an SDK object or a JSON dict."""
+        if isinstance(value, dict):
+            return value.get(key)
+        return getattr(value, key, None) if value is not None else None
+
+    @classmethod
+    def _embedding_prompt_tokens(cls, usage: Any) -> Optional[int]:
+        """Return the input-only token count from an embedding usage object."""
+        prompt_tokens = cls._usage_value(usage, "prompt_tokens")
+        if prompt_tokens is not None:
+            return prompt_tokens
+        input_tokens = cls._usage_value(usage, "input_tokens")
+        if input_tokens is not None:
+            return input_tokens
+        return cls._usage_value(usage, "total_tokens")
+
     def _report_usage(
         self,
         sink: Optional[Dict[str, Any]],
@@ -100,7 +118,10 @@ class UsageReportingMixin:
         })
 
 
-def accumulate_usage_sink(target: Dict[str, Any], source: Optional[Dict[str, Any]]) -> None:
+def accumulate_usage_sink(
+    target: Optional[Dict[str, Any]],
+    source: Optional[Dict[str, Any]],
+) -> None:
     """
     Sum a per-call usage_sink into a caller-owned accumulator, for callers
     (like the MCP tool-calling loop) that make multiple provider calls.
@@ -112,13 +133,31 @@ def accumulate_usage_sink(target: Dict[str, Any], source: Optional[Dict[str, Any
     mid-loop); reported/calls track whether *any* call actually reported so
     a partial loop (some calls reported, some didn't) is still visible.
     """
-    if not source or not source.get("reported"):
+    if target is None or not source or not source.get("reported"):
         return
 
     target["calls"] = target.get("calls", 0) + 1
     target["reported"] = True
     target.setdefault("provider", source.get("provider"))
     target.setdefault("model", source.get("model"))
+
+    # Preserve independently priceable calls as line items. This matters when
+    # one request uses more than one provider/model (for example skill-routing
+    # and RAG embeddings before the final inference call): token totals are
+    # additive, but each call must be priced against its own rate.
+    source_items = source.get("line_items")
+    if source_items:
+        target.setdefault("line_items", []).extend(dict(item) for item in source_items)
+    else:
+        target.setdefault("line_items", []).append({
+            "provider": source.get("provider"),
+            "model": source.get("model"),
+            "prompt_tokens": source.get("prompt_tokens") or 0,
+            "completion_tokens": source.get("completion_tokens") or 0,
+            "total_tokens": source.get("total_tokens") or 0,
+            "reasoning_tokens": source.get("reasoning_tokens"),
+            "reported": True,
+        })
 
     for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
         target[key] = (target.get(key) or 0) + (source.get(key) or 0)

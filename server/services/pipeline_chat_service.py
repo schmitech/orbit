@@ -148,7 +148,12 @@ class PipelineChatService:
         return bool((cfg.get('capabilities', {}) or {}).get('auto_skill_routing', False))
 
     async def _maybe_detect_skill(
-        self, skill: Optional[str], message: str, context_messages, adapter_name: str
+        self,
+        skill: Optional[str],
+        message: str,
+        context_messages,
+        adapter_name: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Optional[str], bool]:
         """Return ``(skill, was_auto_detected)``.
 
@@ -160,7 +165,12 @@ class PipelineChatService:
         if skill is not None or not self._auto_skill_routing_enabled(adapter_name):
             return skill, False
         try:
-            detected = await self.skill_router.detect(message, context_messages, adapter_name)
+            detected = await self.skill_router.detect(
+                message,
+                context_messages,
+                adapter_name,
+                usage_sink=usage_sink,
+            )
             if detected:
                 logger.debug(f"Auto-detected skill '{detected}' for adapter '{adapter_name}'")
                 return detected, True
@@ -700,8 +710,13 @@ class PipelineChatService:
                 )
                 effective_session_id = session_id
 
+            embedding_usage = {}
             skill, skill_auto_detected = await self._maybe_detect_skill(
-                skill, message, context_messages, adapter_name
+                skill,
+                message,
+                context_messages,
+                adapter_name,
+                usage_sink=embedding_usage,
             )
 
             context = self.context_builder.build_context(
@@ -725,6 +740,8 @@ class PipelineChatService:
                 skill=skill,
                 skill_auto_detected=skill_auto_detected,
             )
+            from inference.pipeline.steps._utils import add_usage_component
+            add_usage_component(context, embedding_usage, "embedding")
 
             result = await self.pipeline.process(context)
 
@@ -884,8 +901,13 @@ class PipelineChatService:
                 )
                 effective_session_id = session_id
 
+            embedding_usage = {}
             skill, skill_auto_detected = await self._maybe_detect_skill(
-                skill, message, context_messages, adapter_name
+                skill,
+                message,
+                context_messages,
+                adapter_name,
+                usage_sink=embedding_usage,
             )
 
             context = self.context_builder.build_context(
@@ -910,6 +932,8 @@ class PipelineChatService:
                 skill=skill,
                 skill_auto_detected=skill_auto_detected,
             )
+            from inference.pipeline.steps._utils import add_usage_component
+            add_usage_component(context, embedding_usage, "embedding")
 
             final_state = None
 

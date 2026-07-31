@@ -314,16 +314,32 @@ class DocumentGenerationStep(PipelineStep):
     def _record_spec_usage(self, context: ProcessingContext, attempts: List[Dict[str, Any]]) -> None:
         """
         Record usage/cost for the document spec-generation LLM call(s) into
-        context.metadata["usage"]. Each attempt is priced independently
-        against its own provider/model and the costs summed — a fallback
-        chain can span different providers, so pricing the combined token
-        count against a single rate would misstate cost. If any attempt
-        can't be priced, the whole request is reported unpriced rather than
-        silently understating cost from the attempts that could be priced.
+        context.metadata["usage"]. Each attempt (generation and, if a skill
+        routing/lookup embedding call ran for this request, embedding) is
+        priced independently against its own provider/model and the costs
+        summed — a fallback chain can span different providers, so pricing
+        the combined token count against a single rate would misstate cost.
+        An unpriced attempt only excludes itself from the sum; it must not
+        blank out cost that other attempts genuinely resolved. Embedding
+        tokens are kept out of the primary prompt/completion/total counts
+        (they surface only via embedding_prompt_tokens/embedding_cost_usd)
+        since they aren't part of the generation call's own context size.
         Never raises — usage/cost is best-effort.
         """
         if not attempts:
             return
+
+        embedding_attempts: List[Dict[str, Any]] = []
+        for component in context.metadata.get("_usage_components", []):
+            if not component or not component.get("reported") or component.get("source") != "embedding":
+                continue
+            for item in component.get("line_items") or [component]:
+                embedding_attempts.append({
+                    "provider": item.get("provider"),
+                    "model": item.get("model"),
+                    "prompt_tokens": item.get("prompt_tokens") or 0,
+                    "completion_tokens": item.get("completion_tokens") or 0,
+                })
 
         prompt_tokens = sum(a["prompt_tokens"] for a in attempts)
         completion_tokens = sum(a["completion_tokens"] for a in attempts)
@@ -353,24 +369,46 @@ class DocumentGenerationStep(PipelineStep):
             "reported": True,
         }
 
+        priced_attempts = (
+            [(attempt, False) for attempt in attempts]
+            + [(attempt, True) for attempt in embedding_attempts]
+        )
         pricing_service = self.container.get('pricing_service') if self.container.has('pricing_service') else None
+        embedding_costs = []
         if pricing_service:
             try:
-                estimates = [
-                    pricing_service.estimate(a["provider"], a["model"], a["prompt_tokens"], a["completion_tokens"])
-                    for a in attempts
-                ]
-                if all(e.cost_usd is not None for e in estimates):
-                    usage["cost_usd"] = round(sum(e.cost_usd for e in estimates), 6)
-                    sources = {e.pricing_source for e in estimates}
-                    usage["pricing_source"] = sources.pop() if len(sources) == 1 else "mixed"
-                    if len(estimates) == 1:
-                        usage["input_rate_per_1m"] = estimates[0].input_rate_per_1m
-                        usage["output_rate_per_1m"] = estimates[0].output_rate_per_1m
+                priced_costs = []
+                sources = set()
+                for a, is_embedding in priced_attempts:
+                    estimate = pricing_service.estimate(a["provider"], a["model"], a["prompt_tokens"], a["completion_tokens"])
+                    if estimate.cost_usd is not None:
+                        priced_costs.append(estimate.cost_usd)
+                        sources.add(estimate.pricing_source)
+                        if is_embedding:
+                            embedding_costs.append(estimate.cost_usd)
+                    if len(priced_attempts) == 1:
+                        usage["input_rate_per_1m"] = estimate.input_rate_per_1m
+                        usage["output_rate_per_1m"] = estimate.output_rate_per_1m
+                        usage["pricing_source"] = estimate.pricing_source
+                if priced_costs:
+                    usage["cost_usd"] = round(sum(priced_costs), 6)
+                    if len(priced_attempts) != 1:
+                        all_priced = len(priced_costs) == len(priced_attempts)
+                        usage["pricing_source"] = (
+                            sources.pop() if all_priced and len(sources) == 1 else "mixed"
+                        )
             except Exception:
                 logger.debug("Pricing estimate failed for document spec generation", exc_info=True)
 
+        if embedding_attempts:
+            usage["embedding_prompt_tokens"] = sum(
+                attempt["prompt_tokens"] for attempt in embedding_attempts
+            )
+            if len(embedding_costs) == len(embedding_attempts):
+                usage["embedding_cost_usd"] = round(sum(embedding_costs), 6)
+
         context.metadata["usage"] = usage
+        context.metadata.pop("_usage_components", None)
         context.metadata["prompt_tokens"] = prompt_tokens
         context.metadata["completion_tokens"] = completion_tokens
         context.metadata["total_tokens"] = usage["total_tokens"]

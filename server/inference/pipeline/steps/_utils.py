@@ -34,6 +34,19 @@ NO_INFERENCE_PROVIDER_ADAPTER_TYPES = frozenset({
 })
 
 
+def add_usage_component(
+    context,
+    usage_sink: Optional[Dict[str, Any]],
+    source: str,
+) -> None:
+    """Attach independently priceable usage to the current request."""
+    if not usage_sink or not usage_sink.get("reported"):
+        return
+    component = dict(usage_sink)
+    component["source"] = source
+    context.metadata.setdefault("_usage_components", []).append(component)
+
+
 def get_adapter_type(container, adapter_name: str) -> Optional[str]:
     """Return the adapter's 'type' field, or None if unavailable."""
     if not adapter_name or not container.has('adapter_manager'):
@@ -110,15 +123,67 @@ def record_usage(
     `source`) — set AFTER pricing so callers can't accidentally clobber the
     priced fields.
     """
-    reported = bool(usage_sink.get("reported"))
-    prompt_tokens = usage_sink.get("prompt_tokens") if reported else None
-    completion_tokens = usage_sink.get("completion_tokens") if reported else None
-    total_tokens = usage_sink.get("total_tokens") if reported else None
+    primary_reported = bool(usage_sink.get("reported"))
+    components = [
+        component
+        for component in context.metadata.get("_usage_components", [])
+        if component and component.get("reported")
+    ]
+
+    line_items = []
+    if primary_reported:
+        primary_items = usage_sink.get("line_items")
+        if primary_items:
+            line_items.extend(dict(item) for item in primary_items)
+        else:
+            line_items.append({
+                "provider": provider,
+                "model": model,
+                "prompt_tokens": usage_sink.get("prompt_tokens") or 0,
+                "completion_tokens": usage_sink.get("completion_tokens") or 0,
+                "total_tokens": usage_sink.get("total_tokens") or 0,
+                "reasoning_tokens": usage_sink.get("reasoning_tokens"),
+                "reported": True,
+            })
+
+    for component in components:
+        component_items = component.get("line_items")
+        if component_items:
+            items = [dict(item) for item in component_items]
+        else:
+            items = [{
+                "provider": component.get("provider"),
+                "model": component.get("model"),
+                "prompt_tokens": component.get("prompt_tokens") or 0,
+                "completion_tokens": component.get("completion_tokens") or 0,
+                "total_tokens": component.get("total_tokens") or 0,
+                "reasoning_tokens": component.get("reasoning_tokens"),
+                "reported": True,
+            }]
+        for item in items:
+            item.setdefault("source", component.get("source"))
+        line_items.extend(items)
+
+    reported = bool(line_items)
+    # Embedding tokens are a separate billing line (embedding_prompt_tokens/
+    # embedding_cost_usd below) and must not inflate the primary prompt/total
+    # token counts mirrored onto the OpenAI-compatible /v1/chat/completions
+    # response — those numbers must reflect the generation call only.
+    generation_items = [item for item in line_items if item.get("source") != "embedding"]
+    embedding_items = [item for item in line_items if item.get("source") == "embedding"]
+    prompt_tokens = sum(item.get("prompt_tokens") or 0 for item in generation_items) if reported else None
+    completion_tokens = sum(item.get("completion_tokens") or 0 for item in generation_items) if reported else None
+    total_tokens = prompt_tokens + completion_tokens if reported else None
     # Informational only — the subset of completion_tokens spent on
     # reasoning/thinking, when the provider breaks it out (OpenAI
     # o-series/gpt-5, Gemini). Already folded into completion_tokens
     # above, so this never changes the cost estimate below.
-    reasoning_tokens = usage_sink.get("reasoning_tokens") if reported else None
+    reasoning_values = [
+        item.get("reasoning_tokens")
+        for item in generation_items
+        if item.get("reasoning_tokens") is not None
+    ]
+    reasoning_tokens = sum(reasoning_values) if reasoning_values else None
 
     usage = {
         "prompt_tokens": prompt_tokens,
@@ -134,16 +199,63 @@ def record_usage(
         "reported": reported,
     }
 
+    # Price every line item (generation + embedding) independently against its
+    # own provider/model, then sum only the ones that resolved to a real cost.
+    # An unpriced embedding provider must not blank out a known generation
+    # cost — same principle as record_media_generation_usage below.
     if reported and container.has('pricing_service'):
         try:
             pricing_service = container.get('pricing_service')
-            estimate = pricing_service.estimate(provider, model, prompt_tokens, completion_tokens)
-            usage["cost_usd"] = estimate.cost_usd
-            usage["input_rate_per_1m"] = estimate.input_rate_per_1m
-            usage["output_rate_per_1m"] = estimate.output_rate_per_1m
-            usage["pricing_source"] = estimate.pricing_source
+            priced_costs = []
+            sources = set()
+            for item in line_items:
+                estimate = pricing_service.estimate(
+                    item.get("provider"),
+                    item.get("model"),
+                    item.get("prompt_tokens"),
+                    item.get("completion_tokens"),
+                )
+                if estimate.cost_usd is not None:
+                    priced_costs.append(estimate.cost_usd)
+                    sources.add(estimate.pricing_source)
+                if len(line_items) == 1:
+                    usage["input_rate_per_1m"] = estimate.input_rate_per_1m
+                    usage["output_rate_per_1m"] = estimate.output_rate_per_1m
+                    usage["pricing_source"] = estimate.pricing_source
+            if priced_costs:
+                usage["cost_usd"] = round(sum(priced_costs), 6)
+                if len(line_items) != 1:
+                    all_priced = len(priced_costs) == len(line_items)
+                    if not all_priced:
+                        usage["pricing_source"] = "mixed"
+                    else:
+                        usage["pricing_source"] = sources.pop() if len(sources) == 1 else "mixed"
         except Exception:
             logger.debug("Pricing estimate failed", exc_info=True)
+
+    if embedding_items:
+        usage["embedding_prompt_tokens"] = sum(
+            item.get("prompt_tokens") or 0 for item in embedding_items
+        )
+        if container.has('pricing_service'):
+            try:
+                pricing_service = container.get('pricing_service')
+                embedding_estimates = [
+                    pricing_service.estimate(
+                        item.get("provider"),
+                        item.get("model"),
+                        item.get("prompt_tokens"),
+                        item.get("completion_tokens"),
+                    )
+                    for item in embedding_items
+                ]
+                if all(estimate.cost_usd is not None for estimate in embedding_estimates):
+                    usage["embedding_cost_usd"] = round(
+                        sum(estimate.cost_usd for estimate in embedding_estimates),
+                        6,
+                    )
+            except Exception:
+                logger.debug("Embedding pricing estimate failed", exc_info=True)
 
     if extra:
         usage.update(extra)
@@ -152,6 +264,7 @@ def record_usage(
     # OpenAIResponseFormatter.build_usage (which reads metadata directly)
     # also reports real numbers on the /v1/chat/completions surface.
     context.metadata["usage"] = usage
+    context.metadata.pop("_usage_components", None)
     if reported:
         context.metadata["prompt_tokens"] = prompt_tokens
         context.metadata["completion_tokens"] = completion_tokens
@@ -255,10 +368,47 @@ def record_media_generation_usage(
             except Exception:
                 logger.debug("Pricing estimate failed for rewrite LLM call", exc_info=True)
 
+    embedding_prompt_tokens = 0
+    embedding_item_count = 0
+    embedding_costs = []
+    for component in context.metadata.get("_usage_components", []):
+        if not component or not component.get("reported") or component.get("source") != "embedding":
+            continue
+        items = component.get("line_items") or [component]
+        for item in items:
+            embedding_item_count += 1
+            item_prompt_tokens = item.get("prompt_tokens") or 0
+            item_completion_tokens = item.get("completion_tokens") or 0
+            embedding_prompt_tokens += item_prompt_tokens
+            if pricing_service:
+                try:
+                    embedding_estimate = pricing_service.estimate(
+                        item.get("provider"),
+                        item.get("model"),
+                        item_prompt_tokens,
+                        item_completion_tokens,
+                    )
+                    if embedding_estimate.cost_usd is not None:
+                        embedding_costs.append(embedding_estimate.cost_usd)
+                        total_cost += embedding_estimate.cost_usd
+                        have_cost = True
+                except Exception:
+                    logger.debug("Embedding pricing estimate failed for media generation", exc_info=True)
+
+    if embedding_prompt_tokens:
+        # Kept out of prompt_tokens/total_tokens — those describe the
+        # generation call's own token usage, not the (separately priced)
+        # skill-routing/lookup embedding call that ran alongside it.
+        usage["embedding_prompt_tokens"] = embedding_prompt_tokens
+        usage["reported"] = True
+        if len(embedding_costs) == embedding_item_count:
+            usage["embedding_cost_usd"] = round(sum(embedding_costs), 6)
+
     if have_cost:
         usage["cost_usd"] = round(total_cost, 6)
 
     context.metadata["usage"] = usage
+    context.metadata.pop("_usage_components", None)
     if usage["reported"] and usage["total_tokens"] is not None:
         context.metadata["prompt_tokens"] = usage["prompt_tokens"]
         context.metadata["completion_tokens"] = usage["completion_tokens"]

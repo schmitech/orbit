@@ -1233,7 +1233,9 @@ class CompositeIntentRetriever(BaseRetriever):
 
         return matches
     
-    async def _search_all_template_stores(self, query: str) -> List[TemplateMatch]:
+    async def _search_all_template_stores(
+        self, query: str, usage_sink=None
+    ) -> List[TemplateMatch]:
         """
         Search all child adapters' template stores for matching templates.
 
@@ -1249,7 +1251,15 @@ class CompositeIntentRetriever(BaseRetriever):
             return []
 
         # Generate query embedding once (shared across all searches)
-        query_embedding = await self.embedding_client.embed_query(query)
+        if hasattr(self.embedding_client, "embed_query_tracked"):
+            local_usage = {}
+            query_embedding = await self.embedding_client.embed_query_tracked(
+                query, usage_sink=local_usage
+            )
+            from ai_services.providers.usage_reporting import accumulate_usage_sink
+            accumulate_usage_sink(usage_sink, local_usage)
+        else:
+            query_embedding = await self.embedding_client.embed_query(query)
         
         if not query_embedding:
             logger.error("Failed to generate query embedding")
@@ -1385,7 +1395,9 @@ class CompositeIntentRetriever(BaseRetriever):
             logger.debug(f"CompositeIntentRetriever processing query: {query}")
 
             # Stage 1: Search all template stores (embedding-based)
-            all_matches = await self._search_all_template_stores(query)
+            all_matches = await self._search_all_template_stores(
+                query, usage_sink=kwargs.get("usage_sink")
+            )
 
             if not all_matches:
                 logger.warning("No matching templates found across any child adapters")

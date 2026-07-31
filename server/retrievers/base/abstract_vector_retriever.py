@@ -227,7 +227,7 @@ class AbstractVectorRetriever(BaseRetriever):
 
         return True
 
-    async def embed_query(self, query: str) -> List[float]:
+    async def embed_query(self, query: str, usage_sink=None) -> List[float]:
         """
         Generate an embedding for a query using the appropriate embedding service.
 
@@ -248,6 +248,15 @@ class AbstractVectorRetriever(BaseRetriever):
             if not await self._ensure_embeddings_valid():
                 raise ValueError("Failed to ensure embeddings are valid")
 
+        if hasattr(self.embeddings, "embed_query_tracked"):
+            local_usage = {}
+            result = await self.embeddings.embed_query_tracked(
+                query, usage_sink=local_usage
+            )
+            if usage_sink is not None:
+                from ai_services.providers.usage_reporting import accumulate_usage_sink
+                accumulate_usage_sink(usage_sink, local_usage)
+            return result
         return await self.embeddings.embed_query(query)
     
     def format_document(self, doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -377,7 +386,9 @@ class AbstractVectorRetriever(BaseRetriever):
                 return []
 
             # 1. Generate embedding for query
-            query_embedding = await self.embed_query(query)
+            query_embedding = await self.embed_query(
+                query, usage_sink=kwargs.get("usage_sink")
+            )
 
             if not query_embedding or len(query_embedding) == 0:
                 logger.error("Received empty embedding, cannot perform vector search")

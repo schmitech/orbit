@@ -215,7 +215,9 @@ class PineconeRetriever(AbstractVectorRetriever):
                 return []
 
             # 1. Generate embedding for query
-            query_embedding = await self.embed_query(query)
+            query_embedding = await self.embed_query(
+                query, usage_sink=kwargs.get("usage_sink")
+            )
 
             if not query_embedding or len(query_embedding) == 0:
                 logger.error("Received empty embedding, cannot perform vector search")
@@ -274,4 +276,4 @@ class PineconeRetriever(AbstractVectorRetriever):
             return []
 
 # Register the retriever with the factory
-RetrieverFactory.register_retriever('pinecone', PineconeRetriever) 
+RetrieverFactory.register_retriever('pinecone', PineconeRetriever)

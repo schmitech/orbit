@@ -148,7 +148,9 @@ class FileVectorRetriever(AbstractVectorRetriever):
         await self.ensure_initialized()
 
         # Generate query embedding
-        query_embedding = await self.embed_query(query)
+        query_embedding = await self.embed_query(
+            query, usage_sink=kwargs.get("usage_sink")
+        )
         logger.debug(f"FileVectorRetriever: Generated query embedding with {len(query_embedding)} dimensions")
 
         # Determine collections to search
@@ -469,7 +471,12 @@ class FileVectorRetriever(AbstractVectorRetriever):
         return formatted
     
     async def index_file_chunks(
-        self, file_id: str, chunks: List, collection_name: str, encryptor: Optional[FileEncryptor] = None
+        self,
+        file_id: str,
+        chunks: List,
+        collection_name: str,
+        encryptor: Optional[FileEncryptor] = None,
+        usage_sink=None,
     ) -> bool:
         """
         Index file chunks into vector store.
@@ -492,11 +499,23 @@ class FileVectorRetriever(AbstractVectorRetriever):
         try:
             # Generate embeddings for chunks (always from plaintext)
             chunk_texts = [chunk.text for chunk in chunks]
-            embeddings = []
-
-            for text in chunk_texts:
-                embedding = await self.embed_query(text)
-                embeddings.append(embedding)
+            if self.embeddings and hasattr(self.embeddings, "embed_documents_tracked"):
+                local_usage = {}
+                embeddings = await self.embeddings.embed_documents_tracked(
+                    chunk_texts, usage_sink=local_usage
+                )
+                if usage_sink is not None:
+                    from ai_services.providers.usage_reporting import accumulate_usage_sink
+                    accumulate_usage_sink(usage_sink, local_usage)
+            elif self.embeddings and hasattr(self.embeddings, "embed_documents"):
+                embeddings = await self.embeddings.embed_documents(chunk_texts)
+            else:
+                # Legacy/custom retrievers may provide embed_query without
+                # exposing the underlying embedding service.
+                embeddings = [
+                    await self.embed_query(text)
+                    for text in chunk_texts
+                ]
 
             # Prepare data for vector store
             ids = [chunk.chunk_id for chunk in chunks]

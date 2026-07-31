@@ -1,7 +1,7 @@
 # Token usage & cost tracking
 
-ORBIT records per-request token usage and an **estimated** cost on every
-inference audit record, and surfaces both on the admin panel's Audit table
+ORBIT records per-request generation and embedding token usage and an
+**estimated** cost on inference audit records, and surfaces both on the admin panel's Audit table
 and its "Costs" tab (`/admin/observability/usage`). Cost is derived from a
 local, hand-maintained rate table (`config/pricing.yaml`) — it is not pulled
 from any provider billing API, and will not match an invoice to the cent.
@@ -13,6 +13,11 @@ to an individual request the way a local rate table can.
 This doc covers the two things you'll actually need to touch as new
 providers/models show up: wiring a provider into usage extraction, and
 keeping `config/pricing.yaml` current.
+
+Embedding calls are priced as independent line items before being folded into
+the request total, so a RAG query's embedding tokens are never charged at the
+chat model's rate. See [Embedding cost tracking](embedding-cost-tracking.md)
+for provider coverage and request-path wiring.
 
 ## How it fits together
 

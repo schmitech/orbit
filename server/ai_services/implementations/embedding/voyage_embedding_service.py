@@ -10,12 +10,13 @@ from typing import List, Dict, Any
 import asyncio
 import aiohttp
 
+from ...providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
 from ...services import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
 
-class VoyageEmbeddingService(EmbeddingService):
+class VoyageEmbeddingService(UsageReportingMixin, EmbeddingService):
     """
     Voyage AI embedding service using the Embeddings API.
 
@@ -59,7 +60,7 @@ class VoyageEmbeddingService(EmbeddingService):
             logger.error(f"Failed to initialize Voyage AI embedding service: {e}")
             return False
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
         """Generate embeddings for a single query text."""
         await self._ensure_initialized("Voyage AI embedding service")
 
@@ -69,7 +70,9 @@ class VoyageEmbeddingService(EmbeddingService):
                 f"text_length={len(text)}, text_preview={text[:80]!r}"
             )
 
-            embedding = await self._call_api([text], input_type="query")
+            embedding = await self._call_api(
+                [text], input_type="query", usage_sink=usage_sink
+            )
 
             logger.debug(
                 f"VoyageEmbeddingService.embed_query: returned {len(embedding[0])} dimensions"
@@ -80,7 +83,7 @@ class VoyageEmbeddingService(EmbeddingService):
             logger.error(f"VoyageEmbeddingService.embed_query failed: {e}")
             raise
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
         """Generate embeddings for multiple documents with batching."""
         await self._ensure_initialized("Voyage AI embedding service")
 
@@ -105,8 +108,12 @@ class VoyageEmbeddingService(EmbeddingService):
                     f"{batch_num}/{total_batches}, texts_in_batch={len(batch_texts)}"
                 )
 
-                batch_embeddings = await self._call_api(batch_texts, input_type="document")
+                batch_usage = {}
+                batch_embeddings = await self._call_api(
+                    batch_texts, input_type="document", usage_sink=batch_usage
+                )
                 all_embeddings.extend(batch_embeddings)
+                accumulate_usage_sink(usage_sink, batch_usage)
 
                 logger.debug(
                     f"VoyageEmbeddingService.embed_documents: batch returned "
@@ -129,7 +136,12 @@ class VoyageEmbeddingService(EmbeddingService):
         )
         return all_embeddings
 
-    async def _call_api(self, texts: List[str], input_type: str = "document") -> List[List[float]]:
+    async def _call_api(
+        self,
+        texts: List[str],
+        input_type: str = "document",
+        usage_sink=None,
+    ) -> List[List[float]]:
         """
         Call the Voyage AI embeddings API.
 
@@ -163,6 +175,10 @@ class VoyageEmbeddingService(EmbeddingService):
                 raise ValueError(f"Voyage AI embedding failed: {error_text}")
 
             data = await response.json()
+            usage = data.get("usage") or {}
+            total_tokens = usage.get("total_tokens")
+            if total_tokens is not None:
+                self._report_usage(usage_sink, total_tokens, 0)
 
             if "data" not in data or not data["data"]:
                 raise ValueError(f"Unexpected response structure from Voyage AI: {data}")

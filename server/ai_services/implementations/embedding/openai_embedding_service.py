@@ -13,12 +13,13 @@ import asyncio
 import logging
 
 from ...providers import OpenAIBaseService
+from ...providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
 from ...services import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
 
-class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
+class OpenAIEmbeddingService(UsageReportingMixin, EmbeddingService, OpenAIBaseService):
     """
     OpenAI embedding service using unified architecture.
 
@@ -50,7 +51,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
         self.dimensions = self._get_dimensions_config() or 1536
         self.batch_size = self._get_batch_size(default=10)
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
         """
         Generate embeddings for a single query text.
 
@@ -76,6 +77,11 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
                 input=text,
                 dimensions=self.dimensions if (self.model and 'text-embedding-3' in self.model) else None
             )
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink, self._embedding_prompt_tokens(usage), 0
+                )
 
             return response.data[0].embedding
 
@@ -84,7 +90,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
             self._handle_openai_error(e, "embedding query")
             raise
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
         """
         Generate embeddings for multiple documents.
 
@@ -105,8 +111,10 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
             batch_texts = texts[i:i + self.batch_size]
 
             try:
-                batch_embeddings = await self._embed_batch(batch_texts)
+                batch_usage = {}
+                batch_embeddings = await self._embed_batch(batch_texts, usage_sink=batch_usage)
                 all_embeddings.extend(batch_embeddings)
+                accumulate_usage_sink(usage_sink, batch_usage)
 
                 # Small delay to avoid rate limits
                 if i + self.batch_size < len(texts):
@@ -118,7 +126,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
 
         return all_embeddings
 
-    async def _embed_batch(self, texts: List[str]) -> List[List[float]]:
+    async def _embed_batch(self, texts: List[str], usage_sink=None) -> List[List[float]]:
         """
         Generate embeddings for a batch of texts.
 
@@ -134,6 +142,11 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
                 input=texts,
                 dimensions=self.dimensions if (self.model and 'text-embedding-3' in self.model) else None
             )
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink, self._embedding_prompt_tokens(usage), 0
+                )
 
             # Sort by index to ensure order matches input order
             sorted_data = sorted(response.data, key=lambda x: x.index)

@@ -11,12 +11,13 @@ import logging
 from typing import List, Dict, Any
 
 from ...providers import CohereBaseService
+from ...providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
 from ...services import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
 
-class CohereEmbeddingService(EmbeddingService, CohereBaseService):
+class CohereEmbeddingService(UsageReportingMixin, EmbeddingService, CohereBaseService):
     """
     Cohere embedding service using unified architecture.
 
@@ -49,7 +50,7 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
         self.input_type = self._get_input_type("search_document")
         self.truncate = self._get_truncate("NONE")
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
         """
         Generate embeddings for a single query text.
 
@@ -69,6 +70,12 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
                 input_type="search_query",  # Optimized for search queries
                 truncate=self.truncate
             )
+            meta = self._usage_value(response, "meta")
+            billed_units = self._usage_value(meta, "billed_units")
+            if billed_units is not None:
+                self._report_usage(
+                    usage_sink, self._embedding_prompt_tokens(billed_units), 0
+                )
 
             return response.embeddings[0]
 
@@ -76,7 +83,7 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
             self._handle_cohere_error(e, "embedding query")
             raise
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
         """
         Generate embeddings for multiple documents.
 
@@ -107,6 +114,14 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
                     input_type=self.input_type,  # search_document for documents
                     truncate=self.truncate
                 )
+                batch_usage = {}
+                meta = self._usage_value(response, "meta")
+                billed_units = self._usage_value(meta, "billed_units")
+                if billed_units is not None:
+                    self._report_usage(
+                        batch_usage, self._embedding_prompt_tokens(billed_units), 0
+                    )
+                accumulate_usage_sink(usage_sink, batch_usage)
 
                 all_embeddings.extend(response.embeddings)
 

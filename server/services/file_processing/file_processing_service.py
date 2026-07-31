@@ -878,6 +878,7 @@ class FileProcessingService:
                         api_key=api_key,
                         chunks=chunks,
                         requires_encryption=requires_encryption,
+                        filename=filename,
                     )
 
                     collection_name = None
@@ -1123,6 +1124,7 @@ class FileProcessingService:
                 api_key=api_key,
                 chunks=chunks,
                 requires_encryption=requires_encryption,
+                filename=filename,
             )
 
             # Extract collection info
@@ -1480,7 +1482,8 @@ class FileProcessingService:
         file_id: str,
         api_key: str,
         chunks: List[Chunk],
-        requires_encryption: bool = False
+        requires_encryption: bool = False,
+        filename: Optional[str] = None,
     ) -> Optional[tuple]:
         """
         Index chunks into vector store with provider-aware collection naming.
@@ -1538,11 +1541,20 @@ class FileProcessingService:
             logger.debug(f"Creating collection with provider-aware naming: {collection_name}")
 
             # Index chunks
+            embedding_usage: Dict[str, Any] = {}
             success = await retriever.index_file_chunks(
                 file_id=file_id,
                 chunks=chunks,
                 collection_name=collection_name,
                 encryptor=self._file_encryptor if requires_encryption else None,
+                usage_sink=embedding_usage,
+            )
+            await self._log_extraction_usage(
+                api_key,
+                filename=f"{filename or file_id} [embedding]",
+                provider=embedding_usage.get("provider") or embedding_provider,
+                model=embedding_usage.get("model"),
+                usage=embedding_usage,
             )
 
             if success:

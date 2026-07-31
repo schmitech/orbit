@@ -307,7 +307,9 @@ class IntentAgentRetriever(IntentHTTPRetriever):
             logger.info("Native function calling did not return a result, falling back to template matching")
 
         # Fall back to template matching
-        return await self._template_matching_flow(query)
+        return await self._template_matching_flow(
+            query, usage_sink=kwargs.get("usage_sink")
+        )
 
     async def _try_native_function_calling(self, query: str) -> Optional[List[Dict[str, Any]]]:
         """
@@ -704,7 +706,9 @@ Response:"""
                 logger.error(traceback.format_exc())
             return None
 
-    async def _template_matching_flow(self, query: str) -> List[Dict[str, Any]]:
+    async def _template_matching_flow(
+        self, query: str, usage_sink=None
+    ) -> List[Dict[str, Any]]:
         """
         Handle the query using template matching (fallback flow).
 
@@ -712,7 +716,9 @@ Response:"""
         parameters with LLM.
         """
         # Find matching templates
-        matching_templates = await self._find_best_templates(query)
+        matching_templates = await self._find_best_templates(
+            query, usage_sink=usage_sink
+        )
 
         if not matching_templates:
             logger.warning(f"No matching templates found for query: {query[:100]}...")

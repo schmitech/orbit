@@ -22,6 +22,7 @@ from adapters.capabilities import (
     get_capability_registry,
     FormattingStyle
 )
+from ._utils import add_usage_component
 
 logger = logging.getLogger(__name__)
 
@@ -250,17 +251,24 @@ class ContextRetrievalStep(PipelineStep):
 
             # Build retriever kwargs based on capabilities
             retriever_kwargs = self._build_retriever_kwargs(context, capabilities)
+            embedding_usage = {}
+            retriever_kwargs["usage_sink"] = embedding_usage
 
             # Pass cancel_event so retrievers can check for cancellation
             if context.cancel_event:
                 retriever_kwargs['cancel_event'] = context.cancel_event
 
             # Get relevant documents
-            docs = await retriever.get_relevant_context(
-                query=context.message,
-                collection_name=None,
-                **retriever_kwargs
-            )
+            try:
+                docs = await retriever.get_relevant_context(
+                    query=context.message,
+                    collection_name=None,
+                    **retriever_kwargs
+                )
+            finally:
+                # A successful embedding call can still be billable when the
+                # subsequent vector/template lookup fails.
+                add_usage_component(context, embedding_usage, "embedding")
 
             # Check cancellation after retrieval completes
             if context.is_cancelled():

@@ -90,6 +90,7 @@ class SkillIntentRouter:
         message: str,
         context_messages: Optional[List[Dict[str, Any]]],
         adapter_name: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """Return the inferred skill name for this turn, or ``None``.
 
@@ -104,7 +105,9 @@ class SkillIntentRouter:
 
         # Stage 1 — embedding pre-filter (no LLM call on a miss).
         try:
-            survivors = await self._prefilter(message, candidates, adapter_name)
+            survivors = await self._prefilter(
+                message, candidates, adapter_name, usage_sink=usage_sink
+            )
         except Exception as e:
             logger.warning("Skill-intent embedding pre-filter failed: %s", e)
             return None
@@ -183,7 +186,11 @@ class SkillIntentRouter:
     # ------------------------------------------------------------------
 
     async def _prefilter(
-        self, message: str, candidates: List[Dict[str, Any]], adapter_name: str
+        self,
+        message: str,
+        candidates: List[Dict[str, Any]],
+        adapter_name: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         provider = self._resolve_embedding_provider(adapter_name)
         if not provider:
@@ -202,7 +209,15 @@ class SkillIntentRouter:
             phrase_index = await self._build_phrase_index(client, candidates)
             self._phrase_cache[key] = phrase_index
 
-        query_vec = await client.embed_query(message)
+        if hasattr(client, "embed_query_tracked"):
+            local_usage = {}
+            query_vec = await client.embed_query_tracked(
+                message, usage_sink=local_usage
+            )
+            from ai_services.providers.usage_reporting import accumulate_usage_sink
+            accumulate_usage_sink(usage_sink, local_usage)
+        else:
+            query_vec = await client.embed_query(message)
 
         scored: List[tuple] = []
         for cand in candidates:

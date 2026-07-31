@@ -15,6 +15,7 @@ from typing import List, Dict, Any, Optional
 from openai import AsyncOpenAI
 
 from ...services import EmbeddingService
+from ...providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
-class OpenRouterEmbeddingService(EmbeddingService):
+class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
     """
     OpenRouter embedding service using the OpenAI-compatible API.
 
@@ -108,7 +109,7 @@ class OpenRouterEmbeddingService(EmbeddingService):
         self.initialized = False
         logger.debug("Closed OpenRouter embedding service")
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
         """
         Generate embeddings for a single query text.
 
@@ -126,13 +127,18 @@ class OpenRouterEmbeddingService(EmbeddingService):
                 kwargs["dimensions"] = self.dimensions
 
             response = await self.client.embeddings.create(**kwargs)
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink, self._embedding_prompt_tokens(usage), 0
+                )
             return response.data[0].embedding
 
         except Exception as e:
             logger.error(f"OpenRouter embedding error: {str(e)}")
             raise
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
         """
         Generate embeddings for multiple documents.
 
@@ -159,6 +165,13 @@ class OpenRouterEmbeddingService(EmbeddingService):
                     kwargs["dimensions"] = self.dimensions
 
                 response = await self.client.embeddings.create(**kwargs)
+                batch_usage = {}
+                usage = getattr(response, "usage", None)
+                if usage is not None:
+                    self._report_usage(
+                        batch_usage, self._embedding_prompt_tokens(usage), 0
+                    )
+                accumulate_usage_sink(usage_sink, batch_usage)
 
                 # Sort by index to ensure order matches input order
                 sorted_data = sorted(response.data, key=lambda x: x.index)

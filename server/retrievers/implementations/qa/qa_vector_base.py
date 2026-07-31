@@ -266,7 +266,9 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             # Generate query embedding
             logger.debug("Generating embedding for query...")
 
-            query_embedding = await self.embed_query(query)
+            query_embedding = await self.embed_query(
+                query, usage_sink=kwargs.get("usage_sink")
+            )
             
             if not query_embedding or len(query_embedding) == 0:
                 logger.error("Received empty embedding, cannot perform vector search")

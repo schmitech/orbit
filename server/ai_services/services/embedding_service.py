@@ -35,6 +35,7 @@ class EmbeddingService(ProviderAIService):
 
     # Class attribute for service type
     service_type = ServiceType.EMBEDDING
+    SUPPORTS_USAGE_REPORTING = False
 
     def __init__(self, config: Dict[str, Any], provider_name: str):
         """
@@ -100,6 +101,26 @@ class EmbeddingService(ProviderAIService):
             2
         """
         pass
+
+    async def embed_query_tracked(
+        self,
+        text: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
+    ) -> List[float]:
+        """Embed one query and report provider usage when the service supports it."""
+        if self.SUPPORTS_USAGE_REPORTING:
+            return await self.embed_query(text, usage_sink=usage_sink)
+        return await self.embed_query(text)
+
+    async def embed_documents_tracked(
+        self,
+        texts: List[str],
+        usage_sink: Optional[Dict[str, Any]] = None,
+    ) -> List[List[float]]:
+        """Embed documents and report accumulated provider usage when supported."""
+        if self.SUPPORTS_USAGE_REPORTING:
+            return await self.embed_documents(texts, usage_sink=usage_sink)
+        return await self.embed_documents(texts)
 
     @abstractmethod
     async def get_dimensions(self) -> int:

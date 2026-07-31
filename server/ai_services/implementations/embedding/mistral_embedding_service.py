@@ -11,12 +11,13 @@ import logging
 from typing import List, Dict, Any
 
 from ...providers import MistralBaseService
+from ...providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
 from ...services import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
 
-class MistralEmbeddingService(EmbeddingService, MistralBaseService):
+class MistralEmbeddingService(UsageReportingMixin, EmbeddingService, MistralBaseService):
     """
     Mistral embedding service using unified architecture.
 
@@ -47,7 +48,7 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
         self.dimensions = self._get_dimensions()  # Default 1024 for mistral-embed
         self.batch_size = self._get_batch_size(default=16)
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
         """
         Generate embeddings for a single query text.
 
@@ -64,6 +65,11 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
                 model=self.model,
                 inputs=[text]
             )
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._report_usage(
+                    usage_sink, self._embedding_prompt_tokens(usage), 0
+                )
 
             return response.data[0].embedding
 
@@ -71,7 +77,7 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
             self._handle_mistral_error(e, "embedding query")
             raise
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
         """
         Generate embeddings for multiple documents.
 
@@ -97,6 +103,13 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
                     model=self.model,
                     inputs=batch_texts
                 )
+                batch_usage = {}
+                usage = getattr(response, "usage", None)
+                if usage is not None:
+                    self._report_usage(
+                        batch_usage, self._embedding_prompt_tokens(usage), 0
+                    )
+                accumulate_usage_sink(usage_sink, batch_usage)
 
                 # Extract embeddings maintaining order
                 batch_embeddings = [item.embedding for item in response.data]

@@ -13,12 +13,13 @@ from typing import List, Dict, Any
 import asyncio
 
 from ...providers.jina_base import JinaBaseService
+from ...providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
 from ...services import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
 
-class JinaEmbeddingService(EmbeddingService, JinaBaseService):
+class JinaEmbeddingService(UsageReportingMixin, EmbeddingService, JinaBaseService):
     """
     Jina AI embedding service using unified architecture.
 
@@ -51,7 +52,7 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
         self.dimensions = self._get_dimensions() or 1024
         self.batch_size = self._get_batch_size(default=10)
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
         """
         Generate embeddings for a single query text.
 
@@ -88,6 +89,10 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
                     raise ValueError(f"Failed to get embeddings: {error_text}")
 
                 data = await response.json()
+                usage = data.get("usage") or {}
+                total_tokens = usage.get("total_tokens")
+                if total_tokens is not None:
+                    self._report_usage(usage_sink, total_tokens, 0)
 
                 # Extract the embedding from the response
                 if "data" in data and len(data["data"]) > 0 and "embedding" in data["data"][0]:
@@ -101,7 +106,7 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
             self._handle_jina_error(e, "embedding query")
             raise
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
         """
         Generate embeddings for multiple documents.
 
@@ -122,8 +127,10 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
             batch_texts = texts[i:i + self.batch_size]
 
             try:
-                batch_embeddings = await self._embed_batch(batch_texts)
+                batch_usage = {}
+                batch_embeddings = await self._embed_batch(batch_texts, usage_sink=batch_usage)
                 all_embeddings.extend(batch_embeddings)
+                accumulate_usage_sink(usage_sink, batch_usage)
 
                 # Add a small delay between batches to avoid rate limits
                 if i + self.batch_size < len(texts):
@@ -135,7 +142,7 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
 
         return all_embeddings
 
-    async def _embed_batch(self, texts: List[str]) -> List[List[float]]:
+    async def _embed_batch(self, texts: List[str], usage_sink=None) -> List[List[float]]:
         """
         Generate embeddings for a batch of texts.
 
@@ -167,6 +174,10 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
                 raise ValueError(f"Failed to get batch embeddings: {error_text}")
 
             data = await response.json()
+            usage = data.get("usage") or {}
+            total_tokens = usage.get("total_tokens")
+            if total_tokens is not None:
+                self._report_usage(usage_sink, total_tokens, 0)
 
             # Extract embeddings from the response
             if "data" in data and len(data["data"]) > 0:

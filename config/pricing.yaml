@@ -16,11 +16,15 @@
 
 pricing:
   currency: "USD"
-  updated: "2026-07-29"
+  updated: "2026-07-30"
   stale_after_days: 120
 
   providers:
     openai:
+      # Embeddings are input-only; output_per_1m is explicitly zero so the
+      # shared token-pricing path can price them without inventing output use.
+      "text-embedding-3-small": { input_per_1m: 0.02, output_per_1m: 0.0 }
+      "text-embedding-3-large": { input_per_1m: 0.13, output_per_1m: 0.0 }
       "gpt-5.4-mini":  { input_per_1m: 0.25,  output_per_1m: 2.00 }
       "gpt-5*":        { input_per_1m: 1.25,  output_per_1m: 10.00 }
       "gpt-4o-mini*":  { input_per_1m: 0.15,  output_per_1m: 0.60 }
@@ -55,14 +59,37 @@ pricing:
       "grok-4*": { input_per_1m: 3.00, output_per_1m: 15.00 }
 
     mistral:
+      "mistral-embed*":  { input_per_1m: 0.10, output_per_1m: 0.0 }
       "mistral-small*":  { input_per_1m: 0.10, output_per_1m: 0.30 }
       "mistral-medium*": { input_per_1m: 0.40, output_per_1m: 2.00 }
       "mistral-large*":  { input_per_1m: 2.00, output_per_1m: 6.00 }
       "codestral*":      { input_per_1m: 0.30, output_per_1m: 0.90 }
 
     cohere:
+      # Cohere's public pricing page does not currently publish a stable
+      # pay-as-you-go per-token rate for Embed; keep it explicit/unpriced.
+      "embed-*":       { input_per_1m: null, output_per_1m: 0.0 }
       "command-r7b*": { input_per_1m: 0.0375, output_per_1m: 0.15 }
       "command-r*":   { input_per_1m: 0.15,   output_per_1m: 0.60 }
+
+    voyage:
+      "voyage-3-lite": { input_per_1m: 0.02, output_per_1m: 0.0 }
+      "voyage-3":      { input_per_1m: 0.06, output_per_1m: 0.0 }
+      "voyage-3.5-lite": { input_per_1m: 0.02, output_per_1m: 0.0 }
+      "voyage-3.5":      { input_per_1m: 0.06, output_per_1m: 0.0 }
+      "voyage-3-large":  { input_per_1m: 0.18, output_per_1m: 0.0 }
+      "voyage-code-3":   { input_per_1m: 0.18, output_per_1m: 0.0 }
+
+    nvidia:
+      # NVIDIA NIM embedding endpoints don't publish a stable public
+      # per-token rate; keep it explicit/unpriced, same as Cohere above,
+      # rather than silently falling through with no entry at all.
+      "*": { input_per_1m: null, output_per_1m: null }
+
+    jina:
+      # Jina AI's embedding pricing is usage-tier based, not a flat public
+      # per-token rate; keep it explicit/unpriced rather than no entry.
+      "*": { input_per_1m: null, output_per_1m: null }
 
     deepseek:
       "deepseek-chat*": { input_per_1m: 0.28, output_per_1m: 0.42 }
@@ -93,6 +120,8 @@ pricing:
     shimmy:
       "*": { input_per_1m: 0.0, output_per_1m: 0.0 }
     transformers:
+      "*": { input_per_1m: 0.0, output_per_1m: 0.0 }
+    sentence_transformers:
       "*": { input_per_1m: 0.0, output_per_1m: 0.0 }
     bitnet:
       "*": { input_per_1m: 0.0, output_per_1m: 0.0 }

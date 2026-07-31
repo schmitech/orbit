@@ -687,7 +687,9 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 return []
 
             # Find best matching template
-            templates = await self._find_best_templates(query)
+            templates = await self._find_best_templates(
+                query, usage_sink=kwargs.get("usage_sink")
+            )
 
             if not templates:
                 logger.warning("No matching templates found")
@@ -861,7 +863,9 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 "confidence": 0.0
             }]
     
-    async def _find_best_templates(self, query: str) -> List[Dict[str, Any]]:
+    async def _find_best_templates(
+        self, query: str, usage_sink=None
+    ) -> List[Dict[str, Any]]:
         """Find best matching templates for the query."""
         try:
             if not self.template_store:
@@ -891,7 +895,15 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 f"model={getattr(self.embedding_client, 'model', 'N/A')}, "
                 f"query_preview={query[:80]!r}"
             )
-            query_embedding = await self.embedding_client.embed_query(query)
+            if hasattr(self.embedding_client, "embed_query_tracked"):
+                local_usage = {}
+                query_embedding = await self.embedding_client.embed_query_tracked(
+                    query, usage_sink=local_usage
+                )
+                from ai_services.providers.usage_reporting import accumulate_usage_sink
+                accumulate_usage_sink(usage_sink, local_usage)
+            else:
+                query_embedding = await self.embedding_client.embed_query(query)
             if not query_embedding:
                 logger.error("Failed to get query embedding")
                 return []
