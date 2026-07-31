@@ -20,7 +20,7 @@ from services.database_service import (
     DatabaseDuplicateKeyError,
     DatabaseTimeoutError
 )
-from utils.text_utils import mask_api_key
+from utils.text_utils import hash_api_key, mask_api_key
 from utils.generation_memory import GENERATION_ADAPTER_TYPES, generation_memory_key
 
 # Import tokenizer utilities for token counting
@@ -38,6 +38,10 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
+
+
+class SessionOwnershipError(Exception):
+    """Raised when an API key operates on a session owned by a different key."""
 
 def with_retry(
     max_attempts: int = 3,
@@ -508,7 +512,13 @@ class ChatHistoryService:
                 self.collection_name,
                 "api_key"
             )
-            
+
+            # Create index for session ownership checks (see _api_key_owns_session)
+            await self.database_service.create_index(
+                self.collection_name,
+                [("session_id", 1), ("api_key_hash", 1)]
+            )
+
             # Create unique index for message deduplication
             await self.database_service.create_index(
                 self.collection_name,
@@ -706,9 +716,20 @@ class ChatHistoryService:
             return None
             
         try:
+            # session_id is client-supplied (X-Session-ID) and unvalidated, so a key
+            # may name a session it does not own. Appending would both leak the
+            # victim's history into this caller's context and stamp the caller's
+            # fingerprint onto the session, manufacturing the ownership that
+            # clear_conversation_history() checks. Refuse instead.
+            if api_key and not await self._api_key_owns_session(session_id, api_key):
+                raise SessionOwnershipError(
+                    f"API key {mask_api_key(api_key, show_last=True, num_chars=6)} "
+                    f"is not authorized for session {session_id}"
+                )
+
             # Prepare message document
             timestamp = datetime.now(UTC)
-            
+
             # Estimate token count immediately (fast, non-blocking)
             estimated_token_count = self._estimate_token_count(content)
             
@@ -725,8 +746,12 @@ class ChatHistoryService:
                 message_doc["user_id"] = user_id
                 
             if api_key:
+                # Masked form is for display/audit; the hash is the authorization
+                # binding used to prove session ownership on delete. The raw key is
+                # never persisted.
                 message_doc["api_key"] = mask_api_key(api_key, show_last=True, num_chars=6)
-                
+                message_doc["api_key_hash"] = hash_api_key(api_key)
+
             if metadata and self.store_metadata:
                 message_doc["metadata"] = metadata
             
@@ -1491,6 +1516,85 @@ class ChatHistoryService:
             logger.error(f"Error clearing session history: {str(e)}")
             return False
 
+    async def authorize_session(self, session_id: Optional[str], api_key: Optional[str]) -> bool:
+        """
+        Public ownership check for read and authorization paths.
+
+        Returns True when there is nothing to authorize against — no session, or no
+        API key because key enforcement is disabled for this deployment. Callers that
+        have a key must treat False as a hard authorization failure, not as "no
+        history": returning empty context instead would hide the failure and still let
+        a caller operate against another tenant's session id.
+        """
+        if not session_id or not api_key:
+            return True
+        return await self._api_key_owns_session(session_id, api_key)
+
+    async def _api_key_owns_session(self, session_id: str, api_key: str) -> bool:
+        """
+        Check whether api_key owns every message in session_id.
+
+        Ownership is decided on chat_history.api_key_hash — a SHA-256 fingerprint of
+        the full key written by add_message(). The whole key contributes to it, so it
+        is a real authorization boundary rather than a guessable suffix comparison.
+
+        Ownership must hold for *all* rows, not any row. Matching a single row would
+        make this an allow-list: an attacker who gets one message into a victim's
+        session (see the guard in add_message) would thereby authorize deletion of the
+        whole session. A session whose rows disagree has no single owner and is
+        refused outright.
+
+        Rows written before api_key_hash existed carry only the masked api_key. Those
+        fall back to a masked comparison, which is weaker (a 6-character suffix) but
+        strictly better than no check. The fallback applies only when *no* row in the
+        session carries a hash — otherwise a key sharing the owner's 6-character
+        suffix could use it to sidestep the hash comparison entirely.
+
+        Empty sessions are allowed (nothing to protect). Non-empty sessions carrying no
+        owner marker at all are refused: they cannot be attributed to anyone, so no
+        caller can prove ownership of them.
+        """
+        try:
+            total = await self.database_service.count(
+                self.collection_name,
+                {"session_id": session_id}
+            )
+            if total == 0:
+                return True
+
+            owned = await self.database_service.count(
+                self.collection_name,
+                {"session_id": session_id, "api_key_hash": hash_api_key(api_key)}
+            )
+            if owned == total:
+                return True
+            if owned > 0:
+                # Mixed ownership - no single key owns this session.
+                return False
+
+            # No row carries the caller's hash. The masked fallback is only safe if
+            # the session is entirely un-backfilled; a single hashed row means the
+            # session is owned by some other key.
+            unhashed = await self.database_service.count(
+                self.collection_name,
+                {"session_id": session_id, "api_key_hash": None}
+            )
+            if unhashed != total:
+                return False
+
+            legacy_owned = await self.database_service.count(
+                self.collection_name,
+                {"session_id": session_id, "api_key": mask_api_key(api_key, show_last=True, num_chars=6)}
+            )
+            return legacy_owned == total
+
+        except Exception as e:
+            # Fail closed: an ownership check that cannot run must not grant deletion.
+            logger.error(
+                "Ownership check failed for session %s: %s", session_id, str(e)
+            )
+            return False
+
     async def clear_conversation_history(
         self,
         session_id: str,
@@ -1551,6 +1655,21 @@ class ChatHistoryService:
                 return {
                     "success": False,
                     "error": "API key service not available",
+                    "deleted_count": 0
+                }
+
+            # Validating the key only proves it is a live key, not that it owns this
+            # session. Without this check any valid key can delete any other tenant's
+            # session by guessing/replaying its session_id (cross-tenant IDOR).
+            if not await self._api_key_owns_session(session_id, api_key):
+                logger.warning(
+                    "Denied clear_conversation_history for session %s: key %s does not own the session",
+                    session_id,
+                    mask_api_key(api_key, show_last=True, num_chars=6)
+                )
+                return {
+                    "success": False,
+                    "error": "Access denied",
                     "deleted_count": 0
                 }
 

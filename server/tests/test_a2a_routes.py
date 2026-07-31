@@ -3,7 +3,7 @@
 import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from routes.a2a_routes import create_a2a_router, _tasks, _extract_text, _build_skills
@@ -16,7 +16,12 @@ from routes.a2a_routes import create_a2a_router, _tasks, _extract_text, _build_s
 def make_app(chat_service=None, api_key_service=None, adapter_manager=None, config=None):
     app = FastAPI()
     app.state.config = config or {}
-    app.state.chat_service = chat_service or MagicMock()
+    svc = chat_service or MagicMock()
+    # Routes authorize session access before dispatching; default it to "allowed"
+    # so tests that don't exercise authorization aren't awaiting a bare MagicMock.
+    if not isinstance(getattr(svc, "authorize_session_access", None), AsyncMock):
+        svc.authorize_session_access = AsyncMock(return_value=None)
+    app.state.chat_service = svc
     if api_key_service is not None:
         app.state.api_key_service = api_key_service
     if adapter_manager is not None:
@@ -235,6 +240,51 @@ class TestApiKeyEnforcement:
         assert resp.status_code == 200
         call_kwargs = chat_svc.process_chat.call_args.kwargs
         assert call_kwargs["adapter_name"] == "hr"
+
+    def test_bearer_key_is_passed_to_chat_service(self):
+        """History written by A2A must be attributable to the calling key."""
+        key_svc = MagicMock()
+        key_svc.get_adapter_for_api_key = AsyncMock(return_value=("hr", None))
+        chat_svc = MagicMock()
+        chat_svc.process_chat = AsyncMock(return_value={"response": "ok"})
+        client = TestClient(make_app(chat_service=chat_svc, api_key_service=key_svc))
+        client.post("/a2a", json=self._body(), headers={"Authorization": "Bearer valid-key"})
+        assert chat_svc.process_chat.call_args.kwargs["api_key"] == "valid-key"
+
+
+class TestSessionAuthorization:
+    """A denied session must surface as a real 403, not a 200 with an error body."""
+
+    def _body(self, task_id="someone-elses-task"):
+        msg = {"role": "user", "parts": [{"type": "text", "text": "hi"}]}
+        return {"jsonrpc": "2.0", "id": 1, "method": "tasks/send",
+                "params": {"id": task_id, "message": msg}}
+
+    def _denying_service(self):
+        svc = MagicMock()
+        svc.process_chat = AsyncMock(return_value={"response": "ok"})
+        svc.authorize_session_access = AsyncMock(
+            side_effect=HTTPException(status_code=403, detail="Access denied")
+        )
+        return svc
+
+    def test_tasks_send_returns_403(self):
+        svc = self._denying_service()
+        client = TestClient(make_app(chat_service=svc))
+        resp = client.post("/a2a", json=self._body())
+        assert resp.status_code == 403
+        # The request must not have been processed at all.
+        svc.process_chat.assert_not_called()
+
+    def test_tasks_send_subscribe_returns_403(self):
+        svc = self._denying_service()
+        svc.process_chat_stream = MagicMock()
+        client = TestClient(make_app(chat_service=svc))
+        body = self._body()
+        body["method"] = "tasks/sendSubscribe"
+        resp = client.post("/a2a", json=body)
+        assert resp.status_code == 403
+        svc.process_chat_stream.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

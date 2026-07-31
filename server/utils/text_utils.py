@@ -2,8 +2,10 @@
 Utility functions for text processing
 """
 
+import hashlib
 import re
 import warnings
+from typing import Optional
 
 # Suppress ftfy deprecation warnings before importing ftfy
 warnings.filterwarnings("ignore", message=".*fix_entities.*", category=DeprecationWarning)
@@ -225,6 +227,26 @@ def mask_api_key(api_key: str, show_last: bool = False, num_chars: int = 4, pref
         return f"{prefix}{api_key[-num_chars:]}"
     else:
         return f"{api_key[:num_chars]}{prefix}"
+
+
+def hash_api_key(api_key: str) -> Optional[str]:
+    """
+    Derive a stable, non-reversible fingerprint of an API key.
+
+    Used to bind stored records to the key that created them so ownership can be
+    checked without persisting the key itself. Unlike mask_api_key(), the full key
+    contributes to the output, so two distinct keys cannot collide in practice.
+
+    Args:
+        api_key: The API key to fingerprint
+
+    Returns:
+        Hex-encoded SHA-256 digest, or None if no key was supplied
+    """
+    if not api_key:
+        return None
+
+    return hashlib.sha256(api_key.encode('utf-8')).hexdigest()
 
 
 def simple_fix_text(text: str) -> str:

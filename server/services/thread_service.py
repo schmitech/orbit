@@ -86,7 +86,8 @@ class ThreadService:
         parent_session_id: str,
         adapter_name: str,
         query_context: Dict[str, Any],
-        raw_results: list
+        raw_results: list,
+        owner_api_key_hash: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create a new conversation thread from a parent message.
@@ -97,6 +98,9 @@ class ThreadService:
             adapter_name: Name of the adapter that generated the response
             query_context: Query context (original query, parameters, template_id)
             raw_results: Raw results from the retriever
+            owner_api_key_hash: Fingerprint of the API key owning the parent session.
+                Binds the thread (and the thread session it spawns) to that key, so a
+                thread cannot be used to reach another tenant's conversation.
 
         Returns:
             Thread information dictionary with thread_id and thread_session_id
@@ -144,7 +148,8 @@ class ThreadService:
                 'dataset_key': dataset_key,
                 'created_at': datetime.now(UTC).isoformat(),
                 'expires_at': expires_at.isoformat(),
-                'metadata_json': json.dumps({}, default=str)
+                'metadata_json': json.dumps({}, default=str),
+                'owner_api_key_hash': owner_api_key_hash
             }
 
             # Store thread metadata
@@ -212,7 +217,10 @@ class ThreadService:
                 'query_context': query_context,
                 'dataset_key': thread_doc.get('dataset_key'),
                 'created_at': thread_doc.get('created_at'),
-                'expires_at': thread_doc.get('expires_at')
+                'expires_at': thread_doc.get('expires_at'),
+                # Authorization binding — callers use this to check ownership. Strip it
+                # before returning a thread over HTTP; it is not client-facing.
+                'owner_api_key_hash': thread_doc.get('owner_api_key_hash')
             }
 
         except Exception as e:

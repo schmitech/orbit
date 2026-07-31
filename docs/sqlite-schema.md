@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS chat_history (
     timestamp TEXT NOT NULL,
     user_id TEXT,
     api_key TEXT,
+    api_key_hash TEXT,
     metadata_json TEXT,
     message_hash TEXT,
     token_count INTEGER
@@ -196,7 +197,8 @@ CREATE TABLE IF NOT EXISTS chat_history (
 - `content` (TEXT): Message content
 - `timestamp` (TEXT): ISO format timestamp of message
 - `user_id` (TEXT): Optional user ID
-- `api_key` (TEXT): Optional API key used
+- `api_key` (TEXT): Optional API key used, stored **masked** (`...` + last 6 characters, via `mask_api_key`). Display/audit only — never use it for authorization
+- `api_key_hash` (TEXT): Hex-encoded SHA-256 of the full API key that created the message (via `hash_api_key`). This is the session-ownership binding enforced on deletion; see **Session ownership** below. `NULL` for rows written before v1.8
 - `metadata_json` (TEXT): JSON-encoded metadata
 - `message_hash` (TEXT): Hash for deduplication
 - `token_count` (INTEGER): Token count for the message (used for conversation history management)
@@ -206,7 +208,48 @@ CREATE TABLE IF NOT EXISTS chat_history (
 - `idx_chat_history_user` on `(user_id, timestamp)`
 - `idx_chat_history_timestamp` on `timestamp`
 - `idx_chat_history_api_key` on `api_key`
+- `idx_chat_history_api_key_hash` on `(session_id, api_key_hash)`
 - `idx_chat_history_hash` (UNIQUE) on `(session_id, message_hash)`
+
+**Session ownership:**
+
+`DELETE /admin/chat-history/{session_id}` and `DELETE /admin/conversations/{session_id}` are authenticated by `X-API-Key` but are *not* admin-gated, so a valid key must additionally be proven to own the session it targets. `ChatHistoryService._api_key_owns_session()` resolves that by comparing `hash_api_key(caller_key)` against the session's stored `api_key_hash`; a mismatch returns HTTP 403 and deletes nothing. Validating that a key is merely active is not sufficient — without this check any tenant's key can delete any other tenant's session (cross-tenant IDOR).
+
+**Ownership requires *every* row in the session to match, not any row.** Matching a single row would make the check an allow-list, and `session_id` is client-supplied (`X-Session-ID`) and unvalidated. An attacker who got one message into a victim's session would thereby authorize deletion of the whole session. Two independent defences prevent that:
+
+1. `add_message()` refuses to append to a session owned by a different key, raising `SessionOwnershipError`. This is the primary guard — it also prevents the victim's history being pulled into the attacker's LLM context.
+2. `_api_key_owns_session()` requires all rows to share the caller's fingerprint. A session whose rows disagree has no single owner and is refused outright, so a poisoned row grants nothing even if one is inserted out-of-band.
+
+Resolution order, given `total` = message count in the session:
+
+| Condition | Result |
+|---|---|
+| `total == 0` | **allow** — nothing to protect |
+| rows matching caller's `api_key_hash` == `total` | **allow** — sole owner |
+| rows matching caller's `api_key_hash` > 0 but < `total` | **deny** — mixed ownership |
+| any row carries a hash, none the caller's | **deny** |
+| no row carries any hash, all masked `api_key`s match caller | **allow** — legacy fallback |
+| non-empty with no owner marker at all | **deny** — unattributable |
+
+Notes on the last two rows:
+
+- **Legacy rows** (`api_key_hash IS NULL`) fall back to comparing the masked `api_key`. That is weaker — a 6-character suffix — but keeps pre-v1.8 sessions both protected and deletable by their owner. It applies *only* when no row in the session carries a hash; otherwise a key sharing the owner's suffix could use the fallback to sidestep the hash comparison.
+- **Markerless non-empty sessions** are denied rather than allowed. Such rows cannot be attributed to anyone, so no caller can prove ownership. Any write path that fails to propagate its API key produces them — A2A `tasks/send` did until v1.8, making its sessions deletable by any valid key. Voice websockets on adapters without `requires_api_key_validation` can still produce them by design.
+
+The ownership check fails closed — a database error during the lookup denies the deletion rather than falling through to it.
+
+**Reads are gated by the same rule.** `session_id` is client-supplied, so an unauthorized *read* would replay another tenant's conversation into the caller's LLM prompt. Authorization therefore happens **before context retrieval**, not after:
+
+- `PipelineChatService.authorize_session_access()` is called from the route before dispatch and raises **403** for a foreign or markerless session. It must run at the route layer because `process_chat_stream` is an async generator — a rejection raised inside it would surface only after the response had begun.
+- `ConversationHistoryHandler.get_context()` re-checks and raises `SessionOwnershipError`, as defence in depth for any read path that skips the gate. It deliberately does **not** downgrade this to an empty result: empty context would hide the authorization failure while still letting the caller drive a turn against another tenant's session id.
+- For thread requests, `owner_api_key_hash` on the thread record authorizes turn 1; legacy threads without it fall back to authorizing both the thread session and its parent before either is read.
+- `POST /api/threads` verifies the caller owns the parent session before creating a thread on it.
+
+Requests with no API key (key enforcement disabled) skip all of this unchanged.
+
+> **Known race.** Ownership is derived from message rows, not from an immutable session-owner record. Two concurrent first writes to the same new client-supplied `session_id` can both observe an empty session and both stamp their own fingerprint, producing a mixed-owner session. That no longer authorizes deletion or reads — mixed ownership is denied for everyone — but it can strand the session for both parties. Closing this cleanly needs a dedicated session-ownership record with a unique `session_id` constraint and atomic create-or-compare. Not implemented.
+
+The raw key is never persisted in this table. `uploaded_files.api_key` stores keys in plain text and enforces its own ownership check by direct comparison; the two are independent.
 
 ---
 
@@ -240,12 +283,14 @@ CREATE TABLE IF NOT EXISTS conversation_threads (
 - `created_at` (TEXT): ISO format timestamp of thread creation
 - `expires_at` (TEXT): ISO format timestamp when thread expires (TTL)
 - `metadata_json` (TEXT): JSON-encoded additional metadata
+- `owner_api_key_hash` (TEXT): `hash_api_key()` of the key that owned the parent session when the thread was created. Binds the thread — and the thread session it spawns — to that key. Required because on the thread's **first** turn the thread session is still empty and has no owner rows of its own to check; without this record there would be nothing to authorize against. `NULL` for threads created before v1.8, which fall back to authorizing the thread and parent sessions directly
 
 **Indexes:**
 - `idx_conversation_threads_parent_message` on `parent_message_id`
 - `idx_conversation_threads_parent_session` on `parent_session_id`
 - `idx_conversation_threads_thread_session` on `thread_session_id`
 - `idx_conversation_threads_expires_at` on `expires_at`
+- `idx_conversation_threads_owner` on `owner_api_key_hash`
 
 ---
 
@@ -769,6 +814,15 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.8** (2026-07-31): Session ownership binding for chat history
+  - Added `chat_history.api_key_hash` (SHA-256 of the creating API key) and index `idx_chat_history_api_key_hash` on `(session_id, api_key_hash)`
+  - Closes a cross-tenant IDOR on `DELETE /admin/chat-history/{session_id}` and `DELETE /admin/conversations/{session_id}`, which previously checked only that the caller's key was valid, never that it owned the target session
+  - Ownership requires *all* rows in a session to match, and `add_message()` refuses to append to a session owned by another key — together these close an escalation where one injected message authorized deletion of the whole session
+  - Non-empty sessions with no owner marker are now denied. A2A `tasks/send`/`tasks/sendSubscribe` now propagate their Bearer key into `process_chat` so their history is attributable
+  - Added `conversation_threads.owner_api_key_hash` + index `idx_conversation_threads_owner`, binding a thread to its parent session's owner
+  - Extended the same rule to **reads**: context retrieval is authorized before it runs, closing a cross-tenant leak where a caller supplying another tenant's `session_id` had that tenant's conversation replayed into their LLM prompt
+  - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`); MongoDB is schemaless and needs no migration
+  - **Backfill still pending.** Existing rows keep `api_key_hash = NULL` and fall back to the weaker masked-suffix comparison until backfilled. Pre-v1.8 markerless sessions (e.g. old A2A history) are now undeletable through these endpoints until backfilled
 - **v1.7** (2026-07-30): Media (image/video/audio/OCR) usage and cost tracking
   - Added `audit_logs.usage_unit`, `usage_quantity` — discrete-unit billing (images, video seconds, TTS characters, STT seconds, OCR pages) for non-token media requests, alongside the existing token columns; `cost_usd` remains the single summable cost column across both
   - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`); see `docs/token-usage-and-cost-tracking.md`

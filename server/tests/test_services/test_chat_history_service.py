@@ -25,10 +25,10 @@ SERVER_DIR = SCRIPT_DIR.parent.parent
 sys.path.append(str(SERVER_DIR))
 
 from services.sqlite_service import SQLiteService
-from services.chat_history_service import ChatHistoryService
+from services.chat_history_service import ChatHistoryService, SessionOwnershipError
 from services.thread_dataset_service import ThreadDatasetService
 from utils.id_utils import generate_id
-from utils.text_utils import mask_api_key
+from utils.text_utils import hash_api_key, mask_api_key
 
 
 def test_runtime_provider_selects_its_own_history_budget_without_param_overrides():
@@ -114,8 +114,14 @@ async def chat_history_services():
   shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-async def _seed_conversation_with_thread(services):
-  """Create a parent conversation plus a thread with its own session."""
+async def _seed_conversation_with_thread(services, api_key="valid-key"):
+  """
+  Create a parent conversation plus a thread with its own session.
+
+  Seeds with an owning API key by default so the session has an owner marker, which
+  is what an authenticated chat request produces. Pass api_key=None to simulate the
+  ownerless rows written by paths that don't propagate a key.
+  """
   chat_history = services['chat_history']
   dataset_service = services['dataset']
   db = services['db']
@@ -140,6 +146,7 @@ async def _seed_conversation_with_thread(services):
     session_id=session_id,
     user_message="Tell me about Orbit",
     assistant_response="Orbit is a platform.",
+    api_key=api_key,
     metadata=metadata
   )
 
@@ -172,12 +179,14 @@ async def _seed_conversation_with_thread(services):
     session_id=thread_session_id,
     role='user',
     content='Follow-up question?',
+    api_key=api_key,
     metadata=metadata
   )
   await chat_history.add_message(
     session_id=thread_session_id,
     role='assistant',
     content='Threaded answer.',
+    api_key=api_key,
     metadata=metadata
   )
 
@@ -525,6 +534,444 @@ async def test_clear_conversation_history_invalid_api_key(chat_history_services)
   assert len(await services['db'].find_many('conversation_threads', {'parent_session_id': seeded['session_id']})) == 1
 
 
+class _MultiTenantApiKeyService:
+  """Treats every key starting with 'api_' as valid, so two tenants can coexist."""
+  async def validate_api_key(self, api_key, adapter_manager=None):
+    if not api_key.startswith("api_"):
+      return False, None, None
+    return True, "intent-test", None
+
+
+@pytest.mark.asyncio
+async def test_clear_conversation_history_rejects_cross_tenant_key(chat_history_services):
+  """A valid key must not be able to clear a session created by a different key."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  key_a = "api_tenantAAAAAAAAAAAAAAAAAAAAAAA"
+  key_b = "api_tenantBBBBBBBBBBBBBBBBBBBBBBB"
+
+  session_a = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_a,
+    user_message="Confidential question",
+    assistant_response="Confidential answer",
+    api_key=key_a
+  )
+  assert len(await services['db'].find_many('chat_history', {'session_id': session_a})) == 2
+
+  chat_history.api_key_service = _MultiTenantApiKeyService()
+
+  # Tenant B holds a perfectly valid key, but does not own session_a.
+  result = await chat_history.clear_conversation_history(
+    session_id=session_a,
+    api_key=key_b
+  )
+
+  assert result["success"] is False
+  assert result["error"] == "Access denied"
+  assert result["deleted_count"] == 0
+
+  # Tenant A's conversation must survive the attempt.
+  assert len(await services['db'].find_many('chat_history', {'session_id': session_a})) == 2
+
+  # The owning key still works.
+  owner_result = await chat_history.clear_conversation_history(
+    session_id=session_a,
+    api_key=key_a
+  )
+  assert owner_result["success"] is True
+  assert owner_result["deleted_count"] == 2
+  assert await services['db'].find_many('chat_history', {'session_id': session_a}) == []
+
+
+@pytest.mark.asyncio
+async def test_clear_conversation_history_rejects_key_with_matching_suffix(chat_history_services):
+  """
+  Ownership must use the full key, not a suffix.
+
+  These two keys are distinct but share their last 6 characters, so they collapse to
+  the same mask_api_key() output. A suffix-based check would let the attacker through.
+  """
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  key_a = "api_tenantA_colliding_SUFFIX"
+  key_b = "api_tenantB_different_SUFFIX"
+  assert mask_api_key(key_a, show_last=True, num_chars=6) == mask_api_key(key_b, show_last=True, num_chars=6)
+
+  session_a = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_a,
+    user_message="Confidential question",
+    assistant_response="Confidential answer",
+    api_key=key_a
+  )
+
+  chat_history.api_key_service = _MultiTenantApiKeyService()
+
+  result = await chat_history.clear_conversation_history(session_id=session_a, api_key=key_b)
+
+  assert result["success"] is False
+  assert result["error"] == "Access denied"
+  assert len(await services['db'].find_many('chat_history', {'session_id': session_a})) == 2
+
+
+@pytest.mark.asyncio
+async def test_clear_conversation_history_legacy_rows_without_hash(chat_history_services):
+  """
+  Rows predating api_key_hash fall back to the masked comparison.
+
+  Cross-tenant deletion is still refused, and the owner can still clear the session,
+  so un-backfilled history is neither exposed nor stranded.
+  """
+  services = chat_history_services
+  chat_history = services['chat_history']
+  db = services['db']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  key_a = "api_tenantAAAAAAAAAAAAAAAAAAAAAAA"
+  key_b = "api_tenantBBBBBBBBBBBBBBBBBBBBBBB"
+
+  session_a = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_a,
+    user_message="Legacy question",
+    assistant_response="Legacy answer",
+    api_key=key_a
+  )
+
+  # Simulate pre-migration rows: masked key present, fingerprint absent.
+  for msg in await db.find_many('chat_history', {'session_id': session_a}):
+    await db.update_one('chat_history', {'_id': msg['_id']}, {'$set': {'api_key_hash': None}})
+  assert all(
+    m.get('api_key_hash') is None
+    for m in await db.find_many('chat_history', {'session_id': session_a})
+  )
+
+  chat_history.api_key_service = _MultiTenantApiKeyService()
+
+  denied = await chat_history.clear_conversation_history(session_id=session_a, api_key=key_b)
+  assert denied["success"] is False
+  assert denied["error"] == "Access denied"
+  assert len(await db.find_many('chat_history', {'session_id': session_a})) == 2
+
+  allowed = await chat_history.clear_conversation_history(session_id=session_a, api_key=key_a)
+  assert allowed["success"] is True
+  assert allowed["deleted_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_append_to_foreign_session_is_refused(chat_history_services):
+  """
+  A key must not be able to write into a session it does not own.
+
+  session_id is client-supplied and unvalidated, so without this guard key B could
+  append one message to key A's session and thereby manufacture the ownership that
+  clear_conversation_history() checks.
+  """
+  services = chat_history_services
+  chat_history = services['chat_history']
+  db = services['db']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  key_a = "api_tenantAAAAAAAAAAAAAAAAAAAAAAA"
+  key_b = "api_tenantBBBBBBBBBBBBBBBBBBBBBBB"
+
+  session_a = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_a,
+    user_message="Confidential question",
+    assistant_response="Confidential answer",
+    api_key=key_a
+  )
+
+  with pytest.raises(SessionOwnershipError):
+    await chat_history.add_message(
+      session_id=session_a,
+      role='user',
+      content='B injected',
+      api_key=key_b
+    )
+
+  # The session is untouched, so it still has exactly one owner.
+  assert len(await db.find_many('chat_history', {'session_id': session_a})) == 2
+  assert await chat_history._api_key_owns_session(session_a, key_a) is True
+  assert await chat_history._api_key_owns_session(session_a, key_b) is False
+
+
+@pytest.mark.asyncio
+async def test_ownership_poisoning_cannot_authorize_deletion(chat_history_services):
+  """
+  End-to-end: the reported escalation must fail at both steps.
+
+  Even if a mixed-owner session were somehow produced, ownership requires ALL rows to
+  match, so a single injected row grants nothing.
+  """
+  services = chat_history_services
+  chat_history = services['chat_history']
+  db = services['db']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  key_a = "api_tenantAAAAAAAAAAAAAAAAAAAAAAA"
+  key_b = "api_tenantBBBBBBBBBBBBBBBBBBBBBBB"
+
+  session_a = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_a,
+    user_message="Confidential question",
+    assistant_response="Confidential answer",
+    api_key=key_a
+  )
+  chat_history.api_key_service = _MultiTenantApiKeyService()
+
+  # Step 1: the append guard refuses the poisoning write.
+  with pytest.raises(SessionOwnershipError):
+    await chat_history.add_message(
+      session_id=session_a, role='user', content='B injected', api_key=key_b
+    )
+
+  # Step 2: force a poisoned row in directly, bypassing the guard entirely, to prove
+  # the delete check does not rely on the guard alone.
+  await db.insert_one('chat_history', {
+    'session_id': session_a,
+    'role': 'user',
+    'content': 'B injected',
+    'timestamp': datetime.now(UTC),
+    'api_key': mask_api_key(key_b, show_last=True, num_chars=6),
+    'api_key_hash': hash_api_key(key_b),
+  })
+
+  result = await chat_history.clear_conversation_history(session_id=session_a, api_key=key_b)
+  assert result["success"] is False
+  assert result["error"] == "Access denied"
+
+  # A's messages survive.
+  remaining = await db.find_many('chat_history', {'session_id': session_a})
+  assert len([m for m in remaining if m['content'].startswith('Confidential')]) == 2
+
+
+@pytest.mark.asyncio
+async def test_clear_conversation_history_denies_markerless_session(chat_history_services):
+  """
+  A non-empty session with no owner marker cannot be attributed to anyone, so no
+  caller may delete it. This is what ownerless A2A history used to look like.
+  """
+  services = chat_history_services
+  chat_history = services['chat_history']
+  db = services['db']
+
+  seeded = await _seed_conversation_with_thread(services, api_key=None)
+  assert all(
+    not m.get('api_key') and not m.get('api_key_hash')
+    for m in await db.find_many('chat_history', {'session_id': seeded['session_id']})
+  )
+
+  chat_history.api_key_service = _MultiTenantApiKeyService()
+
+  result = await chat_history.clear_conversation_history(
+    session_id=seeded['session_id'],
+    api_key="api_someUnrelatedTenantKey"
+  )
+
+  assert result["success"] is False
+  assert result["error"] == "Access denied"
+  assert len(await db.find_many('chat_history', {'session_id': seeded['session_id']})) == 2
+
+
+def _context_handler(services):
+  """A ConversationHistoryHandler wired to the fixture, with history always enabled."""
+  from services.chat_handlers.conversation_history_handler import ConversationHistoryHandler
+  handler = ConversationHistoryHandler(
+    config=services['config'],
+    chat_history_service=services['chat_history'],
+    adapter_manager=None
+  )
+  handler.should_enable = lambda adapter_name: True
+  return handler
+
+
+@pytest.mark.asyncio
+async def test_get_context_refuses_foreign_session(chat_history_services):
+  """
+  Reading context for a foreign session must raise, not return empty.
+
+  Empty context would hide the authorization failure and still let the caller drive
+  a turn against another tenant's session id.
+  """
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  key_a = "api_tenantAAAAAAAAAAAAAAAAAAAAAAA"
+  key_b = "api_tenantBBBBBBBBBBBBBBBBBBBBBBB"
+
+  session_a = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_a,
+    user_message="Confidential question",
+    assistant_response="Confidential answer",
+    api_key=key_a
+  )
+
+  handler = _context_handler(services)
+
+  # The owner reads their own history.
+  assert len(await handler.get_context(session_a, "demo", api_key=key_a)) == 2
+
+  # A foreign key is refused outright.
+  with pytest.raises(SessionOwnershipError):
+    await handler.get_context(session_a, "demo", api_key=key_b)
+
+  # Deployments without key enforcement are unaffected.
+  assert len(await handler.get_context(session_a, "demo", api_key=None)) == 2
+
+
+@pytest.mark.asyncio
+async def test_get_context_refuses_markerless_session(chat_history_services):
+  """Ownerless history must not be readable by an arbitrary key either."""
+  services = chat_history_services
+  await services['chat_history'].add_message(
+    session_id="markerless-session", role="user", content="ownerless"
+  )
+
+  handler = _context_handler(services)
+
+  with pytest.raises(SessionOwnershipError):
+    await handler.get_context("markerless-session", "demo", api_key="api_someTenantKey")
+
+
+@pytest.mark.asyncio
+async def test_authorize_session_access_raises_403(chat_history_services):
+  """The route-level gate returns 403 for a foreign session, and passes for the owner."""
+  from fastapi import HTTPException
+  from services.pipeline_chat_service import PipelineChatService
+
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  key_a = "api_tenantAAAAAAAAAAAAAAAAAAAAAAA"
+  key_b = "api_tenantBBBBBBBBBBBBBBBBBBBBBBB"
+
+  session_a = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_a,
+    user_message="Confidential question",
+    assistant_response="Confidential answer",
+    api_key=key_a
+  )
+
+  svc = object.__new__(PipelineChatService)
+  svc.chat_history_service = chat_history
+  svc.conversation_handler = None
+  svc.pipeline = None
+
+  # Owner passes.
+  await svc.authorize_session_access(session_id=session_a, api_key=key_a)
+
+  # Foreign key is rejected with 403, not 500 or a silent empty result.
+  with pytest.raises(HTTPException) as exc:
+    await svc.authorize_session_access(session_id=session_a, api_key=key_b)
+  assert exc.value.status_code == 403
+
+  # No key configured (enforcement disabled) is a no-op.
+  await svc.authorize_session_access(session_id=session_a, api_key=None)
+
+
+@pytest.mark.asyncio
+async def test_thread_owner_hash_binds_thread_to_parent_owner(chat_history_services):
+  """
+  A thread carries its parent's owner hash, which authorizes turn 1.
+
+  On the first turn the thread session is still empty and has no owner rows of its
+  own, so without the persisted binding there would be nothing to check.
+  """
+  from fastapi import HTTPException
+  from services.pipeline_chat_service import PipelineChatService
+
+  services = chat_history_services
+  key_a = "api_tenantAAAAAAAAAAAAAAAAAAAAAAA"
+  key_b = "api_tenantBBBBBBBBBBBBBBBBBBBBBBB"
+
+  class _Container:
+    def __init__(self, thread_service):
+      self._ts = thread_service
+    def has(self, key):
+      return key == 'thread_service'
+    def get(self, key):
+      return self._ts if key == 'thread_service' else None
+
+  class _ThreadService:
+    def __init__(self, info):
+      self._info = info
+    async def get_thread(self, thread_id):
+      return self._info
+
+  class _Pipeline:
+    def __init__(self, container):
+      self.container = container
+
+  thread_info = {
+    'thread_session_id': 'thread-sess-1',
+    'parent_session_id': 'parent-sess-1',
+    'owner_api_key_hash': hash_api_key(key_a),
+  }
+
+  svc = object.__new__(PipelineChatService)
+  svc.chat_history_service = services['chat_history']
+  svc.conversation_handler = None
+  svc.pipeline = _Pipeline(_Container(_ThreadService(thread_info)))
+
+  # Parent's owner may use the thread even though the thread session is empty.
+  await svc.authorize_session_access(
+    session_id='parent-sess-1', api_key=key_a, thread_id='t1'
+  )
+
+  # Anyone else is refused.
+  with pytest.raises(HTTPException) as exc:
+    await svc.authorize_session_access(
+      session_id='parent-sess-1', api_key=key_b, thread_id='t1'
+    )
+  assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_thread_returns_owner_hash(chat_history_services):
+  """
+  create_thread persists owner_api_key_hash and get_thread must return it.
+
+  Regression test: the field was originally stored but dropped from get_thread()'s
+  projection, so every ownership check silently fell through to the legacy path.
+  Uses the real ThreadService rather than a stub, which is what hid the bug.
+  """
+  from services.thread_service import ThreadService
+
+  services = chat_history_services
+  thread_service = ThreadService(
+    services['config'],
+    database_service=services['db'],
+    dataset_service=services['dataset']
+  )
+  await thread_service.initialize()
+
+  key_a = "api_tenantAAAAAAAAAAAAAAAAAAAAAAA"
+
+  created = await thread_service.create_thread(
+    parent_message_id="msg-1",
+    parent_session_id="parent-sess-1",
+    adapter_name="intent-test",
+    query_context={"original_query": "q"},
+    raw_results=[{"content": "Doc 1"}],
+    owner_api_key_hash=hash_api_key(key_a)
+  )
+
+  fetched = await thread_service.get_thread(created['thread_id'])
+  assert fetched['owner_api_key_hash'] == hash_api_key(key_a)
+
+
 @pytest.mark.asyncio
 async def test_thread_without_messages(chat_history_services):
   """Test that clearing works even when a thread has no messages."""
@@ -612,6 +1059,12 @@ async def test_api_key_is_masked_when_stored(chat_history_services):
 
   # Verify the masked key shows only the last 6 characters
   assert stored_api_key.endswith(raw_api_key[-6:])
+
+  # The ownership fingerprint is stored alongside it, and is also not the raw key
+  stored_hash = messages[0].get('api_key_hash')
+  assert stored_hash == hash_api_key(raw_api_key)
+  assert raw_api_key not in stored_hash
+  assert stored_hash != hash_api_key(raw_api_key + "x")
 
 
 # ============================================================================

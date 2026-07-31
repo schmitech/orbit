@@ -13,8 +13,10 @@ import logging
 import time
 from typing import Dict, Any, Optional, List, Tuple
 from bson import ObjectId
+from fastapi import HTTPException
 
 from inference.pipeline_factory import PipelineFactory
+from utils.text_utils import hash_api_key
 
 from inference.pipeline import ProcessingContext
 from .chat_handlers import (
@@ -426,6 +428,73 @@ class PipelineChatService:
     # Thread context resolution
     # -------------------------------------------------------------------------
 
+    async def authorize_session_access(
+        self,
+        session_id: Optional[str],
+        api_key: Optional[str],
+        thread_id: Optional[str] = None,
+    ) -> None:
+        """
+        Authorize this key for the sessions the request will read, before any read.
+
+        Raises HTTPException(403) on failure rather than returning empty context:
+        session_id is client-supplied, so silently yielding no history would hide the
+        authorization failure and still let a caller operate against another tenant's
+        session id.
+
+        Call this from the route, before dispatching. process_chat_stream is an async
+        generator, so raising inside it would surface mid-stream once the response has
+        already begun — too late for a 403.
+        """
+        if not api_key:
+            # Key enforcement disabled for this deployment; nothing to authorize.
+            return
+
+        chat_history_service = getattr(self, 'chat_history_service', None) or (
+            self.conversation_handler.chat_history_service
+            if self.conversation_handler else None
+        )
+        if not chat_history_service:
+            return
+
+        async def _require(target_session_id: Optional[str]) -> None:
+            if not target_session_id:
+                return
+            if not await chat_history_service.authorize_session(target_session_id, api_key):
+                logger.warning(
+                    "Denied session access for session %s (thread=%s)", target_session_id, thread_id
+                )
+                raise HTTPException(status_code=403, detail="Access denied")
+
+        if not thread_id:
+            await _require(session_id)
+            return
+
+        container = self.pipeline.container if self.pipeline else None
+        thread_info = None
+        if container is not None and container.has('thread_service'):
+            thread_info = await container.get('thread_service').get_thread(thread_id)
+
+        if not thread_info:
+            # Unknown thread falls back to plain session context downstream.
+            await _require(session_id)
+            return
+
+        # A thread is bound to the key that owned its parent session at creation.
+        # Prefer that record: it authorizes turn 1, when the thread session is still
+        # empty and therefore has no owner rows of its own to check.
+        owner_hash = thread_info.get('owner_api_key_hash')
+        if owner_hash:
+            if owner_hash != hash_api_key(api_key):
+                logger.warning("Denied thread access for thread %s", thread_id)
+                raise HTTPException(status_code=403, detail="Access denied")
+            return
+
+        # Threads created before owner_api_key_hash existed carry no binding, so fall
+        # back to authorizing the sessions the read will actually touch.
+        await _require(thread_info.get('thread_session_id'))
+        await _require(thread_info.get('parent_session_id') or session_id)
+
     async def _resolve_context_for_thread(
         self,
         thread_id: str,
@@ -433,6 +502,7 @@ class PipelineChatService:
         adapter_name: str,
         runtime_param_overrides: Optional[Dict[str, Any]] = None,
         runtime_provider: Optional[str] = None,
+        api_key: Optional[str] = None,
     ) -> Tuple[List[Dict[str, str]], Optional[str]]:
         """
         Return (context_messages, effective_session_id) for a thread request.
@@ -446,7 +516,7 @@ class PipelineChatService:
         container = self.pipeline.container
         if not container.has('thread_service'):
             return await self.conversation_handler.get_context(
-                session_id, adapter_name, runtime_param_overrides, runtime_provider
+                session_id, adapter_name, runtime_param_overrides, runtime_provider, api_key
             ), session_id
 
         thread_service = container.get('thread_service')
@@ -454,13 +524,13 @@ class PipelineChatService:
         if not thread_info:
             logger.warning(f"Thread {thread_id} not found; falling back to session context")
             return await self.conversation_handler.get_context(
-                session_id, adapter_name, runtime_param_overrides, runtime_provider
+                session_id, adapter_name, runtime_param_overrides, runtime_provider, api_key
             ), session_id
 
         thread_session_id = thread_info.get('thread_session_id', session_id)
 
         thread_messages = await self.conversation_handler.get_context(
-            thread_session_id, adapter_name, runtime_param_overrides, runtime_provider
+            thread_session_id, adapter_name, runtime_param_overrides, runtime_provider, api_key
         )
         if thread_messages:
             return thread_messages, thread_session_id
@@ -469,7 +539,7 @@ class PipelineChatService:
         # retains the conversation that led to this thread being created.
         parent_session_id = thread_info.get('parent_session_id', session_id)
         parent_messages = await self.conversation_handler.get_context(
-            parent_session_id, adapter_name, runtime_param_overrides, runtime_provider
+            parent_session_id, adapter_name, runtime_param_overrides, runtime_provider, api_key
         )
         return parent_messages, thread_session_id
 
@@ -702,11 +772,11 @@ class PipelineChatService:
 
             if thread_id:
                 context_messages, effective_session_id = await self._resolve_context_for_thread(
-                    thread_id, session_id, adapter_name, runtime_param_overrides, runtime_provider
+                    thread_id, session_id, adapter_name, runtime_param_overrides, runtime_provider, api_key
                 )
             else:
                 context_messages = await self.conversation_handler.get_context(
-                    session_id, adapter_name, runtime_param_overrides, runtime_provider
+                    session_id, adapter_name, runtime_param_overrides, runtime_provider, api_key
                 )
                 effective_session_id = session_id
 
@@ -893,11 +963,11 @@ class PipelineChatService:
 
             if thread_id:
                 context_messages, effective_session_id = await self._resolve_context_for_thread(
-                    thread_id, session_id, adapter_name, runtime_param_overrides, runtime_provider
+                    thread_id, session_id, adapter_name, runtime_param_overrides, runtime_provider, api_key
                 )
             else:
                 context_messages = await self.conversation_handler.get_context(
-                    session_id, adapter_name, runtime_param_overrides, runtime_provider
+                    session_id, adapter_name, runtime_param_overrides, runtime_provider, api_key
                 )
                 effective_session_id = session_id
 

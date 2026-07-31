@@ -18,6 +18,7 @@ from bson import ObjectId
 from pydantic import BaseModel, Field
 
 from utils import is_true_value
+from utils.text_utils import hash_api_key
 from services.stream_registry import stream_registry
 from ai_services.services.inference_service import OpenAIResponseFormatter
 
@@ -462,6 +463,17 @@ class RouteConfigurator:
             api_key = self._resolve_api_key(request)
 
             last_user_message, payload_kwargs = _prepare_chat_parameters(chat_request)
+
+            # Authorize the sessions this request will read BEFORE any context
+            # retrieval. Raises 403 on a foreign or markerless session. Must happen
+            # here rather than inside process_chat_stream: that is an async generator,
+            # so a rejection there would surface after the response has begun.
+            await chat_service.authorize_session_access(
+                session_id=session_id,
+                api_key=api_key,
+                thread_id=payload_kwargs.get("thread_id"),
+            )
+
             return_audio = payload_kwargs.get("return_audio")
             tts_voice = payload_kwargs.get("tts_voice")
 
@@ -547,6 +559,14 @@ class RouteConfigurator:
             api_key = self._resolve_api_key(request)
 
             last_user_message, payload_kwargs = _prepare_chat_parameters(chat_request)
+
+            # See the note on the /v1/chat endpoint: authorize before context reads.
+            await chat_service.authorize_session_access(
+                session_id=session_id,
+                api_key=api_key,
+                thread_id=payload_kwargs.get("thread_id"),
+            )
+
             formatter = OpenAIResponseFormatter(
                 model=chat_request.model,
                 provider=adapter_name
@@ -809,8 +829,8 @@ class RouteConfigurator:
             on retrieved datasets without re-querying the database.
             """
             adapter_name, _ = api_key_result
-            request.headers.get(self.config.get('api_keys', {}).get('header_name', 'X-API-Key'))
-            
+            api_key = self._resolve_api_key(request)
+
             # Get the parent message from chat history using database service
             chat_history_service = getattr(request.app.state, 'chat_history_service', None)
             if not chat_history_service:
@@ -828,6 +848,16 @@ class RouteConfigurator:
             
             if not parent_message:
                 raise HTTPException(status_code=404, detail="Parent message not found")
+
+            # The parent session must belong to this key. Without this, a thread could
+            # be opened on another tenant's message and used to seed that tenant's
+            # conversation into this caller's context on the thread's first turn.
+            if not await chat_history_service.authorize_session(request_body.session_id, api_key):
+                logger.warning(
+                    "Denied thread creation on session %s: caller does not own it",
+                    request_body.session_id
+                )
+                raise HTTPException(status_code=403, detail="Access denied")
             
             # Check if message is from assistant
             if parent_message.get('role') != 'assistant':
@@ -876,13 +906,72 @@ class RouteConfigurator:
                     parent_session_id=request_body.session_id,
                     adapter_name=adapter_name,
                     query_context=query_context,
-                    raw_results=retrieved_docs
+                    raw_results=retrieved_docs,
+                    owner_api_key_hash=hash_api_key(api_key)
                 )
                 return thread_info
             except Exception as e:
                 logger.error(f"Failed to create thread: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to create thread: {str(e)}")
         
+        async def _authorized_thread(request: Request, thread_service, thread_id: str) -> Dict[str, Any]:
+            """
+            Load a thread, or raise 404/403.
+
+            A thread exposes its parent_session_id, query_context and dataset_key, and
+            deleting it destroys the parent conversation's cached dataset — so both
+            reading and deleting one require ownership, not just a valid key.
+            """
+            thread_info = await thread_service.get_thread(thread_id)
+            if not thread_info:
+                raise HTTPException(status_code=404, detail="Thread not found or expired")
+
+            api_key = self._resolve_api_key(request)
+            if not api_key:
+                # Key enforcement disabled for this deployment.
+                return thread_info
+
+            owner_hash = thread_info.get('owner_api_key_hash')
+            if owner_hash:
+                if owner_hash != hash_api_key(api_key):
+                    logger.warning("Denied thread access for thread %s", thread_id)
+                    raise HTTPException(status_code=403, detail="Access denied")
+                return thread_info
+
+            # Threads created before owner_api_key_hash existed carry no binding, so
+            # authorize against the parent session instead. This path must fail closed:
+            # the thread carries no proof of ownership of its own, so anything that
+            # prevents the parent check from running is a denial, not a pass. Absent
+            # history service, a missing parent id, or a lookup that raises all mean
+            # ownership could not be established.
+            chat_history_service = getattr(request.app.state, 'chat_history_service', None)
+            parent_session_id = thread_info.get('parent_session_id')
+            if not chat_history_service or not parent_session_id:
+                logger.warning(
+                    "Denied legacy thread %s: ownership unverifiable "
+                    "(chat_history_service=%s, parent_session_id=%r)",
+                    thread_id, bool(chat_history_service), parent_session_id
+                )
+                raise HTTPException(status_code=403, detail="Access denied")
+
+            try:
+                authorized = await chat_history_service.authorize_session(parent_session_id, api_key)
+            except Exception as e:
+                logger.error(
+                    "Ownership check failed for legacy thread %s via parent session %s: %s",
+                    thread_id, parent_session_id, e
+                )
+                raise HTTPException(status_code=403, detail="Access denied")
+
+            if not authorized:
+                logger.warning(
+                    "Denied thread access for legacy thread %s via parent session %s",
+                    thread_id, parent_session_id
+                )
+                raise HTTPException(status_code=403, detail="Access denied")
+
+            return thread_info
+
         @app.get("/api/threads/{thread_id}", operation_id="get_thread")
         async def get_thread(
             thread_id: str,
@@ -891,11 +980,10 @@ class RouteConfigurator:
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
         ):
             """Get thread information by thread ID."""
-            thread_info = await thread_service.get_thread(thread_id)
-            if not thread_info:
-                raise HTTPException(status_code=404, detail="Thread not found or expired")
-            return thread_info
-        
+            thread_info = await _authorized_thread(request, thread_service, thread_id)
+            # The owner fingerprint is an internal authorization value, not client-facing.
+            return {k: v for k, v in thread_info.items() if k != 'owner_api_key_hash'}
+
         @app.delete("/api/threads/{thread_id}", operation_id="delete_thread")
         async def delete_thread(
             thread_id: str,
@@ -904,6 +992,7 @@ class RouteConfigurator:
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
         ):
             """Delete a thread and its associated dataset."""
+            await _authorized_thread(request, thread_service, thread_id)
             result = await thread_service.delete_thread(thread_id)
             if not result:
                 raise HTTPException(status_code=404, detail="Thread not found")

@@ -334,9 +334,12 @@ async def clear_chat_history(
     )
 
     if not result.get("success"):
+        error = result.get('error', 'Unknown error')
+        if error == "Access denied":
+            raise HTTPException(status_code=403, detail="Access denied")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to clear conversation history: {result.get('error', 'Unknown error')}"
+            detail=f"Failed to clear conversation history: {error}"
         )
 
     logger.debug(
@@ -428,8 +431,12 @@ async def delete_conversation_with_files(
             if result.get("success"):
                 deleted_messages_count = result.get("deleted_count", 0)
                 logger.debug("Cleared %s messages for session %s", deleted_messages_count, session_id)
+            elif result.get('error') == "Access denied":
+                raise HTTPException(status_code=403, detail="Access denied")
             else:
                 logger.warning("Failed to clear conversation history: %s", result.get('error'))
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error("Error clearing conversation history: %s", e)
 

@@ -205,6 +205,7 @@ class PostgresService(DatabaseService):
                     timestamp TEXT NOT NULL,
                     user_id TEXT,
                     api_key TEXT,
+                    api_key_hash TEXT,
                     metadata_json TEXT,
                     message_hash TEXT,
                     token_count INTEGER
@@ -221,7 +222,8 @@ class PostgresService(DatabaseService):
                     dataset_key TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     expires_at TEXT NOT NULL,
-                    metadata_json TEXT
+                    metadata_json TEXT,
+                    owner_api_key_hash TEXT
                 )
             ''',
             'thread_datasets': '''
@@ -369,6 +371,7 @@ class PostgresService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_chat_history_user ON chat_history(user_id, timestamp)',
                 'CREATE INDEX IF NOT EXISTS idx_chat_history_timestamp ON chat_history(timestamp)',
                 'CREATE INDEX IF NOT EXISTS idx_chat_history_api_key ON chat_history(api_key)',
+                'CREATE INDEX IF NOT EXISTS idx_chat_history_api_key_hash ON chat_history(session_id, api_key_hash)',
                 'CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_history_hash ON chat_history(session_id, message_hash)',
             ],
             'conversation_threads': [
@@ -376,6 +379,7 @@ class PostgresService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_conversation_threads_parent_session ON conversation_threads(parent_session_id)',
                 'CREATE INDEX IF NOT EXISTS idx_conversation_threads_thread_session ON conversation_threads(thread_session_id)',
                 'CREATE INDEX IF NOT EXISTS idx_conversation_threads_expires_at ON conversation_threads(expires_at)',
+                'CREATE INDEX IF NOT EXISTS idx_conversation_threads_owner ON conversation_threads(owner_api_key_hash)',
             ],
             'thread_datasets': [
                 'CREATE INDEX IF NOT EXISTS idx_thread_datasets_thread_id ON thread_datasets(thread_id)',

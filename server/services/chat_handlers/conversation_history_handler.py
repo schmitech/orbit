@@ -8,6 +8,7 @@ storage, and limit checking.
 import logging
 from typing import Dict, Any, Optional, List
 
+from services.chat_history_service import SessionOwnershipError
 from utils import is_true_value
 
 logger = logging.getLogger(__name__)
@@ -77,7 +78,8 @@ class ConversationHistoryHandler:
         session_id: Optional[str],
         adapter_name: str,
         runtime_param_overrides: Optional[Dict[str, Any]] = None,
-        runtime_provider: Optional[str] = None
+        runtime_provider: Optional[str] = None,
+        api_key: Optional[str] = None
     ) -> List[Dict[str, str]]:
         """
         Get conversation context from history for the current session.
@@ -98,6 +100,16 @@ class ConversationHistoryHandler:
         if not self.should_enable(adapter_name) or not self.chat_history_service or not session_id:
             return []
 
+        # Defence in depth. Callers authorize up front (see
+        # PipelineChatService.authorize_session_access) so a rejection becomes a 403
+        # before any work starts; this catches any read path that forgets to.
+        # session_id is client-supplied, so an unauthorized read would replay another
+        # tenant's conversation into this caller's LLM prompt.
+        if not await self.chat_history_service.authorize_session(session_id, api_key):
+            raise SessionOwnershipError(
+                f"API key is not authorized for session {session_id}"
+            )
+
         try:
             # Get context messages from chat history using rolling window query
             # No need to check limits - rolling window query naturally enforces token budget
@@ -113,6 +125,9 @@ class ConversationHistoryHandler:
 
             return context_messages
 
+        except SessionOwnershipError:
+            # Never downgrade an authorization failure to "no history".
+            raise
         except Exception as e:
             logger.error(f"Error retrieving conversation context: {str(e)}")
             return []

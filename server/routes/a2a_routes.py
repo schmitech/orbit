@@ -86,12 +86,12 @@ def create_a2a_router() -> APIRouter:
                 return JSONResponse(content=_err(rpc_id, -32000, "Server is paused"))
 
         # Resolve adapter from API key (same logic as REST/OpenAI endpoints)
-        adapter_name = await _resolve_adapter(request)
+        adapter_name, api_key = await _resolve_adapter(request)
 
         if method == "tasks/send":
-            return await _tasks_send(request, rpc_id, params, adapter_name)
+            return await _tasks_send(request, rpc_id, params, adapter_name, api_key)
         if method == "tasks/sendSubscribe":
-            return await _tasks_send_subscribe(request, rpc_id, params, adapter_name)
+            return await _tasks_send_subscribe(request, rpc_id, params, adapter_name, api_key)
         if method == "tasks/get":
             return _tasks_get(rpc_id, params)
         if method == "tasks/cancel":
@@ -106,8 +106,12 @@ def create_a2a_router() -> APIRouter:
 # Helpers
 # ---------------------------------------------------------------------------
 
-async def _resolve_adapter(request: Request) -> str:
-    """Return the adapter name for the Bearer API key.
+async def _resolve_adapter(request: Request) -> tuple[str, Optional[str]]:
+    """Return (adapter name, API key) for the Bearer token.
+
+    The key is returned alongside the adapter name so it can be threaded into
+    process_chat: chat history rows stamped with no key have no owner, and any
+    valid key can delete an ownerless session (see ChatHistoryService).
 
     Raises HTTPException (401/403) if a key is provided but invalid.
     Returns 'default' only when no key is present and no key service is configured
@@ -120,18 +124,18 @@ async def _resolve_adapter(request: Request) -> str:
         # No key supplied — allow only when the key service is absent (auth disabled)
         if api_key_service:
             raise HTTPException(status_code=401, detail="Missing Bearer token")
-        return "default"
+        return "default", None
 
     api_key = auth_header[len("Bearer "):]
     if not api_key_service:
-        return "default"
+        return "default", None
 
     # Let HTTPException from the key service propagate as-is (401/403/404).
     # Only swallow unexpected non-auth errors and surface them as 503.
     try:
         adapter_manager = getattr(request.app.state, "adapter_manager", None)
         adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
-        return adapter_name or "default"
+        return adapter_name or "default", api_key
     except HTTPException:
         raise
     except Exception as e:
@@ -200,7 +204,9 @@ def _sse(data: dict) -> str:
 # Method handlers
 # ---------------------------------------------------------------------------
 
-async def _tasks_send(request: Request, rpc_id, params: dict, adapter_name: str) -> JSONResponse:
+async def _tasks_send(
+    request: Request, rpc_id, params: dict, adapter_name: str, api_key: Optional[str] = None
+) -> JSONResponse:
     task_id = params.get("id") or str(uuid.uuid4())
     message = params.get("message") or {}
     user_text = _extract_text(message)
@@ -212,17 +218,26 @@ async def _tasks_send(request: Request, rpc_id, params: dict, adapter_name: str)
     metadata = params.get("metadata") or {}
     effective_adapter = metadata.get("adapter") or metadata.get("skill") or adapter_name
 
+    chat_service = request.app.state.chat_service
+
+    # Authorize before any context read (task_id is the client-supplied session id).
+    # Deliberately outside the try below: that handler converts exceptions into a
+    # JSON-RPC error at HTTP 200, which would downgrade the 403 into a success-status
+    # response body.
+    await chat_service.authorize_session_access(session_id=task_id, api_key=api_key)
+
     task = _make_task(task_id, message, "working")
     _tasks[task_id] = task
 
     try:
-        chat_service = request.app.state.chat_service
         client_ip = request.client.host if request.client else "unknown"
+
         result = await chat_service.process_chat(
             message=user_text,
             client_ip=client_ip,
             adapter_name=effective_adapter,
             session_id=task_id,
+            api_key=api_key,
         )
 
         if "error" in result:
@@ -255,7 +270,7 @@ async def _tasks_send(request: Request, rpc_id, params: dict, adapter_name: str)
 
 
 async def _tasks_send_subscribe(
-    request: Request, rpc_id, params: dict, adapter_name: str
+    request: Request, rpc_id, params: dict, adapter_name: str, api_key: Optional[str] = None
 ) -> StreamingResponse:
     task_id = params.get("id") or str(uuid.uuid4())
     message = params.get("message") or {}
@@ -263,6 +278,12 @@ async def _tasks_send_subscribe(
 
     metadata = params.get("metadata") or {}
     effective_adapter = metadata.get("adapter") or metadata.get("skill") or adapter_name
+
+    # Authorize before the generator starts — once streaming begins it is too late
+    # to return a 403.
+    await request.app.state.chat_service.authorize_session_access(
+        session_id=task_id, api_key=api_key
+    )
 
     task = _make_task(task_id, message, "submitted")
     _tasks[task_id] = task
@@ -289,6 +310,7 @@ async def _tasks_send_subscribe(
                 client_ip=client_ip,
                 adapter_name=effective_adapter,
                 session_id=task_id,
+                api_key=api_key,
             ):
                 if not chunk or not chunk.startswith("data:"):
                     continue
