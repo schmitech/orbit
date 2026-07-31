@@ -265,6 +265,7 @@ class BaseRealtimeWebSocketHandler:
         if audio_prompt_tokens or audio_completion_tokens:
             usage["usage_unit"] = "audio_tokens"
             usage["usage_quantity"] = (audio_prompt_tokens or 0) + (audio_completion_tokens or 0)
+            usage["call_type"] = "audio"
 
         if self.pricing_service and acc.get("reported"):
             try:

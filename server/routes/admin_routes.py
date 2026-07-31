@@ -2041,6 +2041,7 @@ async def list_admin_audit_events(
     actor_id: Optional[str] = Query(None),
     success: Optional[bool] = Query(None),
     resource_type: Optional[str] = Query(None),
+    call_type: Optional[str] = Query(None, description="Filter inference rows by AI call kind: inference, embedding, image, video, audio, document"),
     q: Optional[str] = Query(None, description="Free-text search across actor_username, path, resource_id, ip"),
     since: Optional[str] = Query(None, description="ISO timestamp (inclusive lower bound)"),
     until: Optional[str] = Query(None, description="ISO timestamp (exclusive upper bound)"),
@@ -2101,6 +2102,7 @@ async def list_admin_audit_events(
             **row,
             "audit_source": "inference",
             "audit_kind": "inference_request",
+            "call_type": row.get("call_type") or "inference",
             "event_type": "inference.request",
             "action": "BLOCK" if row.get("blocked") else "INFER",
             "resource_type": "inference",
@@ -2131,6 +2133,7 @@ async def list_admin_audit_events(
                 "pricing_source": row.get("pricing_source"),
                 "usage_unit": row.get("usage_unit"),
                 "usage_quantity": row.get("usage_quantity"),
+                "call_type": row.get("call_type") or "inference",
             },
             "title": model or provider,
             "subtitle": adapter_name or "inference request",
@@ -2188,6 +2191,13 @@ async def list_admin_audit_events(
     native_inference_filters: dict = {}
     if success is not None:
         native_inference_filters["blocked"] = not success
+    # Legacy rows written before call_type existed are NULL, not "inference" —
+    # a native "call_type = 'inference'" filter would exclude them at the
+    # storage layer before _normalize_inference()'s NULL-defaulting ever runs.
+    # Only push the filter down when it can't misfire on NULL; "inference" is
+    # applied via the post-filter below instead, after normalization.
+    if call_type is not None and call_type != "inference":
+        native_inference_filters["call_type"] = call_type
 
     merging_sources = source == "all" and admin_enabled and inference_enabled
     needs_post_filter = any(v is not None for v in (event_prefix, q, since, until)) or merging_sources or source != "admin"
@@ -2244,6 +2254,11 @@ async def list_admin_audit_events(
                 return False
         if success is not None and bool(row.get("success")) != success:
             return False
+        if call_type:
+            if row.get("audit_source") != "inference":
+                return False
+            if (row.get("call_type") or "inference") != call_type:
+                return False
         if since_val and str(row.get("timestamp", "")) < since_val:
             return False
         if until_val and str(row.get("timestamp", "")) >= until_val:

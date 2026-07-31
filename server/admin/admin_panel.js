@@ -6172,6 +6172,25 @@
     { value: "admin.quota.",    label: "Quotas" },
   ];
 
+  var CALL_TYPE_LABELS = {
+    inference: "Inference",
+    embedding: "Embedding",
+    image: "Image",
+    video: "Video",
+    audio: "Audio",
+    document: "Document",
+  };
+
+  var AUDIT_CALL_TYPES = [
+    { value: "all",       label: "All" },
+    { value: "inference", label: "Inference" },
+    { value: "embedding", label: "Embedding" },
+    { value: "image",     label: "Image" },
+    { value: "video",     label: "Video" },
+    { value: "audio",     label: "Audio" },
+    { value: "document",  label: "Document" },
+  ];
+
   function formatAuditTimestamp(iso) {
     if (!iso) return "\u2014";
     var d = new Date(iso);
@@ -6191,12 +6210,18 @@
     return ev.actor_id || ev.actor_username || "\u2014";
   }
 
+  function auditCallType(ev) {
+    return (ev && ev.call_type) || "inference";
+  }
+
   function auditSourceLabel(ev) {
-    return isInferenceAudit(ev) ? "Inference" : "Admin";
+    if (isInferenceAudit(ev)) return CALL_TYPE_LABELS[auditCallType(ev)] || "Inference";
+    return "Admin";
   }
 
   function auditSourceBadgeClass(ev) {
-    return "audit-source-badge audit-source-badge--" + (isInferenceAudit(ev) ? "inference" : "admin");
+    if (isInferenceAudit(ev)) return "audit-source-badge audit-source-badge--" + auditCallType(ev);
+    return "audit-source-badge audit-source-badge--admin";
   }
 
   function auditEventTitle(ev) {
@@ -6249,6 +6274,7 @@
       source: "all",          // "all" | "admin" | "inference"
       outcome: "all",        // "all" | "success" | "failure"
       domain: "all",         // event_prefix value, or "all"
+      callType: "all",       // call_type value, or "all"
       q: "",                 // free-text search
       offset: 0,
       selectedIndex: null,
@@ -6261,6 +6287,7 @@
     var sourceSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit stream" });
     var outcomeSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit outcome" });
     var domainSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit domain" });
+    var callTypeSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit call type" });
     var searchInput = el("input", {
       type: "search",
       placeholder: "Search actor id, provider, query, path, resource, IP\u2026",
@@ -6295,11 +6322,20 @@
         domainSelect.appendChild(option);
       });
       domainSelect.disabled = state.source === "inference";
+
+      clear(callTypeSelect);
+      AUDIT_CALL_TYPES.forEach(function (t) {
+        var option = el("option", { value: t.value }, t.label);
+        if (state.callType === t.value) option.selected = true;
+        callTypeSelect.appendChild(option);
+      });
+      callTypeSelect.disabled = state.source === "admin";
     }
 
     sourceSelect.addEventListener("change", function () {
       state.source = sourceSelect.value;
       if (state.source === "inference") state.domain = "all";
+      if (state.source === "admin") state.callType = "all";
       state.offset = 0;
       state.selectedIndex = null;
       renderFilters();
@@ -6315,6 +6351,13 @@
 
     domainSelect.addEventListener("change", function () {
       state.domain = domainSelect.value;
+      state.offset = 0;
+      state.selectedIndex = null;
+      load();
+    });
+
+    callTypeSelect.addEventListener("change", function () {
+      state.callType = callTypeSelect.value;
       state.offset = 0;
       state.selectedIndex = null;
       load();
@@ -6343,6 +6386,10 @@
       el("label", { className: "audit-view__filter-field" },
         el("span", { className: "audit-view__filter-label" }, "Domain"),
         domainSelect
+      ),
+      el("label", { className: "audit-view__filter-field" },
+        el("span", { className: "audit-view__filter-label" }, "Type"),
+        callTypeSelect
       ),
       el("div", { className: "audit-view__search" }, searchInput)
     ));
@@ -6381,6 +6428,7 @@
       if (state.outcome === "success") params.set("success", "true");
       else if (state.outcome === "failure") params.set("success", "false");
       if (state.domain && state.domain !== "all" && state.source !== "inference") params.set("event_prefix", state.domain);
+      if (state.callType && state.callType !== "all" && state.source !== "admin") params.set("call_type", state.callType);
       if (state.q) params.set("q", state.q);
 
       try {

@@ -73,6 +73,7 @@ class AudioGenerationStep(PipelineStep):
             # not something to read back from the (bare-bytes) response.
             record_media_generation_usage(
                 self.container, context, context.runtime_provider, context.runtime_model_name,
+                call_type="audio",
                 media_usage={"unit": "characters", "quantity": len(text)},
                 rewrite_sink=rewrite_sink,
             )

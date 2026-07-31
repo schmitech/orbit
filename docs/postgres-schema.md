@@ -265,7 +265,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     session_id TEXT,
     user_id TEXT,
     adapter_name TEXT,
-    model TEXT
+    model TEXT,
+    call_type TEXT
 )
 ```
 
@@ -277,6 +278,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `idx_audit_logs_provider` on `provider`
 - `idx_audit_logs_adapter_name` on `adapter_name`
 - `idx_audit_logs_model` on `model`
+- `idx_audit_logs_call_type` on `call_type`
+
+`call_type` (TEXT): coarse classification of the AI call this row represents — `inference` (chat/text generation, the default), `embedding`, `image`, `video`, `audio`, or `document` (OCR). See [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field description.
 
 **Configuration:** set `internal_services.audit.storage_backend: "database"` (or `"postgres"` explicitly) in `config/config.yaml` — see [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full config block and response-compression details, which apply identically here.
 

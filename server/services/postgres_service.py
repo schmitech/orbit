@@ -296,7 +296,8 @@ class PostgresService(DatabaseService):
                     output_rate_per_1m DOUBLE PRECISION,
                     pricing_source TEXT,
                     usage_unit TEXT,
-                    usage_quantity REAL
+                    usage_quantity REAL,
+                    call_type TEXT
                 )
             ''',
             'feedback': '''
@@ -400,6 +401,7 @@ class PostgresService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_provider ON audit_logs(provider)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_adapter_name ON audit_logs(adapter_name)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_model ON audit_logs(model)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_logs_call_type ON audit_logs(call_type)',
             ],
             'feedback': [
                 'CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_message_session ON feedback(message_id, session_id)',

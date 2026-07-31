@@ -214,6 +214,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             # fractional quantities (e.g. "seconds": 2.5), the same trap
             # cost_usd above is guarding against.
             "usage_quantity": {"type": "double"},
+            "call_type": {"type": "keyword"},
         }
 
     async def _ensure_usage_mapping(self) -> None:
@@ -295,6 +296,9 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
 
             if record.model:
                 document["model"] = record.model
+
+            if record.call_type:
+                document["call_type"] = record.call_type
 
             # Index document
             result = await self._es_client.index(

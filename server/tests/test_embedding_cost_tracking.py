@@ -593,6 +593,7 @@ def test_media_generation_embedding_tokens_do_not_inflate_primary_totals():
         context,
         "openai",
         "dall-e-3",
+        call_type="image",
         media_usage={"unit": "images", "quantity": 1},
     )
 

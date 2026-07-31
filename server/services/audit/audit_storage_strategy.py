@@ -103,6 +103,11 @@ class AuditRecord:
     # the unit-billed quantity actually was.
     usage_unit: Optional[str] = None
     usage_quantity: Optional[float] = None
+    # Coarse classification of the AI call this row represents — "inference"
+    # (chat/text generation, the default), "embedding", "image", "video",
+    # "audio", or "document" (OCR). Set at the usage-recording call site
+    # (record_usage/record_media_generation_usage), not inferred here.
+    call_type: Optional[str] = None
 
     def to_dict(self, compress: bool = False) -> Dict[str, Any]:
         """
@@ -162,6 +167,8 @@ class AuditRecord:
             result['usage_unit'] = self.usage_unit
         if self.usage_quantity is not None:
             result['usage_quantity'] = self.usage_quantity
+        if self.call_type is not None:
+            result['call_type'] = self.call_type
 
         return result
 
@@ -236,6 +243,7 @@ class AuditRecord:
         result['pricing_source'] = self.pricing_source
         result['usage_unit'] = self.usage_unit
         result['usage_quantity'] = self.usage_quantity
+        result['call_type'] = self.call_type
 
         return result
 

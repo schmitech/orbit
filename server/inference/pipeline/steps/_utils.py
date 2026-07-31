@@ -276,6 +276,10 @@ def record_usage(
         "output_rate_per_1m": None,
         "pricing_source": "unreported" if not reported else "unpriced",
         "reported": reported,
+        # "embedding" only when the row has no generation call at all (e.g.
+        # the standalone file-query audit row) — a chat turn that also folds
+        # in retrieval-embedding cost is still an "inference" row.
+        "call_type": "embedding" if (embedding_items and not generation_items) else "inference",
     }
 
     # Price every line item (generation + embedding) independently against its
@@ -355,6 +359,7 @@ def record_media_generation_usage(
     context,
     provider: Optional[str],
     model: Optional[str],
+    call_type: str,
     token_usage: Optional[Dict[str, Any]] = None,
     media_usage: Optional[Dict[str, Any]] = None,
     rewrite_sink: Optional[Dict[str, Any]] = None,
@@ -384,6 +389,7 @@ def record_media_generation_usage(
         "reasoning_tokens": None, "provider": provider, "model": model,
         "cost_usd": None, "input_rate_per_1m": None, "output_rate_per_1m": None,
         "pricing_source": "unreported", "usage_unit": None, "usage_quantity": None,
+        "call_type": call_type,
         "reported": False,
     }
     total_cost = 0.0

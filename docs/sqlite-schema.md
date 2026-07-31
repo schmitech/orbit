@@ -434,7 +434,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     output_rate_per_1m REAL,
     pricing_source TEXT,
     usage_unit TEXT,
-    usage_quantity REAL
+    usage_quantity REAL,
+    call_type TEXT
 )
 ```
 
@@ -467,6 +468,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `pricing_source` (TEXT): How the rate was resolved — `exact`, `pattern`, `provider_default`, `local_zero`, or `unpriced`
 - `usage_unit` (TEXT): Discrete billing unit for media requests (`images`, `seconds`, `characters`, `audio_seconds`, `pages`, `audio_tokens`); `NULL` for token-billed requests
 - `usage_quantity` (REAL): Quantity in `usage_unit` for this request; `NULL` for token-billed requests. `cost_usd` is the single summable cost column across both token- and unit-billed requests
+- `call_type` (TEXT): Coarse classification of the AI call this row represents — `inference` (chat/text generation, the default), `embedding`, `image`, `video`, `audio`, or `document` (OCR). Set at the usage-recording call site (`record_usage`/`record_media_generation_usage` in `server/inference/pipeline/steps/_utils.py`), not inferred from `provider`/`model`. A chat turn that also folds in retrieval-embedding cost (per `docs/embedding-cost-tracking.md`) is still `inference` — only usage-only rows with no generation call (e.g. the standalone `/api/files/{file_id}/query` audit row) get `embedding`. `NULL` for rows written before this field was added, displayed as `inference` by the admin panel
 
 **Indexes:**
 - `idx_audit_logs_timestamp` on `timestamp`
@@ -476,6 +478,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `idx_audit_logs_provider` on `provider`
 - `idx_audit_logs_adapter_name` on `adapter_name`
 - `idx_audit_logs_model` on `model`
+- `idx_audit_logs_call_type` on `call_type`
 
 **Configuration:**
 The audit storage backend is configured in `config/config.yaml`:
@@ -814,6 +817,11 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.9** (2026-07-31): Audit ledger call-type classification
+  - Added `audit_logs.call_type` (`inference`, `embedding`, `image`, `video`, `audio`, `document`) and index `idx_audit_logs_call_type` — lets the admin panel Audit Ledger label and filter rows by the kind of AI call instead of showing every row as "Inference"
+  - Set at the usage-recording call site (`record_usage`/`record_media_generation_usage`), not inferred from `provider`/`model` after the fact
+  - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`); MongoDB and Elasticsearch need no migration (schemaless / dynamic mapping with an explicit `keyword` type added)
+  - Existing rows keep `call_type = NULL`, displayed and filterable as `inference` by the admin panel and API — no visual regression, but historical embedding/media rows won't retroactively reclassify
 - **v1.8** (2026-07-31): Session ownership binding for chat history
   - Added `chat_history.api_key_hash` (SHA-256 of the creating API key) and index `idx_chat_history_api_key_hash` on `(session_id, api_key_hash)`
   - Closes a cross-tenant IDOR on `DELETE /admin/chat-history/{session_id}` and `DELETE /admin/conversations/{session_id}`, which previously checked only that the caller's key was valid, never that it owned the target session

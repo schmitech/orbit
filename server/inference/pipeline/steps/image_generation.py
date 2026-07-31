@@ -89,6 +89,7 @@ class ImageGenerationStep(PipelineStep):
             context.runtime_model_name = getattr(image_service, "model", None)
             record_media_generation_usage(
                 self.container, context, context.runtime_provider, context.runtime_model_name,
+                call_type="image",
                 token_usage=result.get("usage"), media_usage=result.get("media_usage"),
                 rewrite_sink=rewrite_sink,
             )

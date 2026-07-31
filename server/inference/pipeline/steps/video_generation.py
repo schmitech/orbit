@@ -85,6 +85,7 @@ class VideoGenerationStep(PipelineStep):
             context.runtime_model_name = getattr(video_service, "model", None)
             record_media_generation_usage(
                 self.container, context, context.runtime_provider, context.runtime_model_name,
+                call_type="video",
                 media_usage=result.get("media_usage"), rewrite_sink=rewrite_sink,
             )
             await store_generation_memory(

@@ -469,6 +469,7 @@ class FileProcessingService:
         provider: Optional[str],
         model: Optional[str],
         usage: Optional[Dict[str, Any]],
+        call_type: str,
     ) -> None:
         """
         Write an audit record for a file-extraction API call (STT/vision/OCR)
@@ -496,6 +497,7 @@ class FileProcessingService:
             "reasoning_tokens": usage.get("reasoning_tokens"),
             "usage_unit": usage.get("usage_unit"),
             "usage_quantity": usage.get("usage_quantity"),
+            "call_type": call_type,
             "cost_usd": None,
             "input_rate_per_1m": None,
             "output_rate_per_1m": None,
@@ -1026,6 +1028,7 @@ class FileProcessingService:
             await self._log_extraction_usage(
                 api_key, filename, audio_provider, getattr(audio_service, "stt_model", None) or getattr(audio_service, "model", None),
                 usage_sink,
+                call_type="audio",
             )
 
             metadata = {
@@ -1245,6 +1248,7 @@ class FileProcessingService:
                         api_key, filename,
                         getattr(processor, "provider", None), getattr(processor, "last_model", None),
                         last_usage,
+                        call_type="document",
                     )
 
                 return text, metadata
@@ -1337,6 +1341,7 @@ class FileProcessingService:
             accumulate_usage_sink(usage_sink, usage_sink_2)
             await self._log_extraction_usage(
                 api_key, filename, vision_provider, getattr(vision_service, "model", None), usage_sink,
+                call_type="document",
             )
 
             metadata = {
@@ -1555,6 +1560,7 @@ class FileProcessingService:
                 provider=embedding_usage.get("provider") or embedding_provider,
                 model=embedding_usage.get("model"),
                 usage=embedding_usage,
+                call_type="embedding",
             )
 
             if success:

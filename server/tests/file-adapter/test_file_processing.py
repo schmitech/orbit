@@ -1837,6 +1837,7 @@ async def test_log_extraction_usage_writes_audit_record_when_reported(tmp_path):
     await service._log_extraction_usage(
         api_key="key1", filename="scan.pdf", provider="mistral", model="mistral-ocr-latest",
         usage={"reported": True, "usage_unit": "pages", "usage_quantity": 3},
+        call_type="document",
     )
 
     mock_audit.log_conversation.assert_awaited_once()
@@ -1867,11 +1868,11 @@ async def test_log_extraction_usage_skips_when_not_reported(tmp_path):
 
     await service._log_extraction_usage(
         api_key="key1", filename="scan.pdf", provider="cohere", model="c4ai-vision",
-        usage={},
+        usage={}, call_type="document",
     )
     await service._log_extraction_usage(
         api_key="key1", filename="scan.pdf", provider="cohere", model="c4ai-vision",
-        usage=None,
+        usage=None, call_type="document",
     )
 
     mock_audit.log_conversation.assert_not_awaited()
@@ -1933,6 +1934,7 @@ async def test_log_extraction_usage_noop_without_app_state(tmp_path):
     await service._log_extraction_usage(
         api_key="key1", filename="scan.pdf", provider="mistral", model="mistral-ocr-latest",
         usage={"reported": True, "usage_unit": "pages", "usage_quantity": 3},
+        call_type="document",
     )
 
     cleanup_metadata_store(test_db_path)

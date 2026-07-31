@@ -1491,6 +1491,9 @@ tbody tr:nth-child(even) {
 }
 
 .pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 32px;
   min-width: 32px;
   padding: var(--sp-1) var(--sp-2);
@@ -3576,6 +3579,36 @@ code.plain-code {
   color: #9a3412;
   background: #fff7ed;
   border-color: #fdba74;
+}
+
+.audit-source-badge--embedding {
+  color: #6d28d9;
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+}
+
+.audit-source-badge--image {
+  color: #0e7490;
+  background: #ecfeff;
+  border-color: #67e8f9;
+}
+
+.audit-source-badge--video {
+  color: #be185d;
+  background: #fdf2f8;
+  border-color: #f9a8d4;
+}
+
+.audit-source-badge--audio {
+  color: #15803d;
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.audit-source-badge--document {
+  color: #a16207;
+  background: #fefce8;
+  border-color: #fde047;
 }
 
 .audit-event-action {

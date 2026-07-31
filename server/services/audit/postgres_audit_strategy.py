@@ -341,7 +341,7 @@ class PostgresAuditStrategy(AuditStorageStrategy):
         for field in (
             'prompt_tokens', 'completion_tokens', 'total_tokens', 'reasoning_tokens',
             'cost_usd', 'input_rate_per_1m', 'output_rate_per_1m', 'pricing_source',
-            'usage_unit', 'usage_quantity',
+            'usage_unit', 'usage_quantity', 'call_type',
         ):
             if flat_record.get(field) is not None:
                 result[field] = flat_record.get(field)

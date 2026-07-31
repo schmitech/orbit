@@ -362,6 +362,7 @@ class AuditService:
                 pricing_source=usage.get("pricing_source"),
                 usage_unit=usage.get("usage_unit"),
                 usage_quantity=usage.get("usage_quantity"),
+                call_type=usage.get("call_type") or "inference",
             )
 
             # Store the record
