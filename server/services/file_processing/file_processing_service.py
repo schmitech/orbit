@@ -411,15 +411,24 @@ class FileProcessingService:
                 detection.is_generic,
             )
 
-        if detection.is_generic_text and not self.magika_config.get('allow_generic_text_fallback', False):
-            raise FileValidationError(
-                "Uploaded file content could not be confidently classified beyond generic text"
-            )
+        if detection.is_generic_text:
+            if not self.magika_config.get('allow_generic_text_fallback', False):
+                raise FileValidationError(
+                    "Uploaded file content could not be confidently classified beyond generic text"
+                )
+            # Magika can only confirm this is text, not a specific type - trust the
+            # declared MIME type instead of comparing against the generic label,
+            # which would otherwise never match anything but text/plain.
+            self._scan_for_dangerous_content(file_data, claimed_mime_type)
+            return claimed_mime_type
 
-        if detection.is_generic_binary and not self.magika_config.get('allow_generic_binary_fallback', False):
-            raise FileValidationError(
-                "Uploaded file content could not be confidently classified and appears to be unknown binary data"
-            )
+        if detection.is_generic_binary:
+            if not self.magika_config.get('allow_generic_binary_fallback', False):
+                raise FileValidationError(
+                    "Uploaded file content could not be confidently classified and appears to be unknown binary data"
+                )
+            self._scan_for_dangerous_content(file_data, claimed_mime_type)
+            return claimed_mime_type
 
         detected_type = self._resolve_supported_type(detection.mime_type, detection.label)
         if not detected_type:

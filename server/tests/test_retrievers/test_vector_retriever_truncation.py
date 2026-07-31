@@ -137,7 +137,7 @@ def mock_datasource():
 @pytest.fixture
 def mock_embeddings():
     """Mock embedding service"""
-    embeddings = Mock()
+    embeddings = Mock(spec=["embed_query", "initialized", "close"])
 
     async def mock_embed_query(query: str):
         # Return a fake embedding vector

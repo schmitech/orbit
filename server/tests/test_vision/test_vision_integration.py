@@ -246,7 +246,7 @@ class TestVisionServiceFactory:
     def vision_config(self):
         """Create vision service config."""
         return {
-            'vision': {
+            'visions': {
                 'openai': {
                     'enabled': True,
                     'api_key': 'test-openai-key',

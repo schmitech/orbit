@@ -732,7 +732,7 @@ files:
       # Magika confidence mode: HIGH_CONFIDENCE (strictest; classifies as generic
       # when unsure), MEDIUM_CONFIDENCE, or BEST_GUESS (always emit the top guess).
       prediction_mode: "HIGH_CONFIDENCE"
-      allow_generic_text_fallback: false   # true = accept files Magika can only classify as generic text
+      allow_generic_text_fallback: true    # true = accept files Magika can only classify as generic text
       allow_generic_binary_fallback: false # true = accept files Magika can only classify as unknown binary
       log_detection_details: true          # Debug-log each detection (filename, claimed vs detected type, score)
 
