@@ -2505,12 +2505,91 @@ async def list_mcp_servers(request: Request):
     }
 
 
+async def _reload_mcp_clients(request: Request, server_name: Optional[str] = None) -> Dict[str, Any]:
+    """Re-read config from disk and apply the change.
+
+    Reuses reload_adapters_config so mcp_clients.yaml's ${VAR} references
+    expand exactly as they do at startup, then splices only the mcp_clients
+    key into the live app-state config in place (it is the same dict object
+    registered as 'config' in the pipeline DI container, so pipeline steps
+    see the update without any other live service being touched).
+
+    When `server_name` is given and a manager already exists and stays
+    enabled, only that server's entry is rebuilt and re-dialed — every other
+    configured server keeps its live tool cache untouched, so editing one
+    server never forces an unrelated one to redial. Any other case (MCP newly
+    enabled, MCP disabled, or a defaults-level change) rebuilds the whole
+    manager, since defaults feed every server's effective settings.
+    """
+    import services.mcp_client_service as mcp_client_service
+
+    config_path = getattr(request.app.state, "config_path", None)
+    if not config_path:
+        raise RuntimeError("Server config path is not available")
+
+    new_config = reload_adapters_config(config_path)
+    app_config = getattr(request.app.state, "config", None)
+    if app_config is None:
+        app_config = {}
+        request.app.state.config = app_config
+    new_mcp_config = new_config.get("mcp_clients", {})
+    app_config["mcp_clients"] = new_mcp_config
+
+    existing_manager = mcp_client_service.get_current_mcp_client_manager()
+    scoped = (
+        server_name is not None
+        and existing_manager is not None
+        and new_mcp_config.get("enabled", False)
+    )
+
+    if scoped:
+        manager = existing_manager
+        entry = next(
+            (
+                s for s in (new_mcp_config.get("servers") or [])
+                if isinstance(s, dict) and s.get("name") == server_name
+            ),
+            None,
+        )
+        await manager.update_server(server_name, entry)
+        try:
+            await manager.refresh_tool_cache([server_name])
+        except Exception as exc:
+            logger.warning("MCP tool discovery failed after reload: %s", exc)
+    else:
+        manager = mcp_client_service.reload_mcp_client_manager(app_config)
+        if manager is not None:
+            try:
+                await manager.refresh_tool_cache()
+            except Exception as exc:
+                logger.warning("MCP tool discovery failed after reload: %s", exc)
+
+    servers: Dict[str, Any] = {}
+    if manager is not None:
+        for name in manager._server_configs:
+            servers[name] = {
+                "reachable": name not in manager._failed_discovery_servers,
+                "tool_count": len(manager._tools_cache.get(name, [])),
+            }
+
+    return {"enabled": manager is not None, "servers": servers}
+
+
+@admin_router.post("/mcp/reload", dependencies=[config_auth])
+async def reload_mcp_clients(request: Request):
+    """Manually re-apply mcp_clients.yaml without restarting the server."""
+    return await _reload_mcp_clients(request)
+
+
 @admin_router.get("/mcp/tools", dependencies=[config_auth])
 async def discover_mcp_tools(request: Request):
-    """Dial every enabled MCP server and report reachability plus its tools.
+    """Re-dial every enabled MCP server and report reachability plus its tools.
 
-    Uses the live MCPClientManager, so this reflects exactly what the model
-    would be offered — including per-server discovery timeouts.
+    Uses the live MCPClientManager as-is — the PATCH endpoints already apply
+    config changes to it immediately, so this only needs to force a fresh
+    re-dial for current reachability, not reload config from disk (which
+    would rebuild the manager and re-dial every server on every click). Use
+    POST /mcp/reload to pick up out-of-band edits to mcp_clients.yaml.
     """
     from services.mcp_client_service import get_mcp_client_manager
 
@@ -2518,16 +2597,12 @@ async def discover_mcp_tools(request: Request):
     if manager is None:
         return {
             "available": False,
-            "reason": "MCP is disabled. Set mcp_clients.enabled: true and restart the server.",
+            "reason": "MCP is disabled. Set mcp_clients.enabled: true.",
             "servers": {},
         }
 
-    # Force a re-dial so the panel reports current reachability rather than a
-    # cache populated at startup.
-    manager._cache_populated = False
-    manager._next_discovery_retry_at = {}
     try:
-        await manager.get_all_tools()
+        await manager.refresh_tool_cache()
     except Exception as exc:
         logger.warning("MCP tool discovery failed: %s", exc)
 
@@ -2648,7 +2723,19 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
         raise HTTPException(status_code=422, detail="Edit would remove the mcp_clients section")
 
     _write_adapter_config(path, new_content)
-    return {"message": f"'{server_name}' saved. Restart the server to apply."}
+
+    reload_summary, reload_error = None, None
+    try:
+        reload_summary = await _reload_mcp_clients(request, server_name=server_name)
+    except Exception as exc:
+        reload_error = str(exc)
+        logger.error("MCP config saved but reload failed: %s", exc)
+
+    message = (
+        f"'{server_name}' saved and applied." if reload_error is None
+        else f"'{server_name}' saved, but reload failed ({reload_error}). Restart to apply."
+    )
+    return {"message": message, "reload_summary": reload_summary, "reload_error": reload_error}
 
 
 @admin_router.patch("/mcp/defaults", dependencies=[config_auth])
@@ -2691,4 +2778,16 @@ async def update_mcp_defaults(request: Request, body: dict = Body(...)):
         raise HTTPException(status_code=422, detail="Edit would remove the mcp_clients section")
 
     _write_adapter_config(path, new_content)
-    return {"message": "Defaults saved. Restart the server to apply."}
+
+    reload_summary, reload_error = None, None
+    try:
+        reload_summary = await _reload_mcp_clients(request)
+    except Exception as exc:
+        reload_error = str(exc)
+        logger.error("MCP config saved but reload failed: %s", exc)
+
+    message = (
+        "Defaults saved and applied." if reload_error is None
+        else f"Defaults saved, but reload failed ({reload_error}). Restart to apply."
+    )
+    return {"message": message, "reload_summary": reload_summary, "reload_error": reload_error}

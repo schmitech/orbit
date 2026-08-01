@@ -466,6 +466,152 @@ class TestSingletonGate:
         mod._instance = None
 
 
+class TestReloadMcpClientManager:
+    def test_reload_rebuilds_with_new_settings(self):
+        import services.mcp_client_service as mod
+        mod._instance = None
+        mgr = get_mcp_client_manager({
+            "mcp_clients": {"enabled": True, "tool_timeout": 30, "servers": []},
+        })
+        new_mgr = mod.reload_mcp_client_manager({
+            "mcp_clients": {"enabled": True, "tool_timeout": 99, "servers": []},
+        })
+        assert new_mgr is not mgr
+        assert new_mgr.setting("anything", "tool_timeout") == 99
+        assert mod._instance is new_mgr
+        mod._instance = None
+
+    def test_reload_disabling_returns_none(self):
+        import services.mcp_client_service as mod
+        mod._instance = None
+        get_mcp_client_manager({"mcp_clients": {"enabled": True, "servers": []}})
+        result = mod.reload_mcp_client_manager({"mcp_clients": {"enabled": False}})
+        assert result is None
+        assert mod._instance is None
+        assert get_mcp_client_manager({"mcp_clients": {"enabled": False}}) is None
+
+    def test_reload_enabling_builds_manager(self):
+        import services.mcp_client_service as mod
+        mod._instance = None
+        result = mod.reload_mcp_client_manager({
+            "mcp_clients": {"enabled": True, "servers": []},
+        })
+        assert isinstance(result, MCPClientManager)
+        mod._instance = None
+
+
+class TestRefreshToolCache:
+    @pytest.mark.asyncio
+    async def test_refresh_clears_failures_and_redials(self):
+        mgr = MCPClientManager({
+            "servers": [{"name": "flaky", "transport": "stdio", "command": "x"}],
+        })
+        mgr._list_tools_on_server = AsyncMock(side_effect=RuntimeError("down"))
+        await mgr.get_all_tools()
+        assert mgr._failed_discovery_servers == {"flaky"}
+
+        mgr._list_tools_on_server = AsyncMock(return_value=[])
+        await mgr.refresh_tool_cache()
+        assert mgr._failed_discovery_servers == set()
+        assert mgr._cache_populated is True
+        mgr._list_tools_on_server.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_scoped_refresh_only_redials_named_servers(self):
+        mgr = MCPClientManager({
+            "servers": [
+                {"name": "a", "transport": "stdio", "command": "x"},
+                {"name": "b", "transport": "stdio", "command": "y"},
+            ],
+        })
+        mgr._list_tools_on_server = AsyncMock(return_value=[])
+        await mgr.get_all_tools()
+        assert set(mgr._tools_cache) == {"a", "b"}
+
+        # 'b' fails, then a scoped refresh of only 'a' must not touch 'b'.
+        mgr._failed_discovery_servers.add("b")
+        mgr._tools_cache["b"] = []
+        redial = AsyncMock(return_value=[])
+        mgr._list_tools_on_server = redial
+        await mgr.refresh_tool_cache(["a"])
+
+        assert redial.await_count == 1
+        assert redial.await_args.args[0]["name"] == "a"
+        assert "b" in mgr._failed_discovery_servers
+
+    @pytest.mark.asyncio
+    async def test_scoped_refresh_ignores_unknown_server(self):
+        mgr = MCPClientManager({
+            "servers": [{"name": "a", "transport": "stdio", "command": "x"}],
+        })
+        mgr._list_tools_on_server = AsyncMock(return_value=[])
+        await mgr.refresh_tool_cache(["does-not-exist"])
+        mgr._list_tools_on_server.assert_not_awaited()
+
+
+class TestUpdateServer:
+    @pytest.mark.asyncio
+    async def test_update_server_adds_new_entry(self):
+        mgr = MCPClientManager({"servers": []})
+        await mgr.update_server("new", {"name": "new", "transport": "stdio", "command": "x", "enabled": True})
+        assert "new" in mgr._server_configs
+
+    @pytest.mark.asyncio
+    async def test_update_server_replaces_existing_entry(self):
+        mgr = MCPClientManager({
+            "servers": [{"name": "a", "transport": "stdio", "command": "x", "tool_timeout": 10}],
+        })
+        await mgr.update_server("a", {"name": "a", "transport": "stdio", "command": "x", "tool_timeout": 99})
+        assert mgr.setting("a", "tool_timeout") == 99
+
+    @pytest.mark.asyncio
+    async def test_update_server_none_removes_and_clears_cache(self):
+        mgr = MCPClientManager({
+            "servers": [{"name": "a", "transport": "stdio", "command": "x"}],
+        })
+        mgr._tools_cache["a"] = [{"function": {"name": "a__tool"}}]
+        mgr._failed_discovery_servers.add("a")
+        await mgr.update_server("a", None)
+        assert "a" not in mgr._server_configs
+        assert "a" not in mgr._tools_cache
+        assert "a" not in mgr._failed_discovery_servers
+
+    @pytest.mark.asyncio
+    async def test_update_server_disabled_entry_removes(self):
+        mgr = MCPClientManager({
+            "servers": [{"name": "a", "transport": "stdio", "command": "x"}],
+        })
+        await mgr.update_server("a", {"name": "a", "transport": "stdio", "command": "x", "enabled": False})
+        assert "a" not in mgr._server_configs
+
+    @pytest.mark.asyncio
+    async def test_update_server_leaves_other_servers_untouched(self):
+        mgr = MCPClientManager({
+            "servers": [
+                {"name": "a", "transport": "stdio", "command": "x"},
+                {"name": "b", "transport": "stdio", "command": "y"},
+            ],
+        })
+        mgr._tools_cache["b"] = [{"function": {"name": "b__tool"}}]
+        await mgr.update_server("a", {"name": "a", "transport": "stdio", "command": "x", "tool_timeout": 5})
+        assert mgr._tools_cache["b"] == [{"function": {"name": "b__tool"}}]
+        assert "b" in mgr._server_configs
+
+
+class TestGetCurrentMcpClientManager:
+    def test_returns_none_when_unset(self):
+        import services.mcp_client_service as mod
+        mod._instance = None
+        assert mod.get_current_mcp_client_manager() is None
+
+    def test_returns_existing_without_constructing(self):
+        import services.mcp_client_service as mod
+        mod._instance = None
+        mgr = get_mcp_client_manager({"mcp_clients": {"enabled": True, "servers": []}})
+        assert mod.get_current_mcp_client_manager() is mgr
+        mod._instance = None
+
+
 # ---------------------------------------------------------------------------
 # _expand_headers
 # ---------------------------------------------------------------------------

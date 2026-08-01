@@ -52,6 +52,31 @@ def get_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClientManager
     return _instance
 
 
+def reload_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClientManager"]:
+    """Rebuild the singleton from `config`, returning the new manager (or None
+    if MCP is now disabled).
+
+    Safe to call while requests are in flight: consumers re-fetch the manager
+    per request and only hold a local reference for the duration of one tool
+    loop, and the manager holds no persistent connections — an in-flight loop
+    simply finishes against the old snapshot.
+    """
+    global _instance
+    mcp_config = config.get("mcp_clients", {})
+    _instance = MCPClientManager(mcp_config) if mcp_config.get("enabled", False) else None
+    return _instance
+
+
+def get_current_mcp_client_manager() -> Optional["MCPClientManager"]:
+    """Return the singleton if one already exists, without creating one.
+
+    Unlike get_mcp_client_manager, never constructs a manager from config —
+    callers that need to distinguish "no manager yet" from "manager exists"
+    (e.g. to decide whether an update can be scoped to one server) use this.
+    """
+    return _instance
+
+
 class MCPClientManager:
     """
     Connects to configured MCP servers, caches their tool schemas, and
@@ -300,6 +325,58 @@ class MCPClientManager:
     # ------------------------------------------------------------------
     # Tool cache
     # ------------------------------------------------------------------
+
+    async def update_server(self, name: str, entry: Optional[Dict[str, Any]]) -> None:
+        """Add, replace, or remove one server's config on this live instance.
+
+        `entry=None` (or a disabled entry) removes the server: subsequent
+        calls to it fail via call_tool's "Unknown MCP server" check, exactly
+        as if it had never been configured. Any cached tools/failure state for
+        the server are dropped so it cannot linger in get_all_tools() after
+        removal. Callers should follow with refresh_tool_cache([name]) to
+        re-dial when the server is still enabled.
+        """
+        async with self._cache_lock:
+            self._tools_cache.pop(name, None)
+            self._failed_discovery_servers.discard(name)
+            self._next_discovery_retry_at.pop(name, None)
+            if entry is None or not entry.get("enabled", True):
+                self._server_configs.pop(name, None)
+            else:
+                self._server_configs[name] = entry
+        self._warn_unknown_server_keys()
+
+    async def refresh_tool_cache(self, server_names: Optional[List[str]] = None) -> None:
+        """Discard cached schemas and re-dial servers.
+
+        With server_names omitted, re-dials every enabled server. With a
+        specific list, only those servers' caches are touched — other
+        configured servers keep their live tool cache and failure state,
+        so an edit to one server never forces an unrelated one to redial.
+        """
+        if server_names is None:
+            async with self._cache_lock:
+                self._tools_cache = {}
+                self._failed_discovery_servers = set()
+                self._next_discovery_retry_at = {}
+                self._cache_populated = False
+            await self._ensure_cache_populated()
+            return
+
+        names = [n for n in server_names if n in self._server_configs]
+        if not names:
+            return
+        async with self._cache_lock:
+            for name in names:
+                self._tools_cache.pop(name, None)
+                self._failed_discovery_servers.discard(name)
+                self._next_discovery_retry_at.pop(name, None)
+            await asyncio.gather(*(self._discover_server(n) for n in names))
+            now = time.monotonic()
+            for name in names:
+                if name in self._failed_discovery_servers:
+                    self._next_discovery_retry_at[name] = now + self.setting(name, "discovery_retry_interval")
+            self._cache_populated = True
 
     async def _ensure_cache_populated(self) -> None:
         async with self._cache_lock:

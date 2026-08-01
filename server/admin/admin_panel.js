@@ -108,6 +108,7 @@
     mcpServers: "/admin/mcp/servers",
     mcpTools: "/admin/mcp/tools",
     mcpDefaults: "/admin/mcp/defaults",
+    mcpReload: "/admin/mcp/reload",
     adapterConfigs: "/admin/adapters/config",
     auditEvents: "/admin/audit/events",
     costsUsage: "/admin/observability/usage",
@@ -5919,12 +5920,7 @@
     saveBtn.addEventListener("click", function () {
       withButton(saveBtn, onSave);
     });
-    var row = el("div", { className: "mcp-save-row" },
-      saveBtn,
-      el("p", { className: "muted mcp-restart-note" },
-        "Saved changes take effect after a server restart."
-      )
-    );
+    var row = el("div", { className: "mcp-save-row" }, saveBtn);
     return row;
   }
 
@@ -5986,6 +5982,7 @@
       var res = await api("PATCH", ENDPOINTS.mcpDefaults, body);
       mcpPending = {};
       mcpData = null;
+      mcpTools = null;
       showStatus(res.message || "Defaults saved.");
       mcpRerender();
     }));
@@ -6118,6 +6115,7 @@
       );
       mcpPending = {};
       mcpData = null;
+      mcpTools = null;
       showStatus(res.message || "Saved.");
       mcpRerender();
     }));
@@ -6140,7 +6138,7 @@
     var discovery = (mcpTools.servers || {})[server.name];
     if (!discovery) {
       return el("p", { className: "muted mcp-tools-empty" },
-        "This server was added since the last restart, so it is not connected yet. Restart to reach it."
+        "This server was added since tools were last discovered. Select Test connection."
       );
     }
     if (!discovery.reachable) {
