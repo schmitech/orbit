@@ -12,6 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=social" alt="GitHub stars" /></a>
+  <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/Live_Sandbox-Try_Orbit-7C3AED?logo=playstation&logoColor=white" alt="Live Sandbox" /></a>
   <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit?color=red" alt="Last commit" /></a>
   <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.13.0-blue" alt="Version 2.13.0" /></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license" /></a>
@@ -19,6 +20,8 @@
 </p>
 
 <p align="center">
+  <a href="https://orbit.schmitech.ca/"><strong>⚡ Try Live Sandbox</strong></a>
+  &nbsp;•&nbsp;
   <a href="#-quick-start"><strong>Quick start</strong></a>
   &nbsp;•&nbsp;
   <a href="#see-orbit-in-action"><strong>Watch the demo</strong></a>
@@ -28,10 +31,20 @@
   <a href="docs/"><strong>Documentation</strong></a>
 </p>
 
+<div align="center">
+  <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/TRY%20ORBIT%20LIVE-Explore%20the%20Sandbox%20%E2%86%92-7C3AED?style=for-the-badge" alt="Try ORBIT live — explore the sandbox" /></a>
+  <br />
+  <em>Explore the live sandbox instantly — no download, Docker, or setup required.</em>
+</div>
+
+<br>
+
 <div id="see-orbit-in-action" align="center">
   <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="85%"></video>
   <br />
   <em>Upload PDFs, spreadsheets, and images, then query them together with context preserved across the conversation.</em>
+  <br />
+  👉 <strong><a href="https://orbit.schmitech.ca/chat-with-files/">Try this live in your browser →</a></strong>
 </div>
 
 <br>
@@ -178,6 +191,8 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
   <video src="https://github.com/user-attachments/assets/4af9005e-a9c9-4f37-8f6a-84d86e6f6dde" controls muted playsinline width="80%"></video>
   <br />
   <em>ORBIT generates the query, runs it against the database, and charts the result in chat.</em>
+  <br />
+  👉 <a href="https://orbit.schmitech.ca/intent-sql-postgres"><strong>Try the SQL Database query demo live →</strong></a>
 </p>
 </details>
 
@@ -196,6 +211,8 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
   <video src="https://github.com/user-attachments/assets/a57ff84e-db9d-466d-8f82-e23473b745fb" controls muted playsinline width="80%"></video>
   <br />
   <em>Connect filesystem, Slack, Postgres, GitHub, Jira, and other MCP servers without adding an agent framework.</em>
+  <br />
+  👉 <a href="https://orbit.schmitech.ca/mcp-business-sample"><strong>Try the MCP tool calling demo live →</strong></a>
 </p>
 </details>
 
