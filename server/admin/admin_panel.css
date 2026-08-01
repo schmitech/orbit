@@ -3250,6 +3250,445 @@ code.plain-code {
   margin: 0 0 var(--sp-3);
 }
 
+/* ============================================================
+   MCP tab — external MCP servers and the tools they expose
+
+   Master-detail: the server list is fixed-width because every entry is a
+   short identifier, so the detail pane gets the remaining room. "Defaults"
+   is pinned above a rule at the head of the list, since it is the thing
+   every server below it inherits from.
+   ============================================================ */
+
+.mcp-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.mcp-list-panel {
+  position: sticky;
+  top: calc(var(--workbar-h) + var(--sp-4));
+}
+
+.mcp-list {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--sp-3);
+}
+
+.mcp-list-rule {
+  height: 1px;
+  margin: var(--sp-2) 0;
+  background: var(--border-light);
+}
+
+.mcp-list-empty {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-xs);
+}
+
+.mcp-list-item {
+  display: flex;
+  align-items: flex-start;
+  /* The base `button` rule centres its content. Left-align explicitly, or
+     every row starts at a different x depending on how long its name is. */
+  justify-content: flex-start;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-weight: 500;
+}
+
+.mcp-list-item:hover:not(.is-selected) {
+  background: var(--panel-hover);
+  border-color: var(--border-light);
+  box-shadow: none;
+}
+
+.mcp-list-item:active:not(.is-selected) {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Selection is signalled by surface alone. The accent bar is reserved for
+   overridden settings, so within this tab that mark means exactly one thing.
+   The hover/active variants are spelled out because the base
+   `button:hover:not(:disabled)` rule scores (0,2,1) and would otherwise
+   outrank a plain `.mcp-list-item.is-selected` at (0,2,0), repainting the
+   selected row in dark brand-600 and burying its label. */
+.mcp-list-item.is-selected,
+.mcp-list-item.is-selected:hover:not(:disabled),
+.mcp-list-item.is-selected:active:not(:disabled) {
+  background: var(--brand-50);
+  border-color: #b8d2ee;
+  color: var(--brand-700);
+  box-shadow: none;
+  transform: none;
+}
+
+/* Takes the remaining width so a long server name ellipses instead of
+   pushing the row wider. */
+.mcp-list-copy {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mcp-list-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  /* Explicit so the status dot has a stable line box to centre against. */
+  line-height: 18px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mcp-list-item.is-defaults .mcp-list-name {
+  font-family: var(--font-sans);
+}
+
+.mcp-list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+/* Transport is a fact about the server, not a status, so it is set in mono
+   rather than given a colour that would compete with the status dot. */
+.mcp-transport {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+}
+
+.mcp-override-count {
+  color: var(--brand-600);
+}
+
+.mcp-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  /* Centred on the name's 18px line box: (18 - 8) / 2. */
+  margin-top: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--ink-muted);
+}
+
+.mcp-dot--up      { background: var(--success-500); }
+.mcp-dot--down    { background: var(--danger-500); }
+.mcp-dot--unknown { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-muted); }
+.mcp-dot--off     { background: transparent; box-shadow: inset 0 0 0 1.5px var(--border); }
+.mcp-dot--on      { background: var(--success-500); }
+
+/* ----- Detail ----- */
+
+.mcp-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.mcp-detail-title h2 {
+  margin-bottom: var(--sp-1);
+}
+
+.mcp-detail-title p {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.mcp-server-name {
+  font-family: var(--font-mono);
+}
+
+.mcp-endpoint {
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+}
+
+.mcp-notice {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+}
+
+.mcp-tools-header,
+.mcp-settings-header {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-light);
+}
+
+.mcp-tools-header h3,
+.mcp-settings-header h3 {
+  margin: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Sentence case against the uppercase h3: this is a readout, not a heading. */
+.mcp-settings-summary {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.mcp-settings-summary.has-overrides {
+  color: var(--brand-600);
+  font-weight: 600;
+}
+
+.mcp-test-btn {
+  min-height: 36px;
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.mcp-tools-empty {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-sm);
+}
+
+.mcp-tools {
+  display: grid;
+  gap: var(--sp-1);
+  margin-top: var(--sp-2);
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.mcp-tool {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.mcp-tool-name {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.mcp-tool-desc {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+}
+
+.mcp-tool-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0 0;
+}
+
+.mcp-param {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--ink-muted);
+}
+
+.mcp-param.is-required {
+  color: var(--ink-secondary);
+}
+
+.mcp-unreachable {
+  margin-top: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  background: var(--danger-50);
+  color: var(--danger-text);
+}
+
+.mcp-unreachable strong {
+  font-size: var(--text-sm);
+}
+
+.mcp-unreachable p {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-xs);
+}
+
+/* ----- The provenance ledger -----
+   Each row states its effective value and where that value came from. An
+   overridden row lights its leading edge with the same accent this system
+   already uses for "the panel you are working in", so departures from the
+   defaults are countable down the left margin without reading a word. */
+
+.mcp-ledger {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--sp-2);
+}
+
+/* The control and provenance columns are fixed, not auto. An auto third
+   column is sized by its own row, so "override + Use default" is far wider
+   than "inherited 30s" and every row would place its input at a different x. */
+.mcp-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5.5rem 11rem;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.mcp-setting-row.is-override {
+  background: var(--surface);
+  box-shadow: inset 3px 0 0 var(--panel-accent);
+}
+
+.mcp-setting-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mcp-setting-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.mcp-setting-hint {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+/* Left-aligned so the number inputs and the toggles share a leading edge. */
+.mcp-setting-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.mcp-number {
+  width: 100%;
+  min-width: 0;
+  padding: var(--sp-1) var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-align: right;
+}
+
+.mcp-provenance {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  text-align: right;
+}
+
+.mcp-provenance.is-override {
+  color: var(--brand-600);
+  font-weight: 600;
+}
+
+.mcp-revert {
+  min-height: 0;
+  padding: 2px var(--sp-2);
+  border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.mcp-revert:hover:not(:disabled) {
+  background: var(--neutral-100);
+  border-color: #c3cedf;
+  box-shadow: none;
+}
+
+.mcp-revert:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+
+.mcp-save-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-light);
+}
+
+.mcp-restart-note {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 900px) {
+  .mcp-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mcp-list-panel {
+    position: static;
+  }
+}
+
+/* Below this the three fixed columns no longer fit, so the control and its
+   provenance drop under the label rather than overflowing the panel. */
+@media (max-width: 620px) {
+  .mcp-setting-row {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: var(--sp-2) var(--sp-3);
+  }
+
+  .mcp-setting-copy {
+    grid-column: 1 / -1;
+  }
+
+  .mcp-provenance {
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcp-list-item,
+  .mcp-setting-row {
+    transition: none;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Adapters tab                                                       */
 /* ------------------------------------------------------------------ */

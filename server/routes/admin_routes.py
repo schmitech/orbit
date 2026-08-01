@@ -2370,3 +2370,325 @@ async def get_observability_usage(
         "groups": result.get("groups", []),
         "pricing": {"updated": pricing_updated, "stale": stale},
     }
+
+
+# ---------------------------------------------------------------------------
+# MCP clients
+#
+# Servers live in config/mcp_clients.yaml, a heavily commented file whose
+# commented-out entries are the catalogue of servers an admin can turn on.
+# Writes therefore patch individual scalar lines in place (reusing the adapter
+# tab's _find_adapter_block, which matches any "- name:" block) rather than
+# round-tripping through yaml.dump, which would erase every comment.
+# ---------------------------------------------------------------------------
+
+def _get_mcp_config_path(request: Request) -> Path:
+    """Resolve config/mcp_clients.yaml from app state."""
+    config_path = Path(getattr(request.app.state, 'config_path', 'config/config.yaml'))
+    return config_path.parent / "mcp_clients.yaml"
+
+
+def _mcp_overridable() -> Dict[str, Any]:
+    """The settings a server may override, read from the runtime's own table so
+    the panel can never drift from what MCPClientManager actually honors."""
+    from services.mcp_client_service import MCPClientManager
+    return MCPClientManager._OVERRIDABLE
+
+
+# Accepted range per numeric setting. Served to the admin panel so the inputs
+# and this validation cannot disagree, and enforced here because the panel is
+# not the only thing that can call these endpoints.
+_MCP_SETTING_BOUNDS: Dict[str, tuple] = {
+    "tool_timeout": (1, 600),
+    "discovery_timeout": (1, 120),
+    "discovery_retry_interval": (0, 3600),
+    "max_tool_iterations": (1, 50),
+    "tool_result_max_chars": (100, 200000),
+}
+
+
+def _validate_mcp_settings(settings: Dict[str, Any], overridable: Dict[str, Any]) -> None:
+    """Reject unknown keys, wrong types, and out-of-range values.
+
+    A null value is allowed: it deletes a per-server override so the server
+    inherits the mcp_clients-level default again.
+    """
+    unknown = sorted(set(settings) - set(overridable))
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown MCP setting(s): {', '.join(unknown)}")
+
+    for key, value in settings.items():
+        if value is None:
+            continue
+        _coerce, fallback = overridable[key]
+        if isinstance(fallback, bool):
+            if not isinstance(value, bool):
+                raise HTTPException(status_code=422, detail=f"'{key}' must be true or false")
+            continue
+        # bool is a subclass of int, so screen it out before the int check.
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise HTTPException(status_code=422, detail=f"'{key}' must be a whole number")
+        low, high = _MCP_SETTING_BOUNDS.get(key, (0, 2_147_483_647))
+        if not (low <= value <= high):
+            raise HTTPException(
+                status_code=422,
+                detail=f"'{key}' must be between {low} and {high} (got {value})",
+            )
+
+
+def _mcp_endpoint_label(server: Dict[str, Any]) -> str:
+    """One-line human description of where a server lives."""
+    transport = server.get("transport", "stdio")
+    if transport == "stdio":
+        parts = [str(server.get("command", ""))] + [str(a) for a in (server.get("args") or [])]
+        return " ".join(p for p in parts if p)
+    return str(server.get("url", ""))
+
+
+def _read_mcp_config(request: Request) -> tuple[Path, str, Dict[str, Any]]:
+    """Return (path, raw_text, parsed mcp_clients block)."""
+    path = _get_mcp_config_path(request)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail=f"MCP config not found at {path}")
+    content = path.read_text(encoding="utf-8")
+    try:
+        parsed = yaml.safe_load(content) or {}
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid YAML in mcp_clients.yaml: {exc}")
+    block = parsed.get("mcp_clients")
+    if not isinstance(block, dict):
+        raise HTTPException(status_code=404, detail="mcp_clients.yaml has no 'mcp_clients' section")
+    return path, content, block
+
+
+@admin_router.get("/mcp/servers", dependencies=[config_auth])
+async def list_mcp_servers(request: Request):
+    """Configured MCP servers with their effective settings and provenance."""
+    path, _, block = _read_mcp_config(request)
+    overridable = _mcp_overridable()
+
+    defaults = {}
+    for key, (_coerce, fallback) in overridable.items():
+        defaults[key] = block[key] if key in block else fallback
+
+    servers = []
+    for entry in block.get("servers") or []:
+        if not isinstance(entry, dict) or not entry.get("name"):
+            continue
+        overrides = {k: entry[k] for k in overridable if k in entry}
+        effective = dict(defaults)
+        effective.update(overrides)
+        servers.append({
+            "name": entry["name"],
+            "transport": entry.get("transport", "stdio"),
+            "enabled": entry.get("enabled", True),
+            "endpoint": _mcp_endpoint_label(entry),
+            "overrides": overrides,
+            "effective": effective,
+        })
+
+    return {
+        "enabled": block.get("enabled", False),
+        "path": path.name,
+        "settings": [
+            {
+                "key": key,
+                "default": defaults[key],
+                "type": "boolean" if isinstance(fallback, bool) else "number",
+                "min": _MCP_SETTING_BOUNDS.get(key, (0, 0))[0],
+                "max": _MCP_SETTING_BOUNDS.get(key, (0, 0))[1],
+            }
+            for key, (_c, fallback) in overridable.items()
+        ],
+        "defaults": defaults,
+        "servers": servers,
+    }
+
+
+@admin_router.get("/mcp/tools", dependencies=[config_auth])
+async def discover_mcp_tools(request: Request):
+    """Dial every enabled MCP server and report reachability plus its tools.
+
+    Uses the live MCPClientManager, so this reflects exactly what the model
+    would be offered — including per-server discovery timeouts.
+    """
+    from services.mcp_client_service import get_mcp_client_manager
+
+    manager = get_mcp_client_manager(getattr(request.app.state, "config", {}) or {})
+    if manager is None:
+        return {
+            "available": False,
+            "reason": "MCP is disabled. Set mcp_clients.enabled: true and restart the server.",
+            "servers": {},
+        }
+
+    # Force a re-dial so the panel reports current reachability rather than a
+    # cache populated at startup.
+    manager._cache_populated = False
+    manager._next_discovery_retry_at = {}
+    try:
+        await manager.get_all_tools()
+    except Exception as exc:
+        logger.warning("MCP tool discovery failed: %s", exc)
+
+    servers: Dict[str, Any] = {}
+    for name in manager._server_configs:
+        tools = []
+        for tool in manager._tools_cache.get(name, []):
+            fn = tool.get("function", {})
+            params = fn.get("parameters", {}) or {}
+            required = params.get("required", []) or []
+            tools.append({
+                "name": fn.get("name", ""),
+                "description": fn.get("description", ""),
+                "parameters": [
+                    {
+                        "name": pname,
+                        "type": (pspec or {}).get("type", "string"),
+                        "required": pname in required,
+                        "description": (pspec or {}).get("description", ""),
+                    }
+                    for pname, pspec in (params.get("properties") or {}).items()
+                ],
+            })
+        servers[name] = {
+            "reachable": name not in manager._failed_discovery_servers,
+            "tools": tools,
+        }
+
+    return {"available": True, "servers": servers}
+
+
+def _last_key_line(lines: list, start: int, end: int, indent: str) -> int:
+    """Index after the block's last real `key:` line at `indent`.
+
+    A block's end can sit far past its last setting — the final server entry
+    in mcp_clients.yaml runs to EOF, past ~240 lines of commented-out server
+    templates. Appending at `end` would drop a new setting into the middle of
+    that catalogue: still valid YAML, but orphaned from the server it
+    configures. Insert against the last real key instead.
+    """
+    insert_at = start + 1
+    for i in range(start + 1, min(end, len(lines))):
+        stripped = lines[i].lstrip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("- "):
+            continue
+        if len(lines[i]) - len(stripped) != len(indent):
+            continue
+        insert_at = i + 1
+    return insert_at
+
+
+def _patch_yaml_scalars(lines: list, start: int, end: int, values: Dict[str, Any], indent: str) -> list:
+    """Set or insert `key: value` scalar lines within lines[start:end].
+
+    Keys mapped to None are removed, which is how an override reverts to
+    inheriting the mcp_clients-level default.
+    """
+    for key, value in values.items():
+        if isinstance(value, bool):
+            rendered = "true" if value else "false"
+        else:
+            rendered = str(value)
+
+        found = -1
+        for i in range(start, min(end, len(lines))):
+            stripped = lines[i].lstrip()
+            if stripped.startswith(key + ":") and len(lines[i]) - len(stripped) == len(indent):
+                found = i
+                break
+
+        if value is None:
+            if found >= 0:
+                del lines[found]
+                end -= 1
+            continue
+
+        if found >= 0:
+            lines[found] = f"{indent}{key}: {rendered}"
+        else:
+            lines.insert(_last_key_line(lines, start, end, indent), f"{indent}{key}: {rendered}")
+            end += 1
+    return lines
+
+
+@admin_router.patch("/mcp/servers/{server_name}", dependencies=[config_auth])
+async def update_mcp_server(server_name: str, request: Request, body: dict = Body(...)):
+    """Update one server's enabled flag and per-server setting overrides.
+
+    `settings` values of null delete the override so the server inherits the
+    mcp_clients-level default again.
+    """
+    path, content, block = _read_mcp_config(request)
+    overridable = _mcp_overridable()
+
+    settings = body.get("settings") or {}
+    _validate_mcp_settings(settings, overridable)
+
+    lines = content.split("\n")
+    start, end = _find_adapter_block(lines, server_name)
+    if start < 0:
+        raise HTTPException(status_code=404, detail=f"MCP server '{server_name}' not found")
+
+    name_line = lines[start]
+    indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
+
+    values: Dict[str, Any] = dict(settings)
+    if "enabled" in body:
+        values["enabled"] = bool(body["enabled"])
+
+    lines = _patch_yaml_scalars(lines, start, end, values, indent)
+    new_content = "\n".join(lines)
+
+    try:
+        reparsed = yaml.safe_load(new_content) or {}
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=422, detail=f"Edit produced invalid YAML: {exc}")
+    if not isinstance(reparsed.get("mcp_clients"), dict):
+        raise HTTPException(status_code=422, detail="Edit would remove the mcp_clients section")
+
+    _write_adapter_config(path, new_content)
+    return {"message": f"'{server_name}' saved. Restart the server to apply."}
+
+
+@admin_router.patch("/mcp/defaults", dependencies=[config_auth])
+async def update_mcp_defaults(request: Request, body: dict = Body(...)):
+    """Update the mcp_clients-level defaults and the global enabled gate."""
+    path, content, block = _read_mcp_config(request)
+    overridable = _mcp_overridable()
+
+    settings = body.get("settings") or {}
+    _validate_mcp_settings(settings, overridable)
+
+    lines = content.split("\n")
+    start = -1
+    for i, line in enumerate(lines):
+        if line.startswith("mcp_clients:"):
+            start = i
+            break
+    if start < 0:
+        raise HTTPException(status_code=404, detail="mcp_clients.yaml has no 'mcp_clients' section")
+
+    # Defaults are the scalars between "mcp_clients:" and the "servers:" list.
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        if lines[i].lstrip().startswith("servers:"):
+            end = i
+            break
+
+    values: Dict[str, Any] = dict(settings)
+    if "enabled" in body:
+        values["enabled"] = bool(body["enabled"])
+
+    lines = _patch_yaml_scalars(lines, start + 1, end, values, "  ")
+    new_content = "\n".join(lines)
+
+    try:
+        reparsed = yaml.safe_load(new_content) or {}
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=422, detail=f"Edit produced invalid YAML: {exc}")
+    if not isinstance(reparsed.get("mcp_clients"), dict):
+        raise HTTPException(status_code=422, detail="Edit would remove the mcp_clients section")
+
+    _write_adapter_config(path, new_content)
+    return {"message": "Defaults saved. Restart the server to apply."}

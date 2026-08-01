@@ -105,6 +105,9 @@
     adminExport: "/admin/export",
     login: "/admin/login",
     configSections: "/admin/config/sections",
+    mcpServers: "/admin/mcp/servers",
+    mcpTools: "/admin/mcp/tools",
+    mcpDefaults: "/admin/mcp/defaults",
     adapterConfigs: "/admin/adapters/config",
     auditEvents: "/admin/audit/events",
     costsUsage: "/admin/observability/usage",
@@ -1070,6 +1073,20 @@
   ];
   var ICON_NAV_OPS = ["M4 17l6-6-6-6", "M12 19h8"];
   var ICON_NAV_AUDIT = ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z", "M9 12l2 2 4-4"];
+  // The Model Context Protocol mark, from the project's own favicon
+  // (modelcontextprotocol.io), used nominatively to label the MCP integration.
+  // Its three stroked paths are reproduced verbatim in shape but rescaled from
+  // the source 180 grid onto the 24 grid every other icon here uses: the rail
+  // sets `stroke-width: 1.6` in CSS, which overrides the SVG attribute, so a
+  // 180-unit viewBox would render this as an invisible 0.14px hairline. At this
+  // scale the mark spans 17x19 units, matching the optical size of its
+  // neighbours, and the rail's 1.6 lands within a hair of the logo's own
+  // 1.40 stroke ratio.
+  var ICON_NAV_MCP = [
+    "M3.52 11.51L11.43 3.59C12.53 2.5 14.3 2.5 15.39 3.59C16.48 4.69 16.48 6.46 15.39 7.55L9.41 13.53",
+    "M9.5 13.45L15.39 7.55C16.48 6.46 18.26 6.46 19.35 7.55L19.39 7.59C20.48 8.69 20.48 10.46 19.39 11.55L12.23 18.71C11.87 19.07 11.87 19.67 12.23 20.03L13.7 21.5",
+    "M13.41 5.57L7.56 11.43C6.46 12.52 6.46 14.29 7.56 15.39C8.65 16.48 10.42 16.48 11.52 15.39L17.37 9.53",
+  ];
   var ICON_NAV_COSTS = ["M3 3v18h18", "M7 15l4-6 3 4 4-7"];
   var ICON_CHEVRONS_LEFT = ["M11 17l-5-5 5-5", "M18 17l-5-5 5-5"];
 
@@ -1082,6 +1099,7 @@
     { id: "prompts", label: "Personas", permission: "prompts.manage", group: "configure", icon: ICON_NAV_PERSONAS },
     { id: "adapters", label: "Adapters", permission: "adapters.manage", group: "configure", icon: ICON_NAV_ADAPTERS },
     { id: "settings", label: "Settings", permission: "config.manage", group: "configure", icon: ICON_NAV_SETTINGS },
+    { id: "mcp", label: "MCP", permission: "config.manage", group: "system", icon: ICON_NAV_MCP },
     { id: "ops", label: "Ops", permission: "system.manage", group: "system", icon: ICON_NAV_OPS },
     { id: "audit", label: "Audit", permission: "audit.read", group: "system", icon: ICON_NAV_AUDIT },
   ];
@@ -1291,6 +1309,20 @@
       return;
     }
 
+    if (activeTab === "mcp" && id !== "mcp" && mcpHasPendingEdits()) {
+      confirmAction({
+        title: "Unsaved Changes",
+        message: "You have unsaved MCP changes. Discard them?",
+        confirmLabel: "Discard",
+        isDanger: true,
+        onConfirm: function () {
+          mcpPending = {};
+          switchTab(id);
+        }
+      });
+      return;
+    }
+
     // Disconnect monitoring when leaving overview
     if (activeTab === "overview" && id !== "overview") {
       disconnectMetricsWs();
@@ -1342,6 +1374,7 @@
       case "audit": renderAudit(c); break;
       case "costs": renderCosts(c); break;
       case "settings": renderSettings(c); break;
+      case "mcp": renderMcp(c); break;
     }
   }
 
@@ -5627,6 +5660,676 @@
     } else {
       renderEmptyDetail();
     }
+  }
+
+  // ==================================================================
+  // TAB: MCP (external Model Context Protocol servers and their tools)
+  //
+  // Master-detail. "Defaults" is pinned to the head of the server list
+  // because it is what every server inherits from — selecting it edits the
+  // mcp_clients-level block. Each server's settings row states its
+  // provenance (inherited vs override) and lights its leading edge when it
+  // departs from the default, reusing the panel accent already used across
+  // this design system to mean "this is the thing you changed".
+  // ==================================================================
+  var mcpData = null;      // { enabled, defaults, servers, settings }
+  var mcpTools = null;     // { available, servers: { name: {reachable, tools} } }
+  var mcpSelected = null;  // server name, or MCP_DEFAULTS_KEY
+  var mcpPending = {};     // unsaved edits for the current selection only
+
+  var MCP_DEFAULTS_KEY = "__defaults__";
+
+  var MCP_SETTING_LABELS = {
+    allow_opportunistic: {
+      label: "Opportunistic tools",
+      hint: "Offer this server's tools on ordinary turns, with no skill requested",
+    },
+    tool_timeout: { label: "Tool timeout", hint: "Seconds before a tool call is abandoned", unit: "s" },
+    max_tool_iterations: { label: "Max tool rounds", hint: "Tool-calling rounds allowed per request" },
+    tool_result_max_chars: { label: "Result cap", hint: "Characters of tool output kept in model context" },
+    discovery_timeout: { label: "Discovery timeout", hint: "Seconds to wait when listing this server's tools", unit: "s" },
+    discovery_retry_interval: { label: "Discovery retry", hint: "Seconds before retrying a server that failed", unit: "s" },
+  };
+
+  var MCP_TRANSPORT_LABELS = { stdio: "Subprocess", sse: "SSE", http: "Streamable HTTP" };
+
+  // Everything that reflects unsaved state — the save button, the override
+  // summary, each row's accent and provenance, the server list — registers a
+  // listener here. Edits then update those parts in place instead of
+  // re-rendering the tab, which would rebuild the very input being typed into
+  // and drop the caret. Reset on every full render.
+  var mcpDirtyListeners = [];
+
+  function mcpSyncDirty() {
+    mcpDirtyListeners.forEach(function (fn) { fn(); });
+  }
+
+  function mcpHasPendingEdits() {
+    return Object.keys(mcpPending).length > 0;
+  }
+
+  function mcpSettingMeta(key) {
+    return MCP_SETTING_LABELS[key] || { label: key, hint: "" };
+  }
+
+  function mcpFormatValue(key, value) {
+    if (typeof value === "boolean") return value ? "on" : "off";
+    var unit = mcpSettingMeta(key).unit || "";
+    return String(value) + unit;
+  }
+
+  async function renderMcp(container) {
+    clear(container);
+
+    if (!mcpData) {
+      container.appendChild(skeleton());
+      try {
+        mcpData = await api("GET", ENDPOINTS.mcpServers);
+      } catch (err) {
+        clear(container);
+        container.appendChild(el("div", { className: "panel empty-state" },
+          el("strong", null, "Could not read the MCP configuration"),
+          el("p", null, err.message)
+        ));
+        return;
+      }
+      if (activeTab === "mcp") renderMcp(container);
+      return;
+    }
+
+    if (mcpSelected === null) {
+      mcpSelected = MCP_DEFAULTS_KEY;
+    }
+
+    mcpDirtyListeners = [];
+
+    var layout = el("div", { className: "mcp-layout" });
+    container.appendChild(layout);
+
+    var listSlot = mcpRenderList();
+    layout.appendChild(listSlot);
+    // `enabled` is the only pending edit the list reflects, so rebuild only
+    // when it changes rather than on every keystroke. Focus lives in the
+    // detail pane, so replacing the list is safe.
+    var lastEnabled = mcpPending.enabled;
+    mcpDirtyListeners.push(function () {
+      if (mcpPending.enabled === lastEnabled) return;
+      lastEnabled = mcpPending.enabled;
+      var fresh = mcpRenderList();
+      layout.replaceChild(fresh, listSlot);
+      listSlot = fresh;
+    });
+
+    var detail = el("div", { className: "panel mcp-detail" });
+    layout.appendChild(detail);
+    mcpRenderDetail(detail);
+  }
+
+  function mcpRerender() {
+    var c = document.getElementById("tab-content");
+    if (c && activeTab === "mcp") renderMcp(c);
+  }
+
+  // ----- Server list (master) -----
+
+  function mcpRenderList() {
+    var panel = el("div", { className: "panel mcp-list-panel" });
+
+    var header = el("div", { className: "panel-header-row" },
+      el("h2", null, "MCP servers"),
+      refreshButton("Refresh servers and tools", function () {
+        mcpData = null;
+        mcpTools = null;
+        mcpPending = {};
+        mcpRerender();
+      })
+    );
+    panel.appendChild(header);
+
+    var list = el("div", { className: "mcp-list", role: "listbox", "aria-label": "MCP servers" });
+
+    // Reflect an unsaved enable/disable for whichever entry is selected.
+    function pendingEnabled(key, saved) {
+      return (mcpSelected === key && mcpPending.enabled != null)
+        ? mcpPending.enabled : saved;
+    }
+
+    var globalEnabled = pendingEnabled(MCP_DEFAULTS_KEY, mcpData.enabled);
+    list.appendChild(mcpListItem({
+      key: MCP_DEFAULTS_KEY,
+      name: "Defaults",
+      meta: globalEnabled ? "MCP enabled" : "MCP disabled",
+      state: globalEnabled ? "on" : "off",
+      isDefaults: true,
+    }));
+    list.appendChild(el("div", { className: "mcp-list-rule", role: "presentation" }));
+
+    var servers = mcpData.servers || [];
+    if (!servers.length) {
+      list.appendChild(el("p", { className: "muted mcp-list-empty" },
+        "No servers defined. Add one to the servers list in mcp_clients.yaml."
+      ));
+    }
+
+    servers.forEach(function (server) {
+      var discovery = (mcpTools && mcpTools.servers && mcpTools.servers[server.name]) || null;
+      var state = "off";
+      var meta = "Disabled";
+      if (pendingEnabled(server.name, server.enabled)) {
+        if (!discovery) {
+          state = "unknown";
+          meta = "Not checked";
+        } else if (discovery.reachable) {
+          state = "up";
+          meta = discovery.tools.length + (discovery.tools.length === 1 ? " tool" : " tools");
+        } else {
+          state = "down";
+          meta = "Unreachable";
+        }
+      }
+      list.appendChild(mcpListItem({
+        key: server.name,
+        name: server.name,
+        transport: server.transport,
+        meta: meta,
+        state: state,
+        overrides: Object.keys(server.overrides || {}).length,
+      }));
+    });
+
+    panel.appendChild(list);
+    return panel;
+  }
+
+  function mcpListItem(opts) {
+    var isSelected = mcpSelected === opts.key;
+    var dot = el("span", {
+      className: "mcp-dot mcp-dot--" + opts.state,
+      "aria-hidden": "true",
+    });
+
+    var lines = [el("span", { className: "mcp-list-name" }, opts.name)];
+    var metaParts = [];
+    if (opts.transport) {
+      metaParts.push(el("span", { className: "mcp-transport" }, opts.transport));
+    }
+    metaParts.push(el("span", null, opts.meta));
+    if (opts.overrides) {
+      metaParts.push(el("span", { className: "mcp-override-count" },
+        opts.overrides + (opts.overrides === 1 ? " override" : " overrides")
+      ));
+    }
+    lines.push(el("span", { className: "mcp-list-meta" }, metaParts));
+
+    var item = el("button", {
+      type: "button",
+      role: "option",
+      "aria-selected": String(isSelected),
+      className: "mcp-list-item"
+        + (isSelected ? " is-selected" : "")
+        + (opts.isDefaults ? " is-defaults" : ""),
+    }, dot, el("span", { className: "mcp-list-copy" }, lines));
+
+    item.addEventListener("click", function () {
+      if (mcpSelected === opts.key) return;
+      if (mcpHasPendingEdits()) {
+        confirmAction({
+          title: "Unsaved Changes",
+          message: "You have unsaved changes here. Discard them?",
+          confirmLabel: "Discard",
+          isDanger: true,
+          onConfirm: function () {
+            mcpPending = {};
+            mcpSelected = opts.key;
+            mcpRerender();
+          }
+        });
+        return;
+      }
+      mcpSelected = opts.key;
+      mcpRerender();
+    });
+    return item;
+  }
+
+  // ----- Detail -----
+
+  function mcpRenderDetail(detail) {
+    if (mcpSelected === MCP_DEFAULTS_KEY) {
+      mcpRenderDefaultsDetail(detail);
+      return;
+    }
+    var server = (mcpData.servers || []).filter(function (s) {
+      return s.name === mcpSelected;
+    })[0];
+    if (!server) {
+      mcpSelected = MCP_DEFAULTS_KEY;
+      mcpRenderDefaultsDetail(detail);
+      return;
+    }
+    mcpRenderServerDetail(detail, server);
+  }
+
+  function mcpSaveRow(onSave) {
+    var saveBtn = el("button", { type: "button", className: "btn btn--primary" }, "Save changes");
+    saveBtn.disabled = !mcpHasPendingEdits();
+    mcpDirtyListeners.push(function () {
+      saveBtn.disabled = !mcpHasPendingEdits();
+    });
+    saveBtn.addEventListener("click", function () {
+      withButton(saveBtn, onSave);
+    });
+    var row = el("div", { className: "mcp-save-row" },
+      saveBtn,
+      el("p", { className: "muted mcp-restart-note" },
+        "Saved changes take effect after a server restart."
+      )
+    );
+    return row;
+  }
+
+  function mcpRenderDefaultsDetail(detail) {
+    var head = el("div", { className: "mcp-detail-head" },
+      el("div", { className: "mcp-detail-title" },
+        el("h2", null, "Defaults"),
+        el("p", { className: "muted" },
+          "Every server inherits these values unless it sets its own."
+        )
+      ),
+      mcpToggle({
+        on: mcpPending.enabled != null ? mcpPending.enabled : mcpData.enabled,
+        label: "MCP tool calling",
+        onChange: function (next) {
+          if (next === mcpData.enabled) delete mcpPending.enabled;
+          else mcpPending.enabled = next;
+          mcpSyncDirty();
+        }
+      })
+    );
+    detail.appendChild(head);
+
+    if (!mcpData.enabled) {
+      detail.appendChild(el("div", { className: "mcp-notice" },
+        "MCP tool calling is off. No server is contacted and no tools reach the model."
+      ));
+    }
+
+    detail.appendChild(el("h3", null, "Default settings"));
+    var ledger = el("div", { className: "mcp-ledger" });
+    (mcpData.settings || []).forEach(function (spec) {
+      var saved = mcpData.defaults[spec.key];
+      var row = mcpSettingRow(spec, {
+        value: mcpPending[spec.key] != null ? mcpPending[spec.key] : saved,
+        isDefaults: true,
+        inheritedValue: saved,
+        isOverridden: function () { return false; },
+        currentValue: function () {
+          return mcpPending[spec.key] != null ? mcpPending[spec.key] : saved;
+        },
+        onChange: function (next) {
+          if (next === saved) delete mcpPending[spec.key];
+          else mcpPending[spec.key] = next;
+          mcpSyncDirty();
+        }
+      });
+      mcpDirtyListeners.push(row.sync);
+      ledger.appendChild(row);
+    });
+    detail.appendChild(ledger);
+
+    detail.appendChild(mcpSaveRow(async function () {
+      var body = { settings: {} };
+      Object.keys(mcpPending).forEach(function (key) {
+        if (key === "enabled") body.enabled = mcpPending[key];
+        else body.settings[key] = mcpPending[key];
+      });
+      var res = await api("PATCH", ENDPOINTS.mcpDefaults, body);
+      mcpPending = {};
+      mcpData = null;
+      showStatus(res.message || "Defaults saved.");
+      mcpRerender();
+    }));
+  }
+
+  function mcpRenderServerDetail(detail, server) {
+    var enabled = mcpPending.enabled != null ? mcpPending.enabled : server.enabled;
+
+    var head = el("div", { className: "mcp-detail-head" },
+      el("div", { className: "mcp-detail-title" },
+        el("h2", { className: "mcp-server-name" }, server.name),
+        el("p", { className: "muted" },
+          MCP_TRANSPORT_LABELS[server.transport] || server.transport
+        )
+      ),
+      mcpToggle({
+        on: enabled,
+        label: "Server " + server.name,
+        onChange: function (next) {
+          if (next === server.enabled) delete mcpPending.enabled;
+          else mcpPending.enabled = next;
+          mcpSyncDirty();
+        }
+      })
+    );
+    detail.appendChild(head);
+
+    if (server.endpoint) {
+      detail.appendChild(el("p", { className: "mcp-endpoint" }, server.endpoint));
+    }
+
+    // ----- Tools -----
+    var toolsHeader = el("div", { className: "panel-header-row mcp-tools-header" },
+      el("h3", null, "Tools"),
+      el("button", {
+        type: "button",
+        className: "btn btn--neutral mcp-test-btn",
+        onclick: function (e) {
+          var btn = e.currentTarget;
+          withButton(btn, async function () {
+            mcpTools = await api("GET", ENDPOINTS.mcpTools);
+            mcpRerender();
+          });
+        }
+      }, "Test connection")
+    );
+    detail.appendChild(toolsHeader);
+    detail.appendChild(mcpRenderTools(server, enabled));
+
+    // ----- Settings ledger -----
+    // Name the override count up front, so the accent bar on individual rows
+    // is explained on arrival rather than only by the provenance text sitting
+    // at the far right of each row.
+    var specs = mcpData.settings || [];
+    var summary = el("span", { className: "mcp-settings-summary" });
+    function syncSummary() {
+      var n = specs.filter(function (spec) {
+        return Object.prototype.hasOwnProperty.call(mcpPending, spec.key)
+          ? mcpPending[spec.key] !== null
+          : Object.prototype.hasOwnProperty.call(server.overrides, spec.key);
+      }).length;
+      summary.classList.toggle("has-overrides", n > 0);
+      summary.textContent = n
+        ? n + " of " + specs.length + (n === 1 ? " overrides" : " override") + " the defaults"
+        : "All inherited from the defaults";
+    }
+    syncSummary();
+    mcpDirtyListeners.push(syncSummary);
+
+    detail.appendChild(el("div", { className: "panel-header-row mcp-settings-header" },
+      el("h3", null, "Settings"),
+      summary
+    ));
+
+    var ledger = el("div", { className: "mcp-ledger" });
+    (mcpData.settings || []).forEach(function (spec) {
+      var hasOverride = Object.prototype.hasOwnProperty.call(server.overrides, spec.key);
+      var inherited = mcpData.defaults[spec.key];
+
+      // A pending null means "revert to inherited", so provenance follows the
+      // pending edit rather than what is currently on disk.
+      function isOverridden() {
+        return Object.prototype.hasOwnProperty.call(mcpPending, spec.key)
+          ? mcpPending[spec.key] !== null
+          : hasOverride;
+      }
+      function currentValue() {
+        if (!Object.prototype.hasOwnProperty.call(mcpPending, spec.key)) {
+          return server.effective[spec.key];
+        }
+        return mcpPending[spec.key] === null ? inherited : mcpPending[spec.key];
+      }
+
+      var row = mcpSettingRow(spec, {
+        value: currentValue(),
+        inheritedValue: inherited,
+        isOverridden: isOverridden,
+        currentValue: currentValue,
+        onChange: function (next) {
+          // Only a value that differs from what is on disk is worth saving:
+          // typing a changed number back to its original clears the edit and
+          // disables Save again.
+          var saved = hasOverride ? server.overrides[spec.key] : inherited;
+          if (next === saved) delete mcpPending[spec.key];
+          else mcpPending[spec.key] = next;
+          mcpSyncDirty();
+        },
+        onRevert: function () {
+          // Deleting a stored override is itself a change; dropping a pending
+          // one merely restores what is already saved.
+          if (hasOverride) mcpPending[spec.key] = null;
+          else delete mcpPending[spec.key];
+        }
+      });
+      mcpDirtyListeners.push(row.sync);
+      ledger.appendChild(row);
+    });
+    detail.appendChild(ledger);
+
+    detail.appendChild(mcpSaveRow(async function () {
+      var body = { settings: {} };
+      Object.keys(mcpPending).forEach(function (key) {
+        if (key === "enabled") body.enabled = mcpPending[key];
+        else body.settings[key] = mcpPending[key];
+      });
+      var res = await api(
+        "PATCH",
+        ENDPOINTS.mcpServers + "/" + encodeURIComponent(server.name),
+        body
+      );
+      mcpPending = {};
+      mcpData = null;
+      showStatus(res.message || "Saved.");
+      mcpRerender();
+    }));
+  }
+
+  function mcpRenderTools(server, enabled) {
+    if (!enabled) {
+      return el("p", { className: "muted mcp-tools-empty" },
+        "This server is disabled, so none of its tools reach the model."
+      );
+    }
+    if (!mcpTools) {
+      return el("p", { className: "muted mcp-tools-empty" },
+        "Select Test connection to dial this server and list what it exposes."
+      );
+    }
+    if (!mcpTools.available) {
+      return el("p", { className: "muted mcp-tools-empty" }, mcpTools.reason);
+    }
+    var discovery = (mcpTools.servers || {})[server.name];
+    if (!discovery) {
+      return el("p", { className: "muted mcp-tools-empty" },
+        "This server was added since the last restart, so it is not connected yet. Restart to reach it."
+      );
+    }
+    if (!discovery.reachable) {
+      return el("div", { className: "mcp-unreachable" },
+        el("strong", null, "Could not reach this server"),
+        el("p", null,
+          server.transport === "stdio"
+            ? "Check the command runs and is on PATH. Startup logs record the underlying error."
+            : "Check the URL is reachable and any token is set. Startup logs record the underlying error."
+        )
+      );
+    }
+    if (!discovery.tools.length) {
+      return el("p", { className: "muted mcp-tools-empty" },
+        "Connected, but this server exposes no tools."
+      );
+    }
+
+    var list = el("div", { className: "mcp-tools" });
+    discovery.tools.forEach(function (tool) {
+      var entry = el("div", { className: "mcp-tool" },
+        el("p", { className: "mcp-tool-name" }, tool.name)
+      );
+      if (tool.description) {
+        entry.appendChild(el("p", { className: "mcp-tool-desc" }, tool.description));
+      }
+      if (tool.parameters.length) {
+        var params = el("p", { className: "mcp-tool-params" });
+        tool.parameters.forEach(function (p, i) {
+          if (i) params.appendChild(document.createTextNode("  "));
+          params.appendChild(el("span", {
+            className: "mcp-param" + (p.required ? " is-required" : ""),
+            title: p.description || "",
+          }, p.name + (p.required ? "*" : "") + " " + p.type));
+        });
+        entry.appendChild(params);
+      }
+      list.appendChild(entry);
+    });
+    return list;
+  }
+
+  // ----- Controls -----
+
+  // Owns its own on/off state so a click never needs a re-render, which would
+  // rebuild the button and drop keyboard focus mid-interaction.
+  function mcpToggle(opts) {
+    var on = !!opts.on;
+    var track = el("button", {
+      type: "button",
+      className: "adapter-toggle" + (on ? " on" : ""),
+      "aria-pressed": String(on),
+      "aria-label": (on ? "Disable " : "Enable ") + opts.label,
+    }, el("span", { className: "adapter-toggle-knob" }));
+
+    track.setState = function (next) {
+      on = !!next;
+      track.classList.toggle("on", on);
+      track.setAttribute("aria-pressed", String(on));
+      track.setAttribute("aria-label", (on ? "Disable " : "Enable ") + opts.label);
+    };
+    track.addEventListener("click", function () {
+      track.setState(!on);
+      opts.onChange(on);
+    });
+    return track;
+  }
+
+  function mcpSettingRow(spec, opts) {
+    var meta = mcpSettingMeta(spec.key);
+    var control;
+
+    if (spec.type === "boolean") {
+      control = mcpToggle({
+        on: !!opts.value,
+        label: meta.label,
+        onChange: opts.onChange,
+      });
+    } else {
+      // Bounds come from the server so the input and the endpoint's own
+      // validation cannot disagree.
+      var lo = typeof spec.min === "number" ? spec.min : 0;
+      var hi = typeof spec.max === "number" && spec.max > 0 ? spec.max : 2147483647;
+      var maxDigits = String(hi).length;
+
+      control = el("input", {
+        type: "text",
+        inputmode: "numeric",
+        maxlength: String(maxDigits),
+        size: String(maxDigits),
+        value: String(opts.value),
+        className: "mcp-number",
+        "aria-label": meta.label,
+        title: "Between " + lo + " and " + hi,
+      });
+
+      // type="text" + inputmode rather than type="number": number inputs still
+      // accept "e", "+" and ".", ignore maxlength entirely, and report an empty
+      // string for junk input, which makes the digit cap impossible to enforce.
+      control.addEventListener("input", function () {
+        var digits = control.value.replace(/\D+/g, "").slice(0, maxDigits);
+        if (digits !== control.value) {
+          var caret = control.selectionStart - (control.value.length - digits.length);
+          control.value = digits;
+          try { control.setSelectionRange(caret, caret); } catch (e) { /* detached */ }
+        }
+      });
+
+      // Report on every keystroke so Save enables as soon as the value
+      // genuinely differs, and disables again the moment it is typed back.
+      // Only digits can be present by this point, so parsing is safe.
+      control.addEventListener("input", function () {
+        if (control.value === "") return; // mid-edit; wait for commit
+        opts.onChange(parseInt(control.value, 10));
+      });
+
+      // Clamping is deferred to commit: doing it per keystroke would rewrite
+      // "6" to the minimum before the user can finish typing "60".
+      var commit = function () {
+        var next = parseInt(control.value, 10);
+        if (isNaN(next)) {
+          // Emptied and left. Restore what the row currently holds; the
+          // pending state already matches, so nothing needs committing.
+          control.value = String(opts.currentValue());
+          return;
+        }
+        var clamped = Math.min(hi, Math.max(lo, next));
+        if (clamped !== next) {
+          control.value = String(clamped);
+          showError(meta.label + " must be between " + lo + " and " + hi + ".");
+        }
+        // Only commit a value that actually differs from the row's current
+        // state. After "Use default" the pending edit is an explicit null,
+        // meaning "delete this override"; blurring the field would otherwise
+        // re-commit the displayed number as a plain value and resurrect the
+        // override the user just cleared.
+        if (clamped !== opts.currentValue()) opts.onChange(clamped);
+      };
+      control.addEventListener("change", commit);
+      control.addEventListener("blur", commit);
+    }
+
+    var provenance = el("span", { className: "mcp-provenance" });
+    var row = el("div", { className: "mcp-setting-row" },
+      el("span", { className: "mcp-setting-copy" },
+        el("span", { className: "mcp-setting-label" }, meta.label),
+        el("span", { className: "mcp-setting-hint" }, meta.hint)
+      ),
+      el("span", { className: "mcp-setting-control" }, control),
+      provenance
+    );
+
+    // Recomputes only the accent and the provenance cell. It deliberately does
+    // not touch the control's value, which would fight the user mid-keystroke;
+    // the revert path sets that explicitly.
+    row.sync = function () {
+      var isOverride = !opts.isDefaults && opts.isOverridden();
+      row.classList.toggle("is-override", isOverride);
+      clear(provenance);
+      provenance.classList.toggle("is-override", isOverride);
+
+      if (opts.isDefaults) {
+        provenance.appendChild(document.createTextNode("default"));
+        return;
+      }
+      if (isOverride) {
+        var revert = el("button", {
+          type: "button",
+          className: "mcp-revert",
+          title: "Use the default of " + mcpFormatValue(spec.key, opts.inheritedValue),
+        }, "Use default");
+        revert.addEventListener("click", function () {
+          opts.onRevert();
+          if (control.setState) control.setState(opts.inheritedValue);
+          else control.value = String(opts.inheritedValue);
+          mcpSyncDirty();
+          control.focus(); // the button that had focus is about to be removed
+        });
+        provenance.appendChild(el("span", null, "override"));
+        provenance.appendChild(revert);
+        return;
+      }
+      provenance.appendChild(
+        document.createTextNode("inherited " + mcpFormatValue(spec.key, opts.inheritedValue))
+      );
+    };
+
+    row.sync();
+    return row;
   }
 
   // ==================================================================

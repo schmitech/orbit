@@ -140,6 +140,18 @@ mcp_clients:
     #   args: ["-y", "@modelcontextprotocol/server-postgres", "${POSTGRES_CONNECTION_STRING}"]
     #   enabled: false
 
+    # ── PostgreSQL Pro / CrystalDB (stdio) ────────────────────────────────
+    # High-performance Postgres integration with schema inspection, query optimization,
+    # and configurable access control (--access-mode=restricted for read-only safety).
+    # Docs: https://github.com/crystaldba/postgres-mcp
+    # - name: "postgres-crystal"
+    #   transport: "stdio"
+    #   command: "npx"
+    #   args: ["-y", "@crystaldba/postgres-mcp", "--access-mode=restricted"]
+    #   env:
+    #     DATABASE_URI: "${DATABASE_URI}"
+    #   enabled: false
+
     # ── Brave Search (stdio) ──────────────────────────────────────────────
     # Web and local search via the Brave Search API. Useful as a standalone
     # search tool independent of a provider's native web search feature.

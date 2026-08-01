@@ -7,6 +7,10 @@
 
 ### Core System Updates
 - **Per-client MCP settings**: `tool_timeout`, `discovery_timeout`, `discovery_retry_interval`, `max_tool_iterations`, `tool_result_max_chars`, and `allow_opportunistic` are now defaults under `mcp_clients:` that any individual server entry can override, so a slow remote server can get a longer timeout without loosening the budget for the rest. Opportunistic mode is now per server: only tools from servers with `allow_opportunistic: true` are exposed on ordinary conversational turns, and a request's iteration budget resolves to the most permissive participating server. Failed tool discovery is also retried on a per-server schedule.
+- **MCP Admin API**: Added server, tool-discovery, and settings endpoints under `/admin/mcp`, gated on `config.manage`. Edits patch `mcp_clients.yaml` in place so comments survive, and numeric settings are range-checked server-side.
+
+### Chat-app & UI Improvements
+- **MCP Panel**: Added an MCP tab under System for managing external MCP servers — live status, discovered tools and their schemas, and per-server settings as form controls, with each value marked inherited or overridden.
 
 ## [2.13.0] - 2026-07-31
 

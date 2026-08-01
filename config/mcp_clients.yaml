@@ -168,13 +168,16 @@ mcp_clients:
     # DATA & SEARCH
     # ════════════════════════════════════════════════════════════════════════
 
-    # ── PostgreSQL (stdio) ────────────────────────────────────────────────
-    # Read-only SQL queries against a Postgres database.
-    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/postgres
-    # - name: "postgres"
+    # ── PostgreSQL Pro / CrystalDB (stdio) ────────────────────────────────
+    # High-performance Postgres integration with schema inspection, query optimization,
+    # and configurable access control (--access-mode=restricted for read-only safety).
+    # Docs: https://github.com/crystaldba/postgres-mcp
+    # - name: "postgres-crystal"
     #   transport: "stdio"
     #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-postgres", "${POSTGRES_CONNECTION_STRING}"]
+    #   args: ["-y", "@crystaldba/postgres-mcp", "--access-mode=restricted"]
+    #   env:
+    #     DATABASE_URI: "${DATABASE_URI}"
     #   enabled: false
 
     # ── Brave Search (stdio) ──────────────────────────────────────────────
