@@ -9,9 +9,8 @@
 - **Per-client MCP settings**: `tool_timeout`, `discovery_timeout`, `discovery_retry_interval`, `max_tool_iterations`, `tool_result_max_chars`, and `allow_opportunistic` are now defaults under `mcp_clients:` that any individual server entry can override, so a slow remote server can get a longer timeout without loosening the budget for the rest. Opportunistic mode is now per server: only tools from servers with `allow_opportunistic: true` are exposed on ordinary conversational turns, and a request's iteration budget resolves to the most permissive participating server. Failed tool discovery is also retried on a per-server schedule.
 - **MCP Admin API**: Added server, tool-discovery, and settings endpoints under `/admin/mcp`, gated on `config.manage`. Edits patch `mcp_clients.yaml` in place so comments survive, and numeric settings are range-checked server-side.
 - **MCP hot reload**: Saving a server or defaults edit in the MCP panel now rebuilds the MCP client and re-dials its servers immediately — no server restart required. A `POST /admin/mcp/reload` endpoint applies out-of-band file edits the same way. Editing a single server is scoped to that server alone — other configured servers keep their live tool cache and are not re-dialed.
-
-### Chat-app & UI Improvements
 - **MCP Panel**: Added an MCP tab under System for managing external MCP servers — live status, discovered tools and their schemas, and per-server settings as form controls, with each value marked inherited or overridden.
+- **Admin Panel**: Reworked Settings into a tree-style YAML section navigator and made the Audit details pane open only for a selected ledger row, leaving the table full width by default.
 
 ## [2.13.0] - 2026-07-31
 

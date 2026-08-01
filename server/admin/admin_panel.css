@@ -2445,14 +2445,6 @@ code.plain-code {
     flex: 1;
   }
 
-  .settings-category-picker {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .settings-category-picker select {
-    width: 100%;
-  }
 }
 
 /* ============================================================
@@ -3213,41 +3205,115 @@ code.plain-code {
   font-size: var(--text-sm);
 }
 
-/* Settings view — a category dropdown up top, rendering every one of the
-   selected category's config.yaml sections as its own titled editor block
-   stacked below (no side nav, no chip scatter; scales as categories grow) */
+/* Settings uses the same master-detail pattern as MCP: grouped navigation
+   remains on the left while one editable YAML section fills the detail pane. */
 .settings-view {
-  display: flex;
-  flex-direction: column;
+  min-width: 0;
 }
 
-.settings-category-picker {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  margin-top: var(--sp-2);
-  padding-bottom: var(--sp-4);
-  margin-bottom: var(--sp-4);
-  border-bottom: 1px solid var(--border);
-}
-
-.settings-category-picker label {
-  flex-shrink: 0;
-}
-
-.settings-category-picker select {
-  width: auto;
-  min-width: 280px;
-}
-
-.settings-category-body {
-  display: flex;
-  flex-direction: column;
+.settings-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: var(--sp-4);
+  align-items: start;
 }
 
-.settings-section-block__meta {
-  margin: 0 0 var(--sp-3);
+.settings-nav-panel {
+  position: sticky;
+  top: calc(var(--workbar-h) + var(--sp-4));
+  max-height: calc(100vh - var(--workbar-h) - var(--sp-6));
+  overflow-y: auto;
+}
+
+.settings-nav {
+  display: grid;
+  gap: var(--sp-4);
+  justify-items: stretch;
+  text-align: left;
+}
+
+.settings-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.settings-nav-group-title {
+  margin: 0;
+  padding: 0 var(--sp-2);
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.settings-nav-list {
+  display: grid;
+  gap: 2px;
+  position: relative;
+  margin-left: var(--sp-3);
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--border);
+}
+
+.settings-nav-item {
+  display: grid;
+  gap: 1px;
+  align-items: start;
+  justify-items: start;
+  justify-content: start;
+  position: relative;
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-weight: 500;
+}
+
+.settings-nav-item::before {
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--sp-3) - 1px);
+  width: var(--sp-3);
+  height: 1px;
+  background: var(--border);
+  content: "";
+}
+
+.settings-nav-item:hover:not(.is-selected) {
+  background: var(--panel-hover);
+  border-color: var(--border-light);
+  box-shadow: none;
+}
+
+.settings-nav-item:active:not(.is-selected) {
+  transform: none;
+  box-shadow: none;
+}
+
+.settings-nav-item.is-selected,
+.settings-nav-item.is-selected:hover:not(:disabled),
+.settings-nav-item.is-selected:active:not(:disabled) {
+  background: var(--brand-50);
+  border-color: #b8d2ee;
+  color: var(--brand-700);
+  box-shadow: none;
+  transform: none;
+}
+
+.settings-nav-item__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-detail {
+  min-width: 0;
 }
 
 /* ============================================================
@@ -3659,6 +3725,19 @@ code.plain-code {
   .mcp-list-panel {
     position: static;
   }
+
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-nav-panel {
+    position: static;
+    max-height: none;
+  }
+
+  .settings-nav {
+    gap: var(--sp-3);
+  }
 }
 
 /* Below this the three fixed columns no longer fit, so the control and its
@@ -3808,9 +3887,8 @@ code.plain-code {
    Audit Ledger (Audit tab)
    ============================================================ */
 
-/* Picking a row and reading it are one motion, so the dossier belongs beside
-   the ledger, not below it. Above the split breakpoint it holds its own column
-   and stays pinned under the workbar — no selection ever costs a scroll. */
+/* The dossier only joins the layout after a row is selected. Until then the
+   ledger has the full panel width available for readable table columns. */
 .audit-view {
   align-items: start;
 }
@@ -3824,7 +3902,7 @@ code.plain-code {
 @media (min-width: 1280px) {
   /* The dossier is a fixed-width field list, so it takes a fixed column and
      every remaining pixel goes to the ledger — the table is what needs room. */
-  .audit-view {
+  .audit-view.audit-view--detail-open {
     grid-template-columns: minmax(0, 1fr) 360px;
   }
 

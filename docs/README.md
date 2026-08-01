@@ -1,6 +1,6 @@
 # ORBIT Documentation
 
-Welcome to the official documentation for **ORBIT** (Open Retrieval-Based Inference Toolkit) — a unified, self-hosted AI inference platform that connects your AI models to your private data sources.
+Welcome to the official documentation for ORBIT — an open-source AI gateway and retrieval engine that connects your AI models to your data sources.
 
 <p align="center">
   <a href="https://github.com/schmitech/orbit">GitHub</a> •

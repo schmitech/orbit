@@ -4,10 +4,9 @@
   </a>
 
   # ORBIT
+  ### Open Retrieval-Based Inference Toolkit
 
-  ## Connect private data and internal tools through one OpenAI-compatible API
-
-  Connect files, databases, vector stores, models, APIs, and MCP tools. Run locally or in your cloud—with authentication, observability, and governance built in.
+  Connect your data (files, databases, vector stores, APIs, and MCP tools) to any local or cloud LLM. Exposes a unified endpoint for your apps, with built-in authentication, observability, and governance.
 </div>
 
 <p align="center">

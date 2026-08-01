@@ -6333,8 +6333,8 @@
   // ==================================================================
   // TAB: Settings (Ace Editor — YAML, split into config.yaml sections)
   // ==================================================================
-  var settingsEditors = {}; // key -> { editor, original } for every section rendered in the active category
-  var selectedSettingsCategory = null; // currently selected category group label
+  var settingsEditors = {}; // key -> { editor, original } for the selected section
+  var selectedSettingsSection = null; // currently selected config.yaml top-level key
   var cachedSettingsSections = null; // [{key, line_count}, ...]
 
   function destroyAllSettingsEditors() {
@@ -6382,10 +6382,6 @@
     return key.replace(/_/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
 
-  function settingsLineLabel(n) {
-    return n + (n === 1 ? " line" : " lines");
-  }
-
   async function renderSettings(container) {
     clear(container);
     destroyAllSettingsEditors();
@@ -6406,8 +6402,6 @@
     var wrap = el("div", { className: "settings-view" });
     container.appendChild(wrap);
 
-    var sectionByKey = {};
-    cachedSettingsSections.forEach(function (s) { sectionByKey[s.key] = s; });
     var knownKeys = cachedSettingsSections
       .map(function (s) { return s.key; })
       .filter(function (k) { return SETTINGS_HIDDEN_KEYS.indexOf(k) === -1; });
@@ -6429,64 +6423,66 @@
       return;
     }
 
-    // ----- Category dropdown -----
-    var picker = el("div", { className: "settings-category-picker" });
-    var pickerLabel = el("label", { htmlFor: "settings-category-select" }, "Category");
-    var select = el("select", { id: "settings-category-select", "aria-label": "Settings category" });
-    groups.forEach(function (g) {
-      select.appendChild(el("option", { value: g.label },
-        g.label + " (" + g.keys.length + (g.keys.length === 1 ? " section" : " sections") + ")"
-      ));
-    });
-    picker.appendChild(pickerLabel);
-    picker.appendChild(select);
-    wrap.appendChild(picker);
+    var layout = el("div", { className: "settings-layout" });
+    var navPanel = el("aside", { className: "settings-nav-panel" });
+    var nav = el("nav", { className: "settings-nav", "aria-label": "Settings sections" });
+    var body = el("div", { className: "settings-detail" });
+    navPanel.appendChild(nav);
+    layout.appendChild(navPanel);
+    layout.appendChild(body);
+    wrap.appendChild(layout);
 
-    var body = el("div", { className: "settings-category-body" });
-    wrap.appendChild(body);
-
-    function findGroup(label) {
-      return groups.filter(function (g) { return g.label === label; })[0] || null;
-    }
-
-    function categoryIsDirty(label) {
-      var g = findGroup(label);
-      if (!g) return false;
-      return g.keys.some(function (key) {
-        var st = settingsEditors[key];
-        return !!st && st.editor.getValue() !== st.original;
+    function syncSelectedSection() {
+      nav.querySelectorAll(".settings-nav-item").forEach(function (item) {
+        var isSelected = item.dataset.section === selectedSettingsSection;
+        item.classList.toggle("is-selected", isSelected);
+        item.setAttribute("aria-current", isSelected ? "page" : "false");
       });
     }
 
-    select.addEventListener("change", function () {
-      var nextLabel = select.value;
-      if (nextLabel === selectedSettingsCategory) return;
-      if (categoryIsDirty(selectedSettingsCategory)) {
-        select.value = selectedSettingsCategory; // revert until the user confirms
+    function renderBody(key) {
+      clear(body);
+      destroyAllSettingsEditors();
+      body.appendChild(renderSectionBlock(key));
+      syncSelectedSection();
+    }
+
+    function selectSection(key) {
+      if (key === selectedSettingsSection) return;
+      if (settingsEditorsAreDirty()) {
         confirmAction({
           title: "Unsaved Changes",
-          message: "You have unsaved changes in this category. Discard them?",
+          message: "You have unsaved changes in this section. Discard them?",
           confirmLabel: "Discard",
           isDanger: true,
           onConfirm: function () {
-            selectedSettingsCategory = nextLabel;
-            select.value = nextLabel;
-            renderBody(nextLabel);
+            selectedSettingsSection = key;
+            renderBody(key);
           }
         });
         return;
       }
-      selectedSettingsCategory = nextLabel;
-      renderBody(nextLabel);
-    });
-
-    function renderBody(label) {
-      clear(body);
-      destroyAllSettingsEditors();
-      var g = findGroup(label);
-      if (!g) return;
-      g.keys.forEach(function (key) { body.appendChild(renderSectionBlock(key)); });
+      selectedSettingsSection = key;
+      renderBody(key);
     }
+
+    groups.forEach(function (group) {
+      var groupEl = el("div", { className: "settings-nav-group" });
+      groupEl.appendChild(el("h3", { className: "settings-nav-group-title" }, group.label));
+      var list = el("div", { className: "settings-nav-list" });
+      group.keys.forEach(function (key) {
+        var item = el("button", {
+          type: "button",
+          className: "settings-nav-item",
+          "data-section": key,
+          "aria-current": "false",
+          onclick: function () { selectSection(key); }
+        }, el("span", { className: "settings-nav-item__title" }, settingsSectionTitle(key)));
+        list.appendChild(item);
+      });
+      groupEl.appendChild(list);
+      nav.appendChild(groupEl);
+    });
 
     function renderSectionBlock(key) {
       var titleText = settingsSectionTitle(key);
@@ -6496,11 +6492,6 @@
       var headerRow = el("div", { style: "display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-2)" });
       headerRow.appendChild(el("h3", { style: "margin:0" }, titleText));
       block.appendChild(headerRow);
-
-      var metaEl = el("p", { className: "muted settings-section-block__meta" },
-        settingsLineLabel(sectionByKey[key] ? sectionByKey[key].line_count : 0)
-      );
-      block.appendChild(metaEl);
 
       var banner = el("div", { className: "settings-banner", style: "display:none", role: "status" });
       block.appendChild(banner);
@@ -6569,7 +6560,6 @@
           if (!isCurrentEditor()) return;
           editorState.original = data.content;
           editor.setValue(data.content, -1);
-          metaEl.textContent = settingsLineLabel(editor.getValue().split("\n").length);
           editor.getSession().getUndoManager().reset();
           saveBtn.disabled = true;
           banner.style.display = "none";
@@ -6587,9 +6577,6 @@
           banner.textContent = "'" + titleText + "' saved. Go to the Ops tab to restart the server for changes to take effect.";
           banner.style.display = "";
           setTimeout(function () { banner.style.display = "none"; }, 5000);
-          var sec = sectionByKey[key];
-          if (sec) sec.line_count = editor.getValue().split("\n").length;
-          metaEl.textContent = settingsLineLabel(editor.getValue().split("\n").length);
         } catch (err) {
           if (isCurrentEditor()) {
             showError("Save failed: " + err.message);
@@ -6621,12 +6608,12 @@
       return block;
     }
 
-    var validCategories = groups.map(function (g) { return g.label; });
-    if (!selectedSettingsCategory || validCategories.indexOf(selectedSettingsCategory) === -1) {
-      selectedSettingsCategory = groups[0].label;
+    if (!selectedSettingsSection || knownKeys.indexOf(selectedSettingsSection) === -1) {
+      // `knownKeys` contains every eligible section, unlike an individual
+      // group which may be empty after future grouping changes.
+      selectedSettingsSection = knownKeys[0];
     }
-    select.value = selectedSettingsCategory;
-    renderBody(selectedSettingsCategory);
+    renderBody(selectedSettingsSection);
   }
 
   // ==================================================================
@@ -6961,17 +6948,16 @@
   }
 
   async function renderAudit(container) {
-    // ----- Layout: list panel (left) + dossier panel (right) -----
+    // ----- Layout: the dossier is added only after a row is selected -----
     var layout = el("div", { className: "tab-stacked-layout audit-view" });
     var listPanel = el("div", { className: "panel audit-view__list" });
-    var detailPanel = el("div", { className: "panel audit-view__detail" });
     layout.appendChild(listPanel);
-    layout.appendChild(detailPanel);
     container.appendChild(layout);
+    var detailPanel = null;
 
     // Refresh sits beside the ledger title, not in the filter strip: it acts on
     // the whole register, while every control in the strip narrows it.
-    var refreshBtn = refreshButton("Refresh the register", function () { load(); });
+    var refreshBtn = refreshButton("Refresh the register", function () { state.selectedIndex = null; load(); });
 
     listPanel.appendChild(el("div", { className: "panel-header-row" },
       el("h2", null, "Audit Ledger"),
@@ -7113,13 +7099,37 @@
     listPanel.appendChild(tableWrap);
     listPanel.appendChild(pagerBar);
 
-    // ----- Dossier: empty initial state -----
-    renderAuditDossierEmpty(detailPanel);
+    function hideDossier() {
+      if (!detailPanel) return;
+      detailPanel.remove();
+      detailPanel = null;
+      layout.classList.remove("audit-view--detail-open");
+    }
+
+    function showDossier(ev) {
+      if (!detailPanel) {
+        detailPanel = el("div", { className: "panel audit-view__detail" });
+        layout.appendChild(detailPanel);
+        layout.classList.add("audit-view--detail-open");
+      }
+      renderAuditDossier(detailPanel, ev, function () {
+        state.selectedIndex = null;
+        hideDossier();
+        Array.prototype.forEach.call(
+          tableWrap.querySelectorAll("tr.audit-row"),
+          function (tr) {
+            tr.classList.remove("selected-row", "audit-row--active");
+            tr.setAttribute("aria-selected", "false");
+          }
+        );
+      });
+    }
 
     // At narrow widths the dossier stacks under the ledger, so bring it into
     // view on selection instead of leaving the reader to hunt for it. Above the
     // split breakpoint it is already beside the table and must not move.
     function revealDossier() {
+      if (!detailPanel) return;
       if (window.matchMedia("(min-width: 1280px)").matches) return;
       var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       detailPanel.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
@@ -7129,6 +7139,7 @@
     async function load() {
       if (state.loading) return;
       state.loading = true;
+      if (state.selectedIndex === null) hideDossier();
       clear(tableWrap);
       tableWrap.appendChild(skeleton());
       clear(pagerBar);
@@ -7148,14 +7159,7 @@
         state.lastPage = resp.events || [];
         renderAuditTable(tableWrap, state, function (idx) {
           state.selectedIndex = idx;
-          renderAuditDossier(detailPanel, state.lastPage[idx], function () {
-            state.selectedIndex = null;
-            renderAuditDossierEmpty(detailPanel);
-            Array.prototype.forEach.call(
-              tableWrap.querySelectorAll("tr.audit-row"),
-              function (tr) { tr.classList.remove("audit-row--active"); }
-            );
-          });
+          showDossier(state.lastPage[idx]);
           Array.prototype.forEach.call(
             tableWrap.querySelectorAll("tr.audit-row"),
             function (tr, i) { tr.classList.toggle("audit-row--active", i === idx); }
@@ -7324,18 +7328,8 @@
     bar.appendChild(btns);
   }
 
-  function renderAuditDossierEmpty(panel) {
-    clear(panel);
-    panel.appendChild(el("h2", null, "Details"));
-    panel.appendChild(el("div", { className: "empty-state" },
-      el("p", null, "Select an entry from the register."),
-      el("p", { className: "muted" }, "A dossier shows the actor, request metadata, origin details, and the captured payload or summary for the selected audit record.")
-    ));
-  }
-
   function renderAuditDossier(panel, ev, onClose) {
     clear(panel);
-    if (!ev) { renderAuditDossierEmpty(panel); return; }
 
     var closeBtn = el("button", { type: "button", className: "secondary audit-dossier__close" }, "Close");
     closeBtn.addEventListener("click", onClose);

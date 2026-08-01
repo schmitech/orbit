@@ -1656,7 +1656,7 @@ async def update_config(
 
     # Write new content
     config_path.write_text(content, encoding='utf-8')
-    logger.info("Config file updated at %s", config_path)
+    logger.debug("Config file updated at %s", config_path)
 
     # Clear loaded config singleton so next access picks up changes
     from config.config_manager import clear_config_cache
@@ -1808,7 +1808,7 @@ async def update_config_section(request: Request, key: str, body: dict = Body(..
         )
 
     config_path.write_text(new_content, encoding='utf-8')
-    logger.info("Config section '%s' updated at %s", key, config_path)
+    logger.debug("Config section '%s' updated at %s", key, config_path)
 
     from config.config_manager import clear_config_cache
     clear_config_cache()
