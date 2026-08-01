@@ -4,8 +4,8 @@
 # "mcp-agent" in its capabilities.available_skills can invoke it.
 #
 # Prerequisites:
-#   1. Set mcp_client.enabled: true in config/mcp_client.yaml (or config.yaml).
-#   2. Configure at least one MCP server under mcp_client.servers.
+#   1. Set mcp_clients.enabled: true in config/mcp_clients.yaml (or config.yaml).
+#   2. Configure at least one MCP server under mcp_clients.servers.
 #   3. Add "mcp-agent" to a consumer adapter's available_skills (e.g. simple-chat).
 #   4. The configured inference_provider must support native tool calling
 #      (openai, anthropic, gemini, or xai).

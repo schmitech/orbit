@@ -194,8 +194,8 @@ export PT_KEY=<the-key-just-created>
    ```
 4. **Coexistence with opportunistic MCP** (optional): a CRM-style question with no
    skill match — e.g. *"what's the health score of the top EMEA account?"* — falls
-   through to the `business-sample` MCP tools when `mcp_client.enabled` +
-   `mcp_client.allow_opportunistic` are set (see
+   through to the `business-sample` MCP tools when `mcp_clients.enabled` and that
+   server's `allow_opportunistic` are set (see
    [playbook-mcp-tool-loop.md](playbook-mcp-tool-loop.md)). The auto-routed skills
    above and the MCP loop never fire on the same turn.
 

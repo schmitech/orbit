@@ -23,19 +23,23 @@ This listens at `http://127.0.0.1:9999/mcp`. Leave it running in its own termina
 
 ### 2. Point ORBIT at it
 
-`config/mcp_client.yaml` already declares this server as `business-sample` with `mcp_client.enabled: true` and `allow_opportunistic: true` (the global gate — required in addition to the per-adapter flag below):
+`config/mcp_clients.yaml` already declares this server as `business-sample` with `mcp_clients.enabled: true` and `allow_opportunistic: true` on the server itself (the admin gate — required in addition to the per-adapter flag below):
 
 ```yaml
-mcp_client:
+mcp_clients:
   enabled: true
-  allow_opportunistic: true
   servers:
     - name: "business-sample"
       transport: "http"
       url: "http://127.0.0.1:9999/mcp"
       token: "${MCP_TOKEN}"
       enabled: true
+      allow_opportunistic: true   # per-client: only this server runs inline
 ```
+
+Every setting under `mcp_clients:` other than `enabled` is a default that a
+server entry can override this way — `tool_timeout`, `max_tool_iterations`,
+`tool_result_max_chars`, and the `discovery_*` budgets included.
 
 Export the same token in the terminal where ORBIT runs:
 
@@ -87,7 +91,7 @@ Confirm:
 ### What happens internally
 
 1. The API key authenticates as `simple-chat`; the adapter's `mcp_tools`/`mcp_servers` capabilities are read.
-2. Both gates are checked: `mcp_client.allow_opportunistic` (global) and the adapter's `mcp_tools` (per-adapter).
+2. Both gates are checked: the server's own `allow_opportunistic` and the adapter's `mcp_tools` (per-adapter).
 3. The model is offered the discovered tools from `business-sample` alongside the conversation.
 4. If it calls a tool, the result is fed back and the loop continues (up to `max_tool_iterations`) until a final answer.
 5. No adapter swap occurs — this is the same conversational thread throughout, unlike the explicit `mcp-agent` skill.

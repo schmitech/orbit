@@ -5,7 +5,7 @@ path (server/inference/pipeline/steps/llm_inference.py).
 
 Covers: default-off behavior, the happy path where the tool loop runs
 inline, and the fallback cases (provider lacks generate_with_tools, no
-tools discovered, mcp_client not enabled/opportunistic-gated) — plus that
+tools discovered, mcp_clients not enabled/opportunistic-gated) — plus that
 RAG/file context (formatted_context) and MCP tools coexist in the same
 system message.
 """
@@ -73,15 +73,29 @@ class _FakeProvider:
 class _FakeMCPManager:
     def __init__(self, tools, allow_opportunistic=True, tool_output="TOOL_OUTPUT", max_iterations=3):
         self._tools = tools
-        self.allow_opportunistic = allow_opportunistic
+        self._allow_opportunistic = allow_opportunistic
         self._tool_output = tool_output
         self._max = max_iterations
 
-    @property
-    def max_tool_iterations(self):
+    def opportunistic_servers(self, allowed_servers=None):
+        if not self._allow_opportunistic:
+            return []
+        return sorted(self.servers_in_tools(self._tools))
+
+    def max_tool_iterations_for(self, server_names):
         return self._max
 
-    async def get_all_tools(self, allowed_servers=None):
+    @staticmethod
+    def servers_in_tools(tools):
+        return {
+            t["function"]["name"].split("__", 1)[0]
+            for t in tools
+            if "__" in t.get("function", {}).get("name", "")
+        }
+
+    async def get_all_tools(self, allowed_servers=None, opportunistic_only=False):
+        if opportunistic_only and not self._allow_opportunistic:
+            return []
         return self._tools
 
     async def call_tool(self, name, arguments):
@@ -197,7 +211,7 @@ class TestOpportunisticMCPToolsFallback:
         assert provider.generate_calls == 1
         assert result_ctx.response == "plain-generate-response"
 
-    async def test_mcp_tools_true_but_allow_opportunistic_false(self):
+    async def test_mcp_tools_true_but_no_server_allows_opportunistic(self):
         provider = _FakeProvider()
         manager = _FakeMCPManager(_TOOLS, allow_opportunistic=False)
         step = _make_step(provider, manager)

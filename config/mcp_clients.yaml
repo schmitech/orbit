@@ -14,27 +14,68 @@
 # Enable it by setting enabled: true and adding the import to config.yaml:
 #
 #   import:
-#     - "mcp_client.yaml"
+#     - "mcp_clients.yaml"
 #
 # Then add "mcp-agent" to a consumer adapter's available_skills list and
 # register config/adapters/mcp-agent.yaml in config/adapters.yaml.
 
-mcp_client:
-  enabled: false                     # Set to false to disable MCP tool calling
+mcp_clients:
+  enabled: true                     # Set to false to disable MCP tool calling entirely
+                                    # (global only — cannot be overridden per server;
+                                    #  use each server's own `enabled` for that)
+
+  # ── Defaults ─────────────────────────────────────────────────────────────
+  # Every setting in this block is a DEFAULT. Any entry under `servers:` may
+  # redeclare any of these keys to override it for that server alone — so a
+  # slow internal HTTP server can get a longer tool_timeout without loosening
+  # the budget for a fast local filesystem server.
+
+  # Opportunistic mode gate (defense in depth). Even if an adapter sets
+  # capabilities.mcp_tools: true, the inline tool-calling loop will NOT run
+  # on ordinary conversational turns for a server unless that server allows
+  # it. Does not affect the explicit "mcp-agent" skill (skill: "mcp-agent"
+  # requests), which stays governed only by `enabled` above.
+  #
+  # Only tools from servers with allow_opportunistic: true are exposed on
+  # ordinary turns; if no reachable server opts in, the turn falls back to
+  # plain generation.
+  #
+  # Default false: admins must consciously widen exposure from "tools only
+  # when a client asks for the mcp-agent skill" to "tools on every
+  # conversational turn for adapters that request it" — MCP servers can
+  # execute arbitrary local commands or reach external networks, so this is
+  # a deliberate second opt-in on top of the per-adapter mcp_tools flag.
+  # See docs/adapters/mcp-agent.md#opportunistic-mode.
+  allow_opportunistic: false
 
   tool_timeout: 30                  # Seconds before a tool call is aborted
   discovery_retry_interval: 30      # Retry failed tool discovery after this many seconds; no restart needed
   discovery_timeout: 5              # Seconds before tool discovery on one server is abandoned (dials run in parallel)
-  max_tool_iterations: 5            # Maximum tool-calling rounds per request
+  max_tool_iterations: 5            # Maximum tool-calling rounds per request. When a request can
+                                    # reach several servers, the most permissive one wins.
   tool_result_max_chars: 8000       # Cap on result text injected into model context (prevents context overflow)
 
   servers:
     # ── Filesystem MCP server (stdio, read-only local files) ─────────────
-    # - name: "filesystem"
-    #   transport: "stdio"
-    #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-filesystem", "/orbit/docs"]
-    #   enabled: true
+    #
+    # The directory argument is the server's allowed-directory root and must be
+    # ABSOLUTE — a relative path resolves against whatever directory ORBIT was
+    # started from (bin/orbit.sh does not chdir), so it silently binds
+    # elsewhere if you launch from outside the repo root.
+    #
+    # ${ORBIT_DOCS_DIR:-/orbit/docs} keeps this line committable: the default
+    # is the in-container path (docker/Dockerfile sets WORKDIR /orbit), and
+    # local runs override it by setting ORBIT_DOCS_DIR in .env. Use the ":-"
+    # default form — a bare ${VAR} that is unset expands to an empty string
+    # with only a log warning, handing the server an empty root.
+    - name: "filesystem"
+      transport: "stdio"
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "${ORBIT_DOCS_DIR:-/orbit/docs}"]
+      enabled: true
+      allow_opportunistic: true
+      tool_timeout: 60
+      max_tool_iterations: 8
     
     # ── Business sample MCP server (Streamable HTTP) ─────────────────────
     #
@@ -43,11 +84,16 @@ mcp_client:
     # cd examples/mcp-server
     # MCP_TOKEN=test-secret npm start
     # 
-    # - name: "business-sample"
-    #   transport: "http"
-    #   url: "http://127.0.0.1:9999/mcp"
-    #   token: "${MCP_TOKEN}"
-    #   enabled: true
+    - name: "business-sample"
+      transport: "http"
+      url: "http://127.0.0.1:9999/mcp"
+      token: "${MCP_TOKEN}"
+      enabled: true
+      # Per-client overrides of the defaults above — remote CRM calls are
+      # slower and this server is safe enough to expose on ordinary turns.
+      allow_opportunistic: true
+      tool_timeout: 60
+      max_tool_iterations: 8
 
     # ════════════════════════════════════════════════════════════════════════
     # DEVELOPER WORKFLOW
@@ -286,4 +332,4 @@ mcp_client:
     #   transport: "http"
     #   url: "http://127.0.0.1:9999/mcp"
     #   token: "${MCP_TOKEN}"          # → Authorization: Bearer <value>
-    #   enabled: falses
+    #   enabled: false

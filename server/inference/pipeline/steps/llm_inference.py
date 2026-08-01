@@ -243,15 +243,17 @@ class LLMInferenceStep(PipelineStep):
     def _should_run_mcp_tools(self, context: ProcessingContext) -> bool:
         """
         True if this adapter opportunistically wants inline MCP tool access
-        AND MCP is enabled/opted-in globally. Provider tool-calling support
-        is checked at call time (NotImplementedError fallback), not here, so
-        an adapter can change inference_provider later without this check
-        going stale.
+        AND at least one server it may reach opted into opportunistic mode.
+        Provider tool-calling support is checked at call time
+        (NotImplementedError fallback), not here, so an adapter can change
+        inference_provider later without this check going stale.
         """
         if not getattr(context, 'mcp_tools', False):
             return False
         mcp_manager = self._get_mcp_manager()
-        return mcp_manager is not None and mcp_manager.allow_opportunistic
+        if mcp_manager is None:
+            return False
+        return bool(mcp_manager.opportunistic_servers(context.mcp_servers_allowlist))
 
     def _get_mcp_manager(self):
         """Get (or lazily initialize) the MCPClientManager from config."""
@@ -281,10 +283,13 @@ class LLMInferenceStep(PipelineStep):
         plain generate()/generate_stream() path.
         """
         mcp_manager = self._get_mcp_manager()
-        tools = await mcp_manager.get_all_tools(allowed_servers=context.mcp_servers_allowlist)
+        tools = await mcp_manager.get_all_tools(
+            allowed_servers=context.mcp_servers_allowlist,
+            opportunistic_only=True,
+        )
         if not tools:
             logger.warning(
-                "mcp_tools enabled for adapter '%s' but no MCP tools were discovered; "
+                "mcp_tools enabled for adapter '%s' but no opportunistic MCP tools were discovered; "
                 "falling back to plain generation.", context.adapter_name,
             )
             return False
@@ -300,7 +305,9 @@ class LLMInferenceStep(PipelineStep):
             mcp_manager=mcp_manager,
             messages=context.messages,
             tools=tools,
-            max_iterations=mcp_manager.max_tool_iterations,
+            max_iterations=mcp_manager.max_tool_iterations_for(
+                mcp_manager.servers_in_tools(tools)
+            ),
             cancel_event=context.cancel_event,
             is_cancelled=context.is_cancelled,
             usage_sink=usage_sink,

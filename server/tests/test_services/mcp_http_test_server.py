@@ -2,7 +2,7 @@
 """
 Minimal HTTP MCP test server for smoke-testing the 'http' transport.
 
-Run this server, then point an ORBIT mcp_client.yaml entry at it:
+Run this server, then point an ORBIT mcp_clients.yaml entry at it:
 
   servers:
     - name: "test-server"

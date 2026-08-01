@@ -78,7 +78,8 @@ class AdapterCapabilities:
     # Opportunistic MCP tool calling: when True, the adapter's inference call
     # runs a bounded native tool-calling loop against configured MCP servers
     # on every turn, without requiring the client to request the "mcp-agent"
-    # skill. Gated globally by mcp_client.allow_opportunistic.
+    # skill. Each server must also set allow_opportunistic: true (per
+    # server, or via the mcp_clients-level default).
     mcp_tools: bool = False
     # Allowlist of MCP server names exposed to this adapter's tool-calling
     # loop. Shared by both mcp_tools (opportunistic) and the "mcp-agent"

@@ -13,7 +13,7 @@ Key properties:
 - **Agentic loop** — the model may call multiple tools across several rounds before answering (bounded by `max_tool_iterations`).
 - **Provider-agnostic** — works with any inference provider that supports native tool calling: `openai`, `anthropic`, `gemini`, `xai`, `ollama`, `ollama_cloud`, `llama_cpp`, and `vllm` (see [Supported Inference Providers](#supported-inference-providers)).
 - **Skill-based routing** — exposed as the `mcp-agent` skill; any adapter that lists it in `available_skills` can invoke it.
-- **Admin-configured servers** — MCP server URLs/commands are set in `config/mcp_client.yaml`, never supplied at request time.
+- **Admin-configured servers** — MCP server URLs/commands are set in `config/mcp_clients.yaml`, never supplied at request time.
 
 ---
 
@@ -73,12 +73,13 @@ The tool-calling loop works with any provider that implements `generate_with_too
 
 ## Configuration
 
-### Step 1 — Enable MCP and configure servers (`config/mcp_client.yaml`)
+### Step 1 — Enable MCP and configure servers (`config/mcp_clients.yaml`)
 
 ```yaml
-mcp_client:
+mcp_clients:
   enabled: true
 
+  # Defaults — every server below inherits these unless it overrides them.
   tool_timeout: 30          # seconds before a tool call is aborted
   max_tool_iterations: 5    # maximum tool-calling rounds per request
 
@@ -90,6 +91,7 @@ mcp_client:
       env:
         GITHUB_TOKEN: "${GITHUB_TOKEN}"   # expanded at runtime from environment
       enabled: true
+      tool_timeout: 60      # per-client override: GitHub search is slower
 
     - name: "docs-search"
       transport: "sse"
@@ -127,12 +129,68 @@ Each server entry supports three transports:
 
 Secret values should always use `${ENV_VAR}` syntax — they are expanded at startup and never written to logs.
 
-> **Import into main config** — if `mcp_client.yaml` is a standalone file, import it from `config/config.yaml`:
+> **Import into main config** — if `mcp_clients.yaml` is a standalone file, import it from `config/config.yaml`:
 >
 > ```yaml
 > import:
->   - "mcp_client.yaml"
+>   - "mcp_clients.yaml"
 > ```
+
+#### Per-client overrides
+
+Everything under `mcp_clients:` other than `enabled` is a **default**. Any entry
+under `servers:` may redeclare any of those keys to override it for that server
+alone — so a slow internal HTTP server can get a longer `tool_timeout` without
+loosening the budget for a fast local filesystem server:
+
+| Setting | Default | Scope when overridden |
+|---------|---------|-----------------------|
+| `tool_timeout` | `30` | Applied to each call to that server's tools |
+| `discovery_timeout` | `5` | That server's tool-discovery dial |
+| `discovery_retry_interval` | `30` | That server's retry deadline after a failed discovery — a flaky remote no longer throttles retries for a healthy one |
+| `tool_result_max_chars` | `8000` | Truncation of that server's tool results before they enter the model context |
+| `allow_opportunistic` | `false` | Whether that server's tools are exposed on ordinary conversational turns (see [Opportunistic Mode](#opportunistic-mode-mcp_tools-capability)) |
+| `max_tool_iterations` | `5` | See below |
+
+`enabled` is **not** overridable in this sense: the top-level `mcp_clients.enabled`
+gates MCP entirely, while each server's own `enabled` toggles that one server.
+
+Two settings are per-request rather than per-call, so they resolve across every
+server a request can reach:
+
+- **`allow_opportunistic`** — filters the tool list. On an ordinary turn, only
+  tools from servers that opted in are shown to the model; if none of the
+  servers the adapter may reach opted in, the turn falls back to plain
+  generation.
+- **`max_tool_iterations`** — the **most permissive** participating server wins.
+  A request that can reach a server allowing 8 rounds and one allowing 5 gets 8.
+
+```yaml
+mcp_clients:
+  enabled: true
+  allow_opportunistic: false     # default: opt in per server
+  tool_timeout: 30
+  max_tool_iterations: 5
+
+  servers:
+    - name: "filesystem"         # inherits every default above
+      transport: "stdio"
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/orbit/docs"]
+      enabled: true
+
+    - name: "business-sample"    # slower, and safe enough to run inline
+      transport: "http"
+      url: "http://127.0.0.1:8080/mcp"
+      token: "${MCP_TOKEN}"
+      enabled: true
+      allow_opportunistic: true
+      tool_timeout: 60
+      max_tool_iterations: 8
+```
+
+Unrecognized keys in a server entry are ignored with a startup warning, so a
+misspelled override does not silently fall back to the default unnoticed.
 
 ### Step 2 — Choose inference provider (`config/adapters/mcp-agent.yaml`)
 
@@ -249,9 +307,11 @@ Client: POST /v1/chat
 
    1. API key authenticates → adapter = "simple-chat-with-files"
    2. Adapter capabilities: mcp_tools=true, mcp_servers=[...]
-   3. mcp_client.allow_opportunistic must also be true, or mcp_tools is ignored
+   3. At least one of those servers must set allow_opportunistic: true,
+      or mcp_tools is ignored for this turn
    4. LLMInferenceStep runs the same tool-calling loop MCPAgentStep uses:
-        a. Discover tools from the adapter's mcp_servers allowlist
+        a. Discover tools from the adapter's mcp_servers allowlist,
+           narrowed to servers with allow_opportunistic: true
         b. Call provider.generate_with_tools(messages, tools)
         c. If tool_calls → execute each via MCP, append results → go to b
         d. If final text → done (model chose not to use any tool)
@@ -263,22 +323,31 @@ Client: POST /v1/chat
 
 | Field | Location | Default | Description |
 |-------|----------|---------|--------------|
-| `mcp_client.allow_opportunistic` | `config/mcp_client.yaml` | `false` | Global admin gate; must be `true` for any adapter's `mcp_tools: true` to take effect |
+| `allow_opportunistic` | `config/mcp_clients.yaml`, per server (or as a shared default) | `false` | Admin gate: this server's tools may be used on ordinary turns. At least one reachable server must set it for an adapter's `mcp_tools: true` to have any effect |
 | `capabilities.mcp_tools` | adapter YAML | `false` | Per-adapter opt-in: run the tool-calling loop inline on every turn |
 | `capabilities.mcp_servers` | adapter YAML | `null` (all servers) | Allowlist of MCP servers whose tools are exposed; shared with the `mcp-agent` skill mechanism |
 
+The two switches are independent and both required: the admin decides *which
+servers* may ever be reached inline, the adapter decides *whether* to reach
+them.
+
 ```yaml
-# config/mcp_client.yaml
-mcp_client:
+# config/mcp_clients.yaml
+mcp_clients:
   enabled: true
-  allow_opportunistic: true   # required in addition to the per-adapter flag
+  allow_opportunistic: false     # default — opt in per server below
   servers:
     - name: "filesystem"
       transport: "stdio"
       command: "npx"
       args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/docs"]
       enabled: true
+      allow_opportunistic: true  # only this server's tools run inline
 ```
+
+Setting `allow_opportunistic: true` at the `mcp_clients:` level instead makes it
+the default for every server — convenient, but it opts in servers added later
+too. Prefer opting in per server.
 
 ```yaml
 # config/adapters/multimodal.yaml
@@ -395,7 +464,7 @@ turn).
 
 ### Filesystem — list the repo root
 
-The simplest test. Requires `@modelcontextprotocol/server-filesystem` configured in `mcp_client.yaml`.
+The simplest test. Requires `@modelcontextprotocol/server-filesystem` configured in `mcp_clients.yaml`.
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
@@ -800,10 +869,10 @@ MCP servers can execute arbitrary commands (stdio) or reach external networks (S
 - **Admin-only configuration.** Server URLs and commands are set in YAML, never accepted from request bodies.
 - **Per-adapter allowlist.** The `mcp_servers` capability limits which servers a given skill adapter can reach.
 - **Secrets via environment variables.** Use `${VAR}` — values are never logged or included in responses.
-- **Timeouts and iteration cap.** `tool_timeout` aborts hung calls; `max_tool_iterations` bounds cost and loop risk.
+- **Timeouts and iteration cap.** `tool_timeout` aborts hung calls; `max_tool_iterations` bounds cost and loop risk. Both are per-client, so raising them for one slow server does not loosen the bound on the rest — and note `max_tool_iterations` resolves to the *most permissive* server a request can reach, so keep the `mcp_servers` allowlist narrow.
 - **Result truncation.** Tool result previews in `sources` are capped at 2 000 characters to prevent leaking large payloads.
 - **Prompt-injection risk.** Tool results are untrusted text injected into the model context. Keep MCP servers narrowly scoped and consider result size limits for production deployments.
-- **Opportunistic mode widens exposure.** It moves from per-request opt-in (client sends `skill: "mcp-agent"`) to per-adapter default-on for every conversational turn. Keep `mcp_client.allow_opportunistic: false` (the default) until deliberately enabled.
+- **Opportunistic mode widens exposure.** It moves from per-request opt-in (client sends `skill: "mcp-agent"`) to per-adapter default-on for every conversational turn. Leave `allow_opportunistic` at its `false` default and opt in one server at a time, rather than setting it as a shared default under `mcp_clients:` (which would also opt in servers added later).
 - **Always pair `mcp_tools: true` with a narrow `mcp_servers` allowlist** — in opportunistic mode, tool schemas are sent on every message the adapter receives, not only on messages that end up invoking a tool.
 
 ---
@@ -812,7 +881,7 @@ MCP servers can execute arbitrary commands (stdio) or reach external networks (S
 
 ### "MCP client is not enabled"
 
-Set `mcp_client.enabled: true` in `config/mcp_client.yaml` (or wherever `mcp_client` is configured).
+Set `mcp_clients.enabled: true` in `config/mcp_clients.yaml` (or wherever `mcp_clients` is configured).
 
 ### "No MCP tools available"
 
@@ -822,7 +891,7 @@ Set `mcp_client.enabled: true` in `config/mcp_client.yaml` (or wherever `mcp_cli
 
 ### Tool calls time out
 
-Increase `tool_timeout`. For stdio servers using `npx -y`, the first call may be slow due to npm package download; subsequent calls (with a warm npm cache) are faster.
+Increase `tool_timeout` — set it on the specific server entry rather than at the `mcp_clients:` level, so the rest keep the tighter budget. For stdio servers using `npx -y`, the first call may be slow due to npm package download; subsequent calls (with a warm npm cache) are faster.
 
 ### Model calls the wrong tool or ignores tools entirely
 
@@ -842,9 +911,12 @@ The MCP server returns `isError: true`. The error message is passed back to the 
 ### `mcp_tools` capability has no effect / model never calls tools opportunistically
 
 Opportunistic mode is disabled by default even if the adapter sets
-`mcp_tools: true` — check that `mcp_client.allow_opportunistic: true` is also
-set in `config/mcp_client.yaml`. Both switches are required (see
-[Opportunistic Mode](#opportunistic-mode-mcp_tools-capability)).
+`mcp_tools: true` — check that at least one server the adapter can reach sets
+`allow_opportunistic: true` in `config/mcp_clients.yaml`. Both switches are
+required, and the server-side one is per-client: if the adapter's `mcp_servers`
+allowlist names only servers that did not opt in, the turn falls back to plain
+generation (with the "no opportunistic MCP tools were discovered" warning in the
+logs). See [Opportunistic Mode](#opportunistic-mode-mcp_tools-capability).
 
 ### Every response is slower / costs more, even when no tool is used
 
@@ -856,7 +928,7 @@ always-on opportunistic mode for this adapter.
 
 ### HTTP transport: 401 Unauthorized
 
-- Verify `token` or `headers.Authorization` in `mcp_client.yaml` matches what the server expects.
+- Verify `token` or `headers.Authorization` in `mcp_clients.yaml` matches what the server expects.
 - Use `${ENV_VAR}` syntax and confirm the variable is set in the environment before starting ORBIT.
 - For servers that require a specific scheme, use `headers` directly instead of `token`:
   ```yaml
@@ -912,7 +984,7 @@ All smoke tests passed.
 ### Point an ORBIT adapter at the test server
 
 ```yaml
-# config/mcp_client.yaml
+# config/mcp_clients.yaml
 servers:
   - name: "test-server"
     transport: "http"
@@ -990,7 +1062,7 @@ Key test classes:
 
 | Component | File | Role |
 |-----------|------|------|
-| MCP client manager | `server/services/mcp_client_service.py` | Singleton; connects to servers, caches tool schemas, executes `call_tool`; `allow_opportunistic` property gates opportunistic mode |
+| MCP client manager | `server/services/mcp_client_service.py` | Singleton; connects to servers, caches tool schemas, executes `call_tool`. `setting(server, key)` resolves per-client overrides over the `mcp_clients:` defaults; `opportunistic_servers()` and `max_tool_iterations_for()` resolve the two per-request settings |
 | Shared tool-calling loop | `server/inference/pipeline/mcp_tool_loop.py` | `run_tool_calling_loop()`; used by both `MCPAgentStep` and `LLMInferenceStep`'s inline path |
 | Agent pipeline step | `server/inference/pipeline/steps/mcp_agent.py` | `MCPAgentStep`; explicit-skill entry point, delegates to `run_tool_calling_loop()` |
 | LLM step guard | `server/inference/pipeline/steps/llm_inference.py` | Skips LLM for `type == mcp_agent` (line ~78); `_should_run_mcp_tools`/`_run_inline_mcp_tools` implement opportunistic mode |
@@ -1006,7 +1078,7 @@ Key test classes:
 | llama.cpp tool calling | `server/ai_services/implementations/inference/llama_cpp_inference_service.py` | `generate_with_tools` for API and direct modes |
 | vLLM tool calling | `server/ai_services/implementations/inference/vllm_inference_service.py` | `generate_with_tools` (API mode only; direct mode raises `NotImplementedError`) |
 | Skill adapter config | `config/adapters/mcp-agent.yaml` | `mcp-agent-chat` adapter; exposes as `mcp-agent` skill |
-| Server config template | `config/mcp_client.yaml` | Example server definitions |
+| Server config template | `config/mcp_clients.yaml` | Defaults plus example server definitions and per-client overrides |
 | Adapter registry | `config/adapters.yaml` | Imports `mcp-agent.yaml` |
 | Design document | `docs/adapters/mcp-client-skill.md` | Original architecture design and phased plan |
 

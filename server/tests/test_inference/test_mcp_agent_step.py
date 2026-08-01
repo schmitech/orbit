@@ -74,11 +74,18 @@ class _FakeMCPManager:
         self._tool_output = tool_output
         self.called_with = []
 
-    @property
-    def max_tool_iterations(self):
+    def max_tool_iterations_for(self, server_names):
         return self._max
 
-    async def get_all_tools(self, allowed_servers=None):
+    @staticmethod
+    def servers_in_tools(tools):
+        return {
+            t["function"]["name"].split("__", 1)[0]
+            for t in tools
+            if "__" in t.get("function", {}).get("name", "")
+        }
+
+    async def get_all_tools(self, allowed_servers=None, opportunistic_only=False):
         return self._tools
 
     async def call_tool(self, name, arguments):

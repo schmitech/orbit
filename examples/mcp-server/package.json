@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Sample Streamable HTTP MCP server for ORBIT mcp_client.yaml testing.",
+  "description": "Sample Streamable HTTP MCP server for ORBIT mcp_clients.yaml testing.",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",

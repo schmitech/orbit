@@ -188,7 +188,7 @@ pairs, so enabling one never affects the other:
 | Feature | Global gate | Per-adapter flag |
 |---------|-------------|------------------|
 | Auto-skill routing | `skill_routing.auto_detect` | `capabilities.auto_skill_routing` |
-| Opportunistic MCP | `mcp_client.allow_opportunistic` | `capabilities.mcp_tools` |
+| Opportunistic MCP | `allow_opportunistic` on the MCP server entry | `capabilities.mcp_tools` |
 
 **They never both fire on the same turn**, and there is a clear precedence.
 Skill detection runs **first** (`_maybe_detect_skill`, before `build_context`):
@@ -203,8 +203,8 @@ Skill detection runs **first** (`_maybe_detect_skill`, before `build_context`):
      MCP still doesn't fire.
    - Net: the skill wins that turn; MCP stands down.
 2. **No skill is detected** → no swap. The turn stays on the consumer adapter and
-   opportunistic MCP behaves exactly as before (runs if `mcp_tools: true` +
-   `allow_opportunistic: true`).
+   opportunistic MCP behaves exactly as before (runs if `mcp_tools: true` and at
+   least one reachable server sets `allow_opportunistic: true`).
 
 This is the same "skill routing swaps the adapter before the pipeline runs, so
 the two paths never collide" property the MCP docs already describe for the

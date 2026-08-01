@@ -184,7 +184,7 @@ class TestGetAllTools:
             ],
         })
         # Sub-second budget: the config value is coerced to int, so set it directly.
-        mgr._discovery_timeout = 0.05
+        mgr._defaults["discovery_timeout"] = 0.05
         async def _hang(_server_config):
             # Never resolves, so each dial can only end via wait_for's timeout.
             await asyncio.Event().wait()
@@ -291,19 +291,178 @@ class TestCallTool:
         assert result == "hello"
 
 
+class TestPerServerSettings:
+    """mcp_clients-level values are defaults; server entries override them."""
+
+    def _mgr(self):
+        return MCPClientManager({
+            "tool_timeout": 30,
+            "max_tool_iterations": 5,
+            "allow_opportunistic": False,
+            "tool_result_max_chars": 8000,
+            "servers": [
+                {"name": "fast", "command": "noop"},
+                {
+                    "name": "slow",
+                    "command": "noop",
+                    "tool_timeout": 90,
+                    "max_tool_iterations": 9,
+                    "allow_opportunistic": True,
+                    "tool_result_max_chars": 100,
+                },
+            ],
+        })
+
+    def test_server_override_wins_over_default(self):
+        mgr = self._mgr()
+        assert mgr.setting("fast", "tool_timeout") == 30
+        assert mgr.setting("slow", "tool_timeout") == 90
+
+    def test_falls_back_to_hardcoded_default_when_unset_everywhere(self):
+        mgr = MCPClientManager({"servers": [{"name": "s", "command": "noop"}]})
+        assert mgr.setting("s", "discovery_timeout") == 5
+        assert mgr.setting("s", "allow_opportunistic") is False
+
+    def test_invalid_value_falls_back_to_hardcoded_default(self):
+        mgr = MCPClientManager({
+            "servers": [{"name": "s", "command": "noop", "tool_timeout": "abc"}],
+        })
+        assert mgr.setting("s", "tool_timeout") == 30
+
+    def test_invalid_override_falls_back_to_configured_default_not_hardcoded(self):
+        """An unusable per-server value must not skip past the admin's
+        mcp_clients-level value down to the hardcoded default."""
+        mgr = MCPClientManager({
+            "tool_timeout": 45,
+            "servers": [{"name": "s", "command": "noop", "tool_timeout": "abc"}],
+        })
+        assert mgr.setting("s", "tool_timeout") == 45
+
+    def test_invalid_top_level_default_falls_back_to_hardcoded(self):
+        mgr = MCPClientManager({
+            "tool_timeout": "nonsense",
+            "servers": [{"name": "s", "command": "noop"}],
+        })
+        assert mgr.setting("s", "tool_timeout") == 30
+
+    def test_opportunistic_servers_filters_by_optin_and_allowlist(self):
+        mgr = self._mgr()
+        assert mgr.opportunistic_servers() == ["slow"]
+        assert mgr.opportunistic_servers(["fast"]) == []
+        assert mgr.opportunistic_servers(["fast", "slow"]) == ["slow"]
+
+    def test_max_tool_iterations_takes_most_permissive(self):
+        mgr = self._mgr()
+        assert mgr.max_tool_iterations_for(["fast"]) == 5
+        assert mgr.max_tool_iterations_for(["fast", "slow"]) == 9
+        # No known server → the mcp_clients-level default.
+        assert mgr.max_tool_iterations_for([]) == 5
+        assert mgr.max_tool_iterations_for(["unknown"]) == 5
+
+    def test_servers_in_tools_derives_names_from_namespacing(self):
+        tools = [
+            {"function": {"name": "fast__a"}},
+            {"function": {"name": "slow__b"}},
+            {"function": {"name": "not_namespaced"}},
+        ]
+        assert MCPClientManager.servers_in_tools(tools) == {"fast", "slow"}
+
+    async def test_per_server_tool_result_cap(self):
+        mgr = self._mgr()
+        mgr._cache_populated = True
+        mgr._call_tool_on_server = AsyncMock(return_value="x" * 500)
+
+        slow = await mgr.call_tool("slow__t", {})
+        assert slow.endswith("[...result truncated]")
+        assert len(slow) <= 100 + len("\n[...result truncated]")
+
+        fast = await mgr.call_tool("fast__t", {})
+        assert fast == "x" * 500  # under the 8000 default
+
+    async def test_per_server_tool_timeout_applied(self):
+        """The per-server budget, not the global default, is what wait_for gets."""
+        mgr = self._mgr()
+        mgr._cache_populated = True
+        mgr._call_tool_on_server = AsyncMock(return_value="ok")
+
+        seen = []
+        real_wait_for = asyncio.wait_for
+
+        async def _spy(awaitable, timeout):
+            seen.append(timeout)
+            return await real_wait_for(awaitable, timeout)
+
+        with patch("services.mcp_client_service.asyncio.wait_for", _spy):
+            await mgr.call_tool("slow__t", {})
+            await mgr.call_tool("fast__t", {})
+
+        assert seen == [90, 30]
+
+    async def test_timeout_message_reports_per_server_budget(self):
+        mgr = self._mgr()
+        mgr._cache_populated = True
+        mgr._server_configs["slow"]["tool_timeout"] = 0  # fires immediately
+
+        async def _hang(*_args, **_kwargs):
+            await asyncio.Event().wait()
+
+        mgr._call_tool_on_server = AsyncMock(side_effect=_hang)
+        with pytest.raises(RuntimeError, match="timed out after 0s"):
+            await mgr.call_tool("slow__t", {})
+
+    async def test_opportunistic_only_filters_get_all_tools(self):
+        mgr = self._mgr()
+        mgr._tools_cache = {
+            "fast": [{"function": {"name": "fast__a"}}],
+            "slow": [{"function": {"name": "slow__b"}}],
+        }
+        mgr._cache_populated = True
+        tools = await mgr.get_all_tools(opportunistic_only=True)
+        assert [t["function"]["name"] for t in tools] == ["slow__b"]
+        assert len(await mgr.get_all_tools()) == 2
+
+    async def test_per_server_discovery_retry_intervals_are_independent(self):
+        mgr = MCPClientManager({
+            "discovery_retry_interval": 30,
+            "servers": [
+                {"name": "quick", "command": "noop", "discovery_retry_interval": 5},
+                {"name": "patient", "command": "noop"},
+            ],
+        })
+        mgr._list_tools_on_server = AsyncMock(side_effect=RuntimeError("down"))
+
+        clock = _FakeClock()
+        with patch("services.mcp_client_service.time.monotonic", clock):
+            await mgr.get_all_tools()
+            assert mgr._failed_discovery_servers == {"quick", "patient"}
+
+            # After 6s only 'quick' is due for a retry.
+            clock.advance(6)
+            await mgr.get_all_tools()
+            dialed = [c.args[0]["name"] for c in mgr._list_tools_on_server.await_args_list]
+            assert dialed.count("quick") == 2 and dialed.count("patient") == 1
+
+            # After the full 30s, 'patient' is retried too.
+            clock.advance(25)
+            await mgr.get_all_tools()
+
+        dialed = [c.args[0]["name"] for c in mgr._list_tools_on_server.await_args_list]
+        assert dialed.count("quick") == 3 and dialed.count("patient") == 2
+
+
 class TestSingletonGate:
     def test_disabled_returns_none(self):
         import services.mcp_client_service as mod
         mod._instance = None
-        assert get_mcp_client_manager({"mcp_client": {"enabled": False}}) is None
+        assert get_mcp_client_manager({"mcp_clients": {"enabled": False}}) is None
 
     def test_enabled_returns_manager(self):
         import services.mcp_client_service as mod
         mod._instance = None
-        mgr = get_mcp_client_manager({"mcp_client": {"enabled": True, "servers": []}})
+        mgr = get_mcp_client_manager({"mcp_clients": {"enabled": True, "servers": []}})
         assert isinstance(mgr, MCPClientManager)
         # idempotent — same instance on second call
-        assert get_mcp_client_manager({"mcp_client": {"enabled": True}}) is mgr
+        assert get_mcp_client_manager({"mcp_clients": {"enabled": True}}) is mgr
         mod._instance = None
 
 

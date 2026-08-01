@@ -1,6 +1,6 @@
 # ORBIT Business MCP Server Example
 
-This is a small Streamable HTTP MCP server you can use to test `config/mcp_client.yaml` without relying on the dummy Python test server from `docs/adapters/mcp-agent.md`.
+This is a small Streamable HTTP MCP server you can use to test `config/mcp_clients.yaml` without relying on the dummy Python test server from `docs/adapters/mcp-agent.md`.
 
 It exposes synthetic CRM and revenue tools backed by deterministic Faker data:
 
@@ -80,11 +80,11 @@ npx pm2 stop orbit-mcp-server    # stop the server
 ## ORBIT Config
 
 
-Use this in `config/mcp_client.yaml`. You can replace the existing `test-server`
+Use this in `config/mcp_clients.yaml`. You can replace the existing `test-server`
 entry that points to `server/tests/test_services/mcp_http_test_server.py`:
 
 ```yaml
-mcp_client:
+mcp_clients:
   enabled: true
   servers:
     - name: "business-sample"
@@ -92,6 +92,7 @@ mcp_client:
       url: "http://127.0.0.1:9999/mcp"
       token: "${MCP_TOKEN}"
       enabled: true
+      allow_opportunistic: true   # needed only for opportunistic (no-skill) turns
 ```
 
 Then run ORBIT with the same token in the environment:
@@ -135,6 +136,6 @@ Example prompts for an MCP-enabled adapter:
 - `401 Unauthorized`: make sure the `MCP_TOKEN` used to start this server
   matches the `MCP_TOKEN` in the shell where ORBIT runs.
 - `EADDRINUSE`: another process is using port `9999`; rerun with `PORT=10099`
-  and update `config/mcp_client.yaml` to match.
+  and update `config/mcp_clients.yaml` to match.
 - `failed to listen`: your environment blocked local port binding. Run from a
   normal terminal session rather than a restricted sandbox.

@@ -28,18 +28,18 @@ This listens at `http://127.0.0.1:9999/mcp` and exposes:
 
 ## 2. Enable MCP + opportunistic mode
 
-`config/mcp_client.yaml` already points at this server as `business-sample`:
+`config/mcp_clients.yaml` already points at this server as `business-sample`:
 
 ```yaml
-mcp_client:
+mcp_clients:
   enabled: true
-  allow_opportunistic: true      # ← set this to true
   servers:
     - name: "business-sample"
       transport: "http"
       url: "http://127.0.0.1:9999/mcp"
       token: "${MCP_TOKEN}"
       enabled: true
+      allow_opportunistic: true    # ← set this to true
 ```
 
 Export the same token in the shell where ORBIT runs:
@@ -173,10 +173,10 @@ EMEA"). Confirm no tool is called — plain conversational answer, no
 `sources`, model says it doesn't have access to live CRM data. Restore the
 allowlist afterward.
 
-### F. Global gate overrides the per-adapter flag
+### F. The server-side gate overrides the per-adapter flag
 
-Temporarily set `mcp_client.allow_opportunistic: false` in
-`config/mcp_client.yaml` (leave `mcp_tools: true` on the adapter), restart,
+Temporarily set `allow_opportunistic: false` on the `business-sample` server in
+`config/mcp_clients.yaml` (leave `mcp_tools: true` on the adapter), restart,
 and re-ask a business question. Confirm the tool is never called even
 though the adapter capability is still enabled — this is the two-gate
 design working as intended (see `docs/adapters/mcp-agent.md#opportunistic-mode`).
@@ -249,7 +249,7 @@ Confirm that telemetry metrics (active vs purchased seats) and unresolved ticket
 - `401 Unauthorized` from the MCP server: the `MCP_TOKEN` used to start
   `examples/mcp-server` must match the `MCP_TOKEN` in ORBIT's environment.
 - `EADDRINUSE`: another process is using port `9999` — rerun with
-  `PORT=10099` and update the `url` in `config/mcp_client.yaml` to match.
+  `PORT=10099` and update the `url` in `config/mcp_clients.yaml` to match.
 - Health check: `curl http://127.0.0.1:9999/health`.
 - Smoke test the server standalone: `cd examples/mcp-server && MCP_TOKEN=test-secret npm run smoke`.
 

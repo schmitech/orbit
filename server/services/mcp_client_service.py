@@ -30,6 +30,9 @@ logger = logging.getLogger(__name__)
 
 _instance: Optional["MCPClientManager"] = None
 
+# Sentinel for "caller passed no fallback" — distinct from any real config value.
+_UNSET = object()
+
 # Minimal safe environment to pass to stdio subprocesses.
 # We intentionally do NOT forward the full process environment to avoid
 # leaking API keys, database credentials, and other secrets to MCP server
@@ -43,7 +46,7 @@ def get_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClientManager
     """Return the singleton MCPClientManager, or None if MCP is not enabled."""
     global _instance
     if _instance is None:
-        mcp_config = config.get("mcp_client", {})
+        mcp_config = config.get("mcp_clients", {})
         if mcp_config.get("enabled", False):
             _instance = MCPClientManager(mcp_config)
     return _instance
@@ -55,58 +58,149 @@ class MCPClientManager:
     executes tool calls.
     """
 
+    # Settings that may appear at the mcp_clients level (as defaults) and be
+    # overridden per server entry: key -> (coercion, hardcoded default).
+    _OVERRIDABLE: Dict[str, Any] = {
+        "tool_timeout": (int, 30),
+        # Servers that are unavailable during startup remain retryable.  A
+        # retry is triggered by the next request after this interval, so a
+        # temporary remote MCP outage does not require restarting ORBIT.
+        "discovery_retry_interval": (lambda v: max(0, int(v)), 30),
+        # Discovery is only initialize + tools/list, so it gets a much tighter
+        # budget than tool_timeout (which is sized for real tool work).  This
+        # bounds how long a request can stall on an unreachable server.
+        "discovery_timeout": (int, 5),
+        "max_tool_iterations": (int, 5),
+        # Cap on tool result text injected into the model context (not just
+        # preview). Prevents unbounded context growth and limits
+        # prompt-injection surface area.
+        "tool_result_max_chars": (int, 8000),
+        # Defense-in-depth gate for opportunistic (non-skill) tool calling.
+        # Does not affect the explicit "mcp-agent" skill, which is governed
+        # only by the global `enabled` flag.
+        "allow_opportunistic": (bool, False),
+    }
+
+    # Per-server keys that are not settings (transport/identity/lifecycle).
+    _SERVER_KEYS = {
+        "name", "enabled", "transport", "command", "args", "env",
+        "url", "token", "headers",
+    }
+
     def __init__(self, mcp_config: Dict[str, Any]):
         servers_list = mcp_config.get("servers", [])
         self._server_configs: Dict[str, Dict[str, Any]] = {
             s["name"]: s for s in servers_list if s.get("enabled", True)
         }
-        self._tool_timeout: int = int(mcp_config.get("tool_timeout", 30))
-        # Servers that are unavailable during startup remain retryable.  A
-        # retry is triggered by the next request after this interval, so a
-        # temporary remote MCP outage does not require restarting ORBIT.
-        self._discovery_retry_interval: int = max(
-            0, int(mcp_config.get("discovery_retry_interval", 30))
-        )
-        # Discovery is only initialize + tools/list, so it gets a much tighter
-        # budget than tool_timeout (which is sized for real tool work).  This
-        # bounds how long a request can stall on an unreachable server.
-        self._discovery_timeout: int = int(mcp_config.get("discovery_timeout", 5))
-        self._max_tool_iterations: int = int(mcp_config.get("max_tool_iterations", 5))
-        # Defense-in-depth gate for opportunistic (non-skill) tool calling.
-        # Does not affect the explicit "mcp-agent" skill, which is governed
-        # only by `enabled` above.
-        self._allow_opportunistic: bool = bool(mcp_config.get("allow_opportunistic", False))
-        # Cap on tool result text injected into the model context (not just preview).
-        # Prevents unbounded context growth and limits prompt-injection surface area.
-        self._tool_result_max_chars: int = int(mcp_config.get("tool_result_max_chars", 8000))
+        # mcp_clients-level values act as defaults for every server; each
+        # server entry may override any of them.
+        self._defaults: Dict[str, Any] = {
+            key: self._coerce(key, mcp_config[key])
+            for key in self._OVERRIDABLE
+            if key in mcp_config
+        }
+        self._warn_unknown_server_keys()
 
         # cache: server_name -> list of OpenAI-format tool dicts
         self._tools_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._cache_lock = asyncio.Lock()
         self._cache_populated = False
         self._failed_discovery_servers: set[str] = set()
-        self._next_discovery_retry_at = 0.0
+        # server_name -> monotonic deadline before which discovery is not retried
+        self._next_discovery_retry_at: Dict[str, float] = {}
+
+    def _coerce(self, key: str, value: Any, fallback: Any = _UNSET) -> Any:
+        """Coerce a configured value, falling back one level down the
+        precedence chain (server → mcp_clients default → hardcoded) if it is
+        unusable, rather than skipping straight to the hardcoded default."""
+        coerce, default = self._OVERRIDABLE[key]
+        if fallback is _UNSET:
+            fallback = default
+        try:
+            return coerce(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid value %r for MCP setting '%s'; using %r instead",
+                value, key, fallback,
+            )
+            return fallback
+
+    def _warn_unknown_server_keys(self) -> None:
+        """Flag per-server keys that are neither transport config nor a known
+        overridable setting — a typo there would otherwise fail silently."""
+        known = self._SERVER_KEYS | set(self._OVERRIDABLE)
+        for name, cfg in self._server_configs.items():
+            unknown = sorted(set(cfg) - known)
+            if unknown:
+                logger.warning(
+                    "MCP server '%s': unrecognized config key(s) %s — ignored",
+                    name, ", ".join(unknown),
+                )
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    @property
-    def max_tool_iterations(self) -> int:
-        return self._max_tool_iterations
+    def setting(self, server_name: str, key: str) -> Any:
+        """Per-server value for `key` if present, else the mcp_clients-level
+        default, else the hardcoded default."""
+        server_config = self._server_configs.get(server_name) or {}
+        default = self._defaults.get(key, self._OVERRIDABLE[key][1])
+        if key in server_config:
+            # An unusable per-server override falls back to the admin's
+            # mcp_clients-level value, not past it to the hardcoded default.
+            return self._coerce(key, server_config[key], fallback=default)
+        return default
 
-    @property
-    def allow_opportunistic(self) -> bool:
-        return self._allow_opportunistic
+    def opportunistic_servers(
+        self, allowed_servers: Optional[List[str]] = None
+    ) -> List[str]:
+        """Enabled servers that opted into opportunistic (non-skill) tool
+        calling, intersected with the adapter's mcp_servers allowlist."""
+        return [
+            name for name in self._server_configs
+            if (not allowed_servers or name in allowed_servers)
+            and self.setting(name, "allow_opportunistic")
+        ]
+
+    def max_tool_iterations_for(self, server_names) -> int:
+        """Iteration budget for a request touching `server_names`: the most
+        permissive participating server wins. Falls back to the configured
+        default when no server is known."""
+        budgets = [
+            self.setting(name, "max_tool_iterations")
+            for name in server_names
+            if name in self._server_configs
+        ]
+        if budgets:
+            return max(budgets)
+        return self._defaults.get(
+            "max_tool_iterations", self._OVERRIDABLE["max_tool_iterations"][1]
+        )
+
+    @staticmethod
+    def servers_in_tools(tools: List[Dict[str, Any]]) -> set:
+        """Server names participating in a tool list, from the '<server>__<tool>'
+        namespacing — lets callers resolve per-server settings from tools alone."""
+        names = set()
+        for tool in tools:
+            fn_name = tool.get("function", {}).get("name", "")
+            if "__" in fn_name:
+                names.add(fn_name.split("__", 1)[0])
+        return names
 
     async def get_all_tools(
-        self, allowed_servers: Optional[List[str]] = None
+        self,
+        allowed_servers: Optional[List[str]] = None,
+        opportunistic_only: bool = False,
     ) -> List[Dict[str, Any]]:
         """Return all cached tools as OpenAI-format tool dicts."""
         await self._ensure_cache_populated()
         tools = []
         for server_name, server_tools in self._tools_cache.items():
             if allowed_servers and server_name not in allowed_servers:
+                continue
+            if opportunistic_only and not self.setting(server_name, "allow_opportunistic"):
                 continue
             tools.extend(server_tools)
         return tools
@@ -143,22 +237,24 @@ class MCPClientManager:
             logger.warning("Pre-call validation failed for '%s': %s", namespaced_name, validation_error)
             return f"Tool error: {validation_error}"
 
+        tool_timeout = self.setting(server_name, "tool_timeout")
         try:
             result = await asyncio.wait_for(
                 self._call_tool_on_server(server_config, tool_name, arguments),
-                timeout=self._tool_timeout,
+                timeout=tool_timeout,
             )
         except asyncio.TimeoutError:
             raise RuntimeError(
-                f"MCP tool call '{namespaced_name}' timed out after {self._tool_timeout}s"
+                f"MCP tool call '{namespaced_name}' timed out after {tool_timeout}s"
             )
         # Cap result size before it enters the model context.
-        if len(result) > self._tool_result_max_chars:
+        max_chars = self.setting(server_name, "tool_result_max_chars")
+        if len(result) > max_chars:
             logger.warning(
                 "MCP tool '%s' result truncated from %d to %d chars",
-                namespaced_name, len(result), self._tool_result_max_chars,
+                namespaced_name, len(result), max_chars,
             )
-            result = result[:self._tool_result_max_chars] + "\n[...result truncated]"
+            result = result[:max_chars] + "\n[...result truncated]"
         return result
 
     def _validate_arguments(
@@ -210,37 +306,43 @@ class MCPClientManager:
             if self._cache_populated and not self._failed_discovery_servers:
                 return
 
-            if self._cache_populated and time.monotonic() < self._next_discovery_retry_at:
-                return
-
             # On first discovery, try every enabled server. After that, only
-            # retry servers whose prior discovery failed; healthy tool caches
-            # remain usable while another server recovers.
-            server_names = (
-                list(self._server_configs.keys())
-                if not self._cache_populated
-                else sorted(self._failed_discovery_servers)
-            )
+            # retry servers whose prior discovery failed and whose per-server
+            # retry deadline has passed; healthy tool caches remain usable
+            # while another server recovers.
+            if not self._cache_populated:
+                server_names = list(self._server_configs.keys())
+            else:
+                now = time.monotonic()
+                server_names = [
+                    name for name in sorted(self._failed_discovery_servers)
+                    if now >= self._next_discovery_retry_at.get(name, 0.0)
+                ]
+                if not server_names:
+                    return
+
             # Dial concurrently so the worst case is one discovery_timeout
             # rather than one per unreachable server.
             await asyncio.gather(*(self._discover_server(n) for n in server_names))
             self._cache_populated = True
-            if self._failed_discovery_servers:
-                # Measure the interval from the end of the dial loop: a server
-                # that black-holes connections burns the whole discovery_timeout,
-                # which would otherwise leave the deadline already in the past.
-                self._next_discovery_retry_at = (
-                    time.monotonic() + self._discovery_retry_interval
-                )
-            else:
-                self._next_discovery_retry_at = 0.0
+            # Measure the interval from the end of the dial loop: a server
+            # that black-holes connections burns the whole discovery_timeout,
+            # which would otherwise leave the deadline already in the past.
+            now = time.monotonic()
+            for name in server_names:
+                if name in self._failed_discovery_servers:
+                    self._next_discovery_retry_at[name] = (
+                        now + self.setting(name, "discovery_retry_interval")
+                    )
+                else:
+                    self._next_discovery_retry_at.pop(name, None)
 
     async def _discover_server(self, server_name: str) -> None:
         """List tools on one server, recording it as failed on any error."""
         try:
             tools = await asyncio.wait_for(
                 self._list_tools_on_server(self._server_configs[server_name]),
-                timeout=self._discovery_timeout,
+                timeout=self.setting(server_name, "discovery_timeout"),
             )
             self._tools_cache[server_name] = [
                 self._to_openai_tool(server_name, t) for t in tools

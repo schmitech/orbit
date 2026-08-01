@@ -20,7 +20,7 @@ import:
   - "document.yaml"
   - "tts.yaml"
   - "stt.yaml"
-  - "mcp_client.yaml"
+  - "mcp_clients.yaml"
   - "rewriters-prompts.yaml"
 
 # Core server settings: the HTTP(S) listener, session identification, and the

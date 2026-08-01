@@ -26,8 +26,6 @@ from ._utils import record_usage
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MAX_ITERATIONS = 5
-
 
 def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
     if not adapter_name or not container.has("adapter_manager"):
@@ -122,7 +120,7 @@ class MCPAgentStep(PipelineStep):
         mcp_manager = self._get_mcp_manager()
         if mcp_manager is None:
             raise RuntimeError(
-                "MCP client is not enabled. Set mcp_client.enabled: true in config."
+                "MCP client is not enabled. Set mcp_clients.enabled: true in config."
             )
 
         allowed_servers = _get_mcp_servers_allowlist(self.container, context.adapter_name)
@@ -131,7 +129,7 @@ class MCPAgentStep(PipelineStep):
         if not tools:
             raise RuntimeError(
                 "No MCP tools available. "
-                "Check mcp_client configuration and server connectivity."
+                "Check mcp_clients configuration and server connectivity."
             )
 
         messages = await self._build_initial_messages(context)
@@ -142,7 +140,9 @@ class MCPAgentStep(PipelineStep):
             mcp_manager=mcp_manager,
             messages=messages,
             tools=tools,
-            max_iterations=mcp_manager.max_tool_iterations,
+            max_iterations=mcp_manager.max_tool_iterations_for(
+                mcp_manager.servers_in_tools(tools)
+            ),
             cancel_event=context.cancel_event,
             is_cancelled=context.is_cancelled,
             usage_sink=usage_sink,
