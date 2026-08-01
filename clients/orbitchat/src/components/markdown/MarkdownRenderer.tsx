@@ -8,7 +8,7 @@ import 'katex/dist/katex.min.css';
 // Load mhchem for chemistry support (ESM build so it patches the same KaTeX instance)
 import 'katex/contrib/mhchem';
 
-import { preprocessMarkdown } from './preprocessing';
+import { preprocessMarkdown, splitPendingStreamBlock } from './preprocessing';
 import { CodeBlock } from './CodeBlock';
 import { BLOCK_LEVEL_TAGS, type MarkdownRendererProps } from './types';
 
@@ -107,6 +107,7 @@ function parseUrl(raw: string) {
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   content,
   className = '',
+  isStreaming = false,
   disableMath = false,
   enableGraphs = true,
   enableMermaid = true,
@@ -116,8 +117,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   enableSyntaxHighlighting = true,
   syntaxTheme = 'dark',
 }) => {
-  const processedContent = preprocessMarkdown(content);
-  if (!processedContent) return null;
+  const { stable, pending } = isStreaming
+    ? splitPendingStreamBlock(content)
+    : { stable: content, pending: '' };
+
+  const processedContent = preprocessMarkdown(stable);
+  if (!processedContent && !pending) return null;
 
   const remarkPlugins: PluggableList = disableMath
     ? [remarkGfm]
@@ -243,13 +248,18 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
   return (
     <div className={`markdown-content ${className}`}>
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
-        components={components}
-      >
-        {processedContent}
-      </ReactMarkdown>
+      {processedContent && (
+        <ReactMarkdown
+          remarkPlugins={remarkPlugins}
+          rehypePlugins={rehypePlugins}
+          components={components}
+        >
+          {processedContent}
+        </ReactMarkdown>
+      )}
+      {pending && (
+        <div className="markdown-pending-stream">{pending}</div>
+      )}
     </div>
   );
 };

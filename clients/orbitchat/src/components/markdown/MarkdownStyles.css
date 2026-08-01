@@ -1,5 +1,15 @@
 /* MarkdownStyles.css */
 
+/* The still-streaming tail of a table or fenced code block, held back from
+   react-markdown until it completes (see splitPendingStreamBlock) so it
+   doesn't re-render/reflow on every partial chunk. Rendered as plain text. */
+.markdown-pending-stream {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--md-text-primary);
+  opacity: 0.75;
+}
+
 /* CSS Custom Properties for theming */
 :root,
 .markdown-content {
@@ -623,6 +633,19 @@
 [data-theme="light"] .markdown-content .graph-container {
   background-color: #fafbfc;
   border-color: #e5e7eb;
+}
+
+/* Charts render their own title/background inside the SVG, so the card
+   treatment used by mermaid/svg/music blocks just adds a boxed panel behind
+   the title that clashes with the surrounding message bubble. Let it blend. */
+.markdown-content .chart-container,
+.markdown-content.dark .chart-container,
+.dark .markdown-content .chart-container,
+[data-theme="dark"] .markdown-content .chart-container,
+.markdown-content.light .chart-container,
+[data-theme="light"] .markdown-content .chart-container {
+  background-color: transparent !important;
+  border-color: transparent !important;
 }
 
 .markdown-content .md-expandable-actions {

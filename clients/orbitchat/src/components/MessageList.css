@@ -129,34 +129,9 @@
   }
 }
 
-/* Subtle activity marker shown at the end of streaming assistant messages */
-@keyframes streaming-cursor-pulse {
-  0%, 100% {
-    opacity: 0.35;
-    transform: translateY(-0.08em) scale(0.82);
-  }
-  50% {
-    opacity: 0.9;
-    transform: translateY(-0.08em) scale(1);
-  }
-}
-
-.streaming-cursor .markdown-content > :last-child::after,
-.streaming-cursor::after {
-  content: '';
-  display: inline-block;
-  width: 0.42em;
-  height: 0.42em;
-  margin-left: 0.35em;
-  border-radius: 9999px;
-  background: currentColor;
-  vertical-align: baseline;
-  animation: streaming-cursor-pulse 1.15s ease-in-out infinite;
-}
-
-.streaming-cursor:has(.markdown-content > :last-child)::after {
-  content: none;
-}
+/* Streaming content is intentionally not animated. ReactMarkdown can mount a
+   completed block while the response is arriving; an entrance transition here
+   makes each reconciliation look like a flash or jump. */
 
 /* Thread replies scroll container */
 .thread-replies-scroll {

@@ -100,6 +100,14 @@ export interface MarkdownRendererProps {
   content: string;
   className?: string;
   /**
+   * Whether this content is still streaming in. When true, an in-progress
+   * in-progress prose, table, or fenced code block at the end of `content` is
+   * held back from react-markdown and shown as plain text until it completes,
+   * to avoid re-render flicker on streamed text/tables/mermaid/charts
+   * (default: false)
+   */
+  isStreaming?: boolean;
+  /**
    * Optional flag to disable math rendering entirely if needed
    */
   disableMath?: boolean;

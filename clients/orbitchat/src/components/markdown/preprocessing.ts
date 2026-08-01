@@ -375,6 +375,71 @@ function unmaskCodeSegments(src: string, masks: Record<string, string>) {
 }
 
 /**
+ * While a response is streaming, split off a trailing block that is still
+ * "in progress" (an unterminated fenced code block, or a table whose last
+ * row hasn't been followed by a blank/non-table line yet) so the caller can
+ * render it as plain text instead of feeding it to react-markdown. Without
+ * this, tables grow row-by-row and fenced mermaid/chart blocks re-render on
+ * every partial, often-invalid chunk, which is what causes the visible
+ * shaking/flicker while streaming. Once the block is complete it moves into
+ * `stable` and renders once, in its final form.
+ */
+export function splitPendingStreamBlock(content: string): { stable: string; pending: string } {
+  const lines = content.split('\n');
+
+  // An odd number of fence delimiters (``` or ~~~) means the last one opened
+  // a code block that hasn't been closed yet.
+  let fenceOpenAt = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^(```|~~~)/.test(lines[i].trim())) {
+      fenceOpenAt = fenceOpenAt === -1 ? i : -1;
+    }
+  }
+  if (fenceOpenAt !== -1) {
+    return {
+      stable: lines.slice(0, fenceOpenAt).join('\n'),
+      pending: lines.slice(fenceOpenAt).join('\n'),
+    };
+  }
+
+  // A run of "|"-prefixed lines at the very end of the content, with no
+  // trailing blank line, means the table may still be gaining rows.
+  let i = lines.length - 1;
+  while (i >= 0 && lines[i].trim() === '') i--;
+  let tableStartAt = -1;
+  while (i >= 0 && lines[i].trim().startsWith('|')) {
+    tableStartAt = i;
+    i--;
+  }
+  if (tableStartAt !== -1) {
+    return {
+      stable: lines.slice(0, tableStartAt).join('\n'),
+      pending: lines.slice(tableStartAt).join('\n'),
+    };
+  }
+
+  // Keep the active prose block out of react-markdown as well. A streamed
+  // paragraph is the most common case, and reparsing it for every token can
+  // replace inline nodes (links, emphasis, math) repeatedly, which looks like
+  // text flicker even though the final markup is valid. The block is still
+  // shown immediately as plain text and is parsed once the next blank line
+  // (or the final non-streaming render) arrives.
+  let paragraphStartAt = lines.length - 1;
+  while (paragraphStartAt >= 0 && lines[paragraphStartAt].trim() !== '') {
+    paragraphStartAt--;
+  }
+  paragraphStartAt++;
+  if (paragraphStartAt < lines.length) {
+    return {
+      stable: lines.slice(0, paragraphStartAt).join('\n'),
+      pending: lines.slice(paragraphStartAt).join('\n'),
+    };
+  }
+
+  return { stable: content, pending: '' };
+}
+
+/**
  * Enhanced markdown preprocessing that handles both currency and math notation
  * without clobbering each other.
  */

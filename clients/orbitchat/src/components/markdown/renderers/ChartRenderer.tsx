@@ -1458,6 +1458,25 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
   };
 
   // Interactive legend content renderer — supports click-to-toggle series
+  // Pie percentages move into the legend text instead of the chart's outer
+  // labels, since recharts' default pie label placement has no collision
+  // avoidance and reliably overlaps at chat-width containers. Keyed by index
+  // (not name) since data points can share the same xKey value.
+  const pieLegendPercentByIndex = new Map<number, string>();
+  if (config.type === 'pie') {
+    const pieDataKey = derivedSeries[0]?.key || config.dataKeys?.[0] || 'value';
+    const pieTotal = config.data.reduce(
+      (sum, item) => sum + (Number((item as ChartDataItem)[pieDataKey]) || 0),
+      0
+    );
+    if (pieTotal > 0) {
+      config.data.forEach((item, idx) => {
+        const value = Number((item as ChartDataItem)[pieDataKey]) || 0;
+        pieLegendPercentByIndex.set(idx, `${((value / pieTotal) * 100).toFixed(1)}%`);
+      });
+    }
+  }
+
   const renderInteractiveLegend = (props: DefaultLegendContentProps) => {
     if (!props.payload) return null;
     return (
@@ -1503,6 +1522,11 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 }}
               />
               {entry.value}
+              {config.type === 'pie' && pieLegendPercentByIndex.has(idx) && (
+                <span style={{ opacity: 0.65 }}>
+                  {' '}{pieLegendPercentByIndex.get(idx)}
+                </span>
+              )}
             </button>
           );
         })}
@@ -1532,10 +1556,14 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
     const legendItems: Array<{ name: string; color: string }> = (() => {
       if (!showLegend) return [];
       if (config.type === 'pie' || config.type === 'radialbar' || config.type === 'funnel') {
-        return config.data.map((item, idx) => ({
-          name: String((item as ChartDataItem)[config.xKey || 'name'] ?? `Item ${idx + 1}`),
-          color: colors[idx % colors.length],
-        }));
+        return config.data.map((item, idx) => {
+          const name = String((item as ChartDataItem)[config.xKey || 'name'] ?? `Item ${idx + 1}`);
+          const percent = config.type === 'pie' ? pieLegendPercentByIndex.get(idx) : undefined;
+          return {
+            name: percent ? `${name} ${percent}` : name,
+            color: colors[idx % colors.length],
+          };
+        });
       }
       return derivedSeries.map((s) => ({ name: s.name, color: s.color }));
     })();
@@ -2030,7 +2058,6 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
         )}
 
         {config.type === 'pie' && (() => {
-          const pieHasMany = config.data.length > 5;
           const pieOuterRadius = config.outerRadius ?? height / 3;
           const pieInnerRadius = config.innerRadius ?? height / 6;
           return (
@@ -2045,8 +2072,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
                 innerRadius={pieInnerRadius}
                 paddingAngle={2}
                 strokeWidth={0}
-                label={pieHasMany ? false : ({ name, percent }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(1)}%`}
-                labelLine={pieHasMany ? false : { stroke: axisColor, strokeWidth: 1 }}
+                label={false}
+                labelLine={false}
                 animationDuration={ANIMATION_DEFAULTS.duration}
                 animationEasing={ANIMATION_DEFAULTS.easing}
               >

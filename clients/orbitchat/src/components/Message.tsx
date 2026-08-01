@@ -851,8 +851,10 @@ export function Message({
     }
   }, [threadInput]);
 
+  const mainMessageContent = truncateLongContent(sanitizeMessageContent(message.content || ''));
+
   const renderedMessageContent = useMemo(() => {
-    if (message.isStreaming && (!message.content || message.content === '…')) {
+    if (message.isStreaming && (!mainMessageContent || mainMessageContent === '…')) {
       return (
         <div className={mainMarkdownClassName}>
           <StreamingDots />
@@ -865,13 +867,14 @@ export function Message({
     return (
       <div className={streamingClass || undefined}>
         <MarkdownRenderer
-          content={truncateLongContent(sanitizeMessageContent(message.content || ''))}
+          content={mainMessageContent}
           className={mainMarkdownClassName}
           syntaxTheme={syntaxTheme}
+          isStreaming={Boolean(message.isStreaming) && isAssistant}
         />
       </div>
     );
-  }, [mainMarkdownClassName, message.content, message.isStreaming, isAssistant, syntaxTheme]);
+  }, [mainMarkdownClassName, mainMessageContent, message.isStreaming, isAssistant, syntaxTheme]);
 
   const renderedThreadReplies = useMemo(() => {
     // Sort replies by timestamp to maintain chronological order
@@ -894,6 +897,7 @@ export function Message({
             content={truncateLongContent(sanitizeMessageContent(reply.content || ''))}
             className={replyMarkdownClass}
             syntaxTheme={syntaxTheme}
+            isStreaming={Boolean(reply.isStreaming) && replyIsAssistant}
           />
         </div>
       );
