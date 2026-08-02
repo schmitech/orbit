@@ -166,6 +166,14 @@ curl -X POST http://localhost:3000/v1/chat/completions \
 
 You can also access the Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `admin123` — which can be changed inside the admin panel).
 
+<br>
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/13f03f18-8421-48a1-8643-fd6a488fdec7" controls muted playsinline width="85%"></video>
+  <br />
+  <em>Monitor health, latency, usage, costs, feedback, sessions, and audit events; manage users, API keys, quotas, adapters settings, MCP servers, and logs in one place.</em>
+</div>
+<br>
+
 > [!IMPORTANT]
 > These images ship with a default database and API key for first-run convenience. Rotate the default API key/admin password before exposing ORBIT beyond localhost.
 
@@ -184,7 +192,7 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 | **Build tool-using agents** | Give models scoped access to MCP servers with bounded, multi-step server-side tool loops. [Read the MCP guide →](docs/adapters/mcp-agent.md) |
 | **Offer one governed AI endpoint** | Route local and cloud models with per-key access, quotas, fallbacks, moderation, metrics, and auditability. [Create your first key →](docs/tutorial/creating-api-keys.md) |
 
-<details open>
+<details>
 <summary><strong>Ask database questions in multiple languages</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/4af9005e-a9c9-4f37-8f6a-84d86e6f6dde" controls muted playsinline width="80%"></video>
@@ -223,15 +231,6 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
   <em>Multi-step agent reasoning across 9 synthetic MCP tools: CRM health, telemetry seat utilization, P1 support escalations, and churn risk simulation.</em>
   <br />
   👉 <a href="https://orbit.schmitech.ca/mcp-business-sample"><strong>Try the Business & Revenue Intelligence MCP demo live →</strong></a>
-</p>
-</details>
-
-<details>
-<summary><strong>Operate the gateway</strong></summary>
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/cad506be-f6e7-4a9d-969e-e66bb5662870" controls muted playsinline width="80%"></video>
-  <br />
-  <em>Monitor health, latency, costs, tokens, sessions, adapters, and logs behind API keys, quotas, and rate limits.</em>
 </p>
 </details>
 
