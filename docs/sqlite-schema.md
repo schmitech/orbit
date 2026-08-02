@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     role TEXT NOT NULL,
+    roles TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     last_login TEXT,
@@ -58,7 +59,8 @@ CREATE TABLE IF NOT EXISTS users (
 - `id` (TEXT, PK): Unique user ID (UUID)
 - `username` (TEXT, UNIQUE): Username for login. For externally-authenticated users this is the synthetic `"{provider}:{external_id}"` key (e.g. `entra:<sub>`, `auth0:<sub>`)
 - `password` (TEXT): Hashed password (PBKDF2). Externally-authenticated users store a random unusable hash — they can only sign in through their identity provider
-- `role` (TEXT): User role (e.g., "admin", "user")
+- `role` (TEXT): Primary user role (e.g., "admin", "user")
+- `roles` (TEXT): JSON array of additional roles assigned to the user (optional)
 - `active` (INTEGER): Whether user is active (1=active, 0=inactive)
 - `created_at` (TEXT): ISO format timestamp of account creation
 - `last_login` (TEXT): ISO format timestamp of last login
@@ -268,7 +270,8 @@ CREATE TABLE IF NOT EXISTS conversation_threads (
     dataset_key TEXT NOT NULL,
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
-    metadata_json TEXT
+    metadata_json TEXT,
+    owner_api_key_hash TEXT
 )
 ```
 

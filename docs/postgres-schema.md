@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS chat_history (
     timestamp TEXT NOT NULL,
     user_id TEXT,
     api_key TEXT,
+    api_key_hash TEXT,
     metadata_json TEXT,
     message_hash TEXT,
     token_count INTEGER
@@ -151,6 +152,7 @@ CREATE TABLE IF NOT EXISTS chat_history (
 - `idx_chat_history_user` on `(user_id, timestamp)`
 - `idx_chat_history_timestamp` on `timestamp`
 - `idx_chat_history_api_key` on `api_key`
+- `idx_chat_history_api_key_hash` on `(session_id, api_key_hash)`
 - `idx_chat_history_hash` (UNIQUE) on `(session_id, message_hash)`
 
 ---
@@ -168,7 +170,8 @@ CREATE TABLE IF NOT EXISTS conversation_threads (
     dataset_key TEXT NOT NULL,
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
-    metadata_json TEXT
+    metadata_json TEXT,
+    owner_api_key_hash TEXT
 )
 ```
 
@@ -177,6 +180,7 @@ CREATE TABLE IF NOT EXISTS conversation_threads (
 - `idx_conversation_threads_parent_session` on `parent_session_id`
 - `idx_conversation_threads_thread_session` on `thread_session_id`
 - `idx_conversation_threads_expires_at` on `expires_at`
+- `idx_conversation_threads_owner` on `owner_api_key_hash`
 
 ---
 
@@ -266,6 +270,16 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     user_id TEXT,
     adapter_name TEXT,
     model TEXT,
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
+    total_tokens INTEGER,
+    reasoning_tokens INTEGER,
+    cost_usd DOUBLE PRECISION,
+    input_rate_per_1m DOUBLE PRECISION,
+    output_rate_per_1m DOUBLE PRECISION,
+    pricing_source TEXT,
+    usage_unit TEXT,
+    usage_quantity REAL,
     call_type TEXT
 )
 ```
@@ -279,6 +293,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `idx_audit_logs_adapter_name` on `adapter_name`
 - `idx_audit_logs_model` on `model`
 - `idx_audit_logs_call_type` on `call_type`
+
+`prompt_tokens`, `completion_tokens`, `total_tokens`, `reasoning_tokens`, `cost_usd`, `input_rate_per_1m`, `output_rate_per_1m`, `pricing_source`, `usage_unit`, `usage_quantity`: token usage and cost tracking columns — see [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field descriptions (identical semantics; `cost_usd`/`input_rate_per_1m`/`output_rate_per_1m` are `DOUBLE PRECISION` in Postgres vs. `REAL` in SQLite).
 
 `call_type` (TEXT): coarse classification of the AI call this row represents — `inference` (chat/text generation, the default), `embedding`, `image`, `video`, `audio`, or `document` (OCR). See [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field description.
 
@@ -451,6 +467,11 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are 
 
 ## Version History
 
+- **v1.2** (2026-08-02): Doc sync with SQLite v1.6–v1.9
+  - Corrected `chat_history` CREATE TABLE and indexes to include `api_key_hash` / `idx_chat_history_api_key_hash` (matches SQLite v1.8)
+  - Corrected `conversation_threads` index list to include `idx_conversation_threads_owner` (matches SQLite v1.8)
+  - Corrected `audit_logs` CREATE TABLE to include the token/cost columns (`prompt_tokens`, `completion_tokens`, `total_tokens`, `reasoning_tokens`, `cost_usd`, `input_rate_per_1m`, `output_rate_per_1m`, `pricing_source`) and usage columns (`usage_unit`, `usage_quantity`) (matches SQLite v1.6/v1.7); `call_type` was already documented (matches SQLite v1.9)
+  - These columns/indexes were already present in `PostgresService`'s code-level schema; this doc had simply fallen out of sync with it
 - **v1.1** (2026-07-22): Multi-worker adapter reload coordination state
   - Added `adapter_reload_state` table (matches SQLite v1.5)
 - **v1.0** (2026-07-22): Initial PostgreSQL backend documentation
