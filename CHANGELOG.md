@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.14.0] - 2026-08-02
 
 ### Breaking Changes
 - **MCP client config renamed to `mcp_clients`**: the top-level `mcp_client:` key is now `mcp_clients:`, and `config/mcp_client.yaml` is now `config/mcp_clients.yaml` (update the import in `config.yaml`). The old key is not read — MCP tool calling stays off until the config is renamed.
@@ -16,6 +16,9 @@
 
 ### Bug Fixes & Technical Improvements
 - **Operator Log Access**: The `operator` role now includes `logs.read`, so it can view server logs (`GET /admin/logs/tail`, the Ops tab's log viewer) alongside the config/adapters/system control it already ran day-to-day. `audit.read` stays scoped to `auditor` alone — the audit trail (a record of admin actions) is a distinct, more sensitive concern from raw server log output.
+
+### Documentation & Configuration
+- **Schema Docs & Default Database**: Synced `docs/postgres-schema.md` with the actual Postgres code schema (missing `chat_history.api_key_hash` column/index, `conversation_threads` owner index, and `audit_logs` token/cost/usage columns) and removed leftover legacy duplicate indexes from `install/orbit.db.default`.
 
 ## [2.13.0] - 2026-07-31
 
