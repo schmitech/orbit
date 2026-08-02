@@ -948,7 +948,7 @@ export function Message({
                 />
               )}
             </div>
-            {replyIsAssistant && !reply.isStreaming && reply.model && (
+            {replyIsAssistant && !reply.isStreaming && reply.content !== '' && reply.content !== t('chat.errors.servicePaused') && reply.model && (
               <div className="px-1 pt-0.5 text-[11px] text-gray-400 dark:text-[#9a9ab0]">
                 {t('message.generatedBy', { model: reply.model })}
               </div>
@@ -1105,7 +1105,7 @@ export function Message({
         )}
         </div>
 
-        {isAssistant && !message.isStreaming && message.model && (
+        {isAssistant && !message.isStreaming && message.content !== '' && message.content !== t('chat.errors.servicePaused') && message.model && (
           <div className="px-1 pt-0.5 text-[11px] text-gray-400 dark:text-[#9a9ab0]">
             {t('message.generatedBy', { model: message.model })}
           </div>
