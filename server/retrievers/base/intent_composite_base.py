@@ -951,7 +951,8 @@ class CompositeIntentRetriever(BaseRetriever):
     async def _rerank_candidates(
         self,
         query: str,
-        candidates: List[TemplateMatch]
+        candidates: List[TemplateMatch],
+        usage_sink=None,
     ) -> Dict[str, float]:
         """
         Rerank candidates using the configured reranker.
@@ -1010,10 +1011,9 @@ class CompositeIntentRetriever(BaseRetriever):
                 template_ids.append(match.template_id)
 
             # Call reranker
-            rerank_results = await self._reranker.rerank(
-                query=query,
-                documents=documents,
-                top_n=len(documents)
+            rerank_results = await self._reranker.rerank_tracked(
+                query=query, documents=documents, top_n=len(documents),
+                usage_sink=usage_sink,
             )
 
             # Build score map
@@ -1054,7 +1054,8 @@ class CompositeIntentRetriever(BaseRetriever):
     async def _calculate_combined_scores(
         self,
         query: str,
-        matches: List[TemplateMatch]
+        matches: List[TemplateMatch],
+        usage_sink=None,
     ) -> List[TemplateMatch]:
         """
         Calculate combined scores for all matches using multi-stage scoring.
@@ -1081,7 +1082,9 @@ class CompositeIntentRetriever(BaseRetriever):
         # Get rerank scores
         rerank_scores: Dict[str, float] = {}
         if self.reranking_enabled:
-            rerank_scores = await self._rerank_candidates(query, candidates)
+            rerank_scores = await self._rerank_candidates(
+                query, candidates, usage_sink=usage_sink
+            )
 
         # Calculate scores for each match
         for match in matches:
@@ -1423,7 +1426,10 @@ class CompositeIntentRetriever(BaseRetriever):
             # Stage 2 & 3: Multi-stage scoring (reranking + string similarity)
             if self.multistage_enabled:
                 logger.debug(f"Applying multi-stage scoring to {len(all_matches)} candidates")
-                all_matches = await self._calculate_combined_scores(query, all_matches)
+                all_matches = await self._calculate_combined_scores(
+                    query, all_matches,
+                    usage_sink=kwargs.get("reranking_usage_sink"),
+                )
 
             # Select the best match
             best_match = self._select_best_match(all_matches)

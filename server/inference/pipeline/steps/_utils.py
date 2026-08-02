@@ -40,7 +40,11 @@ def add_usage_component(
     source: str,
 ) -> None:
     """Attach independently priceable usage to the current request."""
-    if not usage_sink or not usage_sink.get("reported"):
+    if not usage_sink:
+        return
+    if source == "reranking" and not usage_sink.get("attempted"):
+        return
+    if not usage_sink.get("reported") and source != "reranking":
         return
     component = dict(usage_sink)
     component["source"] = source
@@ -107,6 +111,67 @@ def summarize_embedding_usage(
     except Exception:
         logger.debug("Embedding usage pricing failed", exc_info=True)
 
+    return usage
+
+
+def extract_reranking_usage(container, context) -> Optional[Dict[str, Any]]:
+    """Detach reranking usage into its own audit event."""
+    components = context.metadata.get("_usage_components", [])
+    reranking = [item for item in components if item and item.get("source") == "reranking"]
+    remaining = [item for item in components if item not in reranking]
+    if remaining:
+        context.metadata["_usage_components"] = remaining
+    else:
+        context.metadata.pop("_usage_components", None)
+    if not reranking:
+        return None
+
+    items = [
+        dict(line)
+        for component in reranking
+        for line in (component.get("line_items") or [component])
+    ]
+    last = items[-1]
+    reported_items = [item for item in items if item.get("reported")]
+    token_items = [item for item in reported_items if item.get("usage_unit") is None]
+    unit_items = [item for item in reported_items if item.get("usage_unit") is not None]
+    reported = bool(reported_items)
+    units = {item.get("usage_unit") for item in unit_items}
+    usage: Dict[str, Any] = {
+        "provider": last.get("provider"), "model": last.get("model"),
+        "prompt_tokens": sum(item.get("prompt_tokens") or 0 for item in token_items) if token_items else None,
+        "completion_tokens": sum(item.get("completion_tokens") or 0 for item in token_items) if token_items else None,
+        "total_tokens": sum(item.get("total_tokens") or 0 for item in token_items) if token_items else None,
+        "reasoning_tokens": None, "cost_usd": None,
+        "input_rate_per_1m": None, "output_rate_per_1m": None,
+        "usage_unit": units.pop() if len(units) == 1 else None,
+        "usage_quantity": sum(item.get("usage_quantity") or 0 for item in unit_items) if unit_items else None,
+        "pricing_source": "unpriced" if reported else "unreported",
+        "reported": reported, "call_type": "reranking",
+    }
+    if reported and container.has("pricing_service"):
+        try:
+            pricing_service = container.get("pricing_service")
+            token_estimates = [pricing_service.estimate(
+                item.get("provider"), item.get("model"),
+                item.get("prompt_tokens") or 0, item.get("completion_tokens") or 0,
+            ) for item in token_items]
+            unit_estimates = [pricing_service.estimate_media(
+                item.get("provider"), item.get("model"),
+                item.get("usage_unit"), item.get("usage_quantity"),
+            ) for item in unit_items]
+            estimates = token_estimates + unit_estimates
+            priced = [estimate.cost_usd for estimate in estimates if estimate.cost_usd is not None]
+            if priced:
+                usage["cost_usd"] = round(sum(priced), 6)
+            sources = {estimate.pricing_source for estimate in estimates}
+            usage["pricing_source"] = (
+                sources.pop() if len(priced) == len(estimates) and len(sources) == 1
+                else "mixed" if priced else "unpriced"
+            )
+        except Exception:
+            logger.debug("Reranking usage pricing failed", exc_info=True)
+    context.metadata["reranking_usage"] = usage
     return usage
 
 
@@ -243,6 +308,7 @@ def record_usage(
     priced fields.
     """
     embedding_usage = extract_embedding_usage(container, context)
+    reranking_usage = extract_reranking_usage(container, context)
     primary_reported = bool(usage_sink.get("reported"))
     components = [
         component
@@ -285,8 +351,8 @@ def record_usage(
         line_items.extend(items)
 
     reported = bool(line_items)
-    if not reported and embedding_usage:
-        context.metadata["usage"] = embedding_usage
+    if not reported and (embedding_usage or reranking_usage):
+        context.metadata["usage"] = embedding_usage or reranking_usage
         return
 
     prompt_tokens = sum(item.get("prompt_tokens") or 0 for item in line_items) if reported else None
@@ -395,6 +461,7 @@ def record_media_generation_usage(
     the dominant, request-defining cost.
     """
     embedding_usage = extract_embedding_usage(container, context)
+    reranking_usage = extract_reranking_usage(container, context)
     pricing_service = container.get('pricing_service') if container.has('pricing_service') else None
 
     usage: Dict[str, Any] = {
@@ -469,8 +536,8 @@ def record_media_generation_usage(
     if have_cost:
         usage["cost_usd"] = round(total_cost, 6)
 
-    if not usage["reported"] and embedding_usage:
-        context.metadata["usage"] = embedding_usage
+    if not usage["reported"] and (embedding_usage or reranking_usage):
+        context.metadata["usage"] = embedding_usage or reranking_usage
         return
 
     context.metadata["usage"] = usage

@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Core System Updates
+- **Reranking Cost Tracking**: Reranking now emits its own `call_type: reranking` audit events instead of inflating parent inference/document costs. OpenAI, Anthropic, and Ollama rerankers report priced token usage; Cohere reports its native `search_units` billing unit (unpriced pending a published rate); Voyage and Jina report tokens (also unpriced pending published rates). The Audit and Costs panels gained a Reranking filter, and Costs can group by it.
+- **Adapter Reranker Model Override**: Adapters can now set `reranker_model` alongside `reranker_provider` to use a different model than the provider's `config/rerankers.yaml` default, matching the existing `model`/`embedding_model` override pattern.
+
+### Bug Fixes & Technical Improvements
+- **Reranker Config Never Applied**: Fixed a base-class config lookup bug (`ServiceType.RERANKING.value + 's'` computed `"rerankings"` instead of the real `"rerankers"` config section) that silently ignored every setting in `config/rerankers.yaml` — model, `api_base`, batch size, `top_n`, temperature — for all reranking providers, which always ran on hardcoded defaults instead.
+- **Reranker `api_base` Ignored for OpenAI/Anthropic**: Fixed OpenAI and Anthropic reranking services sending calls to the provider default endpoint even when `api_base` was configured, since their shared client base classes only read `base_url`. The base URL resolver now accepts either key.
+- **Reranking Audit Accuracy**: Fixed reranking audit events being logged for calls that never executed (a usage sink populated before an exception, now gated on `attempted`), and fixed a mixed reported/unreported batch forcing `pricing_source: mixed` instead of pricing only the reported line items.
+- **Unreachable Legacy Reranker Fallback**: Removed dead "legacy/custom reranker" fallback branches in composite-intent and document reranking that could never execute against any real reranker implementation.
+- **Costs Chart Tooltip Values**: Fixed the horizontal “Top model by cost” tooltip reading its Y-axis category index as currency (for example, displaying the fourth row as `$3.00`) instead of the model’s actual X-axis cost.
+
 ## [2.14.0] - 2026-08-02
 
 ### Breaking Changes

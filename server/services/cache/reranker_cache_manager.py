@@ -36,24 +36,26 @@ class RerankerCacheManager(ServiceCacheManager):
         """
         super().__init__(config, thread_pool)
 
-    def build_cache_key(self, provider_name: str) -> str:
+    def build_cache_key(self, provider_name: str, model_override: Optional[str] = None) -> str:
         """
         Build cache key for a reranker service.
 
         Args:
             provider_name: Name of the reranker provider
+            model_override: Optional adapter-level model override
 
         Returns:
             Cache key string
         """
         reranker_config = self.config.get('rerankers', {}).get(provider_name, {})
-        model = reranker_config.get('model', '')
+        model = model_override or reranker_config.get('model', '')
         return f"{provider_name}:{model}" if model else provider_name
 
     async def create_service(
         self,
         provider_name: str,
-        adapter_name: Optional[str] = None
+        adapter_name: Optional[str] = None,
+        model_override: Optional[str] = None,
     ) -> Any:
         """
         Create and cache a new reranker service instance.
@@ -61,22 +63,26 @@ class RerankerCacheManager(ServiceCacheManager):
         Args:
             provider_name: Name of the reranker provider
             adapter_name: Optional adapter name for context
+            model_override: Optional adapter-level model override (e.g. reranker_model)
 
         Returns:
             The created service instance
         """
-        cache_key = self.build_cache_key(provider_name)
-        return await self._create_cached_service(cache_key, provider_name, adapter_name)
+        cache_key = self.build_cache_key(provider_name, model_override)
+        return await self._create_cached_service(
+            cache_key, provider_name, adapter_name, model_override=model_override
+        )
 
     async def _create_instance(
         self,
         provider_name: str,
         adapter_name: Optional[str] = None,
+        model_override: Optional[str] = None,
         **kwargs: Any,
     ) -> Any:
         adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
         reranker_config = self.config.get('rerankers', {}).get(provider_name, {})
-        model = reranker_config.get('model', '')
+        model = model_override or reranker_config.get('model', '')
 
         if model:
             logger.debug(f"Loading reranker service '{provider_name}/{model}'{adapter_context}")
@@ -90,5 +96,6 @@ class RerankerCacheManager(ServiceCacheManager):
 
         return RerankingServiceManager.create_reranker_service(
             self.config,
-            provider_name
+            provider_name,
+            model_override=model_override,
         )

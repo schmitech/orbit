@@ -31,6 +31,7 @@ class OllamaRerankingService(RerankingService, OllamaBaseService):
 
     Old: 179 lines, New: ~120 lines, Reduction: 33%
     """
+    SUPPORTS_USAGE_REPORTING = True
 
     def __init__(self, config: Dict[str, Any]):
         """
@@ -64,7 +65,8 @@ class OllamaRerankingService(RerankingService, OllamaBaseService):
         query: str,
         documents: List[str],
         top_n: Optional[int] = None,
-        _skip_init_check: bool = False
+        _skip_init_check: bool = False,
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Rerank documents based on their relevance to the query.
@@ -125,6 +127,12 @@ Scores:"""
                     raise ValueError(f"Failed to rerank documents: {error_text}")
 
                 data = await response.json()
+                if "prompt_eval_count" in data or "eval_count" in data:
+                    self._report_usage(
+                        usage_sink,
+                        data.get("prompt_eval_count"),
+                        data.get("eval_count"),
+                    )
                 response_text = data.get('response', '').strip()
 
                 # Parse the scores from the response

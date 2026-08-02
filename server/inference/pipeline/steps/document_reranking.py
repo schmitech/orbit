@@ -12,6 +12,7 @@ from adapters.capabilities import (
     get_capability_registry,
     FormattingStyle
 )
+from ._utils import add_usage_component
 
 logger = logging.getLogger(__name__)
 
@@ -163,11 +164,14 @@ class DocumentRerankingStep(PipelineStep):
             )
 
             # Perform reranking
-            reranked_results = await reranker_service.rerank(
+            reranking_usage: Dict[str, Any] = {}
+            reranked_results = await reranker_service.rerank_tracked(
                 query=context.message,
                 documents=documents,
-                top_n=top_n
+                top_n=top_n,
+                usage_sink=reranking_usage,
             )
+            add_usage_component(context, reranking_usage, "reranking")
 
             if not reranked_results:
                 logger.warning("Reranking returned no results - keeping original order")
@@ -238,6 +242,7 @@ class DocumentRerankingStep(PipelineStep):
             adapter_config = adapter_manager.get_adapter_config(context.adapter_name) or {}
 
             reranker_provider = adapter_config.get('reranker_provider')
+            reranker_model = adapter_config.get('reranker_model')
 
             if reranker_provider:
                 # Try to get adapter-specific reranker
@@ -245,10 +250,12 @@ class DocumentRerankingStep(PipelineStep):
                     if hasattr(adapter_manager, 'get_overridden_reranker'):
                         reranker = await adapter_manager.get_overridden_reranker(
                             reranker_provider,
-                            context.adapter_name
+                            context.adapter_name,
+                            reranker_model,
                         )
                         logger.debug(
                             f"Using adapter-specific reranker: {reranker_provider}"
+                            + (f" (model: {reranker_model})" if reranker_model else "")
                         )
                         return reranker
                 except Exception as e:

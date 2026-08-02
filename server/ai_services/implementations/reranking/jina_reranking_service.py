@@ -33,6 +33,7 @@ class JinaRerankingService(RerankingService, JinaBaseService):
     3. Configuration parsing from base classes
     4. Retry logic from ConnectionManager
     """
+    SUPPORTS_USAGE_REPORTING = True
 
     def __init__(self, config: Dict[str, Any]):
         """
@@ -82,7 +83,8 @@ class JinaRerankingService(RerankingService, JinaBaseService):
         query: str,
         documents: List[str],
         top_n: Optional[int] = None,
-        _skip_init_check: bool = False
+        _skip_init_check: bool = False,
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Rerank documents using Jina AI's Reranker API.
@@ -140,6 +142,10 @@ class JinaRerankingService(RerankingService, JinaBaseService):
                     raise ValueError(f"Jina AI rerank failed: {error_text}")
 
                 data = await response.json()
+
+                usage = data.get('usage')
+                if usage is not None:
+                    self._report_usage(usage_sink, usage.get('total_tokens'), 0)
 
                 # Parse results
                 results = []

@@ -400,18 +400,24 @@ class DynamicAdapterManager:
 
         return await self.embedding_cache.create_service(provider_name, adapter_name)
 
-    async def get_overridden_reranker(self, provider_name: str, adapter_name: str = None) -> Any:
+    async def get_overridden_reranker(
+        self,
+        provider_name: str,
+        adapter_name: str = None,
+        model_override: Optional[str] = None,
+    ) -> Any:
         """
         Get a reranker service instance by name, loading and caching it if necessary.
 
         Args:
             provider_name: The name of the reranker provider to create
             adapter_name: Optional adapter name for logging context
+            model_override: Optional adapter-level model override (e.g. reranker_model)
         """
         if not provider_name:
             raise ValueError("Reranker provider name cannot be empty")
 
-        return await self.reranker_cache.create_service(provider_name, adapter_name)
+        return await self.reranker_cache.create_service(provider_name, adapter_name, model_override)
 
     async def get_overridden_vision(self, provider_name: str, adapter_name: str = None) -> Any:
         """

@@ -13,7 +13,8 @@ adapters:
     model: "gpt-5.4-mini"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
-    reranker_provider: "cohere"
+    reranker_provider: "voyage"
+    reranker_model: "rerank-2.5-lite"
 
     # Capabilities: Standard intent retriever
     # Note: Intent adapters use the same capabilities as QA adapters (always retrieve, standard formatting)

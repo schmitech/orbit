@@ -21,6 +21,7 @@ from typing import Optional, Dict, Any, List
 from ..base import PipelineStep, ProcessingContext
 from ._utils import (
     extract_embedding_usage,
+    extract_reranking_usage,
     get_generation_memory,
     get_rewrite_prompt_config,
     store_generation_memory,
@@ -335,6 +336,7 @@ class DocumentGenerationStep(PipelineStep):
             return
 
         extract_embedding_usage(self.container, context)
+        extract_reranking_usage(self.container, context)
 
         prompt_tokens = sum(a["prompt_tokens"] for a in attempts)
         completion_tokens = sum(a["completion_tokens"] for a in attempts)

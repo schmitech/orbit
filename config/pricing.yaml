@@ -79,6 +79,13 @@ pricing:
       "voyage-3.5":      { input_per_1m: 0.06, output_per_1m: 0.0 }
       "voyage-3-large":  { input_per_1m: 0.18, output_per_1m: 0.0 }
       "voyage-code-3":   { input_per_1m: 0.18, output_per_1m: 0.0 }
+      # Rerank usage is reported as total processed tokens (input-only).
+      "rerank-1":        { input_per_1m: 0.05, output_per_1m: 0.0 }
+      "rerank-lite-1":   { input_per_1m: 0.02, output_per_1m: 0.0 }
+      "rerank-2":        { input_per_1m: 0.05, output_per_1m: 0.0 }
+      "rerank-2-lite":   { input_per_1m: 0.02, output_per_1m: 0.0 }
+      "rerank-2.5":      { input_per_1m: 0.05, output_per_1m: 0.0 }
+      "rerank-2.5-lite": { input_per_1m: 0.02, output_per_1m: 0.0 }
 
     nvidia:
       # NVIDIA NIM embedding endpoints don't publish a stable public
@@ -154,6 +161,11 @@ pricing:
     mistral:
       # Mistral's document OCR endpoint bills per page (~$1/1000 pages).
       "mistral-ocr*": { unit: "pages", per_unit: 0.001 }
+
+    cohere:
+      # Cohere Rerank reports billed search_units.  The public pricing page
+      # defines the unit but does not publish a stable per-unit API price.
+      "rerank-*": { unit: "search_units", per_unit: null }
 
     elevenlabs:
       "*": { unit: "characters", per_unit: 0.00003 }

@@ -9,9 +9,10 @@ from abc import abstractmethod
 from typing import List, Dict, Any, Optional
 
 from ..base import ProviderAIService, ServiceType
+from ..providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
 
 
-class RerankingService(ProviderAIService):
+class RerankingService(ProviderAIService, UsageReportingMixin):
     """
     Base class for all reranking services.
 
@@ -29,6 +30,12 @@ class RerankingService(ProviderAIService):
 
     # Class-level service type for compatibility with provider base classes
     service_type = ServiceType.RERANKING
+    SUPPORTS_USAGE_REPORTING = False
+
+    # ServiceType.RERANKING.value + 's' would be 'rerankings', but the real
+    # config section is 'rerankers' (config/rerankers.yaml) - point
+    # _extract_provider_config() at the correct key.
+    config_section_key = 'rerankers'
 
     def _get_batch_size(self, default: int = 5) -> int:
         """
@@ -89,6 +96,23 @@ class RerankingService(ProviderAIService):
             'Python is a language'
         """
         pass
+
+    async def rerank_tracked(
+        self, query: str, documents: List[str], top_n: Optional[int] = None,
+        usage_sink: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Rerank and populate a caller-owned usage sink when supported."""
+        if usage_sink is not None:
+            usage_sink["attempted"] = True
+            usage_sink.setdefault("provider", getattr(self, "provider_name", None))
+            usage_sink.setdefault("model", getattr(self, "model", None))
+            usage_sink.setdefault("reported", False)
+        if not self.SUPPORTS_USAGE_REPORTING:
+            return await self.rerank(query, documents, top_n)
+        local_usage: Dict[str, Any] = {}
+        result = await self.rerank(query, documents, top_n, usage_sink=local_usage)
+        accumulate_usage_sink(usage_sink, local_usage)
+        return result
 
     def _get_top_n_default(self) -> Optional[int]:
         """

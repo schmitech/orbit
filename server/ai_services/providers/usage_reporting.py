@@ -156,6 +156,8 @@ def accumulate_usage_sink(
             "completion_tokens": source.get("completion_tokens") or 0,
             "total_tokens": source.get("total_tokens") or 0,
             "reasoning_tokens": source.get("reasoning_tokens"),
+            "usage_unit": source.get("usage_unit"),
+            "usage_quantity": source.get("usage_quantity"),
             "reported": True,
         })
 

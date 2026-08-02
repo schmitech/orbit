@@ -7095,6 +7095,42 @@
     return "$" + formatNum(value, frac);
   }
 
+  // Chart.js's built-in numeric formatter rounds very small values to "0".
+  // Cost data commonly includes micro-dollar embedding and reranking calls,
+  // so charts must use the same magnitude-aware formatter as the summary
+  // cards and audit detail rather than implying those calls were free.
+  function costTooltipCallbacks() {
+    return {
+      label: function (tooltipItem) {
+        var parsed = tooltipItem.parsed;
+        // Horizontal bars encode their numeric value on X; Y is only the
+        // category index (which previously made the fourth row look like
+        // "$3.00"). Lines use Y, and doughnut charts expose a scalar.
+        var horizontal = tooltipItem.chart && tooltipItem.chart.options.indexAxis === "y";
+        var value = typeof parsed === "number" ? parsed :
+          (parsed && horizontal && parsed.x != null ? parsed.x :
+            (parsed && parsed.y != null ? parsed.y :
+              (parsed && parsed.x != null ? parsed.x : tooltipItem.raw)));
+        var datasetLabel = tooltipItem.dataset && tooltipItem.dataset.label;
+        return (datasetLabel ? datasetLabel + ": " : "") + obsCost(value);
+      }
+    };
+  }
+
+  function configureCostTooltip(options) {
+    var tooltip = options.plugins.tooltip;
+    tooltip.callbacks = costTooltipCallbacks();
+    // Costs are names and currency, not console output: use the panel's UI
+    // typeface at a compact, readable scale instead of the feedback chart's
+    // intentionally prominent monospace tooltip style.
+    tooltip.titleFont = { family: "Inter, 'Segoe UI', system-ui, sans-serif", size: 13, weight: "600" };
+    tooltip.bodyFont = { family: "Inter, 'Segoe UI', system-ui, sans-serif", size: 12, weight: "500" };
+    tooltip.padding = 12;
+    tooltip.titleMarginBottom = 6;
+    tooltip.boxPadding = 5;
+    return options;
+  }
+
   var OBS_MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   // Bucket keys are wall-clock values in the audit log's storage timezone
@@ -7144,7 +7180,7 @@
 
     var costCanvas = document.getElementById("obs-cost-chart");
     if (costCanvas && data.series.length) {
-      var costOpts = feedbackChartOptions();
+      var costOpts = configureCostTooltip(feedbackChartOptions());
       var cumulative = 0;
       costsCharts.cost = new Chart(costCanvas, {
         type: "line",
@@ -7168,7 +7204,7 @@
     var modelsCanvas = document.getElementById("obs-models-chart");
     var groupRows = data.groups.slice(0, 10);
     if (modelsCanvas && groupRows.length) {
-      var modelOpts = feedbackChartOptions();
+      var modelOpts = configureCostTooltip(feedbackChartOptions());
       modelOpts.indexAxis = "y";
       modelOpts.plugins.legend.display = false;
       costsCharts.models = new Chart(modelsCanvas, {
@@ -7183,13 +7219,14 @@
 
     var providerCanvas = document.getElementById("obs-provider-chart");
     if (providerCanvas && groupRows.length) {
+      var providerOpts = configureCostTooltip(feedbackChartOptions());
       costsCharts.provider = new Chart(providerCanvas, {
         type: "doughnut",
         data: {
           labels: groupRows.map(function (row) { return row.key || "(unknown)"; }),
           datasets: [{ data: groupRows.map(function (row) { return row.cost_usd; }), backgroundColor: ["#5794f2", "#28a66a", "#e0a22f", "#e05260", "#9b7ede", "#4fb8b0", "#f28cb1", "#c0ca33", "#8d6e63", "#78909c"], borderWidth: 0, hoverOffset: 4 }]
         },
-        options: { responsive: true, maintainAspectRatio: false, cutout: "68%", plugins: feedbackChartOptions().plugins }
+        options: { responsive: true, maintainAspectRatio: false, cutout: "68%", plugins: providerOpts.plugins }
       });
     }
   }
@@ -7230,7 +7267,7 @@
             id: "obs-call-type",
             onchange: function (e) { selectedCostsCallType = e.target.value; load(); }
           },
-            [["all", "All call types"], ["inference", "Inference"], ["embedding", "Embedding"], ["image", "Image"], ["video", "Video"], ["audio", "Audio"], ["document", "Document"]].map(function (option) {
+            [["all", "All call types"], ["inference", "Inference"], ["embedding", "Embedding"], ["reranking", "Reranking"], ["image", "Image"], ["video", "Video"], ["audio", "Audio"], ["document", "Document"]].map(function (option) {
               return el("option", { value: option[0], selected: option[0] === selectedCostsCallType ? "selected" : null }, option[1]);
             })
           ),
@@ -7328,6 +7365,7 @@
   var CALL_TYPE_LABELS = {
     inference: "Inference",
     embedding: "Embedding",
+    reranking: "Reranking",
     image: "Image",
     video: "Video",
     audio: "Audio",
@@ -7338,6 +7376,7 @@
     { value: "all",       label: "All" },
     { value: "inference", label: "Inference" },
     { value: "embedding", label: "Embedding" },
+    { value: "reranking", label: "Reranking" },
     { value: "image",     label: "Image" },
     { value: "video",     label: "Video" },
     { value: "audio",     label: "Audio" },

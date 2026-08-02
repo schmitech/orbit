@@ -120,6 +120,34 @@ class TestRerankingServiceManager:
         # Should be different instances (different models)
         assert instance1 is not instance2
 
+    def test_model_override_creates_distinct_instance_and_uses_model(self):
+        """Test that model_override yields a distinct, differently-cached instance
+        whose service actually uses the overridden model rather than the config default."""
+        config = {
+            'reranker': {'provider': 'voyage'},
+            'rerankers': {
+                'voyage': {
+                    'api_key': 'test',
+                    'model': 'rerank-2.5-lite'
+                }
+            }
+        }
+
+        default_instance = RerankingServiceManager.create_reranker_service(config, 'voyage')
+        overridden_instance = RerankingServiceManager.create_reranker_service(
+            config, 'voyage', model_override='rerank-2.5'
+        )
+
+        assert default_instance is not overridden_instance
+        assert default_instance.model == 'rerank-2.5-lite'
+        assert overridden_instance.model == 'rerank-2.5'
+
+        # Requesting the same override again should reuse the cached instance.
+        same_override_instance = RerankingServiceManager.create_reranker_service(
+            config, 'voyage', model_override='rerank-2.5'
+        )
+        assert overridden_instance is same_override_instance
+
     def test_clear_cache(self):
         """Test that cache clearing works."""
         config = {
@@ -303,7 +331,7 @@ class TestDocumentRerankingStep:
 
         # Mock reranker service that raises an error
         mock_reranker = AsyncMock()
-        mock_reranker.rerank.side_effect = Exception('Reranker failed')
+        mock_reranker.rerank_tracked.side_effect = Exception('Reranker failed')
         self.container.register_singleton('reranker_service', mock_reranker)
 
         # Mock adapter_manager

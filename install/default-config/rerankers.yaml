@@ -81,7 +81,7 @@ rerankers:
     enabled: false
     api_key: ${VOYAGE_API_KEY}
     api_base: "https://api.voyageai.com/v1"
-    model: "rerank-lite-1"
+    model: "rerank-2.5-lite"
     batch_size: 5
     top_n: null
     truncation: true  # Auto-truncate long documents 

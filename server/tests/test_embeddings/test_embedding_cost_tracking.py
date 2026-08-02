@@ -13,7 +13,11 @@ from ai_services.implementations.embedding.openai_embedding_service import (
 )
 from ai_services.services.embedding_service import EmbeddingService
 from inference.pipeline.base import ProcessingContext
-from inference.pipeline.steps._utils import add_usage_component, record_usage
+from inference.pipeline.steps._utils import (
+    add_usage_component,
+    extract_reranking_usage,
+    record_usage,
+)
 from services.pricing_service import PricingService
 
 
@@ -429,6 +433,99 @@ def test_embedding_and_generation_are_priced_as_separate_audit_events():
 
 
 @pytest.mark.unit
+def test_reranking_usage_is_separate_and_priced():
+    context = ProcessingContext()
+    add_usage_component(
+        context,
+        {
+            "provider": "openai", "model": "gpt-test",
+            "prompt_tokens": 1_000, "completion_tokens": 100,
+            "total_tokens": 1_100, "reported": True, "attempted": True,
+        },
+        "reranking",
+    )
+
+    usage = extract_reranking_usage(_container(_pricing_service()), context)
+
+    assert usage["call_type"] == "reranking"
+    assert usage["cost_usd"] == pytest.approx(0.0012)
+    assert "_usage_components" not in context.metadata
+
+
+@pytest.mark.unit
+def test_unreported_reranking_still_creates_an_audit_event():
+    context = ProcessingContext()
+    add_usage_component(
+        context,
+        {"provider": "cohere", "model": "rerank-english-v3.0", "reported": False, "attempted": True},
+        "reranking",
+    )
+
+    usage = extract_reranking_usage(_container(_pricing_service()), context)
+
+    assert usage["call_type"] == "reranking"
+    assert usage["reported"] is False
+    assert usage["pricing_source"] == "unreported"
+
+
+@pytest.mark.unit
+def test_unattempted_reranking_does_not_create_an_audit_event():
+    context = ProcessingContext()
+    add_usage_component(
+        context,
+        {"provider": "cohere", "model": "rerank-english-v3.0", "reported": False},
+        "reranking",
+    )
+
+    assert extract_reranking_usage(_container(_pricing_service()), context) is None
+
+
+@pytest.mark.unit
+def test_unreported_reranking_item_does_not_mix_pricing_source():
+    context = ProcessingContext()
+    add_usage_component(
+        context,
+        {"provider": "openai", "model": "gpt-test", "prompt_tokens": 1_000,
+         "completion_tokens": 0, "total_tokens": 1_000, "reported": True, "attempted": True},
+        "reranking",
+    )
+    add_usage_component(
+        context,
+        {"provider": "cohere", "model": "rerank-english-v3.0", "reported": False, "attempted": True},
+        "reranking",
+    )
+
+    usage = extract_reranking_usage(_container(_pricing_service()), context)
+
+    assert usage["pricing_source"] == "exact"
+    assert usage["cost_usd"] == pytest.approx(0.001)
+
+
+@pytest.mark.unit
+def test_reranking_search_units_are_reported_but_explicitly_unpriced():
+    context = ProcessingContext()
+    pricing = PricingService({
+        "pricing": {"media": {"cohere": {
+            "rerank-*": {"unit": "search_units", "per_unit": None},
+        }}}
+    })
+    add_usage_component(
+        context,
+        {"provider": "cohere", "model": "rerank-english-v3.0", "reported": True,
+         "attempted": True, "usage_unit": "search_units", "usage_quantity": 2},
+        "reranking",
+    )
+
+    usage = extract_reranking_usage(_container(pricing), context)
+
+    assert usage["usage_unit"] == "search_units"
+    assert usage["usage_quantity"] == 2
+    assert usage["reported"] is True
+    assert usage["cost_usd"] is None
+    assert usage["pricing_source"] == "unpriced"
+
+
+@pytest.mark.unit
 def test_unpriced_embedding_does_not_silently_understate_total_cost():
     context = ProcessingContext()
     add_usage_component(
@@ -483,6 +580,19 @@ def test_repository_embedding_rates_cover_paid_unpriced_and_local_models():
     assert cohere.pricing_source == "unpriced"
     assert local.cost_usd == 0.0
     assert local.pricing_source == "local_zero"
+
+
+@pytest.mark.unit
+def test_repository_voyage_reranker_rates_cover_legacy_and_current_models():
+    pricing = _repository_pricing()
+
+    legacy = pricing.estimate("voyage", "rerank-lite-1", 1_000_000, 0)
+    current = pricing.estimate("voyage", "rerank-2.5-lite", 1_000_000, 0)
+
+    assert legacy.cost_usd == pytest.approx(0.02)
+    assert legacy.pricing_source == "exact"
+    assert current.cost_usd == pytest.approx(0.02)
+    assert current.pricing_source == "exact"
 
 
 @pytest.mark.unit

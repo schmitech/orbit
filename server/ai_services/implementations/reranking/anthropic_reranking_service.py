@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Optional
 import json
 
 from ...providers import AnthropicBaseService
+from ...providers.usage_reporting import accumulate_usage_sink
 from ...services import RerankingService
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
     This implementation uses the messages API with a specialized
     prompt to score document relevance.
     """
+    SUPPORTS_USAGE_REPORTING = True
 
     def __init__(self, config: Dict[str, Any]):
         """
@@ -62,7 +64,8 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
         query: str,
         documents: List[str],
         top_n: Optional[int] = None,
-        _skip_init_check: bool = False
+        _skip_init_check: bool = False,
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Rerank documents using Claude models via prompt engineering.
@@ -94,7 +97,9 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
 
             for i in range(0, len(documents), batch_size):
                 batch_docs = documents[i:i + batch_size]
-                batch_scores = await self._score_batch(query, batch_docs, i)
+                batch_usage = {}
+                batch_scores = await self._score_batch(query, batch_docs, i, batch_usage)
+                accumulate_usage_sink(usage_sink, batch_usage)
                 all_results.extend(batch_scores)
 
             # Sort by score descending
@@ -115,7 +120,8 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
         self,
         query: str,
         documents: List[str],
-        offset: int = 0
+        offset: int = 0,
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Score a batch of documents using Claude.
@@ -142,6 +148,13 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
                 }
             ]
         )
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            self._report_usage(
+                usage_sink,
+                getattr(usage, "input_tokens", None),
+                getattr(usage, "output_tokens", None),
+            )
 
         # Parse response
         content = response.content[0].text

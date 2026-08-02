@@ -35,6 +35,8 @@ class CohereRerankingService(RerankingService, CohereBaseService):
     4. Retry logic from ConnectionManager
     """
 
+    SUPPORTS_USAGE_REPORTING = True
+
     def __init__(self, config: Dict[str, Any]):
         """
         Initialize the Cohere reranking service.
@@ -96,7 +98,8 @@ class CohereRerankingService(RerankingService, CohereBaseService):
         query: str,
         documents: List[str],
         top_n: Optional[int] = None,
-        _skip_init_check: bool = False
+        _skip_init_check: bool = False,
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Rerank documents using Cohere's Rerank API.
@@ -157,6 +160,12 @@ class CohereRerankingService(RerankingService, CohereBaseService):
                     raise ValueError(f"Cohere rerank failed: {error_text}")
 
                 data = await response.json()
+                search_units = (
+                    data.get("meta", {})
+                    .get("billed_units", {})
+                    .get("search_units")
+                )
+                self._report_media_usage(usage_sink, "search_units", search_units)
 
                 # Parse results
                 results = []

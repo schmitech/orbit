@@ -26,6 +26,7 @@ class VoyageRerankingService(RerankingService):
 
     Voyage AI offers specialized reranking models optimized for accuracy.
     """
+    SUPPORTS_USAGE_REPORTING = True
 
     def __init__(self, config: Dict[str, Any]):
         """
@@ -41,7 +42,7 @@ class VoyageRerankingService(RerankingService):
 
         self.api_key = self._resolve_api_key("VOYAGE_API_KEY")
         self.api_base = provider_config.get('api_base', 'https://api.voyageai.com/v1')
-        self.model = provider_config.get('model', 'rerank-lite-1')
+        self.model = provider_config.get('model', 'rerank-2.5-lite')
         self.truncation = provider_config.get('truncation', True)
 
         # Session management
@@ -72,7 +73,8 @@ class VoyageRerankingService(RerankingService):
         query: str,
         documents: List[str],
         top_n: Optional[int] = None,
-        _skip_init_check: bool = False
+        _skip_init_check: bool = False,
+        usage_sink: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Rerank documents using Voyage AI's Rerank API.
@@ -126,6 +128,10 @@ class VoyageRerankingService(RerankingService):
                     raise ValueError(f"Voyage AI rerank failed: {error_text}")
 
                 data = await response.json()
+
+                usage = data.get('usage')
+                if usage is not None:
+                    self._report_usage(usage_sink, usage.get('total_tokens'), 0)
 
                 # Parse results
                 results = []

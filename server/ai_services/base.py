@@ -153,6 +153,16 @@ class ProviderAIService(AIService[T]):
         return self._provider_config_cache
 
     def _compute_provider_config(self) -> Dict[str, Any]:
+        # Some service types' config section name doesn't match the naive
+        # plural of their ServiceType.value (e.g. reranking -> 'rerankers',
+        # not 'rerankings'); such services set config_section_key to point
+        # directly at their real top-level config key.
+        config_section_key = getattr(self, 'config_section_key', None)
+        if config_section_key:
+            provider_config = self.config.get(config_section_key, {}).get(self.provider_name, {})
+            if provider_config:
+                return provider_config
+
         # Try plural form first (e.g., 'embeddings', 'moderators')
         service_key_plural = self.service_type.value + 's'
         service_config_plural = self.config.get(service_key_plural, {})
@@ -217,7 +227,10 @@ class ProviderAIService(AIService[T]):
             Base URL for API requests
         """
         provider_config = self._extract_provider_config()
-        return provider_config.get('base_url', default_url)
+        # Accept both keys: most providers use 'base_url', but some config
+        # sections (e.g. rerankers.yaml's openai/anthropic entries) use
+        # 'api_base' to match the reranking services that read it directly.
+        return provider_config.get('base_url') or provider_config.get('api_base') or default_url
 
     def _get_model(self, default_model: Optional[str] = None) -> Optional[str]:
         """

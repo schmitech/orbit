@@ -242,6 +242,7 @@ class ContextRetrievalStep(PipelineStep):
         capabilities = self._get_capabilities(context.adapter_name)
 
         embedding_usage: Dict[str, Any] = {}
+        reranking_usage: Dict[str, Any] = {}
         try:
             # Get retriever instance
             retriever = await self._get_retriever(context)
@@ -253,6 +254,7 @@ class ContextRetrievalStep(PipelineStep):
             # Build retriever kwargs based on capabilities
             retriever_kwargs = self._build_retriever_kwargs(context, capabilities)
             retriever_kwargs["usage_sink"] = embedding_usage
+            retriever_kwargs["reranking_usage_sink"] = reranking_usage
 
             # Pass cancel_event so retrievers can check for cancellation
             if context.cancel_event:
@@ -269,6 +271,7 @@ class ContextRetrievalStep(PipelineStep):
                 # A successful embedding call can still be billable when the
                 # subsequent vector/template lookup fails.
                 add_usage_component(context, embedding_usage, "embedding")
+                add_usage_component(context, reranking_usage, "reranking")
 
             # Check cancellation after retrieval completes
             if context.is_cancelled():

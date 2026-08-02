@@ -42,13 +42,19 @@ class RerankingServiceManager:
         return cls._lock
 
     @classmethod
-    def create_reranker_service(cls, config: Dict[str, Any], provider_name: Optional[str] = None) -> Any:
+    def create_reranker_service(
+        cls,
+        config: Dict[str, Any],
+        provider_name: Optional[str] = None,
+        model_override: Optional[str] = None,
+    ) -> Any:
         """
         Create or return a cached reranker service instance.
 
         Args:
             config: The full application configuration
             provider_name: Optional specific provider name to override the one in config
+            model_override: Optional adapter-level model override (e.g. reranker_model)
 
         Returns:
             An initialized reranker service instance (shared singleton)
@@ -63,7 +69,7 @@ class RerankingServiceManager:
         # Check if the provider is enabled
         provider_config = config.get('rerankers', {}).get(provider_name, {})
         if provider_config.get('enabled', True) is False:
-            available = [p for p, cfg in config.get('rerankers', {}).items() 
+            available = [p for p, cfg in config.get('rerankers', {}).items()
                         if cfg.get('enabled', True) is not False]
             raise ValueError(
                 f"Reranker provider '{provider_name}' is disabled in config. "
@@ -72,7 +78,7 @@ class RerankingServiceManager:
             )
 
         # Create a cache key that includes provider name and relevant config
-        cache_key = cls._create_cache_key(provider_name, config)
+        cache_key = cls._create_cache_key(provider_name, config, model_override)
 
         # Check if we already have this instance
         with cls._get_lock():
@@ -82,18 +88,23 @@ class RerankingServiceManager:
 
             # Create new instance
             logger.debug(f"Creating new reranker service instance: {provider_name}")
-            instance = cls._create_new_instance(provider_name, config)
+            instance = cls._create_new_instance(provider_name, config, model_override)
             cls._instances[cache_key] = instance
             return instance
 
     @staticmethod
-    def _create_cache_key(provider_name: str, config: Dict[str, Any]) -> str:
+    def _create_cache_key(
+        provider_name: str,
+        config: Dict[str, Any],
+        model_override: Optional[str] = None,
+    ) -> str:
         """
         Create a cache key for the reranker service based on provider and config.
 
         Args:
             provider_name: Name of the reranker provider
             config: Full application configuration
+            model_override: Optional adapter-level model override
 
         Returns:
             Cache key string
@@ -104,18 +115,24 @@ class RerankingServiceManager:
         # Create a key based on provider and key config parameters
         # For most providers, the base_url and model are the distinguishing factors
         base_url = provider_config.get('base_url', '')
-        model = provider_config.get('model', '')
+        model = model_override or provider_config.get('model', '')
 
         return f"{provider_name}:{base_url}:{model}"
 
     @staticmethod
-    def _create_new_instance(provider_name: str, config: Dict[str, Any]) -> Any:
+    def _create_new_instance(
+        provider_name: str,
+        config: Dict[str, Any],
+        model_override: Optional[str] = None,
+    ) -> Any:
         """
         Create a new reranker service instance using the unified AI services architecture.
 
         Args:
             provider_name: Name of the reranker provider
             config: Full application configuration
+            model_override: Optional adapter-level model override, applied on top of the
+                             provider's config/rerankers.yaml entry for this instance only
 
         Returns:
             Reranker service instance
@@ -123,6 +140,12 @@ class RerankingServiceManager:
         Raises:
             ValueError: If provider is not supported or service creation fails
         """
+        if model_override:
+            config = dict(config)
+            rerankers = dict(config.get('rerankers', {}))
+            rerankers[provider_name] = {**rerankers.get(provider_name, {}), 'model': model_override}
+            config['rerankers'] = rerankers
+
         # Use the unified AI services factory
         try:
             service = AIServiceFactory.create_service(

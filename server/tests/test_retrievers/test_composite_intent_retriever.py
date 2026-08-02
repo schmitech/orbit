@@ -1326,7 +1326,7 @@ class TestRerankerIntegration:
 
         # Mock the reranker
         mock_reranker = MagicMock()
-        mock_reranker.rerank = AsyncMock(return_value=[
+        mock_reranker.rerank_tracked = AsyncMock(return_value=[
             {'index': 0, 'score': 0.95}
         ])
         retriever._reranker = mock_reranker
@@ -1342,7 +1342,7 @@ class TestRerankerIntegration:
         await retriever._rerank_candidates("test query", matches)
 
         # Reranker should only be called once due to caching
-        assert mock_reranker.rerank.call_count == 1
+        assert mock_reranker.rerank_tracked.call_count == 1
 
 
 class TestRoutingStatisticsWithMultistage:

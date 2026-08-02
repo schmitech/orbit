@@ -222,7 +222,7 @@ class TestRerankingTopNDefault:
         mock_reranker.provider_name = "test"
         mock_reranker.model = "test-model"
         # Return reranked results matching input docs
-        mock_reranker.rerank = AsyncMock(return_value=[
+        mock_reranker.rerank_tracked = AsyncMock(return_value=[
             {"index": 0, "score": 0.9},
             {"index": 1, "score": 0.8},
             {"index": 2, "score": 0.7},
@@ -243,7 +243,7 @@ class TestRerankingTopNDefault:
         await step.process(context)
 
         # Verify rerank was called with a non-None top_n
-        call_kwargs = mock_reranker.rerank.call_args
+        call_kwargs = mock_reranker.rerank_tracked.call_args
         assert call_kwargs is not None
         top_n = call_kwargs.kwargs.get('top_n') or call_kwargs[1].get('top_n')
         assert top_n is not None, "top_n should not be None"

@@ -2206,7 +2206,7 @@ async def list_admin_audit_events(
     actor_id: Optional[str] = Query(None),
     success: Optional[bool] = Query(None),
     resource_type: Optional[str] = Query(None),
-    call_type: Optional[str] = Query(None, description="Filter inference rows by AI call kind: inference, embedding, image, video, audio, document"),
+    call_type: Optional[str] = Query(None, description="Filter inference rows by AI call kind: inference, embedding, reranking, image, video, audio, document"),
     q: Optional[str] = Query(None, description="Free-text search across actor_username, path, resource_id, ip"),
     since: Optional[str] = Query(None, description="ISO timestamp (inclusive lower bound)"),
     until: Optional[str] = Query(None, description="ISO timestamp (exclusive upper bound)"),
@@ -2464,7 +2464,7 @@ async def get_observability_usage(
     group_by: str = Query("model", pattern="^(model|provider|adapter_name|user_id|call_type|none)$"),
     provider: Optional[str] = Query(None),
     adapter_name: Optional[str] = Query(None),
-    call_type: Optional[str] = Query(None, pattern="^(inference|embedding|image|video|audio|document)$"),
+    call_type: Optional[str] = Query(None, pattern="^(inference|embedding|reranking|image|video|audio|document)$"),
     limit_groups: int = Query(10, ge=1, le=100),
 ):
     """

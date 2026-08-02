@@ -162,10 +162,13 @@ class PipelineChatService:
         await self._audit_embedding_usage(
             context, message, client_ip, adapter_name, api_key, user_id
         )
+        await self._audit_reranking_usage(
+            context, message, client_ip, adapter_name, api_key, user_id
+        )
         usage = context.metadata.get("usage") if context.metadata else None
         if not usage:
             return
-        if usage.get("call_type") == "embedding":
+        if usage.get("call_type") in {"embedding", "reranking"}:
             return
         backend = usage.get("provider") or self._determine_inference_backend(context)
         model = usage.get("model") or self._determine_inference_model(context)
@@ -208,6 +211,24 @@ class PipelineChatService:
             adapter_name=context.adapter_name or adapter_name,
             model=usage.get("model"),
             usage=usage,
+        )
+
+    async def _audit_reranking_usage(
+        self, context, message: str, client_ip: str, adapter_name: str,
+        api_key: Optional[str], user_id: Optional[str],
+    ) -> None:
+        """Write the independently billable reranking event for this request once."""
+        metadata = context.metadata or {}
+        usage = metadata.get("reranking_usage")
+        if not usage or metadata.get("_reranking_usage_audited"):
+            return
+        metadata["_reranking_usage_audited"] = True
+        await self.response_processor.log_conversation(
+            query=message, response="[reranking request]", client_ip=client_ip,
+            backend=usage.get("provider") or self._determine_inference_backend(context),
+            api_key=api_key, session_id=context.session_id, user_id=user_id,
+            adapter_name=context.adapter_name or adapter_name,
+            model=usage.get("model"), usage=usage,
         )
 
     async def _maybe_detect_skill(
@@ -890,6 +911,9 @@ class PipelineChatService:
             await self._audit_embedding_usage(
                 context, message, client_ip, adapter_name, api_key, user_id
             )
+            await self._audit_reranking_usage(
+                context, message, client_ip, adapter_name, api_key, user_id
+            )
 
             processed_response, assistant_message_id = await self.response_processor.process_response(
                 response=result.response,
@@ -1201,6 +1225,9 @@ class PipelineChatService:
         model = self._determine_inference_model(context)
 
         await self._audit_embedding_usage(
+            context, message, client_ip, adapter_name, api_key, user_id
+        )
+        await self._audit_reranking_usage(
             context, message, client_ip, adapter_name, api_key, user_id
         )
 
