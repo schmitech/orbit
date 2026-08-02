@@ -42,6 +42,7 @@ ROLE_PERMISSIONS: Dict[str, Set[str]] = {
         "prompts.manage",
         "system.manage",
         "metrics.read",
+        "logs.read",
     },
     "auditor": {
         "logs.read",

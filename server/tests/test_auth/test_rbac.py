@@ -45,12 +45,12 @@ def test_operator_excludes_conversation_and_feedback_permissions():
     assert "adapters.manage" in perms
 
 
-def test_operator_excludes_logs_and_audit_permissions():
+def test_operator_excludes_audit_but_includes_logs_permission():
     """Operator runs day-to-day operations (config/adapters/apikeys/prompts/
-    system control) but has no visibility into logs or the audit trail -
-    that requires the auditor role."""
+    system control) and can read server logs for troubleshooting, but has no
+    visibility into the audit trail - that requires the auditor role."""
     perms = permissions_for_roles(["operator"])
-    assert "logs.read" not in perms
+    assert "logs.read" in perms
     assert "audit.read" not in perms
     assert "metrics.read" in perms
 

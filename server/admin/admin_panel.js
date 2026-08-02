@@ -244,7 +244,7 @@
     admin: "Full access to every administrative capability.",
     analyst: "Reads conversations and feedback; cannot change configuration.",
     auditor: "Read-only logs, audit events, and system metrics.",
-    operator: "Runs system configuration, adapters, and server control; no chat, log, or audit access.",
+    operator: "Runs system configuration, adapters, server control, and server logs; no chat or audit access.",
     "user-manager": "Creates and manages user accounts and role assignments.",
     user: "Standard account access with no administrative permissions."
   };

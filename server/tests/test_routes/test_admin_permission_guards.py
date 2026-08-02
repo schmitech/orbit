@@ -5,8 +5,8 @@ prompts_auth, config_auth, system_auth, logs_auth, audit_auth, conversations_aut
 actually enforces per-permission access instead of the old binary admin check -
 in particular that "operator" (ops/config permissions, no conversation access)
 is denied chat-history, "analyst" (conversation access only) is denied config,
-and "operator" (runs day-to-day operations) is denied logs/audit visibility,
-which is scoped to "auditor" instead.
+and "operator" (runs day-to-day operations, including logs.read) is denied
+audit-trail visibility, which is scoped to "auditor" instead.
 """
 
 import pytest
@@ -118,7 +118,7 @@ def test_operator_can_reach_apikeys_routes():
     [
         (["admin"], True),
         (["auditor"], True),
-        (["operator"], False),  # runs operations, but has no logs.read
+        (["operator"], True),  # troubleshoots the system it runs; has logs.read
     ],
 )
 def test_logs_tail_requires_logs_read(roles, passes_auth):

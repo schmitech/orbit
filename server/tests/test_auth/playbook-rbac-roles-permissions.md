@@ -28,7 +28,7 @@ Keep this open while testing — every expectation below derives from it
 | Role | Permissions |
 |---|---|
 | `admin` | `*` (every permission) |
-| `operator` | `config.manage`, `adapters.manage`, `apikeys.manage`, `prompts.manage`, `system.manage`, `metrics.read` |
+| `operator` | `config.manage`, `adapters.manage`, `apikeys.manage`, `prompts.manage`, `system.manage`, `metrics.read`, `logs.read` |
 | `auditor` | `logs.read`, `audit.read`, `metrics.read` |
 | `analyst` | `conversations.read`, `feedback.read` |
 | `user-manager` | `users.manage` |
@@ -157,15 +157,21 @@ asymmetry note in §0 — not 403).
 
 Same pattern: `admin`/`operator` → 200-class, everyone else → 401.
 
-### `GET /admin/logs/tail` and `GET /admin/audit/events` — `logs.read` / `audit.read`
+### `GET /admin/logs/tail` — `logs.read`
+
+`admin`/`auditor`/`operator` → 200-class. `analyst`/`user`/`user-manager` →
+401.
+
+### `GET /admin/audit/events` — `audit.read`
 
 `admin`/`auditor` → 200-class. `operator`/`analyst`/`user`/`user-manager` →
 401. **`operator` is deliberately excluded here** — it runs day-to-day
-operations (config, adapters, restart/shutdown) but has no visibility into
-logs or the audit trail; that's scoped to `auditor` alone. This is the
-opposite pairing from the chat-history check above, so it's worth confirming
-both directions: `operator` can reach `/admin/config/sections` but not
-`/admin/logs/tail`, while `auditor` is the reverse.
+operations (config, adapters, restart/shutdown, and reading server logs) but
+has no visibility into the audit trail; that's scoped to `auditor` alone.
+This is the opposite pairing from the chat-history check above, so it's
+worth confirming both directions: `operator` can reach
+`/admin/config/sections` but not `/admin/audit/events`, while `auditor` is
+the reverse.
 
 ### `GET /auth/users` — `users.manage`
 
@@ -234,13 +240,16 @@ rejects them with the generic "Invalid admin username or password" message
 before any tab logic runs) and they never reach `/admin`.
 
 **Ops tab sub-gating**: `rb-operator` sees the Ops tab (has `system.manage`)
-with working Restart/Shutdown buttons, but confirm the server-log viewer
-section is replaced with a "Server log viewing requires the logs.read
-permission" message instead of a broken/401ing panel — `operator` has
-`system.manage` but not `logs.read` (that's `auditor`'s job). Note that
-`rb-auditor` can't open the Ops tab at all (no `system.manage`), so today
-`admin` is the only role that sees the log viewer in the panel; `auditor`
-must hit `GET /admin/logs/tail` directly (bearer token or API key) instead.
+with working Restart/Shutdown buttons, and — since `operator` now also holds
+`logs.read` — the server-log viewer section renders too, not the "Server
+log viewing requires the logs.read permission" fallback message. Note that
+`rb-auditor` can't open the Ops tab at all (no `system.manage`), so `auditor`
+must hit `GET /admin/logs/tail` directly (bearer token or API key) instead of
+seeing the viewer in the panel. To exercise the fallback message itself, use
+a role with `system.manage` but not `logs.read` — there is currently none
+among the built-in roles, so this branch is confirmed by code inspection
+(`renderOps()` in `admin_panel.js`) rather than a live login, or by
+temporarily testing against a custom role if your deployment has one.
 A role holding both `system.manage` and `logs.read` (e.g. `rb-multi` if you
 add `auditor` to it) would see the viewer too.
 
@@ -256,7 +265,7 @@ Open **Create User** and confirm the redesigned picker:
    Uncheck `admin` — confirm the rest re-enable and are selectable again.
 2. **Descriptions** — confirm each role shows an inline one-line summary
    matching §0's table (e.g. `operator` → "Runs system configuration,
-   adapters, and server control; no chat, log, or audit access.").
+   adapters, server control, and server logs; no chat or audit access.").
 3. **Visual grouping** — confirm `admin` sits above a "Scoped access" divider,
    visually distinct from the rest, and the scoped roles render as an
    alphabetized card grid (`analyst`, `auditor`, `operator`, `user`,

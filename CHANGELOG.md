@@ -13,6 +13,9 @@
 - **MCP Panel**: Added an MCP tab under System for managing external MCP servers — live status, discovered tools and their schemas, and per-server settings as form controls, with each value marked inherited or overridden.
 - **Admin Panel**: Reworked Settings into a tree-style YAML section navigator and made the Audit details pane open only for a selected ledger row, leaving the table full width by default.
 
+### Bug Fixes & Technical Improvements
+- **Operator Log Access**: The `operator` role now includes `logs.read`, so it can view server logs (`GET /admin/logs/tail`, the Ops tab's log viewer) alongside the config/adapters/system control it already ran day-to-day. `audit.read` stays scoped to `auditor` alone — the audit trail (a record of admin actions) is a distinct, more sensitive concern from raw server log output.
+
 ## [2.13.0] - 2026-07-31
 
 ### Core System Updates
