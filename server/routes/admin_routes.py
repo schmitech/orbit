@@ -30,6 +30,13 @@ from models.schema import (
 from config.config_manager import reload_adapters_config
 from utils.text_utils import mask_api_key
 
+# Adapter SDK — generates new adapter configs from spec + answers
+from jinja2 import UndefinedError
+from adapter_sdk import writer as adapter_writer
+from adapter_sdk.renderer import render_adapter
+from adapter_sdk.specs import get_spec, serialize_registry
+from adapter_sdk.validator import validate_answers, validate_yaml_text
+
 # Import auth dependencies
 from routes.auth_dependencies import permission_or_api_key, require_permission
 from routes.auth_helpers import check_service_availability
@@ -838,6 +845,162 @@ async def save_adapter_config_file(
     _write_adapter_config(file_path, content)
     return {
         "message": f"Adapter config '{filename}' saved. Use 'Reload Adapter' to apply changes.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Adapter creation (adapter SDK)
+# ---------------------------------------------------------------------------
+
+def _adapter_sdk_paths(request: Request) -> tuple[Path, Path]:
+    """Adapters dir + adapters.yaml for the *running* config.
+
+    The SDK writer's module constants are repo-root relative; the server may run
+    with --config elsewhere, so both paths are always passed explicitly.
+    """
+    adapters_dir = _get_adapters_dir(request)
+    return adapters_dir, adapters_dir.parent / "adapters.yaml"
+
+
+def _render_from_spec(spec_key: str, answers: Dict[str, Any]) -> str:
+    """Render a spec + answers to YAML, mapping SDK errors onto HTTP codes."""
+    try:
+        spec = get_spec(spec_key)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    try:
+        return render_adapter(spec, answers)
+    except ValueError as exc:
+        # Bad/missing variant — the message already lists the valid values.
+        raise HTTPException(status_code=422, detail=str(exc))
+    except UndefinedError as exc:
+        raise HTTPException(status_code=422, detail=f"Missing answer: {exc}")
+
+
+@admin_router.get("/adapters/specs", dependencies=[adapters_auth])
+async def list_adapter_specs():
+    """List the adapter families the SDK can generate, with their form questions."""
+    return {"specs": serialize_registry()}
+
+
+@admin_router.post("/adapters/preview", dependencies=[adapters_auth])
+async def preview_adapter(
+    request: Request,
+    body: dict = Body(...),
+):
+    """Render a spec + answers to YAML without writing it.
+
+    Validation problems come back in `errors` (still HTTP 200) so the UI can show
+    them alongside the preview rather than replacing it with an error.
+    """
+    spec_key = body.get("spec")
+    answers = body.get("answers") or {}
+    yaml_text = _render_from_spec(spec_key, answers)
+    # Over-long answers are ordinary form mistakes, so they are listed alongside the
+    # preview rather than replacing it with an error.
+    errors = validate_answers(get_spec(spec_key), answers) + validate_yaml_text(yaml_text)
+    return {"yaml": yaml_text, "errors": errors}
+
+
+@admin_router.post("/adapters", dependencies=[adapters_auth])
+async def create_adapter(
+    request: Request,
+    body: dict = Body(...),
+):
+    """Generate an adapter from a spec, write + register it, and apply it live."""
+    answers = body.get("answers") or {}
+    register = body.get("register", True)
+    overwrite = bool(body.get("overwrite"))
+
+    spec_key = body.get("spec")
+    yaml_text = _render_from_spec(spec_key, answers)
+    # The form enforces the same bounds, but this endpoint is reachable without it.
+    errors = validate_answers(get_spec(spec_key), answers) + validate_yaml_text(yaml_text)
+    if errors:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
+
+    name = answers.get("name")
+    if not name:
+        raise HTTPException(status_code=422, detail="Missing 'name' in answers")
+    try:
+        adapter_writer.validate_adapter_name(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    adapters_dir, adapters_yaml = _adapter_sdk_paths(request)
+    if not adapters_dir.is_dir():
+        raise HTTPException(status_code=500, detail=f"Adapters directory not found: {adapters_dir}")
+
+    filename = f"{name}.yaml"
+    if (adapters_dir / filename).exists() and not overwrite:
+        raise HTTPException(status_code=409, detail=f"Adapter file '{filename}' already exists")
+
+    # The writer only guards the filename; an adapter of the same name living in a
+    # different file would silently shadow this one at load time. `overwrite` waives
+    # the target-file check above, never this one — otherwise it would be a way to
+    # create exactly the duplicate definition this guard exists to prevent.
+    existing_file, _ = _find_adapter_file(adapters_dir, name)
+    if existing_file and existing_file.name != filename:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Adapter '{name}' already exists in {existing_file.name}"
+        )
+
+    try:
+        path = adapter_writer.write_adapter(
+            name, yaml_text,
+            register=register,
+            overwrite=overwrite,
+            adapters_dir=adapters_dir,
+            adapters_yaml=adapters_yaml,
+        )
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        # register_import found no import list — the file itself is already written.
+        raise HTTPException(
+            status_code=500,
+            detail=f"Adapter file was written to {adapters_dir / filename} but could not be "
+                   f"registered: {exc}"
+        )
+
+    from config.config_manager import clear_config_cache
+    clear_config_cache()
+
+    # Apply immediately, same contract as the enable/disable toggle.
+    adapter_manager = getattr(request.app.state, "adapter_manager", None)
+    config_path = getattr(request.app.state, "config_path", None)
+    reload_summary = None
+    reload_error = None
+
+    if adapter_manager and config_path:
+        try:
+            new_config = reload_adapters_config(config_path)
+            reload_summary = await adapter_manager.reload_adapter_configs(new_config, name)
+        except Exception as e:
+            logger.error(f"Adapter '{name}' was created but runtime reload failed: {e}", exc_info=True)
+            reload_error = str(e)
+    else:
+        reload_error = "adapter_manager or config_path not available in app state"
+
+    if reload_error:
+        message = (
+            f"Adapter '{name}' created, but runtime reload failed ({reload_error}). "
+            "Use 'Reload Adapters' to apply."
+        )
+    else:
+        message = f"Adapter '{name}' created and applied."
+
+    return {
+        "message": message,
+        "name": name,
+        "filename": filename,
+        "path": str(path),
+        "registered": bool(register),
+        "yaml": yaml_text,
+        "reload_summary": reload_summary,
+        "reload_error": reload_error,
     }
 
 

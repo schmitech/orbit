@@ -137,13 +137,13 @@ each provider by hand:
    A provider with usage extraction wired but no pricing entry shows tokens
    with cost `—` ("unpriced"), which is a safe intermediate state, not a bug.
 
-5. **Test it.** `server/tests/test_usage_extraction.py` is table-driven over
+5. **Test it.** `server/tests/test_inference/test_usage_extraction.py` is table-driven over
    mocked SDK response objects (no real API calls) — add a case there for the
    new provider's response shape. Also run the pipeline-level regression
    guard:
 
    ```bash
-   venv/bin/python -m pytest server/tests/test_usage_extraction.py server/tests/test_pipeline_steps/test_llm_inference_usage.py -q
+   venv/bin/python -m pytest server/tests/test_inference/test_usage_extraction.py server/tests/test_pipeline_steps/test_llm_inference_usage.py -q
    ```
 
    The pipeline test's "legacy provider" case is the one that actually
@@ -232,7 +232,7 @@ pair so a gap doesn't stay silent forever.
    Confirm `pricing_source` is what you expect (`exact`/`pattern`/
    `provider_default`) and `cost_usd` is not `None` for a model you meant to
    price.
-6. Run `venv/bin/python -m pytest server/tests/test_pricing_service.py -q`
+6. Run `venv/bin/python -m pytest server/tests/test_services/test_pricing_service.py -q`
    — it covers exact-vs-glob precedence, the longest-pattern-wins rule, and
    the unpriced-vs-local-zero distinction, so a malformed entry that breaks
    one of those invariants gets caught before it reaches the admin panel.

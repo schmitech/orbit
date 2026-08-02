@@ -1034,6 +1034,27 @@ textarea {
   gap: var(--sp-1);
 }
 
+.admin-create-form-grid label.adapter-checkbox-field {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+}
+
+.adapter-checkbox-field input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--brand-500);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.adapter-checkbox-question {
+  display: grid;
+  gap: var(--sp-1);
+}
+
 .admin-create-form-actions {
   display: flex;
   justify-content: flex-end;

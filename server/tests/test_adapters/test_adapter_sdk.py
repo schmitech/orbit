@@ -4,7 +4,7 @@ Tests for the adapter SDK (server/adapter_sdk/*).
 Run with the venv python from the repo root (server/ is the import root, set up by
 server/tests/conftest.py):
 
-    venv/bin/python -m pytest server/tests/test_adapter_sdk.py
+    venv/bin/python -m pytest server/tests/test_adapters/test_adapter_sdk.py
 """
 
 import shutil
@@ -19,7 +19,7 @@ from adapter_sdk.specs import SPEC_REGISTRY, AdapterSpec
 from adapter_sdk.validator import validate_structure, validate_yaml_text
 from adapter_sdk import writer
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 CONFIG_ADAPTERS = _REPO_ROOT / "config" / "adapters"
 
 
@@ -205,30 +205,3 @@ def test_writer_refuses_overwrite(tmp_path):
     (adapters_dir / "dup.yaml").write_text("adapters: []\n")
     with pytest.raises(FileExistsError):
         writer.write_adapter("dup", "adapters: []\n", register=False, adapters_dir=adapters_dir)
-
-
-# --------------------------------------------------------------------------- #
-# Enricher (provider mocked — no network)
-# --------------------------------------------------------------------------- #
-
-@pytest.mark.unit
-async def test_enricher_returns_only_soft_fields(monkeypatch):
-    from adapter_sdk import enricher
-
-    class _FakeClient:
-        async def generate(self, prompt):
-            return ('Here you go: {"skill_description": "Make PDFs", '
-                    '"routing_examples": ["make a pdf", "export as pdf"], '
-                    '"name": "SHOULD_BE_IGNORED"}')
-
-    monkeypatch.setattr(
-        enricher.UnifiedProviderFactory, "create_provider_by_name",
-        staticmethod(lambda provider, config: _FakeClient()),
-    )
-
-    spec = SPEC_REGISTRY["doc-generator"]
-    result = await enricher.enrich_soft_fields(spec, "I want to make PDFs", provider="openai")
-
-    assert result["skill_description"] == "Make PDFs"
-    assert result["routing_examples"] == ["make a pdf", "export as pdf"]
-    assert "name" not in result

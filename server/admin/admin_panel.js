@@ -27,6 +27,8 @@
   let adapterEditor = null;        // Ace editor instance for Adapters tab
   let adapterOriginal = "";        // Dirty tracking baseline
   let cachedAdapterFiles = null;   // Cached adapter file listing
+  let cachedAdapterSpecs = null;   // Adapter SDK families available for creation
+  let adapterPreviewEditor = null; // Read-only Ace editor for the create preview
   let messageCounter = 0;
   let opsLogPollTimer = null;
 
@@ -110,6 +112,9 @@
     mcpDefaults: "/admin/mcp/defaults",
     mcpReload: "/admin/mcp/reload",
     adapterConfigs: "/admin/adapters/config",
+    adapterSpecs: "/admin/adapters/specs",
+    adapterCreate: "/admin/adapters",
+    adapterPreview: "/admin/adapters/preview",
     auditEvents: "/admin/audit/events",
     costsUsage: "/admin/observability/usage",
     feedbackAnalytics: "/admin/api/feedback-analytics",
@@ -1338,6 +1343,7 @@
     // Destroy adapter editor when leaving adapters tab
     if (activeTab === "adapters" && id !== "adapters") {
       if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
+      if (adapterPreviewEditor) { adapterPreviewEditor.destroy(); adapterPreviewEditor = null; }
     }
     // Destroy settings section editors when leaving settings tab
     if (activeTab === "settings" && id !== "settings") {
@@ -5257,19 +5263,31 @@
     return cachedAdapterFiles;
   }
 
+  async function loadAdapterSpecs() {
+    try {
+      var data = await api("GET", ENDPOINTS.adapterSpecs);
+      cachedAdapterSpecs = data.specs || [];
+    } catch (_) {
+      cachedAdapterSpecs = [];
+    }
+    return cachedAdapterSpecs;
+  }
+
   function renderAdapters(container) {
     clear(container);
 
-    // Destroy previous editor
+    // Destroy previous editors
     if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
+    if (adapterPreviewEditor) { adapterPreviewEditor.destroy(); adapterPreviewEditor = null; }
 
-    // Lazy-load adapter file listing and capability metadata (needed to know
-    // which adapters support template reload)
-    if (!cachedAdapterFiles || !cachedAdapterCapabilities) {
+    // Lazy-load adapter file listing, capability metadata (needed to know which
+    // adapters support template reload) and the SDK spec registry (create form)
+    if (!cachedAdapterFiles || !cachedAdapterCapabilities || !cachedAdapterSpecs) {
       container.appendChild(skeleton());
       Promise.all([
         cachedAdapterFiles ? Promise.resolve(cachedAdapterFiles) : loadAdapterFiles(),
         cachedAdapterCapabilities ? Promise.resolve(cachedAdapterCapabilities) : loadAdapterCapabilities(),
+        cachedAdapterSpecs ? Promise.resolve(cachedAdapterSpecs) : loadAdapterSpecs(),
       ]).then(function () {
         if (activeTab === "adapters") renderAdapters(container);
       });
@@ -5288,6 +5306,14 @@
     var searchInput = el("input", { type: "text", placeholder: "Search adapters\u2026", style: "flex:1;min-width:0" });
     leftHeader.appendChild(searchInput);
     leftPanel.appendChild(leftHeader);
+
+    var createLaunchBtn = el("button", {
+      className: "secondary create-launch-btn",
+      type: "button",
+      "aria-label": "Create adapter",
+    }, svgIcon(ICON_PLUS), el("span", null, "Create Adapter"));
+    createLaunchBtn.addEventListener("click", function () { openAdapterCreatePanel(); });
+    leftPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn));
 
     var table = el("table");
     // Filled in below, once the paginator the sorter drives exists.
@@ -5429,6 +5455,314 @@
 
     searchInput.addEventListener("input", function () { renderAdapterRows(searchInput.value); });
     renderAdapterRows("");
+
+    // ----- Create panel: spec-driven adapter generator -----
+    // The whole form is built from GET /admin/adapters/specs, so adapter
+    // knowledge stays in the SDK spec registry and never leaks into this file.
+    var createPanel = el("div", { className: "panel", style: "display:none" });
+    container.insertBefore(createPanel, layout);
+
+    var closeCreateBtn = el("button", { className: "secondary", type: "button" }, "Close");
+    closeCreateBtn.addEventListener("click", function () { closeAdapterCreatePanel(); });
+    createPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "New Adapter"),
+      closeCreateBtn
+    ));
+
+    var specSelect = el("select", null);
+    (cachedAdapterSpecs || []).forEach(function (s) {
+      specSelect.appendChild(el("option", { value: s.key }, s.title));
+    });
+    var specHint = el("p", { className: "muted", style: "margin:0" }, "");
+    var formGrid = el("div", { className: "admin-create-form-grid" });
+    var createBanner = el("div", { className: "settings-banner", style: "display:none", role: "status" });
+    var previewWrap = el("div", {
+      className: "adapter-ace-wrap",
+      id: "adapter-yaml-preview",
+      style: "display:none"
+    });
+
+    var previewBtn = el("button", {
+      className: "secondary",
+      type: "button",
+      "aria-controls": "adapter-yaml-preview",
+      "aria-expanded": "false"
+    }, "Preview YAML");
+    var createBtn = el("button", { type: "button" }, "Create Adapter");
+
+    createPanel.appendChild(el("div", { className: "admin-create-form" },
+      el("div", { className: "admin-create-form-grid" }, field("Adapter family", specSelect)),
+      specHint,
+      formGrid,
+      createBanner,
+      previewWrap,
+      el("div", { className: "admin-create-form-actions" }, previewBtn, createBtn)
+    ));
+
+    // field name -> { q, input }, rebuilt whenever the family changes
+    var createInputs = {};
+
+    function currentSpec() {
+      return (cachedAdapterSpecs || []).find(function (s) { return s.key === specSelect.value; });
+    }
+
+    function defaultAsString(q, value) {
+      if (value === null || value === undefined) return "";
+      if (q.type === "list") return Array.isArray(value) ? value.join(", ") : String(value);
+      return String(value);
+    }
+
+    function applyDefault(q, input, value) {
+      if (q.type === "bool") {
+        input.checked = !!value;
+        input._appliedDefault = String(!!value);
+      } else {
+        input.value = defaultAsString(q, value);
+        input._appliedDefault = input.value;
+      }
+    }
+
+    function readAnswer(q, input) {
+      if (q.type === "bool") return input.checked;
+      var raw = (input.value || "").trim();
+      if (q.type === "list") {
+        return raw.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      }
+      if (!raw) return null;
+      if (q.type === "int") {
+        var n = parseInt(raw, 10);
+        return isNaN(n) ? null : n;
+      }
+      return raw;
+    }
+
+    function collectAdapterAnswers() {
+      var answers = {};
+      Object.keys(createInputs).forEach(function (name) {
+        var entry = createInputs[name];
+        answers[name] = readAnswer(entry.q, entry.input);
+      });
+      return answers;
+    }
+
+    function makeQuestionInput(q) {
+      if (q.type === "bool") return el("input", { type: "checkbox" });
+      if (q.choices) {
+        var sel = el("select", null);
+        q.choices.forEach(function (c) { sel.appendChild(el("option", { value: c }, c)); });
+        return sel;
+      }
+      if (q.type === "int") {
+        var num = el("input", { type: "number" });
+        if (q.min_value !== null && q.min_value !== undefined) num.min = String(q.min_value);
+        if (q.max_value !== null && q.max_value !== undefined) num.max = String(q.max_value);
+        return num;
+      }
+      var input = el("input", { type: "text" });
+      if (q.type === "list") {
+        // One comma-separated box holds the whole list, so maxlength can only be a
+        // coarse overall cap; the per-entry limit is enforced server-side.
+        input.maxLength = q.max_items * (q.max_length + 2);
+      } else if (q.max_length) {
+        input.maxLength = q.max_length;
+      }
+      return input;
+    }
+
+    // Say what the bound is up front — a maxlength that silently stops accepting
+    // keystrokes with no stated limit reads as a broken input.
+    function questionHint(q) {
+      var parts = [];
+      if (q.help) parts.push(q.help);
+      if (q.type === "list") {
+        parts.push("Comma-separated, up to " + q.max_items + " entries of "
+          + q.max_length + " characters.");
+      } else if (q.type === "int" && q.min_value !== null && q.min_value !== undefined) {
+        parts.push("Between " + q.min_value + " and " + q.max_value + ".");
+      } else if (q.type === "str" && q.max_length) {
+        parts.push("Max " + q.max_length + " characters.");
+      }
+      return parts.join(" ");
+    }
+
+    function adapterQuestionField(q, input, hint) {
+      if (q.type !== "bool") {
+        var control = field(q.prompt, input, hint);
+        // A counter only earns its space on the fields long enough that you can
+        // lose track; short identifiers just get the hint.
+        if (q.type === "str" && q.max_length >= 200) {
+          control.appendChild(characterCount(input, q.max_length));
+        }
+        return control;
+      }
+
+      // Boolean questions are a single control, so keep the label and checkbox
+      // together instead of placing the control on its own line.
+      var checkboxLabel = el("label", { className: "adapter-checkbox-field" },
+        input,
+        el("span", null, q.prompt)
+      );
+      if (!hint) return checkboxLabel;
+      return el("div", { className: "adapter-checkbox-question" },
+        checkboxLabel,
+        el("span", { className: "muted" }, hint)
+      );
+    }
+
+    // A variant switch re-defaults only the fields the user has not touched, so
+    // picking "docx" after "pdf" renames the adapter but keeps your own edits.
+    function applyVariantDefaults(variant) {
+      var spec = currentSpec();
+      if (!spec || !spec.variant_field) return;
+      spec.questions.forEach(function (q) {
+        if (q.field === spec.variant_field) return;
+        var entry = createInputs[q.field];
+        if (!entry) return;
+        var current = q.type === "bool" ? String(entry.input.checked) : entry.input.value;
+        if (current !== entry.input._appliedDefault) return; // user-edited, leave alone
+        var defaults = q.variant_defaults || {};
+        applyDefault(q, entry.input, Object.prototype.hasOwnProperty.call(defaults, variant)
+          ? defaults[variant] : q.default);
+      });
+    }
+
+    function buildAdapterCreateForm() {
+      var spec = currentSpec();
+      clear(formGrid);
+      createInputs = {};
+      hideCreatePreview();
+      if (!spec) return;
+
+      specHint.textContent = spec.description;
+
+      // Ask the variant selector first so the remaining defaults reflect it.
+      var ordered = spec.questions.slice();
+      if (spec.variant_field) {
+        ordered.sort(function (a, b) {
+          return (a.field === spec.variant_field ? 0 : 1) - (b.field === spec.variant_field ? 0 : 1);
+        });
+      }
+
+      var variant = spec.variant_field
+        ? (spec.variants && spec.variants.length ? spec.variants[0] : null)
+        : null;
+
+      ordered.forEach(function (q) {
+        var input = makeQuestionInput(q);
+        createInputs[q.field] = { q: q, input: input };
+        var initial = q.variant_defaults && variant !== null
+          && Object.prototype.hasOwnProperty.call(q.variant_defaults, variant)
+          ? q.variant_defaults[variant] : q.default;
+        applyDefault(q, input, initial);
+        if (spec.variant_field && q.field === spec.variant_field) {
+          input.value = variant;
+          input._appliedDefault = variant;
+          input.addEventListener("change", function () { applyVariantDefaults(input.value); });
+        }
+        formGrid.appendChild(adapterQuestionField(q, input, questionHint(q)));
+      });
+
+    }
+
+    function hideCreatePreview() {
+      if (adapterPreviewEditor) { adapterPreviewEditor.destroy(); adapterPreviewEditor = null; }
+      previewWrap.style.display = "none";
+      previewBtn.textContent = "Preview YAML";
+      previewBtn.setAttribute("aria-expanded", "false");
+      createBanner.style.display = "none";
+      clear(createBanner);
+    }
+
+    function showCreatePreview(yamlText, errors) {
+      previewWrap.style.display = "";
+      previewBtn.textContent = "Hide Preview";
+      previewBtn.setAttribute("aria-expanded", "true");
+      if (!adapterPreviewEditor) {
+        ace.config.set("basePath", "/static");
+        ace.config.set("modePath", "/static");
+        ace.config.set("themePath", "/static");
+        ace.config.set("workerPath", "/static");
+        adapterPreviewEditor = ace.edit(previewWrap, {
+          mode: "ace/mode/yaml",
+          theme: "ace/theme/tomorrow",
+          fontSize: 15,
+          fontFamily: "var(--font-mono)",
+          readOnly: true,
+          showPrintMargin: false,
+          tabSize: 2,
+          useSoftTabs: true,
+          showGutter: true,
+        });
+      }
+      adapterPreviewEditor.setValue(yamlText, -1);
+
+      clear(createBanner);
+      if (errors && errors.length) {
+        createBanner.style.display = "";
+        createBanner.appendChild(el("strong", null, "Validation errors"));
+        errors.forEach(function (e) { createBanner.appendChild(el("div", null, e)); });
+      } else {
+        createBanner.style.display = "none";
+      }
+    }
+
+    previewBtn.addEventListener("click", function () {
+      if (previewWrap.style.display !== "none") {
+        hideCreatePreview();
+        return;
+      }
+      var spec = currentSpec();
+      if (!spec) return;
+      withButton(previewBtn, async function () {
+        var data;
+        try {
+          data = await api("POST", ENDPOINTS.adapterPreview, {
+            spec: spec.key,
+            answers: collectAdapterAnswers(),
+          });
+        } catch (err) {
+          throw new Error("Preview failed: " + err.message);
+        }
+        showCreatePreview(data.yaml, data.errors);
+      });
+    });
+
+    createBtn.addEventListener("click", function () {
+      var spec = currentSpec();
+      if (!spec) return;
+      var answers = collectAdapterAnswers();
+      if (!answers.name) { showError("An adapter name is required."); return; }
+      withButton(createBtn, async function () {
+        var data;
+        try {
+          data = await api("POST", ENDPOINTS.adapterCreate, { spec: spec.key, answers: answers });
+        } catch (err) {
+          throw new Error("Create failed: " + err.message);
+        }
+        await loadAdapterFiles();
+        await loadAdapterCapabilities();
+        closeAdapterCreatePanel();
+        // Re-render so the new adapter appears in the (re-flattened) list, then
+        // open it in the detail editor.
+        selectedAdapterEntry = { name: data.name, filename: data.filename };
+        renderAdapters(container);
+        if (data.reload_error) showError(data.message);
+        else showStatus(data.message);
+      });
+    });
+
+    function openAdapterCreatePanel() {
+      createPanel.style.display = "";
+      buildAdapterCreateForm();
+      createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function closeAdapterCreatePanel() {
+      hideCreatePreview();
+      createPanel.style.display = "none";
+    }
+
+    specSelect.addEventListener("change", buildAdapterCreateForm);
 
     // ----- Detail panel: editor + actions -----
     var detailPanel = el("div", { className: "panel" });

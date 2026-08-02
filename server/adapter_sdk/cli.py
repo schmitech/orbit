@@ -15,17 +15,24 @@ same path by producing the same dict.
 
 from __future__ import annotations
 
-import asyncio
 import json
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import click
 
-from .enricher import enrich_soft_fields
 from .renderer import render_adapter
-from .specs import SPEC_REGISTRY, Question, get_spec
-from .validator import validate_yaml_text
-from .writer import write_adapter
+from .specs import SPEC_REGISTRY, Question, get_spec, serialize_registry
+from .validator import validate_answers, validate_yaml_text
+from .writer import ADAPTERS_DIR, ADAPTERS_YAML, write_adapter
+
+
+def _resolve_paths(config_path: Optional[str]):
+    """Adapters dir + adapters.yaml, resolved next to the given config.yaml."""
+    if not config_path:
+        return ADAPTERS_DIR, ADAPTERS_YAML
+    config_dir = Path(config_path).expanduser().resolve().parent
+    return config_dir / "adapters", config_dir / "adapters.yaml"
 
 
 def _prompt_question(q: Question, default: Any) -> Any:
@@ -73,24 +80,6 @@ def _collect_answers(spec) -> Dict[str, Any]:
     return answers
 
 
-def _maybe_enrich(spec, answers: Dict[str, Any]) -> None:
-    """Offer to AI-fill the soft fields for this spec."""
-    if not spec.soft_fields():
-        return
-    if not click.confirm("Use AI to generate skill description / routing examples?", default=False):
-        return
-    description = click.prompt("Describe in one line what this adapter should do")
-    provider = click.prompt("Inference provider to use for generation", default="openai")
-    try:
-        result = asyncio.run(enrich_soft_fields(spec, description, provider=provider))
-    except Exception as exc:  # noqa: BLE001 - surface any provider/JSON error, keep manual answers
-        click.echo(click.style(f"  AI enrichment failed ({exc}); keeping manual values.", fg="yellow"))
-        return
-    for field, value in result.items():
-        answers[field] = value
-        click.echo(click.style(f"  {field} -> {value}", fg="green"))
-
-
 @click.command()
 @click.option("--list", "list_specs", is_flag=True, help="List available adapter families and exit.")
 @click.option("--spec", "spec_key", help="Adapter family key (skips the family prompt).")
@@ -100,7 +89,12 @@ def _maybe_enrich(spec, answers: Dict[str, Any]) -> None:
 @click.option("--no-register", is_flag=True, help="Write the file but do not add it to adapters.yaml imports.")
 @click.option("--overwrite", is_flag=True, help="Overwrite an existing adapter file.")
 @click.option("--dry-run", is_flag=True, help="Render and validate, print YAML, but do not write.")
-def main(list_specs, spec_key, from_json, yes, no_register, overwrite, dry_run):
+@click.option("--json", "as_json", is_flag=True, help="With --list: print the full spec registry as JSON.")
+@click.option("--config", "config_path", type=click.Path(),
+              help="Path to config.yaml; adapters are written next to it "
+                   "(default: the repo's config/config.yaml). Use this when the server "
+                   "runs with a custom --config so both write to the same place.")
+def main(list_specs, spec_key, from_json, yes, no_register, overwrite, dry_run, as_json, config_path):
     """Generate an ORBIT adapter config file.
 
     Interactively, run with no options to pick a family and answer prompts; the
@@ -111,7 +105,7 @@ def main(list_specs, spec_key, from_json, yes, no_register, overwrite, dry_run):
     \b
     Examples:
       python -m adapter_sdk.cli --list                    # list adapter families
-      python -m adapter_sdk.cli                            # interactive wizard (opt. AI enrichment)
+      python -m adapter_sdk.cli                            # interactive wizard
       python -m adapter_sdk.cli --spec doc-generator --dry-run   # preview, don't write
       python -m adapter_sdk.cli --spec fetch --from-json answers.json --yes   # non-interactive
 
@@ -120,9 +114,14 @@ def main(list_specs, spec_key, from_json, yes, no_register, overwrite, dry_run):
     --from-json answers file (JSON keys = the family's question fields).
     """
     if list_specs:
+        if as_json:
+            click.echo(json.dumps({"specs": serialize_registry()}, indent=2))
+            return
         for key, spec in SPEC_REGISTRY.items():
             click.echo(f"{click.style(key, fg='cyan', bold=True)}: {spec.description}")
         return
+
+    adapters_dir, adapters_yaml = _resolve_paths(config_path)
 
     if not spec_key:
         keys = list(SPEC_REGISTRY)
@@ -139,7 +138,13 @@ def main(list_specs, spec_key, from_json, yes, no_register, overwrite, dry_run):
     else:
         click.echo(click.style(f"\n{spec.title}: {spec.description}\n", bold=True))
         answers = _collect_answers(spec)
-        _maybe_enrich(spec, answers)
+
+    limit_errors = validate_answers(spec, answers)
+    if limit_errors:
+        click.echo(click.style("Answers out of bounds:", fg="red", bold=True))
+        for e in limit_errors:
+            click.echo(click.style(f"  - {e}", fg="red"))
+        raise SystemExit(1)
 
     try:
         yaml_text = render_adapter(spec, answers)
@@ -166,15 +171,16 @@ def main(list_specs, spec_key, from_json, yes, no_register, overwrite, dry_run):
         click.echo(click.style("No 'name' in answers; cannot write.", fg="red"))
         raise SystemExit(1)
 
-    if not yes and not click.confirm(f"Write config/adapters/{name}.yaml"
+    if not yes and not click.confirm(f"Write {adapters_dir / f'{name}.yaml'}"
                                      f"{'' if no_register else ' and register it'}?", default=True):
         click.echo("Aborted.")
         return
 
-    path = write_adapter(name, yaml_text, register=not no_register, overwrite=overwrite)
+    path = write_adapter(name, yaml_text, register=not no_register, overwrite=overwrite,
+                         adapters_dir=adapters_dir, adapters_yaml=adapters_yaml)
     click.echo(click.style(f"Wrote {path}", fg="green"))
     if not no_register:
-        click.echo(click.style("Registered in config/adapters.yaml imports.", fg="green"))
+        click.echo(click.style(f"Registered in {adapters_yaml} imports.", fg="green"))
     click.echo("Reload with: orbit admin reload-adapters (or restart the server).")
 
 

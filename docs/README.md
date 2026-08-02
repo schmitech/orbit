@@ -64,6 +64,7 @@ Understand how ORBIT works.
 
 | Guide | Description |
 |-------|-------------|
+| [Creating Adapters](adapters/adapter-creation.md) | Generating new adapters from the admin panel or CLI, including the optional AI fill |
 | [Adapter Configuration](adapters/adapter-configuration.md) | Setting up and configuring adapters |
 | [Adapter Capabilities](adapters/capabilities/capability_for_all_adapters.md) | Capability system for adapter behavior control |
 | [QA Adapters](adapters/adapters.md) | Question-answering with SQL and vector stores |

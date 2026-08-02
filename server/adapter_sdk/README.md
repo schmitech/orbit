@@ -1,7 +1,7 @@
 # Adapter SDK
 
 Generates ORBIT adapter config files (`config/adapters/*.yaml`) from a deterministic
-spec registry, with optional AI enrichment of "soft" fields.
+spec registry. Generation is fully deterministic — no LLM calls are involved.
 
 **Scope (v1):** the template-like families — document generators (pdf/word/excel/csv/
 markdown/pptx), media generators (image/video/audio), passthrough/conversational,
@@ -11,8 +11,8 @@ adapters are intentionally out of scope.
 ## Design
 
 The tuple `type` + `datasource` + `adapter` + `implementation` is interdependent, so it
-is never asked of the user or the AI — each family hard-codes it in a spec. AI is scoped
-to soft fields only (`skill_description`, `routing_examples`).
+is never asked of the user — each family hard-codes it in a spec, so a plausible but
+invalid combination can never be produced.
 
 | Module | Role |
 |---|---|
@@ -20,7 +20,6 @@ to soft fields only (`skill_description`, `routing_examples`).
 | `renderer.py` | Jinja2 templates → idiomatic, commented YAML. |
 | `validator.py` | Mirrors the real loader; reuses `adapters.capabilities.AdapterCapabilities.from_config`. |
 | `writer.py` | Atomic write to `config/adapters/<name>.yaml` + registers it in `config/adapters.yaml` imports. |
-| `enricher.py` | Optional AI fill of soft fields via `UnifiedProviderFactory` (same plumbing as the template generator). |
 | `cli.py` | Thin `click` wizard driving the library. |
 
 The core (specs/renderer/validator/writer) is non-interactive: it takes an `answers`
@@ -57,12 +56,29 @@ cd server && ../venv/bin/python -m adapter_sdk.cli --list
 PYTHONPATH=server venv/bin/python -m adapter_sdk.cli --list
 ```
 
-Flags: `--spec`, `--from-json`, `--dry-run`, `--no-register`, `--overwrite`, `--yes`.
+Flags: `--spec`, `--from-json`, `--dry-run`, `--no-register`, `--overwrite`, `--yes`,
+`--list --json` (the full spec registry as JSON), `--config` (write next to a specific
+`config.yaml` instead of the repo's — use this when the server runs with its own `--config`).
 
 After writing, reload without a restart: `orbit admin reload-adapters`.
+
+## Admin panel / REST
+
+The same library backs the **Create Adapter** form in the admin panel's Adapters tab.
+All endpoints are gated by the `adapters.manage` permission and live in
+`server/routes/admin_routes.py`:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /admin/adapters/specs` | Spec registry as JSON — the form is generated from this. Each question carries `variant_defaults` so the client can re-default fields when the variant changes without another round-trip. |
+| `POST /admin/adapters/preview` | `{spec, answers}` → `{yaml, errors}`. Always 200; validation problems come back in `errors`. |
+| `POST /admin/adapters` | `{spec, answers, register, overwrite}` → renders, validates, writes, registers the import, and hot-reloads the adapter. 409 on a name/file collision. |
+
+The routes always pass `adapters_dir`/`adapters_yaml` derived from the running
+`config_path`, since the writer's module constants are repo-root relative.
 
 ## Tests
 
 ```bash
-venv/bin/python -m pytest server/tests/test_adapter_sdk.py
+venv/bin/python -m pytest server/tests/test_adapters/test_adapter_sdk.py
 ```

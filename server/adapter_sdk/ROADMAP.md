@@ -32,22 +32,25 @@ intent adapter also needs a `domain_config_path` + `template_library_path` that 
 - [ ] Tests: render+validate each backend; round-trip against a committed intent adapter
       (e.g. `customer-orders.yaml`); loader integration.
 
-## Phase 3 — Admin-UI wizard + REST endpoints
+## Phase 3 — Admin-UI wizard + REST endpoints (create: shipped)
 
 **Goal:** drive the same library from the admin dashboard, filling the create/delete/export gap in
-`server/routes/admin_routes.py` (which today only reads/updates/toggles/reloads).
+`server/routes/admin_routes.py` (which previously only read/updated/toggled/reloaded).
 
 **High-level tasks:**
-- [ ] New endpoints (gated by the existing `adapters.manage` permission):
-      `GET /adapters/specs` (spec registry + questions for form rendering),
-      `POST /adapters` (create from an `answers` dict → render → validate → write → register),
-      `DELETE /adapters/{name}` (remove file + de-register from imports),
-      `GET /adapters/{name}/export` and `POST /adapters/import`.
-- [ ] Pydantic request/response models in `server/models/schema.py`.
-- [ ] The endpoints call the library directly — the `answers` dict is the shared contract, so no
+- [x] Create endpoints (gated by the existing `adapters.manage` permission):
+      `GET /adapters/specs`, `POST /adapters/preview`, `POST /adapters`.
+      Deliberately no AI-enrichment endpoint: adapter creation from the panel is
+      kept deterministic, with no LLM calls.
+- [ ] `DELETE /adapters/{name}` (remove file + de-register from imports),
+      `GET /adapters/{name}/export` and `POST /adapters/import`. Deletion also needs an
+      eviction path in the adapter manager.
+- [ ] Pydantic request/response models in `server/models/schema.py` (the create endpoints
+      currently take plain `dict` bodies, matching the neighbouring adapter routes).
+- [x] The endpoints call the library directly — the `answers` dict is the shared contract, so no
       generation logic is duplicated in the route layer.
-- [ ] Frontend: render the wizard from `GET /adapters/specs` (a form per question type), preview the
-      generated YAML, POST on confirm, then hot-reload.
+- [x] Frontend: the Adapters tab renders the form from `GET /adapters/specs` (a control per question
+      type), previews the generated YAML in a read-only editor, POSTs on confirm, then hot-reloads.
 - [ ] Reconcile with the DB-backed adapter storage path (`internal_services.adapter_storage.mode`)
       so file-generated and DB-managed adapters coexist coherently.
 

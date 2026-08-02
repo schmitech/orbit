@@ -90,6 +90,67 @@ def validate_yaml_text(text: str) -> List[str]:
     return errors
 
 
+def validate_answers(spec, answers: Dict[str, Any]) -> List[str]:
+    """Bound each answer by its question's limits. Returns error strings (empty = valid).
+
+    Runs before rendering: an over-long value would otherwise pass straight through
+    Jinja into the written config, so the template is not the place to catch it.
+    """
+    from .specs import question_limits
+
+    errors: List[str] = []
+    for q in spec.questions:
+        if q.field not in answers:
+            continue
+        value = answers[q.field]
+        if value is None:
+            continue
+        limits = question_limits(q)
+
+        if q.type == "int":
+            if not isinstance(value, int) or isinstance(value, bool):
+                errors.append(f"{q.field}: expected a whole number")
+                continue
+            low, high = limits.get("min_value"), limits.get("max_value")
+            if low is not None and value < low:
+                errors.append(f"{q.field}: must be at least {low}")
+            if high is not None and value > high:
+                errors.append(f"{q.field}: must be at most {high}")
+            continue
+
+        if q.type == "list":
+            if not isinstance(value, list):
+                errors.append(f"{q.field}: expected a list")
+                continue
+            max_items = limits["max_items"]
+            if len(value) > max_items:
+                errors.append(f"{q.field}: at most {max_items} entries (got {len(value)})")
+            max_length = limits["max_length"]
+            for item in value:
+                if not isinstance(item, str):
+                    errors.append(f"{q.field}: entries must be text")
+                    break
+                if len(item) > max_length:
+                    errors.append(
+                        f"{q.field}: each entry is limited to {max_length} characters "
+                        f"(got {len(item)})"
+                    )
+                    break
+            continue
+
+        if q.type == "bool":
+            continue
+
+        if not isinstance(value, str):
+            errors.append(f"{q.field}: expected text")
+            continue
+        max_length = limits["max_length"]
+        if len(value) > max_length:
+            errors.append(f"{q.field}: limited to {max_length} characters (got {len(value)})")
+
+    return errors
+
+
 def validate_providers(entry: Dict[str, Any], enabled_providers: Optional[set]) -> List[str]:
     """
     Optional provider check, separated so the core validator stays pure/testable.

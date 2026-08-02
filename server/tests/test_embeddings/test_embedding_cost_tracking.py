@@ -61,7 +61,7 @@ def _pricing_service(include_embedding=True):
 
 
 def _repository_pricing():
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
     with (root / "config" / "pricing.yaml").open(encoding="utf-8") as handle:
         return PricingService(yaml.safe_load(handle))
 

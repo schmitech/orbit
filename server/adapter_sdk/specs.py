@@ -13,7 +13,7 @@ Intent x datasource adapters are intentionally out of scope here.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
 # Fully-qualified implementation classes (verified against config/adapters/*.yaml).
@@ -21,9 +21,16 @@ _MULTIMODAL_IMPL = "implementations.passthrough.multimodal.MultimodalImplementat
 _CONVERSATIONAL_IMPL = "implementations.passthrough.conversational.ConversationalImplementation"
 
 
+# Bounds applied to any question that does not set its own. Every answer is
+# bounded: an adapter config is a small YAML document, and unbounded values reach
+# both the config file and the LLM prompt that the adapter builds.
+DEFAULT_MAX_LENGTH = 200  # characters, per string (or per list item)
+DEFAULT_MAX_ITEMS = 25    # entries in a list answer
+
+
 @dataclass
 class Question:
-    """One wizard prompt. Rendered by cli.py and (later) the admin UI."""
+    """One wizard prompt. Rendered by cli.py and the admin UI."""
 
     field: str
     prompt: str
@@ -31,7 +38,26 @@ class Question:
     default: Any = None
     choices: Optional[List[str]] = None
     help: str = ""
-    ai_fillable: bool = False  # soft field the enricher may fill (skill_description, routing_examples)
+    max_length: Optional[int] = None  # str/list: chars per value (per item for lists)
+    max_items: Optional[int] = None   # list only
+    min_value: Optional[int] = None   # int only
+    max_value: Optional[int] = None   # int only
+
+
+def question_limits(q: Question) -> Dict[str, Any]:
+    """Concrete bounds for a question — explicit values win, else the type default.
+
+    Resolved in one place so the form controls, the server-side check and the CLI
+    all enforce identical limits.
+    """
+    if q.type == "bool":
+        return {}
+    if q.type == "int":
+        return {"min_value": q.min_value, "max_value": q.max_value}
+    limits: Dict[str, Any] = {"max_length": q.max_length or DEFAULT_MAX_LENGTH}
+    if q.type == "list":
+        limits["max_items"] = q.max_items or DEFAULT_MAX_ITEMS
+    return limits
 
 
 @dataclass
@@ -77,16 +103,14 @@ class AdapterSpec:
         ctx.update(answers)
         return ctx
 
-    def soft_fields(self) -> List[str]:
-        return [q.field for q in self.questions if q.ai_fillable]
-
 
 # --------------------------------------------------------------------------- #
 # Shared question fragments
 # --------------------------------------------------------------------------- #
 
 def _q_name(default: Optional[str] = None) -> Question:
-    return Question("name", "Adapter name (unique)", default=default,
+    # Becomes a filename, so it is kept well inside every filesystem's limit.
+    return Question("name", "Adapter name (unique)", default=default, max_length=64,
                     help="Unique id referenced by API keys and other adapters.")
 
 
@@ -95,17 +119,20 @@ def _q_enabled() -> Question:
 
 
 def _q_skill_name(default: Optional[str] = None) -> Question:
-    return Question("skill_name", "Skill name (clients send this in skill=)", default=default)
+    return Question("skill_name", "Skill name (clients send this in skill=)", default=default,
+                    max_length=64)
 
 
-def _q_skill_description() -> Question:
-    return Question("skill_description", "Skill description", ai_fillable=True,
+def _q_skill_description(default: Optional[str] = None) -> Question:
+    return Question("skill_description", "Skill description", default=default,
+                    max_length=500,
                     help="One line describing what the skill does. Can be AI-generated.")
 
 
-def _q_routing_examples() -> Question:
-    return Question("routing_examples", "Routing example phrases", type="list", default=[],
-                    ai_fillable=True,
+def _q_routing_examples(default: Optional[List[str]] = None) -> Question:
+    return Question("routing_examples", "Routing example phrases", type="list",
+                    default=default if default is not None else [],
+                    max_length=200, max_items=50,
                     help="Phrases that boost auto-routing to this skill. Can be AI-generated.")
 
 
@@ -161,7 +188,7 @@ DOC_GENERATOR = AdapterSpec(
                  default="openai", help="Omit to use the global default."),
         Question("rewrite_model", "Rewrite model", default="gpt-5.4-mini"),
         Question("storage_backend", "Storage backend", default="filesystem"),
-        Question("storage_root", "Storage root", default="./uploads"),
+        Question("storage_root", "Storage root", default="./uploads", max_length=500),
         _q_enabled(),
     ],
 )
@@ -214,7 +241,7 @@ MEDIA_GENERATOR = AdapterSpec(
         Question("rewrite_provider", "Rewrite provider (text LLM that enriches the prompt)", default="openai"),
         Question("rewrite_model", "Rewrite model", default="gpt-5.4-mini"),
         Question("storage_backend", "Storage backend", default="filesystem"),
-        Question("storage_root", "Storage root", default="./uploads"),
+        Question("storage_root", "Storage root", default="./uploads", max_length=500),
         _q_enabled(),
     ],
 )
@@ -261,13 +288,13 @@ FETCH = AdapterSpec(
     questions=[
         _q_name(default="fetch"),
         _q_skill_name(default="Fetch"),
-        Question("skill_description", "Skill description", default="Fetch and return web page content from a URL",
-                 ai_fillable=True),
-        Question("routing_examples", "Routing example phrases", type="list", ai_fillable=True,
-                 default=["fetch this url", "get the contents of this page", "read this link for me",
-                          "what does this webpage say"]),
-        Question("fetch_timeout", "Fetch timeout (seconds)", type="int", default=30),
-        Question("fetch_user_agent", "User agent", default="Mozilla/5.0 (compatible; OrbitBot/1.0)"),
+        _q_skill_description(default="Fetch and return web page content from a URL"),
+        _q_routing_examples(default=["fetch this url", "get the contents of this page",
+                                     "read this link for me", "what does this webpage say"]),
+        Question("fetch_timeout", "Fetch timeout (seconds)", type="int", default=30,
+                 min_value=1, max_value=600),
+        Question("fetch_user_agent", "User agent", default="Mozilla/5.0 (compatible; OrbitBot/1.0)",
+                 max_length=256),
         _q_enabled(),
     ],
 )
@@ -290,8 +317,7 @@ MCP_AGENT = AdapterSpec(
                  help="openai, anthropic, gemini, or xai."),
         Question("model", "Model", default="gpt-5.4-mini"),
         _q_skill_name(default="mcp-agent"),
-        Question("skill_description", "Skill description",
-                 default="Use external MCP server tools to answer (agentic tool calling)", ai_fillable=True),
+        _q_skill_description(default="Use external MCP server tools to answer (agentic tool calling)"),
         Question("mcp_servers", "Allowed MCP servers (blank = all enabled)", type="list", default=[]),
         _q_enabled(),
     ],
@@ -316,11 +342,11 @@ WEB_SEARCH_NATIVE = AdapterSpec(
                  choices=["gemini", "openai", "xai"]),
         Question("model", "Model", default="gemini-3.1-pro-preview"),
         _q_skill_name(default="web-search"),
-        Question("skill_description", "Skill description",
-                 default="Search the web and answer with up-to-date information and citations", ai_fillable=True),
-        Question("routing_examples", "Routing example phrases", type="list", ai_fillable=True,
-                 default=["search the web for", "look this up online", "what's the latest news on",
-                          "find current information about", "google this"]),
+        _q_skill_description(
+            default="Search the web and answer with up-to-date information and citations"),
+        _q_routing_examples(default=["search the web for", "look this up online",
+                                     "what's the latest news on", "find current information about",
+                                     "google this"]),
         _q_enabled(),
     ],
 )
@@ -369,9 +395,10 @@ WEB_SEARCH_EXTERNAL = AdapterSpec(
         _q_skill_description(),
         Question("inference_provider", "Inference provider (synthesizes the answer)", default="anthropic"),
         Question("model", "Model", default="claude-haiku-4-5-20251001"),
-        Question("result_count", "Number of results to fetch", type="int", default=5),
+        Question("result_count", "Number of results to fetch", type="int", default=5,
+                 min_value=1, max_value=50),
         Question("api_key", "API key (env ref, e.g. ${BRAVE_SEARCH_API_KEY})", default=None),
-        Question("query_url", "Instance URL (SearXNG only)", default=None),
+        Question("query_url", "Instance URL (SearXNG only)", default=None, max_length=500),
         Question("search_engine_id", "Search engine id (Google PSE only)", default=None),
         _q_enabled(),
     ],
@@ -381,9 +408,9 @@ WEB_SEARCH_EXTERNAL = AdapterSpec(
 SPEC_REGISTRY: Dict[str, AdapterSpec] = {
     s.key: s
     for s in [
+        PASSTHROUGH,
         DOC_GENERATOR,
         MEDIA_GENERATOR,
-        PASSTHROUGH,
         FETCH,
         MCP_AGENT,
         WEB_SEARCH_NATIVE,
@@ -396,3 +423,33 @@ def get_spec(key: str) -> AdapterSpec:
     if key not in SPEC_REGISTRY:
         raise KeyError(f"Unknown adapter spec '{key}'. Available: {', '.join(SPEC_REGISTRY)}")
     return SPEC_REGISTRY[key]
+
+
+def serialize_spec(spec: AdapterSpec) -> Dict[str, Any]:
+    """JSON form of a spec, used by the admin UI form builder and `--list --json`.
+
+    Each question carries its per-variant defaults so a client can re-default the
+    form when the variant changes without another round-trip.
+    """
+    variant_values = spec.variant_values()
+    questions = []
+    for q in spec.questions:
+        item = asdict(q)
+        item.update(question_limits(q))  # resolved bounds, so the form can enforce them
+        if variant_values:
+            item["variant_defaults"] = {v: spec.question_default(q, v) for v in variant_values}
+        questions.append(item)
+
+    return {
+        "key": spec.key,
+        "title": spec.title,
+        "description": spec.description,
+        "variant_field": spec.variant_field,
+        "variants": variant_values,
+        "questions": questions,
+    }
+
+
+def serialize_registry() -> List[Dict[str, Any]]:
+    """JSON form of every registered spec, in registry order."""
+    return [serialize_spec(spec) for spec in SPEC_REGISTRY.values()]
