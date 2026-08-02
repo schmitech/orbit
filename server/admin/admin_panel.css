@@ -3690,6 +3690,21 @@ code.plain-code {
   text-align: right;
 }
 
+/* url/token rows need room for a real value, unlike the fixed-width numeric
+   settings column, so they get their own wider control column. */
+.mcp-connection-row {
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 2fr) 6rem;
+}
+
+.mcp-text {
+  width: 100%;
+  min-width: 0;
+  padding: var(--sp-1) var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
 .mcp-provenance {
   display: inline-flex;
   align-items: center;

@@ -62,16 +62,22 @@ mcp_clients:
     # DEVELOPER WORKFLOW
     # ════════════════════════════════════════════════════════════════════════
 
-    # ── GitHub (stdio) ────────────────────────────────────────────────────
+    # ── GitHub (hosted Streamable HTTP) ───────────────────────────────────
     # Search repos, issues, PRs, commits, file contents, code.
-    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/github
+    # GitHub hosts this endpoint; ORBIT connects to it directly — no Docker.
+    # Use a fine-grained, read-only PAT in GITHUB_PAT for safe testing.
+    # Docs: https://github.com/mcp/io.github.github/github-mcp-server
     # - name: "github"
-    #   transport: "stdio"
-    #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-github"]
-    #   env:
-    #     GITHUB_TOKEN: "${GITHUB_TOKEN}"
-    #   enabled: false
+    #   transport: "http"
+    #   url: "https://api.githubcopilot.com/mcp/"
+    #   headers:
+    #     Authorization: "Bearer ${GITHUB_TOKEN}"
+    #   enabled: true
+    #   allow_opportunistic: true
+    #   tool_timeout: 60
+    #   max_tool_iterations: 8
+    #   discovery_retry_interval: 33
+    #   discovery_timeout: 7
 
     # ── GitLab (stdio) ────────────────────────────────────────────────────
     # Search repos, issues, MRs, pipelines on GitLab.com or self-hosted.

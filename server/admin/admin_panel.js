@@ -6027,6 +6027,26 @@
   };
 
   var MCP_TRANSPORT_LABELS = { stdio: "Subprocess", sse: "SSE", http: "Streamable HTTP" };
+  var MCP_CONNECTION_URL_MAX_LENGTH = 2048;
+  var MCP_CONNECTION_TOKEN_MAX_LENGTH = 8192;
+
+  function mcpEndpointUrlError(value) {
+    if (!value || value.length > MCP_CONNECTION_URL_MAX_LENGTH) {
+      return "URL must be between 1 and " + MCP_CONNECTION_URL_MAX_LENGTH + " characters.";
+    }
+    if (value !== value.trim() || /[\x00-\x20]/.test(value)) {
+      return "URL must not contain whitespace or control characters.";
+    }
+    try {
+      var parsed = new URL(value);
+      if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || !parsed.hostname || parsed.hash) {
+        return "URL must be an absolute HTTP(S) endpoint without a fragment.";
+      }
+    } catch (_err) {
+      return "Enter a valid HTTP(S) endpoint URL.";
+    }
+    return null;
+  }
 
   // Everything that reflects unsaved state — the save button, the override
   // summary, each row's accent and provenance, the server list — registers a
@@ -6344,7 +6364,52 @@
     );
     detail.appendChild(head);
 
-    if (server.endpoint) {
+    if (server.connection) {
+      detail.appendChild(el("h3", null, "Connection"));
+      var connLedger = el("div", { className: "mcp-ledger" });
+
+      var urlRow = mcpConnectionRow(
+        "URL",
+        "Streamable HTTP / SSE endpoint",
+        Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
+          ? mcpPending["connection.url"] : server.connection.url,
+        function (next) {
+          if (next === server.connection.url) delete mcpPending["connection.url"];
+          else mcpPending["connection.url"] = next;
+          mcpSyncDirty();
+        },
+        { type: "url", maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }
+      );
+      connLedger.appendChild(urlRow);
+      mcpDirtyListeners.push(function () {
+        urlRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.url"));
+      });
+
+      if (server.connection.uses_custom_headers) {
+        connLedger.appendChild(el("p", { className: "muted mcp-tools-empty" },
+          "This server authenticates via a custom header, which overrides the token shorthand. " +
+          "Edit mcp_clients.yaml directly to change it."
+        ));
+      } else {
+        var tokenRow = mcpConnectionRow(
+          "Token",
+          "Bearer token, or a ${VAR} reference",
+          Object.prototype.hasOwnProperty.call(mcpPending, "connection.token")
+            ? mcpPending["connection.token"] : server.connection.token,
+          function (next) {
+            if (next === server.connection.token) delete mcpPending["connection.token"];
+            else mcpPending["connection.token"] = next;
+            mcpSyncDirty();
+          },
+          { maxLength: MCP_CONNECTION_TOKEN_MAX_LENGTH }
+        );
+        connLedger.appendChild(tokenRow);
+        mcpDirtyListeners.push(function () {
+          tokenRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.token"));
+        });
+      }
+      detail.appendChild(connLedger);
+    } else if (server.endpoint) {
       detail.appendChild(el("p", { className: "mcp-endpoint" }, server.endpoint));
     }
 
@@ -6437,11 +6502,22 @@
     detail.appendChild(ledger);
 
     detail.appendChild(mcpSaveRow(async function () {
-      var body = { settings: {} };
+      var body = { settings: {}, connection: {} };
       Object.keys(mcpPending).forEach(function (key) {
         if (key === "enabled") body.enabled = mcpPending[key];
+        else if (key === "connection.url") body.connection.url = mcpPending[key];
+        else if (key === "connection.token") body.connection.token = mcpPending[key];
         else body.settings[key] = mcpPending[key];
       });
+      if (body.connection.url != null) {
+        var urlError = mcpEndpointUrlError(body.connection.url);
+        if (urlError) { showError(urlError); return; }
+      }
+      if (body.connection.token != null && body.connection.token.length > MCP_CONNECTION_TOKEN_MAX_LENGTH) {
+        showError("Token must be at most " + MCP_CONNECTION_TOKEN_MAX_LENGTH + " characters.");
+        return;
+      }
+      if (!Object.keys(body.connection).length) delete body.connection;
       var res = await api(
         "PATCH",
         ENDPOINTS.mcpServers + "/" + encodeURIComponent(server.name),
@@ -6539,6 +6615,50 @@
       opts.onChange(on);
     });
     return track;
+  }
+
+  // A plain editable text field for a server's connection details (url,
+  // token). Unlike mcpSettingRow there is no mcp_clients-level default to
+  // fall back to or revert against — the row just tracks "changed vs. what's
+  // on disk", reported by the caller via row.sync(isChanged).
+  function mcpConnectionRow(label, hint, value, onChange, opts) {
+    opts = opts || {};
+    var control = el("input", {
+      type: opts.type || "text",
+      className: "mcp-text",
+      value: value || "",
+      "aria-label": label,
+    });
+    if (opts.maxLength) control.maxLength = opts.maxLength;
+    if (opts.validate) {
+      function validate() {
+        control.setCustomValidity(opts.validate(control.value) || "");
+      }
+      control.addEventListener("input", validate);
+      validate();
+    }
+    control.addEventListener("input", function () {
+      onChange(control.value);
+    });
+
+    var provenance = el("span", { className: "mcp-provenance" });
+    var row = el("div", { className: "mcp-setting-row mcp-connection-row" },
+      el("span", { className: "mcp-setting-copy" },
+        el("span", { className: "mcp-setting-label" }, label),
+        el("span", { className: "mcp-setting-hint" }, hint)
+      ),
+      el("span", { className: "mcp-setting-control" }, control),
+      provenance
+    );
+
+    row.sync = function (isChanged) {
+      row.classList.toggle("is-override", isChanged);
+      clear(provenance);
+      provenance.classList.toggle("is-override", isChanged);
+      if (isChanged) provenance.appendChild(document.createTextNode("changed"));
+    };
+    row.sync(false);
+    return row;
   }
 
   function mcpSettingRow(spec, opts) {

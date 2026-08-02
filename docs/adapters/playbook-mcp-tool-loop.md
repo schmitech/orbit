@@ -244,6 +244,118 @@ Requires:
 
 Confirm that telemetry metrics (active vs purchased seats) and unresolved ticket details are merged into the final account plan structure.
 
+## Manual/Integration Check: GitHub MCP Tool
+
+A second, hosted example for the same opportunistic tool-calling path,
+using GitHub's own remote MCP server instead of a local process. Good for
+verifying `http` transport, `headers`-based auth (as opposed to the
+`token` shorthand `business-sample` uses), and read-only/code-search-style
+tools rather than a CRM's structured-data tools.
+
+### 1. Get a token — nothing to start locally
+
+Unlike `business-sample`, there's no local server to run: GitHub hosts this
+endpoint directly at `https://api.githubcopilot.com/mcp/`.
+
+Create a **fine-grained, read-only** personal access token scoped to the repo
+you want to test against (Contents, Issues, Pull requests: Read-only is
+enough for everything below — do not grant write scopes for testing). Export
+it in the shell where ORBIT runs:
+
+```bash
+export GITHUB_TOKEN=github_pat_xxx...
+```
+
+### 2. Enable MCP + opportunistic mode
+
+`config/mcp_clients.yaml` already has a `github` entry:
+
+```yaml
+- name: "github"
+  transport: "http"
+  url: "https://api.githubcopilot.com/mcp/"
+  headers:
+    Authorization: "Bearer ${GITHUB_TOKEN}"
+  enabled: true
+  allow_opportunistic: true
+```
+
+Note this server authenticates via an explicit `headers.Authorization` entry,
+not the `token:` shorthand `business-sample` uses — the admin panel's
+Connection section reflects that: editing `token` for this server is
+rejected there since `headers` already overrides it.
+
+### 3. Enable the capability on an adapter
+
+Add `"github"` to an adapter's `mcp_servers` allowlist (`mcp_tools: true`
+must already be set):
+
+```yaml
+capabilities:
+  mcp_tools: true
+  mcp_servers:
+    - "business-sample"
+    - "github"
+```
+
+Restart ORBIT after editing `mcp_clients.yaml` or the adapter config, or
+apply the change from the admin panel's MCP tab instead — server/defaults
+edits there hot-reload without a restart (see the MCP Admin API section of
+`docs/adapters/mcp-agent.md`).
+
+### 4. Trigger a tool call
+
+Point questions at a real repo you have read access to (your own fork or
+`schmitech/orbit` if the PAT covers it) — the model can't answer these from
+training data since it needs live repo state:
+
+> "List the open issues in schmitech/orbit."
+
+> "What were the last 5 commits to schmitech/orbit's main branch?"
+
+> "Search schmitech/orbit for code that references `_validate_mcp_connection`."
+
+Confirm:
+- The response reflects actual current repo state, not a plausible-sounding
+  guess (cross-check against the GitHub UI).
+- `sources` contains an `mcp_tool_call` entry named `github__<tool>` (e.g.
+  `github__search_issues`, `github__list_commits` — exact tool names come
+  from GitHub's own MCP server and may change as it evolves; use
+  `GET /admin/mcp/tools` or the panel's "Test connection" to see the current
+  set).
+
+### 5. Confirm the model declines when no tool is needed
+
+Follow up in the same session with something that needs no live repo data:
+
+> "What's the difference between a GitHub issue and a pull request?"
+
+Confirm a normal conversational answer — no `sources`, no tool call.
+
+### Additional scenarios specific to GitHub
+
+**Nonexistent resource**: ask about an issue/PR number that doesn't exist in
+the repo (e.g. "Show me PR #999999 in schmitech/orbit"). Confirm the model
+reports it couldn't find the PR rather than fabricating a plausible-sounding
+one — the same error-handling path as scenario B above, but worth checking
+separately since GitHub's own error shape differs from the sample server's.
+
+**Read-only scope enforcement**: with a read-only PAT, ask the model to do
+something that would require a write (e.g. "Close issue #1 in
+schmitech/orbit" or "Create a new issue titled ..."). Confirm the tool call
+fails with a permissions error surfaced back to the model, and the model
+reports it cannot perform the action — it must not claim success for an
+action GitHub actually rejected.
+
+**Multi-step chaining**: a question needing two tool calls, mirroring
+scenario A above:
+
+> "Find the most recently closed issue in schmitech/orbit and check whether
+> the PR that closed it is still open or merged."
+
+Confirm two `mcp_tool_call` entries in `sources`, in order, and that the
+final answer's PR status matches what the tool actually returned.
+
 ## Troubleshooting
 
 - `401 Unauthorized` from the MCP server: the `MCP_TOKEN` used to start
@@ -252,4 +364,12 @@ Confirm that telemetry metrics (active vs purchased seats) and unresolved ticket
   `PORT=10099` and update the `url` in `config/mcp_clients.yaml` to match.
 - Health check: `curl http://127.0.0.1:9999/health`.
 - Smoke test the server standalone: `cd examples/mcp-server && MCP_TOKEN=test-secret npm run smoke`.
+- **GitHub server, `401`/`403`**: `GITHUB_TOKEN` is missing, expired, or lacks
+  the scope for the repo/action being tested — regenerate the token and
+  re-export it in ORBIT's environment (a restart or a Settings-tab reload is
+  needed to pick up a changed env var, since it's read once at process start,
+  unlike `mcp_clients.yaml` edits).
+- **GitHub server unreachable in the panel's "Test connection"**: this is a
+  hosted third-party endpoint, not a local process — check your network can
+  reach `api.githubcopilot.com` before assuming a config problem.
 

@@ -10,12 +10,14 @@ This module contains all admin-related endpoints including:
 import logging
 import asyncio
 import importlib
+import json
 import re
 import uuid
 import yaml
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 from fastapi import APIRouter, Request, Depends, HTTPException, Query, Body
 import markdown
 import nh3
@@ -2570,12 +2572,17 @@ _MCP_SETTING_BOUNDS: Dict[str, tuple] = {
 }
 
 
-def _validate_mcp_settings(settings: Dict[str, Any], overridable: Dict[str, Any]) -> None:
+def _validate_mcp_settings(settings: Any, overridable: Dict[str, Any]) -> None:
     """Reject unknown keys, wrong types, and out-of-range values.
 
     A null value is allowed: it deletes a per-server override so the server
     inherits the mcp_clients-level default again.
     """
+    if not settings:
+        return
+    if not isinstance(settings, dict):
+        raise HTTPException(status_code=422, detail="'settings' must be an object")
+
     unknown = sorted(set(settings) - set(overridable))
     if unknown:
         raise HTTPException(status_code=422, detail=f"Unknown MCP setting(s): {', '.join(unknown)}")
@@ -2596,6 +2603,102 @@ def _validate_mcp_settings(settings: Dict[str, Any], overridable: Dict[str, Any]
             raise HTTPException(
                 status_code=422,
                 detail=f"'{key}' must be between {low} and {high} (got {value})",
+            )
+
+
+# Transport-identity fields editable from the panel. Only url/token are
+# supported: both are single scalar lines the existing line-patcher can set
+# in place. command/args/env (stdio) and headers are left read-only — they
+# are YAML lists/maps, which _patch_yaml_scalars cannot rewrite safely yet.
+_CONNECTION_KEYS = {"url", "token"}
+_MCP_CONNECTION_URL_MAX_LENGTH = 2048
+_MCP_CONNECTION_TOKEN_MAX_LENGTH = 8192
+
+
+def _validate_mcp_endpoint_url(url: str) -> None:
+    """Require a bounded absolute HTTP(S) endpoint URL.
+
+    MCP's remote transports only support HTTP and SSE over HTTP(S).  Rejecting
+    control characters and fragments also prevents ambiguous request targets
+    from being written through the admin panel.
+    """
+    if not url or not url.strip():
+        raise HTTPException(status_code=422, detail="'url' must be a non-empty string")
+    if len(url) > _MCP_CONNECTION_URL_MAX_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail=f"'url' must be at most {_MCP_CONNECTION_URL_MAX_LENGTH} characters",
+        )
+    if url != url.strip() or any(ord(char) < 32 or char.isspace() for char in url):
+        raise HTTPException(status_code=422, detail="'url' must not contain whitespace or control characters")
+    try:
+        parsed = urlsplit(url)
+        # Accessing port validates it (for example, rejects :99999).
+        _ = parsed.port
+    except ValueError:
+        raise HTTPException(status_code=422, detail="'url' must be a valid HTTP(S) URL")
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname or parsed.fragment:
+        raise HTTPException(status_code=422, detail="'url' must be an absolute HTTP(S) URL without a fragment")
+
+
+def _token_overridden_by_headers(entry: Dict[str, Any]) -> bool:
+    """True if this server's `headers` block already sets Authorization.
+
+    _expand_headers applies `headers` entries after the `token` shorthand, so
+    only an explicit Authorization header actually overrides it — an unrelated
+    header like X-API-Key or X-Tenant does not, and token stays editable.
+    """
+    headers = entry.get("headers") or {}
+    if not isinstance(headers, dict):
+        return False
+    return any(str(k).lower() == "authorization" for k in headers)
+
+
+def _validate_mcp_connection(entry: Dict[str, Any], connection: Any) -> None:
+    """Reject connection edits for transports/fields that don't support them.
+
+    A null token clears it (server reverts to no Authorization from the
+    token shorthand); url may not be cleared, since a server with no
+    endpoint can never be dialed.
+    """
+    if not connection:
+        return
+    if not isinstance(connection, dict):
+        raise HTTPException(status_code=422, detail="'connection' must be an object")
+
+    transport = entry.get("transport", "stdio")
+    if transport not in ("http", "sse"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Connection fields are only editable for http/sse servers, not '{transport}'.",
+        )
+
+    unknown = sorted(set(connection) - _CONNECTION_KEYS)
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown connection field(s): {', '.join(unknown)}")
+
+    if "url" in connection:
+        url = connection["url"]
+        if not isinstance(url, str):
+            raise HTTPException(status_code=422, detail="'url' must be a string")
+        _validate_mcp_endpoint_url(url)
+
+    if "token" in connection:
+        token = connection["token"]
+        if token is not None and not isinstance(token, str):
+            raise HTTPException(status_code=422, detail="'token' must be a string")
+        if token is not None and len(token) > _MCP_CONNECTION_TOKEN_MAX_LENGTH:
+            raise HTTPException(
+                status_code=422,
+                detail=f"'token' must be at most {_MCP_CONNECTION_TOKEN_MAX_LENGTH} characters",
+            )
+        if token is not None and _token_overridden_by_headers(entry):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "This server sets an explicit 'Authorization' header, which overrides "
+                    "'token' — edit mcp_clients.yaml directly to change it."
+                ),
             )
 
 
@@ -2641,13 +2744,22 @@ async def list_mcp_servers(request: Request):
         overrides = {k: entry[k] for k in overridable if k in entry}
         effective = dict(defaults)
         effective.update(overrides)
+        transport = entry.get("transport", "stdio")
+        connection = None
+        if transport in ("http", "sse"):
+            connection = {
+                "url": entry.get("url", ""),
+                "token": entry.get("token", ""),
+                "uses_custom_headers": _token_overridden_by_headers(entry),
+            }
         servers.append({
             "name": entry["name"],
-            "transport": entry.get("transport", "stdio"),
+            "transport": transport,
             "enabled": entry.get("enabled", True),
             "endpoint": _mcp_endpoint_label(entry),
             "overrides": overrides,
             "effective": effective,
+            "connection": connection,
         })
 
     return {
@@ -2826,8 +2938,13 @@ def _patch_yaml_scalars(lines: list, start: int, end: int, values: Dict[str, Any
     for key, value in values.items():
         if isinstance(value, bool):
             rendered = "true" if value else "false"
-        else:
+        elif isinstance(value, (int, float)):
             rendered = str(value)
+        else:
+            # Strings (url, token) are quoted so ${VAR} references, colons, and
+            # other YAML-significant characters can never be misparsed — json's
+            # double-quote escaping is a valid subset of YAML's.
+            rendered = json.dumps(str(value))
 
         found = -1
         for i in range(start, min(end, len(lines))):
@@ -2852,16 +2969,31 @@ def _patch_yaml_scalars(lines: list, start: int, end: int, values: Dict[str, Any
 
 @admin_router.patch("/mcp/servers/{server_name}", dependencies=[config_auth])
 async def update_mcp_server(server_name: str, request: Request, body: dict = Body(...)):
-    """Update one server's enabled flag and per-server setting overrides.
+    """Update one server's enabled flag, setting overrides, and (for http/sse
+    transports) its url/token connection fields.
 
     `settings` values of null delete the override so the server inherits the
-    mcp_clients-level default again.
+    mcp_clients-level default again. `connection.token` of null clears the
+    token; `connection.url` may not be null.
     """
     path, content, block = _read_mcp_config(request)
     overridable = _mcp_overridable()
 
+    entry = next(
+        (
+            s for s in (block.get("servers") or [])
+            if isinstance(s, dict) and s.get("name") == server_name
+        ),
+        None,
+    )
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"MCP server '{server_name}' not found")
+
     settings = body.get("settings") or {}
     _validate_mcp_settings(settings, overridable)
+
+    connection = body.get("connection") or {}
+    _validate_mcp_connection(entry, connection)
 
     lines = content.split("\n")
     start, end = _find_adapter_block(lines, server_name)
@@ -2872,6 +3004,7 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
     indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
 
     values: Dict[str, Any] = dict(settings)
+    values.update(connection)
     if "enabled" in body:
         values["enabled"] = bool(body["enabled"])
 

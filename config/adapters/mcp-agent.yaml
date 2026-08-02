@@ -43,3 +43,4 @@ adapters:
       mcp_servers:
         - "business-sample"
         - "filesystem"
+        - "github"
