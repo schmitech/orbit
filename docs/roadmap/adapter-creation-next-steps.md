@@ -11,10 +11,14 @@ deterministic — no LLM calls are involved in creating an adapter.
 That closes the *create* half of the SDK roadmap's Phase 3. The lifecycle is still
 one-directional: an adapter can be created and edited, but not removed, exported, or
 moved between environments from the panel. This document describes the work to close
-that gap, ordered by value.
+that gap, ordered by value, and consolidates the deferred SDK-side phases (previously
+tracked in `docs/roadmap/adapter-sdk.md`).
 
-Reference: `server/adapter_sdk/ROADMAP.md` (SDK-side phases),
-`server/adapter_sdk/README.md` (current REST surface).
+Reference: `server/adapter_sdk/README.md` (current REST surface).
+
+v1 of the SDK (shipped) covers the *template-like* families through a Python library +
+`click` wizard: document/media generators, passthrough, fetch, mcp-agent, and
+web-search. See `server/adapter_sdk/README.md`.
 
 ---
 
@@ -72,7 +76,53 @@ re-diffs every adapter) but it is the only path that runs the removal branch.
       referenced adapter returns 409; deleting a non-existent adapter returns 404;
       permission guard.
 
-## 2. Export and import
+## 2. Multimodal file-retrieval family (SDK gap)
+
+**Goal:** support creating file-based-retrieval multimodal adapters like those in
+`config/adapters/multimodal.yaml` (e.g. `simple-chat-with-files`) from the create form.
+
+**Current gap (verified):** `SPEC_REGISTRY` in `server/adapter_sdk/specs.py:408-419`
+has exactly 7 keys — `passthrough`, `doc-generator`, `media-generator`, `fetch`,
+`mcp-agent`, `web-search-native`, `web-search-external`. The `_MULTIMODAL_IMPL`
+constant (`specs.py:20`,
+`implementations.passthrough.multimodal.MultimodalImplementation`) is reused only by
+`DOC_GENERATOR` and `MEDIA_GENERATOR`, which are output-*generation* specs — neither
+exposes fields for storage/chunking/vector_store config or file-retrieval capabilities
+(`supports_file_ids`, `skip_when_no_files`, `requires_api_key_validation`, etc.). There
+is no `multimodal`/file-retrieval-RAG family registered anywhere. `admin_panel.js` has
+no client-side special-casing for multimodal either — it builds the form purely from
+whatever `GET /admin/adapters/specs` returns, so this is a server-side spec gap, not a
+frontend one.
+
+**Why prioritize this:** compared to Phase 2 (intent × datasource, below) or full
+export/round-trip editing, this is a much smaller lift — it reuses an existing
+implementation class and mirrors the `doc-generator`/`media-generator` pattern already
+in `specs.py`, with no new orchestration (template generation, referential-integrity
+checks, etc.) required.
+
+**Tasks:**
+- [ ] Add a `multimodal` (or `file-retrieval`) entry to `SPEC_REGISTRY` covering the
+      `simple-chat-with-files` shape: `type: passthrough`, `datasource: none`,
+      `implementation: implementations.passthrough.multimodal.MultimodalImplementation`,
+      plus questions for `vision_provider`/`stt_provider`/`tts_provider`,
+      storage (`storage_backend`, `storage_root`, `max_file_size`), chunking
+      (`chunking_strategy`, `chunk_size`, `chunk_overlap`), and vector store
+      (`vector_store`, `collection_prefix`).
+- [ ] Model the file-retrieval `capabilities` block (`retrieval_behavior: conditional`,
+      `supports_file_ids`, `skip_when_no_files`, `requires_api_key_validation`,
+      `requires_encryption`, `optional_parameters: [file_ids, api_key, session_id]`) as
+      spec defaults/questions, distinct from the generation-only capabilities used by
+      `DOC_GENERATOR`/`MEDIA_GENERATOR`.
+- [ ] Decide how `available_skills`/`auto_routable_skills` are populated for this family
+      — likely reuse whatever skill-listing mechanism the wizard already has, rather than
+      free-text entry.
+- [ ] Optional audio-transcription variant (`enable_audio_transcription`,
+      `audio_transcription_language`, `supported_types`) as a toggle/sub-question, mirroring
+      `simple-chat-with-files-audio`.
+- [ ] Tests: render+validate against both existing `multimodal.yaml` entries; loader
+      integration.
+
+## 3. Export and import
 
 **Goal:** move an adapter between environments without hand-copying YAML.
 
@@ -89,7 +139,7 @@ re-diffs every adapter) but it is the only path that runs the removal branch.
 - [ ] Secrets: exported YAML contains `${ENV_VAR}` references, not values — verify this
       holds for every spec before advertising export as safe to share.
 
-## 3. Round-trip editing (YAML → answers)
+## 4. Round-trip editing (YAML → answers)
 
 Today the create form is write-only: once an adapter exists, the only way to change it
 is raw YAML in the Ace editor. A "Edit in form" action would need to parse an existing
@@ -105,7 +155,7 @@ adapter back into an `answers` dict.
       rather than lose them.
 - [ ] Consider `ruamel.yaml` for comment-preserving round trips.
 
-## 4. Hardening the existing create path
+## 5. Hardening the existing create path
 
 Small, independent items — none blocking, all noted during implementation.
 
@@ -129,14 +179,52 @@ Small, independent items — none blocking, all noted during implementation.
       match the neighbouring adapter routes. Typed models in
       `server/models/schema.py` would give free 422s and OpenAPI docs.
 
-## 5. Intent × datasource families (SDK Phase 2)
+## 6. Intent × datasource families (SDK Phase 2)
 
 The create form covers the seven template-like families only. The parameter-heavy
-intent adapters (SQL/Mongo/Elasticsearch/HTTP/GraphQL) are out of scope for the SDK
-itself, so the panel inherits that limit — a spec registry entry is the prerequisite
-for a form. See `server/adapter_sdk/ROADMAP.md` Phase 2; no panel work is possible
-until the specs exist.
+intent adapters (SQL/Mongo/Elasticsearch/HTTP/GraphQL/Firecrawl/Agent) are out of scope
+for the SDK itself, so the panel inherits that limit — a spec registry entry is the
+prerequisite for a form. No panel work is possible until the specs exist.
+
+**Goal:** generate intent retriever adapters and their supporting domain-config +
+template files, not just the adapter YAML.
+
+**Why it's hard:** the `config` block branches heavily by backend (Postgres pooling vs.
+DuckDB `read_only` vs. ES `index_pattern` vs. HTTP `base_url`+`auth` vs. Firecrawl
+chunking), and a working intent adapter also needs a `domain_config_path` +
+`template_library_path` that don't exist yet.
+
+**Tasks:**
+- [ ] Extend `specs.py` with an intent-family spec model keyed by `(family, backend)` →
+      implementation class + per-backend `config` sub-schema. Reuse the tuple table
+      already documented in the plan.
+- [ ] Add per-backend Jinja templates (or one parameterized template + backend
+      fragments) for the `config` and `fault_tolerance` blocks.
+- [ ] Orchestrate `utils/templates/template_generator.py` from the SDK: given a schema +
+      NL queries, produce the domain config + template library, then wire their paths
+      into the generated adapter. Do NOT reimplement template generation — call the
+      existing tool.
+- [ ] Extend the wizard: pick backend → collect connection/config answers → optionally
+      run template generation inline → render adapter + register.
+- [ ] Validation: verify `store_name` exists in `stores.yaml`, `datasource` exists in
+      `datasources.yaml`, and referenced template/domain files exist on disk.
+- [ ] Tests: render+validate each backend; round-trip against a committed intent adapter
+      (e.g. `customer-orders.yaml`); loader integration.
 
 Worth surfacing in the UI meanwhile: the create panel currently offers seven families
 with no indication that intent adapters exist and must be hand-written. A one-line note
 pointing at the YAML editor would set expectations.
+
+## 7. Cross-cutting / smaller follow-ups
+
+- [ ] Multi-adapter files: support appending to an existing file (e.g.
+      `web-search-providers.yaml`) instead of always one-file-per-adapter. `writer`
+      currently writes `<name>.yaml` only.
+- [ ] Skill-graph checks: warn when a generated `skill_name` collides, or when
+      `available_skills` references a skill no adapter exposes.
+- [ ] CLI subcommands: `delete`, `export`, `import` (promote `cli.py` to a `click`
+      group); wire `orbit adapter ...` into `bin/orbit.py` so the CLI is reachable via
+      the main entrypoint. (Standalone launchers `bin/adapter-sdk.sh` /
+      `bin/adapter-sdk.bat` already exist; this would fold them into the main CLI.)
+- [ ] Autocomplete for provider/model/store/datasource answers, sourced from the
+      relevant config files.
