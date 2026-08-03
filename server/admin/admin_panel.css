@@ -3358,6 +3358,15 @@ code.plain-code {
   top: calc(var(--workbar-h) + var(--sp-4));
 }
 
+/* Keep the text action and the icon-only refresh control on one shared
+   flex baseline. Without this wrapper's flex layout, inline button baseline
+   alignment makes the two controls visibly stagger at larger zoom levels. */
+.mcp-list-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
 .mcp-list {
   display: grid;
   gap: 2px;

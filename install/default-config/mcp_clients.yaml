@@ -5,7 +5,7 @@
 #
 # Each server entry supports two transports:
 #   stdio  — spawns a local subprocess (e.g. via npx, uvx, python -m …)
-#   sse    — connects to a remote SSE endpoint
+#   http   — connects to a remote Streamable HTTP endpoint
 #
 # Secrets should be supplied via environment variables using ${VAR} syntax.
 # They are expanded at runtime and never written to logs.
@@ -257,50 +257,6 @@ mcp_clients:
     #   args: ["-y", "@modelcontextprotocol/server-puppeteer"]
     #   enabled: false
 
-    # ── Microsoft SharePoint MCP server (SSE, requires Entra ID / M365) ───
-    # Hosted by Microsoft as part of Agent 365 (preview).
-    # Docs: https://learn.microsoft.com/en-us/microsoft-agent-365/mcp-server-reference/sharepoint
-    #
-    # Prerequisites:
-    #   1. Microsoft 365 / SharePoint Online tenant.
-    #   2. An Entra ID app registration with the following delegated Graph API scopes:
-    #        Sites.Read.All (read-only) or Sites.ReadWrite.All (full access)
-    #        Files.Read.All / Files.ReadWrite.All
-    #      Grant admin consent for the scopes you need.
-    #   3. Obtain an OAuth 2.0 Bearer token for the app (device code, client credentials,
-    #      or any supported flow). Export it as M365_ACCESS_TOKEN in the environment.
-    #   4. Replace {tenantId} below with your Entra tenant GUID
-    #      (visible in Entra portal → Overview → Tenant ID).
-    #
-    # Tools provided (34 total — preview, names may change):
-    #   Site navigation:   findSite, getSiteByPath, listSubsites
-    #   Document libs:     listDocumentLibrariesInSite, getDefaultDocumentLibraryInSite
-    #   File/folder CRUD:  getFolderChildren, findFileOrFolder, getFileOrFolderMetadata,
-    #                      readSmallTextFile, readSmallBinaryFile, createSmallTextFile,
-    #                      createSmallBinaryFile, createFolder, renameFileOrFolder,
-    #                      deleteFileOrFolder, moveFileOrFolder, copyFileOrFolder,
-    #                      checkOperationStatus, uploadFileFromUrl
-    #   Sharing:           shareFileOrFolder, sendInviteForList, setSensitivityLabelOnFile
-    #   List management:   listLists, createList, deleteList, listListItems, getListItem,
-    #                      createListItem, updateListItem, deleteListItem
-    #   Column management: listColumns, createColumn, updateColumn, deleteColumn
-    #
-    # Note: file operations are capped at 5 MB; copy/move are async (use checkOperationStatus).
-    # - name: "sharepoint"
-    #   transport: "sse"
-    #   url: "https://agent365.svc.cloud.microsoft/agents/tenants/{tenantId}/servers/mcp_SharePointRemoteServer"
-    #   headers:
-    #     Authorization: "Bearer ${M365_ACCESS_TOKEN}"
-    #   enabled: false
-
-    # ── Remote SSE server example ─────────────────────────────────────────
-    # - name: "docs-search"
-    #   transport: "sse"
-    #   url: "https://mcp.example.com/sse"
-    #   headers:
-    #     Authorization: "Bearer ${INTERNAL_MCP_TOKEN}"
-    #   enabled: false
-
     # ── Streamable HTTP server example ───────────────────────────────────
     # Use transport: "http" for MCP servers that speak the Streamable HTTP
     # protocol (POST + optional SSE response).  The client automatically
@@ -313,5 +269,6 @@ mcp_clients:
     # - name: "my-http-server"
     #   transport: "http"
     #   url: "http://127.0.0.1:9999/mcp"
-    #   token: "${MCP_TOKEN}"          # → Authorization: Bearer <value>
-    #   enabled: falses
+    #   headers:
+    #     Authorization: "Bearer ${MCP_TOKEN}"
+    #   enabled: false

@@ -6013,6 +6013,7 @@
   var mcpPending = {};     // unsaved edits for the current selection only
 
   var MCP_DEFAULTS_KEY = "__defaults__";
+  var MCP_CREATE_KEY = "__create__";
 
   var MCP_SETTING_LABELS = {
     allow_opportunistic: {
@@ -6028,7 +6029,6 @@
 
   var MCP_TRANSPORT_LABELS = { stdio: "Subprocess", sse: "SSE", http: "Streamable HTTP" };
   var MCP_CONNECTION_URL_MAX_LENGTH = 2048;
-  var MCP_CONNECTION_TOKEN_MAX_LENGTH = 8192;
   var MCP_CONNECTION_COMMAND_MAX_LENGTH = 512;
   var MCP_CONNECTION_ARG_MAX_LENGTH = 2048;
   var MCP_CONNECTION_ARGS_MAX_COUNT = 64;
@@ -6144,12 +6144,25 @@
 
     var header = el("div", { className: "panel-header-row" },
       el("h2", null, "MCP servers"),
-      refreshButton("Refresh servers and tools", function () {
-        mcpData = null;
-        mcpTools = null;
-        mcpPending = {};
-        mcpRerender();
-      })
+      el("div", { className: "mcp-list-actions" },
+        el("button", {
+          type: "button", className: "btn btn--primary", onclick: function () {
+            if (mcpHasPendingEdits()) {
+              confirmAction({ title: "Unsaved Changes", message: "Discard changes and add a server?", confirmLabel: "Discard", isDanger: true,
+                onConfirm: function () { mcpPending = {}; mcpSelected = MCP_CREATE_KEY; mcpRerender(); } });
+              return;
+            }
+            mcpSelected = MCP_CREATE_KEY;
+            mcpRerender();
+          }
+        }, "Add server"),
+        refreshButton("Refresh servers and tools", function () {
+          mcpData = null;
+          mcpTools = null;
+          mcpPending = {};
+          mcpRerender();
+        })
+      )
     );
     panel.appendChild(header);
 
@@ -6174,7 +6187,7 @@
     var servers = mcpData.servers || [];
     if (!servers.length) {
       list.appendChild(el("p", { className: "muted mcp-list-empty" },
-        "No servers defined. Add one to the servers list in mcp_clients.yaml."
+        "No servers defined. Add one to connect tools from an HTTP endpoint or local subprocess."
       ));
     }
 
@@ -6262,6 +6275,10 @@
   // ----- Detail -----
 
   function mcpRenderDetail(detail) {
+    if (mcpSelected === MCP_CREATE_KEY) {
+      mcpRenderCreateDetail(detail);
+      return;
+    }
     if (mcpSelected === MCP_DEFAULTS_KEY) {
       mcpRenderDefaultsDetail(detail);
       return;
@@ -6275,6 +6292,65 @@
       return;
     }
     mcpRenderServerDetail(detail, server);
+  }
+
+  function mcpRenderCreateDetail(detail) {
+    var draft = { name: "", transport: "http", url: "", headers: {}, command: "", args: [], env: {} };
+    var mapEditor = null;
+    function render() {
+      clear(detail);
+      detail.appendChild(el("div", { className: "mcp-detail-head" },
+        el("div", { className: "mcp-detail-title" }, el("h2", null, "Add MCP server"),
+          el("p", { className: "muted" }, "New servers are enabled and checked for tools immediately."))
+      ));
+      var ledger = el("div", { className: "mcp-ledger" });
+      var nameRow = mcpConnectionRow("Name", "Unique lowercase identifier", draft.name, function (next) { draft.name = next; },
+        { maxLength: 64, autocomplete: "off" });
+      ledger.appendChild(nameRow);
+      var transport = el("select", { className: "mcp-text", "aria-label": "Transport" },
+        el("option", { value: "http" }, "Streamable HTTP"),
+        el("option", { value: "stdio" }, "Subprocess (stdio)")
+      );
+      transport.value = draft.transport;
+      transport.addEventListener("change", function () { draft.transport = transport.value; render(); });
+      ledger.appendChild(el("div", { className: "mcp-setting-row mcp-connection-row" },
+        el("span", { className: "mcp-setting-copy" }, el("span", { className: "mcp-setting-label" }, "Transport"),
+          el("span", { className: "mcp-setting-hint" }, "How ORBIT connects to this server")),
+        el("span", { className: "mcp-setting-control" }, transport)
+      ));
+      if (draft.transport === "http") {
+        ledger.appendChild(mcpConnectionRow("URL", "Streamable HTTP endpoint", draft.url, function (next) { draft.url = next; },
+          { type: "url", maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }));
+        mapEditor = mcpKeyValueRows("Headers", "HTTP headers; declare ${VAR} values in .env or export them before use", draft.headers, function (next) { draft.headers = next; },
+          { keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH, valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH, maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES, keyPattern: /^[A-Za-z0-9-]+$/ });
+        ledger.appendChild(mapEditor);
+      } else {
+        ledger.appendChild(mcpConnectionRow("Command", "Executable launched for this server", draft.command, function (next) { draft.command = next; }, { maxLength: MCP_CONNECTION_COMMAND_MAX_LENGTH }));
+        ledger.appendChild(mcpArgsTextEditor("Args", "One argument per line", draft.args, function (next) { draft.args = next; }, { argMaxLength: MCP_CONNECTION_ARG_MAX_LENGTH, maxCount: MCP_CONNECTION_ARGS_MAX_COUNT }));
+        mapEditor = mcpKeyValueRows("Env", "Environment variables passed to the server process", draft.env, function (next) { draft.env = next; },
+          { keyMaxLength: MCP_CONNECTION_ENV_KEY_MAX_LENGTH, valueMaxLength: MCP_CONNECTION_ENV_VALUE_MAX_LENGTH, maxEntries: MCP_CONNECTION_ENV_MAX_ENTRIES, keyPattern: /^[A-Za-z_][A-Za-z0-9_]*$/ });
+        ledger.appendChild(mapEditor);
+      }
+      detail.appendChild(ledger);
+      detail.appendChild(el("div", { className: "mcp-save-row" },
+        el("button", { type: "button", className: "btn btn--neutral", onclick: function () { mcpSelected = MCP_DEFAULTS_KEY; mcpRerender(); } }, "Cancel"),
+        el("button", { type: "button", className: "btn btn--primary", onclick: async function () {
+          if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(draft.name)) { showError("Name must be a 1–64 character lowercase slug."); return; }
+          if (mapEditor) mapEditor.commitPending();
+          var connection = draft.transport === "http"
+            ? { url: draft.url, headers: draft.headers }
+            : { command: draft.command, args: draft.args, env: draft.env };
+          if (draft.transport === "http") { var error = mcpEndpointUrlError(draft.url); if (error) { showError(error); return; } }
+          var res = await api("POST", ENDPOINTS.mcpServers, { name: draft.name, transport: draft.transport, connection: connection });
+          mcpSelected = draft.name;
+          mcpData = null;
+          mcpTools = null;
+          showStatus(res.message || "Server created.");
+          mcpRerender();
+        } }, "Create server")
+      ));
+    }
+    render();
   }
 
   function mcpSaveRow(onSave) {
@@ -6442,26 +6518,11 @@
           urlRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.url"));
         });
 
-        // All http/sse servers share one auth surface: headers. The legacy
-        // `token` shorthand (Authorization: Bearer <value>) is still read by
-        // the runtime for backward compatibility, but the panel no longer
-        // exposes a separate Token field — every server sets its
-        // Authorization the same way, as a header, same as any other custom
-        // header. A server still on the old `token:` key surfaces a nudge to
-        // migrate it into `headers.Authorization` instead of getting its own
-        // one-off control.
-        if (server.connection.token) {
-          connLedger.appendChild(el("p", { className: "muted mcp-tools-empty" },
-            "This server still uses the legacy token shorthand. Move it into the Headers list below as " +
-            "an Authorization header (\"Bearer <value>\"), then remove the token line from mcp_clients.yaml."
-          ));
-        }
-
         // headers is http/sse-only: the stdio transport never reads it (see
         // MCPClientManager._open_session), so it isn't editable there.
         var headersRow = mcpKeyValueRows(
           "Headers",
-          "Extra HTTP headers (e.g. Authorization) merged into every request",
+          "HTTP headers; declare ${VAR} values in .env or export them before use",
           Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers")
             ? mcpPending["connection.headers"] : server.connection.headers,
           function (next) { mcpPending["connection.headers"] = next; mcpSyncDirty(); },
@@ -6569,7 +6630,7 @@
 
     detail.appendChild(mcpSaveRow(async function () {
       var body = { settings: {}, connection: {} };
-      var CONNECTION_FIELDS = ["url", "token", "command", "args", "env", "headers"];
+      var CONNECTION_FIELDS = ["url", "command", "args", "env", "headers"];
       Object.keys(mcpPending).forEach(function (key) {
         if (key === "enabled") { body.enabled = mcpPending[key]; return; }
         var connField = CONNECTION_FIELDS.find(function (f) { return key === "connection." + f; });
@@ -6579,10 +6640,6 @@
       if (body.connection.url != null) {
         var urlError = mcpEndpointUrlError(body.connection.url);
         if (urlError) { showError(urlError); return; }
-      }
-      if (body.connection.token != null && body.connection.token.length > MCP_CONNECTION_TOKEN_MAX_LENGTH) {
-        showError("Token must be at most " + MCP_CONNECTION_TOKEN_MAX_LENGTH + " characters.");
-        return;
       }
       if (!Object.keys(body.connection).length) delete body.connection;
       var res = await api(
@@ -6624,7 +6681,7 @@
         el("p", null,
           server.transport === "stdio"
             ? "Check the command runs and is on PATH. Startup logs record the underlying error."
-            : "Check the URL is reachable and any token is set. Startup logs record the underlying error."
+            : "Check the URL is reachable and required headers are set. Startup logs record the underlying error."
         )
       );
     }
@@ -6684,8 +6741,8 @@
     return track;
   }
 
-  // A plain editable text field for a server's connection details (url,
-  // token). Unlike mcpSettingRow there is no mcp_clients-level default to
+  // A plain editable text field for a server's scalar connection details.
+  // Unlike mcpSettingRow there is no mcp_clients-level default to
   // fall back to or revert against — the row just tracks "changed vs. what's
   // on disk", reported by the caller via row.sync(isChanged).
   function mcpConnectionRow(label, hint, value, onChange, opts) {
@@ -6773,6 +6830,7 @@
     var maxEntries = opts.maxEntries || MCP_CONNECTION_ENV_MAX_ENTRIES;
     var current = Object.assign({}, valueMap || {});
     var pristineJson = JSON.stringify(current);
+    var commitPending = function () { return false; };
     var rowsEl = el("div", { className: "mcp-kv-rows" });
     var provenance = el("span", { className: "mcp-provenance" });
 
@@ -6821,6 +6879,10 @@
         keyInput.addEventListener("change", function () {
           var nextKey = keyInput.value.trim().slice(0, keyMaxLength);
           if (!nextKey || nextKey === mapKey) { keyInput.value = mapKey; return; }
+          if (Object.prototype.hasOwnProperty.call(current, nextKey)) {
+            keyInput.value = mapKey;
+            return;
+          }
           var value = current[mapKey];
           delete current[mapKey];
           current[nextKey] = value;
@@ -6848,15 +6910,19 @@
         type: "button", className: "mcp-kv-btn mcp-kv-btn--add",
         "aria-label": "Add " + label.toLowerCase() + " entry",
         onclick: function () {
+          commitPending();
+        }
+      }, mcpPlusIcon());
+      commitPending = function () {
           var newKey = newKeyInput.value.trim().slice(0, keyMaxLength);
-          if (!newKey || Object.prototype.hasOwnProperty.call(current, newKey)) return;
-          if (Object.keys(current).length >= maxEntries) return;
+          if (!newKey || Object.prototype.hasOwnProperty.call(current, newKey)) return false;
+          if (Object.keys(current).length >= maxEntries) return false;
           current[newKey] = newValueInput.value.slice(0, valueMaxLength);
           onChange(Object.assign({}, current));
           renderRows();
           sync();
-        }
-      }, mcpPlusIcon());
+          return true;
+        };
       var newValueCounter = mcpKvCounter(0, valueMaxLength);
       newKeyInput.addEventListener("input", function () {
         if (newKeyInput.value.length > keyMaxLength) newKeyInput.value = newKeyInput.value.slice(0, keyMaxLength);
@@ -6898,6 +6964,7 @@
       provenance
     );
     row.sync = sync;
+    row.commitPending = function () { return commitPending(); };
     sync();
     return row;
   }

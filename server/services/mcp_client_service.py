@@ -109,7 +109,7 @@ class MCPClientManager:
     # Per-server keys that are not settings (transport/identity/lifecycle).
     _SERVER_KEYS = {
         "name", "enabled", "transport", "command", "args", "env",
-        "url", "token", "headers",
+        "url", "headers",
     }
 
     def __init__(self, mcp_config: Dict[str, Any]):
@@ -524,13 +524,9 @@ class MCPClientManager:
     def _expand_headers(server_config: Dict[str, Any]) -> Dict[str, str]:
         """Build request headers from server config, expanding ${VAR} references.
 
-        The optional ``token`` key is a shorthand for ``Authorization: Bearer <token>``.
-        Explicit ``headers`` entries are applied after and can override it.
+        Authentication is configured as a normal ``Authorization`` header.
         """
         result: Dict[str, str] = {}
-        token = server_config.get("token", "")
-        if token:
-            result["Authorization"] = f"Bearer {os.path.expandvars(str(token))}"
         for k, v in server_config.get("headers", {}).items():
             result[k] = os.path.expandvars(str(v)) if isinstance(v, str) else str(v)
         return result

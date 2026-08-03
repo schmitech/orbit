@@ -5,7 +5,7 @@
 #
 # Each server entry supports two transports:
 #   stdio  — spawns a local subprocess (e.g. via npx, uvx, python -m …)
-#   sse    — connects to a remote SSE endpoint
+#   http   — connects to a remote Streamable HTTP endpoint
 #
 # Secrets should be supplied via environment variables using ${VAR} syntax.
 # They are expanded at runtime and never written to logs.
@@ -343,29 +343,14 @@ mcp_clients:
     #     Authorization: "Bearer ${M365_ACCESS_TOKEN}"
     #   enabled: false
 
-    # Calendar, Teams, and Word are planned Work IQ integrations. Add their
-    # disabled server entries after Phase 0 validates their preview endpoint
-    # IDs, required Entra permissions, and tool schemas for the target tenant.
-
-    # ── Remote SSE server example ─────────────────────────────────────────
-    # - name: "docs-search"
-    #   transport: "sse"
-    #   url: "https://mcp.example.com/sse"
-    #   headers:
-    #     Authorization: "Bearer ${INTERNAL_MCP_TOKEN}"
-    #   enabled: false
-
     # ── Streamable HTTP server example ───────────────────────────────────
     # Use transport: "http" for MCP servers that speak the Streamable HTTP
     # protocol (POST + optional SSE response).  The client automatically
     # sends Accept: application/json, text/event-stream.
     #
-    # ``token`` is a shorthand for Authorization: Bearer <value>; it is
-    # expanded the same way as other env-var references (${VAR} syntax).
-    # Explicit ``headers`` entries are merged after and can override it.
-    #
     # - name: "my-http-server"
     #   transport: "http"
     #   url: "http://127.0.0.1:9999/mcp"
-    #   token: "${MCP_TOKEN}"          # → Authorization: Bearer <value>
+    #   headers:
+    #     Authorization: "Bearer ${MCP_TOKEN}"
     #   enabled: false

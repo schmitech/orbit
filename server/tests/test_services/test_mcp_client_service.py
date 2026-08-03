@@ -8,7 +8,7 @@ Covers the logic that does not require a live MCP server:
   - pre-call argument validation against the cached schema
   - the namespaced-name split and unknown-server handling in call_tool
   - the tool-result size cap
-  - _expand_headers (token shorthand, explicit headers, env-var expansion)
+  - _expand_headers (explicit headers and env-var expansion)
   - transport selection: sse uses sse_client, http uses streamable_http_client
 
 The actual transport (_call_tool_on_server / _list_tools_on_server) is mocked
@@ -620,23 +620,19 @@ class TestExpandHeaders:
     def test_empty_config_returns_empty_dict(self):
         assert MCPClientManager._expand_headers({}) == {}
 
-    def test_token_becomes_authorization_bearer(self):
-        headers = MCPClientManager._expand_headers({"token": "abc123"})
-        assert headers == {"Authorization": "Bearer abc123"}
+    def test_legacy_token_key_is_ignored(self):
+        assert MCPClientManager._expand_headers({"token": "abc123"}) == {}
 
-    def test_explicit_headers_override_token(self):
-        # If both token and an explicit Authorization header are present, the
-        # explicit header wins (applied after token shorthand).
+    def test_explicit_authorization_header_is_preserved(self):
         headers = MCPClientManager._expand_headers({
-            "token": "token-value",
             "headers": {"Authorization": "Bearer explicit-token", "X-Custom": "yes"},
         })
         assert headers["Authorization"] == "Bearer explicit-token"
         assert headers["X-Custom"] == "yes"
 
-    def test_token_env_var_expanded(self, monkeypatch):
+    def test_authorization_env_var_expanded(self, monkeypatch):
         monkeypatch.setenv("TEST_MCP_TOKEN", "secret-from-env")
-        headers = MCPClientManager._expand_headers({"token": "${TEST_MCP_TOKEN}"})
+        headers = MCPClientManager._expand_headers({"headers": {"Authorization": "Bearer ${TEST_MCP_TOKEN}"}})
         assert headers["Authorization"] == "Bearer secret-from-env"
 
     def test_header_values_env_var_expanded(self, monkeypatch):
@@ -647,11 +643,6 @@ class TestExpandHeaders:
     def test_non_string_header_value_converted(self):
         headers = MCPClientManager._expand_headers({"headers": {"X-Number": 42}})
         assert headers["X-Number"] == "42"
-
-    def test_empty_token_is_ignored(self):
-        headers = MCPClientManager._expand_headers({"token": ""})
-        assert "Authorization" not in headers
-
 
 # ---------------------------------------------------------------------------
 # Transport selection in _open_session
@@ -701,7 +692,7 @@ class TestOpenSessionTransportSelection:
         server_cfg = {
             "transport": "http",
             "url": "http://example.com/mcp",
-            "token": "mytoken",
+            "headers": {"Authorization": "Bearer mytoken"},
         }
 
         @asynccontextmanager
@@ -753,9 +744,9 @@ class TestOpenSessionTransportSelection:
 
         assert received_headers.get("Accept") == "application/json, text/event-stream"
 
-    async def test_http_transport_token_becomes_authorization_header(self):
+    async def test_http_transport_passes_authorization_header(self):
         mgr = _make_manager()
-        server_cfg = {"transport": "http", "url": "http://example.com/mcp", "token": "tok-xyz"}
+        server_cfg = {"transport": "http", "url": "http://example.com/mcp", "headers": {"Authorization": "Bearer tok-xyz"}}
 
         received_headers: dict = {}
 
