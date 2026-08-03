@@ -3261,6 +3261,36 @@ def _insert_mcp_server(lines: list, entry: Dict[str, Any]) -> list:
     return lines
 
 
+def _remove_mcp_server(lines: list, server_name: str) -> list:
+    """Remove one active MCP server entry without consuming surrounding docs.
+
+    mcp_clients.yaml doubles as a commented server catalogue.  The shared
+    _find_adapter_block deliberately includes those comments in an entry's
+    range so editing can find the next active peer, but deletion must retain
+    them.  Remove only the YAML-bearing lines for the matched list item and
+    its nested fields; blank lines and comments remain in place.
+    """
+    start, end = _find_adapter_block(lines, server_name)
+    if start < 0:
+        raise HTTPException(status_code=404, detail=f"MCP server '{server_name}' not found")
+
+    remove_indices = [start]
+    for i in range(start + 1, end):
+        stripped = lines[i].lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        # _find_adapter_block has already bounded this range at the next
+        # active peer or parent section. Remove every YAML-bearing line in
+        # it, rather than relying on a field being indented more deeply than
+        # the `- name:` marker. That keeps no orphaned scalar behind if a
+        # hand-edited config uses unconventional indentation.
+        remove_indices.append(i)
+
+    for i in reversed(remove_indices):
+        del lines[i]
+    return lines
+
+
 @admin_router.post("/mcp/servers", dependencies=[config_auth])
 async def create_mcp_server(request: Request, body: dict = Body(...)):
     """Create an enabled HTTP or stdio MCP server and apply it immediately."""
@@ -3288,6 +3318,41 @@ async def create_mcp_server(request: Request, body: dict = Body(...)):
         else f"'{entry['name']}' created, but reload failed ({reload_error}). Restart to apply."
     )
     return {"message": message, "server": entry, "reload_summary": reload_summary, "reload_error": reload_error}
+
+
+@admin_router.delete("/mcp/servers/{server_name}", dependencies=[config_auth])
+async def delete_mcp_server(server_name: str, request: Request):
+    """Delete one MCP server configuration and remove it from the live manager."""
+    path, content, block = _read_mcp_config(request)
+    if not any(
+        isinstance(server, dict) and server.get("name") == server_name
+        for server in (block.get("servers") or [])
+    ):
+        raise HTTPException(status_code=404, detail=f"MCP server '{server_name}' not found")
+
+    lines = _remove_mcp_server(content.split("\n"), server_name)
+    new_content = "\n".join(lines)
+    try:
+        reparsed = yaml.safe_load(new_content) or {}
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=422, detail=f"Delete produced invalid YAML: {exc}")
+    servers = ((reparsed.get("mcp_clients") or {}).get("servers") or [])
+    if any(isinstance(server, dict) and server.get("name") == server_name for server in servers):
+        raise HTTPException(status_code=422, detail="Delete would not remove the requested MCP server")
+
+    _write_adapter_config(path, new_content)
+    reload_summary, reload_error = None, None
+    try:
+        reload_summary = await _reload_mcp_clients(request, server_name=server_name)
+    except Exception as exc:
+        reload_error = str(exc)
+        logger.error("MCP config deleted but reload failed: %s", exc)
+
+    message = (
+        f"'{server_name}' removed and applied." if reload_error is None
+        else f"'{server_name}' removed, but reload failed ({reload_error}). Restart to apply."
+    )
+    return {"message": message, "reload_summary": reload_summary, "reload_error": reload_error}
 
 
 @admin_router.patch("/mcp/servers/{server_name}", dependencies=[config_auth])

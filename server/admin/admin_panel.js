@@ -6440,15 +6440,37 @@
           MCP_TRANSPORT_LABELS[server.transport] || server.transport
         )
       ),
-      mcpToggle({
-        on: enabled,
-        label: "Server " + server.name,
-        onChange: function (next) {
-          if (next === server.enabled) delete mcpPending.enabled;
-          else mcpPending.enabled = next;
-          mcpSyncDirty();
-        }
-      })
+      el("div", { className: "mcp-detail-actions" },
+        mcpToggle({
+          on: enabled,
+          label: "Server " + server.name,
+          onChange: function (next) {
+            if (next === server.enabled) delete mcpPending.enabled;
+            else mcpPending.enabled = next;
+            mcpSyncDirty();
+          }
+        }),
+        el("button", {
+          type: "button", className: "btn danger", onclick: function () {
+            confirmAction({
+              title: "Remove MCP Server",
+              message: "Remove '" + server.name + "' and its available tools? This deletes its configuration immediately. Environment variables and the external server are not changed.",
+              confirmLabel: "Remove server",
+              loadingLabel: "Removing…",
+              isDanger: true,
+              onConfirm: async function () {
+                var res = await api("DELETE", ENDPOINTS.mcpServers + "/" + encodeURIComponent(server.name));
+                mcpPending = {};
+                mcpSelected = MCP_DEFAULTS_KEY;
+                mcpData = null;
+                mcpTools = null;
+                showStatus(res.message || "Server removed.");
+                mcpRerender();
+              }
+            });
+          }
+        }, "Remove server")
+      )
     );
     detail.appendChild(head);
 

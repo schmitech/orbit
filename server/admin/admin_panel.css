@@ -3502,6 +3502,14 @@ code.plain-code {
   gap: var(--sp-4);
 }
 
+.mcp-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .mcp-detail-title h2 {
   margin-bottom: var(--sp-1);
 }

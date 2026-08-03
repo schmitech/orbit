@@ -718,3 +718,71 @@ class TestCreateMcpServer:
         with pytest.raises(HTTPException) as exc:
             await admin_routes.create_mcp_server(_fake_request(config_path), body)
         assert exc.value.status_code == status
+
+
+class TestDeleteMcpServer:
+    @staticmethod
+    def _reload_from_disk(tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+        return _fake_reload
+
+    @pytest.mark.asyncio
+    async def test_removes_server_and_preserves_neighbors_and_comments(self, tmp_path):
+        config_path = _write_temp_config(tmp_path)
+        mcp_path = tmp_path / "mcp_clients.yaml"
+        mcp_path.write_text(MCP_YAML.replace(
+            '    - name: "headers-server"',
+            '    # Catalogue notes remain after removal.\n    - name: "headers-server"',
+        ), encoding="utf-8")
+        request = _fake_request(config_path)
+
+        with patch.object(admin_routes, "reload_adapters_config", side_effect=self._reload_from_disk(tmp_path)):
+            with patch.object(
+                mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])
+            ):
+                result = await admin_routes.delete_mcp_server("headers-server", request)
+
+        assert result["reload_error"] is None
+        written_text = mcp_path.read_text()
+        written = yaml.safe_load(written_text)["mcp_clients"]["servers"]
+        assert {server["name"] for server in written} == {
+            "http-server", "unrelated-headers-server", "stdio-server",
+        }
+        assert "Catalogue notes remain after removal." in written_text
+        assert 'url: "https://example.com/sse"' not in written_text
+
+    def test_removal_does_not_leave_same_indent_yaml_lines_behind(self):
+        lines = [
+            '    - name: "remove-me"',
+            '    transport: "http"',
+            '    url: "https://example.com/mcp"',
+            '    # Keep this catalogue note.',
+            '    - name: "keep-me"',
+            '      transport: "stdio"',
+        ]
+
+        result = admin_routes._remove_mcp_server(lines, "remove-me")
+
+        assert result == [
+            '    # Keep this catalogue note.',
+            '    - name: "keep-me"',
+            '      transport: "stdio"',
+        ]
+
+    @pytest.mark.asyncio
+    async def test_unknown_server_returns_404(self, tmp_path):
+        with pytest.raises(HTTPException) as exc:
+            await admin_routes.delete_mcp_server("does-not-exist", _fake_request(_write_temp_config(tmp_path)))
+        assert exc.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_persists_removal_when_reload_fails(self, tmp_path):
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+        with patch.object(admin_routes, "_reload_mcp_clients", side_effect=RuntimeError("reload unavailable")):
+            result = await admin_routes.delete_mcp_server("stdio-server", request)
+
+        assert result["reload_error"] == "reload unavailable"
+        written = yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())
+        assert all(server["name"] != "stdio-server" for server in written["mcp_clients"]["servers"])
