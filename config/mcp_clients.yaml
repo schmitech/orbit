@@ -114,16 +114,31 @@ mcp_clients:
       discovery_retry_interval: 33
       discovery_timeout: 7
 
-    # ── GitLab (stdio) ────────────────────────────────────────────────────
-    # Search repos, issues, MRs, pipelines on GitLab.com or self-hosted.
-    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/gitlab
-    # - name: "gitlab"
+    # ── Azure DevOps (local stdio) ─────────────────────────────────────────
+    # Work items, repositories, pull requests, pipelines, test plans, and
+    # wikis. Use the official local server until ORBIT supports the hosted
+    # server's Entra OAuth registration flow.
+    # Docs: https://github.com/microsoft/azure-devops-mcp
+    # - name: "azure-devops"
     #   transport: "stdio"
     #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-gitlab"]
-    #   env:
-    #     GITLAB_PERSONAL_ACCESS_TOKEN: "${GITLAB_TOKEN}"
-    #     GITLAB_API_URL: "https://gitlab.com/api/v4"   # override for self-hosted
+    #   # Keep the loaded toolset narrow; add domains only when needed.
+    #   args: ["-y", "@azure-devops/mcp", "${AZURE_DEVOPS_ORGANIZATION}", "--authentication", "azcli", "-d", "core", "work", "work-items"]
+    #   enabled: false
+    #
+    # Prerequisite: authenticate on the ORBIT host with `az login` using an
+    # identity that can access AZURE_DEVOPS_ORGANIZATION. The hosted preview
+    # endpoint (https://mcp.dev.azure.com/{organization}) needs OAuth support
+    # tracked in docs/roadmap/microsoft-365-work-iq-mcp.md.
+
+    # ── GitLab (stdio) ────────────────────────────────────────────────────
+    # Search and manage projects, issues, MRs, and pipelines. Authenticate the
+    # GitLab CLI first with `glab auth login`.
+    # Docs: https://docs.gitlab.com/cli/mcp/serve/
+    # - name: "gitlab"
+    #   transport: "stdio"
+    #   command: "glab"
+    #   args: ["mcp", "serve"]
     #   enabled: false
 
     # ── Jira + Confluence / Atlassian (stdio) ─────────────────────────────
@@ -144,11 +159,13 @@ mcp_clients:
 
     # ── Sentry (stdio) ────────────────────────────────────────────────────
     # Retrieve and analyse error events, issues, and stack traces from Sentry.
-    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/sentry
+    # Docs: https://github.com/getsentry/sentry-mcp
     # - name: "sentry"
     #   transport: "stdio"
-    #   command: "uvx"
-    #   args: ["mcp-server-sentry", "--auth-token", "${SENTRY_AUTH_TOKEN}"]
+    #   command: "npx"
+    #   args: ["-y", "@sentry/mcp-server@latest"]
+    #   env:
+    #     SENTRY_ACCESS_TOKEN: "${SENTRY_ACCESS_TOKEN}"
     #   enabled: false
 
     # ════════════════════════════════════════════════════════════════════════
@@ -156,13 +173,13 @@ mcp_clients:
     # ════════════════════════════════════════════════════════════════════════
 
     # ── Slack (stdio) ─────────────────────────────────────────────────────
-    # Read channels, post messages, search conversations.
-    # Requires a Slack app with channels:read, chat:write, search:read scopes.
-    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/slack
+    # List channels/users, read channel and thread history, post messages, and
+    # add reactions. Requires a Slack app with the appropriate read/write scopes.
+    # Docs: https://github.com/zencoderai/slack-mcp-server
     # - name: "slack"
     #   transport: "stdio"
     #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-slack"]
+    #   args: ["-y", "@zencoderai/slack-mcp-server"]
     #   env:
     #     SLACK_BOT_TOKEN: "${SLACK_BOT_TOKEN}"
     #     SLACK_TEAM_ID: "${SLACK_TEAM_ID}"
@@ -187,11 +204,11 @@ mcp_clients:
     # ── Brave Search (stdio) ──────────────────────────────────────────────
     # Web and local search via the Brave Search API. Useful as a standalone
     # search tool independent of a provider's native web search feature.
-    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search
+    # Docs: https://github.com/brave/brave-search-mcp-server
     # - name: "brave-search"
     #   transport: "stdio"
     #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-brave-search"]
+    #   args: ["-y", "@brave/brave-search-mcp-server", "--transport", "stdio"]
     #   env:
     #     BRAVE_API_KEY: "${BRAVE_API_KEY}"
     #   enabled: false
@@ -210,16 +227,17 @@ mcp_clients:
     # PRODUCTIVITY & KNOWLEDGE
     # ════════════════════════════════════════════════════════════════════════
 
-    # ── Google Drive (stdio) ──────────────────────────────────────────────
-    # Search, read, and export files from Google Drive (Docs, Sheets, etc.).
-    # Requires a GCP OAuth 2.0 client credentials JSON file.
-    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive
+    # ── Google Drive (remote HTTP / OAuth 2.0) ────────────────────────────
+    # Search, read, and create files in Google Drive.
+    # Google provides this as a remote HTTP MCP server using OAuth 2.0. ORBIT's
+    # MCP client does not initiate OAuth login flows, so supply and refresh a
+    # valid access token outside ORBIT before enabling this example.
+    # Docs: https://developers.google.com/workspace/drive/api/guides/configure-mcp-server
     # - name: "google-drive"
-    #   transport: "stdio"
-    #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-gdrive"]
-    #   env:
-    #     GDRIVE_CREDENTIALS_FILE: "${GDRIVE_CREDENTIALS_FILE}"  # path to OAuth JSON
+    #   transport: "http"
+    #   url: "https://drivemcp.googleapis.com/mcp/v1"
+    #   headers:
+    #     Authorization: "Bearer ${GOOGLE_DRIVE_ACCESS_TOKEN}"
     #   enabled: false
 
     # ── Notion (stdio) ────────────────────────────────────────────────────
@@ -272,51 +290,61 @@ mcp_clients:
     #     AWS_DEFAULT_REGION: "${AWS_DEFAULT_REGION}"
     #   enabled: false
 
-    # ── Puppeteer / Browser automation (stdio) ────────────────────────────
+    # ── Playwright / Browser automation (stdio) ───────────────────────────
     # Launch a headless Chromium browser, navigate pages, take screenshots,
     # click elements, fill forms, and extract content. Requires Node + Chrome.
-    # Docs: https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer
-    # - name: "puppeteer"
+    # Docs: https://github.com/microsoft/playwright-mcp
+    # - name: "playwright"
     #   transport: "stdio"
     #   command: "npx"
-    #   args: ["-y", "@modelcontextprotocol/server-puppeteer"]
+    #   args: ["-y", "@playwright/mcp@latest"]
     #   enabled: false
 
-    # ── Microsoft SharePoint MCP server (SSE, requires Entra ID / M365) ───
-    # Hosted by Microsoft as part of Agent 365 (preview).
-    # Docs: https://learn.microsoft.com/en-us/microsoft-agent-365/mcp-server-reference/sharepoint
+    # ── Microsoft 365 Work IQ MCP servers (HTTP / Entra OAuth preview) ────
+    # Microsoft hosts tenant-scoped Work IQ servers for Microsoft 365 services.
+    # See docs/roadmap/microsoft-365-work-iq-mcp.md before enabling these
+    # placeholders: ORBIT does not yet run the required per-user OAuth flow.
+    # A manually minted M365_ACCESS_TOKEN is only suitable for short-lived,
+    # single-user development testing; never commit it or use it as a shared
+    # production credential.
+    # Docs: https://learn.microsoft.com/en-us/microsoft-agent-365/mcp-server-reference/admintools
     #
-    # Prerequisites:
-    #   1. Microsoft 365 / SharePoint Online tenant.
-    #   2. An Entra ID app registration with the following delegated Graph API scopes:
-    #        Sites.Read.All (read-only) or Sites.ReadWrite.All (full access)
-    #        Files.Read.All / Files.ReadWrite.All
-    #      Grant admin consent for the scopes you need.
-    #   3. Obtain an OAuth 2.0 Bearer token for the app (device code, client credentials,
-    #      or any supported flow). Export it as M365_ACCESS_TOKEN in the environment.
-    #   4. Replace {tenantId} below with your Entra tenant GUID
-    #      (visible in Entra portal → Overview → Tenant ID).
-    #
-    # Tools provided (34 total — preview, names may change):
-    #   Site navigation:   findSite, getSiteByPath, listSubsites
-    #   Document libs:     listDocumentLibrariesInSite, getDefaultDocumentLibraryInSite
-    #   File/folder CRUD:  getFolderChildren, findFileOrFolder, getFileOrFolderMetadata,
-    #                      readSmallTextFile, readSmallBinaryFile, createSmallTextFile,
-    #                      createSmallBinaryFile, createFolder, renameFileOrFolder,
-    #                      deleteFileOrFolder, moveFileOrFolder, copyFileOrFolder,
-    #                      checkOperationStatus, uploadFileFromUrl
-    #   Sharing:           shareFileOrFolder, sendInviteForList, setSensitivityLabelOnFile
-    #   List management:   listLists, createList, deleteList, listListItems, getListItem,
-    #                      createListItem, updateListItem, deleteListItem
-    #   Column management: listColumns, createColumn, updateColumn, deleteColumn
-    #
-    # Note: file operations are capped at 5 MB; copy/move are async (use checkOperationStatus).
-    # - name: "sharepoint"
-    #   transport: "sse"
+    # ── SharePoint ─────────────────────────────────────────────────────────
+    # Manage sites, document libraries, files/folders, sharing, lists, list
+    # items, and columns. Preview; file operations are limited to 5 MB.
+    # Docs: https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-sharepoint-work-iq
+    # Tenant setup and current Work IQ permissions must be verified in Phase 0;
+    # do not copy legacy Graph-scope examples into a new Work IQ integration.
+    # - name: "m365-sharepoint"
+    #   transport: "http"
     #   url: "https://agent365.svc.cloud.microsoft/agents/tenants/{tenantId}/servers/mcp_SharePointRemoteServer"
     #   headers:
     #     Authorization: "Bearer ${M365_ACCESS_TOKEN}"
     #   enabled: false
+
+    # ── OneDrive ───────────────────────────────────────────────────────────
+    # Manage files and folders in the signed-in user's personal OneDrive.
+    # Docs: https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-onedrive-work-iq
+    # - name: "m365-onedrive"
+    #   transport: "http"
+    #   url: "https://agent365.svc.cloud.microsoft/agents/tenants/{tenantId}/servers/mcp_OneDriveRemoteServer"
+    #   headers:
+    #     Authorization: "Bearer ${M365_ACCESS_TOKEN}"
+    #   enabled: false
+
+    # ── Mail ───────────────────────────────────────────────────────────────
+    # Search, draft, send, and manage mail. Verify the exact Entra permissions
+    # and write-action confirmation policy during the Work IQ pilot.
+    # - name: "m365-mail"
+    #   transport: "http"
+    #   url: "https://agent365.svc.cloud.microsoft/agents/tenants/{tenantId}/servers/mcp_MailTools"
+    #   headers:
+    #     Authorization: "Bearer ${M365_ACCESS_TOKEN}"
+    #   enabled: false
+
+    # Calendar, Teams, and Word are planned Work IQ integrations. Add their
+    # disabled server entries after Phase 0 validates their preview endpoint
+    # IDs, required Entra permissions, and tool schemas for the target tenant.
 
     # ── Remote SSE server example ─────────────────────────────────────────
     # - name: "docs-search"

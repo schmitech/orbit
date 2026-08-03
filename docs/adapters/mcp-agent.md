@@ -107,13 +107,15 @@ mcp_clients:
       enabled: true
 ```
 
-Each server entry supports three transports:
+MCP defines two standard transports: **stdio** and **Streamable HTTP**. ORBIT
+accepts three configuration values because it also retains the former HTTP+SSE
+transport for compatibility with older servers:
 
-| Transport | When to use | Required fields |
-|-----------|-------------|-----------------|
-| `stdio` | Local subprocess (npx, uvx, python -m …) | `command`, optionally `args`, `env` |
-| `sse` | Remote SSE endpoint | `url`, optionally `headers` |
-| `http` | Remote Streamable HTTP endpoint (MCP spec §4.2) | `url`, optionally `token` or `headers` |
+| ORBIT value | MCP status | When to use | Required fields |
+|-------------|------------|-------------|-----------------|
+| `stdio` | Standard | Local subprocess (`npx`, `uvx`, `python -m` …) | `command`, optionally `args`, `env` |
+| `http` | Standard | Remote Streamable HTTP endpoint | `url`, optionally `token` or `headers` |
+| `sse` | Legacy | Older HTTP+SSE endpoint that has not migrated | `url`, optionally `headers` |
 
 **`http` transport specifics** — uses the MCP Streamable HTTP protocol (POST + optional SSE response). ORBIT automatically adds `Accept: application/json, text/event-stream`. Bearer-token auth can be configured with the `token` shorthand instead of writing out a full `Authorization` header:
 
@@ -126,6 +128,14 @@ Each server entry supports three transports:
 ```
 
 `token` and explicit `headers` can coexist; explicit `headers` are applied after and can override the `Authorization` set by `token`.
+
+> **Prefer `http` for new remote integrations.** Streamable HTTP replaced the
+> old HTTP+SSE transport in MCP. An SSE stream may still be used *within* a
+> Streamable HTTP response; that does not make it the legacy `sse` transport.
+> MCP permits custom transports that preserve its JSON-RPC and lifecycle rules,
+> but ORBIT currently configures only `stdio`, Streamable HTTP (`http`), and
+> legacy HTTP+SSE (`sse`). See the [MCP transport
+> specification](https://modelcontextprotocol.io/specification/draft/basic/transports).
 
 Secret values should always use `${ENV_VAR}` syntax — they are expanded at startup and never written to logs.
 
@@ -864,7 +874,8 @@ This keeps context windows lean and makes tool selection more deterministic.
 
 ## Security Considerations
 
-MCP servers can execute arbitrary commands (stdio) or reach external networks (SSE). ORBIT treats them as privileged:
+MCP servers can execute arbitrary commands (stdio) or reach external networks
+(Streamable HTTP or legacy SSE). ORBIT treats them as privileged:
 
 - **Admin-only configuration.** Server URLs and commands are set in YAML, never accepted from request bodies.
 - **Per-adapter allowlist.** The `mcp_servers` capability limits which servers a given skill adapter can reach.
