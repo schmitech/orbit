@@ -9,6 +9,19 @@ It exposes synthetic CRM and revenue tools backed by deterministic Faker data:
 - `search_opportunities`
 - `summarize_pipeline`
 - `build_account_plan`
+- `get_product_telemetry`
+- `list_support_tickets`
+- `get_support_ticket`
+- `create_support_ticket`
+- `update_support_ticket`
+- `delete_support_ticket`
+- `simulate_churn_risk_scenario`
+- `get_sales_rep_performance`
+
+The support-ticket tools provide a complete CRUD example. They mutate only the
+server's in-memory synthetic data; restarting the server restores the seeded
+dataset. `delete_support_ticket` is deliberately described as a destructive
+operation so an MCP client/model can reserve it for explicit user requests.
 
 ## Run
 
@@ -109,6 +122,10 @@ names as:
 - `business-sample__search_opportunities`
 - `business-sample__summarize_pipeline`
 - `business-sample__build_account_plan`
+- `business-sample__get_support_ticket`
+- `business-sample__create_support_ticket`
+- `business-sample__update_support_ticket`
+- `business-sample__delete_support_ticket`
 
 ## Smoke Test
 
@@ -130,6 +147,8 @@ Example prompts for an MCP-enabled adapter:
 - "List the top Enterprise customers in EMEA and summarize renewal risk."
 - "Find open Negotiation opportunities over $100k and group them by owner."
 - "Build an account plan for customer `cus_0001` focused on renewal save."
+- "Create a high-priority support ticket for `cus_0001` about a login outage."
+- "Resolve ticket `tkt_0001`, then confirm its final status."
 
 ## Troubleshooting
 

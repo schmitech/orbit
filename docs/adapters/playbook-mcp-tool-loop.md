@@ -23,6 +23,10 @@ This listens at `http://127.0.0.1:9999/mcp` and exposes:
 - `build_account_plan`
 - `get_product_telemetry`
 - `list_support_tickets`
+- `get_support_ticket`
+- `create_support_ticket`
+- `update_support_ticket`
+- `delete_support_ticket`
 - `simulate_churn_risk_scenario`
 - `get_sales_rep_performance`
 
@@ -244,6 +248,45 @@ Requires:
 
 Confirm that telemetry metrics (active vs purchased seats) and unresolved ticket details are merged into the final account plan structure.
 
+### L. CRUD lifecycle: create, read, update, and delete a support ticket
+
+The business sample also exposes a state-changing CRUD surface for **synthetic,
+in-memory support tickets**. It is intended to demonstrate that MCP tools can
+perform mutations as well as retrieve data. A server restart resets this data.
+
+Run this sequence in one conversation, retaining the id returned by the create
+operation:
+
+1. > "Create a P2 support ticket for cus_0005 titled 'Unable to export the quarterly usage report.'"
+2. > "Show me the ticket you just created."
+3. > "Mark that ticket resolved and change its priority to P3."
+4. > "Delete the ticket we just created."
+
+Expected calls and outcomes:
+
+- Step 1 calls `create_support_ticket`; its result contains the server-assigned
+  `ticket.id` (for example, `tkt_0091`).
+- Step 2 calls `get_support_ticket` using that id, unless the model can answer
+  directly from the preceding tool result.
+- Step 3 calls `update_support_ticket` with the same id and returns
+  `updated: true` and `status: "resolved"`.
+- Step 4 calls `delete_support_ticket` only after the user explicitly requests
+  deletion and returns `deleted: true` with the removed ticket.
+
+Confirm every mutation appears in `sources` as an `mcp_tool_call`, the final
+answer identifies the actual ticket id, and a final `get_support_ticket` call
+for the deleted id produces the normal not-found tool error. This checks both
+state persistence across MCP requests and that the tool loop can carry an id
+from one mutation to the next.
+
+For a single-turn, multi-call version, ask:
+
+> "Create a P3 support ticket for cus_0005 about export access, then retrieve it and change its status to in_progress. Do not delete it."
+
+Confirm the model calls `create_support_ticket`, then uses the returned id for
+`get_support_ticket` and `update_support_ticket`, and that it does not call the
+destructive delete tool without an explicit instruction.
+
 ## Manual/Integration Check: GitHub MCP Tool
 
 A second, hosted example for the same opportunistic tool-calling path,
@@ -372,4 +415,3 @@ final answer's PR status matches what the tool actually returned.
 - **GitHub server unreachable in the panel's "Test connection"**: this is a
   hosted third-party endpoint, not a local process — check your network can
   reach `api.githubcopilot.com` before assuming a config problem.
-

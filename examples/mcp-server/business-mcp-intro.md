@@ -6,3 +6,12 @@
 - ⚠️ "Find Enterprise customers in EMEA with open P1 support cases and check their seat utilization."
 - 📉 "Run a churn risk simulation for customer `cus_0005` based on open tickets and usage trends."
 - 📋 "Generate a customer recovery plan for `cus_0010` and outline next meeting agenda items."
+
+**🎫 Manage synthetic support tickets (CRUD):**
+- ➕ "Create a P2 support ticket for `cus_0005` titled 'Unable to export the quarterly usage report.'"
+- 🔎 "Show me support ticket `tkt_0001`."
+- ✏️ "Mark ticket `tkt_0001` resolved and change its priority to P3."
+- 🗑️ "Delete ticket `tkt_0001`."
+
+Support-ticket changes apply only to this sample server's in-memory synthetic
+data and reset when it restarts. Ask explicitly before deleting a ticket.

@@ -20,7 +20,7 @@
 # register config/adapters/mcp-agent.yaml in config/adapters.yaml.
 
 mcp_clients:
-  enabled: false                     # Set to false to disable MCP tool calling entirely
+  enabled: true                     # Set to false to disable MCP tool calling entirely
                                     # (global only — cannot be overridden per server;
                                     #  use each server's own `enabled` for that)
 
@@ -86,16 +86,12 @@ mcp_clients:
     # 
     - name: "business-sample"
       transport: "http"
-      url: "http://127.0.0.1:9999/mcp"
+      url: "http://127.0.0.1:8080/mcp"
       token: "${MCP_TOKEN}"
       enabled: true
       # Per-client overrides of the defaults above — remote CRM calls are
       # slower and this server is safe enough to expose on ordinary turns.
       allow_opportunistic: true
-      tool_timeout: 60
-      max_tool_iterations: 8
-      discovery_retry_interval: 33
-      discovery_timeout: 7
 
     # ════════════════════════════════════════════════════════════════════════
     # DEVELOPER WORKFLOW

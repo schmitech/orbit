@@ -263,6 +263,105 @@ function createMcpServer() {
   );
 
   server.tool(
+    "get_support_ticket",
+    "Get one synthetic support ticket by id. Use this to read a ticket before updating or deleting it.",
+    {
+      ticketId: z.string().describe("Support ticket id returned by list_support_tickets, for example tkt_0001.")
+    },
+    async ({ ticketId }) => {
+      const ticket = data.supportTickets.find((row) => row.id === ticketId);
+      if (!ticket) {
+        return textResult({ error: `Support ticket '${ticketId}' was not found.` }, true);
+      }
+
+      return textResult({ ticket });
+    }
+  );
+
+  server.tool(
+    "create_support_ticket",
+    "Create a synthetic support ticket for an existing customer. Returns the new ticket, including its server-assigned id. This changes only the sample server's in-memory data.",
+    {
+      customerId: z.string().describe("Customer id to create the ticket for, for example cus_0007."),
+      subject: z.string().trim().min(1).max(300).describe("A concise description of the support issue."),
+      priority: z.enum(["P1 - Critical", "P2 - High", "P3 - Medium", "P4 - Low"]).default("P3 - Medium"),
+      status: z.enum(["open", "in_progress", "resolved"]).default("open"),
+      slaBreached: z.boolean().default(false).describe("Whether this ticket has already breached its SLA.")
+    },
+    async ({ customerId, subject, priority, status, slaBreached }) => {
+      const customer = data.customers.find((row) => row.id === customerId);
+      if (!customer) {
+        return textResult({ error: `Customer '${customerId}' was not found.` }, true);
+      }
+
+      const ticket = {
+        id: nextSupportTicketId(),
+        customerId: customer.id,
+        customerName: customer.name,
+        region: customer.region,
+        owner: customer.owner,
+        priority,
+        status,
+        subject,
+        slaBreached,
+        createdAt: new Date().toISOString().slice(0, 10),
+        resolutionDays: status === "resolved" ? 0 : null
+      };
+      data.supportTickets.push(ticket);
+
+      return textResult({ created: true, ticket });
+    }
+  );
+
+  server.tool(
+    "update_support_ticket",
+    "Update the mutable fields of a synthetic support ticket. Read the ticket first when the current state matters. This changes only the sample server's in-memory data.",
+    {
+      ticketId: z.string().describe("Support ticket id to update, for example tkt_0001."),
+      subject: z.string().trim().min(1).max(300).optional(),
+      priority: z.enum(["P1 - Critical", "P2 - High", "P3 - Medium", "P4 - Low"]).optional(),
+      status: z.enum(["open", "in_progress", "resolved"]).optional(),
+      slaBreached: z.boolean().optional()
+    },
+    async ({ ticketId, subject, priority, status, slaBreached }) => {
+      const ticket = data.supportTickets.find((row) => row.id === ticketId);
+      if (!ticket) {
+        return textResult({ error: `Support ticket '${ticketId}' was not found.` }, true);
+      }
+      if (subject === undefined && priority === undefined && status === undefined && slaBreached === undefined) {
+        return textResult({ error: "Provide at least one field to update: subject, priority, status, or slaBreached." }, true);
+      }
+
+      if (subject !== undefined) ticket.subject = subject;
+      if (priority !== undefined) ticket.priority = priority;
+      if (status !== undefined) {
+        ticket.status = status;
+        ticket.resolutionDays = status === "resolved" ? ticket.resolutionDays ?? 0 : null;
+      }
+      if (slaBreached !== undefined) ticket.slaBreached = slaBreached;
+
+      return textResult({ updated: true, ticket });
+    }
+  );
+
+  server.tool(
+    "delete_support_ticket",
+    "Permanently delete one synthetic support ticket by id. Use only after the user has clearly requested removal; this changes only the sample server's in-memory data.",
+    {
+      ticketId: z.string().describe("Support ticket id to delete, for example tkt_0001.")
+    },
+    async ({ ticketId }) => {
+      const ticketIndex = data.supportTickets.findIndex((row) => row.id === ticketId);
+      if (ticketIndex === -1) {
+        return textResult({ error: `Support ticket '${ticketId}' was not found.` }, true);
+      }
+
+      const [deletedTicket] = data.supportTickets.splice(ticketIndex, 1);
+      return textResult({ deleted: true, ticket: deletedTicket });
+    }
+  );
+
+  server.tool(
     "simulate_churn_risk_scenario",
     "Run hypothetical churn & ARR impact simulations based on current health score, seat utilization, and support escalations.",
     {
@@ -356,6 +455,14 @@ function clampLimit(value) {
     return DEFAULT_LIMIT;
   }
   return Math.min(Math.max(value, 1), MAX_LIMIT);
+}
+
+function nextSupportTicketId() {
+  const highestId = data.supportTickets.reduce((highest, ticket) => {
+    const numericId = Number(ticket.id.slice("tkt_".length));
+    return Number.isInteger(numericId) ? Math.max(highest, numericId) : highest;
+  }, 0);
+  return `tkt_${String(highestId + 1).padStart(4, "0")}`;
 }
 
 function formatOpportunity(opportunity) {
