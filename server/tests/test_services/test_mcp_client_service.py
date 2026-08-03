@@ -534,6 +534,18 @@ class TestReloadMcpClientManager:
         assert isinstance(result, MCPClientManager)
         mod._instance = None
 
+    async def test_failed_drain_does_not_leave_closed_manager_as_singleton(self):
+        import services.mcp_client_service as mod
+
+        old_manager = MagicMock()
+        old_manager.aclose = AsyncMock(side_effect=RuntimeError("close failed"))
+        mod._instance = old_manager
+
+        with pytest.raises(RuntimeError, match="close failed"):
+            await mod.reload_mcp_client_manager({"mcp_clients": {"enabled": True, "servers": []}})
+
+        assert mod._instance is None
+
     async def test_reload_drains_old_managers_pools(self):
         """The outgoing manager's pooled connections must be closed, not leaked."""
         import services.mcp_client_service as mod

@@ -103,7 +103,8 @@ mcp_clients:
     - name: "my-http-server"
       transport: "http"
       url: "http://127.0.0.1:9999/mcp"
-      token: "${MCP_TOKEN}"          # shorthand for Authorization: Bearer <value>
+      headers:
+        Authorization: "Bearer ${MCP_TOKEN}"
       enabled: true
 ```
 
@@ -113,19 +114,18 @@ supports exactly those two — the legacy HTTP+SSE transport is not configurable
 | ORBIT value | MCP status | When to use | Required fields |
 |-------------|------------|-------------|-----------------|
 | `stdio` | Standard | Local subprocess (`npx`, `uvx`, `python -m` …) | `command`, optionally `args`, `env` |
-| `http` | Standard | Remote Streamable HTTP endpoint | `url`, optionally `token` or `headers` |
+| `http` | Standard | Remote Streamable HTTP endpoint | `url`, optionally `headers` |
 
-**`http` transport specifics** — uses the MCP Streamable HTTP protocol (POST + optional SSE response). ORBIT automatically adds `Accept: application/json, text/event-stream`. Bearer-token auth can be configured with the `token` shorthand instead of writing out a full `Authorization` header:
+**`http` transport specifics** — uses the MCP Streamable HTTP protocol (POST + optional SSE response). ORBIT automatically adds `Accept: application/json, text/event-stream`. Configure authentication and other request metadata as HTTP headers:
 
 ```yaml
 - name: "my-http-server"
   transport: "http"
   url: "http://127.0.0.1:9999/mcp"
-  token: "${MCP_TOKEN}"          # shorthand → Authorization: Bearer <value>
+  headers:
+    Authorization: "Bearer ${MCP_TOKEN}"
   enabled: true
 ```
-
-`token` and explicit `headers` can coexist; explicit `headers` are applied after and can override the `Authorization` set by `token`.
 
 > **`http` is for remote integrations.** Streamable HTTP replaced the old
 > HTTP+SSE transport in MCP; ORBIT does not configure the legacy `sse`
@@ -142,6 +142,20 @@ Secret values should always use `${ENV_VAR}` syntax — they are expanded at sta
 > import:
 >   - "mcp_clients.yaml"
 > ```
+
+### Admin changes and hot reload
+
+The admin MCP panel applies saves without restarting ORBIT. In a single-worker
+deployment, editing, adding, or removing one server updates and re-discovers
+only that server; testing a server re-discovers that server without reloading
+configuration. Global MCP defaults and the top-level enabled switch reload
+every configured server because they affect all effective settings.
+
+With `performance.workers > 1`, the worker that serves the admin request uses
+the same scoped behavior. Other workers reload the complete MCP configuration
+and refresh their tool caches on the next cross-worker poll (up to five
+seconds). This full sibling reload guarantees that all workers converge after
+multiple closely-spaced saves.
 
 #### Per-client overrides
 
@@ -191,7 +205,8 @@ mcp_clients:
     - name: "business-sample"    # slower, and safe enough to run inline
       transport: "http"
       url: "http://127.0.0.1:8080/mcp"
-      token: "${MCP_TOKEN}"
+      headers:
+        Authorization: "Bearer ${MCP_TOKEN}"
       enabled: true
       allow_opportunistic: true
       tool_timeout: 60
@@ -938,9 +953,9 @@ always-on opportunistic mode for this adapter.
 
 ### HTTP transport: 401 Unauthorized
 
-- Verify `token` or `headers.Authorization` in `mcp_clients.yaml` matches what the server expects.
+- Verify `headers.Authorization` in `mcp_clients.yaml` matches what the server expects.
 - Use `${ENV_VAR}` syntax and confirm the variable is set in the environment before starting ORBIT.
-- For servers that require a specific scheme, use `headers` directly instead of `token`:
+- For servers that require a specific scheme, set the header value directly:
   ```yaml
   headers:
     Authorization: "ApiKey ${MY_API_KEY}"
@@ -999,7 +1014,8 @@ servers:
   - name: "test-server"
     transport: "http"
     url: "http://127.0.0.1:9999/mcp"
-    token: "test-secret"
+    headers:
+      Authorization: "Bearer test-secret"
     enabled: true
 ```
 
@@ -1048,7 +1064,10 @@ A successful `add` response will include a `sources` entry showing the tool call
 }
 ```
 
-> Make sure `MCP_TOKEN=test-secret` is set in the environment where ORBIT is running, and that `test-server` is listed in the `mcp_servers` allowlist of the `mcp-agent-chat` adapter.
+> For a production configuration, replace `test-secret` with an environment
+> variable reference such as `${MCP_TOKEN}`, and ensure it is set where ORBIT
+> runs. Also list `test-server` in the `mcp-agent-chat` adapter's
+> `mcp_servers` allowlist when that adapter should be restricted to it.
 
 ### Unit tests
 
@@ -1063,8 +1082,8 @@ Key test classes:
 
 | Class | What it verifies |
 |-------|-----------------|
-| `TestExpandHeaders` | `token` → `Authorization: Bearer`, env-var expansion, header override precedence |
-| `TestOpenSessionTransportSelection` | `http` routes to `streamable_http_client`, correct `Accept` header injected, `token` wired to `Authorization`, unknown transport raises |
+| `TestExpandHeaders` | Header env-var expansion and explicit authorization handling; legacy `token` is ignored |
+| `TestOpenSessionTransportSelection` | `http` routes to `streamable_http_client`, correct `Accept` header injected, unknown transport raises |
 
 ---
 

@@ -93,6 +93,22 @@ class TestReloadMcpClients:
         assert summary["servers"]["srv"]["reachable"] is True
         assert summary["servers"]["srv"]["tool_count"] == 0
 
+    @pytest.mark.asyncio
+    async def test_multi_worker_reload_bumps_mcp_generation_and_advances_local_baseline(self):
+        config = {"mcp_clients": {"enabled": False}}
+        request = _fake_request(config)
+        request.app.state._adapter_reload_last_seen = {"mcp_config": 3}
+
+        with patch.object(admin_routes, "reload_adapters_config", return_value=config), patch.dict(
+            "os.environ", {"ORBIT_SUPERVISOR_PID": "123"}
+        ), patch(
+            "services.adapter_reload_state.bump_generation", new=AsyncMock(return_value=4)
+        ) as bump_generation:
+            await admin_routes._reload_mcp_clients(request)
+
+        bump_generation.assert_awaited_once_with(request.app.state, "mcp_config")
+        assert request.app.state._adapter_reload_last_seen["mcp_config"] == 4
+
 
 class TestScopedReload:
     @pytest.mark.asyncio

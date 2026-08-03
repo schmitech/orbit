@@ -72,8 +72,9 @@ async def reload_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClie
     replacing the singleton never leaks subprocesses or open sockets.
     """
     global _instance
-    if _instance is not None:
-        await _instance.aclose()
+    outgoing_manager, _instance = _instance, None
+    if outgoing_manager is not None:
+        await outgoing_manager.aclose()
     mcp_config = config.get("mcp_clients", {})
     _instance = MCPClientManager(mcp_config) if mcp_config.get("enabled", False) else None
     return _instance

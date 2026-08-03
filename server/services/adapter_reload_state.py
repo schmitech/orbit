@@ -1,5 +1,5 @@
 """
-Cross-process propagation for adapter/template hot-reloads under
+Cross-process propagation for adapter/template/MCP hot-reloads under
 performance.workers > 1.
 
 Each worker has its own independent DynamicAdapterManager, config_manager
@@ -34,7 +34,7 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 _COLLECTION = "adapter_reload_state"
-_KINDS = ("adapter_config", "templates")
+_KINDS = ("adapter_config", "templates", "mcp_config")
 _POLL_INTERVAL_SECONDS = 5
 
 
@@ -44,7 +44,7 @@ def _doc_id(kind: str) -> str:
 
 async def ensure_initialized(app_state: Any) -> None:
     """
-    Create both kinds' rows if missing. Called from every worker's own
+    Create every reload kind's row if missing. Called from every worker's own
     lifespan startup - idempotent, safe to race (see pause_state.py).
     """
     db = getattr(app_state, "database_service", None)
@@ -126,12 +126,11 @@ async def _apply_reload(app_state: Any, kind: str) -> bool:
     this generation - advancing on a failed reload would abandon that
     generation forever (no retry until another admin reload bumps it again).
     """
-    adapter_manager = getattr(app_state, "adapter_manager", None)
-    if adapter_manager is None:
-        return False
-
     try:
         if kind == "adapter_config":
+            adapter_manager = getattr(app_state, "adapter_manager", None)
+            if adapter_manager is None:
+                return False
             from config.config_manager import reload_adapters_config
 
             config_path = getattr(app_state, "config_path", None)
@@ -142,8 +141,29 @@ async def _apply_reload(app_state: Any, kind: str) -> bool:
             summary = await adapter_manager.reload_adapter_configs(new_config, None)
             logger.info("Propagated adapter reload from another worker: %s", summary)
         elif kind == "templates":
+            adapter_manager = getattr(app_state, "adapter_manager", None)
+            if adapter_manager is None:
+                return False
             summary = await adapter_manager.reload_templates(None)
             logger.info("Propagated template reload from another worker: %s", summary)
+        elif kind == "mcp_config":
+            from config.config_manager import reload_adapters_config
+            from services.mcp_client_service import reload_mcp_client_manager
+
+            config_path = getattr(app_state, "config_path", None)
+            if not config_path:
+                logger.warning("Cannot propagate MCP reload: config_path unavailable")
+                return False
+            new_config = reload_adapters_config(config_path)
+            app_config = getattr(app_state, "config", None)
+            if app_config is None:
+                app_config = {}
+                app_state.config = app_config
+            app_config["mcp_clients"] = new_config.get("mcp_clients", {})
+            manager = await reload_mcp_client_manager(app_config)
+            if manager is not None:
+                await manager.refresh_tool_cache()
+            logger.info("Propagated MCP reload from another worker")
         else:
             return False
     except Exception as e:
@@ -155,7 +175,7 @@ async def _apply_reload(app_state: Any, kind: str) -> bool:
 
 async def poll_and_apply_reloads(app_state: Any, interval_seconds: float = _POLL_INTERVAL_SECONDS) -> None:
     """
-    Background loop (one per worker): watches both kinds' generation
+    Background loop (one per worker): watches every reload kind's generation
     counters and applies a full reload locally whenever a sibling worker's
     admin-triggered reload bumps them. Runs until cancelled.
 

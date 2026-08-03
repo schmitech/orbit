@@ -11,6 +11,7 @@ import logging
 import asyncio
 import importlib
 import json
+import os
 import re
 import uuid
 import yaml
@@ -2977,6 +2978,23 @@ async def _reload_mcp_clients(request: Request, server_name: Optional[str] = Non
                 "reachable": manager.is_reachable(name),
                 "tool_count": len(manager._tools_cache.get(name, [])),
             }
+
+    # In multi-worker mode the manager singleton lives independently in every
+    # worker. The serving worker already applied the efficient scoped update
+    # above; siblings receive a generation signal and perform a full reload so
+    # coalesced or concurrent saves can never leave an older server stale.
+    if os.environ.get("ORBIT_SUPERVISOR_PID"):
+        from services import adapter_reload_state
+
+        new_generation = await adapter_reload_state.bump_generation(
+            request.app.state, "mcp_config"
+        )
+        if new_generation is not None:
+            last_seen = getattr(request.app.state, "_adapter_reload_last_seen", None)
+            if last_seen is not None:
+                last_seen["mcp_config"] = new_generation
+        else:
+            logger.warning("Failed to propagate MCP reload to other workers")
 
     return {"enabled": manager is not None, "servers": servers}
 
