@@ -2606,13 +2606,39 @@ def _validate_mcp_settings(settings: Any, overridable: Dict[str, Any]) -> None:
             )
 
 
-# Transport-identity fields editable from the panel. Only url/token are
-# supported: both are single scalar lines the existing line-patcher can set
-# in place. command/args/env (stdio) and headers are left read-only — they
-# are YAML lists/maps, which _patch_yaml_scalars cannot rewrite safely yet.
-_CONNECTION_KEYS = {"url", "token"}
+# Transport-identity fields editable from the panel. url/token are scalar
+# lines patched by _patch_yaml_scalars; command is also scalar. args is a
+# single-line list patched by _patch_yaml_list. env/headers are nested maps
+# patched by _patch_yaml_map.
+#
+# headers is http/sse-only: MCPClientManager._open_session only reads
+# server_config["headers"] in its sse/http branches (via _expand_headers) —
+# the stdio branch builds a subprocess from command/args/env alone and never
+# looks at headers. Editing it for a stdio server would silently persist a
+# value the runtime never consumes.
+_HTTP_CONNECTION_KEYS = {"url", "token", "headers"}
+_STDIO_CONNECTION_KEYS = {"command", "args", "env"}
 _MCP_CONNECTION_URL_MAX_LENGTH = 2048
 _MCP_CONNECTION_TOKEN_MAX_LENGTH = 8192
+_MCP_CONNECTION_COMMAND_MAX_LENGTH = 512
+_MCP_CONNECTION_ARG_MAX_LENGTH = 2048
+_MCP_CONNECTION_ARGS_MAX_COUNT = 64
+_MCP_CONNECTION_ENV_MAX_ENTRIES = 64
+_MCP_CONNECTION_ENV_KEY_MAX_LENGTH = 256
+_MCP_CONNECTION_ENV_VALUE_MAX_LENGTH = 8192
+_MCP_CONNECTION_HEADER_MAX_ENTRIES = 32
+_MCP_CONNECTION_HEADER_KEY_MAX_LENGTH = 256
+_MCP_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Map keys are written unquoted into mcp_clients.yaml (only values are
+# json.dumps-quoted — see _patch_yaml_map), and the key is always the first
+# non-whitespace character on the line. YAML treats a leading indicator
+# character (#, !, *, `, |, ", ', :, etc.) or an embedded " #" as structural,
+# not literal — e.g. a key of "X #evil" silently truncates the line into a
+# comment, turning `headers:` into a bare scalar on reparse instead of a map.
+# Restricting to alphanumerics and hyphen (covers every real header name,
+# e.g. X-Api-Key, Authorization) sidesteps the entire class of issues rather
+# than trying to enumerate which indicator characters are unsafe where.
+_MCP_HEADER_KEY_RE = re.compile(r"^[A-Za-z0-9\-]+$")
 
 
 def _validate_mcp_endpoint_url(url: str) -> None:
@@ -2654,12 +2680,95 @@ def _token_overridden_by_headers(entry: Dict[str, Any]) -> bool:
     return any(str(k).lower() == "authorization" for k in headers)
 
 
+def _validate_mcp_command(command: Any) -> None:
+    if not isinstance(command, str) or not command.strip():
+        raise HTTPException(status_code=422, detail="'command' must be a non-empty string")
+    if len(command) > _MCP_CONNECTION_COMMAND_MAX_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail=f"'command' must be at most {_MCP_CONNECTION_COMMAND_MAX_LENGTH} characters",
+        )
+    if command != command.strip() or any(ord(ch) < 32 for ch in command):
+        raise HTTPException(status_code=422, detail="'command' must not contain control characters")
+
+
+def _validate_mcp_args(args: Any) -> None:
+    if args is None:
+        return
+    if not isinstance(args, list):
+        raise HTTPException(status_code=422, detail="'args' must be a list of strings")
+    if len(args) > _MCP_CONNECTION_ARGS_MAX_COUNT:
+        raise HTTPException(
+            status_code=422,
+            detail=f"'args' must contain at most {_MCP_CONNECTION_ARGS_MAX_COUNT} entries",
+        )
+    for arg in args:
+        if not isinstance(arg, str):
+            raise HTTPException(status_code=422, detail="'args' entries must be strings")
+        if len(arg) > _MCP_CONNECTION_ARG_MAX_LENGTH:
+            raise HTTPException(
+                status_code=422,
+                detail=f"'args' entries must be at most {_MCP_CONNECTION_ARG_MAX_LENGTH} characters",
+            )
+        if any(ord(ch) < 32 for ch in arg):
+            raise HTTPException(status_code=422, detail="'args' entries must not contain control characters")
+
+
+def _validate_mcp_env(env: Any) -> None:
+    if env is None:
+        return
+    if not isinstance(env, dict):
+        raise HTTPException(status_code=422, detail="'env' must be an object")
+    if len(env) > _MCP_CONNECTION_ENV_MAX_ENTRIES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"'env' must contain at most {_MCP_CONNECTION_ENV_MAX_ENTRIES} entries",
+        )
+    for key, value in env.items():
+        if not isinstance(key, str) or not _MCP_ENV_KEY_RE.match(key) or len(key) > _MCP_CONNECTION_ENV_KEY_MAX_LENGTH:
+            raise HTTPException(status_code=422, detail=f"'env' key '{key}' is not a valid environment variable name")
+        if not isinstance(value, str):
+            raise HTTPException(status_code=422, detail=f"'env.{key}' must be a string")
+        if len(value) > _MCP_CONNECTION_ENV_VALUE_MAX_LENGTH:
+            raise HTTPException(
+                status_code=422,
+                detail=f"'env.{key}' must be at most {_MCP_CONNECTION_ENV_VALUE_MAX_LENGTH} characters",
+            )
+
+
+def _validate_mcp_headers(headers: Any) -> None:
+    if headers is None:
+        return
+    if not isinstance(headers, dict):
+        raise HTTPException(status_code=422, detail="'headers' must be an object")
+    if len(headers) > _MCP_CONNECTION_HEADER_MAX_ENTRIES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"'headers' must contain at most {_MCP_CONNECTION_HEADER_MAX_ENTRIES} entries",
+        )
+    for key, value in headers.items():
+        if (
+            not isinstance(key, str)
+            or not _MCP_HEADER_KEY_RE.match(key)
+            or len(key) > _MCP_CONNECTION_HEADER_KEY_MAX_LENGTH
+        ):
+            raise HTTPException(status_code=422, detail=f"'headers' key '{key}' is not a valid header name")
+        if not isinstance(value, str):
+            raise HTTPException(status_code=422, detail=f"'headers.{key}' must be a string")
+        if len(value) > _MCP_CONNECTION_TOKEN_MAX_LENGTH:
+            raise HTTPException(
+                status_code=422,
+                detail=f"'headers.{key}' must be at most {_MCP_CONNECTION_TOKEN_MAX_LENGTH} characters",
+            )
+
+
 def _validate_mcp_connection(entry: Dict[str, Any], connection: Any) -> None:
     """Reject connection edits for transports/fields that don't support them.
 
     A null token clears it (server reverts to no Authorization from the
     token shorthand); url may not be cleared, since a server with no
-    endpoint can never be dialed.
+    endpoint can never be dialed. env/headers are full-replace maps: the
+    submitted value is the complete desired map, not a diff.
     """
     if not connection:
         return
@@ -2667,13 +2776,17 @@ def _validate_mcp_connection(entry: Dict[str, Any], connection: Any) -> None:
         raise HTTPException(status_code=422, detail="'connection' must be an object")
 
     transport = entry.get("transport", "stdio")
-    if transport not in ("http", "sse"):
+    if transport == "stdio":
+        allowed = _STDIO_CONNECTION_KEYS
+    elif transport in ("http", "sse"):
+        allowed = _HTTP_CONNECTION_KEYS
+    else:
         raise HTTPException(
             status_code=422,
-            detail=f"Connection fields are only editable for http/sse servers, not '{transport}'.",
+            detail=f"Connection fields are only editable for stdio/http/sse servers, not '{transport}'.",
         )
 
-    unknown = sorted(set(connection) - _CONNECTION_KEYS)
+    unknown = sorted(set(connection) - allowed)
     if unknown:
         raise HTTPException(status_code=422, detail=f"Unknown connection field(s): {', '.join(unknown)}")
 
@@ -2692,14 +2805,27 @@ def _validate_mcp_connection(entry: Dict[str, Any], connection: Any) -> None:
                 status_code=422,
                 detail=f"'token' must be at most {_MCP_CONNECTION_TOKEN_MAX_LENGTH} characters",
             )
-        if token is not None and _token_overridden_by_headers(entry):
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "This server sets an explicit 'Authorization' header, which overrides "
-                    "'token' — edit mcp_clients.yaml directly to change it."
-                ),
-            )
+        if token is not None:
+            merged_headers = dict(entry.get("headers") or {})
+            if "headers" in connection and isinstance(connection["headers"], dict):
+                merged_headers = dict(connection["headers"])
+            if any(str(k).lower() == "authorization" for k in merged_headers):
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "This server sets an explicit 'Authorization' header, which overrides "
+                        "'token' — edit mcp_clients.yaml directly to change it."
+                    ),
+                )
+
+    if "command" in connection:
+        _validate_mcp_command(connection["command"])
+    if "args" in connection:
+        _validate_mcp_args(connection["args"])
+    if "env" in connection:
+        _validate_mcp_env(connection["env"])
+    if "headers" in connection:
+        _validate_mcp_headers(connection["headers"])
 
 
 def _mcp_endpoint_label(server: Dict[str, Any]) -> str:
@@ -2750,7 +2876,14 @@ async def list_mcp_servers(request: Request):
             connection = {
                 "url": entry.get("url", ""),
                 "token": entry.get("token", ""),
+                "headers": entry.get("headers") or {},
                 "uses_custom_headers": _token_overridden_by_headers(entry),
+            }
+        elif transport == "stdio":
+            connection = {
+                "command": entry.get("command", ""),
+                "args": entry.get("args") or [],
+                "env": entry.get("env") or {},
             }
         servers.append({
             "name": entry["name"],
@@ -2967,6 +3100,115 @@ def _patch_yaml_scalars(lines: list, start: int, end: int, values: Dict[str, Any
     return lines
 
 
+def _find_block_header(lines: list, start: int, end: int, key: str, indent: str) -> tuple[int, int]:
+    """Find a nested `key:` block within lines[start:end] at `indent`.
+
+    Returns (header_index, body_end) where lines[header_index+1:body_end] is
+    the block's body (deeper-indented subkey lines). (-1, -1) if not found.
+    """
+    header = -1
+    for i in range(start, min(end, len(lines))):
+        stripped = lines[i].lstrip()
+        if stripped.startswith(key + ":") and len(lines[i]) - len(stripped) == len(indent):
+            header = i
+            break
+    if header < 0:
+        return -1, -1
+
+    body_end = min(end, len(lines))
+    for i in range(header + 1, min(end, len(lines))):
+        stripped = lines[i].lstrip()
+        if not stripped:
+            # A blank line ends the map body — these config files use blank
+            # lines as separators between entries, never inside one.
+            body_end = i
+            break
+        if stripped.startswith("#"):
+            continue
+        if len(lines[i]) - len(stripped) <= len(indent):
+            body_end = i
+            break
+    return header, body_end
+
+
+def _patch_yaml_map(lines: list, start: int, end: int, key: str, target_map: Dict[str, str], indent: str) -> list:
+    """Replace a nested `key:` block (env/headers) with `target_map` in full.
+
+    `target_map` is the complete desired map, not a diff: any subkey
+    currently in the block but absent from `target_map` is deleted, every
+    entry in `target_map` is set. An empty `target_map` removes the block
+    (including its header line) entirely.
+    """
+    sub_indent = indent + "  "
+    header, body_end = _find_block_header(lines, start, end, key, indent)
+
+    if header < 0:
+        if not target_map:
+            return lines
+        insert_at = _last_key_line(lines, start, end, indent)
+        new_lines = [f"{indent}{key}:"]
+        for subkey, value in target_map.items():
+            new_lines.append(f"{sub_indent}{subkey}: {json.dumps(str(value))}")
+        lines[insert_at:insert_at] = new_lines
+        return lines
+
+    remaining = dict(target_map)
+    i = header + 1
+    while i < body_end:
+        stripped = lines[i].lstrip()
+        if not stripped or stripped.startswith("#"):
+            i += 1
+            continue
+        matched_key = None
+        for subkey in list(remaining):
+            if stripped.startswith(subkey + ":") and len(lines[i]) - len(stripped) == len(sub_indent):
+                matched_key = subkey
+                break
+        if matched_key is not None:
+            lines[i] = f"{sub_indent}{matched_key}: {json.dumps(str(remaining.pop(matched_key)))}"
+            i += 1
+            continue
+        # Subkey not present in target_map: drop the line.
+        del lines[i]
+        body_end -= 1
+
+    for subkey, value in remaining.items():
+        lines.insert(body_end, f"{sub_indent}{subkey}: {json.dumps(str(value))}")
+        body_end += 1
+
+    if body_end == header + 1:
+        # Body is now empty: drop the header line too.
+        del lines[header]
+
+    return lines
+
+
+def _patch_yaml_list(lines: list, start: int, end: int, key: str, values: Any, indent: str) -> list:
+    """Rewrite a single-line `key: [...]` list (args) within lines[start:end].
+
+    `values` of None deletes the line entirely; an explicit empty list is
+    still written since it differs in meaning from "field untouched".
+    """
+    found = -1
+    for i in range(start, min(end, len(lines))):
+        stripped = lines[i].lstrip()
+        if stripped.startswith(key + ":") and len(lines[i]) - len(stripped) == len(indent):
+            found = i
+            break
+
+    if values is None:
+        if found >= 0:
+            del lines[found]
+        return lines
+
+    rendered = f"{indent}{key}: {json.dumps(list(values))}"
+    if found >= 0:
+        lines[found] = rendered
+    else:
+        lines.insert(_last_key_line(lines, start, end, indent), rendered)
+    return lines
+
+
 @admin_router.patch("/mcp/servers/{server_name}", dependencies=[config_auth])
 async def update_mcp_server(server_name: str, request: Request, body: dict = Body(...)):
     """Update one server's enabled flag, setting overrides, and (for http/sse
@@ -3003,12 +3245,25 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
     name_line = lines[start]
     indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
 
+    map_fields = {k: connection[k] for k in ("env", "headers") if k in connection}
+    list_fields = {k: connection[k] for k in ("args",) if k in connection}
+    scalar_connection = {k: v for k, v in connection.items() if k not in map_fields and k not in list_fields}
+
     values: Dict[str, Any] = dict(settings)
-    values.update(connection)
+    values.update(scalar_connection)
     if "enabled" in body:
         values["enabled"] = bool(body["enabled"])
 
     lines = _patch_yaml_scalars(lines, start, end, values, indent)
+
+    for map_key, target_map in map_fields.items():
+        start, end = _find_adapter_block(lines, server_name)
+        lines = _patch_yaml_map(lines, start, end, map_key, target_map or {}, indent)
+
+    for list_key, list_values in list_fields.items():
+        start, end = _find_adapter_block(lines, server_name)
+        lines = _patch_yaml_list(lines, start, end, list_key, list_values, indent)
+
     new_content = "\n".join(lines)
 
     try:

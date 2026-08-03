@@ -87,7 +87,8 @@ mcp_clients:
     - name: "business-sample"
       transport: "http"
       url: "http://127.0.0.1:8080/mcp"
-      token: "${MCP_TOKEN}"
+      headers:
+        Authorization: "Bearer ${MCP_TOKEN}"
       enabled: true
       # Per-client overrides of the defaults above — remote CRM calls are
       # slower and this server is safe enough to expose on ordinary turns.

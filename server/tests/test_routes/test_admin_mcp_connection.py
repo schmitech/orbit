@@ -1,8 +1,9 @@
 """
-Unit tests for editable http/sse connection fields (url/token) on MCP servers
-in admin_routes.py: _validate_mcp_connection, quoted string patching in
-_patch_yaml_scalars, and the update_mcp_server endpoint end-to-end against a
-real mcp_clients.yaml on disk.
+Unit tests for editable connection fields on MCP servers in admin_routes.py:
+_validate_mcp_connection (url/token for http/sse; command/args/env for stdio;
+headers for any transport), the _patch_yaml_scalars/_patch_yaml_map/
+_patch_yaml_list line-patchers, and the update_mcp_server endpoint end-to-end
+against a real mcp_clients.yaml on disk.
 """
 
 from pathlib import Path
@@ -75,13 +76,20 @@ class TestValidateMcpConnection:
     def test_empty_connection_is_a_noop(self):
         admin_routes._validate_mcp_connection({"transport": "stdio"}, {})
 
-    def test_rejects_stdio(self):
+    def test_rejects_url_field_for_stdio(self):
+        # url/token are http/sse-only; stdio has its own command/args/env keys.
         with pytest.raises(HTTPException) as exc:
             admin_routes._validate_mcp_connection({"transport": "stdio"}, {"url": "http://x"})
         assert exc.value.status_code == 422
-        assert "stdio" in exc.value.detail
+        assert "url" in exc.value.detail
 
-    def test_rejects_unknown_field(self):
+    def test_rejects_unknown_transport(self):
+        with pytest.raises(HTTPException) as exc:
+            admin_routes._validate_mcp_connection({"transport": "grpc"}, {"url": "http://x"})
+        assert exc.value.status_code == 422
+        assert "grpc" in exc.value.detail
+
+    def test_rejects_command_field_for_http(self):
         with pytest.raises(HTTPException) as exc:
             admin_routes._validate_mcp_connection({"transport": "http"}, {"command": "npx"})
         assert exc.value.status_code == 422
@@ -172,6 +180,173 @@ class TestValidateMcpConnection:
         admin_routes._validate_mcp_connection({"transport": "stdio"}, 0)
 
 
+class TestValidateMcpConnectionStdio:
+    def test_accepts_command_args_env(self):
+        admin_routes._validate_mcp_connection(
+            {"transport": "stdio"},
+            {"command": "uvx", "args": ["mcp-atlassian"], "env": {"JIRA_URL": "https://x"}},
+        )
+
+    def test_rejects_empty_command(self):
+        with pytest.raises(HTTPException) as exc:
+            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"command": "   "})
+        assert exc.value.status_code == 422
+
+    def test_rejects_non_string_command(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"command": 123})
+
+    def test_rejects_command_over_maximum_length(self):
+        with pytest.raises(HTTPException) as exc:
+            admin_routes._validate_mcp_connection(
+                {"transport": "stdio"}, {"command": "x" * (admin_routes._MCP_CONNECTION_COMMAND_MAX_LENGTH + 1)}
+            )
+        assert exc.value.status_code == 422
+
+    def test_rejects_command_with_control_characters(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"command": "npx\n-y"})
+
+    def test_null_args_is_allowed(self):
+        admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": None})
+
+    def test_empty_args_list_is_allowed(self):
+        admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": []})
+
+    def test_rejects_non_list_args(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": "not-a-list"})
+
+    def test_rejects_non_string_args_entry(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": ["-y", 5]})
+
+    def test_rejects_too_many_args(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "stdio"}, {"args": ["x"] * (admin_routes._MCP_CONNECTION_ARGS_MAX_COUNT + 1)}
+            )
+
+    def test_rejects_arg_over_maximum_length(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "stdio"}, {"args": ["x" * (admin_routes._MCP_CONNECTION_ARG_MAX_LENGTH + 1)]}
+            )
+
+    def test_null_env_is_allowed(self):
+        admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": None})
+
+    def test_empty_env_map_is_allowed(self):
+        admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": {}})
+
+    def test_rejects_non_dict_env(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": ["FOO=bar"]})
+
+    @pytest.mark.parametrize("bad_key", ["", "1FOO", "FOO-BAR", "FOO BAR", "foo.bar"])
+    def test_rejects_invalid_env_key(self, bad_key):
+        with pytest.raises(HTTPException) as exc:
+            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": {bad_key: "x"}})
+        assert exc.value.status_code == 422
+
+    def test_rejects_non_string_env_value(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": {"FOO": 1}})
+
+    def test_rejects_too_many_env_entries(self):
+        env = {f"VAR_{i}": "x" for i in range(admin_routes._MCP_CONNECTION_ENV_MAX_ENTRIES + 1)}
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": env})
+
+
+class TestValidateMcpConnectionHeaders:
+    def test_rejects_headers_for_stdio(self):
+        # MCPClientManager._open_session never reads headers in its stdio
+        # branch (only sse/http via _expand_headers) — persisting a header
+        # edit for a stdio server would be a silent no-op, so it's rejected.
+        with pytest.raises(HTTPException) as exc:
+            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"headers": {"X-Trace": "abc"}})
+        assert exc.value.status_code == 422
+
+    def test_accepts_headers_for_http(self):
+        admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {"X-Trace": "abc"}})
+
+    def test_null_headers_is_allowed(self):
+        admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": None})
+
+    def test_rejects_non_dict_headers(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": "Authorization: x"})
+
+    def test_rejects_non_string_header_value(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {"X-Trace": 1}})
+
+    def test_rejects_header_key_with_colon(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {"X-Trace:": "abc"}})
+
+    @pytest.mark.parametrize(
+        "bad_key",
+        [
+            "X #evil",  # unquoted " #" mid-key turns the rest of the line into a YAML comment
+            "#evil",  # a leading '#' after only whitespace makes the whole line a comment
+            "X\"evil",  # an unescaped quote unbalances the line
+            "X Y",  # header names never contain whitespace
+            "X_Y",  # underscores aren't valid in HTTP header names; only alnum/hyphen are accepted
+            "",
+        ],
+    )
+    def test_rejects_yaml_unsafe_or_malformed_header_key(self, bad_key):
+        with pytest.raises(HTTPException) as exc:
+            admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {bad_key: "value"}})
+        assert exc.value.status_code == 422
+
+    def test_rejects_header_key_over_maximum_length(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "http"},
+                {"headers": {"X" * (admin_routes._MCP_CONNECTION_HEADER_KEY_MAX_LENGTH + 1): "value"}},
+            )
+
+    def test_rejects_header_value_over_maximum_length(self):
+        with pytest.raises(HTTPException) as exc:
+            admin_routes._validate_mcp_connection(
+                {"transport": "http"},
+                {"headers": {"X-Trace": "x" * (admin_routes._MCP_CONNECTION_TOKEN_MAX_LENGTH + 1)}},
+            )
+        assert exc.value.status_code == 422
+
+    def test_accepts_header_value_at_maximum_length(self):
+        admin_routes._validate_mcp_connection(
+            {"transport": "http"},
+            {"headers": {"X-Trace": "x" * admin_routes._MCP_CONNECTION_TOKEN_MAX_LENGTH}},
+        )
+
+    def test_rejects_too_many_headers(self):
+        headers = {f"X-H{i}": "x" for i in range(admin_routes._MCP_CONNECTION_HEADER_MAX_ENTRIES + 1)}
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": headers})
+
+    def test_setting_authorization_header_in_payload_blocks_token_edit(self):
+        # The persisted entry has no headers at all yet — the conflict must be
+        # detected against the *incoming* payload, not just what's on disk.
+        with pytest.raises(HTTPException) as exc:
+            admin_routes._validate_mcp_connection(
+                {"transport": "http"},
+                {"token": "new-token", "headers": {"Authorization": "Bearer x"}},
+            )
+        assert "Authorization" in exc.value.detail
+
+    def test_clearing_authorization_header_in_payload_unblocks_token_edit(self):
+        # The persisted entry has headers.Authorization, but this request
+        # replaces headers with a map that no longer sets it.
+        admin_routes._validate_mcp_connection(
+            {"transport": "http", "headers": {"Authorization": "Bearer old"}},
+            {"token": "new-token", "headers": {"X-Tenant": "acme"}},
+        )
+
+
 class TestValidateMcpSettings:
     def test_rejects_non_dict_settings(self):
         overridable = admin_routes._mcp_overridable()
@@ -204,6 +379,129 @@ class TestPatchYamlScalarsQuoting:
         assert result == ["    other: 1"]
 
 
+class TestPatchYamlMap:
+    def _block(self, lines):
+        """Full block used by these tests: header + a nested env: map."""
+        return lines, 0, len(lines)
+
+    def test_creates_block_when_absent(self):
+        lines, start, end = self._block(["  - name: \"x\"", "    command: \"npx\""])
+        result = admin_routes._patch_yaml_map(lines, start, end, "env", {"FOO": "bar"}, "    ")
+        assert result == [
+            '  - name: "x"',
+            '    command: "npx"',
+            "    env:",
+            '      FOO: "bar"',
+        ]
+
+    def test_empty_target_map_on_absent_block_is_a_noop(self):
+        lines, start, end = self._block(["  - name: \"x\"", "    command: \"npx\""])
+        result = admin_routes._patch_yaml_map(lines, start, end, "env", {}, "    ")
+        assert result == ["  - name: \"x\"", "    command: \"npx\""]
+
+    def test_updates_existing_subkey(self):
+        lines, start, end = self._block(
+            ["  - name: \"x\"", "    env:", '      FOO: "old"']
+        )
+        result = admin_routes._patch_yaml_map(lines, start, end, "env", {"FOO": "new"}, "    ")
+        assert result == ["  - name: \"x\"", "    env:", '      FOO: "new"']
+
+    def test_adds_new_subkey_to_existing_block(self):
+        lines, start, end = self._block(
+            ["  - name: \"x\"", "    env:", '      FOO: "bar"']
+        )
+        result = admin_routes._patch_yaml_map(lines, start, end, "env", {"FOO": "bar", "BAZ": "qux"}, "    ")
+        assert result == [
+            "  - name: \"x\"",
+            "    env:",
+            '      FOO: "bar"',
+            '      BAZ: "qux"',
+        ]
+
+    def test_removes_subkey_not_in_target_map(self):
+        lines, start, end = self._block(
+            ["  - name: \"x\"", "    env:", '      FOO: "bar"', '      BAZ: "qux"']
+        )
+        result = admin_routes._patch_yaml_map(lines, start, end, "env", {"FOO": "bar"}, "    ")
+        assert result == ["  - name: \"x\"", "    env:", '      FOO: "bar"']
+
+    def test_empty_target_map_removes_block_header_too(self):
+        lines, start, end = self._block(
+            ["  - name: \"x\"", "    env:", '      FOO: "bar"', "    enabled: true"]
+        )
+        result = admin_routes._patch_yaml_map(lines, start, end, "env", {}, "    ")
+        assert result == ["  - name: \"x\"", "    enabled: true"]
+
+    def test_does_not_disturb_trailing_comment_catalogue(self):
+        lines, start, end = self._block(
+            [
+                "  - name: \"x\"",
+                "    env:",
+                '      FOO: "bar"',
+                "",
+                "  # - name: \"commented-out\"",
+                "  #   env:",
+                "  #     BAZ: qux",
+            ]
+        )
+        result = admin_routes._patch_yaml_map(lines, start, end, "env", {}, "    ")
+        assert result == [
+            "  - name: \"x\"",
+            "",
+            "  # - name: \"commented-out\"",
+            "  #   env:",
+            "  #     BAZ: qux",
+        ]
+
+    def test_values_are_json_quoted(self):
+        lines, start, end = self._block(["  - name: \"x\"", "    command: \"npx\""])
+        result = admin_routes._patch_yaml_map(
+            lines, start, end, "headers", {"Authorization": 'Bearer "weird" value'}, "    "
+        )
+        assert result[-1] == '      Authorization: "Bearer \\"weird\\" value"'
+
+    def test_documents_why_map_keys_must_be_pre_validated(self):
+        # _patch_yaml_map only quotes values, not keys (see _MCP_HEADER_KEY_RE's
+        # docstring) — an unsafe key reaching this function corrupts the YAML
+        # rather than raising. Callers (_validate_mcp_headers/_validate_mcp_env)
+        # are the enforcement point; this test documents the failure mode they
+        # exist to prevent, not a behavior to preserve.
+        lines, start, end = self._block(["  - name: \"x\"", "    command: \"npx\""])
+        result = admin_routes._patch_yaml_map(lines, start, end, "headers", {"X #evil": "value"}, "    ")
+        reparsed = yaml.safe_load("\n".join(["mcp_clients:", "  servers:"] + ["  " + line for line in result]))
+        server = reparsed["mcp_clients"]["servers"][0]
+        assert server.get("headers") != {"X #evil": "value"}
+
+
+class TestPatchYamlList:
+    def test_creates_line_when_absent(self):
+        lines = ["  - name: \"x\"", "    command: \"npx\""]
+        result = admin_routes._patch_yaml_list(lines, 0, 2, "args", ["-y", "pkg"], "    ")
+        assert result == ['  - name: "x"', '    command: "npx"', '    args: ["-y", "pkg"]']
+
+    def test_replaces_existing_line(self):
+        lines = ["  - name: \"x\"", '    args: ["-y", "old"]']
+        result = admin_routes._patch_yaml_list(lines, 0, 2, "args", ["-y", "new"], "    ")
+        assert result == ['  - name: "x"', '    args: ["-y", "new"]']
+
+    def test_empty_list_is_written_explicitly(self):
+        lines = ["  - name: \"x\"", '    args: ["-y", "old"]']
+        result = admin_routes._patch_yaml_list(lines, 0, 2, "args", [], "    ")
+        assert result == ['  - name: "x"', "    args: []"]
+
+    def test_none_deletes_the_line(self):
+        lines = ["  - name: \"x\"", '    args: ["-y", "old"]', "    enabled: true"]
+        result = admin_routes._patch_yaml_list(lines, 0, 3, "args", None, "    ")
+        assert result == ["  - name: \"x\"", "    enabled: true"]
+
+    def test_unicode_args_round_trip_through_yaml(self):
+        lines = ["  - name: \"x\""]
+        result = admin_routes._patch_yaml_list(lines, 0, 1, "args", ["café", "北京"], "    ")
+        parsed = yaml.safe_load("\n".join(result) + "\n")
+        assert parsed[0]["name"] == "x"
+        assert parsed[0]["args"] == ["café", "北京"]
+
+
 class TestListMcpServersConnectionField:
     @pytest.mark.asyncio
     async def test_http_server_exposes_connection(self, tmp_path):
@@ -216,11 +514,26 @@ class TestListMcpServersConnectionField:
         assert by_name["http-server"]["connection"] == {
             "url": "http://127.0.0.1:9999/mcp",
             "token": "${MCP_TOKEN}",
+            "headers": {},
             "uses_custom_headers": False,
         }
         assert by_name["headers-server"]["connection"]["uses_custom_headers"] is True
+        assert by_name["headers-server"]["connection"]["headers"] == {"Authorization": "Bearer ${OTHER_TOKEN}"}
         assert by_name["unrelated-headers-server"]["connection"]["uses_custom_headers"] is False
-        assert by_name["stdio-server"]["connection"] is None
+
+    @pytest.mark.asyncio
+    async def test_stdio_server_exposes_command_args_env(self, tmp_path):
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+
+        result = await admin_routes.list_mcp_servers(request)
+
+        by_name = {s["name"]: s for s in result["servers"]}
+        assert by_name["stdio-server"]["connection"] == {
+            "command": "npx",
+            "args": ["-y", "some-package"],
+            "env": {},
+        }
 
 
 class TestUpdateMcpServerConnection:
@@ -253,13 +566,120 @@ class TestUpdateMcpServerConnection:
         assert entry["token"] == "${NEW_TOKEN}"
 
     @pytest.mark.asyncio
-    async def test_rejects_connection_edit_for_stdio_server(self, tmp_path):
+    async def test_rejects_http_only_field_for_stdio_server(self, tmp_path):
         config_path = _write_temp_config(tmp_path)
         request = _fake_request(config_path)
 
         with pytest.raises(HTTPException) as exc:
             await admin_routes.update_mcp_server(
                 "stdio-server", request, {"connection": {"url": "http://x"}}
+            )
+        assert exc.value.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_updates_command_args_env_for_stdio_server(self, tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+
+        with patch.object(admin_routes, "reload_adapters_config", side_effect=_fake_reload):
+            with patch.object(
+                mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])
+            ):
+                result = await admin_routes.update_mcp_server(
+                    "stdio-server",
+                    request,
+                    {
+                        "connection": {
+                            "command": "uvx",
+                            "args": ["mcp-atlassian"],
+                            "env": {"JIRA_URL": "https://x", "JIRA_TOKEN": "${JIRA_TOKEN}"},
+                        }
+                    },
+                )
+
+        assert result["reload_error"] is None
+        written = yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())
+        entry = next(s for s in written["mcp_clients"]["servers"] if s["name"] == "stdio-server")
+        assert entry["command"] == "uvx"
+        assert entry["args"] == ["mcp-atlassian"]
+        assert entry["env"] == {"JIRA_URL": "https://x", "JIRA_TOKEN": "${JIRA_TOKEN}"}
+        # Unrelated servers and the surrounding structure are untouched.
+        assert any(s["name"] == "http-server" for s in written["mcp_clients"]["servers"])
+
+    @pytest.mark.asyncio
+    async def test_removing_all_env_entries_drops_the_env_block(self, tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+
+        with patch.object(admin_routes, "reload_adapters_config", side_effect=_fake_reload):
+            with patch.object(
+                mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])
+            ):
+                await admin_routes.update_mcp_server(
+                    "stdio-server", request, {"connection": {"env": {"FOO": "bar"}}}
+                )
+                result = await admin_routes.update_mcp_server(
+                    "stdio-server", request, {"connection": {"env": {}}}
+                )
+
+        assert result["reload_error"] is None
+        written_text = (tmp_path / "mcp_clients.yaml").read_text()
+        entry = next(
+            s for s in yaml.safe_load(written_text)["mcp_clients"]["servers"] if s["name"] == "stdio-server"
+        )
+        assert "env" not in entry
+        assert "env:" not in written_text
+
+    @pytest.mark.asyncio
+    async def test_updates_headers_for_http_transport(self, tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+
+        with patch.object(admin_routes, "reload_adapters_config", side_effect=_fake_reload):
+            with patch.object(
+                mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])
+            ):
+                result = await admin_routes.update_mcp_server(
+                    "unrelated-headers-server", request, {"connection": {"headers": {"X-Trace": "abc"}}}
+                )
+
+        assert result["reload_error"] is None
+        written = yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())
+        entry = next(s for s in written["mcp_clients"]["servers"] if s["name"] == "unrelated-headers-server")
+        assert entry["headers"] == {"X-Trace": "abc"}
+
+    @pytest.mark.asyncio
+    async def test_rejects_headers_edit_for_stdio_server(self, tmp_path):
+        # headers is never read by the stdio branch of MCPClientManager._open_session —
+        # persisting one would be a silent no-op, so the route rejects it.
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+
+        with pytest.raises(HTTPException) as exc:
+            await admin_routes.update_mcp_server(
+                "stdio-server", request, {"connection": {"headers": {"X-Trace": "abc"}}}
+            )
+        assert exc.value.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_setting_authorization_header_blocks_a_simultaneous_token_edit(self, tmp_path):
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+
+        with pytest.raises(HTTPException) as exc:
+            await admin_routes.update_mcp_server(
+                "unrelated-headers-server",
+                request,
+                {"connection": {"token": "new-token", "headers": {"Authorization": "Bearer x"}}},
             )
         assert exc.value.status_code == 422
 

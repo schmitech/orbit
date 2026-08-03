@@ -6029,6 +6029,18 @@
   var MCP_TRANSPORT_LABELS = { stdio: "Subprocess", sse: "SSE", http: "Streamable HTTP" };
   var MCP_CONNECTION_URL_MAX_LENGTH = 2048;
   var MCP_CONNECTION_TOKEN_MAX_LENGTH = 8192;
+  var MCP_CONNECTION_COMMAND_MAX_LENGTH = 512;
+  var MCP_CONNECTION_ARG_MAX_LENGTH = 2048;
+  var MCP_CONNECTION_ARGS_MAX_COUNT = 64;
+  // env and headers share the same key/value caps as their backend
+  // counterparts (_MCP_CONNECTION_ENV_*/_MCP_CONNECTION_HEADER_* in
+  // admin_routes.py) so the UI can't accept input the server will reject.
+  var MCP_CONNECTION_ENV_KEY_MAX_LENGTH = 256;
+  var MCP_CONNECTION_ENV_VALUE_MAX_LENGTH = 8192;
+  var MCP_CONNECTION_ENV_MAX_ENTRIES = 64;
+  var MCP_CONNECTION_HEADER_KEY_MAX_LENGTH = 256;
+  var MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH = 8192;
+  var MCP_CONNECTION_HEADER_MAX_ENTRIES = 32;
 
   function mcpEndpointUrlError(value) {
     if (!value || value.length > MCP_CONNECTION_URL_MAX_LENGTH) {
@@ -6368,46 +6380,100 @@
       detail.appendChild(el("h3", null, "Connection"));
       var connLedger = el("div", { className: "mcp-ledger" });
 
-      var urlRow = mcpConnectionRow(
-        "URL",
-        "Streamable HTTP / SSE endpoint",
-        Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
-          ? mcpPending["connection.url"] : server.connection.url,
-        function (next) {
-          if (next === server.connection.url) delete mcpPending["connection.url"];
-          else mcpPending["connection.url"] = next;
-          mcpSyncDirty();
-        },
-        { type: "url", maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }
-      );
-      connLedger.appendChild(urlRow);
-      mcpDirtyListeners.push(function () {
-        urlRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.url"));
-      });
-
-      if (server.connection.uses_custom_headers) {
-        connLedger.appendChild(el("p", { className: "muted mcp-tools-empty" },
-          "This server authenticates via a custom header, which overrides the token shorthand. " +
-          "Edit mcp_clients.yaml directly to change it."
-        ));
-      } else {
-        var tokenRow = mcpConnectionRow(
-          "Token",
-          "Bearer token, or a ${VAR} reference",
-          Object.prototype.hasOwnProperty.call(mcpPending, "connection.token")
-            ? mcpPending["connection.token"] : server.connection.token,
+      if (server.transport === "stdio") {
+        var commandRow = mcpConnectionRow(
+          "Command",
+          "Executable launched for this server",
+          Object.prototype.hasOwnProperty.call(mcpPending, "connection.command")
+            ? mcpPending["connection.command"] : server.connection.command,
           function (next) {
-            if (next === server.connection.token) delete mcpPending["connection.token"];
-            else mcpPending["connection.token"] = next;
+            if (next === server.connection.command) delete mcpPending["connection.command"];
+            else mcpPending["connection.command"] = next;
             mcpSyncDirty();
           },
-          { maxLength: MCP_CONNECTION_TOKEN_MAX_LENGTH }
+          { maxLength: MCP_CONNECTION_COMMAND_MAX_LENGTH }
         );
-        connLedger.appendChild(tokenRow);
+        connLedger.appendChild(commandRow);
         mcpDirtyListeners.push(function () {
-          tokenRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.token"));
+          commandRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.command"));
         });
+
+        var argsRow = mcpArgsTextEditor(
+          "Args",
+          "One argument per line",
+          Object.prototype.hasOwnProperty.call(mcpPending, "connection.args")
+            ? mcpPending["connection.args"] : server.connection.args,
+          function (next) { mcpPending["connection.args"] = next; mcpSyncDirty(); },
+          {
+            argMaxLength: MCP_CONNECTION_ARG_MAX_LENGTH,
+            maxCount: MCP_CONNECTION_ARGS_MAX_COUNT,
+          }
+        );
+        connLedger.appendChild(argsRow);
+
+        var envRow = mcpKeyValueRows(
+          "Env",
+          "Environment variables passed to the server process",
+          Object.prototype.hasOwnProperty.call(mcpPending, "connection.env")
+            ? mcpPending["connection.env"] : server.connection.env,
+          function (next) { mcpPending["connection.env"] = next; mcpSyncDirty(); },
+          {
+            keyMaxLength: MCP_CONNECTION_ENV_KEY_MAX_LENGTH,
+            valueMaxLength: MCP_CONNECTION_ENV_VALUE_MAX_LENGTH,
+            maxEntries: MCP_CONNECTION_ENV_MAX_ENTRIES,
+          }
+        );
+        connLedger.appendChild(envRow);
+      } else {
+        var urlRow = mcpConnectionRow(
+          "URL",
+          "Streamable HTTP / SSE endpoint",
+          Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
+            ? mcpPending["connection.url"] : server.connection.url,
+          function (next) {
+            if (next === server.connection.url) delete mcpPending["connection.url"];
+            else mcpPending["connection.url"] = next;
+            mcpSyncDirty();
+          },
+          { type: "url", maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }
+        );
+        connLedger.appendChild(urlRow);
+        mcpDirtyListeners.push(function () {
+          urlRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.url"));
+        });
+
+        // All http/sse servers share one auth surface: headers. The legacy
+        // `token` shorthand (Authorization: Bearer <value>) is still read by
+        // the runtime for backward compatibility, but the panel no longer
+        // exposes a separate Token field — every server sets its
+        // Authorization the same way, as a header, same as any other custom
+        // header. A server still on the old `token:` key surfaces a nudge to
+        // migrate it into `headers.Authorization` instead of getting its own
+        // one-off control.
+        if (server.connection.token) {
+          connLedger.appendChild(el("p", { className: "muted mcp-tools-empty" },
+            "This server still uses the legacy token shorthand. Move it into the Headers list below as " +
+            "an Authorization header (\"Bearer <value>\"), then remove the token line from mcp_clients.yaml."
+          ));
+        }
+
+        // headers is http/sse-only: the stdio transport never reads it (see
+        // MCPClientManager._open_session), so it isn't editable there.
+        var headersRow = mcpKeyValueRows(
+          "Headers",
+          "Extra HTTP headers (e.g. Authorization) merged into every request",
+          Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers")
+            ? mcpPending["connection.headers"] : server.connection.headers,
+          function (next) { mcpPending["connection.headers"] = next; mcpSyncDirty(); },
+          {
+            keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH,
+            valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH,
+            maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES,
+          }
+        );
+        connLedger.appendChild(headersRow);
       }
+
       detail.appendChild(connLedger);
     } else if (server.endpoint) {
       detail.appendChild(el("p", { className: "mcp-endpoint" }, server.endpoint));
@@ -6503,11 +6569,12 @@
 
     detail.appendChild(mcpSaveRow(async function () {
       var body = { settings: {}, connection: {} };
+      var CONNECTION_FIELDS = ["url", "token", "command", "args", "env", "headers"];
       Object.keys(mcpPending).forEach(function (key) {
-        if (key === "enabled") body.enabled = mcpPending[key];
-        else if (key === "connection.url") body.connection.url = mcpPending[key];
-        else if (key === "connection.token") body.connection.token = mcpPending[key];
-        else body.settings[key] = mcpPending[key];
+        if (key === "enabled") { body.enabled = mcpPending[key]; return; }
+        var connField = CONNECTION_FIELDS.find(function (f) { return key === "connection." + f; });
+        if (connField) { body.connection[connField] = mcpPending[key]; return; }
+        body.settings[key] = mcpPending[key];
       });
       if (body.connection.url != null) {
         var urlError = mcpEndpointUrlError(body.connection.url);
@@ -6651,6 +6718,233 @@
       provenance
     );
 
+    row.sync = function (isChanged) {
+      row.classList.toggle("is-override", isChanged);
+      clear(provenance);
+      provenance.classList.toggle("is-override", isChanged);
+      if (isChanged) provenance.appendChild(document.createTextNode("changed"));
+    };
+    row.sync(false);
+    return row;
+  }
+
+  // Inline SVGs (not text glyphs) so the plus/minus render at a crisp,
+  // consistent weight across platforms instead of relying on font glyph
+  // metrics for "+"/"-".
+  function mcpIconSvg(pathD) {
+    var wrapper = el("span", { className: "mcp-kv-icon", "aria-hidden": "true" });
+    wrapper.innerHTML =
+      '<svg viewBox="0 0 16 16" width="16" height="16" fill="none">' +
+      '<path d="' + pathD + '" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>' +
+      "</svg>";
+    return wrapper;
+  }
+
+  function mcpPlusIcon() {
+    return mcpIconSvg("M8 3v10M3 8h10");
+  }
+
+  function mcpMinusIcon() {
+    return mcpIconSvg("M3 8h10");
+  }
+
+  // A small "current/max" counter for a value field, since a single-line
+  // input scrolls rather than wraps — there's no other visible sign of how
+  // close a long value is to its cap.
+  function mcpKvCounter(length, max) {
+    var counter = el("span", { className: "mcp-kv-counter", "aria-hidden": "true" });
+    mcpKvCounterUpdate(counter, length, max);
+    return counter;
+  }
+
+  function mcpKvCounterUpdate(counter, length, max) {
+    counter.textContent = length + " / " + max;
+    counter.classList.toggle("is-near-limit", length >= max);
+  }
+
+  // A key/value list editor for a server's env or headers map. Unlike
+  // mcpConnectionRow's single scalar, onChange always reports the full
+  // resulting map — the save handler sends it as a complete replacement,
+  // not a diff, matching the backend's full-replace contract.
+  function mcpKeyValueRows(label, hint, valueMap, onChange, opts) {
+    opts = opts || {};
+    var keyMaxLength = opts.keyMaxLength || MCP_CONNECTION_ENV_KEY_MAX_LENGTH;
+    var valueMaxLength = opts.valueMaxLength || MCP_CONNECTION_ENV_VALUE_MAX_LENGTH;
+    var maxEntries = opts.maxEntries || MCP_CONNECTION_ENV_MAX_ENTRIES;
+    var current = Object.assign({}, valueMap || {});
+    var pristineJson = JSON.stringify(current);
+    var rowsEl = el("div", { className: "mcp-kv-rows" });
+    var provenance = el("span", { className: "mcp-provenance" });
+
+    function renderRows() {
+      clear(rowsEl);
+      Object.keys(current).forEach(function (mapKey) {
+        var keyInput = el("input", {
+          type: "text", className: "mcp-text mcp-kv-key", maxLength: keyMaxLength,
+          value: mapKey, "aria-label": label + " key",
+        });
+        var valueInput = el("input", {
+          type: "text", className: "mcp-text mcp-kv-value", maxLength: valueMaxLength,
+          value: current[mapKey], "aria-label": label + " value for " + mapKey,
+        });
+        // A single-line input scrolls instead of wrapping, so there's no
+        // visual sign a long value is anywhere near its cap — surface the
+        // count explicitly rather than relying on the field "feeling" full.
+        var valueCounter = mcpKvCounter(valueInput.value.length, valueMaxLength);
+        valueInput.addEventListener("input", function () {
+          // Belt-and-suspenders: the `maxlength` attribute above already
+          // stops typing/pasting past the cap in every modern browser, but
+          // truncate here too rather than trust that alone — this is the
+          // same value that gets sent to the server-side cap, so a paste
+          // that somehow lands past it should never reach onChange.
+          if (valueInput.value.length > valueMaxLength) {
+            var pos = valueInput.selectionStart;
+            valueInput.value = valueInput.value.slice(0, valueMaxLength);
+            valueInput.selectionStart = valueInput.selectionEnd = Math.min(pos, valueMaxLength);
+          }
+          mcpKvCounterUpdate(valueCounter, valueInput.value.length, valueMaxLength);
+          current[mapKey] = valueInput.value;
+          onChange(Object.assign({}, current));
+          sync();
+        });
+        var valueCell = el("span", { className: "mcp-kv-value-cell" }, valueInput, valueCounter);
+        var removeBtn = el("button", {
+          type: "button", className: "mcp-kv-btn mcp-kv-btn--remove",
+          "aria-label": "Remove " + (mapKey || "entry"),
+          onclick: function () {
+            delete current[mapKey];
+            onChange(Object.assign({}, current));
+            renderRows();
+            sync();
+          }
+        }, mcpMinusIcon());
+        keyInput.addEventListener("change", function () {
+          var nextKey = keyInput.value.trim().slice(0, keyMaxLength);
+          if (!nextKey || nextKey === mapKey) { keyInput.value = mapKey; return; }
+          var value = current[mapKey];
+          delete current[mapKey];
+          current[nextKey] = value;
+          onChange(Object.assign({}, current));
+          renderRows();
+          sync();
+        });
+        var keyCell = el("span", { className: "mcp-kv-key-cell" }, keyInput,
+          el("span", { className: "mcp-kv-counter-spacer", "aria-hidden": "true" }));
+        var removeBtnCell = el("span", { className: "mcp-kv-btn-cell" }, removeBtn,
+          el("span", { className: "mcp-kv-counter-spacer", "aria-hidden": "true" }));
+        rowsEl.appendChild(el("div", { className: "mcp-kv-row" }, keyCell, valueCell, removeBtnCell));
+      });
+
+      var atLimit = Object.keys(current).length >= maxEntries;
+      var newKeyInput = el("input", {
+        type: "text", className: "mcp-text mcp-kv-key", placeholder: "key",
+        maxLength: keyMaxLength,
+      });
+      var newValueInput = el("input", {
+        type: "text", className: "mcp-text mcp-kv-value", placeholder: "value",
+        maxLength: valueMaxLength,
+      });
+      var addBtn = el("button", {
+        type: "button", className: "mcp-kv-btn mcp-kv-btn--add",
+        "aria-label": "Add " + label.toLowerCase() + " entry",
+        onclick: function () {
+          var newKey = newKeyInput.value.trim().slice(0, keyMaxLength);
+          if (!newKey || Object.prototype.hasOwnProperty.call(current, newKey)) return;
+          if (Object.keys(current).length >= maxEntries) return;
+          current[newKey] = newValueInput.value.slice(0, valueMaxLength);
+          onChange(Object.assign({}, current));
+          renderRows();
+          sync();
+        }
+      }, mcpPlusIcon());
+      var newValueCounter = mcpKvCounter(0, valueMaxLength);
+      newKeyInput.addEventListener("input", function () {
+        if (newKeyInput.value.length > keyMaxLength) newKeyInput.value = newKeyInput.value.slice(0, keyMaxLength);
+      });
+      newValueInput.addEventListener("input", function () {
+        if (newValueInput.value.length > valueMaxLength) newValueInput.value = newValueInput.value.slice(0, valueMaxLength);
+        mcpKvCounterUpdate(newValueCounter, newValueInput.value.length, valueMaxLength);
+      });
+      newKeyInput.disabled = atLimit;
+      newValueInput.disabled = atLimit;
+      addBtn.disabled = atLimit;
+      var newValueCell = el("span", { className: "mcp-kv-value-cell" }, newValueInput, newValueCounter);
+      var newKeyCell = el("span", { className: "mcp-kv-key-cell" }, newKeyInput,
+        el("span", { className: "mcp-kv-counter-spacer", "aria-hidden": "true" }));
+      var addBtnCell = el("span", { className: "mcp-kv-btn-cell" }, addBtn,
+        el("span", { className: "mcp-kv-counter-spacer", "aria-hidden": "true" }));
+      rowsEl.appendChild(el("div", { className: "mcp-kv-row mcp-kv-add-row" }, newKeyCell, newValueCell, addBtnCell));
+      if (atLimit) {
+        rowsEl.appendChild(el("p", { className: "mcp-kv-limit-hint" },
+          "Limit of " + maxEntries + " entries reached."));
+      }
+    }
+
+    function sync() {
+      var isChanged = JSON.stringify(current) !== pristineJson;
+      row.classList.toggle("is-override", isChanged);
+      clear(provenance);
+      provenance.classList.toggle("is-override", isChanged);
+      if (isChanged) provenance.appendChild(document.createTextNode("changed"));
+    }
+
+    renderRows();
+    var row = el("div", { className: "mcp-setting-row mcp-connection-row mcp-kv-editor" },
+      el("span", { className: "mcp-setting-copy" },
+        el("span", { className: "mcp-setting-label" }, label),
+        el("span", { className: "mcp-setting-hint" }, hint)
+      ),
+      el("span", { className: "mcp-setting-control" }, rowsEl),
+      provenance
+    );
+    row.sync = sync;
+    sync();
+    return row;
+  }
+
+  // A one-arg-per-line textarea for a stdio server's args list. Bounded to
+  // the same per-arg length and entry count as the backend's `args`
+  // validation (_MCP_CONNECTION_ARG_MAX_LENGTH/_MCP_CONNECTION_ARGS_MAX_COUNT
+  // in admin_routes.py) — enforced by trimming on input rather than a
+  // hard textarea maxlength, since a single maxlength can't distinguish
+  // "one huge line" from "many short lines".
+  function mcpArgsTextEditor(label, hint, argsList, onChange, opts) {
+    opts = opts || {};
+    var argMaxLength = opts.argMaxLength || MCP_CONNECTION_ARG_MAX_LENGTH;
+    var maxCount = opts.maxCount || MCP_CONNECTION_ARGS_MAX_COUNT;
+    var pristineText = (argsList || []).join("\n");
+    var control = el("textarea", {
+      className: "mcp-text mcp-args-textarea", rows: 4, "aria-label": label,
+    });
+    control.value = pristineText;
+    control.addEventListener("input", function () {
+      var lines = control.value.split("\n");
+      if (lines.length > maxCount) lines = lines.slice(0, maxCount);
+      lines = lines.map(function (line) {
+        return line.length > argMaxLength ? line.slice(0, argMaxLength) : line;
+      });
+      var truncatedText = lines.join("\n");
+      if (truncatedText !== control.value) {
+        var cursor = control.selectionStart;
+        control.value = truncatedText;
+        control.selectionStart = control.selectionEnd = Math.min(cursor, truncatedText.length);
+      }
+      var next = truncatedText.split("\n");
+      while (next.length && next[0].trim() === "") next.shift();
+      while (next.length && next[next.length - 1].trim() === "") next.pop();
+      onChange(next);
+      row.sync(control.value !== pristineText);
+    });
+
+    var provenance = el("span", { className: "mcp-provenance" });
+    var row = el("div", { className: "mcp-setting-row mcp-connection-row" },
+      el("span", { className: "mcp-setting-copy" },
+        el("span", { className: "mcp-setting-label" }, label),
+        el("span", { className: "mcp-setting-hint" }, hint)
+      ),
+      el("span", { className: "mcp-setting-control" }, control),
+      provenance
+    );
     row.sync = function (isChanged) {
       row.classList.toggle("is-override", isChanged);
       clear(provenance);

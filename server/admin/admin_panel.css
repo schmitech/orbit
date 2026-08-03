@@ -3705,6 +3705,113 @@ code.plain-code {
   text-align: left;
 }
 
+/* env/headers editors hold a variable number of rows, so the control column
+   stacks rows vertically instead of the single-line layout other connection
+   fields use. */
+.mcp-kv-editor {
+  align-items: start;
+}
+
+.mcp-kv-rows {
+  display: grid;
+  gap: var(--sp-2);
+  width: 100%;
+}
+
+.mcp-kv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+/* The value cell stacks its input above a counter, making that column
+   taller than a plain key input or remove button. Rather than centering
+   each column's full height (which floats the shorter columns' controls
+   above the value input), every column reserves the same counter-sized
+   spacer, so all three inputs/buttons land on one shared line regardless
+   of which column also carries a counter underneath. */
+.mcp-kv-value-cell,
+.mcp-kv-key-cell,
+.mcp-kv-btn-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mcp-kv-btn-cell {
+  align-items: center;
+}
+
+.mcp-kv-counter,
+.mcp-kv-counter-spacer {
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  height: 1.4em;
+}
+
+.mcp-kv-counter {
+  color: var(--ink-muted);
+  text-align: right;
+}
+
+.mcp-kv-counter.is-near-limit {
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+/* Round icon buttons for adding/removing key-value rows — a plus/minus
+   glyph reads faster than "Add"/"Remove" labels at this row density and
+   avoids the visual weight of full text buttons repeated per row. Colors
+   match the .btn--neutral treatment used elsewhere in the panel (e.g.
+   refreshButton) so these don't introduce a new button style. */
+button.mcp-kv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  min-height: 0;
+  padding: 0;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--neutral-200);
+  background: var(--neutral-100);
+  color: var(--neutral-text);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, transform 80ms ease;
+}
+
+button.mcp-kv-btn:hover:not(:disabled) {
+  background: var(--neutral-200);
+  border-color: #c3cedf;
+  box-shadow: none;
+}
+
+button.mcp-kv-btn:active:not(:disabled) {
+  background: #cdd6e5;
+  transform: scale(0.92);
+}
+
+.mcp-kv-icon {
+  display: inline-flex;
+}
+
+.mcp-kv-limit-hint {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.mcp-args-textarea {
+  width: 100%;
+  min-width: 0;
+  padding: var(--sp-1) var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  resize: vertical;
+}
+
 .mcp-provenance {
   display: inline-flex;
   align-items: center;
