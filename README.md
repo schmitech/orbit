@@ -192,12 +192,18 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 | **Build tool-using agents** | Give models scoped access to MCP servers with bounded, multi-step server-side tool loops. [Read the MCP guide →](docs/adapters/mcp-agent.md) |
 | **Offer one governed AI endpoint** | Route local and cloud models with per-key access, quotas, fallbacks, moderation, metrics, and auditability. [Create your first key →](docs/tutorial/creating-api-keys.md) |
 
+> [!NOTE]
+> **Deterministic structured retrieval:** For intent-based SQL and API adapters,
+> ORBIT uses embeddings and reranking to select from from reviewed, predefined query templates,
+> then executes the template's predefined, parameterized SQL or query DSL. It
+> does not use an LLM to generate arbitrary datasource queries.
+
 <details>
 <summary><strong>Ask database questions in multiple languages</strong></summary>
 <p align="center">
   <video src="https://github.com/user-attachments/assets/4af9005e-a9c9-4f37-8f6a-84d86e6f6dde" controls muted playsinline width="80%"></video>
   <br />
-  <em>ORBIT generates the query, runs it against the database, and charts the result in chat.</em>
+  <em>ORBIT selects a reviewed query template, runs its parameterized query against the database, and charts the result in chat.</em>
   <br />
   👉 <a href="https://orbit.schmitech.ca/intent-sql-postgres"><strong>Try the SQL Database query demo live →</strong></a>
 </p>
