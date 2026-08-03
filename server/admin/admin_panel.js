@@ -6027,7 +6027,7 @@
     discovery_retry_interval: { label: "Discovery retry", hint: "Seconds before retrying a server that failed", unit: "s" },
   };
 
-  var MCP_TRANSPORT_LABELS = { stdio: "Subprocess", sse: "SSE", http: "Streamable HTTP" };
+  var MCP_TRANSPORT_LABELS = { stdio: "Subprocess", http: "Streamable HTTP" };
   var MCP_CONNECTION_URL_MAX_LENGTH = 2048;
   var MCP_CONNECTION_COMMAND_MAX_LENGTH = 512;
   var MCP_CONNECTION_ARG_MAX_LENGTH = 2048;
@@ -6525,7 +6525,7 @@
       } else {
         var urlRow = mcpConnectionRow(
           "URL",
-          "Streamable HTTP / SSE endpoint",
+          "Streamable HTTP endpoint",
           Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
             ? mcpPending["connection.url"] : server.connection.url,
           function (next) {
@@ -6540,7 +6540,7 @@
           urlRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.url"));
         });
 
-        // headers is http/sse-only: the stdio transport never reads it (see
+        // headers is http-only: the stdio transport never reads it (see
         // MCPClientManager._open_session), so it isn't editable there.
         var headersRow = mcpKeyValueRows(
           "Headers",

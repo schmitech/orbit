@@ -94,8 +94,8 @@ mcp_clients:
       tool_timeout: 60      # per-client override: GitHub search is slower
 
     - name: "docs-search"
-      transport: "sse"
-      url: "https://mcp.example.com/sse"
+      transport: "http"
+      url: "https://mcp.example.com/mcp"
       headers:
         Authorization: "Bearer ${INTERNAL_MCP_TOKEN}"
       enabled: true
@@ -108,14 +108,12 @@ mcp_clients:
 ```
 
 MCP defines two standard transports: **stdio** and **Streamable HTTP**. ORBIT
-accepts three configuration values because it also retains the former HTTP+SSE
-transport for compatibility with older servers:
+supports exactly those two — the legacy HTTP+SSE transport is not configurable:
 
 | ORBIT value | MCP status | When to use | Required fields |
 |-------------|------------|-------------|-----------------|
 | `stdio` | Standard | Local subprocess (`npx`, `uvx`, `python -m` …) | `command`, optionally `args`, `env` |
 | `http` | Standard | Remote Streamable HTTP endpoint | `url`, optionally `token` or `headers` |
-| `sse` | Legacy | Older HTTP+SSE endpoint that has not migrated | `url`, optionally `headers` |
 
 **`http` transport specifics** — uses the MCP Streamable HTTP protocol (POST + optional SSE response). ORBIT automatically adds `Accept: application/json, text/event-stream`. Bearer-token auth can be configured with the `token` shorthand instead of writing out a full `Authorization` header:
 
@@ -129,12 +127,11 @@ transport for compatibility with older servers:
 
 `token` and explicit `headers` can coexist; explicit `headers` are applied after and can override the `Authorization` set by `token`.
 
-> **Prefer `http` for new remote integrations.** Streamable HTTP replaced the
-> old HTTP+SSE transport in MCP. An SSE stream may still be used *within* a
-> Streamable HTTP response; that does not make it the legacy `sse` transport.
-> MCP permits custom transports that preserve its JSON-RPC and lifecycle rules,
-> but ORBIT currently configures only `stdio`, Streamable HTTP (`http`), and
-> legacy HTTP+SSE (`sse`). See the [MCP transport
+> **`http` is for remote integrations.** Streamable HTTP replaced the old
+> HTTP+SSE transport in MCP; ORBIT does not configure the legacy `sse`
+> transport at all. An SSE stream may still be used *within* a Streamable HTTP
+> response — that's an implementation detail of `http`, not a separate
+> transport. See the [MCP transport
 > specification](https://modelcontextprotocol.io/specification/draft/basic/transports).
 
 Secret values should always use `${ENV_VAR}` syntax — they are expanded at startup and never written to logs.
@@ -875,7 +872,7 @@ This keeps context windows lean and makes tool selection more deterministic.
 ## Security Considerations
 
 MCP servers can execute arbitrary commands (stdio) or reach external networks
-(Streamable HTTP or legacy SSE). ORBIT treats them as privileged:
+(Streamable HTTP). ORBIT treats them as privileged:
 
 - **Admin-only configuration.** Server URLs and commands are set in YAML, never accepted from request bodies.
 - **Per-adapter allowlist.** The `mcp_servers` capability limits which servers a given skill adapter can reach.
@@ -1065,7 +1062,7 @@ Key test classes:
 | Class | What it verifies |
 |-------|-----------------|
 | `TestExpandHeaders` | `token` → `Authorization: Bearer`, env-var expansion, header override precedence |
-| `TestOpenSessionTransportSelection` | `sse` routes to `sse_client`, `http` routes to `streamable_http_client`, correct `Accept` header injected, `token` wired to `Authorization`, unknown transport raises |
+| `TestOpenSessionTransportSelection` | `http` routes to `streamable_http_client`, correct `Accept` header injected, `token` wired to `Authorization`, unknown transport raises |
 
 ---
 
@@ -1114,7 +1111,7 @@ Key test classes:
 
 ## Future Work
 
-- **Persistent MCP connections** — the current implementation opens a fresh connection per tool call (per-request for SSE/HTTP, per-call subprocess for stdio). A persistent connection pool with reconnect logic would eliminate subprocess startup overhead.
+- **Persistent MCP connections** — the current implementation opens a fresh connection per tool call (per-request for HTTP, per-call subprocess for stdio). A persistent connection pool with reconnect logic would eliminate subprocess startup overhead.
 - **Human-in-the-loop approval** — annotate tools as read-only vs. write, and surface a confirmation step for state-changing calls.
 - **Resources and prompts** — v1 supports tools only. `list_resources` and `list_prompts` are future additions.
 - **User-supplied MCP servers** — v1 restricts server configuration to admins. Allowing trusted users to supply their own servers at request time is a future capability.

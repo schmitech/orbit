@@ -9,7 +9,7 @@ Covers the logic that does not require a live MCP server:
   - the namespaced-name split and unknown-server handling in call_tool
   - the tool-result size cap
   - _expand_headers (explicit headers and env-var expansion)
-  - transport selection: sse uses sse_client, http uses streamable_http_client
+  - transport selection: http uses streamable_http_client
 
 The actual transport (_call_tool_on_server / _list_tools_on_server) is mocked
 so no subprocess is spawned.
@@ -665,28 +665,6 @@ def _fake_session_cm():
 
 
 class TestOpenSessionTransportSelection:
-    async def test_sse_transport_uses_sse_client(self):
-        mgr = _make_manager()
-        server_cfg = {"transport": "sse", "url": "http://example.com/sse"}
-
-        fake_read = MagicMock()
-        fake_write = MagicMock()
-
-        @asynccontextmanager
-        async def fake_sse_client(url, headers=None):
-            yield fake_read, fake_write
-
-        @asynccontextmanager
-        async def fake_client_session(read, write):
-            s = MagicMock()
-            s.initialize = AsyncMock()
-            yield s
-
-        with patch("mcp.client.sse.sse_client", fake_sse_client), \
-             patch("mcp.client.session.ClientSession", fake_client_session):
-            async with mgr._open_session(server_cfg) as session:
-                assert session is not None
-
     async def test_http_transport_uses_streamable_http_client(self):
         mgr = _make_manager()
         server_cfg = {
@@ -786,5 +764,4 @@ class TestOpenSessionTransportSelection:
                 pass
         except ValueError as exc:
             assert "stdio" in str(exc)
-            assert "sse" in str(exc)
             assert "http" in str(exc)

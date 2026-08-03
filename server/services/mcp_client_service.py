@@ -11,7 +11,7 @@ collisions across servers.
 
 Transport support:
   - stdio: spawns a local subprocess per call (simple, works everywhere)
-  - sse:   connects to a remote SSE endpoint per call
+  - http:  connects to a remote Streamable HTTP endpoint per call
 
 Per-request connections are used for v1 simplicity. Tool schemas are
 cached after the first successful list_tools call so repeated connections
@@ -462,16 +462,6 @@ class MCPClientManager:
                     await session.initialize()
                     yield session
 
-        elif transport == "sse":
-            from mcp.client.sse import sse_client
-
-            url = server_config.get("url", "")
-            headers = self._expand_headers(server_config)
-            async with sse_client(url, headers=headers) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    yield session
-
         elif transport == "http":
             from mcp.client.streamable_http import streamable_http_client
             from mcp.shared._httpx_utils import create_mcp_http_client
@@ -490,7 +480,7 @@ class MCPClientManager:
 
         else:
             raise ValueError(
-                f"Unsupported MCP transport '{transport}'. Use 'stdio', 'sse', or 'http'."
+                f"Unsupported MCP transport '{transport}'. Use 'stdio' or 'http'."
             )
 
     async def _list_tools_on_server(self, server_config: Dict[str, Any]) -> list:

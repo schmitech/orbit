@@ -1,6 +1,6 @@
 """
 Unit tests for editable connection fields on MCP servers in admin_routes.py:
-_validate_mcp_connection (url/headers for http/sse; command/args/env for stdio),
+_validate_mcp_connection (url/headers for http; command/args/env for stdio),
 the _patch_yaml_scalars/_patch_yaml_map/
 _patch_yaml_list line-patchers, and the update_mcp_server endpoint end-to-end
 against a real mcp_clients.yaml on disk.
@@ -38,8 +38,8 @@ MCP_YAML = """mcp_clients:
       enabled: true
 
     - name: "headers-server"
-      transport: "sse"
-      url: "https://example.com/sse"
+      transport: "http"
+      url: "https://example.com/headers-mcp"
       headers:
         Authorization: "Bearer ${OTHER_TOKEN}"
       enabled: true
@@ -77,7 +77,7 @@ class TestValidateMcpConnection:
         admin_routes._validate_mcp_connection({"transport": "stdio"}, {})
 
     def test_rejects_url_field_for_stdio(self):
-        # url/headers are http/sse-only; stdio has its own command/args/env keys.
+        # url/headers are http-only; stdio has its own command/args/env keys.
         with pytest.raises(HTTPException) as exc:
             admin_routes._validate_mcp_connection({"transport": "stdio"}, {"url": "http://x"})
         assert exc.value.status_code == 422
@@ -223,7 +223,7 @@ class TestValidateMcpConnectionStdio:
 class TestValidateMcpConnectionHeaders:
     def test_rejects_headers_for_stdio(self):
         # MCPClientManager._open_session never reads headers in its stdio
-        # branch (only sse/http via _expand_headers) — persisting a header
+        # branch (only http via _expand_headers) — persisting a header
         # edit for a stdio server would be a silent no-op, so it's rejected.
         with pytest.raises(HTTPException) as exc:
             admin_routes._validate_mcp_connection({"transport": "stdio"}, {"headers": {"X-Trace": "abc"}})
@@ -750,7 +750,7 @@ class TestDeleteMcpServer:
             "http-server", "unrelated-headers-server", "stdio-server",
         }
         assert "Catalogue notes remain after removal." in written_text
-        assert 'url: "https://example.com/sse"' not in written_text
+        assert 'url: "https://example.com/headers-mcp"' not in written_text
 
     def test_removal_does_not_leave_same_indent_yaml_lines_behind(self):
         lines = [

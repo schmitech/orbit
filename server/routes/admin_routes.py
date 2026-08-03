@@ -2611,8 +2611,8 @@ def _validate_mcp_settings(settings: Any, overridable: Dict[str, Any]) -> None:
 # single-line list patched by _patch_yaml_list. env/headers are nested maps
 # patched by _patch_yaml_map.
 #
-# headers is http/sse-only: MCPClientManager._open_session only reads
-# server_config["headers"] in its sse/http branches (via _expand_headers) —
+# headers is http-only: MCPClientManager._open_session only reads
+# server_config["headers"] in its http branch (via _expand_headers) —
 # the stdio branch builds a subprocess from command/args/env alone and never
 # looks at headers. Editing it for a stdio server would silently persist a
 # value the runtime never consumes.
@@ -2798,12 +2798,12 @@ def _validate_mcp_connection(entry: Dict[str, Any], connection: Any) -> None:
     transport = entry.get("transport", "stdio")
     if transport == "stdio":
         allowed = _STDIO_CONNECTION_KEYS
-    elif transport in ("http", "sse"):
+    elif transport == "http":
         allowed = _HTTP_CONNECTION_KEYS
     else:
         raise HTTPException(
             status_code=422,
-            detail=f"Connection fields are only editable for stdio/http/sse servers, not '{transport}'.",
+            detail=f"Connection fields are only editable for stdio/http servers, not '{transport}'.",
         )
 
     unknown = sorted(set(connection) - allowed)
@@ -2870,7 +2870,7 @@ async def list_mcp_servers(request: Request):
         effective.update(overrides)
         transport = entry.get("transport", "stdio")
         connection = None
-        if transport in ("http", "sse"):
+        if transport == "http":
             connection = {
                 "url": entry.get("url", ""),
                 "headers": entry.get("headers") or {},
