@@ -64,6 +64,39 @@ class TestGeminiStripSchemaMeta:
     def test_non_dict_returned_unchanged(self):
         assert GeminiInferenceService._strip_schema_meta("nope") == "nope"
 
+    def test_strips_vendor_x_prefixed_fields(self):
+        cleaned = GeminiInferenceService._strip_schema_meta(
+            {
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "x-mcp-header": "owner"},
+                    "repo": {"type": "string", "x-mcp-header": "repo"},
+                },
+            }
+        )
+        assert "x-mcp-header" not in cleaned["properties"]["owner"]
+        assert "x-mcp-header" not in cleaned["properties"]["repo"]
+        assert cleaned["properties"]["owner"]["type"] == "string"
+        assert cleaned["properties"]["repo"]["type"] == "string"
+
+    def test_union_type_list_collapsed_to_first_non_null(self):
+        cleaned = GeminiInferenceService._strip_schema_meta(
+            {"type": ["string", "number", "boolean"], "properties": {}}
+        )
+        assert cleaned["type"] == "string"
+
+    def test_union_type_list_drops_null_entry(self):
+        cleaned = GeminiInferenceService._strip_schema_meta(
+            {"type": ["null", "integer"]}
+        )
+        assert cleaned["type"] == "integer"
+
+    def test_non_string_enum_values_are_stringified(self):
+        cleaned = GeminiInferenceService._strip_schema_meta(
+            {"type": "boolean", "enum": [True, False]}
+        )
+        assert cleaned["enum"] == ["true", "false"]
+
 
 # ----------------------------------------------------------------------------
 # Gemini: OpenAI messages -> Gemini contents

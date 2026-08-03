@@ -390,13 +390,20 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
         Remove JSON Schema meta-fields that Gemini's FunctionDeclaration rejects.
 
         MCP servers commonly include '$schema', '$id', '$defs', and similar
-        draft-07 annotations. Gemini's Pydantic model uses extra=forbid so
-        any unknown key raises a ValidationError. We strip them recursively
-        so nested property schemas are also cleaned.
+        draft-07 annotations, plus vendor extensions like 'x-mcp-header'.
+        Gemini's Pydantic model uses extra=forbid so any unknown key raises
+        a ValidationError. We strip them recursively so nested property
+        schemas are also cleaned.
 
         'additionalProperties' is also unsupported by Gemini's Schema type —
         the google-genai SDK round-trips it to 'additional_properties' when
         serializing, which the API then rejects as an unknown field.
+
+        Two more JSON Schema constructs are valid but incompatible with
+        Gemini's Schema model: a union 'type' (e.g. ["string", "number"]) —
+        Gemini only accepts a single type string, so we keep the first
+        non-'null' entry — and non-string 'enum' values (e.g. booleans) —
+        Gemini's enum is string-only, so each value is JSON-stringified.
         """
         if not isinstance(schema, dict):
             return schema
@@ -404,9 +411,16 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
         for k, v in schema.items():
             if k.startswith("$"):
                 continue  # drop $schema, $id, $defs, $ref meta-fields
+            if k.startswith("x-"):
+                continue  # drop vendor extensions, e.g. github MCP's x-mcp-header
             if k == "additionalProperties":
                 continue  # unsupported by Gemini's Schema type
-            if isinstance(v, dict):
+            if k == "type" and isinstance(v, list):
+                non_null = [t for t in v if t != "null"]
+                v = non_null[0] if non_null else v[0]
+            elif k == "enum" and isinstance(v, list):
+                v = [item if isinstance(item, str) else json.dumps(item) for item in v]
+            elif isinstance(v, dict):
                 v = GeminiInferenceService._strip_schema_meta(v)
             elif isinstance(v, list):
                 v = [
