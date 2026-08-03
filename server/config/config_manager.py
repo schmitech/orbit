@@ -165,7 +165,7 @@ def _process_imports(config: Dict[str, Any], config_dir: str) -> Dict[str, Any]:
             logger.warning(f"Skipping import '{import_file}': path escapes config directory")
             continue
         try:
-            imported_config = _load_imported_config(import_path, config_dir)
+            imported_config = _load_imported_config(import_path)
             config = _merge_configs(config, imported_config)
                 
         except FileNotFoundError:
@@ -183,7 +183,7 @@ def _process_imports(config: Dict[str, Any], config_dir: str) -> Dict[str, Any]:
     return config
 
 
-def _load_imported_config(import_path: str, config_dir: str) -> Dict[str, Any]:
+def _load_imported_config(import_path: str) -> Dict[str, Any]:
     """Load an imported YAML file, reusing unchanged parsed imports by mtime."""
     real_import_path = os.path.realpath(import_path)
     mtime = os.stat(real_import_path).st_mtime_ns
@@ -441,7 +441,7 @@ def reload_adapters_config(config_path: str) -> Dict[str, Any]:
         try:
             config = reload_config(config_path)
 
-            logger.info(f"Reloaded FULL configuration from {os.path.abspath(config_path)} (includes all provider configs)")
+            logger.info(f"Re-parsed configuration from {os.path.abspath(config_path)} (all files re-read from disk; only the caller's targeted section is applied to running services)")
 
             return config
 
