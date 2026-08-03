@@ -158,6 +158,8 @@ loosening the budget for a fast local filesystem server:
 | `tool_result_max_chars` | `8000` | Truncation of that server's tool results before they enter the model context |
 | `allow_opportunistic` | `false` | Whether that server's tools are exposed on ordinary conversational turns (see [Opportunistic Mode](#opportunistic-mode-mcp_tools-capability)) |
 | `max_tool_iterations` | `5` | See below |
+| `pool_size` | `2` | Warm connections (subprocess+session for stdio, HTTP session for http) kept per server and reused across calls. `0` disables pooling — every call opens and tears down its own one-shot connection |
+| `pool_idle_timeout` | `300` | Seconds a pooled connection may sit idle before it is discarded and rebuilt on next use. `0` disables idle eviction |
 
 `enabled` is **not** overridable in this sense: the top-level `mcp_clients.enabled`
 gates MCP entirely, while each server's own `enabled` toggles that one server.
@@ -1111,7 +1113,6 @@ Key test classes:
 
 ## Future Work
 
-- **Persistent MCP connections** — the current implementation opens a fresh connection per tool call (per-request for HTTP, per-call subprocess for stdio). A persistent connection pool with reconnect logic would eliminate subprocess startup overhead.
 - **Human-in-the-loop approval** — annotate tools as read-only vs. write, and surface a confirmation step for state-changing calls.
 - **Resources and prompts** — v1 supports tools only. `list_resources` and `list_prompts` are future additions.
 - **User-supplied MCP servers** — v1 restricts server configuration to admins. Allowing trusted users to supply their own servers at request time is a future capability.

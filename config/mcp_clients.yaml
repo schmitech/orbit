@@ -54,7 +54,9 @@ mcp_clients:
   max_tool_iterations: 5            # Maximum tool-calling rounds per request. When a request can
                                     # reach several servers, the most permissive one wins.
   tool_result_max_chars: 8000       # Cap on result text injected into model context (prevents context overflow)
-
+  pool_size: 2
+  pool_idle_timeout: 300
+  
   servers:
     # ── Filesystem MCP server (stdio, read-only local files) ─────────────
     #

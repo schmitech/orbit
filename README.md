@@ -30,12 +30,6 @@
   <a href="docs/"><strong>Documentation</strong></a>
 </p>
 
-<div align="center">
-  <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/TRY%20ORBIT%20LIVE-Explore%20the%20Sandbox%20%E2%86%92-7C3AED?style=for-the-badge" alt="Try ORBIT live — explore the sandbox" /></a>
-  <br />
-  <em>Explore the live sandbox instantly — no download, Docker, or setup required.</em>
-</div>
-
 <br>
 
 <div id="see-orbit-in-action" align="center">

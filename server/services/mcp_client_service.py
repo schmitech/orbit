@@ -10,21 +10,30 @@ Tool names are namespaced as "<server_name>__<tool_name>" to avoid
 collisions across servers.
 
 Transport support:
-  - stdio: spawns a local subprocess per call (simple, works everywhere)
-  - http:  connects to a remote Streamable HTTP endpoint per call
+  - stdio: spawns a local subprocess
+  - http:  connects to a remote Streamable HTTP endpoint
 
-Per-request connections are used for v1 simplicity. Tool schemas are
-cached after the first successful list_tools call so repeated connections
-to stdio servers are only needed for actual tool invocations.
+Each server keeps a small pool of warm connections (subprocess+session for
+stdio, HTTP session for http) that are reused across tool calls instead of
+reconnecting every time; a broken connection is discarded and rebuilt
+transparently. Set a server's `pool_size` to 0 to fall back to a fresh
+one-shot connection per call. Tool schemas are cached after the first
+successful list_tools call.
+
+Pooling and circuit-breaking themselves live in mcp_connection_pool.py —
+this file owns settings resolution, tool discovery/caching, and transport
+construction (stdio subprocess vs. HTTP session), and hands each server's
+ServerConnectionPool a `build` callable plus the session operation to run.
 """
 
 import asyncio
 import json
 import logging
 import os
-import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, AsyncExitStack
 from typing import Dict, List, Optional, Any
+
+from services.mcp_connection_pool import MCPConnection, ServerConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -52,16 +61,19 @@ def get_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClientManager
     return _instance
 
 
-def reload_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClientManager"]:
+async def reload_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClientManager"]:
     """Rebuild the singleton from `config`, returning the new manager (or None
     if MCP is now disabled).
 
     Safe to call while requests are in flight: consumers re-fetch the manager
     per request and only hold a local reference for the duration of one tool
-    loop, and the manager holds no persistent connections — an in-flight loop
-    simply finishes against the old snapshot.
+    loop. The outgoing manager's pooled connections are drained (idle ones
+    closed, in-flight ones closed on release) before being discarded, so
+    replacing the singleton never leaks subprocesses or open sockets.
     """
     global _instance
+    if _instance is not None:
+        await _instance.aclose()
     mcp_config = config.get("mcp_clients", {})
     _instance = MCPClientManager(mcp_config) if mcp_config.get("enabled", False) else None
     return _instance
@@ -89,7 +101,9 @@ class MCPClientManager:
         "tool_timeout": (int, 30),
         # Servers that are unavailable during startup remain retryable.  A
         # retry is triggered by the next request after this interval, so a
-        # temporary remote MCP outage does not require restarting ORBIT.
+        # temporary remote MCP outage does not require restarting ORBIT. Also
+        # governs how long the connection-pool circuit breaker stays open
+        # after a failed connection attempt.
         "discovery_retry_interval": (lambda v: max(0, int(v)), 30),
         # Discovery is only initialize + tools/list, so it gets a much tighter
         # budget than tool_timeout (which is sized for real tool work).  This
@@ -104,6 +118,12 @@ class MCPClientManager:
         # Does not affect the explicit "mcp-agent" skill, which is governed
         # only by the global `enabled` flag.
         "allow_opportunistic": (bool, False),
+        # Number of warm connections kept per server. 0 disables pooling:
+        # every call opens and tears down its own one-shot connection.
+        "pool_size": (lambda v: max(0, int(v)), 2),
+        # Seconds a pooled connection may sit idle before it is discarded and
+        # rebuilt on next use. 0 means never evict for idleness.
+        "pool_idle_timeout": (lambda v: max(0, int(v)), 300),
     }
 
     # Per-server keys that are not settings (transport/identity/lifecycle).
@@ -130,9 +150,9 @@ class MCPClientManager:
         self._tools_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._cache_lock = asyncio.Lock()
         self._cache_populated = False
-        self._failed_discovery_servers: set[str] = set()
-        # server_name -> monotonic deadline before which discovery is not retried
-        self._next_discovery_retry_at: Dict[str, float] = {}
+        # server_name -> pool of warm connections + its circuit breaker.
+        # Created lazily on first discovery/connection.
+        self._pools: Dict[str, ServerConnectionPool] = {}
 
     def _coerce(self, key: str, value: Any, fallback: Any = _UNSET) -> Any:
         """Coerce a configured value, falling back one level down the
@@ -176,6 +196,12 @@ class MCPClientManager:
             # mcp_clients-level value, not past it to the hardcoded default.
             return self._coerce(key, server_config[key], fallback=default)
         return default
+
+    def is_reachable(self, server_name: str) -> bool:
+        """Whether the server's circuit breaker is currently closed (i.e. not
+        marked as failed). Servers never discovered yet are reported reachable."""
+        pool = self._pools.get(server_name)
+        return pool is None or pool.breaker.state == "closed"
 
     def opportunistic_servers(
         self, allowed_servers: Optional[List[str]] = None
@@ -331,19 +357,18 @@ class MCPClientManager:
 
         `entry=None` (or a disabled entry) removes the server: subsequent
         calls to it fail via call_tool's "Unknown MCP server" check, exactly
-        as if it had never been configured. Any cached tools/failure state for
-        the server are dropped so it cannot linger in get_all_tools() after
-        removal. Callers should follow with refresh_tool_cache([name]) to
-        re-dial when the server is still enabled.
+        as if it had never been configured. Any cached tools/failure state and
+        pooled connections for the server are dropped so it cannot linger in
+        get_all_tools() after removal. Callers should follow with
+        refresh_tool_cache([name]) to re-dial when the server is still enabled.
         """
         async with self._cache_lock:
             self._tools_cache.pop(name, None)
-            self._failed_discovery_servers.discard(name)
-            self._next_discovery_retry_at.pop(name, None)
             if entry is None or not entry.get("enabled", True):
                 self._server_configs.pop(name, None)
             else:
                 self._server_configs[name] = entry
+        await self._drain_pool(name)
         self._warn_unknown_server_keys()
 
     async def refresh_tool_cache(self, server_names: Optional[List[str]] = None) -> None:
@@ -357,8 +382,8 @@ class MCPClientManager:
         if server_names is None:
             async with self._cache_lock:
                 self._tools_cache = {}
-                self._failed_discovery_servers = set()
-                self._next_discovery_retry_at = {}
+                for pool in self._pools.values():
+                    pool.reset_breaker()
                 self._cache_populated = False
             await self._ensure_cache_populated()
             return
@@ -369,31 +394,26 @@ class MCPClientManager:
         async with self._cache_lock:
             for name in names:
                 self._tools_cache.pop(name, None)
-                self._failed_discovery_servers.discard(name)
-                self._next_discovery_retry_at.pop(name, None)
+                self._pool_for(name).reset_breaker()
             await asyncio.gather(*(self._discover_server(n) for n in names))
-            now = time.monotonic()
-            for name in names:
-                if name in self._failed_discovery_servers:
-                    self._next_discovery_retry_at[name] = now + self.setting(name, "discovery_retry_interval")
             self._cache_populated = True
 
     async def _ensure_cache_populated(self) -> None:
         async with self._cache_lock:
-            if self._cache_populated and not self._failed_discovery_servers:
+            if self._cache_populated and not self._any_server_marked_failed():
                 return
 
             # On first discovery, try every enabled server. After that, only
-            # retry servers whose prior discovery failed and whose per-server
-            # retry deadline has passed; healthy tool caches remain usable
-            # while another server recovers.
+            # retry servers whose prior discovery failed and whose breaker
+            # allows a retry now; healthy tool caches remain usable while
+            # another server recovers.
             if not self._cache_populated:
                 server_names = list(self._server_configs.keys())
             else:
-                now = time.monotonic()
                 server_names = [
-                    name for name in sorted(self._failed_discovery_servers)
-                    if now >= self._next_discovery_retry_at.get(name, 0.0)
+                    name for name in sorted(self._server_configs)
+                    if self._pool_for(name).breaker.state != "closed"
+                    and not self._pool_for(name).breaker.is_open
                 ]
                 if not server_names:
                     return
@@ -402,20 +422,17 @@ class MCPClientManager:
             # rather than one per unreachable server.
             await asyncio.gather(*(self._discover_server(n) for n in server_names))
             self._cache_populated = True
-            # Measure the interval from the end of the dial loop: a server
-            # that black-holes connections burns the whole discovery_timeout,
-            # which would otherwise leave the deadline already in the past.
-            now = time.monotonic()
-            for name in server_names:
-                if name in self._failed_discovery_servers:
-                    self._next_discovery_retry_at[name] = (
-                        now + self.setting(name, "discovery_retry_interval")
-                    )
-                else:
-                    self._next_discovery_retry_at.pop(name, None)
+
+    def _any_server_marked_failed(self) -> bool:
+        return any(p.breaker.state != "closed" for p in self._pools.values())
 
     async def _discover_server(self, server_name: str) -> None:
-        """List tools on one server, recording it as failed on any error."""
+        """List tools on one server, recording it as failed on any error.
+
+        Breaker success/failure is recorded once, centrally, by the
+        ServerConnectionPool that `_list_tools_on_server` goes through — not
+        here, to avoid recording the same outcome twice.
+        """
         try:
             tools = await asyncio.wait_for(
                 self._list_tools_on_server(self._server_configs[server_name]),
@@ -425,76 +442,131 @@ class MCPClientManager:
                 self._to_openai_tool(server_name, t) for t in tools
             ]
             logger.info("MCP server '%s': discovered %d tools", server_name, len(tools))
-            self._failed_discovery_servers.discard(server_name)
         except Exception as exc:
             logger.warning("MCP server '%s': failed to list tools: %s", server_name, exc)
             self._tools_cache[server_name] = []
-            self._failed_discovery_servers.add(server_name)
 
     # ------------------------------------------------------------------
     # Low-level transport helpers
     # ------------------------------------------------------------------
 
-    @asynccontextmanager
-    async def _open_session(self, server_config: Dict[str, Any]):
-        """Async context manager that yields an initialized ClientSession."""
+    def _pool_for(self, server_name: str) -> ServerConnectionPool:
+        pool = self._pools.get(server_name)
+        if pool is None:
+            pool = ServerConnectionPool(
+                pool_size=self.setting(server_name, "pool_size"),
+                idle_timeout=self.setting(server_name, "pool_idle_timeout"),
+                breaker_recovery_timeout=self.setting(server_name, "discovery_retry_interval"),
+            )
+            self._pools[server_name] = pool
+        return pool
+
+    async def _drain_pool(self, server_name: str) -> None:
+        """Close a server's idle connections and flag in-flight ones to close
+        on release, then drop the pool (and its breaker) so a future call
+        rebuilds both fresh."""
+        pool = self._pools.pop(server_name, None)
+        if pool is not None:
+            await pool.drain()
+
+    async def aclose(self) -> None:
+        """Drain every server's pool. Called before this manager is replaced
+        (e.g. on a full config reload) so its connections are not leaked."""
+        pools = list(self._pools.values())
+        self._pools = {}
+        await asyncio.gather(*(p.drain() for p in pools), return_exceptions=True)
+
+    async def _create_connection(self, server_config: Dict[str, Any]) -> MCPConnection:
+        """Build and initialize a new MCP session that stays open until its
+        stack is closed (i.e. does not tear down when this call returns)."""
         from mcp.client.session import ClientSession
 
         transport = server_config.get("transport", "stdio")
-        if transport == "stdio":
-            from mcp.client.stdio import stdio_client, StdioServerParameters
+        stack = AsyncExitStack()
+        try:
+            if transport == "stdio":
+                from mcp.client.stdio import stdio_client, StdioServerParameters
 
-            # Start from a minimal safe environment (PATH, HOME, etc.) rather
-            # than forwarding the full process env, which would expose all API
-            # keys and credentials to the subprocess.
-            env = {k: v for k, v in os.environ.items() if k in _SAFE_ENV_KEYS}
-            for key, val in server_config.get("env", {}).items():
-                # Expand ${VAR} references for explicitly configured keys only.
-                env[key] = os.path.expandvars(str(val)) if isinstance(val, str) else str(val)
+                # Start from a minimal safe environment (PATH, HOME, etc.)
+                # rather than forwarding the full process env, which would
+                # expose all API keys and credentials to the subprocess.
+                env = {k: v for k, v in os.environ.items() if k in _SAFE_ENV_KEYS}
+                for key, val in server_config.get("env", {}).items():
+                    # Expand ${VAR} references for explicitly configured keys only.
+                    env[key] = os.path.expandvars(str(val)) if isinstance(val, str) else str(val)
 
-            params = StdioServerParameters(
-                command=server_config["command"],
-                args=server_config.get("args", []),
-                env=env,
-            )
-            async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    yield session
+                params = StdioServerParameters(
+                    command=server_config["command"],
+                    args=server_config.get("args", []),
+                    env=env,
+                )
+                read, write = await stack.enter_async_context(stdio_client(params))
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
 
-        elif transport == "http":
-            from mcp.client.streamable_http import streamable_http_client
-            from mcp.shared._httpx_utils import create_mcp_http_client
+            elif transport == "http":
+                from mcp.client.streamable_http import streamable_http_client
+                from mcp.shared._httpx_utils import create_mcp_http_client
 
-            url = server_config.get("url", "")
-            headers = self._expand_headers(server_config)
-            # MCP Streamable HTTP requires both JSON and SSE content types.
-            headers.setdefault("Accept", "application/json, text/event-stream")
-            # Use create_mcp_http_client so the client inherits MCP defaults:
-            # follow_redirects=True, 30s general timeout, 300s SSE read timeout.
-            async with create_mcp_http_client(headers=headers) as http_client:
-                async with streamable_http_client(url, http_client=http_client) as (read, write, _):
-                    async with ClientSession(read, write) as session:
-                        await session.initialize()
-                        yield session
+                url = server_config.get("url", "")
+                headers = self._expand_headers(server_config)
+                # MCP Streamable HTTP requires both JSON and SSE content types.
+                headers.setdefault("Accept", "application/json, text/event-stream")
+                # Use create_mcp_http_client so the client inherits MCP defaults:
+                # follow_redirects=True, 30s general timeout, 300s SSE read timeout.
+                http_client = await stack.enter_async_context(create_mcp_http_client(headers=headers))
+                read, write, _ = await stack.enter_async_context(
+                    streamable_http_client(url, http_client=http_client)
+                )
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
 
-        else:
-            raise ValueError(
-                f"Unsupported MCP transport '{transport}'. Use 'stdio' or 'http'."
-            )
+            else:
+                raise ValueError(
+                    f"Unsupported MCP transport '{transport}'. Use 'stdio' or 'http'."
+                )
+        except BaseException:
+            await stack.aclose()
+            raise
+
+        return MCPConnection(session=session, stack=stack)
+
+    @asynccontextmanager
+    async def _open_session(self, server_config: Dict[str, Any]):
+        """Async context manager that yields an initialized ClientSession for
+        a single one-shot use, torn down on exit. Used directly by callers
+        that opt out of pooling (pool_size: 0)."""
+        conn = await self._create_connection(server_config)
+        try:
+            yield conn.session
+        finally:
+            await conn.close()
 
     async def _list_tools_on_server(self, server_config: Dict[str, Any]) -> list:
-        """Open a connection, list tools, close."""
-        async with self._open_session(server_config) as session:
+        """List tools on one server, via a pooled connection when enabled."""
+        server_name = server_config.get("name", "")
+
+        async def op(session):
             result = await session.list_tools()
             return result.tools
+
+        return await self._pool_for(server_name).run(
+            lambda: self._create_connection(server_config), op, retries=0
+        )
 
     async def _call_tool_on_server(
         self, server_config: Dict[str, Any], tool_name: str, arguments: Dict[str, Any]
     ) -> str:
-        """Open a connection, call the tool, close."""
-        async with self._open_session(server_config) as session:
-            result = await session.call_tool(tool_name, arguments=arguments)
+        """Call a tool, via a pooled connection when enabled. Retries once,
+        transparently rebuilding the connection, if the first attempt fails."""
+        server_name = server_config.get("name", "")
+
+        async def op(session):
+            return await session.call_tool(tool_name, arguments=arguments)
+
+        result = await self._pool_for(server_name).run(
+            lambda: self._create_connection(server_config), op, retries=1
+        )
 
         if result.isError:
             # Return the server's own error message (safe — it came from the MCP

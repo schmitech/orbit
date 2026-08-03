@@ -2569,6 +2569,8 @@ _MCP_SETTING_BOUNDS: Dict[str, tuple] = {
     "discovery_retry_interval": (0, 3600),
     "max_tool_iterations": (1, 50),
     "tool_result_max_chars": (100, 200000),
+    "pool_size": (0, 20),
+    "pool_idle_timeout": (0, 3600),
 }
 
 
@@ -2961,7 +2963,7 @@ async def _reload_mcp_clients(request: Request, server_name: Optional[str] = Non
         except Exception as exc:
             logger.warning("MCP tool discovery failed after reload: %s", exc)
     else:
-        manager = mcp_client_service.reload_mcp_client_manager(app_config)
+        manager = await mcp_client_service.reload_mcp_client_manager(app_config)
         if manager is not None:
             try:
                 await manager.refresh_tool_cache()
@@ -2972,7 +2974,7 @@ async def _reload_mcp_clients(request: Request, server_name: Optional[str] = Non
     if manager is not None:
         for name in manager._server_configs:
             servers[name] = {
-                "reachable": name not in manager._failed_discovery_servers,
+                "reachable": manager.is_reachable(name),
                 "tool_count": len(manager._tools_cache.get(name, [])),
             }
 
@@ -3031,7 +3033,7 @@ async def discover_mcp_tools(request: Request):
                 ],
             })
         servers[name] = {
-            "reachable": name not in manager._failed_discovery_servers,
+            "reachable": manager.is_reachable(name),
             "tools": tools,
         }
 

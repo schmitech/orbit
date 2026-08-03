@@ -36,6 +36,8 @@ mcp_clients:
   discovery_timeout: 5              # Seconds before tool discovery on one server is abandoned (dials run in parallel)
   max_tool_iterations: 5            # Maximum tool-calling rounds per request
   tool_result_max_chars: 8000       # Cap on result text injected into model context (prevents context overflow)
+  pool_size: 2                      # Warm connections kept per server, reused across tool calls; 0 disables pooling
+  pool_idle_timeout: 300            # Seconds a pooled connection may sit idle before it's discarded and rebuilt; 0 = never evict
 
   servers:
     # ── Filesystem MCP server (stdio, read-only local files) ─────────────
