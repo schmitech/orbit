@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.14.1] - 2026-08-03
 
 ### Core System Updates
 - **Reranking Cost Tracking**: Reranking now emits its own `call_type: reranking` audit events instead of inflating parent inference/document costs. OpenAI, Anthropic, and Ollama rerankers report priced token usage; Cohere reports its native `search_units` billing unit (unpriced pending a published rate); Voyage and Jina report tokens (also unpriced pending published rates). The Audit and Costs panels gained a Reranking filter, and Costs can group by it.
