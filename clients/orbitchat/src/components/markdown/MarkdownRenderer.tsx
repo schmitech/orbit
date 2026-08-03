@@ -11,6 +11,7 @@ import 'katex/contrib/mhchem';
 import { preprocessMarkdown, splitPendingStreamBlock } from './preprocessing';
 import { CodeBlock } from './CodeBlock';
 import { BLOCK_LEVEL_TAGS, type MarkdownRendererProps } from './types';
+import { StreamingDots } from '../StreamingDots';
 
 /**
  * Custom link component for ReactMarkdown that opens links in new tabs
@@ -258,7 +259,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         </ReactMarkdown>
       )}
       {pending && (
-        <div className="markdown-pending-stream">{pending}</div>
+        <StreamingDots size="sm" />
       )}
     </div>
   );

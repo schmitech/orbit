@@ -34,6 +34,8 @@ import { KeyCap, SkillPicker } from './SkillPicker';
 import { ModelPickerButton } from './ModelPickerButton';
 import { FileChip } from './FileChip';
 import { FeedbackCommentBox } from './FeedbackCommentBox';
+import { StreamingDots } from './StreamingDots';
+import { FeedbackThanks } from './FeedbackThanks';
 
 interface MessageProps {
   message: MessageType;
@@ -135,17 +137,6 @@ const getGeneratedImageFallbackText = (message: MessageType) => {
   }
   return message.imageRevisedPrompt || message.content;
 };
-
-function StreamingDots({ size = 'md' }: { size?: 'sm' | 'md' }) {
-  const cls = size === 'sm' ? 'h-2 w-2' : 'h-2.5 w-2.5';
-  return (
-    <div className="flex items-center gap-1.5 py-1">
-      {([0, 150, 300] as const).map(delay => (
-        <span key={delay} className={`inline-block ${cls} animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]`} style={{ animationDelay: `${delay}ms` }} />
-      ))}
-    </div>
-  );
-}
 
 function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
   const { t } = useTranslation();
@@ -249,12 +240,7 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
               : t('message.feedback.commentPrompt')}
           </button>
         )}
-        {showAcknowledgement && (
-          <span className="ml-1 inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
-            <Check className="h-3.5 w-3.5" />
-            {t('message.feedback.thanks')}
-          </span>
-        )}
+        {showAcknowledgement && <FeedbackThanks />}
       </div>
       {reply.feedback === 'down' && showCommentBox && (
         <FeedbackCommentBox
@@ -1149,15 +1135,7 @@ export function Message({
                   >
                     <ThumbsDown className="h-4 w-4" />
                   </button>
-                  {showFeedbackAcknowledgement && (
-                    <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-sm animate-fadeIn dark:bg-emerald-600">
-                      <div className="absolute left-1/2 top-full h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-emerald-500 dark:bg-emerald-600" />
-                      <div className="relative flex items-center gap-1.5">
-                        <Check className="h-3.5 w-3.5" />
-                        <span>{t('message.feedback.thanks')}</span>
-                      </div>
-                    </div>
-                  )}
+                  {showFeedbackAcknowledgement && <FeedbackThanks />}
                 </div>
               )}
 

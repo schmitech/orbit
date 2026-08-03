@@ -1,15 +1,5 @@
 /* MarkdownStyles.css */
 
-/* The still-streaming tail of a table or fenced code block, held back from
-   react-markdown until it completes (see splitPendingStreamBlock) so it
-   doesn't re-render/reflow on every partial chunk. Rendered as plain text. */
-.markdown-pending-stream {
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--md-text-primary);
-  opacity: 0.75;
-}
-
 /* CSS Custom Properties for theming */
 :root,
 .markdown-content {

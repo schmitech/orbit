@@ -378,11 +378,11 @@ function unmaskCodeSegments(src: string, masks: Record<string, string>) {
  * While a response is streaming, split off a trailing block that is still
  * "in progress" (an unterminated fenced code block, or a table whose last
  * row hasn't been followed by a blank/non-table line yet) so the caller can
- * render it as plain text instead of feeding it to react-markdown. Without
- * this, tables grow row-by-row and fenced mermaid/chart blocks re-render on
- * every partial, often-invalid chunk, which is what causes the visible
- * shaking/flicker while streaming. Once the block is complete it moves into
- * `stable` and renders once, in its final form.
+ * hold it back instead of feeding it to react-markdown. Without this, tables
+ * grow row-by-row and fenced mermaid/chart blocks re-render on every partial,
+ * often-invalid chunk, which is what causes the visible shaking/flicker (and
+ * raw, unrendered notation) while streaming. Once the block is complete it
+ * moves into `stable` and renders once, in its final form.
  */
 export function splitPendingStreamBlock(content: string): { stable: string; pending: string } {
   const lines = content.split('\n');
@@ -418,12 +418,22 @@ export function splitPendingStreamBlock(content: string): { stable: string; pend
     };
   }
 
+  // If the content ends right on a fence delimiter, the fence count above was
+  // even, so this trailing delimiter is a closer, not an opener - the block
+  // it closes is already complete. Don't let the generic paragraph rule below
+  // swallow it back into `pending` just because no blank line follows yet.
+  let lastNonBlankAt = lines.length - 1;
+  while (lastNonBlankAt >= 0 && lines[lastNonBlankAt].trim() === '') lastNonBlankAt--;
+  if (lastNonBlankAt >= 0 && /^(```|~~~)/.test(lines[lastNonBlankAt].trim())) {
+    return { stable: content, pending: '' };
+  }
+
   // Keep the active prose block out of react-markdown as well. A streamed
   // paragraph is the most common case, and reparsing it for every token can
   // replace inline nodes (links, emphasis, math) repeatedly, which looks like
-  // text flicker even though the final markup is valid. The block is still
-  // shown immediately as plain text and is parsed once the next blank line
-  // (or the final non-streaming render) arrives.
+  // text flicker even though the final markup is valid. The block is held
+  // back and parsed once the next blank line (or the final non-streaming
+  // render) arrives.
   let paragraphStartAt = lines.length - 1;
   while (paragraphStartAt >= 0 && lines[paragraphStartAt].trim() !== '') {
     paragraphStartAt--;
