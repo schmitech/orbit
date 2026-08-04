@@ -4,6 +4,7 @@
 
 ### Bug Fixes & Technical Improvements
 - **Admin Routes Modularization**: Split the 3,513-line `server/routes/admin_routes.py` into a `server/routes/admin/` package with one module per concern — API keys, adapters, prompts, chat history, jobs, config, lifecycle, logs, audit, observability, and MCP — composed into the same `admin_router` by the package `__init__`. Callers now import from `routes.admin`; `routes.admin_routes` is gone rather than aliased, so tests patching module attributes fail loudly instead of silently no-opping.
+- **MCP Agent Conversation History**: Fixed `mcp_agent`-type adapters (e.g. `mcp-agent-chat`) never receiving conversation history, even though `MCPAgentStep` already had code to consume it. Every turn ran with only the current message and no memory of prior tool calls or their results, so a multi-turn tool workflow (e.g. act on something created in an earlier turn) could silently reset instead of continuing. `mcp_agent` is now included in `ConversationHistoryHandler`'s allowlist alongside `passthrough` and `retriever`.
 
 ## [2.14.1] - 2026-08-03
 
