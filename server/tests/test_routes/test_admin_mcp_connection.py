@@ -1,5 +1,5 @@
 """
-Unit tests for editable connection fields on MCP servers in admin_routes.py:
+Unit tests for editable connection fields on MCP servers in routes/admin/mcp.py:
 _validate_mcp_connection (url/headers for http; command/args/env for stdio),
 the _patch_yaml_scalars/_patch_yaml_map/
 _patch_yaml_list line-patchers, and the update_mcp_server endpoint end-to-end
@@ -14,7 +14,7 @@ import pytest
 import yaml
 from fastapi import HTTPException
 
-import routes.admin_routes as admin_routes
+import routes.admin.mcp as admin_routes
 import services.mcp_client_service as mcp_client_service
 
 

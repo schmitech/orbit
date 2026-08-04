@@ -1057,7 +1057,7 @@ class RouteConfigurator:
 
     def _include_admin_routes(self, app: FastAPI) -> None:
         """Include admin routes, auth routes, and health routes."""
-        from routes.admin_routes import admin_router
+        from routes.admin import admin_router
         from routes.auth_routes import auth_router
         from routes.discovery_routes import discovery_router
 

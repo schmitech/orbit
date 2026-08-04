@@ -1,5 +1,5 @@
 """
-Functional tests for API key lifecycle logging in admin_routes.py.
+Functional tests for API key lifecycle logging in routes/admin/api_keys.py.
 
 These call the route handler coroutines directly (bypassing FastAPI's HTTP
 layer and dependency injection) with mocked services, and assert on the
@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from routes import admin_routes
+from routes.admin import api_keys as admin_routes
 
 
 RAW_KEY_LOOKING_ID = "sk-live-abcdefghijklmnopqrstuvwxyz"
@@ -39,7 +39,7 @@ class TestDeleteApiKeyLogging:
     @pytest.mark.asyncio
     async def test_logs_at_info_level(self, caplog):
         service = SimpleNamespace(delete_api_key_by_id=AsyncMock(return_value=True))
-        with caplog.at_level(logging.DEBUG, logger="routes.admin_routes"):
+        with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):
             result = await admin_routes.delete_api_key(RAW_KEY_LOOKING_ID, api_key_service=service)
 
         assert result == {"status": "success", "message": "API key deleted"}
@@ -52,7 +52,7 @@ class TestDeleteApiKeyLogging:
     @pytest.mark.asyncio
     async def test_does_not_leak_raw_identifier(self, caplog):
         service = SimpleNamespace(delete_api_key_by_id=AsyncMock(return_value=True))
-        with caplog.at_level(logging.DEBUG, logger="routes.admin_routes"):
+        with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):
             await admin_routes.delete_api_key(RAW_KEY_LOOKING_ID, api_key_service=service)
 
         for record in caplog.records:
@@ -64,7 +64,7 @@ class TestDeactivateApiKeyLogging:
     @pytest.mark.asyncio
     async def test_logs_at_info_level(self, caplog):
         service = SimpleNamespace(deactivate_api_key_by_id=AsyncMock(return_value=True))
-        with caplog.at_level(logging.DEBUG, logger="routes.admin_routes"):
+        with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):
             await admin_routes.deactivate_api_key(RAW_KEY_LOOKING_ID, api_key_service=service)
 
         assert any(
@@ -75,7 +75,7 @@ class TestDeactivateApiKeyLogging:
     @pytest.mark.asyncio
     async def test_does_not_leak_raw_identifier(self, caplog):
         service = SimpleNamespace(deactivate_api_key_by_id=AsyncMock(return_value=True))
-        with caplog.at_level(logging.DEBUG, logger="routes.admin_routes"):
+        with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):
             await admin_routes.deactivate_api_key(RAW_KEY_LOOKING_ID, api_key_service=service)
 
         for record in caplog.records:
@@ -90,7 +90,7 @@ class TestRenameApiKeyLogging:
         service = SimpleNamespace(rename_api_key_by_id=AsyncMock(return_value=True))
         request = make_request(api_key_service=service)
 
-        with caplog.at_level(logging.DEBUG, logger="routes.admin_routes"):
+        with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):
             result = await admin_routes.rename_api_key(
                 RAW_KEY_LOOKING_ID, new_api_key=new_key, request=request
             )
@@ -114,7 +114,7 @@ class TestUpdateApiKeyLogging:
             system_prompt_id=None, notes=None,
         )
 
-        with caplog.at_level(logging.DEBUG, logger="routes.admin_routes"):
+        with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):
             await admin_routes.update_api_key(RAW_KEY_LOOKING_ID, data=data, request=request)
 
         assert any(
@@ -135,7 +135,7 @@ class TestGetApiKeyStatusLogging:
         )
         request = make_request(api_key_service=service)
 
-        with caplog.at_level(logging.DEBUG, logger="routes.admin_routes"):
+        with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):
             await admin_routes.get_api_key_status(RAW_KEY_LOOKING_ID, request=request)
 
         for record in caplog.records:
@@ -155,7 +155,7 @@ class TestCreateApiKeyLogging:
             client_name="Test Client", notes=None, system_prompt_id=None, adapter_name="simple-chat"
         )
 
-        with caplog.at_level(logging.DEBUG, logger="routes.admin_routes"):
+        with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):
             result = await admin_routes.create_api_key(api_key_data, request=request)
 
         assert result["api_key"] == created_key  # response payload still carries the real key

@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from adapter_sdk.specs import SPEC_REGISTRY, get_spec
 from auth.rbac import permissions_for_roles
-from routes import admin_routes
+from routes import admin as admin_routes
 from routes import auth_dependencies
 
 

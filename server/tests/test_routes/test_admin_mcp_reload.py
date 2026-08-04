@@ -1,5 +1,5 @@
 """
-Unit tests for the MCP hot-reload wiring in admin_routes.py.
+Unit tests for the MCP hot-reload wiring in routes/admin/mcp.py.
 
 Verifies that _reload_mcp_clients rebuilds the MCPClientManager singleton from
 the on-disk mcp_clients.yaml (via reload_adapters_config) and splices only the
@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-import routes.admin_routes as admin_routes
+import routes.admin.mcp as admin_routes
 import services.mcp_client_service as mcp_client_service
 
 

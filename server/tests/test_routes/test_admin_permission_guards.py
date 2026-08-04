@@ -1,6 +1,6 @@
 """Guard tests: each seed role is allowed/denied on representative admin routes.
 
-Verifies the split introduced in admin_routes.py (apikeys_auth, adapters_auth,
+Verifies the split introduced in routes/admin/_shared.py (apikeys_auth, adapters_auth,
 prompts_auth, config_auth, system_auth, logs_auth, audit_auth, conversations_auth)
 actually enforces per-permission access instead of the old binary admin check -
 in particular that "operator" (ops/config permissions, no conversation access)
@@ -13,7 +13,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from routes import admin_routes
+from routes import admin as admin_routes
 from routes import auth_dependencies
 from auth.rbac import permissions_for_roles
 

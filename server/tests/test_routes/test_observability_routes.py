@@ -8,7 +8,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from routes import admin_routes
+from routes import admin as admin_routes
 from routes import auth_dependencies
 from auth.rbac import permissions_for_roles
 

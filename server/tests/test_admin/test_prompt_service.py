@@ -20,7 +20,7 @@ server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 sys.path.insert(0, server_dir)
 
 from services.prompt_service import PromptService
-from routes.admin_routes import _serialize_created_at
+from routes.admin._shared import _serialize_created_at
 
 
 class FakeMongoService:

@@ -405,7 +405,7 @@ class TestAdminAuditMiddleware:
 
 def _build_endpoint_app(audit_service):
     """FastAPI app mounting the real admin_router with auth bypassed."""
-    from routes import admin_routes
+    from routes import admin as admin_routes
     app = FastAPI()
     app.state.audit_service = audit_service
     app.include_router(admin_routes.admin_router)
