@@ -36,6 +36,21 @@ _admin_panel_template_mtime: Optional[float] = None
 _admin_panel_static_versions: Dict[str, str] = {}
 
 
+def _admin_asset_version(path: Path) -> str:
+    """Return a version which also changes when a panel JS module changes."""
+    try:
+        newest_mtime = path.stat().st_mtime
+        if path.name == "admin_panel.js":
+            modules_dir = path.parent / "admin_panel"
+            if modules_dir.exists():
+                newest_mtime = max(
+                    [newest_mtime] + [module.stat().st_mtime for module in modules_dir.rglob("*.js")]
+                )
+        return str(newest_mtime)
+    except FileNotFoundError:
+        return "0"
+
+
 def _load_admin_panel_template() -> str:
     """Load admin panel HTML template with mtime-based caching."""
     global _admin_panel_html_cache, _admin_panel_template_mtime, _admin_panel_static_versions
@@ -58,10 +73,7 @@ def _load_admin_panel_template() -> str:
     )
     new_versions: Dict[str, str] = {}
     for placeholder, path in static_files.items():
-        try:
-            version = str(path.stat().st_mtime)
-        except FileNotFoundError:
-            version = "0"
+        version = _admin_asset_version(path)
         new_versions[placeholder] = version
         if not reload_required and _admin_panel_static_versions.get(placeholder) != version:
             reload_required = True

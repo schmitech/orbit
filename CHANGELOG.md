@@ -5,6 +5,9 @@
 ### Core System Updates
 - **Shieldstral Moderation**: Added a policy-adaptive Shieldstral 1.0 3B moderator for `safety.moderator: "shieldstral"`, served through OpenAI-compatible vLLM or llama.cpp endpoints. The bundled policy matches the existing Llama Guard coverage and can be replaced inline or from a policy file; input and non-streaming response validation retain their existing behavior.
 
+### Bug Fixes & Technical Improvements
+- **Admin Panel Module Foundation**: Converted the admin panel to native ES modules and extracted shared API, DOM, chart, and metric-card helpers plus the Feedback tab, preserving the existing static entry asset and invalidating it when any module changes. Restored the shared metric-card renderer used by Costs so its usage summary remains visible after the extraction; added module import and syntax smoke coverage.
+
 ## [2.14.2] - 2026-08-04
 
 ### Bug Fixes & Technical Improvements

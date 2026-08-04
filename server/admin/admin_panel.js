@@ -1,9 +1,12 @@
+import { ENDPOINTS, createApi } from "./admin_panel/core/api.js";
+import { standardChartOptions as feedbackChartOptions } from "./admin_panel/core/charts.js";
+import { clear, el, wrapTable } from "./admin_panel/core/dom.js";
+import { renderMetricCard } from "./admin_panel/core/metrics.js";
+import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
+
 /* ============================================================
    ORBIT Admin Portal — Single-file vanilla JS client
    ============================================================ */
-(function () {
-  "use strict";
-
   // ------------------------------------------------------------------
   // State
   // ------------------------------------------------------------------
@@ -45,9 +48,7 @@
   let lastThreadPools = {};
   let threadPoolSearchFilter = "";
   let overviewCharts = {};
-  let feedbackCharts = {};
   let costsCharts = {};
-  let selectedFeedbackWindowDays = 30;
   let monitoringThresholds = { cpu: 90, memory: 85, error_rate: 5, response_time_ms: 5000 };
   let overviewAdapterPaginator = null;
   let overviewDatasourcePaginator = null;
@@ -55,6 +56,15 @@
   let overviewAdapterSorter = null;
   let overviewDatasourceSorter = null;
   let overviewThreadPoolSorter = null;
+
+  const api = createApi({
+    getAuthToken: function () { return authToken; },
+    onUnauthorized: function () {
+      authToken = null;
+      currentUser = null;
+      window.location.href = ENDPOINTS.login + "?next=/admin";
+    }
+  });
 
   // ------------------------------------------------------------------
   // Stored UI preferences
@@ -79,83 +89,8 @@
   }
 
   // ------------------------------------------------------------------
-  // API endpoint paths
-  // ------------------------------------------------------------------
-  var ENDPOINTS = {
-    token: "/admin/api/token",
-    logout: "/admin/logout",
-    health: "/health",
-    healthAdapters: "/health/adapters",
-    register: "/auth/register",
-    users: "/auth/users",
-    roles: "/auth/roles",
-    changePassword: "/auth/change-password",
-    resetPassword: "/auth/reset-password",
-    apiKeys: "/admin/api-keys",
-    prompts: "/admin/prompts",
-    adapterCapabilities: "/admin/adapters/capabilities",
-    jobs: "/admin/jobs",
-    logsTail: "/admin/logs/tail",
-    logsFiles: "/admin/logs/files",
-    renderMarkdown: "/admin/render-markdown",
-    reloadAdapters: "/admin/reload-adapters",
-    reloadTemplates: "/admin/reload-templates",
-    restart: "/admin/restart",
-    shutdown: "/admin/shutdown",
-    pause: "/admin/pause",
-    resume: "/admin/resume",
-    adminExport: "/admin/export",
-    login: "/admin/login",
-    configSections: "/admin/config/sections",
-    mcpServers: "/admin/mcp/servers",
-    mcpTools: "/admin/mcp/tools",
-    mcpDefaults: "/admin/mcp/defaults",
-    mcpReload: "/admin/mcp/reload",
-    adapterConfigs: "/admin/adapters/config",
-    adapterSpecs: "/admin/adapters/specs",
-    adapterCreate: "/admin/adapters",
-    adapterPreview: "/admin/adapters/preview",
-    auditEvents: "/admin/audit/events",
-    costsUsage: "/admin/observability/usage",
-    feedbackAnalytics: "/admin/api/feedback-analytics",
-    serverInfo: "/admin/info",
-  };
-
-  // ------------------------------------------------------------------
   // DOM helpers
   // ------------------------------------------------------------------
-  function el(tag, attrs, ...children) {
-    const node = document.createElement(tag);
-    if (attrs) {
-      for (const [k, v] of Object.entries(attrs)) {
-        if (k === "className") node.className = v;
-        else if (k === "htmlFor") node.setAttribute("for", v);
-        else if (k.startsWith("on") && typeof v === "function") {
-          node.addEventListener(k.slice(2).toLowerCase(), v);
-        } else if (k === "dataset") {
-          for (const [dk, dv] of Object.entries(v)) node.dataset[dk] = dv;
-        } else if (v != null) {
-          node.setAttribute(k, v);
-        }
-      }
-    }
-    for (const child of children) {
-      if (child == null || child === false) continue;
-      if (typeof child === "string" || typeof child === "number") {
-        node.appendChild(document.createTextNode(String(child)));
-      } else if (Array.isArray(child)) {
-        child.forEach(function (c) { if (c) node.appendChild(c); });
-      } else {
-        node.appendChild(child);
-      }
-    }
-    return node;
-  }
-
-  function clear(node) {
-    while (node.firstChild) node.removeChild(node.firstChild);
-  }
-
   function clearOpsLogPolling() {
     if (opsLogPollTimer) {
       clearTimeout(opsLogPollTimer);
@@ -292,10 +227,6 @@
     button.style.visibility = count === 0 ? "hidden" : "visible";
     button.disabled = count === 0;
     button.textContent = "Delete " + count + " " + label;
-  }
-
-  function wrapTable(table) {
-    return el("div", { className: "table-wrap" }, table);
   }
 
   function sleep(ms) {
@@ -958,62 +889,6 @@
   }
 
   // ------------------------------------------------------------------
-  // API helper
-  // ------------------------------------------------------------------
-  async function api(method, path, body) {
-    var controller = new AbortController();
-    var timeoutId = setTimeout(function () { controller.abort(); }, 30000);
-    var opts = {
-      method: method,
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-    };
-    if (authToken) opts.headers["Authorization"] = "Bearer " + authToken;
-    if (body !== undefined) opts.body = JSON.stringify(body);
-    var resp;
-    try {
-      resp = await fetch(path, opts);
-    } catch (err) {
-      clearTimeout(timeoutId);
-      if (err.name === "AbortError") throw new Error("Request timed out");
-      throw err;
-    }
-    clearTimeout(timeoutId);
-    if (resp.status === 401) {
-      authToken = null;
-      currentUser = null;
-      window.location.href = ENDPOINTS.login + "?next=/admin";
-      throw new Error("Session expired");
-    }
-    var text = await resp.text();
-    var data;
-    try { data = JSON.parse(text); } catch (_) { data = text; }
-    if (!resp.ok) {
-      var msg = text || resp.statusText;
-      if (data && typeof data === "object") {
-        if (Array.isArray(data.detail)) {
-          msg = data.detail.map(function (item) {
-            if (item && typeof item === "object") {
-              return item.msg || JSON.stringify(item);
-            }
-            return String(item);
-          }).join("; ");
-        } else if (data.detail && typeof data.detail === "object") {
-          msg = data.detail.msg || JSON.stringify(data.detail);
-        } else if (data.detail) {
-          msg = String(data.detail);
-        } else if (data.message) {
-          msg = String(data.message);
-        } else {
-          msg = JSON.stringify(data);
-        }
-      }
-      throw new Error(msg);
-    }
-    return data;
-  }
-
-  // ------------------------------------------------------------------
   // Init
   // ------------------------------------------------------------------
   async function init() {
@@ -1300,6 +1175,21 @@
     if (btn) btn.setAttribute("aria-expanded", String(!railCollapsed));
   }
 
+  // Feature modules receive their dependencies explicitly so their state and
+  // lifecycle remain isolated as the remaining tabs are extracted.
+  var feedbackTab = createFeedbackTab({
+    api: api,
+    endpoints: ENDPOINTS,
+    el: el,
+    clear: clear,
+    wrapTable: wrapTable,
+    skeleton: skeleton,
+    refreshButton: refreshButton,
+    formatNum: formatNum,
+    clampPercentage: clampPercentage,
+    getActiveTab: function () { return activeTab; }
+  });
+
   function switchTab(id) {
     if (activeTab === "settings" && id !== "settings" && settingsEditorsAreDirty()) {
       confirmAction({
@@ -1335,7 +1225,7 @@
       destroyOverviewCharts();
     }
     if (activeTab === "feedback" && id !== "feedback") {
-      destroyFeedbackCharts();
+      feedbackTab.dispose();
     }
     if (activeTab === "costs" && id !== "costs") {
       destroyCostsCharts();
@@ -1372,7 +1262,7 @@
     clear(c);
     switch (activeTab) {
       case "overview": renderOverview(c); break;
-      case "feedback": renderFeedback(c); break;
+      case "feedback": feedbackTab.render(c); break;
       case "users": renderUsers(c); break;
       case "keys": renderKeys(c); break;
       case "prompts": renderPrompts(c); break;
@@ -2338,331 +2228,6 @@
 
     // Connect WebSocket for live monitoring
     connectMetricsWs();
-  }
-
-  // ==================================================================
-  // TAB: Feedback analytics
-  // ==================================================================
-
-  function destroyFeedbackCharts() {
-    Object.keys(feedbackCharts).forEach(function (key) {
-      try { feedbackCharts[key].destroy(); } catch (_) {}
-    });
-    feedbackCharts = {};
-  }
-
-  function feedbackPercent(value) {
-    return value == null ? "—" : formatNum(value, 1) + "%";
-  }
-
-  function feedbackMetricCard(value, label, detail, progress, tone) {
-    return el("div", { className: "metric-card" },
-      el("div", { className: "metric-value" }, value),
-      el("div", { className: "metric-label" }, label),
-      el("div", { className: "metric-sub" }, detail || ""),
-      progress == null ? null : el("div", { className: "monitoring-progress-track" },
-        el("div", {
-          className: "monitoring-progress-bar " + (tone || "sky"),
-          style: "width:" + clampPercentage(progress) + "%"
-        })
-      )
-    );
-  }
-
-  function feedbackChartOptions() {
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      elements: { point: { radius: 2, hoverRadius: 5 }, line: { borderWidth: 2 } },
-      scales: {
-        y: {
-          beginAtZero: true,
-          grid: { color: "rgba(15,29,51,0.06)" },
-          ticks: { color: "#526684", precision: 0, font: { size: 12 } }
-        },
-        x: {
-          grid: { display: false },
-          ticks: { color: "#526684", maxRotation: 0, autoSkip: true, maxTicksLimit: 10, font: { size: 12 } }
-        }
-      },
-      plugins: {
-        legend: {
-          labels: {
-            color: "#3d4f6f",
-            usePointStyle: true,
-            pointStyle: "circle",
-            pointStyleWidth: 8,
-            boxWidth: 8,
-            boxHeight: 8,
-            font: { size: 12 }
-          }
-        },
-        tooltip: {
-          backgroundColor: "rgba(10,14,23,0.96)",
-          titleColor: "#f4f6fa",
-          bodyColor: "#e4e8f0",
-          padding: 16,
-          cornerRadius: 6,
-          titleFont: { family: "'JetBrains Mono', monospace", size: 18, weight: "500" },
-          bodyFont: { family: "'JetBrains Mono', monospace", size: 17, weight: "400" }
-        }
-      }
-    };
-  }
-
-  function initFeedbackCharts(data) {
-    destroyFeedbackCharts();
-    if (typeof Chart === "undefined" || !data.summary.total) return;
-
-    var trendCanvas = document.getElementById("feedback-trend-chart");
-    if (trendCanvas) {
-      var trendOptions = feedbackChartOptions();
-      trendOptions.scales.y1 = {
-        beginAtZero: true,
-        min: 0,
-        max: 100,
-        position: "right",
-        grid: { drawOnChartArea: false },
-        ticks: { color: "#6b7a96", callback: function (value) { return value + "%"; }, font: { size: 10 } }
-      };
-      feedbackCharts.trend = new Chart(trendCanvas, {
-        type: "line",
-        data: {
-          labels: data.trend.map(function (item) {
-            return new Date(item.date + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric" });
-          }),
-          datasets: [
-            { label: "Positive", data: data.trend.map(function (item) { return item.positive; }), borderColor: "#28a66a", backgroundColor: "rgba(40,166,106,0.10)", fill: true, tension: 0.25 },
-            { label: "Negative", data: data.trend.map(function (item) { return item.negative; }), borderColor: "#e05260", backgroundColor: "rgba(224,82,96,0.08)", fill: true, tension: 0.25 },
-            { label: "Satisfaction %", data: data.trend.map(function (item) { return item.satisfaction_rate; }), borderColor: "#5794f2", backgroundColor: "transparent", borderDash: [5, 4], yAxisID: "y1", spanGaps: true, tension: 0.2 }
-          ]
-        },
-        options: trendOptions
-      });
-    }
-
-    var distributionCanvas = document.getElementById("feedback-distribution-chart");
-    if (distributionCanvas) {
-      feedbackCharts.distribution = new Chart(distributionCanvas, {
-        type: "doughnut",
-        data: {
-          labels: ["Positive", "Negative"],
-          datasets: [{
-            data: [data.summary.positive, data.summary.negative],
-            backgroundColor: ["#28a66a", "#e05260"],
-            borderWidth: 0,
-            hoverOffset: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: "68%",
-          plugins: feedbackChartOptions().plugins
-        }
-      });
-    }
-
-    var adapterCanvas = document.getElementById("feedback-adapter-chart");
-    var adapterRows = data.adapters.slice(0, 10);
-    if (adapterCanvas && adapterRows.length) {
-      var adapterOptions = feedbackChartOptions();
-      adapterOptions.indexAxis = "y";
-      adapterOptions.scales.x.max = 100;
-      adapterOptions.scales.x.ticks.callback = function (value) { return value + "%"; };
-      adapterOptions.plugins.legend.display = false;
-      adapterOptions.plugins.tooltip.callbacks = {
-        afterLabel: function (context) {
-          var row = adapterRows[context.dataIndex];
-          return row.total + " ratings (" + row.positive + " positive, " + row.negative + " negative)";
-        }
-      };
-      feedbackCharts.adapters = new Chart(adapterCanvas, {
-        type: "bar",
-        data: {
-          labels: adapterRows.map(function (item) { return item.adapter; }),
-          datasets: [{
-            label: "Satisfaction",
-            data: adapterRows.map(function (item) { return item.satisfaction_rate || 0; }),
-            backgroundColor: adapterRows.map(function (item) {
-              return item.satisfaction_rate >= 80 ? "#28a66a" : item.satisfaction_rate >= 60 ? "#e0a22f" : "#e05260";
-            }),
-            borderRadius: 4
-          }]
-        },
-        options: adapterOptions
-      });
-    }
-  }
-
-  function renderFeedbackAdapterTable(container, adapters) {
-    var table = el("table");
-    table.appendChild(el("thead", null, el("tr", null,
-      el("th", null, "Adapter"),
-      el("th", { style: "text-align:right" }, "Ratings"),
-      el("th", { style: "text-align:right" }, "Positive"),
-      el("th", { style: "text-align:right" }, "Negative"),
-      el("th", { style: "text-align:right" }, "Satisfaction"),
-      el("th", { style: "text-align:right" }, "Comments")
-    )));
-    var body = el("tbody");
-    adapters.forEach(function (item) {
-      body.appendChild(el("tr", null,
-        el("td", null, el("strong", null, item.adapter)),
-        el("td", { style: "text-align:right" }, formatNum(item.total)),
-        el("td", { style: "text-align:right;color:#208755" }, formatNum(item.positive)),
-        el("td", { style: "text-align:right;color:#bd3f4d" }, formatNum(item.negative)),
-        el("td", { style: "text-align:right;font-weight:700" }, feedbackPercent(item.satisfaction_rate)),
-        el("td", { style: "text-align:right" }, formatNum(item.comments))
-      ));
-    });
-    table.appendChild(body);
-    container.appendChild(wrapTable(table));
-  }
-
-  function renderRecentNegativeFeedback(container, rows) {
-    if (!rows.length) {
-      container.appendChild(el("div", { className: "empty-state" },
-        el("p", null, "No negative feedback was recorded in this window.")));
-      return;
-    }
-    var table = el("table");
-    table.appendChild(el("thead", null, el("tr", null,
-      el("th", null, "When"),
-      el("th", null, "Adapter / user"),
-      el("th", null, "User prompt"),
-      el("th", null, "Assistant response"),
-      el("th", null, "Feedback comment")
-    )));
-    var body = el("tbody");
-    rows.forEach(function (item) {
-      var timestamp = item.created_at ? new Date(item.created_at).toLocaleString() : "Unknown";
-      body.appendChild(el("tr", null,
-        el("td", { style: "white-space:nowrap" }, timestamp),
-        el("td", null,
-          el("strong", null, item.adapter || "Unknown"),
-          el("div", { className: "muted", style: "font-size:var(--text-xs);margin-top:2px" }, item.user || "Anonymous")
-        ),
-        el("td", { title: item.user_prompt || "" }, item.user_prompt || "Unavailable"),
-        el("td", { title: item.assistant_response || "" }, item.assistant_response || "Unavailable"),
-        el("td", { title: item.comment || "" }, item.comment || "No comment")
-      ));
-    });
-    table.appendChild(body);
-    container.appendChild(wrapTable(table));
-  }
-
-  async function renderFeedback(container) {
-    var requestVersion = 0;
-    var header = el("div", { className: "panel" },
-      el("div", { className: "panel-header-row" },
-        el("div", null,
-          el("h2", null, "Feedback intelligence"),
-          el("p", { className: "muted" }, "Track satisfaction, compare adapters, and inspect the conversations behind negative ratings.")
-        ),
-        el("div", { className: "monitoring-toolbar-right", id: "feedback-window-controls" },
-          [7, 30, 90, 365].map(function (days) {
-            var button = el("button", {
-              type: "button",
-              className: "time-window-btn",
-              "aria-pressed": days === selectedFeedbackWindowDays ? "true" : "false"
-            }, days === 365 ? "1y" : days + "d");
-            button.addEventListener("click", function () {
-              if (selectedFeedbackWindowDays === days) return;
-              selectedFeedbackWindowDays = days;
-              load();
-            });
-            return button;
-          }),
-          refreshButton("Refresh feedback analytics", function () { load(); })
-        )
-      )
-    );
-    var content = el("div", { style: "display:grid;gap:var(--sp-4)" }, skeleton());
-    container.appendChild(header);
-    container.appendChild(content);
-
-    async function load() {
-      var version = ++requestVersion;
-      header.querySelectorAll(".time-window-btn").forEach(function (button) {
-        var label = selectedFeedbackWindowDays === 365 ? "1y" : selectedFeedbackWindowDays + "d";
-        button.setAttribute("aria-pressed", button.textContent === label ? "true" : "false");
-      });
-      destroyFeedbackCharts();
-      clear(content);
-      content.appendChild(skeleton());
-      try {
-        var data = await api("GET", ENDPOINTS.feedbackAnalytics + "?days=" + selectedFeedbackWindowDays);
-        if (version !== requestVersion || activeTab !== "feedback") return;
-        clear(content);
-
-        if (data.meta.truncated) {
-          content.appendChild(el("div", {
-            className: "panel",
-            style: "border-color:#e0a22f;background:rgba(224,162,47,0.08);font-size:var(--text-sm)"
-          },
-            "This view uses the newest " + formatNum(data.meta.record_limit) + " ratings in the selected window."
-          ));
-        }
-
-        var summary = data.summary;
-        var coverageDetail = summary.eligible_messages == null
-          ? "Chat history unavailable"
-          : summary.response_rate == null
-            ? "Chat retention prevents a reliable denominator"
-            : formatNum(summary.total) + " of " + formatNum(summary.eligible_messages) + " retained responses";
-        content.appendChild(el("div", { className: "metric-cards-grid" },
-          feedbackMetricCard(feedbackPercent(summary.satisfaction_rate), "Satisfaction", formatNum(summary.positive) + " positive / " + formatNum(summary.negative) + " negative", summary.satisfaction_rate, summary.satisfaction_rate >= 80 ? "green" : summary.satisfaction_rate >= 60 ? "amber" : "red"),
-          feedbackMetricCard(formatNum(summary.total), "Ratings", formatNum(summary.sessions) + " sessions · " + formatNum(summary.users) + " identified users"),
-          feedbackMetricCard(feedbackPercent(summary.response_rate), "Feedback coverage", coverageDetail, summary.response_rate, "sky"),
-          feedbackMetricCard(feedbackPercent(summary.negative_comment_rate), "Negative detail rate", formatNum(summary.comments) + " comments on negative ratings", summary.negative_comment_rate, "amber")
-        ));
-
-        if (summary.total) {
-          var charts = el("div", { className: "charts-grid" },
-            el("div", { className: "chart-card" }, el("h3", null, "Ratings and satisfaction over time"), el("canvas", { id: "feedback-trend-chart" })),
-            el("div", { className: "chart-card feedback-distribution-card" },
-              el("h3", null, "Overall distribution"),
-              el("div", { className: "feedback-donut-wrap" }, el("canvas", { id: "feedback-distribution-chart" }))
-            ),
-            el("div", { className: "chart-card" }, el("h3", null, "Satisfaction by adapter (top 10 by volume)"), el("canvas", { id: "feedback-adapter-chart" }))
-          );
-          content.appendChild(charts);
-        } else {
-          content.appendChild(el("div", { className: "panel empty-state" },
-            el("p", null, "No feedback has been recorded in this time window.")));
-        }
-
-        var adapterPanel = el("div", { className: "panel" },
-          el("h2", null, "Adapter performance"),
-          el("p", { className: "muted" }, "Compare rating volume and satisfaction together; low-volume percentages should be treated cautiously.")
-        );
-        if (data.adapters.length) renderFeedbackAdapterTable(adapterPanel, data.adapters);
-        else adapterPanel.appendChild(el("p", { className: "muted" }, "No adapter feedback in this window."));
-        content.appendChild(adapterPanel);
-
-        var negativePanel = el("div", { className: "panel" },
-          el("h2", null, "Recent negative feedback"),
-          el("p", { className: "muted" }, "The linked prompt and response provide context for triage. Unavailable content may have expired under chat-history retention.")
-        );
-        renderRecentNegativeFeedback(negativePanel, data.recent_negative);
-        content.appendChild(negativePanel);
-
-        content.appendChild(el("p", { className: "muted", style: "font-size:var(--text-xs)" },
-          data.window.basis + ". Generated " + new Date(data.meta.generated_at).toLocaleString() + "."
-        ));
-        initFeedbackCharts(data);
-      } catch (err) {
-        if (version !== requestVersion || activeTab !== "feedback") return;
-        clear(content);
-        content.appendChild(el("div", { className: "panel empty-state" },
-          el("p", null, "Failed to load feedback analytics: " + err.message)
-        ));
-      }
-    }
-
-    load();
   }
 
   function renderInfoCard(panel, title, data) {
@@ -7690,10 +7255,10 @@
 
         var totals = data.totals;
         content.appendChild(el("div", { className: "metric-cards-grid" },
-          feedbackMetricCard(formatNum(totals.total_tokens), "Total tokens", formatNum(totals.prompt_tokens) + " prompt / " + formatNum(totals.completion_tokens) + " completion"),
-          feedbackMetricCard(obsCost(totals.cost_usd), "Estimated cost", "Across " + formatNum(totals.requests) + " requests"),
-          feedbackMetricCard(obsCost(totals.requests ? totals.cost_usd / totals.requests : null), "Avg cost / request", ""),
-          feedbackMetricCard(formatNum(totals.unpriced_requests), "Unpriced requests", formatNum(totals.unreported_requests) + " with no usage reported")
+          renderMetricCard(formatNum(totals.total_tokens), "Total tokens", formatNum(totals.prompt_tokens) + " prompt / " + formatNum(totals.completion_tokens) + " completion"),
+          renderMetricCard(obsCost(totals.cost_usd), "Estimated cost", "Across " + formatNum(totals.requests) + " requests"),
+          renderMetricCard(obsCost(totals.requests ? totals.cost_usd / totals.requests : null), "Avg cost / request", ""),
+          renderMetricCard(formatNum(totals.unpriced_requests), "Unpriced requests", formatNum(totals.unreported_requests) + " with no usage reported")
         ));
 
         if (data.series.length) {
@@ -8364,4 +7929,3 @@
   } else {
     init();
   }
-})();
