@@ -69,6 +69,13 @@ class ConversationHistoryHandler:
                 # Enable for retriever adapters (intent/QA) to support threading
                 if adapter_type == 'retriever':
                     return True
+                # Enable for mcp_agent adapters: multi-turn tool workflows (e.g. create
+                # a resource in turn N, act on it by id in turn N+1) need the prior
+                # turn's tool-call results in context, or the model has no way to know
+                # what it already did. MCPAgentStep already consumes context_messages
+                # when present (see _build_initial_messages).
+                if adapter_type == 'mcp_agent':
+                    return True
 
         # Disable for all other adapters
         return False
