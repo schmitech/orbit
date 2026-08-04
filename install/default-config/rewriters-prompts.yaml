@@ -18,7 +18,7 @@
 
 rewriters:
   image:
-    max_tokens: 300
+    max_tokens: 800
     temperature: 0.3
     history_limit: 6
     template: |
