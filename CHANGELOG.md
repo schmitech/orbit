@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core System Updates
+- **Shieldstral Moderation**: Added a policy-adaptive Shieldstral 1.0 3B moderator for `safety.moderator: "shieldstral"`, served through OpenAI-compatible vLLM or llama.cpp endpoints. The bundled policy matches the existing Llama Guard coverage and can be replaced inline or from a policy file; input and non-streaming response validation retain their existing behavior.
+
 ## [2.14.2] - 2026-08-04
 
 ### Bug Fixes & Technical Improvements

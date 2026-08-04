@@ -8,6 +8,7 @@ Supported providers return various category taxonomies:
 - OpenAI: harassment, hate, illicit, self_harm, sexual, violence (with subcategories)
 - Llama Guard 3: MLCommons taxonomy (violent_crimes, non_violent_crimes, etc.)
 - Anthropic: Combined taxonomy matching Llama Guard 3 categories
+- Shieldstral: policy-adaptive binary decisions (reported as policy_violation)
 """
 
 from abc import abstractmethod

@@ -47,7 +47,11 @@ class SafetyFilterStep(PipelineStep):
                 moderator = self.container.get('moderator_service')
 
                 # Log the message being checked
-                logger.debug(f"Moderator checking message: '{(context.message or '')[:100]}...'")
+                logger.debug(
+                    "Moderator %s checking message: '%s...'",
+                    getattr(moderator, 'moderator_name', 'service'),
+                    (context.message or '')[:100],
+                )
 
                 is_safe, refusal_message = await moderator.check_safety(context.message)
 

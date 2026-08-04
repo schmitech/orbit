@@ -5,6 +5,7 @@ Available providers:
     - OpenAIModerationService: OpenAI moderation
     - AnthropicModerationService: Anthropic moderation
     - OllamaModerationService: Ollama moderation
+    - ShieldstralModerationService: Shieldstral via vLLM or llama.cpp
     - PrivacyFilterModerationService: Local PII detection (openai/privacy-filter)
 """
 
@@ -18,6 +19,7 @@ _implementations = [
     ('openai_moderation_service', 'OpenAIModerationService'),
     ('anthropic_moderation_service', 'AnthropicModerationService'),
     ('ollama_moderation_service', 'OllamaModerationService'),
+    ('shieldstral_moderation_service', 'ShieldstralModerationService'),
     ('privacy_filter_moderation_service', 'PrivacyFilterModerationService'),
 ]
 
