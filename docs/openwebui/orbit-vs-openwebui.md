@@ -17,22 +17,23 @@ This document compares **ORBIT** (Open Retrieval-Based Inference Toolkit) and **
 | Capability | Open WebUI | ORBIT |
 | :--- | :--- | :--- |
 | **Primary Focus** | Full-stack chat application (UI + backend, self-contained) | API gateway & data integration backend (client-agnostic: web, mobile, CLI, or any OpenAI-compatible client) |
-| **Configuration** | GUI & database state; env vars supported but no YAML-first workflow | Configuration-as-Code (YAML declarative templates) |
+| **Configuration** | GUI & database state; env vars supported but no YAML-first workflow | Configuration-as-Code (YAML declarative templates) plus admin UI for hot-reloading settings, adapters, MCP servers, costs, audit, and logs |
 | **Relational & Structured Data** | Vector DBs; no SQL/NoSQL connectors for user data | SQL, DuckDB/Athena analytics, MongoDB, Cassandra, Elasticsearch, REST APIs, GraphQL, Firecrawl |
 | **Intent-Based Data Routing** | Model/pipeline routing (not natural-language intent routing) | Built-in **Composite Intent Retrievers** routing queries by NL intent |
 | **Web Search** | Built-in search across 20+ providers | Two modes: provider-native (Gemini/OpenAI/xAI) and external backends decoupled from synthesis (any LLM can answer) |
 | **Cross-Adapter Skills** | Plugin/pipeline filters applied at the request/response boundary | **Skills system**: any adapter can invoke image/video generation, web search, or custom skills inline without switching adapters |
 | **Natural-Language Skill Routing** | Image generation, web search, and tools are enabled through per-message UI toggles or explicit tool selection | **Automatic skill intent detection**: infers the right skill (image/video/document generation, web search) from plain language and auto-routes it — no toggle, no `/` command, ChatGPT-style |
 | **Query Autocomplete** | No intent-driven autocomplete | Fuzzy autocomplete from adapter intent templates with Redis caching |
-| **Fault Tolerance** | Fallback routing and rate limiting; no circuit breakers | **Circuit Breaker**, fallback routes, best-effort and all-provider execution strategies |
+| **Fault Tolerance** | Fallback routing and rate limiting; no circuit breakers | **Circuit Breaker**, fallback routes, best-effort and all-provider execution strategies, plus circuit-breaking for unhealthy MCP servers |
 | **Retrieval Caching** | Retrieval re-executed per prompt | **Conversation Threading**: cached dataset reuse across follow-ups (Redis/SQLite + TTL) |
 | **Traffic Control** | Rate limiting and connection pooling; no per-user token quotas | Per-key token quotas, sliding window rate limits, datasource connection pooling |
-| **Voice & Audio** | STT/TTS via configured providers; no real-time WebSocket streaming | STT + TTS per adapter; WebSocket real-time streaming; OpenAI Realtime API; fully local pipelines (Whisper + Coqui/vLLM, no API cost) |
+| **Voice & Audio** | STT/TTS, voice mode, and voice memos through configured audio providers | STT + TTS per adapter; full-duplex realtime voice over WebSockets; OpenAI Realtime and Gemini Live; grounded realtime voice; fully local pipelines (Whisper + Coqui/vLLM, no API cost) |
 | **File Storage Backends** | Pluggable via `STORAGE_PROVIDER`: local (default), S3 (+ S3-compatible), GCS, Azure Blob | Pluggable via `files.storage_backend`: local (default), S3, MinIO/SeaweedFS (S3-compatible), Azure Blob, GCS — comparable backend coverage |
 | **File Encryption at Rest** | Not available — application-level file encryption is an open feature request ([#16112](https://github.com/open-webui/open-webui/issues/16112), [#17437](https://github.com/open-webui/open-webui/issues/17437)); only DB-level SQLCipher is supported today | Native AES-256-GCM, opt-in per adapter — covers uploaded file bytes, storage metadata, and indexed vector-store chunk content, on any storage backend |
 | **Async / Message-Queue Ingestion** | HTTP request/response (and WebSocket) only; no broker-native async ingestion | **Broker-native MQ surface** (RabbitMQ): publish requests to a queue, ORBIT consumes them through the same pipeline and replies on a results queue — decoupled, at-least-once batch/async processing beyond synchronous HTTP |
 | **Extensibility** | Plugin system for pipelines; core architecture changes require forking | New adapters and data connectors added via YAML and a clear design pattern — no core changes needed |
 | **Plugin/Middleware System** | Pluggable embedding, reranking, retrieval, and pipeline filters | Decoupled providers for Inference, Embeddings, Reranking, STT, TTS, Search |
+| **Usage & Cost Visibility** | Usage visibility depends on configured providers and deployment setup | Native audit-backed usage and estimated-cost reporting by call type: inference, embeddings, image/video/audio, documents/OCR, realtime voice, MCP tool loops, and reranking |
 
 ---
 
@@ -48,7 +49,7 @@ This document compares **ORBIT** (Open Retrieval-Based Inference Toolkit) and **
 
 In **Open WebUI**, models, connections, and prompts are configured through the UI and stored in a database. Environment variables can override some settings and configs can be exported, but there is no declarative file-based workflow — reproducing an exact environment across dev, staging, and production requires manual effort or database snapshots.
 
-In **ORBIT**, the entire system is driven by YAML files covering adapters, inference providers, datasources, and more. The full AI configuration lives in git, supports hot-reload, and can be replicated across environments instantly.
+In **ORBIT**, the entire system is driven by YAML files covering adapters, inference providers, datasources, MCP servers, pricing, and more. The full AI configuration lives in git, supports hot-reload, and can be replicated across environments instantly. Recent admin-panel work adds a pragmatic operator layer on top of those files: adapter creation can generate and register deterministic YAML, MCP servers can be added/edited/removed and rediscovered without a restart, and settings/audit/cost views remain available for teams that do not want to hand-edit every change.
 
 ---
 
@@ -73,7 +74,9 @@ Open WebUI routes requests to different model configurations based on pipeline r
 
 ### 3. Server-Side MCP (Model Context Protocol) Orchestration
 
-ORBIT connects directly to MCP servers over stdio or SSE. Any model routed through the gateway — including local GGUF models — can use MCP tools (filesystem access, Slack, GitHub, Postgres, Jira, Brave Search) managed entirely on the server side.
+Open WebUI now has native HTTP MCP support and can also use stdio MCP servers through an MCP-to-OpenAPI proxy, which is useful when the chat UI is the center of the deployment.
+
+ORBIT's MCP surface is gateway/operator oriented. It connects directly to MCP servers over stdio or Streamable HTTP, and any model routed through the gateway — including local GGUF models — can use MCP tools (filesystem access, Slack, GitHub, Postgres, Jira, Brave Search) managed entirely on the server side. Admins can add, edit, remove, reload, and rediscover MCP servers from the panel; configure per-server timeouts and opportunistic exposure; propagate changes across multi-worker deployments; and use persistent connection pools so tool calls do not pay subprocess/session setup on every invocation.
 
 ### 4. Conversation Threading with Cached Dataset Reuse
 
@@ -106,13 +109,15 @@ ORBIT's [autocomplete system](autocomplete-architecture.md) surfaces real-time q
 
 ### 8. Voice, Audio, and Real-Time Streaming
 
-Both projects support STT and TTS. ORBIT's audio system goes further in three areas:
+Both projects support STT, TTS, and voice-oriented chat. ORBIT's audio system goes further in four areas:
 
 **Independently configurable STT and TTS per adapter.** Each adapter specifies its own speech-to-text and text-to-speech provider, chosen from: OpenAI, Gemini, Google, xAI, ElevenLabs, Whisper (local), Coqui (local), and vLLM (local Orpheus model). A single deployment can run a premium voice adapter alongside a fully local one with no shared configuration.
 
 **Fully local voice pipelines.** ORBIT supports combining local Whisper speech-to-text with local Coqui or vLLM text-to-speech — zero API calls, zero cost, suitable for air-gapped or privacy-sensitive environments. GPU acceleration is supported where available.
 
-**WebSocket real-time bidirectional audio streaming.** ORBIT supports phone call-style voice sessions over WebSockets with voice activity detection, configurable silence thresholds, and optional interruption support. It also proxies the [OpenAI Realtime API](https://developers.openai.com/api/docs/guides/realtime) for speech-to-speech in a single round trip, with a dedicated test client included in the repository. See the [Audio Services Guide](audio/audio-services-adapter-guide.md) for full configuration details.
+**WebSocket realtime bidirectional audio streaming.** ORBIT supports phone call-style voice sessions over WebSockets with voice activity detection, configurable silence thresholds, interruption support, live transcripts, adapter capability detection, and responsive call controls. It proxies OpenAI Realtime and Gemini Live speech-to-speech providers through the same ORBIT client protocol, with voice-history persistence so feedback and conversation cleanup behave like text turns. See the [Audio Services Guide](audio/audio-services-adapter-guide.md) for full configuration details.
+
+**Grounded realtime voice.** ORBIT can perform live RAG lookups before speaking, so realtime voice adapters can answer factual questions from private data rather than only from model memory.
 
 **Audio transcription with vector indexing.** ORBIT accepts uploaded audio files, transcribes them via a configured speech-to-text provider, and indexes the transcript in a vector store — making recorded meetings, calls, or podcasts searchable in subsequent conversation turns.
 
@@ -124,28 +129,43 @@ ORBIT adds controls that go beyond what a chat application typically needs:
 *   **Fallback Routing & Execution Strategies**: Tries multiple providers or returns a best-effort partial response.
 *   **Per-Key Token Quotas**: Hard limits per API key for safe resource sharing across teams. See [Rate Limiting](rate-limiting-architecture.md).
 *   **Datasource Connection Pooling**: Managed pools to relational databases. See [Datasource Pooling](datasource-pooling.md).
+*   **Pause/Resume Controls**: Operators can pause new chat, A2A, and realtime voice requests without stopping the process, which is useful during maintenance windows or incident response.
+*   **Multi-Worker Runtime Safety**: Adapter/template reloads and MCP configuration changes propagate across workers, and worker-scoped log files avoid rotation races.
 
-### 10. Built for Extensibility and Evolving Business Requirements
+### 10. Native Usage and Cost Attribution
+
+ORBIT now includes audit-backed usage and estimated-cost tracking as a first-class operational view. The Costs panel can filter and group by call type, so teams can distinguish spend from:
+
+*   inference and reasoning tokens;
+*   embeddings used by RAG, Firecrawl, multimodal flows, retrieval, and background indexing;
+*   image, video, audio, OCR, and document-generation services;
+*   realtime voice sessions;
+*   inline MCP tool-calling loops;
+*   reranking, including provider-specific billing units when available.
+
+This matters for gateway workloads because a single user turn may perform several billable operations. Without separate attribution, media generation, embeddings, reranking, or tool-loop calls can be hidden inside the parent chat request or missed entirely.
+
+### 11. Built for Extensibility and Evolving Business Requirements
 
 ORBIT is designed from the ground up to grow with your needs. Adding a new data source, a new use case, or a new AI workflow does not require touching the core codebase — it follows a consistent adapter design pattern where each new capability is a self-contained unit declared in configuration.
 
 In practice this means:
 
 *   **New data connectors**: Connect a new database, API, or data source by implementing a retriever that follows the established base class pattern and wiring it up in YAML. The rest of the system — routing, caching, circuit breakers, audit logs — works automatically.
-*   **New domain copilots**: A new business use case represents a new adapter configuration. Teams can ship new AI workflows without engineering changes to the platform itself.
+*   **New domain copilots**: A new business use case represents a new adapter configuration. Teams can ship new AI workflows without engineering changes to the platform itself; supported adapter families can now be created from the admin panel, previewed as YAML, registered, and hot-reloaded.
 *   **New inference providers**: Adding a new LLM provider follows the same pattern as the existing 39 providers. Once registered, any adapter can use it by name.
 *   **New skills**: A new cross-adapter capability (video generation, code execution, translation) is an adapter with a single flag set — no pipeline changes required.
 *   **Swappable at every layer**: Inference, embeddings, reranking, STT, TTS, vector stores, and search backends are all independently replaceable. As better models emerge or your infrastructure changes, you update a provider setting rather than rewriting application logic.
 
 This makes ORBIT a durable platform investment: the architecture adapts to changing models, data sources, and business requirements without accumulating technical debt.
 
-### 11. Native File Encryption at Rest
+### 12. Native File Encryption at Rest
 
 Both projects support the same set of pluggable file storage backends — local disk, AWS S3 (or S3-compatible stores), Google Cloud Storage, and Azure Blob — so storage flexibility is comparable. Where they diverge is encryption: Open WebUI has no application-level encryption for uploaded files today (it's tracked as an open feature request; only database-level SQLCipher is supported), so files sit in plaintext on whichever backend is configured.
 
 ORBIT ships native AES-256-GCM file encryption, opt-in per adapter via `capabilities.requires_encryption` — no cloud KMS dependency, no separate infrastructure. It covers not just the raw uploaded bytes but the storage backend's metadata sidecar and the text/metadata indexed into the vector store for RAG, so retrieval still works (embeddings are computed from plaintext before encryption) while the data at rest — on any backend — stays encrypted. See the [File Encryption guide](../adapters/file-adapter-guide.md#encryption-at-rest).
 
-### 12. Broker-Native Async Ingestion (Message Queue)
+### 13. Broker-Native Async Ingestion (Message Queue)
 
 Open WebUI is driven entirely over HTTP (and WebSockets) — every request is a synchronous, connected round trip against its backend. There is no way to hand it a queue of work and collect answers later.
 
@@ -191,7 +211,7 @@ Open WebUI (frontend + user management + document RAG)
       |
       | OpenAI-compatible /v1/chat/completions
       v
-ORBIT Gateway (SQL/NoSQL retrieval, circuit breakers, quotas, MCP tools, voice/audio)
+ORBIT Gateway (SQL/NoSQL retrieval, circuit breakers, quotas, MCP tools, usage/cost attribution, voice/audio)
       |
       v
 LLM Providers / Local Models / Databases
@@ -213,5 +233,5 @@ Teams can start with Open WebUI pointed at a standard Ollama or OpenAI endpoint,
 | **Best for** | Teams wanting a ready-to-use chat UI with RAG and web search | Teams integrating AI into existing data infrastructure |
 | **Deployment model** | Self-contained app; deploy and use | Gateway; wire to your data sources and clients |
 | **Config approach** | GUI-driven, database-backed | YAML-first, git-versioned |
-| **Data access** | Documents, web search, vector stores | SQL/NoSQL databases, DuckDB/Athena analytics, REST APIs, GraphQL, Firecrawl, Elasticsearch, vector stores, documents, decoupled web search, searchable transcribed audio |
+| **Data access** | Documents, web search, vector stores, tools/MCP integrations | SQL/NoSQL databases, DuckDB/Athena analytics, REST APIs, GraphQL, Firecrawl, Elasticsearch, vector stores, documents, decoupled web search, searchable transcribed audio, server-managed MCP tools |
 | **Works well with** | Any OpenAI-compatible backend, including ORBIT | Any OpenAI-compatible client — web apps, mobile apps, Open WebUI, CLI tools |

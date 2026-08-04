@@ -26,14 +26,14 @@ Where LiteLLM normalizes *how you call models*, ORBIT focuses on *what data mode
 | **Response Caching** | LLM response caching (exact-match and semantic) via Redis, Qdrant, S3, and more | **Conversation Threading**: caches raw retrieval datasets in Redis/SQLite with TTL; follow-up questions reuse the dataset, not the LLM response |
 | **Fault Tolerance** | Retries, fallbacks (standard/content-policy/context-window), cooldowns, health-check routing | **Circuit Breaker** pattern (open/half-open/closed), fallback routes, best-effort and all-provider execution strategies |
 | **Rate Limiting & Quotas** | Per-key and per-team spend budgets and rate limits | Per-key token quotas, sliding window rate limits, datasource connection pooling |
-| **Observability** | Third-party integrations: Langfuse, MLflow, Helicone, Lunary | Built-in audit log (every request, response, and key operation persisted internally) |
-| **MCP Support** | Connects to MCP tool servers; functions as a central MCP endpoint | Server-side MCP orchestration (stdio + SSE); ORBIT also *exposes* its own MCP server for downstream clients |
+| **Observability** | Third-party integrations: Langfuse, MLflow, Helicone, Lunary; proxy usage/spend tracking and audit capabilities | Built-in audit log plus native usage/cost reporting by call type (inference, embedding, image/video/audio, document, reranking) |
+| **MCP Support** | Connects to MCP tool servers; functions as a central MCP endpoint | Server-side MCP orchestration (stdio + Streamable HTTP), admin-managed tool discovery/hot reload/connection pooling; ORBIT also *exposes* its own MCP server for downstream clients |
 | **Agent-to-Agent (A2A)** | Supports A2A invocation with LangGraph, Vertex AI Agent Engine | Native A2A protocol support for multi-agent workflows |
 | **Async / Message-Queue Ingestion** | HTTP proxy/SDK; async jobs via OpenAI Batches API passthrough (submit/poll); no message-broker consumer | **Broker-native MQ surface** (RabbitMQ/AMQP): ORBIT runs as a queue consumer — publish requests to a queue, responses land on a results queue, fully decoupled from HTTP, with at-least-once delivery |
-| **Configuration** | YAML-first proxy config + admin UI dashboard | YAML-first declarative config; no GUI required |
-| **Voice & Audio** | Routes to audio provider endpoints (STT/TTS passthrough) | STT + TTS per adapter; WebSocket real-time streaming; OpenAI Realtime API; fully local pipelines (Whisper + Coqui/vLLM) |
+| **Configuration** | YAML-first proxy config + admin UI dashboard | YAML-first declarative config plus admin UI for hot-reloading adapters, settings, costs, audit, logs, and MCP servers |
+| **Voice & Audio** | Routes to audio provider endpoints (STT/TTS passthrough) | STT + TTS per adapter; full-duplex realtime voice over WebSockets; OpenAI Realtime and Gemini Live; grounded realtime voice; fully local pipelines (Whisper + Coqui/vLLM) |
 | **Semantic Caching** | Embedding-based semantic cache with configurable similarity threshold | Not applicable — ORBIT caches data results, not LLM responses |
-| **Cost Tracking** | Built-in per-provider cost tracking with team/user budgets and a spend dashboard | Not built-in — use an observability tool or audit log post-processing |
+| **Cost Tracking** | Built-in per-provider cost tracking with team/user budgets and a spend dashboard | Built-in usage and estimated-cost tracking with an admin Costs tab, pricing config, and separate attribution for inference, embeddings, media/OCR/audio, document generation, MCP tool-call loops, and reranking |
 | **Web Search** | Routes to providers with native search (Perplexity, Gemini with grounding, etc.) | Two modes: provider-native grounding and decoupled external search (DuckDuckGo, Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity) feeding any LLM |
 | **File Storage & Encryption** | No general file-upload storage abstraction — `/rag/ingest` selects a RAG *backend* (S3, OpenSearch Serverless, Bedrock Knowledge Base); S3 objects can use AWS KMS encryption (`s3_encryption_key_id`), cloud/S3-specific | Pluggable storage backends (local, S3, MinIO/SeaweedFS, Azure Blob, GCS) with native, backend-agnostic AES-256-GCM file encryption, opt-in per adapter — no KMS dependency required |
 | **Deployment** | Python SDK or containerized proxy; Terraform modules for AWS/GCP; Helm charts | Python server; Docker Compose; shell wrapper (`bin/orbit.sh`) |
@@ -69,23 +69,23 @@ ORBIT uses a **circuit breaker**: a provider that fails crosses an error thresho
 
 LiteLLM's observability story is integration-based: plug in Langfuse, MLflow, or Helicone with a single config line and get dashboards, traces, and cost analysis in those platforms. This is ideal for teams already invested in an observability stack.
 
-ORBIT includes a built-in audit log that records every request, response, API key operation, and datasource interaction internally. There are no external dependencies for compliance tracing — useful in air-gapped or data-sensitive environments where data cannot leave the deployment boundary.
+ORBIT includes a built-in audit log that records every request, response, API key operation, datasource interaction, and provider usage event internally. Recent releases added a native Costs panel and call-type classification so spend can be reviewed separately for inference, embeddings, image/video/audio, OCR/document work, realtime voice, and reranking. There are no external dependencies for compliance tracing — useful in air-gapped or data-sensitive environments where data cannot leave the deployment boundary.
 
 ### 5. MCP: Client vs. Server + Client
 
 Both platforms support MCP. LiteLLM functions as a **central MCP client**: models routed through LiteLLM can invoke tools registered with the proxy.
 
-ORBIT operates on both sides: it is an **MCP client** (connecting to external MCP servers for tools like filesystem access, Slack, GitHub, Postgres) and an **MCP server** (exposing its own tool surface at `/mcp` so downstream clients — including Open WebUI or custom agents — can invoke ORBIT's capabilities as MCP tools).
+ORBIT operates on both sides: it is an **MCP client** (connecting to external stdio and Streamable HTTP MCP servers for tools like filesystem access, Slack, GitHub, Postgres) and an **MCP server** (exposing its own tool surface at `/mcp` so downstream clients — including Open WebUI or custom agents — can invoke ORBIT's capabilities as MCP tools). ORBIT also treats MCP as an operational surface: admins can add, edit, remove, reload, and rediscover servers from the panel; per-server settings override client defaults; hot reload propagates across multi-worker deployments; and persistent connection pools avoid reconnecting for every tool call.
 
 ---
 
 ## Where LiteLLM Has a Clear Advantage
 
 - **Provider breadth**: 100+ providers vs. ORBIT's 37+ at the time of writing. If you need to call a niche or newly released model, LiteLLM is more likely to have it out of the box — though ORBIT's provider design pattern makes adding a new one straightforward without modifying core code.
-- **Cost tracking**: Built-in spend dashboards and per-team budgets are a first-class feature. ORBIT has no equivalent.
+- **Spend governance**: LiteLLM still has the stronger governance layer for teams that need virtual keys tied directly to teams/orgs/projects, hard spend budgets, chargeback workflows, and mature provider-wide spend controls. ORBIT now tracks usage and estimated cost natively, but its controls are gateway/API-key quotas rather than a full enterprise spend-management product.
 - **Semantic caching**: LiteLLM can cache semantically similar prompts, not just identical ones. Useful for FAQ-style workloads with high prompt variance.
 - **Python SDK**: `litellm.completion()` works in any Python script without standing up a proxy. ORBIT always requires the HTTP server.
-- **Observability integrations**: Drop-in integrations with Langfuse, MLflow, Helicone, and Lunary. ORBIT's audit log is useful but not a substitute for a dedicated observability platform.
+- **Observability integrations**: Drop-in integrations with Langfuse, MLflow, Helicone, and Lunary. ORBIT's audit and cost panels are useful for internal compliance and cost review, but they are not a substitute for a dedicated tracing/experiment-observability platform.
 - **Enterprise governance tooling**: Virtual keys tied to teams, spend limits, and a UI dashboard make LiteLLM well-suited for managing LLM access across a large organization.
 
 ---
@@ -96,8 +96,10 @@ ORBIT operates on both sides: it is an **MCP client** (connecting to external MC
 - **Intent-based retrieval**: ORBIT classifies a natural-language query and routes it to the right datasource automatically. LiteLLM's routing is model-selection routing, not data-routing.
 - **Natural-language skill routing**: ORBIT infers intent from plain language ("turn this into a PDF", "read it aloud", "search the web for X") and auto-routes to the matching skill — image/video/document/audio generation, web search — without the user picking a tool, using a hybrid embedding pre-filter + LLM-confirm router. This brings the ChatGPT/Claude experience to any client on the gateway. LiteLLM is a routing/proxy layer and has no skill surface to route to. See [Automatic Skill Intent Detection](../adapters/auto-skill-intent-detection.md).
 - **Conversation threading**: Cached datasets across multi-turn conversations reduce database load and token usage in analytical workflows.
-- **Voice pipelines**: Per-adapter STT/TTS, fully local pipelines (Whisper + Coqui), and WebSocket real-time audio streaming go well beyond LiteLLM's passthrough to audio provider endpoints.
-- **MCP server exposure**: ORBIT can serve as an MCP tool server for other agents and clients, not just consume MCP tools.
+- **Voice pipelines**: Per-adapter STT/TTS, fully local pipelines (Whisper + Coqui/vLLM), full-duplex realtime voice, Gemini Live, OpenAI Realtime, voice-history persistence, and grounded realtime voice go well beyond LiteLLM's passthrough to audio provider endpoints.
+- **MCP operations**: ORBIT can serve as an MCP tool server for other agents and clients, not just consume MCP tools. It also includes admin-side MCP lifecycle management, scoped hot reload, multi-worker propagation, persistent connection pooling, and circuit-breaking for unhealthy MCP servers.
+- **Native usage/cost attribution across workflow types**: ORBIT now records separate usage events for inference, embeddings, image/video/audio, document generation, realtime voice, MCP tool-call loops, and reranking, so a RAG or tool-using workflow is not collapsed into one misleading LLM call.
+- **Adapter creation and hot reload**: Operators can create supported adapter types from the admin panel, preview deterministic YAML, register them, and hot-reload without restarting the gateway.
 - **Air-gapped deployments**: Built-in audit logging, local voice pipelines, and no mandatory external service dependencies make ORBIT suitable for environments where data cannot leave the deployment boundary.
 - **File storage & encryption**: LiteLLM has no general uploaded-file storage abstraction — its `/rag/ingest` endpoint selects a RAG backend (S3, OpenSearch Serverless, Bedrock Knowledge Base) rather than managing user file uploads, and encryption there is AWS KMS on S3 objects specifically. ORBIT treats file storage as a first-class, pluggable layer (local/S3/MinIO/Azure/GCS) with its own backend-agnostic AES-256-GCM encryption, opt-in per adapter, requiring no cloud KMS.
 - **Broker-native async ingestion**: ORBIT can run as a RabbitMQ consumer — clients publish requests to a queue and read responses off a results queue, fully decoupled from synchronous HTTP, with at-least-once delivery and dead-lettering. LiteLLM is an HTTP proxy/SDK: async work goes through the OpenAI Batches API (submit/poll), not a message broker. ORBIT's MQ path runs the same pipeline as `/v1/chat`, so retrieval/adapter behavior is identical.
@@ -142,6 +144,6 @@ See the [LiteLLM Integration Guide](litellm-integration.md) for step-by-step set
 | **Deployment model** | Python SDK or containerized proxy; managed cloud options | Self-hosted Python server; Docker Compose |
 | **Data access** | LLM providers only — no database or API connectors | SQL/NoSQL, DuckDB/Athena, REST APIs, GraphQL, Elasticsearch, vector stores, Firecrawl |
 | **Caching** | LLM response caching (exact-match + semantic) | Retrieval dataset caching across conversation turns |
-| **Observability** | Third-party integrations (Langfuse, MLflow, Helicone) | Built-in audit log; no external dependency |
-| **MCP** | MCP client (routes tool calls through the proxy) | MCP client + MCP server (exposes ORBIT tools to other agents) |
+| **Observability** | Third-party integrations (Langfuse, MLflow, Helicone) plus proxy spend tracking | Built-in audit log and usage/cost panels; no external dependency |
+| **MCP** | MCP client (routes tool calls through the proxy) | MCP client + MCP server, admin-managed servers/tools, hot reload, pooled connections |
 | **Works well with** | Any OpenAI-compatible backend, including ORBIT | Any OpenAI-compatible client — LiteLLM, Open WebUI, OrbitChat, custom apps |
