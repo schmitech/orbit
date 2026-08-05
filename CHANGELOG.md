@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.15.0] - 2026-08-05
 
 ### Core System Updates
 - **Email-Preauthorized API Keys**: API keys can now restrict access to authenticated email addresses through `allowed_emails`, so administrators can safely provision access before an external user first logs in. Email and existing user-ID allowlists are combined with OR semantics, normalized case-insensitively, enforced across API-key entry points, and editable in the admin panel.
