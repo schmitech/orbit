@@ -615,5 +615,151 @@ async def test_get_adapter_info_supports_realtime_voice_flag(api_key_service):
             break
 
 
+# ========================
+# ALLOWED_USER_IDS TESTS
+# ========================
+
+@pytest.mark.asyncio
+async def test_unrestricted_key_ignores_current_user_id(api_key_service):
+    """A key with no allowlist is usable by anyone, authenticated or not."""
+    result = await api_key_service.create_api_key(
+        client_name="Unrestricted Client",
+        adapter_name="qa-sql"
+    )
+    api_key = result["api_key"]
+    assert result["allowed_user_ids"] is None
+
+    is_valid, adapter_name, _ = await api_key_service.validate_api_key(api_key, current_user_id=None)
+    assert is_valid is True
+    assert adapter_name == "qa-sql"
+
+    is_valid, adapter_name, _ = await api_key_service.validate_api_key(api_key, current_user_id="some-user-id")
+    assert is_valid is True
+    assert adapter_name == "qa-sql"
+
+
+@pytest.mark.asyncio
+async def test_restricted_key_accepts_allowed_user(api_key_service):
+    """A key with an allowlist validates for a user id on that list."""
+    result = await api_key_service.create_api_key(
+        client_name="Restricted Client",
+        adapter_name="qa-sql",
+        allowed_user_ids=["user-a", "user-b"]
+    )
+    api_key = result["api_key"]
+    assert result["allowed_user_ids"] == ["user-a", "user-b"]
+
+    is_valid, adapter_name, _ = await api_key_service.validate_api_key(api_key, current_user_id="user-b")
+    assert is_valid is True
+    assert adapter_name == "qa-sql"
+
+
+@pytest.mark.asyncio
+async def test_restricted_key_rejects_unlisted_user(api_key_service):
+    """A key with an allowlist fails validation for a user id not on that list."""
+    result = await api_key_service.create_api_key(
+        client_name="Restricted Client",
+        adapter_name="qa-sql",
+        allowed_user_ids=["user-a"]
+    )
+    api_key = result["api_key"]
+
+    is_valid, adapter_name, _ = await api_key_service.validate_api_key(api_key, current_user_id="user-z")
+    assert is_valid is False
+    assert adapter_name is None
+
+
+@pytest.mark.asyncio
+async def test_restricted_key_rejects_anonymous_caller(api_key_service):
+    """A restricted key fails closed when no authenticated user is present at all."""
+    result = await api_key_service.create_api_key(
+        client_name="Restricted Client",
+        adapter_name="qa-sql",
+        allowed_user_ids=["user-a"]
+    )
+    api_key = result["api_key"]
+
+    is_valid, adapter_name, _ = await api_key_service.validate_api_key(api_key, current_user_id=None)
+    assert is_valid is False
+    assert adapter_name is None
+
+
+@pytest.mark.asyncio
+async def test_get_adapter_for_api_key_enforces_allowlist(api_key_service):
+    """get_adapter_for_api_key propagates the allowlist check via validate_api_key."""
+    from fastapi import HTTPException
+
+    result = await api_key_service.create_api_key(
+        client_name="Restricted Client",
+        adapter_name="qa-sql",
+        allowed_user_ids=["user-a"]
+    )
+    api_key = result["api_key"]
+
+    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, current_user_id="user-a")
+    assert adapter_name == "qa-sql"
+
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.get_adapter_for_api_key(api_key, current_user_id="user-z")
+    assert exc_info.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_adapter_info_enforces_allowlist(api_key_service):
+    """get_adapter_info rejects callers not on the key's allowlist."""
+    from fastapi import HTTPException
+
+    result = await api_key_service.create_api_key(
+        client_name="Restricted Client",
+        adapter_name="qa-sql",
+        allowed_user_ids=["user-a"]
+    )
+    api_key = result["api_key"]
+
+    info = await api_key_service.get_adapter_info(api_key, current_user_id="user-a")
+    assert info["adapter_name"] == "qa-sql"
+
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.get_adapter_info(api_key, current_user_id="user-z")
+    assert exc_info.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_update_api_key_metadata_sets_allowlist(api_key_service):
+    """update_api_key_metadata can add and clear an allowlist on an existing key."""
+    result = await api_key_service.create_api_key(
+        client_name="Editable Client",
+        adapter_name="qa-sql"
+    )
+    api_key = result["api_key"]
+    key_doc = await api_key_service.database.find_one(api_key_service.collection_name, {"api_key": api_key})
+    key_id = str(key_doc["_id"])
+
+    success = await api_key_service.update_api_key_metadata(
+        key_id,
+        client_name="Editable Client",
+        adapter_name="qa-sql",
+        allowed_user_ids=["user-a", "user-b"]
+    )
+    assert success is True
+
+    is_valid, _, _ = await api_key_service.validate_api_key(api_key, current_user_id="user-b")
+    assert is_valid is True
+    is_valid, _, _ = await api_key_service.validate_api_key(api_key, current_user_id="user-z")
+    assert is_valid is False
+
+    # Clearing the allowlist (empty list) restores unrestricted access
+    success = await api_key_service.update_api_key_metadata(
+        key_id,
+        client_name="Editable Client",
+        adapter_name="qa-sql",
+        allowed_user_ids=[]
+    )
+    assert success is True
+
+    is_valid, _, _ = await api_key_service.validate_api_key(api_key, current_user_id="user-z")
+    assert is_valid is True
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -158,11 +158,87 @@ async def test_entra_accepts_api_audience(auth_service: AuthService):
     assert user["username"] == "entra:entra-sub-api"
 
 
+async def test_entra_accepts_legacy_v1_issuer(auth_service: AuthService):
+    """Entra can mint v1.0-format access tokens (iss=https://sts.windows.net/{tenant}/)
+    for the same resource/audience as v2.0 tokens, depending on the app registration's
+    accessTokenAcceptedVersion manifest setting — not something callers control per-request.
+    Both issuer shapes must validate."""
+    v1_iss = f"https://sts.windows.net/{ENTRA_TENANT}/"
+    token = make_token(v1_iss, ENTRA_CLIENT, "entra-sub-v1", email="dave@example.com")
+    is_valid, user = await auth_service.validate_token(token)
+    assert is_valid
+    assert user["username"] == "entra:entra-sub-v1"
+
+
+async def test_entra_v1_token_falls_back_to_upn_for_email(auth_service: AuthService):
+    """Entra v1-format access tokens minted for a custom API scope carry `upn`/
+    `unique_name` instead of `email`/`preferred_username` — email must still be
+    captured via that fallback."""
+    v1_iss = f"https://sts.windows.net/{ENTRA_TENANT}/"
+    token = make_token(
+        v1_iss, ENTRA_CLIENT, "entra-sub-upn",
+        extra={"upn": "erin@example.com", "unique_name": "erin@example.com"},
+    )
+    is_valid, user = await auth_service.validate_token(token)
+    assert is_valid
+    record = await auth_service.get_user_by_username("entra:entra-sub-upn")
+    assert record["email"] == "erin@example.com"
+
+
+async def test_concurrent_first_login_does_not_error(auth_service: AuthService):
+    """Two near-simultaneous requests carrying the same brand-new user's token
+    (e.g. orbitchat firing several API calls right after login) must not surface
+    a raw duplicate-key error. Whichever call loses the insert race falls back
+    to fetching the row the winner created, per _find_or_create_external_user's
+    `except DatabaseDuplicateKeyError` handling — which only works if the backend
+    actually raises that abstraction-layer exception (regression coverage for a
+    bug where all three backends raised/swallowed the raw driver exception instead)."""
+    import asyncio
+
+    token = make_token(ENTRA_ISS, ENTRA_CLIENT, "entra-sub-concurrent", email="frank@example.com")
+    results = await asyncio.gather(
+        auth_service.validate_token(token),
+        auth_service.validate_token(token),
+    )
+    for is_valid, user in results:
+        assert is_valid
+        assert user is not None
+        assert user["username"] == "entra:entra-sub-concurrent"
+
+    # Exactly one user row exists despite the race.
+    users = await auth_service.list_users({"username": "entra:entra-sub-concurrent"})
+    assert len(users) == 1
+
+
 async def test_auth0_token_provisions_user(auth_service: AuthService):
     token = make_token(AUTH0_ISS, AUTH0_AUD, "auth0|abc", email="bob@example.com")
     is_valid, user = await auth_service.validate_token(token)
     assert is_valid
     assert user["username"] == "auth0:auth0|abc"
+
+
+async def test_auth0_token_without_email_claim_provisions_with_no_email(auth_service: AuthService):
+    """Auth0 access tokens for a custom API audience carry no bare 'email' claim
+    by default — provisioning must still succeed, just without an email captured."""
+    token = make_token(AUTH0_ISS, AUTH0_AUD, "auth0|no-email")
+    is_valid, user = await auth_service.validate_token(token)
+    assert is_valid
+    record = await auth_service.get_user_by_username("auth0:auth0|no-email")
+    assert record["email"] is None
+
+
+async def test_auth0_configurable_email_claim_namespaced(auth_service: AuthService):
+    """A namespaced custom claim (from an Auth0 Action) is read when configured
+    via auth.providers.auth0.email_claim, taking priority over a bare 'email' claim."""
+    auth_service._oidc._providers["auth0"]["email_claim"] = "https://your-api/email"
+    token = make_token(
+        AUTH0_ISS, AUTH0_AUD, "auth0|namespaced",
+        extra={"https://your-api/email": "carol@example.com"},
+    )
+    is_valid, user = await auth_service.validate_token(token)
+    assert is_valid
+    record = await auth_service.get_user_by_username("auth0:auth0|namespaced")
+    assert record["email"] == "carol@example.com"
 
 
 async def test_existing_external_user_reused(auth_service: AuthService):

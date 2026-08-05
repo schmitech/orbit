@@ -181,6 +181,10 @@ auth:
       tenant_id: ${ORBIT_AUTH_ENTRA_TENANT_ID:-}
       client_id: ${ORBIT_AUTH_ENTRA_CLIENT_ID:-}       # Expected token audience (this app's client id)
       client_secret: ${ORBIT_AUTH_ENTRA_CLIENT_SECRET:-}  # Optional; only for admin-panel SSO confidential clients
+      # Optional: Entra access tokens include `preferred_username` by default, so
+      # this is rarely needed. Set only if a tenant's token shape omits it and you
+      # add a custom claim via an Entra optional claim / App Manifest change.
+      # email_claim: "preferred_username"
     # Auth0
     auth0:
       enabled: false
@@ -188,6 +192,13 @@ auth:
       audience: ${ORBIT_AUTH_AUTH0_AUDIENCE:-}         # API identifier = expected token audience
       client_id: ${ORBIT_AUTH_AUTH0_CLIENT_ID:-}       # Required for admin-panel SSO (id_token audience)
       client_secret: ${ORBIT_AUTH_AUTH0_CLIENT_SECRET:-}  # Optional; only for admin-panel SSO confidential clients
+      # Optional: Auth0 access tokens issued against a custom API audience carry
+      # no email claim by default (unlike Entra). To populate user email on JIT
+      # provisioning, add an Auth0 Action (Actions > Flows > Login) that injects
+      # a namespaced custom claim, e.g.:
+      #   api.accessToken.setCustomClaim('https://your-api/email', event.user.email)
+      # then point this at that claim key. Leave unset if you don't need email captured.
+      # email_claim: "https://your-api/email"
 
     # Admin-panel browser SSO (server-side OAuth Authorization Code + PKCE).
     # Lets admins sign in to /admin with Entra/Auth0 instead of a password.

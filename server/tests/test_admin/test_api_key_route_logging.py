@@ -111,7 +111,7 @@ class TestUpdateApiKeyLogging:
         request = make_request(api_key_service=service, adapter_manager=None)
         data = SimpleNamespace(
             client_name="Test Client", adapter_name="simple-chat",
-            system_prompt_id=None, notes=None,
+            system_prompt_id=None, notes=None, allowed_user_ids=None,
         )
 
         with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):
@@ -152,7 +152,8 @@ class TestCreateApiKeyLogging:
         )
         request = make_request(api_key_service=service)
         api_key_data = SimpleNamespace(
-            client_name="Test Client", notes=None, system_prompt_id=None, adapter_name="simple-chat"
+            client_name="Test Client", notes=None, system_prompt_id=None, adapter_name="simple-chat",
+            allowed_user_ids=None,
         )
 
         with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):

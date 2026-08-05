@@ -56,7 +56,8 @@ class ApiKeyCreate(BaseModel):
     notes: Optional[str] = Field(default=None, max_length=2000)
     system_prompt_id: Optional[str] = None
     adapter_name: str  # Required adapter name
-    
+    allowed_user_ids: Optional[List[str]] = None  # Restrict to these ORBIT user ids; None/empty = unrestricted
+
     @model_validator(mode='before')
     @classmethod
     def validate_adapter(cls, values):
@@ -76,6 +77,7 @@ class ApiKeyResponse(BaseModel):
     active: bool = True
     system_prompt_id: Optional[str] = None
     adapter_name: Optional[str] = None
+    allowed_user_ids: Optional[List[str]] = None
 
 
 class ApiKeyUpdate(BaseModel):
@@ -84,6 +86,7 @@ class ApiKeyUpdate(BaseModel):
     adapter_name: str = Field(min_length=1)
     system_prompt_id: Optional[str] = None
     notes: Optional[str] = Field(default=None, max_length=2000)
+    allowed_user_ids: Optional[List[str]] = None
 
 
 class ApiKeyDeactivate(BaseModel):

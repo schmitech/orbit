@@ -21,6 +21,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
   let cachedAdapterCapabilities = null;
   let cachedPrompts = null;
   let cachedKeys = null;
+  let cachedApiKeyUsers = null; // Users available to pick for API key allowlists
 
   // Selection state per tab
   let selectedUser = null;
@@ -3085,6 +3086,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
     }
     var notesInput = el("textarea", { rows: "4", maxlength: "2000" });
     var notesCounter = characterCount(notesInput, 2000);
+    var createAllowedUsersSelect = allowedUsersSelect();
     var createBtn = el("button", { type: "button" }, "Create Key");
     function openCreatePanel() {
       createPanel.style.display = "";
@@ -3106,6 +3108,11 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
         field("Persona", promptSelect)
       ),
       el("div", { className: "stack" }, field("Notes", notesInput), notesCounter),
+      el("div", { className: "stack" }, field(
+        "Restrict to users (optional)",
+        createAllowedUsersSelect,
+        "Leave empty to allow any client holding this key. Hold Ctrl/Cmd to select multiple."
+      )),
       el("div", { className: "admin-create-form-actions" },
         createBtn
       )
@@ -3165,10 +3172,13 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
         var body = { client_name: cn, adapter_name: adapterSelect.value };
         if (promptSelect.value) body.system_prompt_id = promptSelect.value;
         if (notesInput.value.trim()) body.notes = notesInput.value.trim();
+        var selectedUserIds = Array.from(createAllowedUsersSelect.selectedOptions).map(function (o) { return o.value; });
+        if (selectedUserIds.length) body.allowed_user_ids = selectedUserIds;
         await api("POST", ENDPOINTS.apiKeys, body);
         clientInput.value = "";
         promptSelect.value = "";
         notesInput.value = "";
+        Array.from(createAllowedUsersSelect.options).forEach(function (o) { o.selected = false; });
         closeCreatePanel();
         loadKeys();
       }, "API key created");
@@ -3292,6 +3302,23 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
     } catch (_) {
       cachedPrompts = [];
     }
+    try {
+      cachedApiKeyUsers = await api("GET", ENDPOINTS.users);
+    } catch (_) {
+      cachedApiKeyUsers = [];
+    }
+  }
+
+  function allowedUsersSelect(selectedIds) {
+    var select = el("select", { multiple: "true", size: "5" });
+    (cachedApiKeyUsers || []).forEach(function (u) {
+      var label = u.email || u.username || u.id;
+      if (u.provider) label += " (" + u.provider + ")";
+      var opt = el("option", { value: u.id }, label);
+      if (selectedIds && selectedIds.indexOf(u.id) !== -1) opt.selected = true;
+      select.appendChild(opt);
+    });
+    return select;
   }
 
   async function loadAvailableKeys() {
@@ -3626,6 +3653,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
     }
     var promptSelect = el("select", null, el("option", { value: "" }, "No persona"));
     fillPromptSelect(promptSelect, cachedPrompts, key.system_prompt_id);
+    var editAllowedUsersSelect = allowedUsersSelect(key.allowed_user_ids || []);
     var saveBtn = el("button", {
       type: "button",
       className: "btn--icon",
@@ -3636,6 +3664,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
     var originalAdapterName = key.adapter_name || "";
     var originalPromptId = key.system_prompt_id || "";
     var originalNotes = key.notes || "";
+    var originalAllowedUserIds = (key.allowed_user_ids || []).slice().sort();
     var editForm = el("div", { style: "display:none" },
       el("div", { className: "admin-create-form" },
         el("div", { className: "admin-create-form-grid api-key-create-grid" },
@@ -3643,7 +3672,12 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
           field("Adapter", adapterSelect),
           field("Persona", promptSelect)
         ),
-        el("div", { className: "stack" }, field("Notes", notesInput), notesCounter)
+        el("div", { className: "stack" }, field("Notes", notesInput), notesCounter),
+        el("div", { className: "stack" }, field(
+          "Restrict to users (optional)",
+          editAllowedUsersSelect,
+          "Leave empty to allow any client holding this key. Hold Ctrl/Cmd to select multiple."
+        ))
       )
     );
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Details");
@@ -3655,11 +3689,15 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
       title: "Cancel editing details",
     }, svgIcon(ICON_X));
     saveBtn.style.display = "none";
+    function selectedAllowedUserIds() {
+      return Array.from(editAllowedUsersSelect.selectedOptions).map(function (o) { return o.value; }).sort();
+    }
     function keyDetailsChanged() {
       return clientInput.value.trim() !== originalClientName ||
         adapterSelect.value !== originalAdapterName ||
         (promptSelect.value || "") !== originalPromptId ||
-        notesInput.value !== originalNotes;
+        notesInput.value !== originalNotes ||
+        JSON.stringify(selectedAllowedUserIds()) !== JSON.stringify(originalAllowedUserIds);
     }
     function syncKeySaveState() {
       saveBtn.disabled = !keyDetailsChanged();
@@ -3669,6 +3707,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
       adapterSelect.disabled = !editing;
       promptSelect.disabled = !editing;
       setFieldReadOnly(notesInput, editing);
+      editAllowedUsersSelect.disabled = !editing;
       editForm.style.display = editing ? "block" : "none";
       editToggle.style.display = editing ? "none" : "inline-flex";
       cancelBtn.style.display = editing ? "inline-flex" : "none";
@@ -3683,12 +3722,16 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
       adapterSelect.value = originalAdapterName;
       promptSelect.value = originalPromptId;
       notesInput.value = originalNotes;
+      Array.from(editAllowedUsersSelect.options).forEach(function (o) {
+        o.selected = originalAllowedUserIds.indexOf(o.value) !== -1;
+      });
       setKeyEditMode(false);
     });
     clientInput.addEventListener("input", syncKeySaveState);
     adapterSelect.addEventListener("change", syncKeySaveState);
     promptSelect.addEventListener("change", syncKeySaveState);
     notesInput.addEventListener("input", syncKeySaveState);
+    editAllowedUsersSelect.addEventListener("change", syncKeySaveState);
     bindValidationClear(clientInput, adapterSelect, promptSelect, notesInput);
     saveBtn.addEventListener("click", function () {
       var clientName = clientInput.value.trim();
@@ -3705,7 +3748,8 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
           client_name: clientName,
           adapter_name: adapterSelect.value,
           system_prompt_id: promptSelect.value || null,
-          notes: notesInput.value.trim() || null
+          notes: notesInput.value.trim() || null,
+          allowed_user_ids: selectedAllowedUserIds()
         });
         onRefresh();
       }, "API key updated");

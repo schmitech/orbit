@@ -22,7 +22,7 @@ from models.schema import (
     SkillInfo,
     SkillsResponse,
 )
-from routes.auth_helpers import check_service_availability
+from routes.auth_helpers import check_service_availability, resolve_authenticated_user_id
 from utils import is_true_value, resolve_generation_provider_and_model
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,8 @@ async def _get_adapter_info_response(request: Request, x_api_key: str):
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
     adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-    return await api_key_service.get_adapter_info(x_api_key, adapter_manager)
+    current_user_id = await resolve_authenticated_user_id(request)
+    return await api_key_service.get_adapter_info(x_api_key, adapter_manager, current_user_id=current_user_id)
 
 
 @discovery_router.get("/api-keys/info", deprecated=True)
@@ -152,7 +153,10 @@ async def list_adapter_models(
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     if api_key_service and x_api_key:
         try:
-            is_valid, key_adapter_name, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
+            current_user_id = await resolve_authenticated_user_id(request)
+            is_valid, key_adapter_name, _ = await api_key_service.validate_api_key(
+                x_api_key, adapter_manager, current_user_id=current_user_id
+            )
             if is_valid and key_adapter_name:
                 resolved_name = key_adapter_name
         except Exception:
@@ -258,7 +262,10 @@ async def list_adapter_skills(
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     if api_key_service and x_api_key:
         try:
-            is_valid, key_adapter_name, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
+            current_user_id = await resolve_authenticated_user_id(request)
+            is_valid, key_adapter_name, _ = await api_key_service.validate_api_key(
+                x_api_key, adapter_manager, current_user_id=current_user_id
+            )
             if is_valid and key_adapter_name:
                 resolved_name = key_adapter_name
         except Exception:

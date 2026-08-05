@@ -9,6 +9,13 @@ Supported methods: tasks/send, tasks/sendSubscribe, tasks/get, tasks/cancel
 
 Authentication: Bearer <orbit-api-key> in Authorization header.
 The API key is resolved to an adapter name using the existing key service.
+
+Optional user identity for restricted keys: an API key can be scoped to a
+specific set of ORBIT users via `allowed_user_ids` (see ApiKeyService). Since
+Authorization already carries the API key itself, a restricted key can only
+be used over A2A if the caller also supplies a separate user credential in
+`X-ORBIT-User-Authorization: Bearer <session-token-or-jwt>`. Callers using an
+unrestricted key can omit this header entirely.
 """
 
 import json
@@ -18,6 +25,8 @@ from typing import Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+
+from routes.auth_helpers import resolve_authenticated_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +42,6 @@ def create_a2a_router() -> APIRouter:
     async def agent_card(request: Request) -> JSONResponse:
         """A2A Agent Card — describes ORBIT's capabilities to other agents."""
         base_url = str(request.base_url).rstrip("/")
-        config = request.app.state.config
 
         skills = _build_skills(request)
 
@@ -134,7 +142,15 @@ async def _resolve_adapter(request: Request) -> tuple[str, Optional[str]]:
     # Only swallow unexpected non-auth errors and surface them as 503.
     try:
         adapter_manager = getattr(request.app.state, "adapter_manager", None)
-        adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
+        # Authorization already carries the API key itself (see module docstring),
+        # so a distinct user credential — required to use a key restricted via
+        # allowed_user_ids — must come from a separate header.
+        current_user_id = await resolve_authenticated_user_id(
+            request, header_name="x-orbit-user-authorization"
+        )
+        adapter_name, _ = await api_key_service.get_adapter_for_api_key(
+            api_key, adapter_manager, current_user_id=current_user_id
+        )
         return adapter_name or "default", api_key
     except HTTPException:
         raise

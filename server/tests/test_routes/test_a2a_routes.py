@@ -13,7 +13,7 @@ from routes.a2a_routes import create_a2a_router, _tasks, _extract_text, _build_s
 # Fixtures
 # ---------------------------------------------------------------------------
 
-def make_app(chat_service=None, api_key_service=None, adapter_manager=None, config=None):
+def make_app(chat_service=None, api_key_service=None, adapter_manager=None, config=None, auth_service=None):
     app = FastAPI()
     app.state.config = config or {}
     svc = chat_service or MagicMock()
@@ -26,6 +26,8 @@ def make_app(chat_service=None, api_key_service=None, adapter_manager=None, conf
         app.state.api_key_service = api_key_service
     if adapter_manager is not None:
         app.state.adapter_manager = adapter_manager
+    if auth_service is not None:
+        app.state.auth_service = auth_service
     app.include_router(create_a2a_router())
     return app
 
@@ -250,6 +252,41 @@ class TestApiKeyEnforcement:
         client = TestClient(make_app(chat_service=chat_svc, api_key_service=key_svc))
         client.post("/a2a", json=self._body(), headers={"Authorization": "Bearer valid-key"})
         assert chat_svc.process_chat.call_args.kwargs["api_key"] == "valid-key"
+
+    def test_restricted_key_rejected_without_user_authorization_header(self):
+        """A key with allowed_user_ids must fail when no separate user credential is supplied."""
+        from fastapi import HTTPException as FastAPIHTTPException
+        key_svc = MagicMock()
+        key_svc.get_adapter_for_api_key = AsyncMock(
+            side_effect=FastAPIHTTPException(status_code=401, detail="Invalid or missing API key")
+        )
+        client = TestClient(make_app(api_key_service=key_svc), raise_server_exceptions=False)
+        resp = client.post("/a2a", json=self._body(), headers={"Authorization": "Bearer restricted-key"})
+        assert resp.status_code == 401
+        # Confirms the API key alone (no X-ORBIT-User-Authorization) resolves no user id
+        assert key_svc.get_adapter_for_api_key.call_args.kwargs["current_user_id"] is None
+
+    def test_restricted_key_resolves_user_id_from_dedicated_header(self):
+        """X-ORBIT-User-Authorization, not Authorization, supplies the user credential for A2A."""
+        key_svc = MagicMock()
+        key_svc.get_adapter_for_api_key = AsyncMock(return_value=("hr", None))
+        chat_svc = MagicMock()
+        chat_svc.process_chat = AsyncMock(return_value={"response": "ok"})
+        auth_svc = MagicMock()
+        auth_svc.validate_token = AsyncMock(return_value=(True, {"id": "user-123", "username": "alice"}))
+        client = TestClient(make_app(chat_service=chat_svc, api_key_service=key_svc, auth_service=auth_svc))
+
+        resp = client.post(
+            "/a2a", json=self._body(),
+            headers={
+                "Authorization": "Bearer restricted-key",
+                "X-ORBIT-User-Authorization": "Bearer user-session-token",
+            },
+        )
+
+        assert resp.status_code == 200
+        auth_svc.validate_token.assert_awaited_once_with("user-session-token")
+        assert key_svc.get_adapter_for_api_key.call_args.kwargs["current_user_id"] == "user-123"
 
 
 class TestSessionAuthorization:

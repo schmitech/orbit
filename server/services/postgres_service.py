@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
 from datetime import datetime
 
-from services.database_service import DatabaseOperationError, DatabaseService
+from services.database_service import DatabaseDuplicateKeyError, DatabaseOperationError, DatabaseService
 from services.sqlite_service import _make_json_serializable
 from utils.id_utils import generate_id, ensure_id, id_to_string
 
@@ -183,7 +183,8 @@ class PostgresService(DatabaseService):
                     quota_daily_limit INTEGER,
                     quota_monthly_limit INTEGER,
                     quota_throttle_enabled INTEGER,
-                    quota_throttle_priority INTEGER
+                    quota_throttle_priority INTEGER,
+                    allowed_user_ids TEXT
                 )
             ''',
             'system_prompts': '''
@@ -900,6 +901,10 @@ class PostgresService(DatabaseService):
         if collection_name == 'users' and isinstance(document.get('roles'), list):
             document['roles'] = json.dumps(document['roles'])
 
+        # api_keys.allowed_user_ids has no native array column type either.
+        if collection_name == 'api_keys' and isinstance(document.get('allowed_user_ids'), list):
+            document['allowed_user_ids'] = json.dumps(document['allowed_user_ids'])
+
         for key, value in document.items():
             if isinstance(value, datetime):
                 document[key] = value.isoformat()
@@ -1055,7 +1060,10 @@ class PostgresService(DatabaseService):
             except psycopg.errors.UniqueViolation as e:
                 logger.warning(f"Duplicate key error inserting into {collection_name}: {str(e)}")
                 self.connection.rollback()
-                raise
+                # Raise the abstraction-layer exception, not the raw driver error, so
+                # callers (e.g. auth_service._find_or_create_external_user) that catch
+                # DatabaseDuplicateKeyError for graceful concurrent-insert handling work.
+                raise DatabaseDuplicateKeyError(str(e)) from e
             except Exception as e:
                 logger.error(f"Error inserting document into {collection_name}: {str(e)}")
                 try:
@@ -1092,6 +1100,8 @@ class PostgresService(DatabaseService):
                     elif isinstance(value, (dict, list)) and key == 'metadata_json':
                         set_data[key] = json.dumps(_make_json_serializable(value))
                     elif isinstance(value, list) and key == 'roles' and collection_name == 'users':
+                        set_data[key] = json.dumps(value)
+                    elif isinstance(value, list) and key == 'allowed_user_ids' and collection_name == 'api_keys':
                         set_data[key] = json.dumps(value)
 
                 set_parts = [f'"{key}" = %s' for key in set_data.keys()]
@@ -1344,6 +1354,12 @@ class PostgresService(DatabaseService):
                 doc['roles'] = json.loads(doc['roles'])
             except json.JSONDecodeError:
                 doc['roles'] = None
+
+        if collection_name == 'api_keys' and isinstance(doc.get('allowed_user_ids'), str):
+            try:
+                doc['allowed_user_ids'] = json.loads(doc['allowed_user_ids'])
+            except json.JSONDecodeError:
+                doc['allowed_user_ids'] = None
 
         datetime_fields = ['created_at', 'updated_at', 'last_login', 'expires', 'timestamp']
         for field in datetime_fields:

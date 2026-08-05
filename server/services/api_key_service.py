@@ -254,13 +254,21 @@ class ApiKeyService:
             logger.error(f"Error getting API key status: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error checking API key status: {str(e)}")
     
-    async def validate_api_key(self, api_key: str, adapter_manager=None) -> Tuple[bool, Optional[str], Optional[ObjectId]]:
+    async def validate_api_key(
+        self,
+        api_key: str,
+        adapter_manager=None,
+        current_user_id: Optional[str] = None
+    ) -> Tuple[bool, Optional[str], Optional[ObjectId]]:
         """
         Validate the API key and return the associated adapter name and system prompt ID
 
         Args:
             api_key: The API key to validate
             adapter_manager: Optional adapter manager to check live configs (respects hot-reload)
+            current_user_id: ORBIT user id of the authenticated caller, if any. Only checked
+                against the key's `allowed_user_ids` when that list is non-empty; keys with
+                no allowlist remain usable by anyone holding them (current behavior).
 
         Returns:
             Tuple of (is_valid, adapter_name, system_prompt_id)
@@ -296,7 +304,15 @@ class ApiKeyService:
             if active is False:  # Only check for explicit False, not falsy values like None
                 logger.warning(f"API key is disabled: {masked_key}")
                 return False, None, None
-            
+
+            # Enforce the per-user allowlist, if configured.
+            # An empty/absent list means the key is unrestricted.
+            allowed_user_ids = key_doc.get("allowed_user_ids")
+            if allowed_user_ids:
+                if not current_user_id or current_user_id not in allowed_user_ids:
+                    logger.warning(f"API key {masked_key} is restricted and caller is not on its allowlist")
+                    return False, None, None
+
             # Try new adapter-based approach first
             adapter_name = key_doc.get("adapter_name")
             if adapter_name:
@@ -324,13 +340,20 @@ class ApiKeyService:
             logger.error(f"Error validating API key: {str(e)}")
             return False, None, None
     
-    async def get_adapter_for_api_key(self, api_key: str, adapter_manager=None) -> Tuple[str, Optional[ObjectId]]:
+    async def get_adapter_for_api_key(
+        self,
+        api_key: str,
+        adapter_manager=None,
+        current_user_id: Optional[str] = None
+    ) -> Tuple[str, Optional[ObjectId]]:
         """
         Get the adapter name and system prompt ID for a given API key
 
         Args:
             api_key: The API key to look up
             adapter_manager: Optional adapter manager to check live configs (respects hot-reload)
+            current_user_id: ORBIT user id of the authenticated caller, if any. See
+                `validate_api_key` for allowlist semantics.
 
         Returns:
             Tuple of (adapter_name, system_prompt_id)
@@ -338,7 +361,9 @@ class ApiKeyService:
         Raises:
             HTTPException: If the API key is invalid or has no associated adapter
         """
-        is_valid, adapter_name, system_prompt_id = await self.validate_api_key(api_key, adapter_manager)
+        is_valid, adapter_name, system_prompt_id = await self.validate_api_key(
+            api_key, adapter_manager, current_user_id=current_user_id
+        )
 
         if not is_valid:
             # Check if this is an empty API key and defaults are allowed
@@ -354,7 +379,12 @@ class ApiKeyService:
 
         return adapter_name, system_prompt_id
 
-    async def get_adapter_info(self, api_key: str, adapter_manager=None) -> Dict[str, Any]:
+    async def get_adapter_info(
+        self,
+        api_key: str,
+        adapter_manager=None,
+        current_user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Get adapter information for a given API key.
 
@@ -364,6 +394,8 @@ class ApiKeyService:
         Args:
             api_key: The API key to look up
             adapter_manager: Optional adapter manager to check live configs (respects hot-reload)
+            current_user_id: ORBIT user id of the authenticated caller, if any. See
+                `validate_api_key` for allowlist semantics.
 
         Returns:
             Dictionary containing:
@@ -388,6 +420,11 @@ class ApiKeyService:
         # Check if the key is active
         if key_doc.get("active") is False:
             raise HTTPException(status_code=401, detail="API key is disabled")
+
+        # Enforce the per-user allowlist, if configured (see validate_api_key)
+        allowed_user_ids = key_doc.get("allowed_user_ids")
+        if allowed_user_ids and (not current_user_id or current_user_id not in allowed_user_ids):
+            raise HTTPException(status_code=401, detail="API key is not authorized for this user")
 
         # Get client_name and adapter_name from the API key record
         client_name = key_doc.get("client_name")
@@ -478,21 +515,24 @@ class ApiKeyService:
         return adapter_info
     
     async def create_api_key(
-        self, 
-        client_name: str, 
+        self,
+        client_name: str,
         notes: Optional[str] = None,
         system_prompt_id: Optional[ObjectId] = None,
-        adapter_name: Optional[str] = None
+        adapter_name: Optional[str] = None,
+        allowed_user_ids: Optional[list] = None
     ) -> Dict[str, Any]:
         """
         Create a new API key for a specific adapter
-        
+
         Args:
             client_name: Name of the client/organization
             notes: Optional notes about this API key
             system_prompt_id: Optional ID of the system prompt to associate
             adapter_name: Name of the adapter this key will access (required)
-            
+            allowed_user_ids: Optional list of ORBIT user ids permitted to use this key.
+                Empty/None means unrestricted (any valid key works, current behavior).
+
         Returns:
             Dictionary containing the new API key and metadata
         """
@@ -519,9 +559,10 @@ class ApiKeyService:
                 "notes": notes,
                 "active": True,
                 "created_at": now,
-                "adapter_name": adapter_name
+                "adapter_name": adapter_name,
+                "allowed_user_ids": allowed_user_ids or None
             }
-            
+
             # Add system prompt ID if provided
             if system_prompt_id:
                 # Convert to string to ensure consistency across backends
@@ -543,7 +584,8 @@ class ApiKeyService:
                 "active": True,
                 "created_at": now.timestamp(),  # Convert datetime to timestamp
                 "system_prompt_id": str(system_prompt_id) if system_prompt_id else None,
-                "adapter_name": adapter_name
+                "adapter_name": adapter_name,
+                "allowed_user_ids": allowed_user_ids or None
             }
             
             return result
@@ -670,6 +712,7 @@ class ApiKeyService:
         adapter_name: str,
         system_prompt_id: Optional[str] = None,
         notes: Optional[str] = None,
+        allowed_user_ids: Optional[list] = None,
         adapter_manager=None
     ) -> bool:
         """Update editable metadata for an API key record."""
@@ -713,14 +756,17 @@ class ApiKeyService:
 
             next_notes = notes or None
             next_prompt_id = system_prompt_id or None
+            next_allowed_user_ids = list(allowed_user_ids) if allowed_user_ids else None
             current_prompt_id = str(key_doc.get("system_prompt_id")) if key_doc.get("system_prompt_id") else None
             current_notes = key_doc.get("notes") or None
+            current_allowed_user_ids = key_doc.get("allowed_user_ids") or None
 
             if (
                 (key_doc.get("client_name") or "") == client_name and
                 (key_doc.get("adapter_name") or "") == adapter_name and
                 current_prompt_id == next_prompt_id and
-                current_notes == next_notes
+                current_notes == next_notes and
+                current_allowed_user_ids == next_allowed_user_ids
             ):
                 return True
 
@@ -732,6 +778,7 @@ class ApiKeyService:
                     "adapter_name": adapter_name,
                     "system_prompt_id": next_prompt_id,
                     "notes": next_notes,
+                    "allowed_user_ids": next_allowed_user_ids,
                 }}
             )
         except HTTPException:

@@ -894,6 +894,8 @@ Accepted audience: Auth0 → the configured `audience`; Entra → either the bar
 
 > **Important — Entra audience caveat.** Entra only issues a token whose `aud` equals your app when the client requests a scope for *your* API (`api://{client_id}/...`). If the client only requests Microsoft Graph scopes (e.g. `User.Read`), it receives a **Graph** access token whose audience is Graph — ORBIT cannot and must not validate that token. Ensure the client (e.g. the `orbitchat` MSAL scopes) requests ORBIT's own API scope, not just Graph scopes.
 
+For a full click-by-click walkthrough of both dashboards (Auth0 API creation, application authorization, Entra scope exposure, consent settings) plus troubleshooting for the failure modes you'll actually hit, see [orbitchat-external-auth-setup.md](orbitchat-external-auth-setup.md).
+
 ### Admin Panel SSO
 
 The bearer-token validation above is for API clients that already hold a provider token. ORBIT's **own admin panel** (`/admin`) can additionally offer "Sign in with Microsoft / Auth0" using a **server-side OAuth 2.0 Authorization Code + PKCE** flow. On success it mints the same `dashboard_token` session cookie the username/password login uses, so the rest of the admin panel is unchanged.

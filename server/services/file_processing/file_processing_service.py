@@ -569,7 +569,7 @@ class FileProcessingService:
             {'visions': live_config.get('visions', {})}
         )
 
-    async def _get_vision_provider_for_api_key(self, api_key: str) -> str:
+    async def _get_vision_provider_for_api_key(self, api_key: str, current_user_id: Optional[str] = None) -> str:
         """
         Get the vision provider for a given API key by looking up its adapter configuration.
 
@@ -577,6 +577,9 @@ class FileProcessingService:
 
         Args:
             api_key: The API key to lookup
+            current_user_id: ORBIT user id of the caller who was already authorized at the
+                route boundary, so an allowlisted key resolves here too instead of being
+                rejected again for lack of identity
 
         Returns:
             Vision provider name (e.g., 'openai', 'gemini', 'anthropic')
@@ -592,7 +595,9 @@ class FileProcessingService:
                     api_key_service = self.app_state.api_key_service
 
                     # Get adapter name for this API key (pass adapter_manager to check live configs)
-                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
+                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(
+                        api_key, adapter_manager, current_user_id=current_user_id
+                    )
 
                     if adapter_name:
                         # Get adapter config from adapter manager
@@ -613,7 +618,7 @@ class FileProcessingService:
         logger.debug(f"Using default vision provider '{self.default_vision_provider}' for api_key: {api_key[:8]}...")
         return self.default_vision_provider
 
-    async def _get_audio_provider_for_api_key(self, api_key: str) -> str:
+    async def _get_audio_provider_for_api_key(self, api_key: str, current_user_id: Optional[str] = None) -> str:
         """
         Get the STT provider for a given API key by looking up its adapter configuration.
 
@@ -621,6 +626,9 @@ class FileProcessingService:
 
         Args:
             api_key: The API key to lookup
+            current_user_id: ORBIT user id of the caller who was already authorized at the
+                route boundary, so an allowlisted key resolves here too instead of being
+                rejected again for lack of identity
 
         Returns:
             STT provider name (e.g., 'whisper', 'openai', 'gemini')
@@ -636,7 +644,9 @@ class FileProcessingService:
                     api_key_service = self.app_state.api_key_service
 
                     # Get adapter name for this API key (pass adapter_manager to check live configs)
-                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
+                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(
+                        api_key, adapter_manager, current_user_id=current_user_id
+                    )
 
                     if adapter_name:
                         # Get adapter config from adapter manager
@@ -657,13 +667,16 @@ class FileProcessingService:
         logger.debug(f"Using default STT provider '{self.default_audio_provider}' for api_key: {api_key[:8]}...")
         return self.default_audio_provider
 
-    async def _requires_encryption_for_api_key(self, api_key: str) -> bool:
+    async def _requires_encryption_for_api_key(self, api_key: str, current_user_id: Optional[str] = None) -> bool:
         """
         Check whether the adapter associated with this API key requires
         encrypted file storage (capabilities.requires_encryption).
 
         Args:
             api_key: The API key to lookup
+            current_user_id: ORBIT user id of the caller who was already authorized at the
+                route boundary, so an allowlisted key resolves here too instead of being
+                rejected again for lack of identity
 
         Returns:
             True if the adapter declares requires_encryption; False when there
@@ -686,7 +699,9 @@ class FileProcessingService:
             return False
         api_key_service = self.app_state.api_key_service
 
-        adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
+        adapter_name, _ = await api_key_service.get_adapter_for_api_key(
+            api_key, adapter_manager, current_user_id=current_user_id
+        )
         if not adapter_name:
             return False
 
@@ -773,31 +788,36 @@ class FileProcessingService:
         file_data: bytes,
         filename: str,
         mime_type: str,
-        api_key: str
+        api_key: str,
+        current_user_id: Optional[str] = None
     ) -> str:
         """
         Quick file upload - stores file and returns file_id immediately.
         Content processing happens in background via process_file_content.
-        
+
         Args:
             file_data: File contents as bytes
             filename: Original filename
             mime_type: MIME type
             api_key: API key of uploader
-            
+            current_user_id: ORBIT user id of the caller, already authorized at the route
+                boundary. Passed through so the internal adapter lookup below doesn't
+                re-run the allowlist check without identity and reject an already-authorized
+                restricted key
+
         Returns:
             file_id: Unique file identifier
         """
         # Generate unique file ID
         file_id = str(uuid.uuid4())
-        
+
         # Validate file
         if not self._validate_file(file_data, mime_type):
             raise ValueError(f"Unsupported file type: {mime_type}")
-        
+
         # Store file
         storage_key = f"{api_key}/{file_id}/{filename}"
-        requires_encryption = await self._requires_encryption_for_api_key(api_key)
+        requires_encryption = await self._requires_encryption_for_api_key(api_key, current_user_id=current_user_id)
         metadata = {
             'filename': filename,
             'mime_type': mime_type,
@@ -841,18 +861,21 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        vision_prompt: Optional[str] = None
+        vision_prompt: Optional[str] = None,
+        current_user_id: Optional[str] = None
     ) -> None:
         """
         Process file content (extraction, chunking, indexing) in background.
         Called after quick_upload for async processing.
-        
+
         Args:
             file_id: File identifier from quick_upload
             file_data: File contents as bytes
             filename: Original filename
             mime_type: MIME type
             api_key: API key of uploader
+            current_user_id: ORBIT user id of the caller, already authorized at the route
+                boundary, threaded through to the internal adapter/provider lookups below
         """
         # Timeout for the entire processing pipeline (2 minutes).
         # Prevents files from being stuck in 'processing' forever when
@@ -863,7 +886,8 @@ class FileProcessingService:
             async with asyncio.timeout(processing_timeout_seconds):
                 # Extract text and metadata
                 extracted_text, file_metadata = await self._extract_content(
-                    file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt
+                    file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt,
+                    current_user_id=current_user_id
                 )
 
                 # Chunk content
@@ -964,7 +988,8 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        transcription_language: Optional[str] = None
+        transcription_language: Optional[str] = None,
+        current_user_id: Optional[str] = None
     ) -> tuple[str, Dict[str, Any]]:
         """Extract content from audio file using audio services for transcription."""
         import asyncio
@@ -972,7 +997,7 @@ class FileProcessingService:
 
         try:
             # Get adapter-specific STT provider (or fallback to default)
-            audio_provider = await self._get_audio_provider_for_api_key(api_key)
+            audio_provider = await self._get_audio_provider_for_api_key(api_key, current_user_id=current_user_id)
 
             # Get audio service - pass config with stt_providers and tts_providers keys
             # as expected by ProviderAIService._extract_provider_config()
@@ -1070,17 +1095,20 @@ class FileProcessingService:
         file_data: bytes,
         filename: str,
         mime_type: str,
-        api_key: str
+        api_key: str,
+        current_user_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Process an uploaded file through the complete pipeline.
-        
+
         Args:
             file_data: File contents as bytes
             filename: Original filename
             mime_type: MIME type
             api_key: API key of uploader
-            
+            current_user_id: ORBIT user id of the caller, already authorized at the route
+                boundary, threaded through to the internal adapter/provider lookups below
+
         Returns:
             Processing result with file_id and status
         """
@@ -1094,7 +1122,7 @@ class FileProcessingService:
             
             # 2. Store file
             storage_key = f"{api_key}/{file_id}/{filename}"
-            requires_encryption = await self._requires_encryption_for_api_key(api_key)
+            requires_encryption = await self._requires_encryption_for_api_key(api_key, current_user_id=current_user_id)
             metadata = {
                 'filename': filename,
                 'mime_type': mime_type,
@@ -1117,13 +1145,13 @@ class FileProcessingService:
                 storage_type='vector',
                 metadata=metadata,
             )
-            
+
             # 4. Update status to processing
             await self.metadata_store.update_processing_status(file_id, 'processing')
 
             # 5. Extract text and metadata
             extracted_text, file_metadata = await self._extract_content(
-                file_data, filename, mime_type, api_key=api_key
+                file_data, filename, mime_type, api_key=api_key, current_user_id=current_user_id
             )
 
             # 6. Chunk content
@@ -1212,7 +1240,8 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        vision_prompt: Optional[str] = None
+        vision_prompt: Optional[str] = None,
+        current_user_id: Optional[str] = None
     ) -> tuple[str, Dict[str, Any]]:
         """Extract text and metadata from file."""
         # Check if this is an image file. When the AI OCR processor is the active
@@ -1220,13 +1249,14 @@ class FileProcessingService:
         # instead of the generic vision path.
         if self.enable_vision and mime_type.startswith('image/') and not self._ai_ocr_is_priority():
             return await self._extract_image_content(
-                file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt
+                file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt,
+                current_user_id=current_user_id
             )
 
         # Check if this is an audio file
         if self.enable_audio and mime_type.startswith('audio/'):
             return await self._extract_audio_content(
-                file_data, filename, mime_type, api_key=api_key
+                file_data, filename, mime_type, api_key=api_key, current_user_id=current_user_id
             )
 
         processors = self.processor_registry.get_processors(mime_type)
@@ -1276,14 +1306,15 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        vision_prompt: Optional[str] = None
+        vision_prompt: Optional[str] = None,
+        current_user_id: Optional[str] = None
     ) -> tuple[str, Dict[str, Any]]:
         """Extract content from image using vision services."""
         import asyncio
 
         try:
             # Get adapter-specific vision provider (or fallback to default)
-            vision_provider = await self._get_vision_provider_for_api_key(api_key)
+            vision_provider = await self._get_vision_provider_for_api_key(api_key, current_user_id=current_user_id)
 
             # Resolve the vision service through the adapter manager's managed
             # VisionCacheManager. That cache is keyed/invalidated on adapter reload
@@ -1406,7 +1437,7 @@ class FileProcessingService:
         
         return chunks
     
-    async def _get_adapter_config_for_api_key(self, api_key: str) -> Dict[str, Any]:
+    async def _get_adapter_config_for_api_key(self, api_key: str, current_user_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Get the adapter configuration for a given API key.
 
@@ -1414,6 +1445,9 @@ class FileProcessingService:
 
         Args:
             api_key: The API key to lookup
+            current_user_id: ORBIT user id of the caller who was already authorized at the
+                route boundary, so an allowlisted key resolves here too instead of being
+                rejected again for lack of identity
 
         Returns:
             Dict containing adapter config merged with global config, or just global config as fallback
@@ -1437,7 +1471,9 @@ class FileProcessingService:
                     api_key_service = self.app_state.api_key_service
 
                     # Get adapter name for this API key (pass adapter_manager to check live configs)
-                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
+                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(
+                        api_key, adapter_manager, current_user_id=current_user_id
+                    )
 
                     if not adapter_name:
                         fallback_reason = f"no adapter found for api_key {api_key[:8]}..."
@@ -1598,23 +1634,23 @@ class FileProcessingService:
         storage = self._select_storage_for_read(file_info)
         return await storage.get_file(storage_key)
     
-    async def delete_file(self, file_id: str, api_key: str) -> bool:
+    async def delete_file(self, file_id: str, api_key: str, current_user_id: Optional[str] = None) -> bool:
         """Delete a file without racing its background processor."""
         async with self._get_file_operation_lock(file_id):
-            return await self._delete_file_locked(file_id, api_key)
+            return await self._delete_file_locked(file_id, api_key, current_user_id=current_user_id)
 
-    async def _delete_file_locked(self, file_id: str, api_key: str) -> bool:
+    async def _delete_file_locked(self, file_id: str, api_key: str, current_user_id: Optional[str] = None) -> bool:
         """Delete file and all associated chunks from vector store, storage, and metadata store."""
         file_info = await self.metadata_store.get_file_info(file_id)
-        
+
         if not file_info:
             return False
-        
+
         if file_info['api_key'] != api_key:
             raise PermissionError("Access denied")
-        
+
         # 1. Delete chunks from vector store and metadata store
-        chunks_already_deleted = await self._delete_file_chunks(file_id, api_key)
+        chunks_already_deleted = await self._delete_file_chunks(file_id, api_key, current_user_id=current_user_id)
 
         # 2. Delete file from storage (filesystem)
         try:
@@ -1635,7 +1671,7 @@ class FileProcessingService:
         
         return metadata_deleted
     
-    async def _delete_file_chunks(self, file_id: str, api_key: str) -> bool:
+    async def _delete_file_chunks(self, file_id: str, api_key: str, current_user_id: Optional[str] = None) -> bool:
         """
         Delete a file's chunks from the vector store and metadata store.
 
@@ -1644,7 +1680,7 @@ class FileProcessingService:
         """
         try:
             # Get adapter-specific config for this API key (includes embedding provider override)
-            adapter_aware_config = await self._get_adapter_config_for_api_key(api_key)
+            adapter_aware_config = await self._get_adapter_config_for_api_key(api_key, current_user_id=current_user_id)
 
             # Get or create cached file retriever with adapter-aware config to delete chunks from vector store
             from services.retriever_cache import get_retriever_cache
@@ -1664,7 +1700,8 @@ class FileProcessingService:
         self,
         file_id: str,
         api_key: str,
-        vision_prompt: Optional[str] = None
+        vision_prompt: Optional[str] = None,
+        current_user_id: Optional[str] = None
     ) -> None:
         """
         Re-extract and re-index an already-uploaded file using the currently
@@ -1706,7 +1743,7 @@ class FileProcessingService:
         file_data = await storage.get_file(storage_key)
 
         # Remove previously-extracted chunks so re-processing does not duplicate them
-        await self._delete_file_chunks(file_id, api_key)
+        await self._delete_file_chunks(file_id, api_key, current_user_id=current_user_id)
 
         # Reset status and re-run extraction/chunking/indexing with live providers
         await self.metadata_store.update_processing_status(file_id, 'processing', chunk_count=0)
@@ -1717,6 +1754,7 @@ class FileProcessingService:
             mime_type=mime_type,
             api_key=api_key,
             vision_prompt=vision_prompt,
+            current_user_id=current_user_id,
         )
 
     async def list_files(self, api_key: str) -> List[Dict[str, Any]]:

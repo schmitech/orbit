@@ -21,6 +21,7 @@ from utils import is_true_value
 from utils.text_utils import hash_api_key
 from services.stream_registry import stream_registry
 from ai_services.services.inference_service import OpenAIResponseFormatter
+from routes.auth_helpers import resolve_authenticated_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -279,28 +280,16 @@ class RouteConfigurator:
         async def get_user_id(request: Request) -> Optional[str]:
             """
             Extract the authenticated user ID, falling back to the user header.
-            
+
             Args:
                 request: The incoming request
-                
+
             Returns:
                 The authenticated/user header ID if provided, None otherwise
             """
-            auth_header = request.headers.get("authorization")
-            if auth_header and auth_header.lower().startswith("bearer "):
-                token = auth_header.split(" ", 1)[1].strip()
-                auth_service = getattr(request.app.state, "auth_service", None)
-                if token and auth_service:
-                    is_valid, user_info = await auth_service.validate_token(token)
-                    if is_valid and user_info:
-                        request.state.current_user = user_info
-                        auth_user_id = (
-                            user_info.get("id")
-                            or user_info.get("user_id")
-                            or user_info.get("username")
-                        )
-                        if auth_user_id:
-                            return str(auth_user_id).strip()
+            auth_user_id = await resolve_authenticated_user_id(request)
+            if auth_user_id:
+                return auth_user_id
 
             # Get user header configuration from chat history config
             chat_history_config = request.app.state.config.get('chat_history', {})
@@ -363,7 +352,10 @@ class RouteConfigurator:
             try:
                 # Get adapter manager from app state to check live configs (respects hot-reload)
                 adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-                adapter_name, system_prompt_id = await request.app.state.api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
+                current_user_id = await resolve_authenticated_user_id(request)
+                adapter_name, system_prompt_id = await request.app.state.api_key_service.get_adapter_for_api_key(
+                    api_key, adapter_manager, current_user_id=current_user_id
+                )
                 return adapter_name, system_prompt_id
             except HTTPException as e:
                 # Allow health check without API key if configured

@@ -11,13 +11,14 @@ Implements singleton pattern to share MongoDB connections across services.
 
 import logging
 import motor.motor_asyncio
+import pymongo.errors
 import threading
 from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
 from fastapi import HTTPException
 from datetime import datetime
 from bson import ObjectId
 
-from services.database_service import DatabaseOperationError, DatabaseService
+from services.database_service import DatabaseDuplicateKeyError, DatabaseOperationError, DatabaseService
 from utils.id_utils import id_to_string
 
 logger = logging.getLogger(__name__)
@@ -408,6 +409,12 @@ class MongoDBService(DatabaseService):
             result = await collection.insert_one(sanitized_document)
             # Convert ObjectId to string for JSON serialization
             return id_to_string(result.inserted_id)
+        except pymongo.errors.DuplicateKeyError as e:
+            logger.warning(f"Duplicate key error inserting into {collection_name}: {str(e)}")
+            # Raise the abstraction-layer exception, not the raw driver error, so
+            # callers (e.g. auth_service._find_or_create_external_user) that catch
+            # DatabaseDuplicateKeyError for graceful concurrent-insert handling work.
+            raise DatabaseDuplicateKeyError(str(e)) from e
         except Exception as e:
             logger.error(f"Error inserting document into {collection_name}: {str(e)}")
             logger.error(f"Document that failed: {str(document)[:500]}...")  # Log first 500 chars for debugging

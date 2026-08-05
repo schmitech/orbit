@@ -198,7 +198,10 @@ def permission_or_api_key(*permissions: str):
         if hasattr(request.app.state, 'api_key_service') and x_api_key:
             api_key_service = request.app.state.api_key_service
             adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-            is_valid, _, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
+            current_user_id = current_user.get("id") if current_user else None
+            is_valid, _, _ = await api_key_service.validate_api_key(
+                x_api_key, adapter_manager, current_user_id=current_user_id
+            )
             if is_valid:
                 request.state.api_key = x_api_key
                 return True

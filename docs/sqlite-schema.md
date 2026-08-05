@@ -121,7 +121,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
     quota_daily_limit INTEGER,
     quota_monthly_limit INTEGER,
     quota_throttle_enabled INTEGER,
-    quota_throttle_priority INTEGER
+    quota_throttle_priority INTEGER,
+    allowed_user_ids TEXT
 )
 ```
 
@@ -138,6 +139,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
 - `quota_monthly_limit` (INTEGER): Optional per-key monthly quota override
 - `quota_throttle_enabled` (INTEGER): Optional per-key throttling override (1=true, 0=false)
 - `quota_throttle_priority` (INTEGER): Optional per-key throttling priority override
+- `allowed_user_ids` (TEXT): JSON-encoded array of ORBIT `users.id` values permitted to use this key. `NULL`/empty = unrestricted (any valid key works, current behavior). Matched against the authenticated caller's internal user id, which for external Entra/Auth0 users is assigned on first JIT-provisioned login (see `users.provider`/`external_id`)
 
 **Indexes:**
 - `idx_api_keys_api_key` on `api_key`
@@ -820,6 +822,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.10** (2026-08-04): Per-user API key restriction
+  - Added `api_keys.allowed_user_ids` (JSON array of ORBIT `users.id`) — lets an admin restrict a key/adapter to specific logged-in users (including JIT-provisioned Entra/Auth0 users) instead of it being usable by anyone who holds the key. `NULL`/empty preserves current unrestricted behavior
+  - Enforced in `ApiKeyService.validate_api_key`/`get_adapter_for_api_key` against the caller's authenticated user id (resolved the same way `get_optional_user` already resolves bearer tokens, including external-provider JWTs via the existing `OIDCValidator`/JIT-provisioning pipeline) — no new identity-verification code was needed
+  - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`); MongoDB is schemaless and needs no migration
 - **v1.9** (2026-07-31): Audit ledger call-type classification
   - Added `audit_logs.call_type` (`inference`, `embedding`, `image`, `video`, `audio`, `document`) and index `idx_audit_logs_call_type` — lets the admin panel Audit Ledger label and filter rows by the kind of AI call instead of showing every row as "Inference"
   - Set at the usage-recording call site (`record_usage`/`record_media_generation_usage`), not inferred from `provider`/`model` after the fact

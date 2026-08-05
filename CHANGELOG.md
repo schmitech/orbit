@@ -4,9 +4,11 @@
 
 ### Core System Updates
 - **Shieldstral Moderation**: Added a policy-adaptive Shieldstral 1.0 3B moderator for `safety.moderator: "shieldstral"`, served through OpenAI-compatible vLLM or llama.cpp endpoints. The bundled policy matches the existing Llama Guard coverage and can be replaced inline or from a policy file; input and non-streaming response validation retain their existing behavior.
+- **Per-User API Key Restriction**: API keys can now be scoped to specific ORBIT users via a new `allowed_user_ids` list, enforced against the caller's identity as verified from the `Authorization` bearer token (session or external Entra/Auth0 JWT) — never the client-supplied `X-User-ID` header, which stays display-only. Unset/empty preserves today's unrestricted behavior. The admin panel's API Keys tab gained a "Restrict to users" picker sourced from `GET /auth/users`. Entra's OIDC validation now also accepts legacy v1.0-format access tokens (`sts.windows.net` issuer) alongside v2.0, and falls back to `upn`/`unique_name` when `email`/`preferred_username` is absent; Auth0's email claim is now configurable per tenant (`auth.providers.{entra,auth0}.email_claim`) for custom-claim setups. See `docs/orbitchat-external-auth-setup.md` for the Auth0/Entra dashboard configuration this requires.
 
 ### Bug Fixes & Technical Improvements
 - **Admin Panel Module Foundation**: Converted the admin panel to native ES modules and extracted shared API, DOM, chart, and metric-card helpers plus the Feedback tab, preserving the existing static entry asset and invalidating it when any module changes. Restored the shared metric-card renderer used by Costs so its usage summary remains visible after the extraction; added module import and syntax smoke coverage.
+- **Cross-Backend Duplicate-Key Handling**: Fixed SQLite, PostgreSQL, and MongoDB all failing to raise the shared `DatabaseDuplicateKeyError` on a duplicate-key insert — each re-raised or swallowed its own driver-specific exception instead — so `auth_service.py`'s intended graceful handling of concurrent first-time logins never actually engaged on any backend. Two near-simultaneous requests provisioning the same brand-new external (Entra/Auth0) user could surface a raw driver error on one of them instead of silently reusing the row the other created.
 
 ## [2.14.2] - 2026-08-04
 

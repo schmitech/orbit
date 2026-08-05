@@ -33,10 +33,20 @@ except ImportError:  # pragma: no cover - exercised only when dependency missing
 # and AdminSSOService (browser SSO). Keeping these in one place ensures both
 # paths agree on issuer/JWKS/authorize/token URLs for a given provider config.
 
-def entra_endpoints(tenant_id: str) -> Dict[str, str]:
+def entra_endpoints(tenant_id: str) -> Dict[str, Any]:
     base = f"https://login.microsoftonline.com/{tenant_id}"
+    v2_issuer = f"{base}/v2.0"
     return {
-        "issuer": f"{base}/v2.0",
+        "issuer": v2_issuer,
+        # Entra can mint either v2.0-format or legacy v1.0-format access tokens
+        # for the same resource/audience, depending on the app registration's
+        # accessTokenAcceptedVersion manifest setting — not something a caller
+        # controls per-request. OIDCValidator (bearer access-token validation)
+        # accepts both issuer shapes rather than requiring every deployer to
+        # find and flip that manifest field. AdminSSOService (ID tokens from
+        # the v2.0 token endpoint) only ever sees the v2.0 issuer, so it keeps
+        # using the singular "issuer" key above.
+        "issuers": [v2_issuer, f"https://sts.windows.net/{tenant_id}/"],
         "jwks_uri": f"{base}/discovery/v2.0/keys",
         "authorize_url": f"{base}/oauth2/v2.0/authorize",
         "token_url": f"{base}/oauth2/v2.0/token",
@@ -102,10 +112,14 @@ class OIDCValidator:
             )
         ep = entra_endpoints(tenant_id)
         return {
-            "issuer": ep["issuer"],
+            "issuers": ep["issuers"],
             # Entra access tokens carry either the bare app id or the api:// URI.
             "audiences": [client_id, f"api://{client_id}"],
             "jwks_client": PyJWKClient(ep["jwks_uri"], cache_keys=True),
+            # Entra access tokens include `preferred_username` by default (see the
+            # fallback chain in validate()), so this is rarely needed — but exposed
+            # for parity with auth0 in case a tenant's token shape omits it.
+            "email_claim": cfg.get('email_claim', 'email'),
         }
 
     def _build_auth0(self, cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -117,9 +131,15 @@ class OIDCValidator:
             )
         ep = auth0_endpoints(domain)
         return {
-            "issuer": ep["issuer"],
+            "issuers": [ep["issuer"]],
             "audiences": [audience],
             "jwks_client": PyJWKClient(ep["jwks_uri"], cache_keys=True),
+            # Auth0 access tokens issued against a custom API audience carry only
+            # bare OAuth claims (sub/aud/exp/scope/...) — email is never included
+            # unless an Auth0 Action injects it as a namespaced custom claim
+            # (Auth0 requires custom claim keys to be URIs, e.g. "https://your-api/email").
+            # Configurable since the namespace is whatever the admin's Action uses.
+            "email_claim": cfg.get('email_claim', 'email'),
         }
 
     async def validate(self, token: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
@@ -151,17 +171,29 @@ class OIDCValidator:
         if not subject:
             return False, None
 
+        entry = self._providers[provider]
+        email_claim = entry.get("email_claim", "email")
+        # preferred_username/upn/unique_name are all well-known Entra claims that
+        # carry the user's email/UPN depending on token version and audience;
+        # checked unconditionally since they're safe regardless of provider.
+        email = (
+            claims.get(email_claim)
+            or claims.get("email")
+            or claims.get("preferred_username")
+            or claims.get("upn")
+            or claims.get("unique_name")
+        )
         return True, {
             "provider": provider,
             "external_id": subject,
-            "email": claims.get("email") or claims.get("preferred_username"),
+            "email": email,
         }
 
     def _match_provider(self, issuer: Optional[str]) -> Optional[str]:
         if not issuer:
             return None
         for name, entry in self._providers.items():
-            if entry["issuer"] == issuer:
+            if issuer in entry["issuers"]:
                 return name
         return None
 
@@ -173,12 +205,18 @@ class OIDCValidator:
         """
         entry = self._providers[provider]
         signing_key = entry["jwks_client"].get_signing_key_from_jwt(token)
-        return jwt.decode(
+        # A provider may accept more than one issuer shape (e.g. Entra's v1.0
+        # and v2.0-format tokens for the same audience — see entra_endpoints()).
+        # PyJWT's built-in `issuer` check only supports a single string, so it's
+        # disabled here and membership is checked manually below instead.
+        claims = jwt.decode(
             token,
             signing_key.key,
             algorithms=["RS256"],
             audience=entry["audiences"],
-            issuer=entry["issuer"],
             leeway=60,
-            options={"require": ["exp", "iss", "aud", "sub"]},
+            options={"require": ["exp", "iss", "aud", "sub"], "verify_iss": False},
         )
+        if claims.get("iss") not in entry["issuers"]:
+            raise jwt.InvalidIssuerError(f"Issuer not in {entry['issuers']}")
+        return claims

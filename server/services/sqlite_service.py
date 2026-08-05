@@ -19,7 +19,7 @@ from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
 from datetime import datetime
 from pathlib import Path
 
-from services.database_service import DatabaseOperationError, DatabaseService
+from services.database_service import DatabaseDuplicateKeyError, DatabaseOperationError, DatabaseService
 from utils.id_utils import generate_id, ensure_id, id_to_string
 
 logger = logging.getLogger(__name__)
@@ -166,7 +166,8 @@ class SQLiteService(DatabaseService):
                     quota_daily_limit INTEGER,
                     quota_monthly_limit INTEGER,
                     quota_throttle_enabled INTEGER,
-                    quota_throttle_priority INTEGER
+                    quota_throttle_priority INTEGER,
+                    allowed_user_ids TEXT
                 )
             ''',
             'system_prompts': '''
@@ -857,6 +858,10 @@ class SQLiteService(DatabaseService):
         if collection_name == 'users' and isinstance(document.get('roles'), list):
             document['roles'] = json.dumps(document['roles'])
 
+        # api_keys.allowed_user_ids has no native array column type either.
+        if collection_name == 'api_keys' and isinstance(document.get('allowed_user_ids'), list):
+            document['allowed_user_ids'] = json.dumps(document['allowed_user_ids'])
+
         # Convert datetime objects to ISO strings
         for key, value in document.items():
             if isinstance(value, datetime):
@@ -1046,7 +1051,10 @@ class SQLiteService(DatabaseService):
             # Handle duplicate key errors
             if "UNIQUE constraint failed" in str(e):
                 logger.warning(f"Duplicate key error inserting into {collection_name}: {str(e)}")
-                raise  # Re-raise for deduplication handling
+                # Raise the abstraction-layer exception, not the raw driver error, so
+                # callers (e.g. auth_service._find_or_create_external_user) that catch
+                # DatabaseDuplicateKeyError for graceful concurrent-insert handling work.
+                raise DatabaseDuplicateKeyError(str(e)) from e
             logger.error(f"Integrity error inserting document into {collection_name}: {str(e)}")
             return None
         except Exception as e:
@@ -1094,6 +1102,8 @@ class SQLiteService(DatabaseService):
                     # If updating metadata_json, ensure it's serializable
                     set_data[key] = json.dumps(_make_json_serializable(value))
                 elif isinstance(value, list) and key == 'roles' and collection_name == 'users':
+                    set_data[key] = json.dumps(value)
+                elif isinstance(value, list) and key == 'allowed_user_ids' and collection_name == 'api_keys':
                     set_data[key] = json.dumps(value)
 
             # Build SET clause (quote column names to handle reserved keywords)
@@ -1357,6 +1367,13 @@ class SQLiteService(DatabaseService):
                 doc['roles'] = json.loads(doc['roles'])
             except json.JSONDecodeError:
                 doc['roles'] = None
+
+        # Convert api_keys.allowed_user_ids JSON string back to a list
+        if collection_name == 'api_keys' and isinstance(doc.get('allowed_user_ids'), str):
+            try:
+                doc['allowed_user_ids'] = json.loads(doc['allowed_user_ids'])
+            except json.JSONDecodeError:
+                doc['allowed_user_ids'] = None
 
         # Convert ISO strings back to datetime objects where appropriate
         datetime_fields = ['created_at', 'updated_at', 'last_login', 'expires', 'timestamp']

@@ -139,6 +139,41 @@ def check_service_availability(service, service_name: str) -> None:
         raise HTTPException(status_code=503, detail=f"{service_name} is not available")
 
 
+async def resolve_authenticated_user_id(request: Request, header_name: str = "authorization") -> Optional[str]:
+    """
+    Resolve the authenticated ORBIT user id from a bearer token, if present.
+
+    Validates via `auth_service.validate_token`, which handles both opaque
+    session tokens and external-provider JWTs (Entra/Auth0), JIT-provisioning
+    the latter into the `users` table. Returns None for anonymous/invalid
+    requests rather than raising, so callers can treat identity as optional
+    (e.g. for API-key allowlist checks that only apply to restricted keys).
+
+    Args:
+        header_name: Header to read the "Bearer <token>" credential from.
+            Defaults to the standard `Authorization` header. Pass an
+            alternate header when the transport's `Authorization` slot is
+            already occupied by something else (e.g. A2A uses it for the
+            raw API key, so a distinct user credential needs its own header).
+    """
+    auth_header = request.headers.get(header_name)
+    if auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        auth_service = getattr(request.app.state, "auth_service", None)
+        if token and auth_service:
+            is_valid, user_info = await auth_service.validate_token(token)
+            if is_valid and user_info:
+                request.state.current_user = user_info
+                auth_user_id = (
+                    user_info.get("id")
+                    or user_info.get("user_id")
+                    or user_info.get("username")
+                )
+                if auth_user_id:
+                    return str(auth_user_id).strip()
+    return None
+
+
 async def authenticate_websocket_admin(websocket: WebSocket) -> bool:
     """Validate admin auth for WebSocket connections."""
     auth_service = getattr(websocket.app.state, 'auth_service', None)

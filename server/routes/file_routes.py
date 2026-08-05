@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from services.file_processing.file_processing_service import FileProcessingService
 from services.file_processing.magika_detector import FileValidationError
+from routes.auth_helpers import resolve_authenticated_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +116,15 @@ def create_file_router() -> APIRouter:
                 raise HTTPException(status_code=401, detail="API key required")
             
             # Validate API key against API key service if available
+            current_user_id = await resolve_authenticated_user_id(request)
             api_key_service = getattr(request.app.state, 'api_key_service', None)
             if api_key_service:
                 try:
                     # Get adapter manager to check live configs (respects hot-reload)
                     adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-                    is_valid, _, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
+                    is_valid, _, _ = await api_key_service.validate_api_key(
+                        x_api_key, adapter_manager, current_user_id=current_user_id
+                    )
                     if not is_valid:
                         logger.warning(f"Invalid API key attempted for file upload: {x_api_key[:8]}...")
                         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -215,7 +219,8 @@ def create_file_router() -> APIRouter:
                 file_data=file_data,
                 filename=file.filename,
                 mime_type=mime_type,
-                api_key=x_api_key
+                api_key=x_api_key,
+                current_user_id=current_user_id
             )
 
             background_tasks.add_task(
@@ -225,7 +230,8 @@ def create_file_router() -> APIRouter:
                 filename=file.filename,
                 mime_type=mime_type,
                 api_key=x_api_key,
-                vision_prompt=prompt if mime_type.startswith('image/') else None
+                vision_prompt=prompt if mime_type.startswith('image/') else None,
+                current_user_id=current_user_id
             )
 
             logger.info(f"File uploaded (processing in background): {file_id}")
@@ -413,17 +419,21 @@ def create_file_router() -> APIRouter:
         try:
             if not x_api_key:
                 raise HTTPException(status_code=401, detail="API key required")
-            
+
+            current_user_id = await resolve_authenticated_user_id(request)
+
             # List all files for this API key using the processing service's metadata store
             files = await processing_service.metadata_store.list_files(x_api_key)
-            
+
             # Delete each file
             deleted_count = 0
             errors = []
-            
+
             for file in files:
                 try:
-                    success = await processing_service.delete_file(file['file_id'], x_api_key)
+                    success = await processing_service.delete_file(
+                        file['file_id'], x_api_key, current_user_id=current_user_id
+                    )
                     if success:
                         deleted_count += 1
                     else:
@@ -481,10 +491,11 @@ def create_file_router() -> APIRouter:
             
             if file_info['api_key'] != x_api_key:
                 raise HTTPException(status_code=403, detail="Access denied")
-            
+
             # Delete file
-            success = await processing_service.delete_file(file_id, x_api_key)
-            
+            current_user_id = await resolve_authenticated_user_id(request)
+            success = await processing_service.delete_file(file_id, x_api_key, current_user_id=current_user_id)
+
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to delete file")
 
@@ -545,10 +556,12 @@ def create_file_router() -> APIRouter:
                 file_id, 'processing', chunk_count=0
             )
 
+            current_user_id = await resolve_authenticated_user_id(request)
             background_tasks.add_task(
                 processing_service.reprocess_file,
                 file_id,
                 x_api_key,
+                current_user_id=current_user_id,
             )
 
             logger.info(f"File re-processing started: {file_id}")
@@ -594,6 +607,7 @@ def create_file_router() -> APIRouter:
             if not x_api_key:
                 raise HTTPException(status_code=401, detail="API key required")
 
+            current_user_id = await resolve_authenticated_user_id(request)
             files = await processing_service.metadata_store.list_files(x_api_key)
             queued = []
             for file in files:
@@ -607,6 +621,7 @@ def create_file_router() -> APIRouter:
                     processing_service.reprocess_file,
                     file['file_id'],
                     x_api_key,
+                    current_user_id=current_user_id,
                 )
                 queued.append(file['file_id'])
 
@@ -667,7 +682,10 @@ def create_file_router() -> APIRouter:
 
             # Get adapter-specific config to ensure embedding provider matches
             # what was used during indexing (prevents dimension mismatch)
-            config = await processing_service._get_adapter_config_for_api_key(x_api_key)
+            current_user_id = await resolve_authenticated_user_id(request)
+            config = await processing_service._get_adapter_config_for_api_key(
+                x_api_key, current_user_id=current_user_id
+            )
 
             # Get or create cached retriever
             retriever_cache = get_retriever_cache()

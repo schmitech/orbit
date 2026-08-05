@@ -733,7 +733,7 @@ class AuthService:
             try:
                 user_id = await self.database.insert_one(self.users_collection_name, user_doc)
                 user_doc["_id"] = user_id
-                logger.info(f"Provisioned external user: {username} (provider={provider})")
+                logger.debug(f"Provisioned external user: {username} (provider={provider})")
                 return user_doc
             except DatabaseDuplicateKeyError:
                 # Concurrent first-login created the row; fetch the winner.

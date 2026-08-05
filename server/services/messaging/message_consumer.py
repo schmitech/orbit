@@ -124,6 +124,13 @@ class MessageConsumerService:
         adapter) is preserved regardless. When no key service is configured (auth
         disabled), the override or 'default' is used with no prompt id. Raises
         PermissionError on missing/invalid keys.
+
+        No current_user_id is passed to get_adapter_for_api_key: broker messages
+        carry only an api_key (see _handle), with no bearer token or other
+        verifiable caller identity in the envelope. A key restricted via
+        allowed_user_ids is therefore unusable over this MQ path by design —
+        that restriction requires an interactively-authenticated caller, which
+        this transport cannot provide.
         """
         if not self.api_key_service:
             return adapter_override or "default", None

@@ -236,7 +236,7 @@ class _FakeApiKeyService:
     def __init__(self, mapping):
         self._mapping = mapping  # api_key -> adapter_name
 
-    async def get_adapter_for_api_key(self, api_key, adapter_manager):
+    async def get_adapter_for_api_key(self, api_key, adapter_manager, current_user_id=None):
         return self._mapping.get(api_key), None
 
 
@@ -351,7 +351,7 @@ async def test_classified_adapter_upload_fails_loudly_without_encryption_enabled
 class _FailingApiKeyService:
     """Simulates a transient failure in adapter lookup (e.g. a DB hiccup)."""
 
-    async def get_adapter_for_api_key(self, api_key, adapter_manager):
+    async def get_adapter_for_api_key(self, api_key, adapter_manager, current_user_id=None):
         raise RuntimeError("simulated lookup failure")
 
 

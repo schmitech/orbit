@@ -42,7 +42,7 @@ class DummyProcessingService:
             "chunk_count": 1,
         }
 
-    async def quick_upload(self, *, file_data, filename, mime_type, api_key):
+    async def quick_upload(self, *, file_data, filename, mime_type, api_key, current_user_id=None):
         self.received_mime_type = mime_type
         return "file-123"
 

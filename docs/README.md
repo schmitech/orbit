@@ -147,6 +147,7 @@ Secure your ORBIT deployment.
 | [Authentication](authentication.md) | User authentication and session management |
 | [API Keys](api-keys.md) | Create and manage API keys |
 | [Role-Based Access Control](authentication.md#rbac) | Configure user roles and permissions |
+| [orbitchat Entra/Auth0 Setup](orbitchat-external-auth-setup.md) | Step-by-step Auth0/Entra dashboard configuration for orbitchat login and per-user API key restriction |
 
 ---
 
