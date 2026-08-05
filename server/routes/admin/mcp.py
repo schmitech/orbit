@@ -123,10 +123,10 @@ _MCP_SERVER_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 # character (#, !, *, `, |, ", ', :, etc.) or an embedded " #" as structural,
 # not literal — e.g. a key of "X #evil" silently truncates the line into a
 # comment, turning `headers:` into a bare scalar on reparse instead of a map.
-# Restricting to alphanumerics and hyphen (covers every real header name,
-# e.g. X-Api-Key, Authorization) sidesteps the entire class of issues rather
+# Restricting to alphanumerics, hyphen, and underscore (e.g. X-Api-Key,
+# Authorization, CMIT_MCP_TOKEN) sidesteps the entire class of issues rather
 # than trying to enumerate which indicator characters are unsafe where.
-_MCP_HEADER_KEY_RE = re.compile(r"^[A-Za-z0-9\-]+$")
+_MCP_HEADER_KEY_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _validate_mcp_endpoint_url(url: str) -> None:

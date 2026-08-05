@@ -254,7 +254,6 @@ class TestValidateMcpConnectionHeaders:
             "#evil",  # a leading '#' after only whitespace makes the whole line a comment
             "X\"evil",  # an unescaped quote unbalances the line
             "X Y",  # header names never contain whitespace
-            "X_Y",  # underscores aren't valid in HTTP header names; only alnum/hyphen are accepted
             "",
         ],
     )
@@ -269,6 +268,11 @@ class TestValidateMcpConnectionHeaders:
                 {"transport": "http"},
                 {"headers": {"X" * (admin_routes._MCP_CONNECTION_HEADER_KEY_MAX_LENGTH + 1): "value"}},
             )
+
+    def test_accepts_header_key_with_underscore(self):
+        admin_routes._validate_mcp_connection(
+            {"transport": "http"}, {"headers": {"CMIT_MCP_TOKEN": "value"}}
+        )
 
     def test_rejects_header_value_over_maximum_length(self):
         with pytest.raises(HTTPException) as exc:

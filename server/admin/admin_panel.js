@@ -5962,7 +5962,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
         ledger.appendChild(mcpConnectionRow("URL", "Streamable HTTP endpoint", draft.url, function (next) { draft.url = next; },
           { type: "url", maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }));
         mapEditor = mcpKeyValueRows("Headers", "HTTP headers; declare ${VAR} values in .env or export them before use", draft.headers, function (next) { draft.headers = next; },
-          { keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH, valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH, maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES, keyPattern: /^[A-Za-z0-9-]+$/ });
+          { keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH, valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH, maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES, keyPattern: /^[A-Za-z0-9_-]+$/ });
         ledger.appendChild(mapEditor);
       } else {
         ledger.appendChild(mcpConnectionRow("Command", "Executable launched for this server", draft.command, function (next) { draft.command = next; }, { maxLength: MCP_CONNECTION_COMMAND_MAX_LENGTH }));
@@ -5972,22 +5972,40 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
         ledger.appendChild(mapEditor);
       }
       detail.appendChild(ledger);
-      detail.appendChild(el("div", { className: "mcp-save-row" },
-        el("button", { type: "button", className: "btn btn--neutral", onclick: function () { mcpSelected = MCP_DEFAULTS_KEY; mcpRerender(); } }, "Cancel"),
-        el("button", { type: "button", className: "btn btn--primary", onclick: async function () {
-          if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(draft.name)) { showError("Name must be a 1–64 character lowercase slug."); return; }
-          if (mapEditor) mapEditor.commitPending();
+      var createBtn = el("button", { type: "button", className: "btn btn--primary" }, "Create server");
+      createBtn.addEventListener("click", function () {
+        withButton(createBtn, async function () {
+          if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(draft.name)) {
+            throw new Error("Name must be a 1–64 character lowercase slug.");
+          }
+          if (mapEditor && !mapEditor.commitPending()) {
+            var pendingHeader = mapEditor.pendingKey();
+            if (pendingHeader) {
+              throw new Error(
+                draft.transport === "http"
+                  ? "Header names may contain only letters, numbers, hyphens, and underscores."
+                  : "Environment variable names must start with a letter or underscore and contain only letters, numbers, and underscores."
+              );
+            }
+          }
           var connection = draft.transport === "http"
             ? { url: draft.url, headers: draft.headers }
             : { command: draft.command, args: draft.args, env: draft.env };
-          if (draft.transport === "http") { var error = mcpEndpointUrlError(draft.url); if (error) { showError(error); return; } }
+          if (draft.transport === "http") {
+            var error = mcpEndpointUrlError(draft.url);
+            if (error) throw new Error(error);
+          }
           var res = await api("POST", ENDPOINTS.mcpServers, { name: draft.name, transport: draft.transport, connection: connection });
           mcpSelected = draft.name;
           mcpData = null;
           mcpTools = null;
           showStatus(res.message || "Server created.");
           mcpRerender();
-        } }, "Create server")
+        });
+      });
+      detail.appendChild(el("div", { className: "mcp-save-row" },
+        el("button", { type: "button", className: "btn btn--neutral", onclick: function () { mcpSelected = MCP_DEFAULTS_KEY; mcpRerender(); } }, "Cancel"),
+        createBtn
       ));
     }
     render();
@@ -6490,6 +6508,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
     var keyMaxLength = opts.keyMaxLength || MCP_CONNECTION_ENV_KEY_MAX_LENGTH;
     var valueMaxLength = opts.valueMaxLength || MCP_CONNECTION_ENV_VALUE_MAX_LENGTH;
     var maxEntries = opts.maxEntries || MCP_CONNECTION_ENV_MAX_ENTRIES;
+    var keyPattern = opts.keyPattern || null;
     var current = Object.assign({}, valueMap || {});
     var pristineJson = JSON.stringify(current);
     var commitPending = function () { return false; };
@@ -6578,6 +6597,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
       commitPending = function () {
           var newKey = newKeyInput.value.trim().slice(0, keyMaxLength);
           if (!newKey || Object.prototype.hasOwnProperty.call(current, newKey)) return false;
+          if (keyPattern && !keyPattern.test(newKey)) return false;
           if (Object.keys(current).length >= maxEntries) return false;
           current[newKey] = newValueInput.value.slice(0, valueMaxLength);
           onChange(Object.assign({}, current));
@@ -6627,6 +6647,10 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
     );
     row.sync = sync;
     row.commitPending = function () { return commitPending(); };
+    row.pendingKey = function () {
+      var input = rowsEl.querySelector(".mcp-kv-add-row .mcp-kv-key");
+      return input ? input.value.trim() : "";
+    };
     sync();
     return row;
   }
