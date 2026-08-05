@@ -26,7 +26,7 @@ from typing import Dict, Optional
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from routes.auth_helpers import resolve_authenticated_user_id
+from routes.auth_helpers import resolve_authenticated_user
 
 logger = logging.getLogger(__name__)
 
@@ -145,11 +145,13 @@ async def _resolve_adapter(request: Request) -> tuple[str, Optional[str]]:
         # Authorization already carries the API key itself (see module docstring),
         # so a distinct user credential — required to use a key restricted via
         # allowed_user_ids — must come from a separate header.
-        current_user_id = await resolve_authenticated_user_id(
+        current_user = await resolve_authenticated_user(
             request, header_name="x-orbit-user-authorization"
         )
         adapter_name, _ = await api_key_service.get_adapter_for_api_key(
-            api_key, adapter_manager, current_user_id=current_user_id
+            api_key, adapter_manager,
+            current_user_id=current_user.get("id") if current_user else None,
+            current_user_email=current_user.get("email") if current_user else None,
         )
         return adapter_name or "default", api_key
     except HTTPException:

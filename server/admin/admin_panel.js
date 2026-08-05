@@ -3087,6 +3087,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
     var notesInput = el("textarea", { rows: "4", maxlength: "2000" });
     var notesCounter = characterCount(notesInput, 2000);
     var createAllowedUsersSelect = allowedUsersSelect();
+    var createAllowedEmailsInput = el("input", { type: "text", placeholder: "alice@company.com, bob@company.com" });
     var createBtn = el("button", { type: "button" }, "Create Key");
     function openCreatePanel() {
       createPanel.style.display = "";
@@ -3112,6 +3113,10 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
         "Restrict to users (optional)",
         createAllowedUsersSelect,
         "Leave empty to allow any client holding this key. Hold Ctrl/Cmd to select multiple."
+      )),
+      el("div", { className: "stack" }, field(
+        "Pre-authorize email addresses (optional)", createAllowedEmailsInput,
+        "Comma-separated emails for people who have not logged in yet."
       )),
       el("div", { className: "admin-create-form-actions" },
         createBtn
@@ -3174,11 +3179,15 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
         if (notesInput.value.trim()) body.notes = notesInput.value.trim();
         var selectedUserIds = Array.from(createAllowedUsersSelect.selectedOptions).map(function (o) { return o.value; });
         if (selectedUserIds.length) body.allowed_user_ids = selectedUserIds;
+        var allowedEmails = parseAllowedEmails(createAllowedEmailsInput.value);
+        if (allowedEmails === null) { showError("Enter valid comma-separated email addresses."); return; }
+        if (allowedEmails.length) body.allowed_emails = allowedEmails;
         await api("POST", ENDPOINTS.apiKeys, body);
         clientInput.value = "";
         promptSelect.value = "";
         notesInput.value = "";
         Array.from(createAllowedUsersSelect.options).forEach(function (o) { o.selected = false; });
+        createAllowedEmailsInput.value = "";
         closeCreatePanel();
         loadKeys();
       }, "API key created");
@@ -3319,6 +3328,13 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
       select.appendChild(opt);
     });
     return select;
+  }
+
+  function parseAllowedEmails(value) {
+    var emails = (value || "").split(",").map(function (email) { return email.trim().toLowerCase(); }).filter(Boolean);
+    var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emails.some(function (email) { return !emailPattern.test(email); })) return null;
+    return emails.filter(function (email, index) { return emails.indexOf(email) === index; }).sort();
   }
 
   async function loadAvailableKeys() {
@@ -3654,6 +3670,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
     var promptSelect = el("select", null, el("option", { value: "" }, "No persona"));
     fillPromptSelect(promptSelect, cachedPrompts, key.system_prompt_id);
     var editAllowedUsersSelect = allowedUsersSelect(key.allowed_user_ids || []);
+    var editAllowedEmailsInput = el("input", { type: "text", value: (key.allowed_emails || []).join(", ") });
     var saveBtn = el("button", {
       type: "button",
       className: "btn--icon",
@@ -3665,6 +3682,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
     var originalPromptId = key.system_prompt_id || "";
     var originalNotes = key.notes || "";
     var originalAllowedUserIds = (key.allowed_user_ids || []).slice().sort();
+    var originalAllowedEmails = (key.allowed_emails || []).slice().sort();
     var editForm = el("div", { style: "display:none" },
       el("div", { className: "admin-create-form" },
         el("div", { className: "admin-create-form-grid api-key-create-grid" },
@@ -3677,6 +3695,10 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
           "Restrict to users (optional)",
           editAllowedUsersSelect,
           "Leave empty to allow any client holding this key. Hold Ctrl/Cmd to select multiple."
+        )),
+        el("div", { className: "stack" }, field(
+          "Pre-authorize email addresses (optional)", editAllowedEmailsInput,
+          "Comma-separated emails for people who have not logged in yet."
         ))
       )
     );
@@ -3693,11 +3715,14 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
       return Array.from(editAllowedUsersSelect.selectedOptions).map(function (o) { return o.value; }).sort();
     }
     function keyDetailsChanged() {
+      var selectedEmails = parseAllowedEmails(editAllowedEmailsInput.value);
+      if (selectedEmails === null) return false;
       return clientInput.value.trim() !== originalClientName ||
         adapterSelect.value !== originalAdapterName ||
         (promptSelect.value || "") !== originalPromptId ||
         notesInput.value !== originalNotes ||
-        JSON.stringify(selectedAllowedUserIds()) !== JSON.stringify(originalAllowedUserIds);
+        JSON.stringify(selectedAllowedUserIds()) !== JSON.stringify(originalAllowedUserIds) ||
+        JSON.stringify(selectedEmails) !== JSON.stringify(originalAllowedEmails);
     }
     function syncKeySaveState() {
       saveBtn.disabled = !keyDetailsChanged();
@@ -3708,6 +3733,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
       promptSelect.disabled = !editing;
       setFieldReadOnly(notesInput, editing);
       editAllowedUsersSelect.disabled = !editing;
+      editAllowedEmailsInput.disabled = !editing;
       editForm.style.display = editing ? "block" : "none";
       editToggle.style.display = editing ? "none" : "inline-flex";
       cancelBtn.style.display = editing ? "inline-flex" : "none";
@@ -3725,6 +3751,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
       Array.from(editAllowedUsersSelect.options).forEach(function (o) {
         o.selected = originalAllowedUserIds.indexOf(o.value) !== -1;
       });
+      editAllowedEmailsInput.value = originalAllowedEmails.join(", ");
       setKeyEditMode(false);
     });
     clientInput.addEventListener("input", syncKeySaveState);
@@ -3732,6 +3759,7 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
     promptSelect.addEventListener("change", syncKeySaveState);
     notesInput.addEventListener("input", syncKeySaveState);
     editAllowedUsersSelect.addEventListener("change", syncKeySaveState);
+    editAllowedEmailsInput.addEventListener("input", syncKeySaveState);
     bindValidationClear(clientInput, adapterSelect, promptSelect, notesInput);
     saveBtn.addEventListener("click", function () {
       var clientName = clientInput.value.trim();
@@ -3744,12 +3772,15 @@ import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
         return;
       }
       withButton(saveBtn, async function () {
+        var allowedEmails = parseAllowedEmails(editAllowedEmailsInput.value);
+        if (allowedEmails === null) { showError("Enter valid comma-separated email addresses."); return; }
         await api("PUT", keyPath(keyId), {
           client_name: clientName,
           adapter_name: adapterSelect.value,
           system_prompt_id: promptSelect.value || null,
           notes: notesInput.value.trim() || null,
-          allowed_user_ids: selectedAllowedUserIds()
+          allowed_user_ids: selectedAllowedUserIds(),
+          allowed_emails: allowedEmails
         });
         onRefresh();
       }, "API key updated");

@@ -57,6 +57,7 @@ class ApiKeyCreate(BaseModel):
     system_prompt_id: Optional[str] = None
     adapter_name: str  # Required adapter name
     allowed_user_ids: Optional[List[str]] = None  # Restrict to these ORBIT user ids; None/empty = unrestricted
+    allowed_emails: Optional[List[str]] = None  # Restrict to these authenticated email addresses
 
     @model_validator(mode='before')
     @classmethod
@@ -78,6 +79,7 @@ class ApiKeyResponse(BaseModel):
     system_prompt_id: Optional[str] = None
     adapter_name: Optional[str] = None
     allowed_user_ids: Optional[List[str]] = None
+    allowed_emails: Optional[List[str]] = None
 
 
 class ApiKeyUpdate(BaseModel):
@@ -87,6 +89,7 @@ class ApiKeyUpdate(BaseModel):
     system_prompt_id: Optional[str] = None
     notes: Optional[str] = Field(default=None, max_length=2000)
     allowed_user_ids: Optional[List[str]] = None
+    allowed_emails: Optional[List[str]] = None
 
 
 class ApiKeyDeactivate(BaseModel):

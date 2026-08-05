@@ -68,7 +68,8 @@ async def create_api_key(
         notes=api_key_data.notes,
         system_prompt_id=api_key_data.system_prompt_id,
         adapter_name=api_key_data.adapter_name,
-        allowed_user_ids=api_key_data.allowed_user_ids
+        allowed_user_ids=api_key_data.allowed_user_ids,
+        allowed_emails=api_key_data.allowed_emails,
     )
     
     # Log with masked API key
@@ -156,6 +157,7 @@ async def list_api_keys(
                 "active": key.get("active", True),
                 "created_at": _serialize_created_at(key.get("created_at")),
                 "allowed_user_ids": key.get("allowed_user_ids") or [],
+                "allowed_emails": key.get("allowed_emails") or [],
             }
 
             # Handle system_prompt_id if it exists
@@ -205,6 +207,7 @@ async def get_api_key_detail(
             "active": key.get("active", True),
             "created_at": _serialize_created_at(key.get("created_at")),
             "allowed_user_ids": key.get("allowed_user_ids") or [],
+            "allowed_emails": key.get("allowed_emails") or [],
         }
 
         if key.get("system_prompt_id"):
@@ -293,6 +296,7 @@ async def update_api_key(
         system_prompt_id=data.system_prompt_id,
         notes=data.notes,
         allowed_user_ids=data.allowed_user_ids,
+        allowed_emails=data.allowed_emails,
         adapter_manager=adapter_manager
     )
 

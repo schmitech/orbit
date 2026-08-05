@@ -227,6 +227,28 @@ async def test_auth0_token_without_email_claim_provisions_with_no_email(auth_ser
     assert record["email"] is None
 
 
+async def test_existing_user_backfills_email_on_relogin(auth_service: AuthService):
+    """A user provisioned before email_claim was configured (or before the
+    provider supplied a claim) gets their email backfilled on a later login
+    that does carry one, instead of staying null forever."""
+    token = make_token(AUTH0_ISS, AUTH0_AUD, "auth0|late-email")
+    is_valid, _ = await auth_service.validate_token(token)
+    assert is_valid
+    record = await auth_service.get_user_by_username("auth0:auth0|late-email")
+    assert record["email"] is None
+
+    auth_service._oidc._providers["auth0"]["email_claim"] = "https://your-api/email"
+    token = make_token(
+        AUTH0_ISS, AUTH0_AUD, "auth0|late-email",
+        extra={"https://your-api/email": "dana@example.com"},
+    )
+    is_valid, user = await auth_service.validate_token(token)
+    assert is_valid
+    assert user["email"] == "dana@example.com"
+    record = await auth_service.get_user_by_username("auth0:auth0|late-email")
+    assert record["email"] == "dana@example.com"
+
+
 async def test_auth0_configurable_email_claim_namespaced(auth_service: AuthService):
     """A namespaced custom claim (from an Auth0 Action) is read when configured
     via auth.providers.auth0.email_claim, taking priority over a bare 'email' claim."""

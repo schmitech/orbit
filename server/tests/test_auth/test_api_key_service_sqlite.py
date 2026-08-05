@@ -620,6 +620,44 @@ async def test_get_adapter_info_supports_realtime_voice_flag(api_key_service):
 # ========================
 
 @pytest.mark.asyncio
+async def test_email_restricted_key_authorizes_case_insensitive_email(api_key_service):
+    """An email-only restriction works before the user has an internal id."""
+    result = await api_key_service.create_api_key(
+        client_name="Preauthorized Client",
+        adapter_name="qa-sql",
+        allowed_emails=[" Alice@Company.COM "]
+    )
+    api_key = result["api_key"]
+    assert result["allowed_emails"] == ["alice@company.com"]
+
+    is_valid, adapter_name, _ = await api_key_service.validate_api_key(
+        api_key, current_user_email="ALICE@company.com"
+    )
+    assert is_valid is True
+    assert adapter_name == "qa-sql"
+
+
+@pytest.mark.asyncio
+async def test_email_restricted_key_fails_closed_and_allows_either_list(api_key_service):
+    """Restricted keys require an ID or email match; the lists are ORed."""
+    result = await api_key_service.create_api_key(
+        client_name="Combined restriction",
+        adapter_name="qa-sql",
+        allowed_user_ids=["existing-user"],
+        allowed_emails=["pending@company.com"],
+    )
+    api_key = result["api_key"]
+
+    is_valid, _, _ = await api_key_service.validate_api_key(api_key)
+    assert is_valid is False
+    is_valid, _, _ = await api_key_service.validate_api_key(api_key, current_user_id="existing-user")
+    assert is_valid is True
+    is_valid, _, _ = await api_key_service.validate_api_key(api_key, current_user_email="pending@company.com")
+    assert is_valid is True
+    is_valid, _, _ = await api_key_service.validate_api_key(api_key, current_user_email="other@company.com")
+    assert is_valid is False
+
+@pytest.mark.asyncio
 async def test_unrestricted_key_ignores_current_user_id(api_key_service):
     """A key with no allowlist is usable by anyone, authenticated or not."""
     result = await api_key_service.create_api_key(

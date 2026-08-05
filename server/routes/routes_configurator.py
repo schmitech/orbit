@@ -21,7 +21,7 @@ from utils import is_true_value
 from utils.text_utils import hash_api_key
 from services.stream_registry import stream_registry
 from ai_services.services.inference_service import OpenAIResponseFormatter
-from routes.auth_helpers import resolve_authenticated_user_id
+from routes.auth_helpers import resolve_authenticated_user, resolve_authenticated_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -352,9 +352,12 @@ class RouteConfigurator:
             try:
                 # Get adapter manager from app state to check live configs (respects hot-reload)
                 adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-                current_user_id = await resolve_authenticated_user_id(request)
+                current_user = await resolve_authenticated_user(request)
+                current_user_id = current_user.get("id") if current_user else None
+                current_user_email = current_user.get("email") if current_user else None
                 adapter_name, system_prompt_id = await request.app.state.api_key_service.get_adapter_for_api_key(
-                    api_key, adapter_manager, current_user_id=current_user_id
+                    api_key, adapter_manager, current_user_id=current_user_id,
+                    current_user_email=current_user_email
                 )
                 return adapter_name, system_prompt_id
             except HTTPException as e:

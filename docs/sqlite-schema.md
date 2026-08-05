@@ -122,7 +122,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
     quota_monthly_limit INTEGER,
     quota_throttle_enabled INTEGER,
     quota_throttle_priority INTEGER,
-    allowed_user_ids TEXT
+    allowed_user_ids TEXT,
+    allowed_emails TEXT
 )
 ```
 
@@ -140,6 +141,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
 - `quota_throttle_enabled` (INTEGER): Optional per-key throttling override (1=true, 0=false)
 - `quota_throttle_priority` (INTEGER): Optional per-key throttling priority override
 - `allowed_user_ids` (TEXT): JSON-encoded array of ORBIT `users.id` values permitted to use this key. `NULL`/empty = unrestricted (any valid key works, current behavior). Matched against the authenticated caller's internal user id, which for external Entra/Auth0 users is assigned on first JIT-provisioned login (see `users.provider`/`external_id`)
+- `allowed_emails` (TEXT): JSON-encoded array of normalized email addresses permitted to use this key before the user has logged in. A caller matching either this list or `allowed_user_ids` is authorized. Entries are lowercased and retained after login; an IdP email change will no longer match, so use user-ID restrictions for durable sensitive access.
 
 **Indexes:**
 - `idx_api_keys_api_key` on `api_key`
@@ -821,6 +823,10 @@ chmod 600 orbit.db  # Owner read/write only
 ---
 
 ## Version History
+
+- **v1.11** (2026-08-05): Email-preauthorized API keys
+  - Added `api_keys.allowed_emails` (JSON array of normalized email addresses), allowing an administrator to restrict a key before an OIDC user has been JIT-provisioned. A caller matching either `allowed_emails` or `allowed_user_ids` is authorized; any configured allowlist fails closed for anonymous callers
+  - Applied to existing SQLite/Postgres databases by the additive startup migration (`_migrate_table_schema`); schemaless backends need no migration
 
 - **v1.10** (2026-08-04): Per-user API key restriction
   - Added `api_keys.allowed_user_ids` (JSON array of ORBIT `users.id`) — lets an admin restrict a key/adapter to specific logged-in users (including JIT-provisioned Entra/Auth0 users) instead of it being usable by anyone who holds the key. `NULL`/empty preserves current unrestricted behavior

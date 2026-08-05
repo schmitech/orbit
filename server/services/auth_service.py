@@ -716,6 +716,15 @@ class AuthService:
             )
             if user:
                 # Respect deactivation - do not silently reactivate on re-login.
+                # Backfill email if it was missing at creation (e.g. the provider
+                # didn't supply a claim yet, or email_claim was configured later).
+                if email and not user.get("email"):
+                    await self.database.update_one(
+                        self.users_collection_name,
+                        {"_id": user["_id"]},
+                        {"$set": {"email": email}}
+                    )
+                    user["email"] = email
                 return user
 
             user_doc = {

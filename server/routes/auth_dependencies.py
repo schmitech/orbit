@@ -199,8 +199,10 @@ def permission_or_api_key(*permissions: str):
             api_key_service = request.app.state.api_key_service
             adapter_manager = getattr(request.app.state, 'adapter_manager', None)
             current_user_id = current_user.get("id") if current_user else None
+            current_user_email = current_user.get("email") if current_user else None
             is_valid, _, _ = await api_key_service.validate_api_key(
-                x_api_key, adapter_manager, current_user_id=current_user_id
+                x_api_key, adapter_manager, current_user_id=current_user_id,
+                current_user_email=current_user_email
             )
             if is_valid:
                 request.state.api_key = x_api_key
@@ -245,5 +247,4 @@ async def get_optional_user(
         request.state.current_user = user_info
         return user_info
     return None
-
 

@@ -139,9 +139,9 @@ def check_service_availability(service, service_name: str) -> None:
         raise HTTPException(status_code=503, detail=f"{service_name} is not available")
 
 
-async def resolve_authenticated_user_id(request: Request, header_name: str = "authorization") -> Optional[str]:
+async def resolve_authenticated_user(request: Request, header_name: str = "authorization") -> Optional[Dict[str, Any]]:
     """
-    Resolve the authenticated ORBIT user id from a bearer token, if present.
+    Resolve the authenticated ORBIT user context from a bearer token, if present.
 
     Validates via `auth_service.validate_token`, which handles both opaque
     session tokens and external-provider JWTs (Entra/Auth0), JIT-provisioning
@@ -164,14 +164,17 @@ async def resolve_authenticated_user_id(request: Request, header_name: str = "au
             is_valid, user_info = await auth_service.validate_token(token)
             if is_valid and user_info:
                 request.state.current_user = user_info
-                auth_user_id = (
-                    user_info.get("id")
-                    or user_info.get("user_id")
-                    or user_info.get("username")
-                )
-                if auth_user_id:
-                    return str(auth_user_id).strip()
+                return user_info
     return None
+
+
+async def resolve_authenticated_user_id(request: Request, header_name: str = "authorization") -> Optional[str]:
+    """Compatibility wrapper returning just the authenticated ORBIT user id."""
+    user_info = await resolve_authenticated_user(request, header_name)
+    if not user_info:
+        return None
+    auth_user_id = user_info.get("id") or user_info.get("user_id") or user_info.get("username")
+    return str(auth_user_id).strip() if auth_user_id else None
 
 
 async def authenticate_websocket_admin(websocket: WebSocket) -> bool:

@@ -167,7 +167,8 @@ class SQLiteService(DatabaseService):
                     quota_monthly_limit INTEGER,
                     quota_throttle_enabled INTEGER,
                     quota_throttle_priority INTEGER,
-                    allowed_user_ids TEXT
+                    allowed_user_ids TEXT,
+                    allowed_emails TEXT
                 )
             ''',
             'system_prompts': '''
@@ -858,9 +859,11 @@ class SQLiteService(DatabaseService):
         if collection_name == 'users' and isinstance(document.get('roles'), list):
             document['roles'] = json.dumps(document['roles'])
 
-        # api_keys.allowed_user_ids has no native array column type either.
-        if collection_name == 'api_keys' and isinstance(document.get('allowed_user_ids'), list):
-            document['allowed_user_ids'] = json.dumps(document['allowed_user_ids'])
+        # API-key allowlists have no native array column type either.
+        if collection_name == 'api_keys':
+            for field in ('allowed_user_ids', 'allowed_emails'):
+                if isinstance(document.get(field), list):
+                    document[field] = json.dumps(document[field])
 
         # Convert datetime objects to ISO strings
         for key, value in document.items():
@@ -1103,7 +1106,7 @@ class SQLiteService(DatabaseService):
                     set_data[key] = json.dumps(_make_json_serializable(value))
                 elif isinstance(value, list) and key == 'roles' and collection_name == 'users':
                     set_data[key] = json.dumps(value)
-                elif isinstance(value, list) and key == 'allowed_user_ids' and collection_name == 'api_keys':
+                elif isinstance(value, list) and key in ('allowed_user_ids', 'allowed_emails') and collection_name == 'api_keys':
                     set_data[key] = json.dumps(value)
 
             # Build SET clause (quote column names to handle reserved keywords)
@@ -1368,12 +1371,14 @@ class SQLiteService(DatabaseService):
             except json.JSONDecodeError:
                 doc['roles'] = None
 
-        # Convert api_keys.allowed_user_ids JSON string back to a list
-        if collection_name == 'api_keys' and isinstance(doc.get('allowed_user_ids'), str):
-            try:
-                doc['allowed_user_ids'] = json.loads(doc['allowed_user_ids'])
-            except json.JSONDecodeError:
-                doc['allowed_user_ids'] = None
+        # Convert API-key allowlist JSON strings back to lists.
+        if collection_name == 'api_keys':
+            for field in ('allowed_user_ids', 'allowed_emails'):
+                if isinstance(doc.get(field), str):
+                    try:
+                        doc[field] = json.loads(doc[field])
+                    except json.JSONDecodeError:
+                        doc[field] = None
 
         # Convert ISO strings back to datetime objects where appropriate
         datetime_fields = ['created_at', 'updated_at', 'last_login', 'expires', 'timestamp']

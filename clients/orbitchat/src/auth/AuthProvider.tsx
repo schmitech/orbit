@@ -29,7 +29,7 @@ export function AuthProviderWrapper({ children }: { children: React.ReactNode })
         redirect_uri: window.location.origin,
         ...(audience ? { audience } : {}),
       }}
-      cacheLocation="memory"
+      cacheLocation="localstorage"
     >
       {children}
     </Auth0Provider>

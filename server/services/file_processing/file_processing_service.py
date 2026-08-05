@@ -569,7 +569,7 @@ class FileProcessingService:
             {'visions': live_config.get('visions', {})}
         )
 
-    async def _get_vision_provider_for_api_key(self, api_key: str, current_user_id: Optional[str] = None) -> str:
+    async def _get_vision_provider_for_api_key(self, api_key: str, current_user_id: Optional[str] = None, current_user_email: Optional[str] = None) -> str:
         """
         Get the vision provider for a given API key by looking up its adapter configuration.
 
@@ -596,7 +596,7 @@ class FileProcessingService:
 
                     # Get adapter name for this API key (pass adapter_manager to check live configs)
                     adapter_name, _ = await api_key_service.get_adapter_for_api_key(
-                        api_key, adapter_manager, current_user_id=current_user_id
+                        api_key, adapter_manager, current_user_id=current_user_id, current_user_email=current_user_email
                     )
 
                     if adapter_name:
@@ -618,7 +618,7 @@ class FileProcessingService:
         logger.debug(f"Using default vision provider '{self.default_vision_provider}' for api_key: {api_key[:8]}...")
         return self.default_vision_provider
 
-    async def _get_audio_provider_for_api_key(self, api_key: str, current_user_id: Optional[str] = None) -> str:
+    async def _get_audio_provider_for_api_key(self, api_key: str, current_user_id: Optional[str] = None, current_user_email: Optional[str] = None) -> str:
         """
         Get the STT provider for a given API key by looking up its adapter configuration.
 
@@ -645,7 +645,7 @@ class FileProcessingService:
 
                     # Get adapter name for this API key (pass adapter_manager to check live configs)
                     adapter_name, _ = await api_key_service.get_adapter_for_api_key(
-                        api_key, adapter_manager, current_user_id=current_user_id
+                        api_key, adapter_manager, current_user_id=current_user_id, current_user_email=current_user_email
                     )
 
                     if adapter_name:
@@ -667,7 +667,7 @@ class FileProcessingService:
         logger.debug(f"Using default STT provider '{self.default_audio_provider}' for api_key: {api_key[:8]}...")
         return self.default_audio_provider
 
-    async def _requires_encryption_for_api_key(self, api_key: str, current_user_id: Optional[str] = None) -> bool:
+    async def _requires_encryption_for_api_key(self, api_key: str, current_user_id: Optional[str] = None, current_user_email: Optional[str] = None) -> bool:
         """
         Check whether the adapter associated with this API key requires
         encrypted file storage (capabilities.requires_encryption).
@@ -700,7 +700,7 @@ class FileProcessingService:
         api_key_service = self.app_state.api_key_service
 
         adapter_name, _ = await api_key_service.get_adapter_for_api_key(
-            api_key, adapter_manager, current_user_id=current_user_id
+            api_key, adapter_manager, current_user_id=current_user_id, current_user_email=current_user_email
         )
         if not adapter_name:
             return False
@@ -789,7 +789,8 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        current_user_id: Optional[str] = None
+        current_user_id: Optional[str] = None,
+        current_user_email: Optional[str] = None
     ) -> str:
         """
         Quick file upload - stores file and returns file_id immediately.
@@ -817,7 +818,9 @@ class FileProcessingService:
 
         # Store file
         storage_key = f"{api_key}/{file_id}/{filename}"
-        requires_encryption = await self._requires_encryption_for_api_key(api_key, current_user_id=current_user_id)
+        requires_encryption = await self._requires_encryption_for_api_key(
+            api_key, current_user_id=current_user_id, current_user_email=current_user_email
+        )
         metadata = {
             'filename': filename,
             'mime_type': mime_type,
@@ -862,7 +865,8 @@ class FileProcessingService:
         mime_type: str,
         api_key: str,
         vision_prompt: Optional[str] = None,
-        current_user_id: Optional[str] = None
+        current_user_id: Optional[str] = None,
+        current_user_email: Optional[str] = None
     ) -> None:
         """
         Process file content (extraction, chunking, indexing) in background.
@@ -887,7 +891,7 @@ class FileProcessingService:
                 # Extract text and metadata
                 extracted_text, file_metadata = await self._extract_content(
                     file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt,
-                    current_user_id=current_user_id
+                    current_user_id=current_user_id, current_user_email=current_user_email
                 )
 
                 # Chunk content
@@ -989,7 +993,8 @@ class FileProcessingService:
         mime_type: str,
         api_key: str,
         transcription_language: Optional[str] = None,
-        current_user_id: Optional[str] = None
+        current_user_id: Optional[str] = None,
+        current_user_email: Optional[str] = None
     ) -> tuple[str, Dict[str, Any]]:
         """Extract content from audio file using audio services for transcription."""
         import asyncio
@@ -997,7 +1002,9 @@ class FileProcessingService:
 
         try:
             # Get adapter-specific STT provider (or fallback to default)
-            audio_provider = await self._get_audio_provider_for_api_key(api_key, current_user_id=current_user_id)
+            audio_provider = await self._get_audio_provider_for_api_key(
+                api_key, current_user_id=current_user_id, current_user_email=current_user_email
+            )
 
             # Get audio service - pass config with stt_providers and tts_providers keys
             # as expected by ProviderAIService._extract_provider_config()
@@ -1241,7 +1248,8 @@ class FileProcessingService:
         mime_type: str,
         api_key: str,
         vision_prompt: Optional[str] = None,
-        current_user_id: Optional[str] = None
+        current_user_id: Optional[str] = None,
+        current_user_email: Optional[str] = None
     ) -> tuple[str, Dict[str, Any]]:
         """Extract text and metadata from file."""
         # Check if this is an image file. When the AI OCR processor is the active
@@ -1250,13 +1258,14 @@ class FileProcessingService:
         if self.enable_vision and mime_type.startswith('image/') and not self._ai_ocr_is_priority():
             return await self._extract_image_content(
                 file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt,
-                current_user_id=current_user_id
+                current_user_id=current_user_id, current_user_email=current_user_email
             )
 
         # Check if this is an audio file
         if self.enable_audio and mime_type.startswith('audio/'):
             return await self._extract_audio_content(
-                file_data, filename, mime_type, api_key=api_key, current_user_id=current_user_id
+                file_data, filename, mime_type, api_key=api_key, current_user_id=current_user_id,
+                current_user_email=current_user_email
             )
 
         processors = self.processor_registry.get_processors(mime_type)
@@ -1307,14 +1316,17 @@ class FileProcessingService:
         mime_type: str,
         api_key: str,
         vision_prompt: Optional[str] = None,
-        current_user_id: Optional[str] = None
+        current_user_id: Optional[str] = None,
+        current_user_email: Optional[str] = None
     ) -> tuple[str, Dict[str, Any]]:
         """Extract content from image using vision services."""
         import asyncio
 
         try:
             # Get adapter-specific vision provider (or fallback to default)
-            vision_provider = await self._get_vision_provider_for_api_key(api_key, current_user_id=current_user_id)
+            vision_provider = await self._get_vision_provider_for_api_key(
+                api_key, current_user_id=current_user_id, current_user_email=current_user_email
+            )
 
             # Resolve the vision service through the adapter manager's managed
             # VisionCacheManager. That cache is keyed/invalidated on adapter reload
@@ -1437,7 +1449,7 @@ class FileProcessingService:
         
         return chunks
     
-    async def _get_adapter_config_for_api_key(self, api_key: str, current_user_id: Optional[str] = None) -> Dict[str, Any]:
+    async def _get_adapter_config_for_api_key(self, api_key: str, current_user_id: Optional[str] = None, current_user_email: Optional[str] = None) -> Dict[str, Any]:
         """
         Get the adapter configuration for a given API key.
 
@@ -1472,7 +1484,7 @@ class FileProcessingService:
 
                     # Get adapter name for this API key (pass adapter_manager to check live configs)
                     adapter_name, _ = await api_key_service.get_adapter_for_api_key(
-                        api_key, adapter_manager, current_user_id=current_user_id
+                        api_key, adapter_manager, current_user_id=current_user_id, current_user_email=current_user_email
                     )
 
                     if not adapter_name:

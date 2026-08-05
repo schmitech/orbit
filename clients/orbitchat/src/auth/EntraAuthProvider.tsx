@@ -10,7 +10,7 @@ const msalInstance = new PublicClientApplication({
     redirectUri: typeof window !== 'undefined' ? window.location.origin : '/',
   },
   cache: {
-    cacheLocation: 'sessionStorage',
+    cacheLocation: 'localStorage',
   },
 });
 

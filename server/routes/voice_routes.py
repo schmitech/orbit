@@ -21,7 +21,7 @@ import logging
 from typing import Optional, Any, Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Query, HTTPException
 
-from routes.auth_helpers import resolve_authenticated_user_id
+from routes.auth_helpers import resolve_authenticated_user
 
 logger = logging.getLogger(__name__)
 
@@ -149,11 +149,12 @@ async def _resolve_voice_adapter_from_api_key(
     # token on the WS handshake (`websocket.headers`) is the only place a
     # verified caller identity could come from; resolve_authenticated_user_id
     # duck-types against WebSocket the same way it does Request.
-    current_user_id = await resolve_authenticated_user_id(websocket)
+    current_user = await resolve_authenticated_user(websocket)
     resolved_adapter_name, system_prompt_id = await api_key_service.get_adapter_for_api_key(
         api_key,
         adapter_manager=adapter_manager,
-        current_user_id=current_user_id,
+        current_user_id=current_user.get("id") if current_user else None,
+        current_user_email=current_user.get("email") if current_user else None,
     )
     logger.debug(
         "API key resolution for voice websocket: requested_adapter=%s, resolved_adapter=%s, system_prompt_id=%s",

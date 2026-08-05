@@ -26,6 +26,40 @@ from adapters.capabilities import AdapterCapabilities
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_allowed_emails(allowed_emails: Optional[list]) -> Optional[list]:
+    """Normalize persisted API-key email allowlist entries."""
+    if not allowed_emails:
+        return None
+    normalized = []
+    for email in allowed_emails:
+        if not isinstance(email, str):
+            continue
+        email = email.strip().lower()
+        if email and email not in normalized:
+            normalized.append(email)
+    return normalized or None
+
+
+def _is_caller_allowed(
+    allowed_user_ids: Optional[list],
+    allowed_emails: Optional[list],
+    current_user_id: Optional[str],
+    current_user_email: Optional[str],
+) -> bool:
+    """Return whether a caller matches either configured API-key allowlist."""
+    allowed_user_ids = allowed_user_ids or []
+    allowed_emails = allowed_emails or []
+    if not (allowed_user_ids or allowed_emails):
+        return True
+
+    normalized_email = current_user_email.strip().lower() if current_user_email else None
+    return bool(
+        (current_user_id and current_user_id in allowed_user_ids) or
+        (normalized_email and normalized_email in allowed_emails)
+    )
+
+
 class ApiKeyService:
     """Service for handling API key authentication and adapter/collection mapping"""
 
@@ -258,7 +292,8 @@ class ApiKeyService:
         self,
         api_key: str,
         adapter_manager=None,
-        current_user_id: Optional[str] = None
+        current_user_id: Optional[str] = None,
+        current_user_email: Optional[str] = None,
     ) -> Tuple[bool, Optional[str], Optional[ObjectId]]:
         """
         Validate the API key and return the associated adapter name and system prompt ID
@@ -266,9 +301,9 @@ class ApiKeyService:
         Args:
             api_key: The API key to validate
             adapter_manager: Optional adapter manager to check live configs (respects hot-reload)
-            current_user_id: ORBIT user id of the authenticated caller, if any. Only checked
-                against the key's `allowed_user_ids` when that list is non-empty; keys with
-                no allowlist remain usable by anyone holding them (current behavior).
+            current_user_id: ORBIT user id of the authenticated caller, if any.
+            current_user_email: Authenticated caller email, if any. A caller matching either
+                configured allowlist is authorized; keys with no allowlist remain unrestricted.
 
         Returns:
             Tuple of (is_valid, adapter_name, system_prompt_id)
@@ -307,11 +342,12 @@ class ApiKeyService:
 
             # Enforce the per-user allowlist, if configured.
             # An empty/absent list means the key is unrestricted.
-            allowed_user_ids = key_doc.get("allowed_user_ids")
-            if allowed_user_ids:
-                if not current_user_id or current_user_id not in allowed_user_ids:
-                    logger.warning(f"API key {masked_key} is restricted and caller is not on its allowlist")
-                    return False, None, None
+            if not _is_caller_allowed(
+                key_doc.get("allowed_user_ids"), key_doc.get("allowed_emails"),
+                current_user_id, current_user_email,
+            ):
+                logger.warning(f"API key {masked_key} is restricted and caller is not on its allowlist")
+                return False, None, None
 
             # Try new adapter-based approach first
             adapter_name = key_doc.get("adapter_name")
@@ -344,7 +380,8 @@ class ApiKeyService:
         self,
         api_key: str,
         adapter_manager=None,
-        current_user_id: Optional[str] = None
+        current_user_id: Optional[str] = None,
+        current_user_email: Optional[str] = None,
     ) -> Tuple[str, Optional[ObjectId]]:
         """
         Get the adapter name and system prompt ID for a given API key
@@ -354,6 +391,7 @@ class ApiKeyService:
             adapter_manager: Optional adapter manager to check live configs (respects hot-reload)
             current_user_id: ORBIT user id of the authenticated caller, if any. See
                 `validate_api_key` for allowlist semantics.
+            current_user_email: Authenticated caller email, if any.
 
         Returns:
             Tuple of (adapter_name, system_prompt_id)
@@ -362,7 +400,8 @@ class ApiKeyService:
             HTTPException: If the API key is invalid or has no associated adapter
         """
         is_valid, adapter_name, system_prompt_id = await self.validate_api_key(
-            api_key, adapter_manager, current_user_id=current_user_id
+            api_key, adapter_manager, current_user_id=current_user_id,
+            current_user_email=current_user_email
         )
 
         if not is_valid:
@@ -383,7 +422,8 @@ class ApiKeyService:
         self,
         api_key: str,
         adapter_manager=None,
-        current_user_id: Optional[str] = None
+        current_user_id: Optional[str] = None,
+        current_user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get adapter information for a given API key.
@@ -396,6 +436,7 @@ class ApiKeyService:
             adapter_manager: Optional adapter manager to check live configs (respects hot-reload)
             current_user_id: ORBIT user id of the authenticated caller, if any. See
                 `validate_api_key` for allowlist semantics.
+            current_user_email: Authenticated caller email, if any.
 
         Returns:
             Dictionary containing:
@@ -422,8 +463,10 @@ class ApiKeyService:
             raise HTTPException(status_code=401, detail="API key is disabled")
 
         # Enforce the per-user allowlist, if configured (see validate_api_key)
-        allowed_user_ids = key_doc.get("allowed_user_ids")
-        if allowed_user_ids and (not current_user_id or current_user_id not in allowed_user_ids):
+        if not _is_caller_allowed(
+            key_doc.get("allowed_user_ids"), key_doc.get("allowed_emails"),
+            current_user_id, current_user_email,
+        ):
             raise HTTPException(status_code=401, detail="API key is not authorized for this user")
 
         # Get client_name and adapter_name from the API key record
@@ -520,7 +563,8 @@ class ApiKeyService:
         notes: Optional[str] = None,
         system_prompt_id: Optional[ObjectId] = None,
         adapter_name: Optional[str] = None,
-        allowed_user_ids: Optional[list] = None
+        allowed_user_ids: Optional[list] = None,
+        allowed_emails: Optional[list] = None,
     ) -> Dict[str, Any]:
         """
         Create a new API key for a specific adapter
@@ -532,6 +576,8 @@ class ApiKeyService:
             adapter_name: Name of the adapter this key will access (required)
             allowed_user_ids: Optional list of ORBIT user ids permitted to use this key.
                 Empty/None means unrestricted (any valid key works, current behavior).
+            allowed_emails: Optional list of authenticated email addresses permitted to use
+                this key. Matched case-insensitively.
 
         Returns:
             Dictionary containing the new API key and metadata
@@ -546,6 +592,8 @@ class ApiKeyService:
             if not adapter_config:
                 raise HTTPException(status_code=400, detail=f"Adapter '{adapter_name}' not found in configuration")
             
+            allowed_emails = _normalize_allowed_emails(allowed_emails)
+
             # Generate a new API key
             api_key = self._generate_api_key()
             
@@ -560,7 +608,8 @@ class ApiKeyService:
                 "active": True,
                 "created_at": now,
                 "adapter_name": adapter_name,
-                "allowed_user_ids": allowed_user_ids or None
+                "allowed_user_ids": allowed_user_ids or None,
+                "allowed_emails": allowed_emails,
             }
 
             # Add system prompt ID if provided
@@ -585,7 +634,8 @@ class ApiKeyService:
                 "created_at": now.timestamp(),  # Convert datetime to timestamp
                 "system_prompt_id": str(system_prompt_id) if system_prompt_id else None,
                 "adapter_name": adapter_name,
-                "allowed_user_ids": allowed_user_ids or None
+                "allowed_user_ids": allowed_user_ids or None,
+                "allowed_emails": allowed_emails,
             }
             
             return result
@@ -713,6 +763,7 @@ class ApiKeyService:
         system_prompt_id: Optional[str] = None,
         notes: Optional[str] = None,
         allowed_user_ids: Optional[list] = None,
+        allowed_emails: Optional[list] = None,
         adapter_manager=None
     ) -> bool:
         """Update editable metadata for an API key record."""
@@ -757,16 +808,19 @@ class ApiKeyService:
             next_notes = notes or None
             next_prompt_id = system_prompt_id or None
             next_allowed_user_ids = list(allowed_user_ids) if allowed_user_ids else None
+            next_allowed_emails = _normalize_allowed_emails(allowed_emails)
             current_prompt_id = str(key_doc.get("system_prompt_id")) if key_doc.get("system_prompt_id") else None
             current_notes = key_doc.get("notes") or None
             current_allowed_user_ids = key_doc.get("allowed_user_ids") or None
+            current_allowed_emails = _normalize_allowed_emails(key_doc.get("allowed_emails"))
 
             if (
                 (key_doc.get("client_name") or "") == client_name and
                 (key_doc.get("adapter_name") or "") == adapter_name and
                 current_prompt_id == next_prompt_id and
                 current_notes == next_notes and
-                current_allowed_user_ids == next_allowed_user_ids
+                current_allowed_user_ids == next_allowed_user_ids and
+                current_allowed_emails == next_allowed_emails
             ):
                 return True
 
@@ -779,6 +833,7 @@ class ApiKeyService:
                     "system_prompt_id": next_prompt_id,
                     "notes": next_notes,
                     "allowed_user_ids": next_allowed_user_ids,
+                    "allowed_emails": next_allowed_emails,
                 }}
             )
         except HTTPException:

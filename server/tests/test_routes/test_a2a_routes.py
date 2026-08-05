@@ -288,6 +288,29 @@ class TestApiKeyEnforcement:
         auth_svc.validate_token.assert_awaited_once_with("user-session-token")
         assert key_svc.get_adapter_for_api_key.call_args.kwargs["current_user_id"] == "user-123"
 
+    def test_restricted_key_resolves_user_email_from_dedicated_header(self):
+        """X-ORBIT-User-Authorization also supplies the caller's email for A2A."""
+        key_svc = MagicMock()
+        key_svc.get_adapter_for_api_key = AsyncMock(return_value=("hr", None))
+        chat_svc = MagicMock()
+        chat_svc.process_chat = AsyncMock(return_value={"response": "ok"})
+        auth_svc = MagicMock()
+        auth_svc.validate_token = AsyncMock(
+            return_value=(True, {"id": "user-123", "username": "alice", "email": "alice@example.com"})
+        )
+        client = TestClient(make_app(chat_service=chat_svc, api_key_service=key_svc, auth_service=auth_svc))
+
+        resp = client.post(
+            "/a2a", json=self._body(),
+            headers={
+                "Authorization": "Bearer restricted-key",
+                "X-ORBIT-User-Authorization": "Bearer user-session-token",
+            },
+        )
+
+        assert resp.status_code == 200
+        assert key_svc.get_adapter_for_api_key.call_args.kwargs["current_user_email"] == "alice@example.com"
+
 
 class TestSessionAuthorization:
     """A denied session must surface as a real 403, not a 200 with an error body."""

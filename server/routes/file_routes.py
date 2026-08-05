@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from services.file_processing.file_processing_service import FileProcessingService
 from services.file_processing.magika_detector import FileValidationError
-from routes.auth_helpers import resolve_authenticated_user_id
+from routes.auth_helpers import resolve_authenticated_user, resolve_authenticated_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -116,14 +116,17 @@ def create_file_router() -> APIRouter:
                 raise HTTPException(status_code=401, detail="API key required")
             
             # Validate API key against API key service if available
-            current_user_id = await resolve_authenticated_user_id(request)
+            current_user = await resolve_authenticated_user(request)
+            current_user_id = current_user.get("id") if current_user else None
+            current_user_email = current_user.get("email") if current_user else None
             api_key_service = getattr(request.app.state, 'api_key_service', None)
             if api_key_service:
                 try:
                     # Get adapter manager to check live configs (respects hot-reload)
                     adapter_manager = getattr(request.app.state, 'adapter_manager', None)
                     is_valid, _, _ = await api_key_service.validate_api_key(
-                        x_api_key, adapter_manager, current_user_id=current_user_id
+                        x_api_key, adapter_manager, current_user_id=current_user_id,
+                        current_user_email=current_user_email
                     )
                     if not is_valid:
                         logger.warning(f"Invalid API key attempted for file upload: {x_api_key[:8]}...")
@@ -220,7 +223,8 @@ def create_file_router() -> APIRouter:
                 filename=file.filename,
                 mime_type=mime_type,
                 api_key=x_api_key,
-                current_user_id=current_user_id
+                current_user_id=current_user_id,
+                current_user_email=current_user_email
             )
 
             background_tasks.add_task(
@@ -231,7 +235,8 @@ def create_file_router() -> APIRouter:
                 mime_type=mime_type,
                 api_key=x_api_key,
                 vision_prompt=prompt if mime_type.startswith('image/') else None,
-                current_user_id=current_user_id
+                current_user_id=current_user_id,
+                current_user_email=current_user_email
             )
 
             logger.info(f"File uploaded (processing in background): {file_id}")
@@ -682,9 +687,11 @@ def create_file_router() -> APIRouter:
 
             # Get adapter-specific config to ensure embedding provider matches
             # what was used during indexing (prevents dimension mismatch)
-            current_user_id = await resolve_authenticated_user_id(request)
+            current_user = await resolve_authenticated_user(request)
+            current_user_id = current_user.get("id") if current_user else None
+            current_user_email = current_user.get("email") if current_user else None
             config = await processing_service._get_adapter_config_for_api_key(
-                x_api_key, current_user_id=current_user_id
+                x_api_key, current_user_id=current_user_id, current_user_email=current_user_email
             )
 
             # Get or create cached retriever

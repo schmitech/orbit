@@ -43,7 +43,7 @@ They must match **exactly**.
 
 Auth0 access tokens issued against a custom API audience carry only bare OAuth claims (`sub`/`aud`/`exp`/`scope`/...) — **never `email`**, unlike Entra. To capture it for JIT-provisioned users:
 
-1. Auth0 Dashboard → **Actions → Flows → Login** → add a new custom Action:
+1. Auth0 Dashboard → **Actions → Triggers → post-login** (older Auth0 UIs call this **Actions → Flows → Login**) → add a new custom Action:
    ```js
    exports.onExecutePostLogin = async (event, api) => {
      const namespace = 'https://your-api/';
@@ -130,3 +130,5 @@ If you ever see a *different* Entra claim shape that still fails, decode the tok
 **Entra login blocked needing admin approval, or fails after consent.** "Who can consent?" is set to Admins-only on the exposed scope — switch to Admins-and-users (Entra step 1.4), or have a tenant admin grant consent explicitly via API permissions → Grant admin consent.
 
 **User provisions correctly but with no email.** Expected for Auth0 unless you've added the custom-claim Action (step 4); for Entra this should no longer happen with current ORBIT code — if it does, decode the token and check which claim actually carries the address, then set `email_claim` under that provider's config block in `config/config.yaml` to match.
+
+**Added the Action/`email_claim` after the user already logged in once — still shows no email?** You don't need to delete the user. ORBIT backfills `email` onto an existing JIT-provisioned row the next time that user logs in with a token that does carry the claim — it only ever leaves it as-is if the incoming token *also* has no email. Just log out, log back in (a fresh token is required — a cached one from before your config change won't have the claim), and it fills in automatically.
