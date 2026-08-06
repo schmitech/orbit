@@ -46,28 +46,48 @@ Verified:
   node --input-type=module --check.
 - [x] Ran the new module smoke checks directly; they passed.
 - [x] git diff --check passed.
-- [ ] The existing pytest route test was not run locally because this environment
-  does not have pytest installed. Run
-  python -m pytest server/tests/test_routes/test_admin_panel_feedback_analytics.py -q
-  in the project test environment before merging.
 
-### Phase 2 — observability — next
+### Phase 2 — observability — completed
 
-Extract the following in this order:
+Extracted, in this order:
 
-1. [ ] Costs into tabs/costs.js, using the existing shared API, DOM, and chart
+1. [x] Costs into tabs/costs.js, using the existing shared API, DOM, and chart
    helpers. Preserve all query controls, chart tooltip behavior, and stale
    request handling.
-2. [ ] Audit into tabs/audit.js. Keep filters, pagination, selected dossier
-   state, and error messaging module-local.
-3. [ ] Overview into tabs/overview.js after Costs and Audit. Preserve WebSocket
-   connection/reconnect behavior, chart teardown, filters, tables, and
-   beforeunload cleanup.
+2. [x] Audit into tabs/audit.js. Keep filters, pagination, selected dossier
+   state, and error messaging module-local. The `obsCost` helper now lives
+   privately in both tabs/costs.js and tabs/audit.js (small, tab-local
+   duplication) rather than in a shared module, since no third tab needs it.
+3. [x] Overview into tabs/overview.js after Costs and Audit. It owns the
+   WebSocket connect/reconnect loop, all monitoring chart instances and their
+   teardown, adapter/thread-pool/datasource filters and pagination state, and
+   exposes dispose() for tab-switch, the pre-restart overlay, and
+   beforeunload cleanup. `formatNum` and `clampPercentage` stay shared in
+   admin_panel.js (Feedback/Costs/Audit also depend on them via DI) rather
+   than moving into overview.js. `renderInfoCard`, defined in the old
+   Overview section but already unused before this refactor, was left in
+   place rather than extracted or deleted.
 
-Before each extraction, use the Feedback pattern: instantiate the module in
-the legacy shell with only its needed dependencies, replace the matching
-render branch, route exit cleanup through dispose(), then remove the original
+Each extraction followed the Feedback pattern: instantiate the module in the
+legacy shell with only its needed dependencies, replace the matching render
+branch, route exit cleanup through dispose(), then remove the original
 implementation in the same change.
+
+Result: server/admin/admin_panel.js was reduced from 8,030 to 6,227 lines
+across the three extractions.
+
+Verified:
+
+- [x] Parsed the entrypoint and every new module with
+  node --input-type=module --check.
+- [x] git diff --check passed after each extraction.
+- [x] server/tests/test_admin/test_admin_panel_modules.py passed after each
+  extraction.
+- [x] Manual browser smoke test of Costs and Audit tabs (filters, dossier,
+  pagination, tab switching) confirmed working before Overview was extracted.
+- [ ] Overview has not yet been manually browser-tested (WebSocket
+  connect/reconnect, chart teardown on tab switch, beforeunload cleanup).
+  Do this before merging.
 
 ### Phase 3 — access and content management
 
