@@ -696,25 +696,22 @@ export function createApiKeysTab({
     ));
     setKeyEditMode(false);
 
-    // Quota section
-    panel.appendChild(el("h3", null, "Quota Management"));
-    var quotaWrap = el("div", { className: "quota-section" });
-    panel.appendChild(quotaWrap);
-
-    var loadQuotaBtn = el("button", { className: "secondary quota-load-btn", type: "button" }, "Load Quota");
-    quotaWrap.appendChild(loadQuotaBtn);
-
-    loadQuotaBtn.addEventListener("click", async function () {
-      loadQuotaBtn.disabled = true;
-      try {
-        var quota = await api("GET", keyPath(keyId, "/quota"));
+    // Quota controls are relevant only while server-side throttling is active.
+    // Load them automatically so managing a key does not require a second step.
+    if (key.quota_available) {
+      var quotaSection = el("div", { className: "api-key-quota-section" }, el("h3", null, "Quota Management"));
+      var quotaWrap = el("div", { className: "quota-section" },
+        el("p", { className: "muted" }, "Loading quota settings…")
+      );
+      quotaSection.appendChild(quotaWrap);
+      panel.appendChild(quotaSection);
+      api("GET", keyPath(keyId, "/quota")).then(function (quota) {
         renderQuotaDetail(quotaWrap, keyId, quota);
-      } catch (err) {
+      }).catch(function (err) {
+        quotaSection.remove();
         showError(err.message);
-      } finally {
-        loadQuotaBtn.disabled = false;
-      }
-    });
+      });
+    }
 
     // Delete
     panel.appendChild(el("h3", null, "Danger Zone"));
@@ -766,7 +763,7 @@ export function createApiKeysTab({
     // Display
     var usage = quota.usage || {};
     var config = quota.quota || {};
-    var info = el("div", { className: "info-grid" },
+    var info = el("div", { className: "info-grid quota-info-grid" },
       infoRow("Daily Used", usage.daily_used != null ? usage.daily_used : "N/A"),
       infoRow("Daily Limit", config.daily_limit != null ? config.daily_limit : "Unlimited"),
       infoRow("Daily Remaining", quota.daily_remaining != null ? quota.daily_remaining : "N/A"),
@@ -776,6 +773,9 @@ export function createApiKeysTab({
       infoRow("Throttle", config.throttle_enabled ? "Enabled (priority " + (config.throttle_priority || 5) + ")" : "Disabled")
     );
     wrap.appendChild(info);
+    var dailyLimitValue = info.children[1].querySelector(".info-value");
+    var monthlyLimitValue = info.children[4].querySelector(".info-value");
+    var throttleValue = info.children[6].querySelector(".info-value");
 
     // Reset buttons
     var resetRow = el("div", { className: "inline-form", style: "margin-top:var(--sp-2)" });
@@ -805,25 +805,43 @@ export function createApiKeysTab({
 
     // Edit form
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Quota");
-    var editForm = el("div", { className: "admin-create-form", style: "display:none" });
+    var cancelBtn = el("button", { className: "secondary", type: "button", style: "display:none" },
+      svgIcon(iconX), "Cancel");
 
-    var dailyInput = el("input", { type: "number", placeholder: "Daily limit (blank=unlimited)", value: config.daily_limit != null ? config.daily_limit : "" });
-    var monthlyInput = el("input", { type: "number", placeholder: "Monthly limit (blank=unlimited)", value: config.monthly_limit != null ? config.monthly_limit : "" });
+    var originalDailyLimit = config.daily_limit != null ? String(config.daily_limit) : "";
+    var originalMonthlyLimit = config.monthly_limit != null ? String(config.monthly_limit) : "";
+    var originalThrottleEnabled = !!config.throttle_enabled;
+    var originalThrottlePriority = String(config.throttle_priority || 5);
+    var dailyInput = el("input", { className: "quota-inline-number", type: "number", min: "0", step: "1", placeholder: "Unlimited", value: originalDailyLimit });
+    var monthlyInput = el("input", { className: "quota-inline-number", type: "number", min: "0", step: "1", placeholder: "Unlimited", value: originalMonthlyLimit });
     var throttleCheck = el("input", { type: "checkbox" });
-    if (config.throttle_enabled) throttleCheck.checked = true;
-    var priorityInput = el("input", { type: "range", min: "1", max: "10", value: config.throttle_priority || 5 });
-    var priorityLabel = el("span", null, "Priority: " + (config.throttle_priority || 5));
-    priorityInput.addEventListener("input", function () { priorityLabel.textContent = "Priority: " + priorityInput.value; });
+    throttleCheck.checked = originalThrottleEnabled;
+    var priorityInput = el("input", { type: "range", min: "1", max: "10", value: originalThrottlePriority });
+    var priorityLabel = el("span", { className: "quota-priority-label" }, "Priority " + originalThrottlePriority);
+    priorityInput.addEventListener("input", function () { priorityLabel.textContent = "Priority " + priorityInput.value; });
 
     var saveBtn = el("button", {
       type: "button",
-      className: "btn--icon",
+      className: "btn btn--primary",
       "aria-label": "Save quota",
       title: "Save quota",
-    }, svgIcon(iconSave));
-    saveBtn.addEventListener("click", async function () {
-      saveBtn.disabled = true;
-      try {
+    }, svgIcon(iconSave), "Save");
+    saveBtn.style.display = "none";
+    function quotaChanged() {
+      return dailyInput.value !== originalDailyLimit ||
+        monthlyInput.value !== originalMonthlyLimit ||
+        throttleCheck.checked !== originalThrottleEnabled ||
+        priorityInput.value !== originalThrottlePriority;
+    }
+    function syncQuotaSaveState() {
+      saveBtn.disabled = !quotaChanged();
+    }
+    [dailyInput, monthlyInput, priorityInput].forEach(function (input) {
+      input.addEventListener("input", syncQuotaSaveState);
+    });
+    throttleCheck.addEventListener("change", syncQuotaSaveState);
+    saveBtn.addEventListener("click", function () {
+      withButton(saveBtn, async function () {
         var body = {
           throttle_enabled: throttleCheck.checked,
           throttle_priority: parseInt(priorityInput.value),
@@ -833,40 +851,55 @@ export function createApiKeysTab({
         if (monthlyInput.value !== "") body.monthly_limit = parseInt(monthlyInput.value);
         else body.monthly_limit = null;
         await api("PUT", keyPath(keyId, "/quota"), body);
-        showStatus("Quota updated");
         var updated = await api("GET", keyPath(keyId, "/quota"));
         renderQuotaDetail(wrap, keyId, updated);
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        saveBtn.disabled = false;
-      }
+      }, "Quota updated");
     });
 
-    editForm.appendChild(el("div", { className: "stack", style: "margin-top:var(--sp-2)" },
-      field("Daily Limit", dailyInput, "Leave blank for unlimited"),
-      field("Monthly Limit", monthlyInput, "Leave blank for unlimited"),
-      el("label", { className: "check-row" }, throttleCheck, "Throttle Enabled"),
-      el("div", null, priorityLabel, priorityInput),
-      saveBtn
-    ));
+    function showQuotaSummary(editing) {
+      [dailyLimitValue, monthlyLimitValue, throttleValue].forEach(function (value) {
+        value.classList.toggle("quota-inline-value", editing);
+        clear(value);
+      });
+      if (editing) {
+        dailyLimitValue.appendChild(dailyInput);
+        monthlyLimitValue.appendChild(monthlyInput);
+        throttleValue.appendChild(el("label", { className: "check-row quota-inline-toggle" }, throttleCheck, "Enabled"));
+        throttleValue.appendChild(el("div", { className: "quota-priority-control quota-priority-inline" }, priorityLabel, priorityInput));
+        return;
+      }
+      dailyLimitValue.textContent = originalDailyLimit || "Unlimited";
+      monthlyLimitValue.textContent = originalMonthlyLimit || "Unlimited";
+      throttleValue.textContent = originalThrottleEnabled
+        ? "Enabled (priority " + originalThrottlePriority + ")"
+        : "Disabled";
+    }
 
     editToggle.addEventListener("click", function () {
-      var hidden = editForm.style.display === "none";
-      editForm.style.display = hidden ? "block" : "none";
-      editToggle.classList.toggle("btn--icon", hidden);
-      editToggle.setAttribute("aria-label", hidden ? "Cancel editing quota" : "Edit quota");
-      editToggle.setAttribute("title", hidden ? "Cancel editing quota" : "Edit quota");
-      clear(editToggle);
-      if (hidden) {
-        editToggle.appendChild(svgIcon(iconX));
-      } else {
-        editToggle.appendChild(document.createTextNode("Edit Quota"));
-      }
+      showQuotaSummary(true);
+      editToggle.style.display = "none";
+      cancelBtn.style.display = "inline-flex";
+      saveBtn.style.display = "inline-flex";
+      quotaEditActions.style.display = "flex";
+      syncQuotaSaveState();
+    });
+    cancelBtn.addEventListener("click", function () {
+      dailyInput.value = originalDailyLimit;
+      monthlyInput.value = originalMonthlyLimit;
+      throttleCheck.checked = originalThrottleEnabled;
+      priorityInput.value = originalThrottlePriority;
+      priorityLabel.textContent = "Priority " + originalThrottlePriority;
+      showQuotaSummary(false);
+      editToggle.style.display = "inline-flex";
+      cancelBtn.style.display = "none";
+      saveBtn.style.display = "none";
+      quotaEditActions.style.display = "none";
+      syncQuotaSaveState();
     });
 
-    wrap.appendChild(el("div", { style: "margin-top:var(--sp-2)" }, editToggle));
-    wrap.appendChild(editForm);
+    resetRow.insertBefore(editToggle, resetRow.firstChild);
+    var quotaEditActions = el("div", { className: "inline-form quota-edit-actions", style: "display:none" }, cancelBtn, saveBtn);
+    wrap.appendChild(quotaEditActions);
   }
 
   function infoRow(label, value) {

@@ -184,6 +184,7 @@ async def get_api_key_detail(
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
     prompt_service = getattr(request.app.state, 'prompt_service', None)
+    quota_service = getattr(request.app.state, 'quota_service', None)
 
     try:
         if not api_key_service._initialized:
@@ -208,6 +209,7 @@ async def get_api_key_detail(
             "created_at": _serialize_created_at(key.get("created_at")),
             "allowed_user_ids": key.get("allowed_user_ids") or [],
             "allowed_emails": key.get("allowed_emails") or [],
+            "quota_available": bool(quota_service and quota_service.enabled),
         }
 
         if key.get("system_prompt_id"):

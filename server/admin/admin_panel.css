@@ -1793,8 +1793,55 @@ tbody tr:nth-child(even) {
   gap: var(--sp-3);
 }
 
-.quota-load-btn {
-  justify-self: start;
+.quota-info-grid .info-row {
+  justify-content: flex-start;
+  gap: var(--sp-3);
+}
+
+.quota-info-grid .info-label {
+  flex: 0 0 10rem;
+}
+
+.quota-info-grid .info-value {
+  min-width: 9rem;
+}
+
+.quota-inline-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.quota-inline-number {
+  width: min(100%, 14rem);
+}
+
+.quota-inline-toggle {
+  padding: 0;
+}
+
+.quota-priority-control {
+  display: grid;
+  grid-template-columns: auto minmax(10rem, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.quota-priority-inline {
+  flex: 1 1 18rem;
+}
+
+.quota-priority-label {
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.quota-edit-actions {
+  justify-content: flex-start;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-light);
 }
 
 /* ============================================================
@@ -2492,6 +2539,10 @@ code.plain-code {
 
   .api-key-secret-controls {
     width: 100%;
+  }
+
+  .quota-priority-control {
+    grid-template-columns: 1fr;
   }
 
   .persona-create-grid {
