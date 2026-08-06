@@ -51,6 +51,17 @@ def _admin_asset_version(path: Path) -> str:
         return "0"
 
 
+def _admin_module_import_map(version: str) -> str:
+    """Version every browser-native panel module with the entrypoint's build version."""
+    modules_dir = ADMIN_DIR / "admin_panel"
+    imports = {}
+    if modules_dir.exists():
+        for module in modules_dir.rglob("*.js"):
+            static_path = "/static/" + module.relative_to(ADMIN_DIR).as_posix()
+            imports[static_path] = static_path + "?v=" + version
+    return json.dumps({"imports": imports}, separators=(",", ":"))
+
+
 def _load_admin_panel_template() -> str:
     """Load admin panel HTML template with mtime-based caching."""
     global _admin_panel_html_cache, _admin_panel_template_mtime, _admin_panel_static_versions
@@ -82,6 +93,10 @@ def _load_admin_panel_template() -> str:
         content = template_path.read_text()
         for placeholder, version in new_versions.items():
             content = content.replace(placeholder, version)
+        content = content.replace(
+            "{{ADMIN_PANEL_IMPORT_MAP}}",
+            _admin_module_import_map(new_versions["{{ADMIN_PANEL_JS_VERSION}}"]),
+        )
         _admin_panel_html_cache = content
         _admin_panel_template_mtime = current_mtime
         _admin_panel_static_versions = new_versions

@@ -877,6 +877,33 @@ textarea {
   align-items: end;
 }
 
+/* The allowlist is intentionally compact: it is an optional restriction,
+   not a full-width form field, and its companion action should not stretch
+   across the form's grid column. */
+.api-key-allowed-users-select {
+  width: 50%;
+}
+
+/* Native multi-selects otherwise fall back to a gray selected state on some
+   platforms. Keep selected allowlist entries aligned with the panel's blue
+   selection treatment. */
+.api-key-allowed-users-select option:checked {
+  background: linear-gradient(var(--brand-200), var(--brand-200));
+  color: var(--ink);
+}
+
+.api-key-clear-users-btn {
+  justify-self: start;
+}
+
+/* Keep edit actions where a user finishes the form, rather than between the
+   read-only preview and the fields being edited. */
+.api-key-edit-actions {
+  justify-content: flex-start;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-light);
+}
+
 .persona-create-grid {
   grid-template-columns: minmax(0, 1.4fr) minmax(96px, 0.4fr) minmax(180px, 1fr);
   align-items: end;
@@ -1581,6 +1608,44 @@ tbody tr:nth-child(even) {
   min-width: 72px;
 }
 
+.key-summary-key-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: start;
+  margin: var(--sp-1) 0;
+  font-size: var(--text-sm);
+}
+
+.api-key-secret-controls {
+  width: 50%;
+  min-width: 0;
+}
+
+.api-key-secret-actions,
+.api-key-rename-control {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.api-key-secret-actions {
+  margin-top: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.api-key-rename-control {
+  flex: 1 1 16rem;
+}
+
+.api-key-rename-control input {
+  min-width: 0;
+}
+
+.api-key-secret-controls .test-result {
+  margin-top: var(--sp-2);
+}
+
 .detail-title {
   line-height: 1.3;
   overflow-wrap: anywhere;
@@ -1726,6 +1791,10 @@ tbody tr:nth-child(even) {
 .quota-section {
   display: grid;
   gap: var(--sp-3);
+}
+
+.quota-load-btn {
+  justify-self: start;
 }
 
 /* ============================================================
@@ -2415,6 +2484,14 @@ code.plain-code {
 
   .api-key-create-grid {
     grid-template-columns: 1fr;
+  }
+
+  .api-key-allowed-users-select {
+    width: 100%;
+  }
+
+  .api-key-secret-controls {
+    width: 100%;
   }
 
   .persona-create-grid {

@@ -64,6 +64,7 @@ export function createApiKeysTab({
     var notesInput = el("textarea", { rows: "4", maxlength: "2000" });
     var notesCounter = characterCount(notesInput, 2000);
     var createAllowedUsersSelect = allowedUsersSelect();
+    var createClearAllowedUsersBtn = clearAllowedUsersButton(createAllowedUsersSelect);
     var createAllowedEmailsInput = el("input", { type: "text", placeholder: "alice@company.com, bob@company.com" });
     var createBtn = el("button", { type: "button" }, "Create Key");
     function openCreatePanel() {
@@ -86,11 +87,14 @@ export function createApiKeysTab({
         field("Persona", promptSelect)
       ),
       el("div", { className: "stack" }, field("Notes", notesInput), notesCounter),
-      el("div", { className: "stack" }, field(
-        "Restrict to users (optional)",
-        createAllowedUsersSelect,
-        "Leave empty to allow any client holding this key. Hold Ctrl/Cmd to select multiple."
-      )),
+      el("div", { className: "stack" },
+        field(
+          "Restrict to users (optional)",
+          createAllowedUsersSelect,
+          "No users selected: any client holding this key can use it. Select one or more users to restrict access. Hold Ctrl/Cmd to select multiple."
+        ),
+        createClearAllowedUsersBtn
+      ),
       el("div", { className: "stack" }, field(
         "Pre-authorize email addresses (optional)", createAllowedEmailsInput,
         "Comma-separated emails for people who have not logged in yet."
@@ -164,6 +168,7 @@ export function createApiKeysTab({
         promptSelect.value = "";
         notesInput.value = "";
         Array.from(createAllowedUsersSelect.options).forEach(function (o) { o.selected = false; });
+        createClearAllowedUsersBtn.sync();
         createAllowedEmailsInput.value = "";
         closeCreatePanel();
         loadKeys();
@@ -272,7 +277,7 @@ export function createApiKeysTab({
   }
 
   function allowedUsersSelect(selectedIds) {
-    var select = el("select", { multiple: "true", size: "5" });
+    var select = el("select", { className: "api-key-allowed-users-select", multiple: "true", size: "5" });
     (getCachedApiKeyUsers() || []).forEach(function (u) {
       var label = u.email || u.username || u.id;
       if (u.provider) label += " (" + u.provider + ")";
@@ -281,6 +286,25 @@ export function createApiKeysTab({
       select.appendChild(opt);
     });
     return select;
+  }
+
+  function clearAllowedUsersButton(select) {
+    var button = el("button", { className: "secondary api-key-clear-users-btn", type: "button" }, "Clear selection");
+    function sync() {
+      button.disabled = select.disabled || !Array.from(select.options).some(function (option) {
+        return option.selected;
+      });
+    }
+    button.addEventListener("click", function () {
+      Array.from(select.options).forEach(function (option) { option.selected = false; });
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      select.focus();
+      sync();
+    });
+    select.addEventListener("change", sync);
+    button.sync = sync;
+    sync();
+    return button;
   }
 
   function parseAllowedEmails(value) {
@@ -444,12 +468,63 @@ export function createApiKeysTab({
       });
     });
     var keyField = el("div", { className: "secret-field" }, keyCode, revealBtn, copyBtn);
+    var testBtn = el("button", { className: "secondary", type: "button" }, "Test Key");
+    var testResult = el("div", {
+      className: "test-result",
+      "aria-live": "polite",
+      "aria-atomic": "true"
+    });
+    testBtn.addEventListener("click", async function () {
+      testBtn.disabled = true;
+      clear(testResult);
+      testResult.className = "test-result";
+      testResult.appendChild(el("span", { className: "muted" }, "Checking key status..."));
+      try {
+        await api("GET", keyPath(keyId, "/status"));
+        testResult.className = "test-result test-result-ok";
+        testResult.appendChild(el("span", { className: "test-result-icon", "aria-hidden": "true" }, "✓"));
+        testResult.appendChild(el("div", { className: "test-result-copy" },
+          el("strong", null, "Key verified"),
+          el("span", null, "Authentication succeeded and this key is accepted by the server.")
+        ));
+      } catch (err) {
+        testResult.className = "test-result test-result-fail";
+        testResult.appendChild(el("span", { className: "test-result-icon", "aria-hidden": "true" }, "!"));
+        testResult.appendChild(el("div", { className: "test-result-copy" },
+          el("strong", null, "Verification failed"),
+          el("span", null, "The server rejected this key. Check whether it is active and correctly configured.")
+        ));
+      } finally {
+        testBtn.disabled = false;
+      }
+    });
+    var renameInput = el("input", {
+      type: "text", maxlength: "100", placeholder: "New key value", "aria-label": "New key value"
+    });
+    var renameBtn = el("button", { type: "button" }, "Rename");
+    bindValidationClear(renameInput);
+    renameBtn.addEventListener("click", function () {
+      var nk = renameInput.value.trim();
+      if (!nk) return;
+      withButton(renameBtn, async function () {
+        await api("PATCH", keyPath(keyId, "/rename?new_api_key=" + encodeURIComponent(nk)));
+        onRefresh();
+      }, "Key renamed");
+    });
+    var keyControls = el("div", { className: "api-key-secret-controls" },
+      keyField,
+      el("div", { className: "api-key-secret-actions" },
+        testBtn,
+        el("div", { className: "api-key-rename-control" }, renameInput, renameBtn)
+      ),
+      testResult
+    );
     var notesInput = el("textarea", { rows: "4", maxlength: "2000" }, key.notes || "");
     var notesCounter = characterCount(notesInput, 2000);
     var notesPreview = createMarkdownPreview(notesInput);
 
     var summary = el("div", { className: "key-summary" },
-      el("p", null, el("strong", null, "Key:"), " ", keyField),
+      el("div", { className: "key-summary-key-row" }, el("strong", null, "Key:"), keyControls),
       el("p", null, el("strong", null, "Client:"), " " + (key.client_name || "N/A")),
       el("p", null, el("strong", null, "Adapter:"), " " + (key.adapter_name || "default")),
       el("p", null, el("strong", null, "Persona:"), " " + (key.system_prompt_name || "None")),
@@ -491,13 +566,14 @@ export function createApiKeysTab({
     var promptSelect = el("select", null, el("option", { value: "" }, "No persona"));
     fillPromptSelect(promptSelect, getCachedPrompts(), key.system_prompt_id);
     var editAllowedUsersSelect = allowedUsersSelect(key.allowed_user_ids || []);
+    var editClearAllowedUsersBtn = clearAllowedUsersButton(editAllowedUsersSelect);
     var editAllowedEmailsInput = el("input", { type: "text", value: (key.allowed_emails || []).join(", ") });
     var saveBtn = el("button", {
       type: "button",
-      className: "btn--icon",
+      className: "btn btn--primary",
       "aria-label": "Save details",
       title: "Save details",
-    }, svgIcon(iconSave));
+    }, svgIcon(iconSave), "Save");
     var originalClientName = key.client_name || "";
     var originalAdapterName = key.adapter_name || "";
     var originalPromptId = key.system_prompt_id || "";
@@ -512,11 +588,14 @@ export function createApiKeysTab({
           field("Persona", promptSelect)
         ),
         el("div", { className: "stack" }, field("Notes", notesInput), notesCounter),
-        el("div", { className: "stack" }, field(
-          "Restrict to users (optional)",
-          editAllowedUsersSelect,
-          "Leave empty to allow any client holding this key. Hold Ctrl/Cmd to select multiple."
-        )),
+        el("div", { className: "stack" },
+          field(
+            "Restrict to users (optional)",
+            editAllowedUsersSelect,
+            "No users selected: any client holding this key can use it. Select one or more users to restrict access. Hold Ctrl/Cmd to select multiple."
+          ),
+          editClearAllowedUsersBtn
+        ),
         el("div", { className: "stack" }, field(
           "Pre-authorize email addresses (optional)", editAllowedEmailsInput,
           "Comma-separated emails for people who have not logged in yet."
@@ -525,12 +604,12 @@ export function createApiKeysTab({
     );
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Details");
     var cancelBtn = el("button", {
-      className: "secondary btn--icon",
+      className: "secondary",
       type: "button",
       style: "display:none",
       "aria-label": "Cancel editing details",
       title: "Cancel editing details",
-    }, svgIcon(iconX));
+    }, svgIcon(iconX), "Cancel");
     saveBtn.style.display = "none";
     function selectedAllowedUserIds() {
       return Array.from(editAllowedUsersSelect.selectedOptions).map(function (o) { return o.value; }).sort();
@@ -554,6 +633,7 @@ export function createApiKeysTab({
       promptSelect.disabled = !editing;
       setFieldReadOnly(notesInput, editing);
       editAllowedUsersSelect.disabled = !editing;
+      editClearAllowedUsersBtn.sync();
       editAllowedEmailsInput.disabled = !editing;
       editForm.style.display = editing ? "block" : "none";
       editToggle.style.display = editing ? "none" : "inline-flex";
@@ -569,9 +649,13 @@ export function createApiKeysTab({
       adapterSelect.value = originalAdapterName;
       promptSelect.value = originalPromptId;
       notesInput.value = originalNotes;
+      // The preview renders from input events. Resetting textarea.value alone
+      // leaves the last unsaved preview visible after cancel.
+      notesInput.dispatchEvent(new Event("input"));
       Array.from(editAllowedUsersSelect.options).forEach(function (o) {
         o.selected = originalAllowedUserIds.indexOf(o.value) !== -1;
       });
+      editClearAllowedUsersBtn.sync();
       editAllowedEmailsInput.value = originalAllowedEmails.join(", ");
       setKeyEditMode(false);
     });
@@ -607,65 +691,17 @@ export function createApiKeysTab({
       }, "API key updated");
     });
     panel.appendChild(el("div", { className: "stack" },
-      el("div", { className: "inline-form detail-action-row" }, editToggle, cancelBtn, saveBtn),
-      editForm
+      editForm,
+      el("div", { className: "inline-form detail-action-row api-key-edit-actions" }, editToggle, cancelBtn, saveBtn)
     ));
     setKeyEditMode(false);
-
-    // Test key
-    var testBtn = el("button", { className: "secondary", type: "button" }, "Test Key");
-    var testResult = el("div", {
-      className: "test-result",
-      "aria-live": "polite",
-      "aria-atomic": "true"
-    });
-    testBtn.addEventListener("click", async function () {
-      testBtn.disabled = true;
-      clear(testResult);
-      testResult.className = "test-result";
-      testResult.appendChild(el("span", { className: "muted" }, "Checking key status..."));
-      try {
-        await api("GET", keyPath(keyId, "/status"));
-        testResult.className = "test-result test-result-ok";
-        testResult.appendChild(el("span", { className: "test-result-icon", "aria-hidden": "true" }, "✓"));
-        testResult.appendChild(el("div", { className: "test-result-copy" },
-          el("strong", null, "Key verified"),
-          el("span", null, "Authentication succeeded and this key is accepted by the server.")
-        ));
-      } catch (err) {
-        testResult.className = "test-result test-result-fail";
-        testResult.appendChild(el("span", { className: "test-result-icon", "aria-hidden": "true" }, "!"));
-        testResult.appendChild(el("div", { className: "test-result-copy" },
-          el("strong", null, "Verification failed"),
-          el("span", null, "The server rejected this key. Check whether it is active and correctly configured.")
-        ));
-      } finally {
-        testBtn.disabled = false;
-      }
-    });
-    panel.appendChild(el("div", { className: "inline-form", style: "margin-top:var(--sp-3)" }, testBtn, testResult));
-
-    // Rename
-    panel.appendChild(el("h3", null, "Rename Key"));
-    var renameInput = el("input", { type: "text", maxlength: "100" });
-    var renameBtn = el("button", { type: "button" }, "Rename");
-    bindValidationClear(renameInput);
-    renameBtn.addEventListener("click", function () {
-      var nk = renameInput.value.trim();
-      if (!nk) return;
-      withButton(renameBtn, async function () {
-        await api("PATCH", keyPath(keyId, "/rename?new_api_key=" + encodeURIComponent(nk)));
-        onRefresh();
-      }, "Key renamed");
-    });
-    panel.appendChild(el("div", { className: "inline-form" }, field("New key value", renameInput), renameBtn));
 
     // Quota section
     panel.appendChild(el("h3", null, "Quota Management"));
     var quotaWrap = el("div", { className: "quota-section" });
     panel.appendChild(quotaWrap);
 
-    var loadQuotaBtn = el("button", { className: "secondary", type: "button" }, "Load Quota");
+    var loadQuotaBtn = el("button", { className: "secondary quota-load-btn", type: "button" }, "Load Quota");
     quotaWrap.appendChild(loadQuotaBtn);
 
     loadQuotaBtn.addEventListener("click", async function () {
