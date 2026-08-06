@@ -27,6 +27,8 @@ This document compares **ORBIT** (Open Retrieval-Based Inference Toolkit) and **
 | **Fault Tolerance** | Fallback routing and rate limiting; no circuit breakers | **Circuit Breaker**, fallback routes, best-effort and all-provider execution strategies, plus circuit-breaking for unhealthy MCP servers |
 | **Retrieval Caching** | Retrieval re-executed per prompt | **Conversation Threading**: cached dataset reuse across follow-ups (Redis/SQLite + TTL) |
 | **Traffic Control** | Rate limiting and connection pooling; no per-user token quotas | Per-key token quotas, sliding window rate limits, datasource connection pooling |
+| **API Key Access Control** | Roles and group-based permissions in the user/group admin UI | API keys restrictable to pre-authorized email addresses (before first login) and/or specific verified user IDs, enforced against the caller's session/Entra/Auth0-verified identity, not a client-supplied header |
+| **Content Moderation** | Community moderation filters/pipelines; no first-party guard model | Pluggable moderators (Llama Guard, policy-adaptive Shieldstral 3B) via OpenAI-compatible vLLM/llama.cpp, with inline or file-based policy overrides |
 | **Voice & Audio** | STT/TTS, voice mode, and voice memos through configured audio providers | STT + TTS per adapter; full-duplex realtime voice over WebSockets; OpenAI Realtime and Gemini Live; grounded realtime voice; fully local pipelines (Whisper + Coqui/vLLM, no API cost) |
 | **File Storage Backends** | Pluggable via `STORAGE_PROVIDER`: local (default), S3 (+ S3-compatible), GCS, Azure Blob | Pluggable via `files.storage_backend`: local (default), S3, MinIO/SeaweedFS (S3-compatible), Azure Blob, GCS — comparable backend coverage |
 | **File Encryption at Rest** | Not available — application-level file encryption is an open feature request ([#16112](https://github.com/open-webui/open-webui/issues/16112), [#17437](https://github.com/open-webui/open-webui/issues/17437)); only DB-level SQLCipher is supported today | Native AES-256-GCM, opt-in per adapter — covers uploaded file bytes, storage metadata, and indexed vector-store chunk content, on any storage backend |
@@ -165,7 +167,15 @@ Both projects support the same set of pluggable file storage backends — local 
 
 ORBIT ships native AES-256-GCM file encryption, opt-in per adapter via `capabilities.requires_encryption` — no cloud KMS dependency, no separate infrastructure. It covers not just the raw uploaded bytes but the storage backend's metadata sidecar and the text/metadata indexed into the vector store for RAG, so retrieval still works (embeddings are computed from plaintext before encryption) while the data at rest — on any backend — stays encrypted. See the [File Encryption guide](../adapters/file-adapter-guide.md#encryption-at-rest).
 
-### 13. Broker-Native Async Ingestion (Message Queue)
+### 13. Fine-Grained API Key Access Control
+
+Open WebUI's access control is role- and group-based within its own user system. ORBIT's API keys add a narrower, provisioning-time control: a key can be restricted with `allowed_emails` to specific pre-authorized email addresses — so an admin can hand out access before an external user has ever logged in — and/or with `allowed_user_ids` to specific verified ORBIT users. Both are enforced against the caller's identity as verified from the `Authorization` bearer token (session or external Entra/Auth0 JWT), never the client-supplied `X-User-ID` header, which stays display-only. Entra's OIDC validation accepts both v1.0 and v2.0 token formats, and both providers' email claims are configurable per tenant.
+
+### 14. Built-In Content Moderation
+
+Open WebUI relies on community pipeline filters for content safety; there is no first-party guard model shipped with the project. ORBIT includes pluggable input/output moderators — Llama Guard and a policy-adaptive Shieldstral 3B model — served through OpenAI-compatible vLLM or llama.cpp endpoints, with the bundled policy replaceable inline or via a policy file.
+
+### 15. Broker-Native Async Ingestion (Message Queue)
 
 Open WebUI is driven entirely over HTTP (and WebSockets) — every request is a synchronous, connected round trip against its backend. There is no way to hand it a queue of work and collect answers later.
 

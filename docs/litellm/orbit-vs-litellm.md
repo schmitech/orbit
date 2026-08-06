@@ -12,6 +12,8 @@ This document compares **ORBIT** (Open Retrieval-Based Inference Toolkit) and **
 
 Where LiteLLM normalizes *how you call models*, ORBIT focuses on *what data models can access* and *how that data is retrieved*.
 
+LiteLLM also uses an **open-core licensing model**: some features (e.g. SSO, certain admin/UI controls, and other enterprise capabilities) are gated behind a commercial license or subscription rather than being available in the open-source proxy. **ORBIT is fully open source with no closed or paywalled features** — everything described in this document, including the admin panel, is available without a commercial license.
+
 ---
 
 ## Feature Comparison
@@ -19,6 +21,7 @@ Where LiteLLM normalizes *how you call models*, ORBIT focuses on *what data mode
 | Capability | LiteLLM | ORBIT |
 | :--- | :--- | :--- |
 | **Primary Focus** | Unified interface to 100+ LLM providers; LLM routing and cost governance | AI gateway + structured data integration; RAG against private databases and APIs |
+| **Licensing** | Open-core: proxy/SDK is open source, but some enterprise features (e.g. SSO, certain admin/governance controls) require a commercial license or subscription | Fully open source — no features gated behind a commercial license or subscription |
 | **LLM Provider Coverage** | 100+ providers (OpenAI, Anthropic, Gemini, Bedrock, Azure, Ollama, and more) | 37+ providers at the time of writing; new providers follow a consistent design pattern and can be added without touching core code |
 | **Relational & Structured Data** | No SQL/NoSQL connectors; passes prompts through to LLMs | Native retrievers for SQL, DuckDB/Athena, MongoDB, Cassandra, Elasticsearch, REST APIs, GraphQL, Firecrawl |
 | **Intent-Based Data Routing** | Tag-based and health-check-driven model routing | Built-in **Composite Intent Retrievers**: NL query → intent classification → fan-out to the right datasource |
@@ -26,6 +29,8 @@ Where LiteLLM normalizes *how you call models*, ORBIT focuses on *what data mode
 | **Response Caching** | LLM response caching (exact-match and semantic) via Redis, Qdrant, S3, and more | **Conversation Threading**: caches raw retrieval datasets in Redis/SQLite with TTL; follow-up questions reuse the dataset, not the LLM response |
 | **Fault Tolerance** | Retries, fallbacks (standard/content-policy/context-window), cooldowns, health-check routing | **Circuit Breaker** pattern (open/half-open/closed), fallback routes, best-effort and all-provider execution strategies |
 | **Rate Limiting & Quotas** | Per-key and per-team spend budgets and rate limits | Per-key token quotas, sliding window rate limits, datasource connection pooling |
+| **API Key Access Control** | Virtual keys scoped to teams/orgs/projects | API keys restrictable to specific pre-authorized email addresses (before first login) and/or specific verified ORBIT user IDs, enforced against the caller's verified identity (session or Entra/Auth0 JWT), not a client-supplied header |
+| **Content Moderation** | Not applicable — LiteLLM is a routing layer, not a moderation layer | Pluggable moderators (Llama Guard, policy-adaptive Shieldstral 3B) served via OpenAI-compatible vLLM/llama.cpp endpoints, with inline or file-based policy overrides |
 | **Observability** | Third-party integrations: Langfuse, MLflow, Helicone, Lunary; proxy usage/spend tracking and audit capabilities | Built-in audit log plus native usage/cost reporting by call type (inference, embedding, image/video/audio, document, reranking) |
 | **MCP Support** | Connects to MCP tool servers; functions as a central MCP endpoint | Server-side MCP orchestration (stdio + Streamable HTTP), admin-managed tool discovery/hot reload/connection pooling; ORBIT also *exposes* its own MCP server for downstream clients |
 | **Agent-to-Agent (A2A)** | Supports A2A invocation with LangGraph, Vertex AI Agent Engine | Native A2A protocol support for multi-agent workflows |
@@ -86,7 +91,7 @@ ORBIT operates on both sides: it is an **MCP client** (connecting to external st
 - **Semantic caching**: LiteLLM can cache semantically similar prompts, not just identical ones. Useful for FAQ-style workloads with high prompt variance.
 - **Python SDK**: `litellm.completion()` works in any Python script without standing up a proxy. ORBIT always requires the HTTP server.
 - **Observability integrations**: Drop-in integrations with Langfuse, MLflow, Helicone, and Lunary. ORBIT's audit and cost panels are useful for internal compliance and cost review, but they are not a substitute for a dedicated tracing/experiment-observability platform.
-- **Enterprise governance tooling**: Virtual keys tied to teams, spend limits, and a UI dashboard make LiteLLM well-suited for managing LLM access across a large organization.
+- **Enterprise governance tooling**: Virtual keys tied to teams, spend limits, and a UI dashboard make LiteLLM well-suited for managing LLM access across a large organization — though some of this tooling sits behind LiteLLM's commercial/enterprise tier rather than the open-source proxy.
 
 ---
 
@@ -103,6 +108,10 @@ ORBIT operates on both sides: it is an **MCP client** (connecting to external st
 - **Air-gapped deployments**: Built-in audit logging, local voice pipelines, and no mandatory external service dependencies make ORBIT suitable for environments where data cannot leave the deployment boundary.
 - **File storage & encryption**: LiteLLM has no general uploaded-file storage abstraction — its `/rag/ingest` endpoint selects a RAG backend (S3, OpenSearch Serverless, Bedrock Knowledge Base) rather than managing user file uploads, and encryption there is AWS KMS on S3 objects specifically. ORBIT treats file storage as a first-class, pluggable layer (local/S3/MinIO/Azure/GCS) with its own backend-agnostic AES-256-GCM encryption, opt-in per adapter, requiring no cloud KMS.
 - **Broker-native async ingestion**: ORBIT can run as a RabbitMQ consumer — clients publish requests to a queue and read responses off a results queue, fully decoupled from synchronous HTTP, with at-least-once delivery and dead-lettering. LiteLLM is an HTTP proxy/SDK: async work goes through the OpenAI Batches API (submit/poll), not a message broker. ORBIT's MQ path runs the same pipeline as `/v1/chat`, so retrieval/adapter behavior is identical.
+- **Fine-grained API key access control**: ORBIT API keys can be restricted to specific pre-authorized email addresses — so an admin can provision access before a user's first login — and/or to specific verified ORBIT user IDs, both enforced against the caller's identity as verified from the session or an Entra/Auth0 JWT (never a client-supplied header). LiteLLM's virtual keys scope to teams/orgs/projects for spend governance, not to individual pre-authorized identities.
+- **Built-in content moderation**: ORBIT ships pluggable input/output moderators — Llama Guard and a policy-adaptive Shieldstral 3B model — served through OpenAI-compatible vLLM or llama.cpp endpoints, with inline or file-based policy customization. LiteLLM has no moderation layer of its own; content-safety would need to be handled by the calling application or the model provider.
+- **Fully open source, no paywalled features**: LiteLLM follows an open-core model — the proxy and SDK are open source, but some features are reserved for a commercial license or subscription. Every capability described in this document is available in ORBIT without a commercial license.
+- **Actively developed in Canada**: ORBIT's development is based in Canada, an option worth noting for organizations with data-sovereignty preferences or procurement requirements around vendor jurisdiction.
 
 ---
 
@@ -141,6 +150,7 @@ See the [LiteLLM Integration Guide](litellm-integration.md) for step-by-step set
 | | LiteLLM | ORBIT |
 |---|---|---|
 | **Best for** | Teams routing LLM calls across many providers; spend governance and multi-model deployments | Teams grounding LLM answers in private structured data; AI into existing data infrastructure |
+| **Licensing** | Open-core — some enterprise features require a commercial license/subscription | Fully open source — no paywalled features |
 | **Deployment model** | Python SDK or containerized proxy; managed cloud options | Self-hosted Python server; Docker Compose |
 | **Data access** | LLM providers only — no database or API connectors | SQL/NoSQL, DuckDB/Athena, REST APIs, GraphQL, Elasticsearch, vector stores, Firecrawl |
 | **Caching** | LLM response caching (exact-match + semantic) | Retrieval dataset caching across conversation turns |
