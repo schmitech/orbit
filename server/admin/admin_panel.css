@@ -3323,9 +3323,120 @@ code.plain-code {
   overflow-y: auto;
 }
 
+.settings-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--sp-3);
+}
+
+.settings-search-icon {
+  position: absolute;
+  left: var(--sp-2);
+  display: flex;
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
+.settings-search-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.settings-search-input {
+  width: 100%;
+  padding: var(--sp-2) var(--sp-6) var(--sp-2) calc(var(--sp-2) + 19px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.settings-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+button.settings-search-clear {
+  position: absolute;
+  right: var(--sp-1);
+  display: flex;
+  padding: var(--sp-1);
+  min-height: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  box-shadow: none;
+}
+
+button.settings-search-clear:hover:not(:disabled) {
+  background: var(--panel-hover);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.settings-search-clear svg {
+  width: 14px;
+  height: 14px;
+}
+
+.settings-search-status {
+  margin: calc(-1 * var(--sp-2)) 0 var(--sp-2);
+  padding: 0 var(--sp-2);
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+}
+
+.settings-search-empty {
+  margin: 0;
+  padding: var(--sp-2);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+button.settings-nav-toggle-all {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  min-height: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+button.settings-nav-toggle-all:hover:not(:disabled) {
+  background: var(--panel-hover);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.settings-nav-toggle-all-chevron {
+  display: flex;
+  transition: transform 0.15s ease;
+}
+
+.settings-nav-toggle-all-chevron svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Collapsed-all state points the chevron right, like a closed tree; expand-all rotates it down. */
+button.settings-nav-toggle-all:not(.is-all-expanded) .settings-nav-toggle-all-chevron {
+  transform: rotate(-90deg);
+}
+
 .settings-nav {
   display: grid;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
   justify-items: stretch;
   text-align: left;
 }
@@ -3336,9 +3447,46 @@ code.plain-code {
   gap: var(--sp-1);
 }
 
+button.settings-nav-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  min-height: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  box-shadow: none;
+}
+
+button.settings-nav-group-header:hover:not(:disabled) {
+  background: var(--panel-hover);
+  color: var(--ink-muted);
+  box-shadow: none;
+}
+
+.settings-nav-group-chevron {
+  display: flex;
+  transition: transform 0.15s ease;
+}
+
+.settings-nav-group-chevron svg {
+  width: 13px;
+  height: 13px;
+}
+
+.settings-nav-group.is-collapsed .settings-nav-group-chevron {
+  transform: rotate(-90deg);
+}
+
+.settings-nav-group.is-collapsed .settings-nav-list {
+  display: none;
+}
+
 .settings-nav-group-title {
   margin: 0;
-  padding: 0 var(--sp-2);
   color: var(--ink-muted);
   font-size: var(--text-xs);
   font-weight: 700;
@@ -3408,6 +3556,22 @@ code.plain-code {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.settings-nav-item__match {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--ink-muted);
+  font-weight: 400;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-nav-item__match-line {
+  color: var(--brand-700);
+  font-weight: 600;
 }
 
 .settings-detail {

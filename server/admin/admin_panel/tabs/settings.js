@@ -1,12 +1,15 @@
 // TAB: Settings (Ace Editor — YAML, split into config.yaml sections)
 // ==================================================================
 export function createSettingsTab({
-  api, endpoints, el, clear, skeleton, svgIcon, iconSave, iconRefresh,
+  api, endpoints, el, clear, skeleton, svgIcon, iconSave, iconRefresh, iconChevronDown, iconSearch, iconX,
   confirmAction, showError, showStatus, getActiveTab
 }) {
   var settingsEditors = {}; // key -> { editor, original } for the selected section
   var selectedSettingsSection = null; // currently selected config.yaml top-level key
   var cachedSettingsSections = null; // [{key, line_count}, ...]
+  var settingsContentCache = {}; // key -> raw section text, filled lazily to power search
+  var collapsedGroups = {}; // group label -> true, persists across re-renders while the tab stays mounted
+  var settingsSearchQuery = ""; // persists across re-renders so re-selecting a section keeps the filter
 
   function destroyAllSettingsEditors() {
     Object.keys(settingsEditors).forEach(function (key) {
@@ -96,12 +99,80 @@ export function createSettingsTab({
 
     var layout = el("div", { className: "settings-layout" });
     var navPanel = el("aside", { className: "settings-nav-panel" });
+    var searchWrap = el("div", { className: "settings-search" });
+    var searchInput = el("input", {
+      type: "search",
+      className: "settings-search-input",
+      placeholder: "Search settings…",
+      "aria-label": "Search settings",
+      value: settingsSearchQuery,
+    });
+    var searchStatus = el("p", { className: "settings-search-status", "aria-live": "polite" });
+    searchWrap.appendChild(el("span", { className: "settings-search-icon", "aria-hidden": "true" }, svgIcon(iconSearch)));
+    searchWrap.appendChild(searchInput);
+    var searchClearBtn = el("button", {
+      type: "button",
+      className: "settings-search-clear",
+      "aria-label": "Clear search",
+      title: "Clear search",
+      style: "display:none",
+      onclick: function () { searchInput.value = ""; onSearchInput(); searchInput.focus(); }
+    }, svgIcon(iconX));
+    searchWrap.appendChild(searchClearBtn);
+    navPanel.appendChild(searchWrap);
+    navPanel.appendChild(searchStatus);
+    var toggleAllBtn = el("button", {
+      type: "button",
+      className: "settings-nav-toggle-all",
+      onclick: function () { toggleAllGroups(); }
+    });
+    navPanel.appendChild(toggleAllBtn);
     var nav = el("nav", { className: "settings-nav", "aria-label": "Settings sections" });
     var body = el("div", { className: "settings-detail" });
     navPanel.appendChild(nav);
     layout.appendChild(navPanel);
     layout.appendChild(body);
     wrap.appendChild(layout);
+
+    // Every section's raw text, fetched once and reused so search can jump
+    // straight to a match without waiting on a request per keystroke.
+    function ensureContentCache() {
+      var missing = knownKeys.filter(function (k) { return settingsContentCache[k] === undefined; });
+      if (!missing.length) return Promise.resolve();
+      return Promise.all(missing.map(function (k) {
+        return api("GET", endpoints.configSections + "/" + encodeURIComponent(k))
+          .then(function (data) { settingsContentCache[k] = data.content; })
+          .catch(function () { settingsContentCache[k] = ""; });
+      }));
+    }
+
+    function firstMatchingLine(content, query) {
+      var lines = content.split("\n");
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].toLowerCase().indexOf(query) !== -1) {
+          return { line: i + 1, text: lines[i].trim() };
+        }
+      }
+      return null;
+    }
+
+    // While a search is active, every group renders fully expanded and only
+    // keys with a title or content match are shown — collapsedGroups is left
+    // untouched so clearing the search restores whatever the user had set.
+    function computeSearchMatches(query) {
+      var matches = {}; // key -> { line, text } | true (title-only match)
+      knownKeys.forEach(function (key) {
+        if (settingsSectionTitle(key).toLowerCase().indexOf(query) !== -1 || key.indexOf(query) !== -1) {
+          matches[key] = true;
+        }
+      });
+      knownKeys.forEach(function (key) {
+        if (matches[key] === true) return;
+        var hit = firstMatchingLine(settingsContentCache[key] || "", query);
+        if (hit) matches[key] = hit;
+      });
+      return matches;
+    }
 
     function syncSelectedSection() {
       nav.querySelectorAll(".settings-nav-item").forEach(function (item) {
@@ -111,15 +182,18 @@ export function createSettingsTab({
       });
     }
 
-    function renderBody(key) {
+    function renderBody(key, jumpQuery) {
       clear(body);
       destroyAllSettingsEditors();
-      body.appendChild(renderSectionBlock(key));
+      body.appendChild(renderSectionBlock(key, jumpQuery));
       syncSelectedSection();
     }
 
-    function selectSection(key) {
-      if (key === selectedSettingsSection) return;
+    function selectSection(key, jumpQuery) {
+      if (key === selectedSettingsSection) {
+        if (jumpQuery) jumpToQueryInCurrentEditor(jumpQuery);
+        return;
+      }
       if (settingsEditorsAreDirty()) {
         confirmAction({
           title: "Unsaved Changes",
@@ -128,34 +202,138 @@ export function createSettingsTab({
           isDanger: true,
           onConfirm: function () {
             selectedSettingsSection = key;
-            renderBody(key);
+            renderBody(key, jumpQuery);
           }
         });
         return;
       }
       selectedSettingsSection = key;
-      renderBody(key);
+      renderBody(key, jumpQuery);
     }
 
-    groups.forEach(function (group) {
-      var groupEl = el("div", { className: "settings-nav-group" });
-      groupEl.appendChild(el("h3", { className: "settings-nav-group-title" }, group.label));
-      var list = el("div", { className: "settings-nav-list" });
-      group.keys.forEach(function (key) {
-        var item = el("button", {
+    function jumpToQueryInCurrentEditor(query) {
+      var state = settingsEditors[selectedSettingsSection];
+      if (!state) return;
+      state.editor.find(query, { wrap: true, caseSensitive: false, wholeWord: false });
+      state.editor.focus();
+    }
+
+    function isGroupCollapsed(label) {
+      // Groups start collapsed to keep the tree short; collapsedGroups only
+      // ever records an explicit override once the user toggles one open.
+      return collapsedGroups[label] !== false;
+    }
+
+    function toggleGroup(label) {
+      collapsedGroups[label] = isGroupCollapsed(label) ? false : true;
+      renderNav();
+    }
+
+    function toggleAllGroups() {
+      // If any group is still collapsed, "expand all" wins first; only once
+      // everything is already open does the button switch to collapsing.
+      var anyCollapsed = groups.some(function (g) { return isGroupCollapsed(g.label); });
+      groups.forEach(function (g) { collapsedGroups[g.label] = anyCollapsed ? false : true; });
+      renderNav();
+    }
+
+    function renderNav() {
+      clear(nav);
+      var query = settingsSearchQuery.trim().toLowerCase();
+      var isSearching = query.length > 0;
+      var matches = isSearching ? computeSearchMatches(query) : null;
+
+      toggleAllBtn.style.display = isSearching ? "none" : "";
+      if (!isSearching) {
+        var anyCollapsed = groups.some(function (g) { return isGroupCollapsed(g.label); });
+        clear(toggleAllBtn);
+        toggleAllBtn.classList.toggle("is-all-expanded", !anyCollapsed);
+        toggleAllBtn.appendChild(el("span", { className: "settings-nav-toggle-all-chevron", "aria-hidden": "true" }, svgIcon(iconChevronDown)));
+        toggleAllBtn.appendChild(el("span", null, anyCollapsed ? "Expand all" : "Collapse all"));
+      }
+
+      groups.forEach(function (group) {
+        var visibleKeys = isSearching ? group.keys.filter(function (k) { return matches[k]; }) : group.keys;
+        if (isSearching && !visibleKeys.length) return;
+
+        var groupEl = el("div", { className: "settings-nav-group" });
+        var isCollapsed = !isSearching && isGroupCollapsed(group.label);
+        groupEl.classList.toggle("is-collapsed", isCollapsed);
+
+        var header = el("button", {
           type: "button",
-          className: "settings-nav-item",
-          "data-section": key,
-          "aria-current": "false",
-          onclick: function () { selectSection(key); }
-        }, el("span", { className: "settings-nav-item__title" }, settingsSectionTitle(key)));
-        list.appendChild(item);
+          className: "settings-nav-group-header",
+          "aria-expanded": String(!isCollapsed),
+          onclick: function () { toggleGroup(group.label); }
+        },
+          el("span", { className: "settings-nav-group-chevron", "aria-hidden": "true" }, svgIcon(iconChevronDown)),
+          el("span", { className: "settings-nav-group-title" }, group.label)
+        );
+        groupEl.appendChild(header);
+
+        var list = el("div", { className: "settings-nav-list" });
+        visibleKeys.forEach(function (key) {
+          var match = isSearching ? matches[key] : null;
+          var item = el("button", {
+            type: "button",
+            className: "settings-nav-item",
+            "data-section": key,
+            "aria-current": "false",
+            onclick: function () { selectSection(key, match && match.line ? query : null); }
+          }, el("span", { className: "settings-nav-item__title" }, settingsSectionTitle(key)));
+          if (match && match.line) {
+            item.appendChild(el("span", { className: "settings-nav-item__match" },
+              el("span", { className: "settings-nav-item__match-line" }, "L" + match.line), " " + match.text));
+          }
+          list.appendChild(item);
+        });
+        groupEl.appendChild(list);
+        nav.appendChild(groupEl);
       });
-      groupEl.appendChild(list);
-      nav.appendChild(groupEl);
+
+      if (isSearching && !nav.children.length) {
+        nav.appendChild(el("p", { className: "settings-search-empty" }, "No settings match “" + settingsSearchQuery.trim() + "”."));
+      }
+      syncSelectedSection();
+    }
+
+    var searchDebounceTimer = null;
+    function onSearchInput() {
+      settingsSearchQuery = searchInput.value;
+      searchClearBtn.style.display = settingsSearchQuery ? "" : "none";
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      var query = settingsSearchQuery.trim();
+      if (!query) {
+        searchStatus.textContent = "";
+        renderNav();
+        return;
+      }
+      searchStatus.textContent = "Searching…";
+      searchDebounceTimer = setTimeout(function () {
+        ensureContentCache().then(function () {
+          if (searchInput.value.trim() === query) {
+            searchStatus.textContent = "";
+            renderNav();
+          }
+        });
+      }, 150);
+    }
+    searchInput.addEventListener("input", onSearchInput);
+    searchInput.addEventListener("keydown", function (evt) {
+      if (evt.key === "Escape" && searchInput.value) {
+        evt.stopPropagation();
+        searchInput.value = "";
+        onSearchInput();
+      } else if (evt.key === "Enter") {
+        var firstMatch = nav.querySelector(".settings-nav-item");
+        if (firstMatch) firstMatch.click();
+      }
     });
 
-    function renderSectionBlock(key) {
+    searchClearBtn.style.display = settingsSearchQuery ? "" : "none";
+    renderNav();
+
+    function renderSectionBlock(key, jumpQuery) {
       var titleText = settingsSectionTitle(key);
 
       var block = el("div", { className: "panel settings-section-block" });
@@ -230,10 +408,18 @@ export function createSettingsTab({
           var data = await api("GET", endpoint);
           if (!isCurrentEditor()) return;
           editorState.original = data.content;
+          settingsContentCache[key] = data.content;
           editor.setValue(data.content, -1);
           editor.getSession().getUndoManager().reset();
           saveBtn.disabled = true;
           banner.style.display = "none";
+          if (jumpQuery) {
+            var queryToJumpTo = jumpQuery;
+            jumpQuery = null;
+            requestAnimationFrame(function () {
+              if (isCurrentEditor()) editor.find(queryToJumpTo, { wrap: true, caseSensitive: false, wholeWord: false });
+            });
+          }
         } catch (err) {
           if (isCurrentEditor()) showError("Failed to load: " + err.message);
         }
@@ -245,6 +431,7 @@ export function createSettingsTab({
           await api("PUT", endpoint, { content: editor.getValue() });
           if (!isCurrentEditor()) return;
           editorState.original = editor.getValue();
+          settingsContentCache[key] = editorState.original;
           banner.textContent = "'" + titleText + "' saved. Go to the Ops tab to restart the server for changes to take effect.";
           banner.style.display = "";
           setTimeout(function () { banner.style.display = "none"; }, 5000);

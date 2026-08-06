@@ -943,6 +943,8 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
   ];
   var ICON_NAV_COSTS = ["M3 3v18h18", "M7 15l4-6 3 4 4-7"];
   var ICON_CHEVRONS_LEFT = ["M11 17l-5-5 5-5", "M18 17l-5-5 5-5"];
+  var ICON_CHEVRON_DOWN = ["M6 9l6 6 6-6"];
+  var ICON_SEARCH = ["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"];
 
   var TABS = [
     { id: "overview", label: "Dashboard", group: "observe", icon: ICON_NAV_OVERVIEW },
@@ -1373,6 +1375,9 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     svgIcon: svgIcon,
     iconSave: ICON_SAVE,
     iconRefresh: ICON_REFRESH,
+    iconChevronDown: ICON_CHEVRON_DOWN,
+    iconSearch: ICON_SEARCH,
+    iconX: ICON_X,
     confirmAction: confirmAction,
     showError: showError,
     showStatus: showStatus,
