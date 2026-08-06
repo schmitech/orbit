@@ -12,6 +12,8 @@ This document compares **ORBIT** (Open Retrieval-Based Inference Toolkit) and **
 
 Where LiteLLM normalizes *how you call models*, ORBIT focuses on *what data models can access* and *how that data is retrieved*.
 
+**Note:** ORBIT isn't limited to retrieval use cases — it also works as a simple multi-provider LLM router/passthrough (no datasource required), so it covers LiteLLM's core use case as well, not just retrieval-heavy scenarios.
+
 LiteLLM also uses an **open-core licensing model**: some features (e.g. SSO, certain admin/UI controls, and other enterprise capabilities) are gated behind a commercial license or subscription rather than being available in the open-source proxy. **ORBIT is fully open source with no closed or paywalled features** — everything described in this document, including the admin panel, is available without a commercial license.
 
 ---
@@ -111,7 +113,6 @@ ORBIT operates on both sides: it is an **MCP client** (connecting to external st
 - **Fine-grained API key access control**: ORBIT API keys can be restricted to specific pre-authorized email addresses — so an admin can provision access before a user's first login — and/or to specific verified ORBIT user IDs, both enforced against the caller's identity as verified from the session or an Entra/Auth0 JWT (never a client-supplied header). LiteLLM's virtual keys scope to teams/orgs/projects for spend governance, not to individual pre-authorized identities.
 - **Built-in content moderation**: ORBIT ships pluggable input/output moderators — Llama Guard and a policy-adaptive Shieldstral 3B model — served through OpenAI-compatible vLLM or llama.cpp endpoints, with inline or file-based policy customization. LiteLLM has no moderation layer of its own; content-safety would need to be handled by the calling application or the model provider.
 - **Fully open source, no paywalled features**: LiteLLM follows an open-core model — the proxy and SDK are open source, but some features are reserved for a commercial license or subscription. Every capability described in this document is available in ORBIT without a commercial license.
-- **Actively developed in Canada**: ORBIT's development is based in Canada, an option worth noting for organizations with data-sovereignty preferences or procurement requirements around vendor jurisdiction.
 
 ---
 

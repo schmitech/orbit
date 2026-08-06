@@ -10,6 +10,8 @@ This document compares **ORBIT** (Open Retrieval-Based Inference Toolkit) and **
 
 **ORBIT** is an OpenAI-compatible AI gateway and data integration backend. It focuses on connecting AI models to private structured data sources (relational databases, NoSQL stores, APIs), enforcing operational controls (circuit breakers, per-key quotas, audit logs), and serving multiple clients through a single, version-controlled configuration layer. It is designed for platform and data engineering teams building AI into existing infrastructure.
 
+**Note:** ORBIT isn't limited to structured-data retrieval — it also works as a simple multi-provider LLM passthrough with no datasource attached, so plain conversational chat (Open WebUI's core use case) is fully covered too, not just RAG scenarios.
+
 ---
 
 ## 📊 Feature Comparison
