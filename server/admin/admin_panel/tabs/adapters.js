@@ -1,0 +1,765 @@
+export function createAdaptersTab({
+  api, endpoints, el, clear, skeleton, svgIcon, iconPlus, iconSave, iconRefresh,
+  field, characterCount, withButton, createPaginator, createColumnSorter, itemsPerPage,
+  markSelectedRow, confirmAction, showError, showStatus, waitForAdminJob,
+  getActiveTab, getCachedAdapterCapabilities, loadAdapterCapabilities
+}) {
+  var adapterEditor = null;        // Ace editor instance for Adapters tab
+  var adapterOriginal = "";        // Dirty tracking baseline
+  var cachedAdapterFiles = null;   // Cached adapter file listing
+  var cachedAdapterSpecs = null;   // Adapter SDK families available for creation
+  var adapterPreviewEditor = null; // Read-only Ace editor for the create preview
+  var selectedAdapterEntry = null; // { name, filename, ... }
+
+  async function loadAdapterFiles() {
+    try {
+      var data = await api("GET", endpoints.adapterConfigs);
+      cachedAdapterFiles = data.files || [];
+    } catch (_) {
+      cachedAdapterFiles = [];
+    }
+    return cachedAdapterFiles;
+  }
+
+  async function loadAdapterSpecs() {
+    try {
+      var data = await api("GET", endpoints.adapterSpecs);
+      cachedAdapterSpecs = data.specs || [];
+    } catch (_) {
+      cachedAdapterSpecs = [];
+    }
+    return cachedAdapterSpecs;
+  }
+
+  function render(container) {
+    clear(container);
+
+    // Destroy previous editors
+    if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
+    if (adapterPreviewEditor) { adapterPreviewEditor.destroy(); adapterPreviewEditor = null; }
+
+    // Lazy-load adapter file listing, capability metadata (needed to know which
+    // adapters support template reload) and the SDK spec registry (create form)
+    var cachedAdapterCapabilities = getCachedAdapterCapabilities();
+    if (!cachedAdapterFiles || !cachedAdapterCapabilities || !cachedAdapterSpecs) {
+      container.appendChild(skeleton());
+      Promise.all([
+        cachedAdapterFiles ? Promise.resolve(cachedAdapterFiles) : loadAdapterFiles(),
+        cachedAdapterCapabilities ? Promise.resolve(cachedAdapterCapabilities) : loadAdapterCapabilities(),
+        cachedAdapterSpecs ? Promise.resolve(cachedAdapterSpecs) : loadAdapterSpecs(),
+      ]).then(function () {
+        if (getActiveTab() === "adapters") render(container);
+      });
+      return;
+    }
+
+    var layout = el("div", { className: "tab-stacked-layout" });
+    container.appendChild(layout);
+
+    // ----- List panel: adapter list -----
+    var leftPanel = el("div", { className: "panel" });
+    layout.appendChild(leftPanel);
+
+    var leftHeader = el("div", { style: "display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-3)" });
+    leftHeader.appendChild(el("h2", { style: "margin:0" }, "Adapters"));
+    var searchInput = el("input", { type: "text", placeholder: "Search adapters…", style: "flex:1;min-width:0" });
+    leftHeader.appendChild(searchInput);
+    leftPanel.appendChild(leftHeader);
+
+    var createLaunchBtn = el("button", {
+      className: "secondary create-launch-btn",
+      type: "button",
+      "aria-label": "Create adapter",
+    }, svgIcon(iconPlus), el("span", null, "Create Adapter"));
+    createLaunchBtn.addEventListener("click", function () { openAdapterCreatePanel(); });
+    leftPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn));
+
+    var table = el("table");
+    // Filled in below, once the paginator the sorter drives exists.
+    var thead = el("thead");
+    table.appendChild(thead);
+    var tbody = el("tbody");
+    table.appendChild(tbody);
+    leftPanel.appendChild(table);
+
+    // Flatten adapters from imported files only
+    var allAdapters = [];
+    (cachedAdapterFiles || []).forEach(function (f) {
+      if (!f.imported) return; // Only show imported adapter files
+      (f.adapters || []).forEach(function (a) {
+        allAdapters.push({
+          name: a.name,
+          enabled: a.enabled !== false,
+          type: a.type || "",
+          adapter: a.adapter || "",
+          datasource: a.datasource || "",
+          inference_provider: a.inference_provider || "",
+          model: a.model || "",
+          embedding_provider: a.embedding_provider || "",
+          filename: f.filename,
+        });
+      });
+    });
+
+    // Reordering rebuilds the body, which discards the toggle that was just
+    // activated. Put focus back on its replacement so keyboard use survives.
+    function refocusAdapterToggle(name) {
+      var toggles = tbody.querySelectorAll(".adapter-toggle");
+      for (var i = 0; i < toggles.length; i++) {
+        if (toggles[i].dataset.adapter === name) {
+          toggles[i].focus();
+          return;
+        }
+      }
+      // The row crossed a page boundary and has no replacement here, so
+      // fall back to the header that ordered it rather than dropping focus
+      // to the document.
+      var sortedHeader = thead.querySelector(".th-sort.is-sorted");
+      if (sortedHeader) sortedHeader.focus();
+    }
+
+    function makeToggle(a) {
+      var track = el("button", {
+        type: "button",
+        className: "adapter-toggle" + (a.enabled ? " on" : ""),
+        "aria-label": (a.enabled ? "Disable" : "Enable") + " adapter " + a.name,
+        "aria-pressed": String(a.enabled),
+        dataset: { adapter: a.name },
+      });
+      var knob = el("span", { className: "adapter-toggle-knob" });
+      track.appendChild(knob);
+
+      track.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var newState = !a.enabled;
+        track.disabled = true;
+        api("PATCH", endpoints.adapterConfigs + "/entry/" + encodeURIComponent(a.name) + "/toggle", { enabled: newState })
+          .then(function () {
+            a.enabled = newState;
+            track.classList.toggle("on", newState);
+            track.setAttribute("aria-pressed", String(newState));
+            track.setAttribute("aria-label", (newState ? "Disable" : "Enable") + " adapter " + a.name);
+            // Update cached data
+            (cachedAdapterFiles || []).forEach(function (f) {
+              (f.adapters || []).forEach(function (ca) {
+                if (ca.name === a.name) ca.enabled = newState;
+              });
+            });
+            showStatus("Adapter '" + a.name + "' " + (newState ? "enabled" : "disabled") + ". Reload to apply.");
+            // Toggling changed the value the table is ordered by, so the
+            // row has to move or the list is visibly out of order.
+            if (adapterSorter.isSortedBy("enabled")) {
+              adapterSorter.reapply();
+              refocusAdapterToggle(a.name);
+            }
+          })
+          .catch(function (err) { showError("Toggle failed: " + err.message); })
+          .finally(function () { track.disabled = false; });
+      });
+      return track;
+    }
+
+    function buildAdapterRows(pageItems) {
+      clear(tbody);
+      if (!pageItems || pageItems.length === 0) {
+        tbody.appendChild(el("tr", null, el("td", { colSpan: "3", className: "empty-state" }, "No adapters found")));
+        return;
+      }
+      pageItems.forEach(function (a) {
+        var row = el("tr", { className: "selectable-row", tabindex: "0" },
+          el("td", null, a.name),
+          el("td", null, a.adapter || a.type),
+          el("td", { className: "adapter-toggle-cell" }, makeToggle(a))
+        );
+
+        if (selectedAdapterEntry && selectedAdapterEntry.name === a.name) {
+          row.classList.add("selected-row");
+          row.setAttribute("aria-selected", "true");
+        }
+
+        row.addEventListener("click", function () { selectAdapter(a); markSelectedRow(tbody, row); });
+        row.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectAdapter(a); markSelectedRow(tbody, row); }
+        });
+        tbody.appendChild(row);
+      });
+    }
+
+    var adapterPaginator = createPaginator({
+      pageSize: itemsPerPage,
+      onPageChange: function (pageItems) {
+        buildAdapterRows(pageItems);
+      }
+    });
+    var adapterSorter = createColumnSorter(adapterPaginator);
+    thead.appendChild(adapterSorter.headerRow([
+      { label: "Name", key: "name", sortValue: function (a) { return a.name || ""; } },
+      { label: "Type", key: "type", sortValue: function (a) { return a.adapter || a.type || ""; } },
+      {
+        label: "Enabled",
+        key: "enabled",
+        attrs: { style: "width:70px;text-align:center" },
+        sortValue: function (a) { return a.enabled ? "Enabled" : "Disabled"; },
+      },
+    ]));
+    leftPanel.appendChild(adapterPaginator.getControlsEl());
+
+    function renderAdapterRows(filter) {
+      var lc = (filter || "").toLowerCase();
+      var filtered = !lc ? allAdapters : allAdapters.filter(function (a) {
+        return a.name.toLowerCase().indexOf(lc) !== -1 || a.adapter.toLowerCase().indexOf(lc) !== -1;
+      });
+      adapterPaginator.setData(filtered);
+    }
+
+    searchInput.addEventListener("input", function () { renderAdapterRows(searchInput.value); });
+    renderAdapterRows("");
+
+    // ----- Create panel: spec-driven adapter generator -----
+    // The whole form is built from GET /admin/adapters/specs, so adapter
+    // knowledge stays in the SDK spec registry and never leaks into this file.
+    var createPanel = el("div", { className: "panel", style: "display:none" });
+    container.insertBefore(createPanel, layout);
+
+    var closeCreateBtn = el("button", { className: "secondary", type: "button" }, "Close");
+    closeCreateBtn.addEventListener("click", function () { closeAdapterCreatePanel(); });
+    createPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "New Adapter"),
+      closeCreateBtn
+    ));
+
+    var specSelect = el("select", null);
+    (cachedAdapterSpecs || []).forEach(function (s) {
+      specSelect.appendChild(el("option", { value: s.key }, s.title));
+    });
+    var specHint = el("p", { className: "muted", style: "margin:0" }, "");
+    var formGrid = el("div", { className: "admin-create-form-grid" });
+    var createBanner = el("div", { className: "settings-banner", style: "display:none", role: "status" });
+    var previewWrap = el("div", {
+      className: "adapter-ace-wrap",
+      id: "adapter-yaml-preview",
+      style: "display:none"
+    });
+
+    var previewBtn = el("button", {
+      className: "secondary",
+      type: "button",
+      "aria-controls": "adapter-yaml-preview",
+      "aria-expanded": "false"
+    }, "Preview YAML");
+    var createBtn = el("button", { type: "button" }, "Create Adapter");
+
+    createPanel.appendChild(el("div", { className: "admin-create-form" },
+      el("div", { className: "admin-create-form-grid" }, field("Adapter family", specSelect)),
+      specHint,
+      formGrid,
+      createBanner,
+      previewWrap,
+      el("div", { className: "admin-create-form-actions" }, previewBtn, createBtn)
+    ));
+
+    // field name -> { q, input }, rebuilt whenever the family changes
+    var createInputs = {};
+
+    function currentSpec() {
+      return (cachedAdapterSpecs || []).find(function (s) { return s.key === specSelect.value; });
+    }
+
+    function defaultAsString(q, value) {
+      if (value === null || value === undefined) return "";
+      if (q.type === "list") return Array.isArray(value) ? value.join(", ") : String(value);
+      return String(value);
+    }
+
+    function applyDefault(q, input, value) {
+      if (q.type === "bool") {
+        input.checked = !!value;
+        input._appliedDefault = String(!!value);
+      } else {
+        input.value = defaultAsString(q, value);
+        input._appliedDefault = input.value;
+      }
+    }
+
+    function readAnswer(q, input) {
+      if (q.type === "bool") return input.checked;
+      var raw = (input.value || "").trim();
+      if (q.type === "list") {
+        return raw.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      }
+      if (!raw) return null;
+      if (q.type === "int") {
+        var n = parseInt(raw, 10);
+        return isNaN(n) ? null : n;
+      }
+      return raw;
+    }
+
+    function collectAdapterAnswers() {
+      var answers = {};
+      Object.keys(createInputs).forEach(function (name) {
+        var entry = createInputs[name];
+        answers[name] = readAnswer(entry.q, entry.input);
+      });
+      return answers;
+    }
+
+    function makeQuestionInput(q) {
+      if (q.type === "bool") return el("input", { type: "checkbox" });
+      if (q.choices) {
+        var sel = el("select", null);
+        q.choices.forEach(function (c) { sel.appendChild(el("option", { value: c }, c)); });
+        return sel;
+      }
+      if (q.type === "int") {
+        var num = el("input", { type: "number" });
+        if (q.min_value !== null && q.min_value !== undefined) num.min = String(q.min_value);
+        if (q.max_value !== null && q.max_value !== undefined) num.max = String(q.max_value);
+        return num;
+      }
+      var input = el("input", { type: "text" });
+      if (q.type === "list") {
+        // One comma-separated box holds the whole list, so maxlength can only be a
+        // coarse overall cap; the per-entry limit is enforced server-side.
+        input.maxLength = q.max_items * (q.max_length + 2);
+      } else if (q.max_length) {
+        input.maxLength = q.max_length;
+      }
+      return input;
+    }
+
+    // Say what the bound is up front — a maxlength that silently stops accepting
+    // keystrokes with no stated limit reads as a broken input.
+    function questionHint(q) {
+      var parts = [];
+      if (q.help) parts.push(q.help);
+      if (q.type === "list") {
+        parts.push("Comma-separated, up to " + q.max_items + " entries of "
+          + q.max_length + " characters.");
+      } else if (q.type === "int" && q.min_value !== null && q.min_value !== undefined) {
+        parts.push("Between " + q.min_value + " and " + q.max_value + ".");
+      } else if (q.type === "str" && q.max_length) {
+        parts.push("Max " + q.max_length + " characters.");
+      }
+      return parts.join(" ");
+    }
+
+    function adapterQuestionField(q, input, hint) {
+      if (q.type !== "bool") {
+        var control = field(q.prompt, input, hint);
+        // A counter only earns its space on the fields long enough that you can
+        // lose track; short identifiers just get the hint.
+        if (q.type === "str" && q.max_length >= 200) {
+          control.appendChild(characterCount(input, q.max_length));
+        }
+        return control;
+      }
+
+      // Boolean questions are a single control, so keep the label and checkbox
+      // together instead of placing the control on its own line.
+      var checkboxLabel = el("label", { className: "adapter-checkbox-field" },
+        input,
+        el("span", null, q.prompt)
+      );
+      if (!hint) return checkboxLabel;
+      return el("div", { className: "adapter-checkbox-question" },
+        checkboxLabel,
+        el("span", { className: "muted" }, hint)
+      );
+    }
+
+    // A variant switch re-defaults only the fields the user has not touched, so
+    // picking "docx" after "pdf" renames the adapter but keeps your own edits.
+    function applyVariantDefaults(variant) {
+      var spec = currentSpec();
+      if (!spec || !spec.variant_field) return;
+      spec.questions.forEach(function (q) {
+        if (q.field === spec.variant_field) return;
+        var entry = createInputs[q.field];
+        if (!entry) return;
+        var current = q.type === "bool" ? String(entry.input.checked) : entry.input.value;
+        if (current !== entry.input._appliedDefault) return; // user-edited, leave alone
+        var defaults = q.variant_defaults || {};
+        applyDefault(q, entry.input, Object.prototype.hasOwnProperty.call(defaults, variant)
+          ? defaults[variant] : q.default);
+      });
+    }
+
+    function buildAdapterCreateForm() {
+      var spec = currentSpec();
+      clear(formGrid);
+      createInputs = {};
+      hideCreatePreview();
+      if (!spec) return;
+
+      specHint.textContent = spec.description;
+
+      // Ask the variant selector first so the remaining defaults reflect it.
+      var ordered = spec.questions.slice();
+      if (spec.variant_field) {
+        ordered.sort(function (a, b) {
+          return (a.field === spec.variant_field ? 0 : 1) - (b.field === spec.variant_field ? 0 : 1);
+        });
+      }
+
+      var variant = spec.variant_field
+        ? (spec.variants && spec.variants.length ? spec.variants[0] : null)
+        : null;
+
+      ordered.forEach(function (q) {
+        var input = makeQuestionInput(q);
+        createInputs[q.field] = { q: q, input: input };
+        var initial = q.variant_defaults && variant !== null
+          && Object.prototype.hasOwnProperty.call(q.variant_defaults, variant)
+          ? q.variant_defaults[variant] : q.default;
+        applyDefault(q, input, initial);
+        if (spec.variant_field && q.field === spec.variant_field) {
+          input.value = variant;
+          input._appliedDefault = variant;
+          input.addEventListener("change", function () { applyVariantDefaults(input.value); });
+        }
+        formGrid.appendChild(adapterQuestionField(q, input, questionHint(q)));
+      });
+
+    }
+
+    function hideCreatePreview() {
+      if (adapterPreviewEditor) { adapterPreviewEditor.destroy(); adapterPreviewEditor = null; }
+      previewWrap.style.display = "none";
+      previewBtn.textContent = "Preview YAML";
+      previewBtn.setAttribute("aria-expanded", "false");
+      createBanner.style.display = "none";
+      clear(createBanner);
+    }
+
+    function showCreatePreview(yamlText, errors) {
+      previewWrap.style.display = "";
+      previewBtn.textContent = "Hide Preview";
+      previewBtn.setAttribute("aria-expanded", "true");
+      if (!adapterPreviewEditor) {
+        ace.config.set("basePath", "/static");
+        ace.config.set("modePath", "/static");
+        ace.config.set("themePath", "/static");
+        ace.config.set("workerPath", "/static");
+        adapterPreviewEditor = ace.edit(previewWrap, {
+          mode: "ace/mode/yaml",
+          theme: "ace/theme/tomorrow",
+          fontSize: 15,
+          fontFamily: "var(--font-mono)",
+          readOnly: true,
+          showPrintMargin: false,
+          tabSize: 2,
+          useSoftTabs: true,
+          showGutter: true,
+        });
+      }
+      adapterPreviewEditor.setValue(yamlText, -1);
+
+      clear(createBanner);
+      if (errors && errors.length) {
+        createBanner.style.display = "";
+        createBanner.appendChild(el("strong", null, "Validation errors"));
+        errors.forEach(function (e) { createBanner.appendChild(el("div", null, e)); });
+      } else {
+        createBanner.style.display = "none";
+      }
+    }
+
+    previewBtn.addEventListener("click", function () {
+      if (previewWrap.style.display !== "none") {
+        hideCreatePreview();
+        return;
+      }
+      var spec = currentSpec();
+      if (!spec) return;
+      withButton(previewBtn, async function () {
+        var data;
+        try {
+          data = await api("POST", endpoints.adapterPreview, {
+            spec: spec.key,
+            answers: collectAdapterAnswers(),
+          });
+        } catch (err) {
+          throw new Error("Preview failed: " + err.message);
+        }
+        showCreatePreview(data.yaml, data.errors);
+      });
+    });
+
+    createBtn.addEventListener("click", function () {
+      var spec = currentSpec();
+      if (!spec) return;
+      var answers = collectAdapterAnswers();
+      if (!answers.name) { showError("An adapter name is required."); return; }
+      withButton(createBtn, async function () {
+        var data;
+        try {
+          data = await api("POST", endpoints.adapterCreate, { spec: spec.key, answers: answers });
+        } catch (err) {
+          throw new Error("Create failed: " + err.message);
+        }
+        await loadAdapterFiles();
+        await loadAdapterCapabilities();
+        closeAdapterCreatePanel();
+        // Re-render so the new adapter appears in the (re-flattened) list, then
+        // open it in the detail editor.
+        selectedAdapterEntry = { name: data.name, filename: data.filename };
+        render(container);
+        if (data.reload_error) showError(data.message);
+        else showStatus(data.message);
+      });
+    });
+
+    function openAdapterCreatePanel() {
+      createPanel.style.display = "";
+      buildAdapterCreateForm();
+      createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function closeAdapterCreatePanel() {
+      hideCreatePreview();
+      createPanel.style.display = "none";
+    }
+
+    specSelect.addEventListener("change", buildAdapterCreateForm);
+
+    // ----- Detail panel: editor + actions -----
+    var detailPanel = el("div", { className: "panel" });
+    layout.appendChild(detailPanel);
+
+    function renderEmptyDetail() {
+      clear(detailPanel);
+      detailPanel.appendChild(el("div", { className: "empty-state" },
+        el("p", null, "Select an adapter to view and edit its configuration.")
+      ));
+    }
+
+    function selectAdapter(a) {
+      // If dirty and switching to a different adapter, confirm discard
+      if (adapterEditor && selectedAdapterEntry && selectedAdapterEntry.name !== a.name) {
+        var currentContent = adapterEditor.getValue();
+        if (currentContent !== adapterOriginal) {
+          confirmAction({
+            title: "Unsaved Changes",
+            message: "You have unsaved changes to '" + selectedAdapterEntry.name + "'. Discard them?",
+            confirmLabel: "Discard",
+            isDanger: true,
+            onConfirm: function () {
+              selectedAdapterEntry = a;
+              renderDetail(a);
+            }
+          });
+          return;
+        }
+      }
+      selectedAdapterEntry = a;
+      renderDetail(a);
+    }
+
+    function renderDetail(a) {
+      clear(detailPanel);
+      if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
+
+      // Header
+      var headerRow = el("div", { style: "display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-2)" });
+      headerRow.appendChild(el("h3", { style: "margin:0" }, a.name));
+      headerRow.appendChild(el("span", { className: "monitoring-badge " + (a.enabled ? "green" : "muted") },
+        a.enabled ? "enabled" : "disabled"
+      ));
+      headerRow.appendChild(el("span", { className: "adapter-file-badge" }, a.filename));
+      detailPanel.appendChild(headerRow);
+
+      // Info chips
+      var chips = el("div", { className: "adapter-info-chips" });
+      if (a.adapter) chips.appendChild(makeChip("adapter", a.adapter));
+      if (a.type) chips.appendChild(makeChip("type", a.type));
+      if (a.datasource) chips.appendChild(makeChip("datasource", a.datasource));
+      if (a.inference_provider) chips.appendChild(makeChip("inference", a.inference_provider));
+      if (a.model) chips.appendChild(makeChip("model", a.model));
+      if (a.embedding_provider) chips.appendChild(makeChip("embedding", a.embedding_provider));
+      if (chips.children.length) detailPanel.appendChild(chips);
+
+      // Banner for save feedback
+      var banner = el("div", { className: "settings-banner", style: "display:none", role: "status" });
+      detailPanel.appendChild(banner);
+
+      // Ace editor
+      var editorWrap = el("div", { className: "adapter-ace-wrap" });
+      detailPanel.appendChild(editorWrap);
+
+      // Buttons
+      var saveBtn = el("button", {
+        type: "button",
+        className: "btn btn--primary btn--icon",
+        disabled: "true",
+        "aria-label": "Save adapter config",
+        title: "Save adapter config",
+      }, svgIcon(iconSave));
+      var reloadDiskBtn = el("button", {
+        className: "btn btn--neutral btn--icon",
+        "aria-label": "Reload from disk",
+        title: "Reload from disk",
+      }, svgIcon(iconRefresh));
+      // Template reload only applies to adapters whose implementation exposes
+      // reload_templates() (intent/composite retrievers) — driven by the backend
+      // capability flag so this stays correct as new adapter types are added.
+      var adapterCap = (getCachedAdapterCapabilities() || []).find(function (c) { return c.name === a.name; });
+      var supportsTemplateReload = !!(adapterCap && adapterCap.supports_template_reload);
+      var reloadTemplatesBtn = supportsTemplateReload
+        ? el("button", { className: "btn btn--neutral" }, "Reload Templates")
+        : null;
+
+      var btnRow = el("div", { style: "display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-3)" });
+      btnRow.appendChild(saveBtn);
+      btnRow.appendChild(reloadDiskBtn);
+      if (reloadTemplatesBtn) {
+        btnRow.appendChild(el("span", { className: "ops-action-divider" }));
+        btnRow.appendChild(reloadTemplatesBtn);
+      }
+      detailPanel.appendChild(btnRow);
+
+      // Initialise Ace
+      ace.config.set("basePath", "/static");
+      ace.config.set("modePath", "/static");
+      ace.config.set("themePath", "/static");
+      ace.config.set("workerPath", "/static");
+
+      adapterEditor = ace.edit(editorWrap, {
+        mode: "ace/mode/yaml",
+        theme: "ace/theme/tomorrow",
+        fontSize: 15,
+        fontFamily: "var(--font-mono)",
+        showPrintMargin: false,
+        tabSize: 2,
+        useSoftTabs: true,
+        wrap: false,
+        showGutter: true,
+        highlightActiveLine: true,
+        highlightSelectedWord: true,
+        showFoldWidgets: true,
+        displayIndentGuides: true,
+        scrollPastEnd: 0.2,
+      });
+      ace.config.loadModule("ace/ext/searchbox", function () {});
+
+      // Dirty tracking
+      adapterEditor.session.on("change", function () {
+        saveBtn.disabled = adapterEditor.getValue() === adapterOriginal;
+      });
+
+      // Load single adapter entry content
+      async function loadEntry() {
+        try {
+          var data = await api("GET", endpoints.adapterConfigs + "/entry/" + encodeURIComponent(a.name));
+          adapterOriginal = data.content;
+          adapterEditor.setValue(data.content, -1);
+          adapterEditor.getSession().getUndoManager().reset();
+          saveBtn.disabled = true;
+          banner.style.display = "none";
+        } catch (err) {
+          showError("Failed to load adapter '" + a.name + "': " + err.message);
+        }
+      }
+
+      // Save handler — saves just this adapter's block back into its file, then hot-reloads it
+      saveBtn.addEventListener("click", async function () {
+        saveBtn.disabled = true;
+        try {
+          await api("PUT", endpoints.adapterConfigs + "/entry/" + encodeURIComponent(a.name), { content: adapterEditor.getValue() });
+          adapterOriginal = adapterEditor.getValue();
+          // Refresh adapter list
+          await loadAdapterFiles();
+          renderAdapterRows(searchInput.value);
+          clear(banner);
+          banner.style.display = "none";
+          await doReloadAdapter();
+        } catch (err) {
+          showError("Save failed: " + err.message);
+        } finally {
+          saveBtn.disabled = adapterEditor.getValue() === adapterOriginal;
+        }
+      });
+
+      // Reload from disk
+      reloadDiskBtn.addEventListener("click", function () {
+        var dirty = adapterEditor.getValue() !== adapterOriginal;
+        if (dirty) {
+          confirmAction({
+            title: "Reload from Disk",
+            message: "Discard unsaved changes and reload '" + a.name + "' from disk?",
+            confirmLabel: "Discard & Reload",
+            isDanger: true,
+            onConfirm: async function () {
+              await loadEntry();
+              showStatus("Reloaded from disk");
+            }
+          });
+        } else {
+          loadEntry().then(function () { showStatus("Reloaded from disk"); });
+        }
+      });
+
+      // Reload adapter (hot-swap via existing endpoint) — triggered automatically after save
+      async function doReloadAdapter() {
+        await withButton(saveBtn, async function () {
+          var path = endpoints.reloadAdapters + "/async?adapter_name=" + encodeURIComponent(a.name);
+          var started = await api("POST", path);
+          await waitForAdminJob(started.job_id, "Reloading adapter…");
+          await loadAdapterCapabilities();
+          showStatus("Adapter '" + a.name + "' saved and reloaded");
+        });
+      }
+
+      // Reload templates
+      if (reloadTemplatesBtn) {
+        reloadTemplatesBtn.addEventListener("click", function () {
+          if (!adapterCap.cached) {
+            showError("Adapter must be cached (loaded) before templates can be reloaded. Send a query to it first.");
+            return;
+          }
+          confirmAction({
+            title: "Reload Templates",
+            message: "Reload templates for adapter '" + a.name + "'?",
+            confirmLabel: "Reload",
+            loadingLabel: "Reloading…",
+            onConfirm: async function () {
+              var path = endpoints.reloadTemplates + "/async?adapter_name=" + encodeURIComponent(a.name);
+              var started = await api("POST", path);
+              await waitForAdminJob(started.job_id, "Reloading templates…");
+              showStatus("Templates reloaded for '" + a.name + "'");
+            }
+          });
+        });
+      }
+
+      loadEntry();
+    }
+
+    function makeChip(label, value) {
+      return el("span", { className: "adapter-chip" },
+        el("span", { className: "chip-label" }, label + ":"),
+        " " + value
+      );
+    }
+
+    // Restore selection if we had one
+    if (selectedAdapterEntry) {
+      var match = allAdapters.find(function (a) { return a.name === selectedAdapterEntry.name; });
+      if (match) {
+        adapterPaginator.ensureItemVisible(function (a) { return a.name === selectedAdapterEntry.name; });
+        renderDetail(match);
+      } else {
+        renderEmptyDetail();
+      }
+    } else {
+      renderEmptyDetail();
+    }
+  }
+
+  function dispose() {
+    if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
+    if (adapterPreviewEditor) { adapterPreviewEditor.destroy(); adapterPreviewEditor = null; }
+  }
+
+  return { render, dispose };
+}

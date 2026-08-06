@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Bug Fixes & Technical Improvements
+- **Admin Panel Modularization Complete**: Extracted the remaining ten tabs (Costs, Audit, Overview, Users, API Keys, Prompts, Ops, Adapters, MCP, Settings) out of `server/admin/admin_panel.js` into one ES module per tab under `server/admin/admin_panel/tabs/`, completing the modularization started with Feedback. `admin_panel.js` shrinks from 8,367 to 1,689 lines and now holds only shared infrastructure — no tab-specific rendering logic remains in it. Every tab follows the same `createXTab({...}) -> { render, dispose? }` lifecycle; stateful tabs (Overview's WebSocket/chart lifecycle, Adapters' and Settings' independent Ace editor instances, MCP's pending-edit confirmation) now expose `dispose()`/`isDirty()`/`hasPendingEdits()` so the shared tab-switcher routes cleanup and unsaved-changes prompts through the module boundary instead of bare globals. No route, API, permission, or DOM/CSS contract changes.
+
 ## [2.15.0] - 2026-08-05
 
 ### Core System Updates
