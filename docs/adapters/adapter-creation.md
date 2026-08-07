@@ -117,9 +117,13 @@ All endpoints require the `adapters.manage` permission.
 | `GET /admin/adapters/specs` | Spec registry as JSON — families, questions, limits, per-variant defaults. The form is generated from this. |
 | `POST /admin/adapters/preview` | `{spec, answers}` → `{yaml, errors}`. Always 200; validation problems come back in `errors`. |
 | `POST /admin/adapters` | `{spec, answers, register, overwrite}` → renders, validates, writes, registers, hot-reloads. |
+| `DELETE /admin/adapters/{name}` | Removes the definition, drops the import line, evicts it from the running server. `?force=true` waives the referrer check. |
 
 Notable responses: **404** unknown family, **422** invalid answers or a bad variant,
 **409** name collision.
+
+For delete: **404** no such adapter, **400** unsafe name, **409** the adapter is still
+referenced (see below).
 
 ### Name collisions
 
@@ -146,10 +150,43 @@ Then `reload_adapter_configs` applies the change to the running server.
 > the worker that served the request. Restart to guarantee every worker picks it up.
 > Same caveat as [MCP hot reload](../roadmap/mcp-hot-reload-multi-worker.md).
 
+## Deleting an adapter
+
+Adapters tab → select the adapter → **Delete Adapter**. Deletion is irreversible from the
+panel, so it requires typing the adapter's name to confirm.
+
+What happens:
+
+1. The adapter's block is removed. If it was the only adapter in its file, the file is
+   deleted and its line dropped from `config/adapters.yaml`. If the file declares others
+   (`multimodal.yaml`, `web-search-providers.yaml`), only that block is spliced out — the
+   file and its import line stay.
+2. A **full** adapter reload applies the removal to the running server. Unlike create,
+   deletion cannot use the scoped single-adapter reload — that path looks the name up in
+   the config and the name is, by then, gone.
+3. The adapter is unregistered from the capability registry.
+
+### Referential integrity
+
+Before deleting, the server looks for things that would break:
+
+- **API keys** bound to the adapter via `adapter_name`.
+- **Other adapters** naming it in `capabilities.available_skills` or
+  `auto_routable_skills`.
+- **Other adapters depending on it at runtime** — `config.child_adapters` (composite
+  adapters) and `config.grounding_adapter` (realtime adapters). These names are resolved
+  through the adapter manager on each request, so a dangling one breaks the *referring*
+  adapter: a composite fails to initialize, a realtime adapter loses grounding.
+
+If any exist you get a **409** listing them, and the panel offers a second, explicit
+confirmation that retries with `force=true`. Forcing deletes the adapter and **does not**
+touch the referrers — API keys are never cascaded, so a forced delete leaves those keys
+failing at request time until you repoint or remove them.
+
 ## Limitations
 
-- **No deletion or export from the panel** yet — remove the file and its import line by
-  hand. Planned in [adapter-creation-next-steps](../roadmap/adapter-creation-next-steps.md).
+- **No export from the panel** yet — copy the YAML by hand. Planned in
+  [adapter-creation-next-steps](../roadmap/adapter-creation-next-steps.md).
 - **No round-trip editing.** Once created, an adapter is edited as raw YAML in the
   Adapters tab; there is no "reopen in the form".
 - **One adapter per file** for generated adapters, though hand-written files may declare
@@ -164,6 +201,6 @@ Then `reload_adapter_configs` applies the change to the running server.
 | `server/adapter_sdk/specs.py` | Spec registry — tuples, questions, limits, variants |
 | `server/adapter_sdk/renderer.py` | Jinja2 templates → commented YAML |
 | `server/adapter_sdk/validator.py` | Structure, answer-limit, and capability validation |
-| `server/adapter_sdk/writer.py` | Atomic write + import registration |
-| `server/routes/admin_routes.py` | REST endpoints |
-| `server/admin/admin_panel.js` | Create form in the Adapters tab |
+| `server/adapter_sdk/writer.py` | Atomic write/delete + import (un)registration |
+| `server/routes/admin/adapters.py` | REST endpoints |
+| `server/admin/admin_panel/tabs/adapters.js` | Create form and delete action in the Adapters tab |

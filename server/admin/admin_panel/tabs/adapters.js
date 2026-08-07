@@ -1,7 +1,7 @@
 export function createAdaptersTab({
   api, endpoints, el, clear, skeleton, svgIcon, iconPlus, iconSave, iconRefresh,
   field, characterCount, withButton, createPaginator, createColumnSorter, itemsPerPage,
-  markSelectedRow, confirmAction, showError, showStatus, waitForAdminJob,
+  markSelectedRow, confirmAction, requireTypedConfirmation, showError, showStatus, waitForAdminJob,
   getActiveTab, getCachedAdapterCapabilities, loadAdapterCapabilities
 }) {
   var adapterEditor = null;        // Ace editor instance for Adapters tab
@@ -609,6 +609,8 @@ export function createAdaptersTab({
         ? el("button", { className: "btn btn--neutral" }, "Reload Templates")
         : null;
 
+      var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Adapter");
+
       var btnRow = el("div", { style: "display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-3)" });
       btnRow.appendChild(saveBtn);
       btnRow.appendChild(reloadDiskBtn);
@@ -616,7 +618,49 @@ export function createAdaptersTab({
         btnRow.appendChild(el("span", { className: "ops-action-divider" }));
         btnRow.appendChild(reloadTemplatesBtn);
       }
+      btnRow.appendChild(el("span", { className: "ops-action-divider" }));
+      btnRow.appendChild(deleteBtn);
       detailPanel.appendChild(btnRow);
+
+      // Deleting removes the adapter's YAML block, its import line, and evicts it from
+      // the running server. The server refuses with 409 while API keys or other
+      // adapters' skill lists still name it; that needs a second, explicit confirmation
+      // because forcing leaves those referrers pointing at nothing.
+      async function doDeleteAdapter(force) {
+        var url = endpoints.adapterCreate + "/" + encodeURIComponent(a.name);
+        if (force) url += "?force=true";
+        var data = await api("DELETE", url);
+        await loadAdapterFiles();
+        await loadAdapterCapabilities();
+        selectedAdapterEntry = null;
+        render(container);
+        if (data.reload_error) showError(data.message);
+        else showStatus(data.message);
+      }
+
+      deleteBtn.addEventListener("click", function () {
+        requireTypedConfirmation({
+          title: "Delete Adapter",
+          message: "Delete adapter '" + a.name + "'? This removes it from "
+            + a.filename + " and from the running server. This cannot be undone.",
+          expectedText: a.name,
+          confirmLabel: "Delete",
+          onConfirm: async function () {
+            try {
+              await doDeleteAdapter(false);
+            } catch (err) {
+              if (!/still referenced by/i.test(err.message)) throw err;
+              requireTypedConfirmation({
+                title: "Adapter Still Referenced",
+                message: err.message + " Deleting anyway will break them.",
+                expectedText: a.name,
+                confirmLabel: "Delete Anyway",
+                onConfirm: function () { return doDeleteAdapter(true); }
+              });
+            }
+          }
+        });
+      });
 
       // Initialise Ace
       ace.config.set("basePath", "/static");

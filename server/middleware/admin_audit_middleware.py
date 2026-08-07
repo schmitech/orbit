@@ -104,6 +104,10 @@ _ROUTE_MAP: List[Tuple[str, str, str, str, str, Optional[str], Any]] = [
     ("PUT",    "/admin/adapters/config/entry/{adapter_name}",       "admin.adapter.config_update",      "UPDATE",  "adapter", "path:adapter_name", _CHANGED_KEYS),
     ("PATCH",  "/admin/adapters/config/entry/{adapter_name}/toggle","admin.adapter.toggle",             "UPDATE",  "adapter", "path:adapter_name", ("enabled",)),
     ("PUT",    "/admin/adapters/config/{filename}",                 "admin.adapter.config_file_update", "UPDATE",  "config",  "path:filename",     _CHANGED_KEYS),
+    ("POST",   "/admin/adapters",                                   "admin.adapter.create",             "CREATE",  "adapter", None,                ("spec",)),
+    # `force` is a query param, so the body allowlist cannot capture it — the event
+    # records which adapter was deleted, not whether the referrer check was waived.
+    ("DELETE", "/admin/adapters/{adapter_name}",                    "admin.adapter.delete",             "DELETE",  "adapter", "path:adapter_name", ()),
 
     # ---- Control operations ----
     ("POST",   "/admin/reload-adapters",                            "admin.adapter.reload",     "CONTROL", "adapter",  None,                  ()),

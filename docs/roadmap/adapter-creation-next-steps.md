@@ -8,11 +8,11 @@ renders the YAML, and `POST /admin/adapters` writes `config/adapters/<name>.yaml
 registers it in `config/adapters.yaml`, and hot-reloads it. The path is fully
 deterministic — no LLM calls are involved in creating an adapter.
 
-That closes the *create* half of the SDK roadmap's Phase 3. The lifecycle is still
-one-directional: an adapter can be created and edited, but not removed, exported, or
-moved between environments from the panel. This document describes the work to close
-that gap, ordered by value, and consolidates the deferred SDK-side phases (previously
-tracked in `docs/roadmap/adapter-sdk.md`).
+Deletion has since landed too (section 1 below), so create/edit/delete are all covered.
+What remains is moving adapters *between environments* — export and import — plus
+round-trip editing and the spec families the SDK does not yet model. This document
+describes that work, ordered by value, and consolidates the deferred SDK-side phases
+(previously tracked in `docs/roadmap/adapter-sdk.md`).
 
 Reference: `server/adapter_sdk/README.md` (current REST surface).
 
@@ -22,10 +22,17 @@ web-search. See `server/adapter_sdk/README.md`.
 
 ---
 
-## 1. Adapter deletion (the main gap)
+## 1. Adapter deletion — **done**
 
 **Goal:** `DELETE /admin/adapters/{name}` — remove the adapter's YAML block, drop its
 import line, and evict it from the running server.
+
+Shipped: `writer.unregister_import` / `writer.delete_adapter`
+(`server/adapter_sdk/writer.py`), `DELETE /adapters/{adapter_name}`
+(`server/routes/admin/adapters.py`), and a type-to-confirm Delete button in the Adapters
+detail panel (`server/admin/admin_panel/tabs/adapters.js`). Referrers (API keys, other
+adapters' skill lists) produce a 409 that `force=true` waives; API keys are never
+cascaded. See [Creating Adapters](../adapters/adapter-creation.md#deleting-an-adapter).
 
 **The runtime side is already solved.** `AdapterReloader.reload_all_adapters`
 (`server/services/reload/adapter_reloader.py:222-238`) has a complete removal branch:
@@ -44,35 +51,35 @@ re-diffs every adapter) but it is the only path that runs the removal branch.
 
 **Tasks:**
 
-- [ ] `writer.unregister_import(import_path, adapters_yaml)` — the inverse of
+- [x] `writer.unregister_import(import_path, adapters_yaml)` — the inverse of
       `register_import` (`server/adapter_sdk/writer.py:53`). Same text-insertion
       discipline: delete the matching line via the existing `is_registered` regex,
       preserving surrounding comments, then `_atomic_write`. Idempotent, returns
       whether a line was removed.
-- [ ] `writer.delete_adapter(name, *, adapters_dir, adapters_yaml, unregister=True)` —
+- [x] `writer.delete_adapter(name, *, adapters_dir, adapters_yaml, unregister=True)` —
       `validate_adapter_name`, unlink the file, unregister. Raise `FileNotFoundError`
       when absent.
-- [ ] Route `DELETE /admin/adapters/{name}`, gated on `adapters_auth`, mirroring the
+- [x] Route `DELETE /admin/adapters/{name}`, gated on `adapters_auth`, mirroring the
       create route's structure in `server/routes/admin_routes.py`.
-- [ ] **Multi-adapter files must be rejected, not silently mangled.** The writer is
+- [x] **Multi-adapter files must be rejected, not silently mangled.** The writer is
       one-file-per-adapter, but `config/adapters/` ships files declaring several
       adapters (`web-search-providers.yaml`, `multimodal.yaml`). Use the existing
       `_find_adapter_file` + `_find_adapter_block` helpers: if the file holds more than
       one adapter, either splice out just that block and keep the file (preferred — the
       helpers already do this for the PUT/toggle routes) or return `409` telling the
       operator to edit the file directly. Never unlink a file that owns other adapters.
-- [ ] **Referential integrity check before deleting.** An adapter name can be
+- [x] **Referential integrity check before deleting.** An adapter name can be
       referenced by an API key (`adapter_name` on the key record) and by other adapters'
       `available_skills` / `auto_routable_skills` lists. Deleting one out from under a
       live API key breaks that key's requests at runtime with no warning. Look for
       references first and return `409` with the referrers listed, or require an
       explicit `force: true`.
-- [ ] Frontend: a Delete button in the Adapters detail panel, using the existing
+- [x] Frontend: a Delete button in the Adapters detail panel, using the existing
       `requireTypedConfirmation` helper (`server/admin/admin_panel.js:878`) — deletion
       is destructive and irreversible from the panel, so type-to-confirm matches how
       other destructive admin actions behave. On success clear `selectedAdapterEntry`,
       re-render, and surface `reload_summary.removed_names`.
-- [ ] Tests: file + import line both gone; multi-adapter file keeps its siblings;
+- [x] Tests: file + import line both gone; multi-adapter file keeps its siblings;
       referenced adapter returns 409; deleting a non-existent adapter returns 404;
       permission guard.
 

@@ -1345,6 +1345,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     itemsPerPage: ITEMS_PER_PAGE,
     markSelectedRow: markSelectedRow,
     confirmAction: confirmAction,
+    requireTypedConfirmation: requireTypedConfirmation,
     showError: showError,
     showStatus: showStatus,
     waitForAdminJob: waitForAdminJob,

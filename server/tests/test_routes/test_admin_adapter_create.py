@@ -8,6 +8,7 @@ to get right.
 """
 
 import pytest
+import yaml
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -302,6 +303,126 @@ def test_create_requires_a_name(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# Delete
+# --------------------------------------------------------------------------- #
+
+_MULTI = """adapters:
+  - name: alpha
+    type: passthrough
+    inference_provider: ollama
+
+  - name: beta
+    type: passthrough
+    inference_provider: ollama
+"""
+
+
+def test_delete_removes_file_and_import_line(tmp_path):
+    app = _build_app(tmp_path)
+    config_dir = tmp_path / "config"
+    with TestClient(app) as client:
+        resp = client.delete("/admin/adapters/fetch")
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["file_removed"] is True
+    assert body["unregistered"] is True
+    assert not (config_dir / "adapters" / "fetch.yaml").exists()
+    assert "adapters/fetch.yaml" not in (config_dir / "adapters.yaml").read_text(encoding="utf-8")
+
+
+def test_delete_from_multi_adapter_file_keeps_siblings(tmp_path):
+    app = _build_app(tmp_path)
+    config_dir = tmp_path / "config"
+    multi = config_dir / "adapters" / "multi.yaml"
+    multi.write_text(_MULTI, encoding="utf-8")
+
+    with TestClient(app) as client:
+        resp = client.delete("/admin/adapters/alpha")
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["file_removed"] is False
+    assert body["filename"] == "multi.yaml"
+
+    text = multi.read_text(encoding="utf-8")
+    assert "name: alpha" not in text
+    assert "name: beta" in text
+    assert yaml.safe_load(text)["adapters"][0]["name"] == "beta"
+
+
+def test_delete_is_conflict_when_another_adapter_lists_it_as_a_skill(tmp_path):
+    app = _build_app(tmp_path)
+    adapters = tmp_path / "config" / "adapters"
+    (adapters / "router.yaml").write_text(
+        "adapters:\n"
+        "  - name: router\n"
+        "    type: passthrough\n"
+        "    capabilities:\n"
+        "      available_skills:\n"
+        "        - fetch\n",
+        encoding="utf-8",
+    )
+
+    with TestClient(app) as client:
+        blocked = client.delete("/admin/adapters/fetch")
+        assert blocked.status_code == 409
+        assert "router" in blocked.json()["detail"]
+        assert (adapters / "fetch.yaml").exists()
+
+        forced = client.delete("/admin/adapters/fetch?force=true")
+        assert forced.status_code == 200, forced.text
+
+    assert not (adapters / "fetch.yaml").exists()
+
+
+@pytest.mark.parametrize("referring_config,kind", [
+    ("      child_adapters:\n        - fetch\n", "child_adapters"),
+    ('      grounding_adapter: "fetch"\n', "grounding_adapter"),
+])
+def test_delete_is_conflict_on_non_skill_adapter_dependencies(tmp_path, referring_config, kind):
+    """Composite children and realtime grounding targets are resolved by name at
+    runtime, so deleting one silently breaks the referring adapter."""
+    app = _build_app(tmp_path)
+    adapters = tmp_path / "config" / "adapters"
+    (adapters / "dependent.yaml").write_text(
+        "adapters:\n"
+        "  - name: dependent\n"
+        "    type: retriever\n"
+        "    config:\n" + referring_config,
+        encoding="utf-8",
+    )
+
+    with TestClient(app) as client:
+        blocked = client.delete("/admin/adapters/fetch")
+        assert blocked.status_code == 409
+        detail = blocked.json()["detail"]
+        assert "dependent" in detail and kind in detail
+        assert (adapters / "fetch.yaml").exists()
+
+        assert client.delete("/admin/adapters/fetch?force=true").status_code == 200
+
+    assert not (adapters / "fetch.yaml").exists()
+
+
+def test_delete_unknown_adapter_is_404(tmp_path):
+    with TestClient(_build_app(tmp_path)) as client:
+        assert client.delete("/admin/adapters/nope").status_code == 404
+
+
+def test_delete_rejects_unsafe_name(tmp_path):
+    """A name that would escape config/adapters/ is refused before any file work.
+
+    Separators never reach the handler at all — they don't route to a single path
+    segment — so the dotted form is what proves the name guard itself fires.
+    """
+    with TestClient(_build_app(tmp_path)) as client:
+        assert client.delete("/admin/adapters/..%2Fescape").status_code == 404
+        assert client.delete("/admin/adapters/has.dot").status_code == 400
+    assert (tmp_path / "config" / "adapters" / "fetch.yaml").exists()
+
+
+# --------------------------------------------------------------------------- #
 # Permissions
 # --------------------------------------------------------------------------- #
 
@@ -314,6 +435,7 @@ def test_create_routes_require_adapters_manage(tmp_path, roles, allowed):
             client.get("/admin/adapters/specs"),
             client.post("/admin/adapters/preview", json={"spec": "fetch", "answers": {}}),
             client.post("/admin/adapters", json={"spec": "fetch", "answers": {}}),
+            client.delete("/admin/adapters/fetch"),
         ]
     for resp in responses:
         if allowed:

@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Bug Fixes & Technical Improvements
+- **Adapter Deletion**: The Adapters admin panel can now permanently remove an adapter definition, immediately hot-reload the running server, and remove its capability registration. Deletion is blocked while API keys, skill lists, composite children, or realtime grounding configuration still reference the adapter unless an operator explicitly uses `force=true`; create and delete actions are recorded in the admin audit trail.
 - **Settings Tab Search & Collapsible Tree**: The Settings tab's sidebar now supports search-as-you-jump — typing filters sections by name and by content (fetched and cached on first search), surfacing the first matching line under each result and jumping straight to it in the editor on click.
 - **API Key Panel Usability**: Clarified allowlist behavior, improved selection controls, streamlined key and quota management with inline editing and automatic quota loading, and fixed cancelled Notes previews and stale panel assets.
 - **Admin Panel Modularization Complete**: Extracted the remaining ten tabs (Costs, Audit, Overview, Users, API Keys, Prompts, Ops, Adapters, MCP, Settings) out of `server/admin/admin_panel.js` into one ES module per tab under `server/admin/admin_panel/tabs/`, completing the modularization started with Feedback. `admin_panel.js` shrinks from 8,367 to 1,689 lines and now holds only shared infrastructure — no tab-specific rendering logic remains in it.

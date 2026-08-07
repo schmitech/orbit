@@ -485,6 +485,194 @@ async def create_adapter(
     }
 
 
+# Config keys through which one adapter names another. These are resolved through the
+# adapter manager at runtime, so a dangling name breaks the referring adapter rather
+# than the deleted one: composite adapters fail to initialize, realtime adapters lose
+# grounding. Skill lists are the third way and live under `capabilities`.
+_ADAPTER_REF_LIST_KEYS = ("child_adapters",)
+_ADAPTER_REF_SCALAR_KEYS = ("grounding_adapter",)
+
+
+def _adapter_reference_kinds(entry: dict, name: str) -> list[str]:
+    """Which of `entry`'s reference fields point at `name`."""
+    kinds = []
+
+    caps = entry.get("capabilities") or {}
+    if name in (caps.get("available_skills") or []) or name in (caps.get("auto_routable_skills") or []):
+        kinds.append("skills")
+
+    config = entry.get("config") or {}
+    if not isinstance(config, dict):
+        return kinds
+    for key in _ADAPTER_REF_LIST_KEYS:
+        if name in (config.get(key) or []):
+            kinds.append(key)
+    for key in _ADAPTER_REF_SCALAR_KEYS:
+        if config.get(key) == name:
+            kinds.append(key)
+
+    return kinds
+
+
+async def _find_adapter_referrers(request: Request, adapters_dir: Path, name: str) -> list[str]:
+    """Things that would break if `name` disappeared: API keys bound to it, and other
+    adapters that name it — as a skill or as a runtime dependency."""
+    referrers: list[str] = []
+
+    api_key_service = getattr(request.app.state, "api_key_service", None)
+    if api_key_service is not None:
+        try:
+            if not api_key_service._initialized:
+                await api_key_service.initialize()
+            keys = await api_key_service.database.find_many(
+                api_key_service.collection_name, {"adapter_name": name}
+            )
+            for key in keys or []:
+                label = key.get("client_name") or key.get("name") or str(key.get("_id"))
+                referrers.append(f"API key '{label}'")
+        except Exception as exc:
+            # A referrer check that cannot run must not silently report "no referrers".
+            logger.error(f"Referrer check for adapter '{name}' failed: {exc}", exc_info=True)
+            raise HTTPException(
+                status_code=503,
+                detail=f"Could not check whether adapter '{name}' is still referenced: {exc}"
+            )
+
+    for yaml_file in sorted(adapters_dir.glob("*.yaml")):
+        try:
+            parsed = yaml.safe_load(yaml_file.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            continue
+        for entry in parsed.get("adapters", []) or []:
+            if not isinstance(entry, dict) or entry.get("name") == name:
+                continue
+            for kind in _adapter_reference_kinds(entry, name):
+                referrers.append(f"adapter '{entry.get('name')}' ({kind})")
+
+    return referrers
+
+
+@router.delete("/adapters/{adapter_name}", dependencies=[adapters_auth])
+async def delete_adapter(
+    request: Request,
+    adapter_name: str,
+    force: bool = Query(False, description="Delete even if the adapter is still referenced"),
+):
+    """Remove an adapter's definition, drop its import line, and evict it from the server."""
+    try:
+        adapter_writer.validate_adapter_name(adapter_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    adapters_dir, adapters_yaml = _adapter_sdk_paths(request)
+    if not adapters_dir.is_dir():
+        raise HTTPException(status_code=500, detail=f"Adapters directory not found: {adapters_dir}")
+
+    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
+    if not file_path:
+        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found")
+
+    if not force:
+        referrers = await _find_adapter_referrers(request, adapters_dir, adapter_name)
+        if referrers:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Adapter '{adapter_name}' is still referenced by: "
+                       + ", ".join(referrers)
+                       + ". Delete it anyway with force=true (referrers are not updated)."
+            )
+
+    parsed = yaml.safe_load(content) or {}
+    siblings = [
+        a for a in (parsed.get("adapters") or [])
+        if isinstance(a, dict) and a.get("name") != adapter_name
+    ]
+
+    file_removed = False
+    unregistered = False
+    if siblings:
+        # The file owns other adapters, so splice out just this block and keep both the
+        # file and its import line — same line-splicing discipline as the PUT route.
+        lines = content.split("\n")
+        start, end = _find_adapter_block(lines, adapter_name)
+        if start == -1:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Adapter '{adapter_name}' is defined in {file_path.name} but its block "
+                       "could not be located; edit the file directly."
+            )
+        _write_adapter_config(file_path, "\n".join(lines[:start] + lines[end:]))
+    else:
+        try:
+            unregistered = adapter_writer.delete_adapter(
+                file_path.stem,
+                adapters_dir=adapters_dir,
+                adapters_yaml=adapters_yaml,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        file_removed = True
+
+    from config.config_manager import clear_config_cache
+    clear_config_cache()
+
+    # The removal branch lives in reload_all_adapters only — the scoped path raises
+    # because the name is (correctly) gone from the config file.
+    adapter_manager = getattr(request.app.state, "adapter_manager", None)
+    config_path = getattr(request.app.state, "config_path", None)
+    reload_summary = None
+    reload_error = None
+
+    if adapter_manager and config_path:
+        try:
+            new_config = reload_adapters_config(config_path)
+            reload_summary = await adapter_manager.reload_adapter_configs(new_config)
+        except Exception as e:
+            logger.error(f"Adapter '{adapter_name}' was deleted but runtime reload failed: {e}", exc_info=True)
+            reload_error = str(e)
+    else:
+        reload_error = "adapter_manager or config_path not available in app state"
+
+    # reload_all_adapters' removal branch does not touch the capability registry, so a
+    # deleted adapter would keep showing up in GET /adapters/capabilities.
+    try:
+        from adapters.capabilities import get_capability_registry
+        get_capability_registry().unregister(adapter_name)
+    except Exception as exc:
+        logger.warning(f"Could not unregister capabilities for '{adapter_name}': {exc}")
+
+    import os
+    if os.environ.get('ORBIT_SUPERVISOR_PID'):
+        from services import adapter_reload_state
+        new_generation = await adapter_reload_state.bump_generation(request.app.state, "adapter_config")
+        if new_generation is None:
+            logger.warning("Failed to propagate adapter deletion to other workers")
+        else:
+            last_seen = getattr(request.app.state, "_adapter_reload_last_seen", None)
+            if last_seen is not None:
+                last_seen["adapter_config"] = new_generation
+
+    if reload_error:
+        message = (
+            f"Adapter '{adapter_name}' deleted, but runtime reload failed ({reload_error}). "
+            "Use 'Reload Adapters' to apply."
+        )
+    else:
+        message = f"Adapter '{adapter_name}' deleted and removed from the running server."
+
+    return {
+        "message": message,
+        "name": adapter_name,
+        "filename": file_path.name,
+        "file_removed": file_removed,
+        "unregistered": unregistered,
+        "reload_summary": reload_summary,
+        "reload_error": reload_error,
+    }
+
+
 # Adapter Hot Reload
 @router.post("/reload-adapters", response_model=AdapterReloadResponse, dependencies=[adapters_auth])
 async def reload_adapters(

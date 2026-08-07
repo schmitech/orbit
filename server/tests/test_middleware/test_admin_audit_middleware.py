@@ -30,6 +30,7 @@ from middleware.admin_audit_middleware import (
     AdminAuditMiddleware,
     _build_request_summary,
     _extract_ip,
+    _match_route,
     _parse_trusted_networks,
     _read_and_replay_body,
 )
@@ -233,6 +234,34 @@ class TestBuildRequestSummary:
         summary = _build_request_summary(body, ("username", "notes"))
         assert summary == {"username": "alice"}
         assert "notes" not in summary
+
+
+# ---------------------------------------------------------------------------
+# _match_route — adapter lifecycle
+# ---------------------------------------------------------------------------
+
+class TestAdapterLifecycleRoutes:
+    """Adapter create/delete are mutations, so they must not fall through to
+    admin.unknown with no resource id."""
+
+    def test_delete_adapter_is_mapped_with_resource_id(self):
+        matched = _match_route("DELETE", "/admin/adapters/my-fetch")
+        assert matched is not None
+        entry, params = matched
+        assert entry[2] == "admin.adapter.delete"
+        assert entry[3] == "DELETE"
+        assert entry[5] == "path:adapter_name"
+        assert params == {"adapter_name": "my-fetch"}
+
+    def test_create_adapter_is_mapped(self):
+        matched = _match_route("POST", "/admin/adapters")
+        assert matched is not None
+        assert matched[0][2] == "admin.adapter.create"
+
+    def test_create_mapping_does_not_swallow_the_preview_route(self):
+        """Preview renders YAML and changes nothing; it must not be logged as a create."""
+        matched = _match_route("POST", "/admin/adapters/preview")
+        assert matched is None or matched[0][2] != "admin.adapter.create"
 
 
 # ---------------------------------------------------------------------------

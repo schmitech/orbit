@@ -78,6 +78,23 @@ def register_import(import_path: str, adapters_yaml: Path = ADAPTERS_YAML) -> bo
     return True
 
 
+def unregister_import(import_path: str, adapters_yaml: Path = ADAPTERS_YAML) -> bool:
+    """
+    Remove `adapters/<file>.yaml` from the import list, preserving surrounding
+    comments/formatting via text deletion. Returns True if a line was removed,
+    False if it was not there. Idempotent.
+    """
+    lines = adapters_yaml.read_text(encoding="utf-8").splitlines(keepends=True)
+    pattern = re.compile(r'^\s*-\s*["\']?' + re.escape(import_path) + r'["\']?\s*$')
+
+    kept = [line for line in lines if not pattern.match(line.rstrip("\n"))]
+    if len(kept) == len(lines):
+        return False
+
+    _atomic_write(adapters_yaml, "".join(kept))
+    return True
+
+
 def write_adapter(
     name: str,
     yaml_text: str,
@@ -103,3 +120,27 @@ def write_adapter(
         register_import(f"adapters/{name}.yaml", adapters_yaml)
 
     return target
+
+
+def delete_adapter(
+    name: str,
+    *,
+    adapters_dir: Path = ADAPTERS_DIR,
+    adapters_yaml: Path = ADAPTERS_YAML,
+    unregister: bool = True,
+) -> bool:
+    """
+    Delete config/adapters/<name>.yaml and (optionally) drop its import line.
+    Returns whether the import line was removed. Raises FileNotFoundError if the file
+    does not exist, or ValueError if the name is not a safe filename identifier.
+    """
+    validate_adapter_name(name)
+    target = adapters_dir / f"{name}.yaml"
+    if not target.is_file():
+        raise FileNotFoundError(f"{target} does not exist")
+
+    target.unlink()
+
+    if unregister:
+        return unregister_import(f"adapters/{name}.yaml", adapters_yaml)
+    return False

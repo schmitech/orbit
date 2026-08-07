@@ -205,3 +205,70 @@ def test_writer_refuses_overwrite(tmp_path):
     (adapters_dir / "dup.yaml").write_text("adapters: []\n")
     with pytest.raises(FileExistsError):
         writer.write_adapter("dup", "adapters: []\n", register=False, adapters_dir=adapters_dir)
+
+
+# --------------------------------------------------------------------------- #
+# Writer — deletion
+# --------------------------------------------------------------------------- #
+
+_IMPORT_LIST = """adapters:
+  import:
+    # Retrieval adapters
+    - "adapters/qa.yaml"
+    - "adapters/doomed.yaml"
+    # Generators
+    - "adapters/file.yaml"
+"""
+
+
+def _delete_fixture(tmp_path):
+    adapters_dir = tmp_path / "adapters"
+    adapters_dir.mkdir()
+    (adapters_dir / "doomed.yaml").write_text("adapters: []\n", encoding="utf-8")
+    adapters_yaml = tmp_path / "adapters.yaml"
+    adapters_yaml.write_text(_IMPORT_LIST, encoding="utf-8")
+    return adapters_dir, adapters_yaml
+
+
+@pytest.mark.unit
+def test_unregister_import_removes_line_and_keeps_comments(tmp_path):
+    _, adapters_yaml = _delete_fixture(tmp_path)
+
+    assert writer.unregister_import("adapters/doomed.yaml", adapters_yaml) is True
+    text = adapters_yaml.read_text(encoding="utf-8")
+    assert "adapters/doomed.yaml" not in text
+    assert "# Retrieval adapters" in text
+    assert "# Generators" in text
+    assert 'adapters/qa.yaml' in text and 'adapters/file.yaml' in text
+
+    # Idempotent: a second call is a no-op, not an error.
+    assert writer.unregister_import("adapters/doomed.yaml", adapters_yaml) is False
+
+
+@pytest.mark.unit
+def test_delete_adapter_removes_file_and_import(tmp_path):
+    adapters_dir, adapters_yaml = _delete_fixture(tmp_path)
+
+    assert writer.delete_adapter(
+        "doomed", adapters_dir=adapters_dir, adapters_yaml=adapters_yaml
+    ) is True
+    assert not (adapters_dir / "doomed.yaml").exists()
+    assert "adapters/doomed.yaml" not in adapters_yaml.read_text(encoding="utf-8")
+
+
+@pytest.mark.unit
+def test_delete_adapter_raises_when_missing(tmp_path):
+    adapters_dir, adapters_yaml = _delete_fixture(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        writer.delete_adapter("absent", adapters_dir=adapters_dir, adapters_yaml=adapters_yaml)
+    # The import list is untouched by a failed delete.
+    assert adapters_yaml.read_text(encoding="utf-8") == _IMPORT_LIST
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("bad_name", ["../evil", "/abs/path", "a/b", "..", "has.dot", ""])
+def test_delete_adapter_rejects_unsafe_names(tmp_path, bad_name):
+    adapters_dir, adapters_yaml = _delete_fixture(tmp_path)
+    with pytest.raises(ValueError, match="invalid adapter name"):
+        writer.delete_adapter(bad_name, adapters_dir=adapters_dir, adapters_yaml=adapters_yaml)
+    assert (adapters_dir / "doomed.yaml").exists()
