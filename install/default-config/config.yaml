@@ -167,6 +167,16 @@ auth:
   # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
   credential_storage: keyring
 
+  # Blacklisted identities. Rules are managed at runtime from the admin panel's
+  # Users tab (or GET/POST/DELETE /auth/blacklist) and stored in the database,
+  # not here — a rule blocks an identity pattern from authenticating on every
+  # surface. This setting only controls how long each worker caches the rule
+  # set before re-reading it, which bounds propagation delay under
+  # performance.workers > 1. Adding a rule revokes matching sessions
+  # immediately, so this delay only affects newly presented credentials.
+  blacklist:
+    cache_ttl: 30                   # Seconds a worker caches blacklist rules (0 = always re-read)
+
   # External identity providers (OIDC / OAuth2). Optional — the built-in
   # username/password auth above always works. When enabled, ORBIT validates
   # access-token JWTs presented as `Authorization: Bearer <jwt>` by clients

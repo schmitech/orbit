@@ -104,6 +104,36 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 ---
 
+### user_blacklist
+
+Stores pattern-based identity denial rules, evaluated on every authentication.
+
+```sql
+CREATE TABLE IF NOT EXISTS user_blacklist (
+    id TEXT PRIMARY KEY,
+    pattern TEXT NOT NULL,
+    entry_type TEXT NOT NULL,
+    reason TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique rule ID (UUID)
+- `pattern` (TEXT): Lowercased match pattern; `*` and `?` are wildcards (e.g. `*@spam-domain.com`)
+- `entry_type` (TEXT): Identity field the pattern matches — `email`, `user_id`, or `username`
+- `reason` (TEXT, nullable): Free-text operator note
+- `created_by` (TEXT, nullable): Username of the administrator who added the rule
+- `created_at` (TEXT): ISO format timestamp of rule creation
+
+**Indexes:**
+- `idx_user_blacklist_entry_type_pattern` unique on `(entry_type, pattern)` — created by
+  `AuthService.initialize()` via `create_index` rather than declared in the backend's
+  `_indexes` map, so MongoDB gets the same constraint (it never reads those SQL definitions)
+
+---
+
 ### api_keys
 
 Stores API keys for authentication and adapter configuration.

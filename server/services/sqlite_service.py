@@ -153,6 +153,16 @@ class SQLiteService(DatabaseService):
                     created_at TEXT NOT NULL
                 )
             ''',
+            'user_blacklist': '''
+                CREATE TABLE IF NOT EXISTS user_blacklist (
+                    id TEXT PRIMARY KEY,
+                    pattern TEXT NOT NULL,
+                    entry_type TEXT NOT NULL,
+                    reason TEXT,
+                    created_by TEXT,
+                    created_at TEXT NOT NULL
+                )
+            ''',
             'api_keys': '''
                 CREATE TABLE IF NOT EXISTS api_keys (
                     id TEXT PRIMARY KEY,

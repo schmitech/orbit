@@ -139,6 +139,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
   var ICON_EYE_OFF = ["M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94", "M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19", "M14.12 14.12a3 3 0 1 1-4.24-4.24", "M1 1l22 22"];
   var ICON_COPY = ["M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2", "M8 2h8a1 1 0 0 1 1 1v1H7V3a1 1 0 0 1 1-1z"];
   var ICON_CHECK = ["M20 6L9 17l-5-5"];
+  var ICON_PENCIL = ["M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"];
   var ICON_PLUS = ["M12 5v14", "M5 12h14"];
   var ICON_REFRESH = ["M21 12a9 9 0 1 1-2.64-6.36", "M21 3v6h-6"];
   var ICON_SAVE = ["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z", "M17 21v-8H7v8", "M7 3v5h8"];
@@ -1212,6 +1213,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     passwordField: passwordField,
     svgIcon: svgIcon,
     iconPlus: ICON_PLUS,
+    iconPencil: ICON_PENCIL,
     iconSave: ICON_SAVE,
     iconX: ICON_X,
     roleDetails: ROLE_DETAILS,

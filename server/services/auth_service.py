@@ -71,6 +71,9 @@ class AuthService:
         self._oidc_enabled = False
         self._oidc_default_role = 'user'
 
+        # User blacklist service - built in initialize()
+        self.blacklist = None
+
         # Initialize state
         self._initialized = False
         self.users_collection = None
@@ -99,6 +102,19 @@ class AuthService:
 
         # Set up external identity providers (Entra ID, Auth0) if enabled
         self._initialize_oidc()
+
+        # Pattern-based identity denial, evaluated on every authentication
+        from services.user_blacklist_service import UserBlacklistService
+        self.blacklist = UserBlacklistService(self.config, self.database)
+        # Compound unique index, so a duplicate rule is rejected by the database
+        # on every backend rather than only by add_rule's find_one pre-check,
+        # which two concurrent creates can both pass. Declared here rather than
+        # in each SQL backend's _indexes map because MongoDB never reads those.
+        await self.database.create_index(
+            self.blacklist.collection_name,
+            [("entry_type", 1), ("pattern", 1)],
+            unique=True,
+        )
 
         # Set initialized flag
         self._initialized = True
@@ -309,6 +325,25 @@ class AuthService:
         except Exception as e:
             logger.error(f"Unexpected error backfilling user roles: {str(e)}")
 
+    async def _is_blacklisted(self, user: Dict[str, Any]) -> bool:
+        """Return whether a resolved user matches an active blacklist rule.
+
+        Evaluated at every point that turns a credential into an identity, so a
+        blocked user cannot authenticate through any surface. Errors inside the
+        blacklist service are already swallowed there (falling back to the last
+        known rule set); this wrapper only guards the not-yet-initialized case.
+        """
+        if not self.blacklist or not user:
+            return False
+        rule = await self.blacklist.match_user(user)
+        if rule:
+            logger.warning(
+                f"Blocked blacklisted user {user.get('username')} "
+                f"(rule: {rule.get('entry_type')}={rule.get('pattern')})"
+            )
+            return True
+        return False
+
     async def verify_credentials(self, username: str, password: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """
         Verify username/password without creating a session token.
@@ -323,6 +358,9 @@ class AuthService:
                 return False, None
 
             if not self._verify_password(password, user["password"]):
+                return False, None
+
+            if await self._is_blacklisted(user):
                 return False, None
 
             return True, self._user_info(user)
@@ -371,6 +409,9 @@ class AuthService:
             # Verify password
             if not self._verify_password(password, user["password"]):
                 logger.warning(f"Invalid password for user: {username}")
+                return False, None, None
+
+            if await self._is_blacklisted(user):
                 return False, None, None
 
             token = await self.create_session(user)
@@ -477,6 +518,8 @@ class AuthService:
             )
             if not user or not user.get("active", True):
                 return False, None
+            if await self._is_blacklisted(user):
+                return False, None
             return True, self._user_info(user)
 
         try:
@@ -508,6 +551,9 @@ class AuthService:
             )
             
             if not user or not user.get("active", True):
+                return False, None
+
+            if await self._is_blacklisted(user):
                 return False, None
 
             return True, self._user_info(user)
@@ -726,6 +772,17 @@ class AuthService:
                     )
                     user["email"] = email
                 return user
+
+            # Refuse to provision a blacklisted identity at all, so a blocked
+            # external user never gains a row in the users table. The user_id
+            # dimension can't apply here - there is no id until insert.
+            if self.blacklist and await self.blacklist.match_identity(
+                email=email, username=username
+            ):
+                logger.warning(
+                    f"Refused to provision blacklisted external user: {username}"
+                )
+                return None
 
             user_doc = {
                 "username": username,

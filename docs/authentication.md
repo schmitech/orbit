@@ -73,11 +73,25 @@ A user may hold multiple roles (e.g. `["operator", "auditor"]`); effective permi
 }
 ```
 
+### User Blacklist Collection
+
+```javascript
+{
+  "_id": ObjectId("..."),
+  "pattern": "*@spam-domain.com",   // Lowercased; * and ? are wildcards
+  "entry_type": "email",            // email | user_id | username
+  "reason": "Repeated abuse",
+  "created_by": "admin",
+  "created_at": ISODate("2026-08-07T12:00:00Z")
+}
+```
+
 ### Indexes
 
 - **users.username**: Unique index for fast user lookup
 - **sessions.token**: Unique index for token validation
 - **sessions.expires**: TTL index for automatic session cleanup
+- **user_blacklist.(entry_type, pattern)**: Unique index preventing duplicate rules
 
 ## Security Features
 
@@ -106,6 +120,78 @@ encoded_password = base64.b64encode(salt + dk).decode('utf-8')
 - **Entropy Source**: Python's `secrets` module (cryptographically secure)
 - **Session Storage**: Server-side in MongoDB with indexed lookups
 - **No Token Refresh**: New login required after expiration
+
+### Blacklisting Users
+
+Blacklist rules deny authentication for identities matching a pattern. They are
+managed from the admin panel's Users tab ("Blocked Identities") or the
+[blacklist endpoints](#blacklist-endpoints), and are stored in the database
+rather than in config.
+
+**Why this exists alongside the `active` flag.** Deactivating a user needs a row
+in the `users` table, so it only works on someone who has already signed in at
+least once, and it handles exactly one account. A blacklist rule is a pattern,
+so it can block an abusive external user *before* their first login provisions
+them, and can cover a whole disposable-email domain in one entry.
+
+**Matching.** Each rule has an `entry_type` naming the identity field it applies
+to — `email`, `user_id`, or `username` — and a `pattern` matched against that
+field with shell-style wildcards (`*` matches any run of characters, `?` matches
+one). Comparison is case-insensitive and whitespace-trimmed on both sides. A
+pattern with no wildcards is an exact match. Patterns consisting only of
+wildcards are rejected, since `*` would lock out every administrator.
+
+For external (Entra/Auth0) users the stored username is `{provider}:{subject}`,
+so `entra:abc*` blocks by provider subject while `*@spam-domain.com` blocks by
+email domain.
+
+**Enforcement point.** Rules are evaluated in `AuthService` at every place a
+credential becomes an identity: `validate_token` (both the opaque-session and
+external-JWT branches), `authenticate_user` (password login), and
+`verify_credentials` (WebSocket basic auth). Because every surface — chat,
+admin panel, file upload, A2A, voice, discovery — resolves identity through
+those, a blocked user cannot authenticate anywhere. `_find_or_create_external_user`
+also refuses to provision a blacklisted identity, so no row is created for them.
+
+**Session revocation.** Adding a rule deletes the sessions of every currently
+matching user, so an in-flight abuser is cut off at once rather than at token
+expiry. The API response reports `matched_users` and `revoked_sessions`.
+Removing a rule restores the ability to authenticate but does not restore those
+sessions.
+
+**Audit trail.** When `internal_services.audit.admin_events` is enabled, each
+mutation is recorded as `auth.blacklist.create`, `auth.blacklist.update`, or
+`auth.blacklist.delete` against resource type `blacklist_rule`. Create and
+update events record the `pattern`, `entry_type`, and `reason`, so the ledger
+answers *who was blocked* rather than merely noting that a rule changed. The
+pattern is operator-authored matching syntax, not a credential, so it is safe
+to store. Reads (`GET /auth/blacklist`) are not audited.
+
+Successful mutations are keyed by the stored rule id and record the *normalized*
+pattern, not the raw submitted string — the handler publishes both to the audit
+middleware via `request.state.audit_context`, which is scoped by the route's own
+declaration: summary fields pass through the per-route allowlist, and the
+resource id is accepted only because the create route explicitly declares the
+`context` source. This matters for correlation:
+submitting `"  ABUSER@Example.COM  "` stores `abuser@example.com`, and an audit
+search for the stored value would miss an event that recorded the raw input. A
+failed create has no resource id, since no rule was created, but its
+`request_summary` still shows what was attempted, verbatim.
+
+**Lockout guard.** A rule that would match the requesting administrator's own
+identity is rejected with a 400, since the blacklist is enforced at token
+validation and would otherwise lock the caller out of the panel they'd need in
+order to undo it. This guard checks only the requester — an administrator can
+still block a *different* administrator.
+
+**Caching and multiple workers.** Because wildcard matching happens in Python
+rather than SQL, each worker caches the (small) rule set for
+`auth.blacklist.cache_ttl` seconds, default 30. Writes invalidate the writing
+worker's cache immediately; under `performance.workers > 1`, sibling workers
+pick up a new rule within the TTL. Set `cache_ttl: 0` to re-read on every
+authentication. Session revocation is not subject to this delay, so the urgent
+case is handled immediately regardless. If the database is unreachable, the
+last known rule set is retained rather than failing open to an empty one.
 
 ### Security Standards Compliance
 
@@ -294,6 +380,55 @@ Delete user (requires `users.manage`).
 ```
 Authorization: Bearer abc123...
 ```
+
+### Blacklist Endpoints
+
+Pattern-based denial of authenticated identities. See
+[Blacklisting Users](#blacklisting-users) for the semantics.
+
+#### GET /auth/blacklist
+List every rule, newest first (requires `users.manage`).
+
+#### POST /auth/blacklist
+Add a rule (requires `users.manage`). Matching users' sessions are revoked immediately.
+
+**Request:**
+```json
+{"pattern": "*@spam-domain.com", "entry_type": "email", "reason": "Disposable-email abuse"}
+```
+
+**Response:**
+```json
+{
+  "id": "507f1f77bcf86cd799439011",
+  "pattern": "*@spam-domain.com",
+  "entry_type": "email",
+  "reason": "Disposable-email abuse",
+  "created_by": "admin",
+  "created_at": "2026-08-07T12:00:00+00:00",
+  "matched_users": 3,
+  "revoked_sessions": 5
+}
+```
+
+Returns 400 if the pattern is empty, wildcard-only, longer than 320 characters,
+duplicates an existing rule, or would match the requesting administrator.
+
+#### PUT /auth/blacklist/{rule_id}
+Edit a rule in place (requires `users.manage`). Takes the same body as `POST`
+and is subject to the same validation and self-lockout guard.
+
+Because editing a pattern changes *who* is blocked, this re-runs session
+revocation against the new pattern's matches and reports `matched_users` /
+`revoked_sessions` the same way creation does. Users the rule no longer matches
+keep any sessions they still have — an edit never grants access, it only stops
+being the thing that denies them. Returns 404 for an unknown rule id, and 400
+if the new `(entry_type, pattern)` collides with a *different* existing rule
+(re-saving a row with its own values is allowed and is a no-op).
+
+#### DELETE /auth/blacklist/{rule_id}
+Remove a rule (requires `users.manage`). Restores the ability to authenticate;
+does not restore sessions that were revoked when the rule was added.
 
 ### Password Management Endpoints
 

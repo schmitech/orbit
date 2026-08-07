@@ -1,6 +1,6 @@
 export function createUsersTab({
   api, endpoints, el, clear, wrapTable, skeleton, refreshButton, field, passwordField,
-  svgIcon, iconPlus, iconSave, iconX, roleDetails, usernameMaxLength, passwordMaxLength,
+  svgIcon, iconPlus, iconPencil, iconSave, iconX, roleDetails, usernameMaxLength, passwordMaxLength,
   createPaginator, createColumnSorter, itemsPerPage, markSelectedRow, syncVisibleSelection,
   syncBulkActionButton, withButton, confirmAction, requireTypedConfirmation, showStatus,
   showError, showTableLoadError, validateUsername, validatePassword, bindValidationClear,
@@ -14,6 +14,7 @@ export function createUsersTab({
     var detailPanel = el("div", { className: "panel", style: "display:none" });
     var accountPanel = el("div", { className: "panel account-panel" });
     var createPanel = el("div", { className: "panel", style: "display:none" });
+    var blacklistPanel = el("div", { className: "panel" });
     var userSearchFilter = "";
     var userSearchInteracted = false;
     var allUsers = [];
@@ -52,8 +53,11 @@ export function createUsersTab({
 
     layout.appendChild(listPanel);
     layout.appendChild(detailPanel);
-    layout.appendChild(accountPanel);
     layout.appendChild(createPanel);
+    // Operator-facing user management sits above "My Account", which is
+    // personal and reads as the tab's footer.
+    layout.appendChild(blacklistPanel);
+    layout.appendChild(accountPanel);
     container.appendChild(layout);
 
     var usersRefreshBtn = refreshButton("Refresh the user list", function () { loadUsers({}); });
@@ -196,6 +200,7 @@ export function createUsersTab({
 
     renderSelectedUserPlaceholder(detailPanel);
     renderAccountSecurityPanel(accountPanel);
+    renderBlacklistPanel(blacklistPanel);
 
     createBtn.addEventListener("click", function () {
       var u = usernameInput.value.trim();
@@ -333,6 +338,307 @@ export function createUsersTab({
     }
 
     loadUsers();
+  }
+
+  var BLACKLIST_ENTRY_TYPES = [
+    { value: "email", label: "Email", placeholder: "abuser@example.com or *@spam-domain.com" },
+    { value: "username", label: "Username", placeholder: "baduser or entra:abc*" },
+    { value: "user_id", label: "User ID", placeholder: "The ORBIT user id, wildcards allowed" }
+  ];
+
+  function renderBlacklistPanel(panel) {
+    clear(panel);
+    var tableWrap = el("div", { className: "blacklist-rules-wrap" }, skeleton());
+    var formWrap = el("div", { className: "collapsible-panel-body", style: "display:none" });
+    var addToggle = el("button", {
+      className: "secondary create-launch-btn",
+      type: "button",
+      "aria-label": "Add blacklist rule"
+    }, svgIcon(iconPlus), el("span", null, "Add Rule"));
+
+    var typeSelect = el("select", { "aria-label": "Blacklist entry type" });
+    BLACKLIST_ENTRY_TYPES.forEach(function (entry) {
+      typeSelect.appendChild(el("option", { value: entry.value }, entry.label));
+    });
+    var patternInput = el("input", {
+      type: "text",
+      maxlength: "320",
+      placeholder: BLACKLIST_ENTRY_TYPES[0].placeholder,
+      autocomplete: "off",
+      autocapitalize: "none",
+      autocorrect: "off",
+      spellcheck: "false"
+    });
+    var reasonInput = el("input", {
+      type: "text",
+      maxlength: "500",
+      placeholder: "Optional. Why this identity is blocked.",
+      autocomplete: "off"
+    });
+    var addBtn = el("button", { type: "button" }, "Block Identity");
+    var cancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
+
+    typeSelect.addEventListener("change", function () {
+      var entry = BLACKLIST_ENTRY_TYPES.find(function (item) { return item.value === typeSelect.value; });
+      patternInput.placeholder = entry ? entry.placeholder : "";
+    });
+
+    function closeForm() {
+      formWrap.style.display = "none";
+      patternInput.value = "";
+      reasonInput.value = "";
+    }
+
+    addToggle.addEventListener("click", function () {
+      if (formWrap.style.display === "none") formWrap.style.display = "";
+      else closeForm();
+    });
+    cancelBtn.addEventListener("click", closeForm);
+
+    addBtn.addEventListener("click", function () {
+      var pattern = patternInput.value.trim();
+      if (!pattern) { showError("Enter a pattern to block."); return; }
+      if (pattern.replace(/[*?]/g, "") === "") {
+        showError("Pattern must contain at least one literal character.");
+        return;
+      }
+      confirmAction({
+        title: "Block Identity",
+        message: 'Block "' + pattern + '"? Matching users are signed out immediately and cannot authenticate again until the rule is removed.',
+        confirmLabel: "Block",
+        isDanger: true,
+        loadingLabel: "Blocking...",
+        onConfirm: async function () {
+          var rule = await api("POST", endpoints.blacklist, {
+            pattern: pattern,
+            entry_type: typeSelect.value,
+            reason: reasonInput.value.trim() || null
+          });
+          closeForm();
+          showStatus(
+            "Identity blocked" +
+            (rule.matched_users ? " — " + rule.matched_users + " existing user" +
+              (rule.matched_users === 1 ? "" : "s") + " matched, " +
+              (rule.revoked_sessions || 0) + " session" +
+              (rule.revoked_sessions === 1 ? "" : "s") + " revoked" : "")
+          );
+          await loadRules();
+        }
+      });
+    });
+
+    panel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "Blocked Identities"),
+      refreshButton("Refresh the blacklist", function () { loadRules(); })
+    ));
+    panel.appendChild(el("p", { className: "muted" },
+      "Deny authentication by pattern, across every surface — chat, admin panel, file upload, and A2A. " +
+      "Use " + "*" + " and ? as wildcards (for example, *@spam-domain.com). Unlike deactivating a user, " +
+      "a rule also blocks external users who have never signed in, so it prevents their account from being created at all."
+    ));
+    panel.appendChild(el("div", { className: "bulk-action-row" }, addToggle));
+    formWrap.appendChild(el("div", { className: "admin-create-form" },
+      el("div", { className: "admin-create-form-grid" },
+        field("Match On", typeSelect),
+        field("Pattern", patternInput)
+      ),
+      field("Reason", reasonInput),
+      el("div", { className: "admin-create-form-actions" }, cancelBtn, addBtn)
+    ));
+    panel.appendChild(formWrap);
+    panel.appendChild(tableWrap);
+    bindValidationClear(patternInput, reasonInput);
+
+    function entryLabel(entryType) {
+      var entry = BLACKLIST_ENTRY_TYPES.find(function (item) { return item.value === entryType; });
+      return entry ? entry.label : entryType;
+    }
+
+    // Each row toggles between a read view and an inline edit view. Only one
+    // row edits at a time: opening an editor re-renders the others as read-only.
+    function buildRuleRow(rule) {
+      var editing = false;
+
+      function replaceRow(nextRow) {
+        var current = row;
+        row = nextRow;
+        current.replaceWith(nextRow);
+      }
+
+      function readRow() {
+        var editBtn = el("button", {
+          className: "secondary btn--icon",
+          type: "button",
+          "aria-label": "Edit rule for " + rule.pattern,
+          title: "Edit rule"
+        }, svgIcon(iconPencil));
+        var removeBtn = el("button", {
+          className: "secondary btn--icon btn--icon-danger",
+          type: "button",
+          "aria-label": "Remove rule for " + rule.pattern,
+          title: "Remove rule"
+        }, svgIcon(iconX));
+
+        editBtn.addEventListener("click", function () {
+          if (editing) return;
+          editing = true;
+          replaceRow(editRow());
+        });
+        removeBtn.addEventListener("click", function () {
+          confirmAction({
+            title: "Remove Blacklist Rule",
+            message: 'Stop blocking "' + rule.pattern + '"? Previously revoked sessions are not restored.',
+            confirmLabel: "Remove",
+            onConfirm: async function () {
+              await api("DELETE", endpoints.blacklist + "/" + encodeURIComponent(rule.id));
+              showStatus("Blacklist rule removed");
+              await loadRules();
+            }
+          });
+        });
+
+        return el("tr", null,
+          el("td", null, entryLabel(rule.entry_type)),
+          el("td", null, el("code", null, rule.pattern)),
+          el("td", null, rule.reason || "—"),
+          el("td", null, rule.created_by || "—"),
+          el("td", null, el("div", { className: "inline-form" }, editBtn, removeBtn))
+        );
+      }
+
+      function editRow() {
+        var typeSel = el("select", { "aria-label": "Blacklist entry type" });
+        BLACKLIST_ENTRY_TYPES.forEach(function (entry) {
+          var option = el("option", { value: entry.value }, entry.label);
+          if (entry.value === rule.entry_type) option.selected = true;
+          typeSel.appendChild(option);
+        });
+        var patternIn = el("input", {
+          type: "text",
+          value: rule.pattern,
+          maxlength: "320",
+          "aria-label": "Pattern",
+          autocomplete: "off",
+          autocapitalize: "none",
+          autocorrect: "off",
+          spellcheck: "false"
+        });
+        var reasonIn = el("input", {
+          type: "text",
+          value: rule.reason || "",
+          maxlength: "500",
+          "aria-label": "Reason",
+          placeholder: "Optional",
+          autocomplete: "off"
+        });
+        var saveBtn = el("button", {
+          className: "btn--icon",
+          type: "button",
+          "aria-label": "Save rule",
+          title: "Save rule"
+        }, svgIcon(iconSave));
+        var cancelBtn = el("button", {
+          className: "secondary btn--icon",
+          type: "button",
+          "aria-label": "Cancel editing rule",
+          title: "Cancel editing"
+        }, svgIcon(iconX));
+
+        cancelBtn.addEventListener("click", function () {
+          editing = false;
+          replaceRow(readRow());
+        });
+
+        saveBtn.addEventListener("click", function () {
+          var pattern = patternIn.value.trim();
+          if (!pattern) { showError("Enter a pattern to block."); return; }
+          if (pattern.replace(/[*?]/g, "") === "") {
+            showError("Pattern must contain at least one literal character.");
+            return;
+          }
+          async function submit() {
+            var updated = await api("PUT", endpoints.blacklist + "/" + encodeURIComponent(rule.id), {
+              pattern: pattern,
+              entry_type: typeSel.value,
+              reason: reasonIn.value.trim() || null
+            });
+            editing = false;
+            showStatus(
+              "Rule updated" +
+              (updated.matched_users ? " — " + updated.matched_users + " user" +
+                (updated.matched_users === 1 ? "" : "s") + " matched, " +
+                (updated.revoked_sessions || 0) + " session" +
+                (updated.revoked_sessions === 1 ? "" : "s") + " revoked" : "")
+            );
+            await loadRules();
+          }
+
+          // Only confirm when the edit alters who is blocked; a reason-only
+          // change has no effect on access, so it saves straight away.
+          var changesWhoIsBlocked = pattern.toLowerCase() !== rule.pattern
+            || typeSel.value !== rule.entry_type;
+          if (!changesWhoIsBlocked) {
+            withButton(saveBtn, submit);
+            return;
+          }
+          confirmAction({
+            title: "Update Blacklist Rule",
+            message: 'Change this rule to block "' + pattern + '"? Matching users are signed out immediately.',
+            confirmLabel: "Update",
+            isDanger: true,
+            loadingLabel: "Updating...",
+            onConfirm: submit
+          });
+        });
+
+        bindValidationClear(patternIn, reasonIn);
+        return el("tr", null,
+          el("td", null, typeSel),
+          el("td", null, patternIn),
+          el("td", null, reasonIn),
+          el("td", null, rule.created_by || "—"),
+          el("td", null, el("div", { className: "inline-form" }, cancelBtn, saveBtn))
+        );
+      }
+
+      var row = readRow();
+      return row;
+    }
+
+    function renderRules(rules) {
+      clear(tableWrap);
+      if (!rules || rules.length === 0) {
+        tableWrap.appendChild(el("div", { className: "empty-state" },
+          el("div", { className: "empty-state-icon" }, "\u{1F6AB}"),
+          el("p", null, "No blocked identities")
+        ));
+        return;
+      }
+      var table = el("table");
+      table.appendChild(el("thead", null, el("tr", null,
+        el("th", null, "Match On"),
+        el("th", null, "Pattern"),
+        el("th", null, "Reason"),
+        el("th", null, "Added By"),
+        el("th", null, "")
+      )));
+      var tbody = el("tbody");
+      rules.forEach(function (rule) {
+        tbody.appendChild(buildRuleRow(rule));
+      });
+      table.appendChild(tbody);
+      tableWrap.appendChild(wrapTable(table));
+    }
+
+    async function loadRules() {
+      try {
+        renderRules(await api("GET", endpoints.blacklist));
+      } catch (err) {
+        showTableLoadError(tableWrap, "Failed to load blocked identities");
+      }
+    }
+
+    loadRules();
   }
 
   function renderAccountSecurityPanel(panel) {

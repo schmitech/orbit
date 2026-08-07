@@ -11,12 +11,20 @@ This module contains authentication-related endpoints for:
 
 import logging
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from routes.auth_dependencies import get_auth_service, get_current_user, get_current_user_with_token, require_permission
 from services.auth_service import AuthService
 from auth.rbac import has_permission, is_valid_role, get_role_names
+from services.user_blacklist_service import (
+    ENTRY_TYPES,
+    MAX_PATTERN_LENGTH,
+    MAX_REASON_LENGTH,
+    BlacklistRuleError,
+    matches,
+    normalize_pattern,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +105,25 @@ class DeactivateUserRequest(BaseModel):
 
 class SetRolesRequest(BaseModel):
     roles: List[str]
+
+
+class BlacklistRuleRequest(BaseModel):
+    pattern: str = Field(min_length=1, max_length=MAX_PATTERN_LENGTH)
+    entry_type: str = Field(description="One of: email, user_id, username")
+    reason: Optional[str] = Field(default=None, max_length=MAX_REASON_LENGTH)
+
+
+class BlacklistRuleResponse(BaseModel):
+    id: str
+    pattern: str
+    entry_type: str
+    reason: Optional[str] = None
+    created_by: Optional[str] = None
+    created_at: Optional[str] = None
+    # Only populated on creation: how many existing users the rule matched and
+    # how many of their sessions were revoked.
+    matched_users: Optional[int] = None
+    revoked_sessions: Optional[int] = None
 
 
 # Authentication Endpoints
@@ -739,3 +766,198 @@ async def activate_user(
             status_code=500,
             detail="Internal server error during user activation"
         ) 
+
+
+# Blacklist Endpoints
+
+def _require_blacklist(auth_service):
+    """Return the blacklist service, or 503 if auth hasn't initialized it yet."""
+    blacklist = getattr(auth_service, "blacklist", None)
+    if blacklist is None:
+        raise HTTPException(
+            status_code=503, detail="User blacklist service is not available"
+        )
+    return blacklist
+
+
+def _publish_rule_audit_context(request: Request, rule: Dict[str, Any]) -> None:
+    """Hand the audit middleware the values that were actually persisted.
+
+    The submitted pattern is not canonical - the service trims and lowercases it
+    before storing - and on create the rule id doesn't exist until after the
+    insert. Recording the raw request would leave the ledger identifying a rule
+    that isn't what's in the database, breaking search and correlation.
+
+    Only fields on this route's audit allowlist survive the merge, so this
+    cannot widen what the ledger stores. A stored value of None is published
+    as-is to clear the field - a reason submitted as whitespace normalizes to
+    None, and the ledger should not keep showing the raw spaces.
+    """
+    request.state.audit_context = {
+        "resource_id": str(rule.get("_id") or rule.get("id") or "") or None,
+        "summary": {key: rule.get(key) for key in ("pattern", "entry_type", "reason")},
+    }
+
+
+def _validate_rule_or_400(
+    request: "BlacklistRuleRequest", current_user: Dict[str, Any]
+) -> str:
+    """Validate a submitted rule and return its normalized pattern.
+
+    Shared by create and update so the self-lockout guard can't be enforced on
+    one path but not the other - editing a rule to match yourself locks you out
+    exactly as surely as creating one does.
+    """
+    if request.entry_type not in ENTRY_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"entry_type must be one of: {', '.join(ENTRY_TYPES)}",
+        )
+
+    try:
+        normalized = normalize_pattern(request.pattern)
+    except BlacklistRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    self_value = {
+        "email": current_user.get("email"),
+        "user_id": current_user.get("id"),
+        "username": current_user.get("username"),
+    }[request.entry_type]
+    if matches(normalized, self_value):
+        raise HTTPException(
+            status_code=400,
+            detail="This rule would block your own account. Refine the pattern.",
+        )
+    return normalized
+
+
+def _serialize_rule(rule: Dict[str, Any]) -> BlacklistRuleResponse:
+    created_at = rule.get("created_at")
+    if created_at is not None:
+        created_at = (
+            created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at)
+        )
+    return BlacklistRuleResponse(
+        id=str(rule.get("_id") or rule.get("id")),
+        pattern=rule["pattern"],
+        entry_type=rule["entry_type"],
+        reason=rule.get("reason"),
+        created_by=rule.get("created_by"),
+        created_at=created_at,
+        matched_users=rule.get("matched_users"),
+        revoked_sessions=rule.get("revoked_sessions"),
+    )
+
+
+@auth_router.get(
+    "/blacklist",
+    response_model=List[BlacklistRuleResponse],
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def list_blacklist_rules(auth_service=Depends(get_auth_service)):
+    """List every blacklist rule, newest first (users.manage permission required)."""
+    blacklist = _require_blacklist(auth_service)
+    try:
+        rules = await blacklist.list_rules()
+        return [_serialize_rule(rule) for rule in rules]
+    except Exception as e:
+        logger.error(f"Error listing blacklist rules: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.post(
+    "/blacklist",
+    response_model=BlacklistRuleResponse,
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def create_blacklist_rule(
+    request: BlacklistRuleRequest,
+    http_request: Request,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Block an identity pattern and revoke any matching live sessions.
+
+    The rule is refused if it would match the requesting administrator, since
+    the blacklist is enforced at token validation and would otherwise lock the
+    caller out of the admin panel they'd need to undo it.
+    """
+    blacklist = _require_blacklist(auth_service)
+    normalized = _validate_rule_or_400(request, current_user)
+
+    try:
+        rule = await blacklist.add_rule(
+            pattern=normalized,
+            entry_type=request.entry_type,
+            reason=request.reason,
+            created_by=current_user.get("username"),
+        )
+        _publish_rule_audit_context(http_request, rule)
+        return _serialize_rule(rule)
+    except BlacklistRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating blacklist rule: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.put(
+    "/blacklist/{rule_id}",
+    response_model=BlacklistRuleResponse,
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def update_blacklist_rule(
+    rule_id: str,
+    request: BlacklistRuleRequest,
+    http_request: Request,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Edit an existing rule, re-revoking sessions for whoever it now matches.
+
+    Subject to the same validation and self-lockout guard as creation.
+    """
+    blacklist = _require_blacklist(auth_service)
+    normalized = _validate_rule_or_400(request, current_user)
+
+    try:
+        rule = await blacklist.update_rule(
+            rule_id=rule_id,
+            pattern=normalized,
+            entry_type=request.entry_type,
+            reason=request.reason,
+        )
+        if rule is None:
+            raise HTTPException(status_code=404, detail="Blacklist rule not found")
+        _publish_rule_audit_context(http_request, rule)
+        return _serialize_rule(rule)
+    except BlacklistRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating blacklist rule: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.delete(
+    "/blacklist/{rule_id}",
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def delete_blacklist_rule(rule_id: str, auth_service=Depends(get_auth_service)):
+    """Remove a blacklist rule (users.manage permission required).
+
+    Removing a rule restores the ability to authenticate; it does not restore
+    the sessions that were revoked when the rule was added.
+    """
+    blacklist = _require_blacklist(auth_service)
+    try:
+        if not await blacklist.delete_rule(rule_id):
+            raise HTTPException(status_code=404, detail="Blacklist rule not found")
+        return {"status": "deleted", "id": rule_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting blacklist rule: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")

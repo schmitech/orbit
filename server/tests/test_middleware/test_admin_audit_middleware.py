@@ -28,6 +28,7 @@ from middleware.admin_audit_middleware import (
     _MAX_BODY_BYTES,
     _CHANGED_KEYS,
     AdminAuditMiddleware,
+    _apply_summary_overrides,
     _build_request_summary,
     _extract_ip,
     _match_route,
@@ -377,3 +378,265 @@ class TestAdminAuditMiddlewareDispatch:
         client = TestClient(app)
         client.post("/admin/api-keys")
         mock_audit.log_admin_event.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _match_route — user blacklist
+# ---------------------------------------------------------------------------
+
+class TestBlacklistRoutes:
+    """Blacklist mutations deny or restore a user's access, so they must be
+    named events rather than falling through to admin.unknown."""
+
+    def test_create_is_mapped_without_a_request_derived_resource_id(self):
+        matched = _match_route("POST", "/auth/blacklist")
+        assert matched is not None
+        entry, params = matched
+        assert entry[2] == "auth.blacklist.create"
+        assert entry[3] == "CREATE"
+        assert entry[4] == "blacklist_rule"
+        # The rule id doesn't exist until the insert, and the submitted pattern
+        # is not canonical, so this route explicitly opts into the handler-
+        # supplied "context" source rather than deriving a misleading id.
+        assert entry[5] == "context"
+        assert params == {}
+
+    def test_update_is_mapped_with_rule_id(self):
+        matched = _match_route("PUT", "/auth/blacklist/abc123")
+        assert matched is not None
+        entry, params = matched
+        assert entry[2] == "auth.blacklist.update"
+        assert entry[3] == "UPDATE"
+        assert entry[5] == "path:rule_id"
+        assert params == {"rule_id": "abc123"}
+
+    def test_delete_is_mapped_with_rule_id(self):
+        matched = _match_route("DELETE", "/auth/blacklist/abc123")
+        assert matched is not None
+        entry, params = matched
+        assert entry[2] == "auth.blacklist.delete"
+        assert entry[3] == "DELETE"
+        assert entry[5] == "path:rule_id"
+        assert params == {"rule_id": "abc123"}
+
+    def test_read_only_list_is_not_audited(self):
+        """GET is outside _AUDITED_METHODS; it must have no mapping either."""
+        assert _match_route("GET", "/auth/blacklist") is None
+
+    def test_summary_records_who_was_blocked(self):
+        """The pattern is the audit-relevant detail, and reason gives the why."""
+        entry, _ = _match_route("POST", "/auth/blacklist")
+        allowed = entry[6]
+        summary = _build_request_summary(
+            {"pattern": "*@spam-domain.com", "entry_type": "email", "reason": "abuse"},
+            allowed,
+        )
+        assert summary == {
+            "pattern": "*@spam-domain.com",
+            "entry_type": "email",
+            "reason": "abuse",
+        }
+
+    def test_delete_records_no_body_fields(self):
+        entry, _ = _match_route("DELETE", "/auth/blacklist/abc123")
+        assert _build_request_summary({"pattern": "x"}, entry[6]) is None
+
+
+# ---------------------------------------------------------------------------
+# audit_context — handler-published canonical values
+# ---------------------------------------------------------------------------
+
+class TestAuditContextOverrides:
+    """A handler can publish what was actually persisted. Without this, the
+    ledger records the raw request, which may not match the stored row — e.g. a
+    blacklist pattern the service trims and lowercases before writing."""
+
+    def _run(self, audit_context, body, path="/auth/blacklist", method="POST"):
+        """Drive the middleware end-to-end and return the emitted record."""
+        captured = {}
+
+        audit_service = Mock()
+        audit_service.admin_events_enabled = True
+
+        async def log_admin_event(record):
+            captured["record"] = record
+
+        audit_service.log_admin_event = AsyncMock(side_effect=log_admin_event)
+
+        app = FastAPI()
+        app.add_middleware(AdminAuditMiddleware, config={})
+        app.state.audit_service = audit_service
+
+        @app.post("/auth/blacklist")
+        async def create(request: Request):
+            if audit_context is not None:
+                request.state.audit_context = audit_context
+            return {"ok": True}
+
+        @app.put("/auth/blacklist/{rule_id}")
+        async def update(rule_id: str, request: Request):
+            if audit_context is not None:
+                request.state.audit_context = audit_context
+            return {"ok": True}
+
+        with TestClient(app) as client:
+            client.request(method, path, json=body)
+
+        return captured.get("record")
+
+    def test_resource_id_and_summary_use_canonical_values(self):
+        record = self._run(
+            {"resource_id": "rule-1", "summary": {"pattern": "abuser@example.com"}},
+            {"pattern": "  ABUSER@Example.COM  ", "entry_type": "email"},
+        )
+        assert record is not None
+        # The stored rule id, not the submitted pattern.
+        assert record.resource_id == "rule-1"
+        # The normalized pattern, not the raw one an auditor can't search for.
+        assert record.request_summary["pattern"] == "abuser@example.com"
+        # Non-overridden allowlisted fields still come through.
+        assert record.request_summary["entry_type"] == "email"
+
+    def test_without_context_create_has_no_resource_id(self):
+        """A failed create has no rule to point at; the raw pattern must not
+        stand in for one."""
+        record = self._run(None, {"pattern": "  ABUSER@Example.COM  ", "entry_type": "email"})
+        assert record is not None
+        assert record.resource_id is None
+        # What was attempted is still recorded, verbatim as submitted.
+        assert record.request_summary["pattern"] == "  ABUSER@Example.COM  "
+
+    def test_context_cannot_displace_a_path_derived_resource_id(self):
+        """PUT derives its id from the path, so it does not use the "context"
+        source. A handler must not be able to overwrite that id — it is
+        long-lived audit data, and the route's own source is the trusted one."""
+        record = self._run(
+            {"resource_id": "orbit_live_smuggled_secret", "summary": {}},
+            {"pattern": "x@example.com", "entry_type": "email"},
+            path="/auth/blacklist/raw-id",
+            method="PUT",
+        )
+        assert record is not None
+        assert record.resource_id == "raw-id"
+
+    def test_route_without_context_source_ignores_a_published_id(self):
+        """A route that declares no resource id must stay without one. Accepting
+        a handler-published id globally would let any audited route write
+        arbitrary values into long-lived audit storage."""
+        captured = {}
+
+        audit_service = Mock()
+        audit_service.admin_events_enabled = True
+
+        async def log_admin_event(record):
+            captured["record"] = record
+
+        audit_service.log_admin_event = AsyncMock(side_effect=log_admin_event)
+
+        app = FastAPI()
+        app.add_middleware(AdminAuditMiddleware, config={})
+        app.state.audit_service = audit_service
+
+        # /admin/reload-adapters declares source None and an empty allowlist.
+        @app.post("/admin/reload-adapters")
+        async def reload_adapters(request: Request):
+            request.state.audit_context = {
+                "resource_id": "orbit_live_smuggled_secret",
+                "summary": {"password": "hunter2"},
+            }
+            return {"ok": True}
+
+        with TestClient(app) as client:
+            client.post("/admin/reload-adapters", json={})
+
+        record = captured["record"]
+        assert record.event_type == "admin.adapter.reload"
+        assert record.resource_id is None
+        assert record.request_summary is None
+
+    def test_handler_cannot_smuggle_a_secret_into_the_ledger(self):
+        """End-to-end proof that dispatch routes overrides through the allowlist.
+
+        Unit-testing _apply_summary_overrides is not enough: dispatch must
+        actually call it, or a handler publishing a credential writes it to the
+        admin ledger despite the route excluding that field.
+        """
+        record = self._run(
+            {
+                "resource_id": "rule-1",
+                "summary": {
+                    "pattern": "abuser@example.com",
+                    "password": "hunter2",
+                    "api_key": "orbit_live_secret",
+                },
+            },
+            {"pattern": "abuser@example.com", "entry_type": "email"},
+        )
+        assert record is not None
+        assert record.request_summary["pattern"] == "abuser@example.com"
+        assert "password" not in record.request_summary
+        assert "api_key" not in record.request_summary
+
+    def test_malformed_context_is_ignored(self):
+        """A handler publishing garbage must not break the audit write."""
+        record = self._run(
+            "not-a-dict",
+            {"pattern": "x@example.com", "entry_type": "email"},
+        )
+        assert record is not None
+        assert record.request_summary["pattern"] == "x@example.com"
+
+
+# ---------------------------------------------------------------------------
+# _apply_summary_overrides — the redaction contract holds for handlers too
+# ---------------------------------------------------------------------------
+
+class TestSummaryOverrideAllowlist:
+    """The per-route allowlist is what keeps secrets out of the ledger. It must
+    constrain handler-published values exactly as it constrains request bodies,
+    or request.state.audit_context becomes a way around it."""
+
+    def test_field_outside_allowlist_is_dropped(self):
+        merged = _apply_summary_overrides(
+            {"username": "alice"},
+            {"username": "alice", "password": "hunter2", "api_key": "orbit_live_abc"},
+            ("username", "role"),
+        )
+        assert merged == {"username": "alice"}
+        assert "password" not in merged
+        assert "api_key" not in merged
+
+    def test_allowlisted_field_is_applied(self):
+        merged = _apply_summary_overrides(
+            {"pattern": "  RAW@Example.COM  "},
+            {"pattern": "raw@example.com"},
+            ("pattern", "entry_type", "reason"),
+        )
+        assert merged == {"pattern": "raw@example.com"}
+
+    def test_none_override_clears_the_field(self):
+        """A reason submitted as whitespace normalizes to None on write; the
+        ledger should not keep showing the raw spaces."""
+        merged = _apply_summary_overrides(
+            {"pattern": "x@example.com", "reason": "   "},
+            {"pattern": "x@example.com", "reason": None},
+            ("pattern", "reason"),
+        )
+        assert merged == {"pattern": "x@example.com"}
+
+    def test_empty_allowlist_accepts_no_overrides(self):
+        """A route recording nothing must keep recording nothing."""
+        assert _apply_summary_overrides(None, {"pattern": "x"}, ()) is None
+
+    def test_changed_keys_routes_accept_no_overrides(self):
+        summary = {"changed_keys": ["a", "b"]}
+        merged = _apply_summary_overrides(summary, {"value": "secret"}, _CHANGED_KEYS)
+        assert merged == {"changed_keys": ["a", "b"]}
+
+    def test_non_dict_override_is_ignored(self):
+        summary = {"username": "alice"}
+        assert _apply_summary_overrides(summary, "nope", ("username",)) == summary
+        assert _apply_summary_overrides(summary, None, ("username",)) == summary
+
+    def test_clearing_every_field_yields_none(self):
+        assert _apply_summary_overrides({"reason": "x"}, {"reason": None}, ("reason",)) is None

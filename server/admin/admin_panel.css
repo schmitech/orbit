@@ -1085,6 +1085,10 @@ textarea {
 .admin-create-form-actions {
   display: flex;
   justify-content: flex-end;
+  /* Separate adjacent actions and keep them on one baseline. Without the gap a
+     Cancel/confirm pair renders edge-to-edge, reading as a single control. */
+  align-items: center;
+  gap: var(--sp-3);
   padding-top: var(--sp-1);
   border-top: 1px solid var(--border-light);
 }
@@ -1191,6 +1195,23 @@ button.btn--neutral:active:not(:disabled) {
 
 .btn--icon svg {
   flex: 0 0 auto;
+}
+
+/* Destructive icon button for per-row actions. Stays on the neutral surface at
+   rest so a long table doesn't read as a column of red blocks, then commits to
+   danger on hover/focus — restrained until the intent is there. Pair with
+   .secondary, not .danger. */
+button.btn--icon-danger:hover:not(:disabled),
+button.btn--icon-danger:focus-visible:not(:disabled) {
+  background: var(--danger-500);
+  border-color: var(--danger-500);
+  color: #fff;
+}
+
+button.btn--icon-danger:active:not(:disabled) {
+  background: var(--danger-600);
+  border-color: var(--danger-600);
+  color: #fff;
 }
 
 .action-panel button {
@@ -1407,6 +1428,15 @@ tbody tr:nth-child(even) {
 }
 
 .collapsible-panel-body {
+  margin-top: var(--sp-4);
+}
+
+/* The blocked-identities table follows the (collapsible) add-rule form, whose
+   action row would otherwise sit flush against the table header. Spacing lives
+   here rather than as a bottom margin on .collapsible-panel-body, which is the
+   last child in the My Account and Reset Password panels and would gain dead
+   space below it. */
+.blacklist-rules-wrap {
   margin-top: var(--sp-4);
 }
 

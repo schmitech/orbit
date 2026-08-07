@@ -11,6 +11,13 @@ Design:
   downstream handler can still read it, (b) scrubbed against a per-route
   allowlist so secrets (passwords, raw API keys, prompt bodies, config
   values) are never stored.
+- A handler may publish canonical values via `request.state.audit_context`
+  when the raw request differs from what was persisted. Handler-supplied data
+  is always scoped by the route's own declaration — summary fields through the
+  per-route allowlist, and the resource id only on routes declaring the
+  "context" source. The redaction contract belongs to the route, so a handler
+  can neither write a field its route excludes nor displace a resource id the
+  route derives from the request.
 - Path templates are matched via precompiled regexes; the actor is pulled
   from `request.state.current_user` (set by auth dependencies) or from the
   `X-API-Key` header if API-key auth succeeded.
@@ -59,6 +66,11 @@ _SKIP_PATHS = frozenset({
 #   - "path:<name>" — pull from path_params[<name>]
 #   - "body:<field>" — pull from parsed request body
 #   - "actor" — use the actor's id
+#   - "context" — the handler supplies it via request.state.audit_context, for
+#       ids that only exist after the write (e.g. a freshly inserted row). This
+#       is opt-in per route precisely because it trusts handler-supplied data
+#       into long-lived audit storage: a route with a request-derived source
+#       above keeps it, and context is ignored there.
 #   - None — no resource id
 #
 # allowed_body_fields: iterable of top-level keys to copy from the JSON body
@@ -82,6 +94,23 @@ _ROUTE_MAP: List[Tuple[str, str, str, str, str, Optional[str], Any]] = [
     ("POST",   "/auth/users/{user_id}/activate",      "auth.user.activate",      "UPDATE", "user",    "path:user_id",     ()),
     ("POST",   "/auth/change-password",               "auth.password.change",    "UPDATE", "user",    "actor",            ()),
     ("POST",   "/auth/reset-password",                "auth.password.reset",     "UPDATE", "user",    "body:user_id",     ("user_id",)),
+
+    # ---- User blacklist ----
+    # The pattern is the whole point of the event — an auditor needs to know
+    # *who* was blocked, not just that a rule changed. It's operator-authored
+    # matching syntax (an email/username/id glob), not a credential, so it is
+    # safe to record.
+    #
+    # Create can't derive a resource id from the request: the rule id doesn't
+    # exist until the insert, and the submitted pattern is not canonical (the
+    # service trims and lowercases it before storing). So it opts into the
+    # "context" source, and the handler publishes the real rule id once written
+    # — keying a successful create the same way as update and delete. A *failed*
+    # create publishes nothing, so it has no resource id (nothing was created)
+    # while its request_summary still shows what was attempted.
+    ("POST",   "/auth/blacklist",                     "auth.blacklist.create",   "CREATE", "blacklist_rule", "context",       ("pattern", "entry_type", "reason")),
+    ("PUT",    "/auth/blacklist/{rule_id}",           "auth.blacklist.update",   "UPDATE", "blacklist_rule", "path:rule_id",  ("pattern", "entry_type", "reason")),
+    ("DELETE", "/auth/blacklist/{rule_id}",           "auth.blacklist.delete",   "DELETE", "blacklist_rule", "path:rule_id",  ()),
 
     # ---- API keys ----
     ("POST",   "/admin/api-keys",                                   "admin.api_key.create",     "CREATE", "api_key", None,                  ("client_name", "adapter_name", "system_prompt_id", "notes")),
@@ -202,6 +231,42 @@ def _build_request_summary(body: Optional[Dict[str, Any]], allowed: Any) -> Opti
     return summary or None
 
 
+def _apply_summary_overrides(
+    summary: Optional[Dict[str, Any]],
+    overrides: Any,
+    allowed: Any,
+) -> Optional[Dict[str, Any]]:
+    """Merge handler-published values into the summary, allowlist-bound.
+
+    Overrides go through the SAME per-route allowlist as the request body. The
+    redaction contract is a property of the route, not of who supplies the
+    value: a handler must not be able to publish a field the route deliberately
+    excludes, or the hook becomes a way to write secrets into the ledger.
+
+    Routes recording nothing (empty allowlist) or only changed-key names
+    (`_CHANGED_KEYS`) accept no overrides at all. An override of None removes
+    the field, letting a handler correct the ledger when the stored value ended
+    up empty.
+    """
+    if not isinstance(overrides, dict) or not overrides:
+        return summary
+    # `_CHANGED_KEYS` summaries are derived key names, not field values, and an
+    # empty allowlist means "record nothing" - neither takes overrides.
+    if allowed is _CHANGED_KEYS or not allowed:
+        return summary
+
+    merged = dict(summary or {})
+    for field in allowed:
+        if field not in overrides:
+            continue
+        value = overrides[field]
+        if value is None:
+            merged.pop(field, None)
+        else:
+            merged[field] = value
+    return merged or None
+
+
 # ---------------------------------------------------------------------------
 # Middleware
 # ---------------------------------------------------------------------------
@@ -292,6 +357,17 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
                 actor_type = "api_key"
                 actor_id = mask_api_key(raw_api_key, show_last=True, num_chars=6)
 
+        # A handler may publish canonical audit values on request.state (shared
+        # via the ASGI scope, same as request.state.current_user above) when the
+        # raw request differs from what was persisted. Everything taken from
+        # here is scoped by the route's own declaration: the summary through the
+        # field allowlist, the resource id only where the route opted in with
+        # the "context" source. Handler-supplied data must never be able to
+        # displace a request-derived id or widen what the ledger stores.
+        audit_context = getattr(request.state, "audit_context", None)
+        if not isinstance(audit_context, dict):
+            audit_context = {}
+
         # Resolve resource id
         resource_id: Optional[str] = None
         if resource_id_source:
@@ -301,6 +377,14 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
                 resource_id = body_json.get(resource_id_source.split(":", 1)[1])
             elif resource_id_source == "actor":
                 resource_id = actor_id
+            elif resource_id_source == "context":
+                resource_id = audit_context.get("resource_id")
+
+        request_summary = _apply_summary_overrides(
+            _build_request_summary(body_json, allowed),
+            audit_context.get("summary"),
+            allowed,
+        )
 
         # IP + metadata
         ip, ip_metadata = _extract_ip(
@@ -334,7 +418,7 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
             ip_metadata=ip_metadata,
             user_agent=request.headers.get("user-agent"),
             error_message=error_message,
-            request_summary=_build_request_summary(body_json, allowed),
+            request_summary=request_summary,
         )
 
         await audit_service.log_admin_event(record)
