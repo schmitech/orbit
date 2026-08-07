@@ -39,6 +39,13 @@
 #     - Whether adapter needs API key for authentication/authorization
 #     - Used to validate file ownership or access permissions
 #
+#   requires_authenticated_user: true | false
+#     - Overrides the global auth.require_authenticated_user flag for this
+#       adapter only. true/false wins over the global setting; leave unset
+#       to inherit the global default. Use false to keep one adapter public
+#       while the rest of the deployment requires an authenticated user, or
+#       true to lock down one adapter while the rest stay key-only.
+#
 #   skip_when_no_files: true | false
 #     - For conditional retrieval: skip retrieval when file_ids is empty
 #     - Only applicable when retrieval_behavior is "conditional"

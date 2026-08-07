@@ -46,6 +46,8 @@ The `/mcp` mount bypasses ORBIT's normal `X-API-Key` middleware — MCP tool cal
 
 This is implemented in `server/middleware/mcp_host_validation_middleware.py`.
 
+Because `/mcp` re-invokes routes internally rather than going through the FastAPI dependency chain, it cannot honor [`auth.require_authenticated_user`](authentication.md#requiring-an-authenticated-user) — there is no request-scoped identity to check. When that flag is enabled, ORBIT refuses to mount `/mcp` at startup (logging a warning) rather than leaving an unauthenticated surface next to a flag whose purpose is to require authentication everywhere.
+
 ## Conformance testing
 
 ORBIT's `/mcp` endpoint can be validated against the official

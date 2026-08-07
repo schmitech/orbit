@@ -26,7 +26,7 @@ from typing import Dict, Optional
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from routes.auth_helpers import resolve_authenticated_user
+from routes.auth_helpers import resolve_authenticated_user, is_authenticated_user_required
 
 logger = logging.getLogger(__name__)
 
@@ -125,40 +125,90 @@ async def _resolve_adapter(request: Request) -> tuple[str, Optional[str]]:
     Returns 'default' only when no key is present and no key service is configured
     (i.e. API-key enforcement is disabled for this deployment).
     """
+    config = request.app.state.config
     auth_header = request.headers.get("Authorization", "")
     api_key_service = getattr(request.app.state, "api_key_service", None)
+
+    # Authorization already carries the API key itself (see module docstring),
+    # so a distinct user credential — required to use a key restricted via
+    # allowed_user_ids, or mandatory outright under auth.require_authenticated_user —
+    # must come from a separate header.
+    current_user = await resolve_authenticated_user(
+        request, header_name="x-orbit-user-authorization"
+    )
+
+    def _enforce_identity(adapter_config: Optional[Dict] = None) -> None:
+        if current_user or not is_authenticated_user_required(config, adapter_config):
+            return
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Send X-ORBIT-User-Authorization: Bearer <user-token>.",
+            headers={"WWW-Authenticate": 'Bearer realm="orbit"'},
+        )
 
     if not auth_header.startswith("Bearer "):
         # No key supplied — allow only when the key service is absent (auth disabled)
         if api_key_service:
             raise HTTPException(status_code=401, detail="Missing Bearer token")
+        _enforce_identity()
         return "default", None
 
     api_key = auth_header[len("Bearer "):]
     if not api_key_service:
+        _enforce_identity()
         return "default", None
 
     # Let HTTPException from the key service propagate as-is (401/403/404).
     # Only swallow unexpected non-auth errors and surface them as 503.
     try:
         adapter_manager = getattr(request.app.state, "adapter_manager", None)
-        # Authorization already carries the API key itself (see module docstring),
-        # so a distinct user credential — required to use a key restricted via
-        # allowed_user_ids — must come from a separate header.
-        current_user = await resolve_authenticated_user(
-            request, header_name="x-orbit-user-authorization"
-        )
         adapter_name, _ = await api_key_service.get_adapter_for_api_key(
             api_key, adapter_manager,
             current_user_id=current_user.get("id") if current_user else None,
             current_user_email=current_user.get("email") if current_user else None,
         )
-        return adapter_name or "default", api_key
+        adapter_name = adapter_name or "default"
+        adapter_config = (
+            adapter_manager.get_adapter_config(adapter_name)
+            if adapter_manager and adapter_name else None
+        )
+        _enforce_identity(adapter_config)
+        return adapter_name, api_key
     except HTTPException:
         raise
     except Exception as e:
         logger.error("A2A adapter resolution failed: %s", e)
         raise HTTPException(status_code=503, detail="API key service unavailable")
+
+
+async def _enforce_identity_for_adapter(request: Request, adapter_name: str) -> None:
+    """
+    Re-check auth.require_authenticated_user against the adapter that will
+    actually execute this task.
+
+    `_resolve_adapter` only checked the key-mapped adapter, but
+    `params.metadata.adapter`/`skill` can redirect execution to a different
+    one — a key mapped to an adapter that opts out of the requirement could
+    otherwise reach a sensitive adapter that opts in, with no identity check
+    at all. `resolve_authenticated_user` caches on `request.state`, so this
+    is not a second token-validation round trip.
+    """
+    config = request.app.state.config
+    adapter_manager = getattr(request.app.state, "adapter_manager", None)
+    adapter_config = (
+        adapter_manager.get_adapter_config(adapter_name)
+        if adapter_manager and adapter_name else None
+    )
+    if not is_authenticated_user_required(config, adapter_config):
+        return
+    current_user = await resolve_authenticated_user(request, header_name="x-orbit-user-authorization")
+    if current_user:
+        return
+    raise HTTPException(
+        status_code=401,
+        detail="Authentication required. Send X-ORBIT-User-Authorization: Bearer <user-token>.",
+        headers={"WWW-Authenticate": 'Bearer realm="orbit"'},
+    )
 
 
 def _build_skills(request: Request) -> list:
@@ -235,6 +285,7 @@ async def _tasks_send(
     # Allow per-task skill/adapter override via metadata
     metadata = params.get("metadata") or {}
     effective_adapter = metadata.get("adapter") or metadata.get("skill") or adapter_name
+    await _enforce_identity_for_adapter(request, effective_adapter)
 
     chat_service = request.app.state.chat_service
 
@@ -296,6 +347,7 @@ async def _tasks_send_subscribe(
 
     metadata = params.get("metadata") or {}
     effective_adapter = metadata.get("adapter") or metadata.get("skill") or adapter_name
+    await _enforce_identity_for_adapter(request, effective_adapter)
 
     # Authorize before the generator starts — once streaming begins it is too late
     # to return a 403.

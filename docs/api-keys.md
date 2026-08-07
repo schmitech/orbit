@@ -12,6 +12,34 @@ This package provides utilities for managing API keys and interacting with the c
 pip install requests python-dotenv
 ```
 
+## Requiring an authenticated user (strict mode)
+
+By default, an API key alone is sufficient to call inference endpoints —
+`Authorization: Bearer <key>` is accepted as a fallback to `X-API-Key`, for
+OpenAI-SDK compatibility. If your deployment sets
+`auth.require_authenticated_user: true` (see
+[authentication.md](authentication.md#requiring-an-authenticated-user)), that
+fallback is disabled: `Authorization: Bearer` is reserved for a user token,
+and the API key **must** be sent via `X-API-Key`.
+
+OpenAI SDK clients that pass the API key as `Authorization: Bearer` need to
+switch to sending it as a custom header, with the user token taking the
+`api_key` slot instead:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="<user-token>",  # now goes in Authorization: Bearer
+    base_url="https://your-orbit-host/v1",
+    default_headers={"X-API-Key": "<your-orbit-api-key>"},
+)
+```
+
+This also disables `api_keys.allow_default` (an empty key resolving to the
+first enabled adapter) — an authenticated identity is required regardless of
+which bypass lane a request would otherwise take.
+
 ## API Key Manager
 
 The API Key Manager utility allows you to create, test, and manage API keys and system prompts from the command line.

@@ -15,8 +15,16 @@ from fastapi import Request, WebSocket, HTTPException
 from pathlib import Path
 
 from auth.rbac import has_any_permission, has_permission
+from utils import is_true_value
 
 logger = logging.getLogger(__name__)
+
+# Sentinel distinguishing "not yet resolved" from a cached negative (anonymous/invalid) result.
+_UNRESOLVED = object()
+
+# Sentinel returned by require_authenticated_user_ws when it has already closed the
+# socket, distinguishing that from "anonymous but allowed" (which returns None).
+WS_AUTH_CLOSED = object()
 
 ADMIN_DIR = Path(__file__).parent.parent / "admin"
 
@@ -149,6 +157,12 @@ async def resolve_authenticated_user(request: Request, header_name: str = "autho
     requests rather than raising, so callers can treat identity as optional
     (e.g. for API-key allowlist checks that only apply to restricted keys).
 
+    The result (including a negative one) is cached on `request.state` per
+    `header_name`, since a single request commonly resolves the same header
+    twice (e.g. the API-key and user-id dependencies both call this). Cache
+    presence, not the cached value, is the "already resolved" signal, so a
+    cached None (anonymous/invalid) is never mistaken for "not yet checked".
+
     Args:
         header_name: Header to read the "Bearer <token>" credential from.
             Defaults to the standard `Authorization` header. Pass an
@@ -156,16 +170,172 @@ async def resolve_authenticated_user(request: Request, header_name: str = "autho
             already occupied by something else (e.g. A2A uses it for the
             raw API key, so a distinct user credential needs its own header).
     """
+    cache = getattr(request.state, "orbit_auth_cache", None)
+    if cache is None:
+        cache = {}
+        request.state.orbit_auth_cache = cache
+
+    cached = cache.get(header_name, _UNRESOLVED)
+    if cached is not _UNRESOLVED:
+        return cached
+
+    user_info: Optional[Dict[str, Any]] = None
     auth_header = request.headers.get(header_name)
     if auth_header and auth_header.lower().startswith("bearer "):
         token = auth_header.split(" ", 1)[1].strip()
         auth_service = getattr(request.app.state, "auth_service", None)
         if token and auth_service:
-            is_valid, user_info = await auth_service.validate_token(token)
-            if is_valid and user_info:
+            is_valid, resolved = await auth_service.validate_token(token)
+            if is_valid and resolved:
+                user_info = resolved
                 request.state.current_user = user_info
-                return user_info
-    return None
+
+    cache[header_name] = user_info
+    return user_info
+
+
+def normalize_adapter_auth_override(value: Any) -> Optional[bool]:
+    """
+    Normalize an adapter's `capabilities.requires_authenticated_user` value to a
+    tri-state bool: `None` means unset (defer to the global flag), anything else
+    is parsed with the same truthy/falsy rules as every other config boolean.
+
+    YAML config substitution (`${SOME_ENV_VAR}`) always produces a string, so
+    `requires_authenticated_user: ${REQUIRE_USER}` with `REQUIRE_USER=true`
+    arrives here as the string `"true"` — and, just as importantly,
+    `REQUIRE_USER=false` arrives as `"false"`. Plain `bool(...)` gets the first
+    case right by accident (any non-empty string is truthy) and the second case
+    wrong (`bool("false")` is `True`), so this must go through `is_true_value`
+    rather than a bare `bool()` cast.
+    """
+    if value is None:
+        return None
+    return is_true_value(value)
+
+
+def is_authenticated_user_required(config: Dict[str, Any], adapter_config: Optional[Dict[str, Any]] = None) -> bool:
+    """
+    Decide whether an authenticated user (not just an API key) must be present.
+
+    Precedence: an adapter's `capabilities.requires_authenticated_user` wins
+    when explicitly set (true or false); otherwise the global
+    `auth.require_authenticated_user` flag decides. This lets a global "on"
+    posture carve out an exception for a genuinely public adapter, and lets a
+    global "off" posture still lock down one sensitive adapter.
+    """
+    adapter_override = None
+    if adapter_config:
+        adapter_override = adapter_config.get("capabilities", {}).get("requires_authenticated_user")
+    adapter_override = normalize_adapter_auth_override(adapter_override)
+
+    if adapter_override is not None:
+        return adapter_override
+
+    return is_true_value(config.get("auth", {}).get("require_authenticated_user", False))
+
+
+async def require_authenticated_user(
+    request: Request,
+    *,
+    adapter_config: Optional[Dict[str, Any]] = None,
+    header_name: str = "authorization",
+) -> Optional[Dict[str, Any]]:
+    """
+    Resolve the caller's identity and, if required, enforce that it is present.
+
+    Always resolves identity first (so callers get it back even when not
+    strictly required). Raises 401 with a `WWW-Authenticate` header when
+    identity is required and absent/invalid. The same generic message is used
+    for "no token" and "invalid/blacklisted token" so a caller cannot use the
+    response to distinguish a blacklisted account from a bad token.
+    """
+    user_info = await resolve_authenticated_user(request, header_name)
+    if user_info or not is_authenticated_user_required(request.app.state.config, adapter_config):
+        return user_info
+
+    auth_header = request.headers.get(header_name)
+    if auth_header:
+        detail = "Invalid or expired authentication token."
+    else:
+        detail = (
+            "Authentication required. This deployment requires an authenticated user: "
+            "send Authorization: Bearer <user-token> and put the API key in the X-API-Key header."
+        )
+    raise HTTPException(
+        status_code=401,
+        detail=detail,
+        headers={"WWW-Authenticate": 'Bearer realm="orbit"'},
+    )
+
+
+async def resolve_authenticated_user_ws(
+    websocket: WebSocket,
+    header_name: str = "authorization",
+    query_param: str = "access_token",
+) -> Optional[Dict[str, Any]]:
+    """
+    WebSocket counterpart to `resolve_authenticated_user`.
+
+    Browsers cannot set arbitrary headers on the WS handshake, so the token
+    may also arrive as a query parameter (default `access_token`), checked
+    only when the header is absent. Cached on `websocket.state` the same way
+    `resolve_authenticated_user` caches on `request.state`, so resolving
+    identity early (e.g. to pass to an API-key allowlist check) and again
+    later (e.g. to enforce auth.require_authenticated_user) does not
+    re-validate the token twice.
+    """
+    cache = getattr(websocket.state, "orbit_auth_cache", None)
+    if cache is None:
+        cache = {}
+        websocket.state.orbit_auth_cache = cache
+
+    cached = cache.get(header_name, _UNRESOLVED)
+    if cached is not _UNRESOLVED:
+        return cached
+
+    user_info: Optional[Dict[str, Any]] = None
+    auth_header = websocket.headers.get(header_name)
+    if not auth_header:
+        token = websocket.query_params.get(query_param)
+        if token:
+            auth_header = f"Bearer {token}"
+
+    if auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        auth_service = getattr(websocket.app.state, "auth_service", None)
+        if token and auth_service:
+            is_valid, resolved = await auth_service.validate_token(token)
+            if is_valid and resolved:
+                user_info = resolved
+
+    cache[header_name] = user_info
+    return user_info
+
+
+async def require_authenticated_user_ws(
+    websocket: WebSocket,
+    *,
+    adapter_config: Optional[Dict[str, Any]] = None,
+    header_name: str = "authorization",
+    query_param: str = "access_token",
+) -> Optional[Dict[str, Any]]:
+    """
+    WebSocket counterpart to `require_authenticated_user`.
+
+    Closes the socket (code 4401) before `accept()` rather than raising,
+    since raising inside a WS handler produces no HTTP response. Returns
+    `WS_AUTH_CLOSED` after closing — callers must check for that sentinel
+    (not falsiness) and return immediately, since a plain `None` here means
+    "resolved to anonymous, and that's allowed" rather than "rejected".
+    """
+    config = websocket.app.state.config
+    user_info = await resolve_authenticated_user_ws(websocket, header_name, query_param)
+
+    if user_info or not is_authenticated_user_required(config, adapter_config):
+        return user_info
+
+    await websocket.close(code=4401, reason="Authentication required")
+    return WS_AUTH_CLOSED
 
 
 async def resolve_authenticated_user_id(request: Request, header_name: str = "authorization") -> Optional[str]:

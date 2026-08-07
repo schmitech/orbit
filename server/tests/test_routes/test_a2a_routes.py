@@ -311,6 +311,38 @@ class TestApiKeyEnforcement:
         assert resp.status_code == 200
         assert key_svc.get_adapter_for_api_key.call_args.kwargs["current_user_email"] == "alice@example.com"
 
+    def test_strict_mode_rejects_unrestricted_key_without_user_authorization_header(self):
+        """auth.require_authenticated_user makes X-ORBIT-User-Authorization mandatory
+        even for a key with no allowed_user_ids/allowed_emails set."""
+        key_svc = MagicMock()
+        key_svc.get_adapter_for_api_key = AsyncMock(return_value=("hr", None))
+        client = TestClient(
+            make_app(api_key_service=key_svc, config={"auth": {"require_authenticated_user": True}}),
+            raise_server_exceptions=False,
+        )
+        resp = client.post("/a2a", json=self._body(), headers={"Authorization": "Bearer unrestricted-key"})
+        assert resp.status_code == 401
+
+    def test_strict_mode_passes_with_user_authorization_header(self):
+        key_svc = MagicMock()
+        key_svc.get_adapter_for_api_key = AsyncMock(return_value=("hr", None))
+        chat_svc = MagicMock()
+        chat_svc.process_chat = AsyncMock(return_value={"response": "ok"})
+        auth_svc = MagicMock()
+        auth_svc.validate_token = AsyncMock(return_value=(True, {"id": "user-123", "username": "alice"}))
+        client = TestClient(make_app(
+            chat_service=chat_svc, api_key_service=key_svc, auth_service=auth_svc,
+            config={"auth": {"require_authenticated_user": True}},
+        ))
+        resp = client.post(
+            "/a2a", json=self._body(),
+            headers={
+                "Authorization": "Bearer unrestricted-key",
+                "X-ORBIT-User-Authorization": "Bearer user-session-token",
+            },
+        )
+        assert resp.status_code == 200
+
 
 class TestSessionAuthorization:
     """A denied session must surface as a real 403, not a 200 with an error body."""

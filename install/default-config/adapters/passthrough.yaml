@@ -52,4 +52,5 @@ adapters:
       supports_file_ids: false           # Does not support file filtering
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: false # No API key validation needed
+      requires_authenticated_user: false # Override auth.require_authenticated_user; leave off for this public chat adapter
 

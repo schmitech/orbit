@@ -139,6 +139,8 @@ async def _apply_reload(app_state: Any, kind: str) -> bool:
                 return False
             new_config = reload_adapters_config(config_path)
             summary = await adapter_manager.reload_adapter_configs(new_config, None)
+            from services.mcp_auth_policy import apply_mcp_auth_policy
+            apply_mcp_auth_policy(app_state, new_config)
             logger.info("Propagated adapter reload from another worker: %s", summary)
         elif kind == "templates":
             adapter_manager = getattr(app_state, "adapter_manager", None)

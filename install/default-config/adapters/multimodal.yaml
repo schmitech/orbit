@@ -48,6 +48,7 @@ adapters:
       supports_file_ids: true            # Accepts file_ids parameter for filtering
       supports_session_tracking: true    # Uses session_id for tracking
       requires_api_key_validation: true  # Validates file ownership via API key
+      requires_authenticated_user: false # Override auth.require_authenticated_user; leave off unless this adapter should require login
       skip_when_no_files: true           # Skip retrieval when file_ids is empty
       optional_parameters:
         - "file_ids"
@@ -100,6 +101,7 @@ adapters:
       supports_file_ids: true
       supports_session_tracking: true
       requires_api_key_validation: true
+      requires_authenticated_user: false # Override auth.require_authenticated_user; leave off unless this adapter should require login
       skip_when_no_files: true
       optional_parameters:
         - "file_ids"
@@ -172,6 +174,7 @@ adapters:
       supports_file_ids: true            # Accepts audio file uploads
       supports_session_tracking: true
       requires_api_key_validation: true  # Validates file ownership
+      requires_authenticated_user: false # Override auth.require_authenticated_user; leave off unless this adapter should require login
       skip_when_no_files: true           # Skip retrieval when no files
       optional_parameters:
         - "file_ids"
@@ -255,6 +258,7 @@ adapters:
       supports_file_ids: true
       supports_session_tracking: true
       requires_api_key_validation: true
+      requires_authenticated_user: false # Override auth.require_authenticated_user; leave off unless this adapter should require login
       skip_when_no_files: true
       optional_parameters:
         - "file_ids"

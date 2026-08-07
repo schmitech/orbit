@@ -8,6 +8,8 @@ This document is a practical runbook — what to click, what to set, and the non
 
 Without this setup, orbitchat's `X-User-ID` header is unverified — anyone can claim any identity. ORBIT restricts an API key to specific users by verifying the `Authorization: Bearer <token>` orbitchat sends and matching the *verified* identity, not the header. That verification only works if the token orbitchat gets from Auth0/Entra is a real, audience-scoped JWT — which requires a small amount of IdP-side configuration most quickstarts skip, because they don't scope tokens to a custom API.
 
+A client set up this way already sends a real bearer token on every request, so it needs no changes to work under [`auth.require_authenticated_user`](authentication.md#requiring-an-authenticated-user) — the flag that makes an authenticated user mandatory rather than optional. It's the reference for what a compatible client looks like.
+
 ## Auth0 setup
 
 ### 1. Create a custom API

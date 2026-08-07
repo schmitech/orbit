@@ -21,7 +21,7 @@ import logging
 from typing import Optional, Any, Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Query, HTTPException
 
-from routes.auth_helpers import resolve_authenticated_user
+from routes.auth_helpers import resolve_authenticated_user_ws, require_authenticated_user_ws, WS_AUTH_CLOSED
 
 logger = logging.getLogger(__name__)
 
@@ -145,11 +145,13 @@ async def _resolve_voice_adapter_from_api_key(
         raise HTTPException(status_code=503, detail="API key service is not available")
 
     adapter_manager = getattr(websocket.app.state, 'adapter_manager', None)
-    # api_key here arrives as an unauthenticated query param, so any bearer
-    # token on the WS handshake (`websocket.headers`) is the only place a
-    # verified caller identity could come from; resolve_authenticated_user_id
-    # duck-types against WebSocket the same way it does Request.
-    current_user = await resolve_authenticated_user(websocket)
+    # api_key here arrives as an unauthenticated query param, so a verified
+    # caller identity can only come from the handshake Authorization header
+    # or (browser clients can't set handshake headers) the ?access_token=
+    # query param — resolve_authenticated_user_ws checks both, and caches so
+    # the later strict-mode check in _handle_voice_websocket doesn't
+    # re-validate the same token.
+    current_user = await resolve_authenticated_user_ws(websocket)
     resolved_adapter_name, system_prompt_id = await api_key_service.get_adapter_for_api_key(
         api_key,
         adapter_manager=adapter_manager,
@@ -220,9 +222,23 @@ async def _handle_voice_websocket(
         # Validate adapter before accepting connection
         adapter_config = await validate_adapter(adapter_name, websocket)
 
+        # Enforce auth.require_authenticated_user (global or per-adapter) before
+        # accepting the socket. Closes with 4401 and returns WS_AUTH_CLOSED when
+        # rejected; a plain None means "anonymous, and that's allowed here".
+        current_user = await require_authenticated_user_ws(websocket, adapter_config=adapter_config)
+        if current_user is WS_AUTH_CLOSED:
+            return
+
         # Get services from app state
         chat_service = get_chat_service(websocket)
         config = get_config(websocket)
+
+        # X-User-ID's WS equivalent (?user_id=) is unverified/spoofable; once a
+        # deployment requires an authenticated user, only the resolved bearer
+        # identity may attribute the session.
+        if current_user:
+            user_id = current_user.get("id") or current_user.get("user_id") or current_user.get("username")
+            user_id = str(user_id).strip() if user_id else user_id
 
         # Validate API key if required by adapter
         requires_auth = adapter_config.get('capabilities', {}).get('requires_api_key_validation', False)

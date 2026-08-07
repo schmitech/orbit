@@ -6,7 +6,7 @@ import asyncio
 import datetime
 from pathlib import Path
 from typing import Any, Optional
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 
 import uvicorn
 from fastapi import FastAPI
@@ -24,6 +24,7 @@ from utils.http_utils import close_all_aiohttp_sessions, setup_aiohttp_session_t
 from utils.thread_pool_manager import ThreadPoolManager
 from routes.routes_configurator import RouteConfigurator
 from datasources import DatasourceFactory
+from services.mcp_auth_policy import adapters_requiring_auth_list
 
 logger = logging.getLogger(__name__)
 ADMIN_DIR = Path(__file__).parent / "admin"
@@ -135,13 +136,46 @@ class InferenceServer:
         MiddlewareConfigurator.configure_middleware(self.app, self.config, self.logger)
         self.route_configurator.configure_routes(self.app)
 
-        # Initialize MCP server
-        logger.info("Initializing MCP server with fastmcp")
-        self.mcp_server = FastMCP.from_fastapi(self.app, name="ORBIT")
-        # http_app() already serves at "/mcp" internally, so mount at "/" to get
-        # the final path right (mounting at "/mcp" would double it to "/mcp/mcp").
-        self.mcp_app = self.mcp_server.http_app(path="/mcp")
-        self.app.mount("/", self.mcp_app)
+        # Initialize MCP server. The /mcp mount bypasses ORBIT's normal API-key/user
+        # auth entirely (see MiddlewareConfigurator._configure_mcp_host_validation_middleware),
+        # so it cannot honor auth.require_authenticated_user — refuse to serve it
+        # rather than silently leaving an unauthenticated surface next to a flag
+        # whose whole purpose is to require authentication everywhere. This applies
+        # even when only a specific adapter opts in via
+        # capabilities.requires_authenticated_user: MCP would still be able to
+        # invoke that adapter with no identity check at all.
+        require_auth_globally = is_true_value(self.config.get('auth', {}).get('require_authenticated_user', False))
+        adapters_requiring_auth = adapters_requiring_auth_list(self.config)
+        # Back-reference so a later adapter hot reload can find this app to remove
+        # the mount route — see services/mcp_auth_policy.apply_mcp_auth_policy.
+        self.app.state._fastapi_app = self.app
+        self.app.state.mcp_mount_route = None
+        if require_auth_globally or adapters_requiring_auth:
+            if require_auth_globally:
+                logger.warning(
+                    "auth.require_authenticated_user is enabled; the /mcp mount cannot "
+                    "enforce it (it bypasses ORBIT's normal API-key/user auth), so it is "
+                    "disabled for this run."
+                )
+            else:
+                logger.warning(
+                    "Adapter(s) %s set capabilities.requires_authenticated_user: true, but the "
+                    "/mcp mount bypasses ORBIT's normal auth and cannot enforce a per-adapter "
+                    "requirement either; disabling the mount for this run.",
+                    ", ".join(adapters_requiring_auth),
+                )
+            self.mcp_server = None
+            self.mcp_app = None
+        else:
+            logger.info("Initializing MCP server with fastmcp")
+            self.mcp_server = FastMCP.from_fastapi(self.app, name="ORBIT")
+            # http_app() already serves at "/mcp" internally, so mount at "/" to get
+            # the final path right (mounting at "/mcp" would double it to "/mcp/mcp").
+            self.mcp_app = self.mcp_server.http_app(path="/mcp")
+            self.app.mount("/", self.mcp_app)
+            # A hot-reloaded adapter can introduce capabilities.requires_authenticated_user
+            # after this mount is already live — keep a handle so it can be pulled.
+            self.app.state.mcp_mount_route = self.app.router.routes[-1]
 
         logger.info(
             "OpenAPI docs %s (ENVIRONMENT=%s)",
@@ -208,7 +242,9 @@ class InferenceServer:
             # own lifespan that starts its StreamableHTTP session manager task group.
             # Without chaining it in here, every request to /mcp fails with
             # "StreamableHTTPSessionManager task group was not initialized".
-            async with self.mcp_app.lifespan(app):
+            # mcp_app is None when auth.require_authenticated_user disabled the mount.
+            mcp_lifespan = self.mcp_app.lifespan(app) if self.mcp_app else nullcontext()
+            async with mcp_lifespan:
                 # Initialize services and clients
                 try:
                     # Store thread pool manager in app state for service access

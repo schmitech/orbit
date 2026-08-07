@@ -148,10 +148,18 @@ email domain.
 **Enforcement point.** Rules are evaluated in `AuthService` at every place a
 credential becomes an identity: `validate_token` (both the opaque-session and
 external-JWT branches), `authenticate_user` (password login), and
-`verify_credentials` (WebSocket basic auth). Because every surface — chat,
-admin panel, file upload, A2A, voice, discovery — resolves identity through
-those, a blocked user cannot authenticate anywhere. `_find_or_create_external_user`
+`verify_credentials` (WebSocket basic auth). `_find_or_create_external_user`
 also refuses to provision a blacklisted identity, so no row is created for them.
+
+**This only blocks callers who present an identity.** On the admin panel a
+user identity is always required, so blacklisting fully covers it. On
+inference (chat, files, voice, A2A), however, a valid **API key alone** is
+normally sufficient — no bearer token is required, so `validate_token` is
+never called and a blacklisted user can simply omit the `Authorization`
+header and reach inference unimpeded. Closing this gap is what
+[`auth.require_authenticated_user`](#requiring-an-authenticated-user) is for;
+without it, treat the blacklist as covering the admin panel and any client
+that happens to send a bearer token, not as a hard guarantee on inference.
 
 **Session revocation.** Adding a rule deletes the sessions of every currently
 matching user, so an in-flight abuser is cut off at once rather than at token
@@ -192,6 +200,70 @@ pick up a new rule within the TTL. Set `cache_ttl: 0` to re-read on every
 authentication. Session revocation is not subject to this delay, so the urgent
 case is handled immediately regardless. If the database is unreachable, the
 last known rule set is retained rather than failing open to an empty one.
+
+### Requiring an authenticated user
+
+By default, ORBIT's inference surfaces (chat, files, voice, A2A) authenticate
+by **API key alone** — no user identity is required. Setting
+`auth.require_authenticated_user: true` (default `false`) makes a valid
+`Authorization: Bearer <user-token>` mandatory on every inference request, in
+addition to the API key. This is what makes the blacklist above — and a key's
+`allowed_user_ids`/`allowed_emails` — actually enforceable on inference: with
+the flag off, a blacklisted or non-allowlisted user can simply present the API
+key with no bearer token and reach inference anyway, since identity was never
+resolved in the first place.
+
+**Per-adapter override.** An adapter's `capabilities.requires_authenticated_user`
+(`true`/`false`) overrides the global flag for that adapter only; leaving it
+unset inherits the global setting. This lets one public-facing adapter opt out
+while the rest of a strict deployment stays locked down, or lets one sensitive
+adapter opt in while the rest of the deployment stays key-only.
+
+**The `Authorization: Bearer` header changes meaning.** Normally
+`Authorization: Bearer <api-key>` is accepted as a fallback to `X-API-Key`,
+for OpenAI-SDK compatibility. Once strict mode applies to a request, that
+fallback is disabled — `Authorization: Bearer` is reserved for the user
+token, and the API key **must** be sent via `X-API-Key`. OpenAI SDK clients
+that only ever send the key as `Authorization: Bearer` need to switch to
+`default_headers={"X-API-Key": "<key>"}` with `api_key=<user-token>` in
+strict deployments.
+
+**`X-User-ID` is ignored.** That header is unverified and spoofable — it is
+attribution metadata used only when no authenticated identity is available.
+Once identity is required, the resolved bearer identity is the only source
+of `user_id`; a client-supplied `X-User-ID` is silently ignored rather than
+trusted.
+
+**A2A** already uses a dedicated `X-ORBIT-User-Authorization` header for user
+identity (since `Authorization` carries the API key there). Strict mode makes
+that header mandatory rather than optional; no other change to A2A's header
+scheme.
+
+**Voice** WebSocket clients authenticate via the handshake `Authorization`
+header, or `?access_token=<token>` as a query-param fallback for browser
+clients that cannot set handshake headers. A required-but-missing/invalid
+identity closes the socket before `accept()` with code `4401`, rather than
+producing an HTTP error response (which WebSocket handlers can't return).
+Identity is resolved once at connect time; a user blacklisted mid-session
+keeps that session until it closes.
+
+**`/mcp` is not covered.** The MCP mount bypasses ORBIT's normal
+API-key/user auth entirely (it re-invokes routes internally rather than
+going through the FastAPI dependency chain), so it cannot honor this flag.
+When `auth.require_authenticated_user` is `true`, ORBIT refuses to mount
+`/mcp` at startup and logs a warning, rather than leaving an unauthenticated
+surface next to a flag whose purpose is to require authentication.
+
+**Bypass lanes fail closed.** `/health` remains reachable without
+credentials so liveness probes keep working. Every other lane that would
+otherwise skip API-key validation — no `api_key_service` configured,
+`api_keys.enabled: false`, or an empty key resolving via
+`api_keys.allow_default` — instead requires an authenticated identity when
+strict mode applies, rather than silently exempting itself from it.
+
+**Default is `false`.** Enabling this rejects any client that only sends an
+API key, including OpenAI SDK clients using the Bearer fallback. Turn it on
+deliberately, after confirming your clients send a bearer token.
 
 ### Security Standards Compliance
 

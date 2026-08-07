@@ -21,7 +21,11 @@ from utils import is_true_value
 from utils.text_utils import hash_api_key
 from services.stream_registry import stream_registry
 from ai_services.services.inference_service import OpenAIResponseFormatter
-from routes.auth_helpers import resolve_authenticated_user, resolve_authenticated_user_id
+from routes.auth_helpers import (
+    resolve_authenticated_user,
+    resolve_authenticated_user_id,
+    is_authenticated_user_required,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -294,21 +298,33 @@ class RouteConfigurator:
             # Get user header configuration from chat history config
             chat_history_config = request.app.state.config.get('chat_history', {})
             user_config = chat_history_config.get('user', {})
-            
+
             if not user_config:
                 return None
-            
+
             user_header = user_config.get('header_name', 'X-User-ID')
             user_required = user_config.get('required', False)
-            
+
+            # Once a deployment requires an authenticated user, X-User-ID is
+            # unverified/spoofable and must not be trusted as an identity
+            # source — the bearer identity (or its absence) is authoritative.
+            if is_true_value(request.app.state.config.get('auth', {}).get('require_authenticated_user', False)):
+                if user_required:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Authentication required. Send Authorization: Bearer <user-token>.",
+                        headers={"WWW-Authenticate": 'Bearer realm="orbit"'},
+                    )
+                return None
+
             user_id = request.headers.get(user_header)
-            
+
             if user_required and not user_id:
                 raise HTTPException(
                     status_code=400,
                     detail=f"User ID is required. Please provide a non-empty string in the {user_header} header."
                 )
-            
+
             return user_id.strip() if user_id else None
         return get_user_id
     
@@ -316,54 +332,93 @@ class RouteConfigurator:
         """Create API key validation dependency."""
         async def get_api_key(request: Request) -> tuple[Optional[str], Optional[ObjectId]]:
             """
-            Extract API key from request headers and validate it
-            
+            Extract API key from request headers and validate it.
+
+            When auth.require_authenticated_user is set (globally, or via an
+            adapter's capabilities.requires_authenticated_user override), a
+            valid Authorization: Bearer <user-token> becomes mandatory and
+            that header is no longer read as an API key fallback — it's
+            reserved for identity. /health stays reachable without
+            credentials so liveness probes keep working; every other bypass
+            path (missing api_key_service, api_keys.enabled=false, an empty
+            key resolving via allow_default) still enforces the requirement,
+            since silently exempting a bypass lane from an "enforcement"
+            flag defeats its purpose.
+
             Args:
                 request: The incoming request
-                
+
             Returns:
                 Tuple of (adapter_name, system_prompt_id) associated with the API key
             """
-            # Get API key from X-API-Key or Authorization: Bearer for OpenAI-compatible clients
-            header_name = request.app.state.config.get('api_keys', {}).get('header_name', 'X-API-Key')
+            config = request.app.state.config
+            is_health = request.url.path == "/health"
+            require_for_health = is_true_value(config.get('api_keys', {}).get('require_for_health', False))
+
+            # Phase A: resolve identity before touching the API key, so it's
+            # available both for the per-key allowlist below and for the
+            # requirement check once the adapter is known. This also caches
+            # the token validation so get_user_id doesn't repeat it.
+            global_strict = is_true_value(config.get('auth', {}).get('require_authenticated_user', False))
+            current_user = await resolve_authenticated_user(request)
+            current_user_id = current_user.get("id") if current_user else None
+            current_user_email = current_user.get("email") if current_user else None
+
+            # Get API key from X-API-Key or Authorization: Bearer for OpenAI-compatible
+            # clients. In strict mode, Authorization: Bearer is reserved for the user
+            # token and must never be re-read as an API key, valid or not.
+            header_name = config.get('api_keys', {}).get('header_name', 'X-API-Key')
             api_key = request.headers.get(header_name)
-            if not api_key:
+            if not api_key and not global_strict:
                 auth_header = request.headers.get('Authorization', '')
                 if auth_header.startswith('Bearer '):
                     api_key = auth_header[len('Bearer '):]
-            
-            # For health endpoint, only require API key if explicitly configured
-            if request.url.path == "/health":
-                require_for_health = is_true_value(request.app.state.config.get('api_keys', {}).get('require_for_health', False))
-                if not require_for_health:
-                    return "default", None
-            
+
+            if is_health and not require_for_health:
+                return "default", None
+
+            def _enforce_identity(adapter_config: Optional[Dict[str, Any]]) -> None:
+                if current_user or not is_authenticated_user_required(config, adapter_config):
+                    return
+                raise HTTPException(
+                    status_code=401,
+                    detail=(
+                        "Invalid or expired authentication token."
+                        if request.headers.get("Authorization")
+                        else "Authentication required. This deployment requires an authenticated user: "
+                             "send Authorization: Bearer <user-token> and put the API key in the "
+                             "X-API-Key header."
+                    ),
+                    headers={"WWW-Authenticate": 'Bearer realm="orbit"'},
+                )
+
             # Check if API key service is available
             if not hasattr(request.app.state, 'api_key_service') or request.app.state.api_key_service is None:
                 # If no API key service is available, allow access with default collection
                 # This handles the case where API keys are disabled in config
-                api_keys_enabled = is_true_value(request.app.state.config.get('api_keys', {}).get('enabled', True))
-                if not api_keys_enabled or (request.url.path == "/health" and not is_true_value(request.app.state.config.get('api_keys', {}).get('require_for_health', False))):
+                api_keys_enabled = is_true_value(config.get('api_keys', {}).get('enabled', True))
+                if not api_keys_enabled:
+                    _enforce_identity(None)
                     return "default", None
-                else:
-                    raise HTTPException(status_code=503, detail="API key service is not available")
-            
+                raise HTTPException(status_code=503, detail="API key service is not available")
+
             # Validate API key and get adapter name and system prompt ID
             try:
                 # Get adapter manager from app state to check live configs (respects hot-reload)
                 adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-                current_user = await resolve_authenticated_user(request)
-                current_user_id = current_user.get("id") if current_user else None
-                current_user_email = current_user.get("email") if current_user else None
                 adapter_name, system_prompt_id = await request.app.state.api_key_service.get_adapter_for_api_key(
                     api_key, adapter_manager, current_user_id=current_user_id,
                     current_user_email=current_user_email
                 )
+                adapter_config = (
+                    adapter_manager.get_adapter_config(adapter_name)
+                    if adapter_manager and adapter_name else None
+                )
+                _enforce_identity(adapter_config)
                 return adapter_name, system_prompt_id
             except HTTPException as e:
                 # Allow health check without API key if configured
-                if (request.url.path == "/health" and 
-                    not request.app.state.config.get('api_keys', {}).get('require_for_health', False)):
+                if is_health and not require_for_health:
                     return "default", None
                 raise e
         return get_api_key

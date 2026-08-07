@@ -16,6 +16,7 @@ from models.schema import (
     TemplateReloadResponse, TemplateTestRequest,
 )
 from config.config_manager import reload_adapters_config
+from services.mcp_auth_policy import apply_mcp_auth_policy
 
 # Adapter SDK — generates new adapter configs from spec + answers
 from jinja2 import UndefinedError
@@ -259,6 +260,7 @@ async def toggle_adapter_enabled(
         try:
             new_config = reload_adapters_config(config_path)
             reload_summary = await adapter_manager.reload_adapter_configs(new_config, adapter_name)
+            apply_mcp_auth_policy(request.app.state, new_config)
         except Exception as e:
             logger.error(
                 f"Adapter '{adapter_name}' YAML was {state} but runtime reload failed: {e}",
@@ -459,6 +461,7 @@ async def create_adapter(
         try:
             new_config = reload_adapters_config(config_path)
             reload_summary = await adapter_manager.reload_adapter_configs(new_config, name)
+            apply_mcp_auth_policy(request.app.state, new_config)
         except Exception as e:
             logger.error(f"Adapter '{name}' was created but runtime reload failed: {e}", exc_info=True)
             reload_error = str(e)
@@ -629,6 +632,7 @@ async def delete_adapter(
         try:
             new_config = reload_adapters_config(config_path)
             reload_summary = await adapter_manager.reload_adapter_configs(new_config)
+            apply_mcp_auth_policy(request.app.state, new_config)
         except Exception as e:
             logger.error(f"Adapter '{adapter_name}' was deleted but runtime reload failed: {e}", exc_info=True)
             reload_error = str(e)
@@ -730,6 +734,7 @@ async def reload_adapters(
 
         # Reload adapters using the adapter manager
         summary = await adapter_manager.reload_adapter_configs(new_config, adapter_name)
+        apply_mcp_auth_policy(request.app.state, new_config)
 
         # Under performance.workers > 1, this only reloaded the worker that
         # served this request - bump the durable generation counter so

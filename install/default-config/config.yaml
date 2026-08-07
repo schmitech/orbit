@@ -167,6 +167,18 @@ auth:
   # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
   credential_storage: keyring
 
+  # When true, every inference surface (chat, files, voice, A2A) requires a
+  # valid Authorization: Bearer <user-token> in addition to the API key, and
+  # the API key must be sent in the X-API-Key header (the Bearer-as-API-key
+  # fallback used for OpenAI-SDK compatibility is disabled). This is what
+  # makes the blacklist below actually enforceable on inference — with it
+  # false, a blacklisted user can still reach /v1/chat by presenting only an
+  # API key, since API-key-only requests never resolve a user identity.
+  # Individual adapters may override via capabilities.requires_authenticated_user.
+  # Default false: flipping to true will 401 any client that only sends an
+  # API key (including OpenAI SDK clients, which pass the key as Bearer).
+  require_authenticated_user: false
+
   # Blacklisted identities. Rules are managed at runtime from the admin panel's
   # Users tab (or GET/POST/DELETE /auth/blacklist) and stored in the database,
   # not here — a rule blocks an identity pattern from authenticating on every

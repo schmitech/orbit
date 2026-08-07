@@ -57,6 +57,14 @@ Authorization: Bearer <your-orbit-api-key>
 
 The API key is resolved to an adapter name using the same mechanism as the REST and OpenAI-compatible endpoints. An invalid or revoked key returns `401`/`403`. If API-key enforcement is disabled in your deployment (no `api_key_service` configured), requests are accepted without a token and routed to the default adapter.
 
+Since `Authorization` already carries the API key, a caller's **user identity** — needed for a key restricted via `allowed_user_ids`/`allowed_emails`, and mandatory outright when `auth.require_authenticated_user` is enabled (see [Requiring an authenticated user](authentication.md#requiring-an-authenticated-user)) — must be sent in a separate header:
+
+```
+X-ORBIT-User-Authorization: Bearer <user-session-token-or-jwt>
+```
+
+Callers using an unrestricted key on a deployment without `auth.require_authenticated_user` can omit this header entirely.
+
 ---
 
 ## JSON-RPC Methods
