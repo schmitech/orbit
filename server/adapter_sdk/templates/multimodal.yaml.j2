@@ -1,0 +1,78 @@
+# Multimodal adapter — conditional RAG over uploaded files (documents/images/audio),
+# with vision/STT/TTS support. Retrieval only runs when file_ids are present.
+adapters:
+  - name: "{{ name }}"
+    enabled: {{ enabled | lower }}
+    type: "{{ type }}"
+    datasource: "{{ datasource }}"
+    adapter: "{{ adapter }}"
+    implementation: "{{ implementation }}"
+{%- if inference_provider %}
+    inference_provider: "{{ inference_provider }}"   # Optional adapter override; omit to use the global default
+{%- endif %}
+{%- if model %}
+    model: "{{ model }}"
+{%- endif %}
+    embedding_provider: "{{ embedding_provider }}"
+    embedding_model: "{{ embedding_model }}"
+    vision_provider: "{{ vision_provider }}"          # Vision provider for image files (see vision.yaml)
+    stt_provider: "{{ stt_provider }}"                # STT provider for audio transcription (see stt.yaml)
+    tts_provider: "{{ tts_provider }}"                # For TTS output (see tts.yaml)
+
+    capabilities:
+      retrieval_behavior: "{{ retrieval_behavior }}"  # Only retrieves when file_ids are present
+      formatting_style: "clean"
+      supports_threading: true
+      supports_file_ids: {{ supports_file_ids | lower }}
+      supports_session_tracking: true
+      requires_api_key_validation: {{ requires_api_key_validation | lower }}
+      requires_encryption: {{ requires_encryption | lower }}
+      skip_when_no_files: {{ skip_when_no_files | lower }}
+      auto_skill_routing: {{ auto_skill_routing | lower }}
+{%- if available_skills %}
+      available_skills:
+{%- for skill in available_skills %}
+        - "{{ skill }}"
+{%- endfor %}
+{%- endif %}
+{%- if auto_routable_skills %}
+      auto_routable_skills:
+{%- for skill in auto_routable_skills %}
+        - "{{ skill }}"
+{%- endfor %}
+{%- endif %}
+      optional_parameters:
+{%- for param in optional_parameters %}
+        - "{{ param }}"
+{%- endfor %}
+      mcp_tools: {{ mcp_tools | lower }}
+{%- if mcp_servers %}
+      mcp_servers:
+{%- for server in mcp_servers %}
+        - "{{ server }}"
+{%- endfor %}
+{%- endif %}
+
+    config:
+      storage_backend: "{{ storage_backend }}"
+      storage_root: "{{ storage_root }}"
+      max_file_size: {{ max_file_size }}
+
+      chunking_strategy: "{{ chunking_strategy }}"    # fixed | semantic | token | recursive
+      chunk_size: {{ chunk_size }}
+      chunk_overlap: {{ chunk_overlap }}
+
+      vector_store: "{{ vector_store }}"               # References stores.yaml
+      collection_prefix: "{{ collection_prefix }}"
+{%- if enable_audio_transcription %}
+
+      enable_audio_transcription: true
+      audio_transcription_language: null               # Auto-detect language
+{%- if supported_types %}
+
+      supported_types:
+{%- for t in supported_types %}
+        - "{{ t }}"
+{%- endfor %}
+{%- endif %}
+{%- endif %}

@@ -247,6 +247,57 @@ MEDIA_GENERATOR = AdapterSpec(
 )
 
 
+MULTIMODAL = AdapterSpec(
+    key="multimodal",
+    title="Multimodal (file retrieval)",
+    description="Conditional RAG over uploaded files (documents/images/audio) with vision/STT/TTS support.",
+    template="multimodal.yaml.j2",
+    fixed={
+        "type": "passthrough",
+        "datasource": "none",
+        "adapter": "multimodal",
+        "implementation": _MULTIMODAL_IMPL,
+        "retrieval_behavior": "conditional",
+        "supports_file_ids": True,
+        "skip_when_no_files": True,
+        "requires_api_key_validation": True,
+        "optional_parameters": ["file_ids", "api_key", "session_id"],
+    },
+    questions=[
+        _q_name(default="simple-chat-with-files"),
+        Question("inference_provider", "Inference provider (override; blank for global default)", default=None),
+        Question("model", "Model (override; blank for global default)", default=None),
+        Question("embedding_provider", "Embedding provider", default="openai"),
+        Question("embedding_model", "Embedding model", default="text-embedding-3-small"),
+        Question("vision_provider", "Vision provider (image files)", default="gemini"),
+        Question("stt_provider", "STT provider (audio transcription)", default="openai"),
+        Question("tts_provider", "TTS provider", default="gemini"),
+        Question("available_skills", "Available skills (invokable via / picker)", type="list", default=[]),
+        Question("auto_routable_skills", "Auto-routable skills (auto-only, not user-invokable)",
+                 type="list", default=[]),
+        Question("auto_skill_routing", "Enable automatic skill intent detection?", type="bool", default=True),
+        Question("mcp_tools", "Enable opportunistic MCP tool calling?", type="bool", default=False),
+        Question("mcp_servers", "Allowed MCP servers (blank = all enabled)", type="list", default=[]),
+        Question("storage_backend", "Storage backend", default="filesystem"),
+        Question("storage_root", "Storage root", default="./uploads", max_length=500),
+        Question("max_file_size", "Max file size (bytes)", type="int", default=52428800,
+                 min_value=1, max_value=1073741824),
+        Question("chunking_strategy", "Chunking strategy", default="recursive",
+                 choices=["fixed", "semantic", "token", "recursive"]),
+        Question("chunk_size", "Chunk size", type="int", default=1000, min_value=1, max_value=100000),
+        Question("chunk_overlap", "Chunk overlap", type="int", default=100, min_value=0, max_value=10000),
+        Question("vector_store", "Vector store (see stores.yaml)", default="chroma"),
+        Question("collection_prefix", "Collection prefix", default="files_", max_length=64),
+        Question("requires_encryption", "Require encrypted file storage?", type="bool", default=False),
+        Question("enable_audio_transcription", "Enable audio file transcription?", type="bool", default=False),
+        Question("supported_types", "Supported file MIME types (blank = loader defaults)", type="list",
+                 default=[], max_length=100, max_items=50,
+                 help="Only emitted when audio transcription is enabled, e.g. \"audio/wav, audio/mpeg\"."),
+        _q_enabled(),
+    ],
+)
+
+
 PASSTHROUGH = AdapterSpec(
     key="passthrough",
     title="Passthrough / conversational",
@@ -409,6 +460,7 @@ SPEC_REGISTRY: Dict[str, AdapterSpec] = {
     s.key: s
     for s in [
         PASSTHROUGH,
+        MULTIMODAL,
         DOC_GENERATOR,
         MEDIA_GENERATOR,
         FETCH,

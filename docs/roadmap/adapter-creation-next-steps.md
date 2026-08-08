@@ -108,26 +108,30 @@ in `specs.py`, with no new orchestration (template generation, referential-integ
 checks, etc.) required.
 
 **Tasks:**
-- [ ] Add a `multimodal` (or `file-retrieval`) entry to `SPEC_REGISTRY` covering the
+- [x] Add a `multimodal` (or `file-retrieval`) entry to `SPEC_REGISTRY` covering the
       `simple-chat-with-files` shape: `type: passthrough`, `datasource: none`,
       `implementation: implementations.passthrough.multimodal.MultimodalImplementation`,
       plus questions for `vision_provider`/`stt_provider`/`tts_provider`,
       storage (`storage_backend`, `storage_root`, `max_file_size`), chunking
       (`chunking_strategy`, `chunk_size`, `chunk_overlap`), and vector store
       (`vector_store`, `collection_prefix`).
-- [ ] Model the file-retrieval `capabilities` block (`retrieval_behavior: conditional`,
+- [x] Model the file-retrieval `capabilities` block (`retrieval_behavior: conditional`,
       `supports_file_ids`, `skip_when_no_files`, `requires_api_key_validation`,
       `requires_encryption`, `optional_parameters: [file_ids, api_key, session_id]`) as
       spec defaults/questions, distinct from the generation-only capabilities used by
       `DOC_GENERATOR`/`MEDIA_GENERATOR`.
-- [ ] Decide how `available_skills`/`auto_routable_skills` are populated for this family
+- [x] Decide how `available_skills`/`auto_routable_skills` are populated for this family
       — likely reuse whatever skill-listing mechanism the wizard already has, rather than
-      free-text entry.
-- [ ] Optional audio-transcription variant (`enable_audio_transcription`,
+      free-text entry. (Decided: reused the same free-text list mechanism `PASSTHROUGH`
+      already uses — there is no other skill-listing mechanism in the wizard to reuse.)
+- [x] Optional audio-transcription variant (`enable_audio_transcription`,
       `audio_transcription_language`, `supported_types`) as a toggle/sub-question, mirroring
       `simple-chat-with-files-audio`.
-- [ ] Tests: render+validate against both existing `multimodal.yaml` entries; loader
-      integration.
+- [x] Tests: render+validate against both existing `multimodal.yaml` entries; loader
+      integration. (`test_roundtrip_multimodal_simple_chat_with_files` and
+      `test_roundtrip_multimodal_audio_variant` in `test_adapter_sdk.py`; loader
+      integration covered via `validate_yaml_text` → `AdapterCapabilities.from_config`,
+      the same real capability parser the server uses at load time.)
 
 ## 3. Export and import
 

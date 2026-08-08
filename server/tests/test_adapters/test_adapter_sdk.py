@@ -123,6 +123,50 @@ def test_roundtrip_pdf_generator():
     assert generated["capabilities"]["skill_name"] == committed["capabilities"]["skill_name"]
 
 
+@pytest.mark.unit
+def test_roundtrip_multimodal_simple_chat_with_files():
+    spec = SPEC_REGISTRY["multimodal"]
+    answers = _default_answers(spec)
+    generated = yaml.safe_load(render_adapter(spec, answers))["adapters"][0]
+
+    entries = yaml.safe_load((CONFIG_ADAPTERS / "multimodal.yaml").read_text())["adapters"]
+    committed = next(e for e in entries if e["name"] == "simple-chat-with-files")
+
+    for f in ("type", "datasource", "adapter", "implementation"):
+        assert generated[f] == committed[f], f"{f}: {generated[f]!r} != {committed[f]!r}"
+
+    gen_caps, com_caps = generated["capabilities"], committed["capabilities"]
+    for f in ("retrieval_behavior", "supports_file_ids", "skip_when_no_files",
+              "requires_api_key_validation", "optional_parameters"):
+        assert gen_caps[f] == com_caps[f], f"capabilities.{f}: {gen_caps[f]!r} != {com_caps[f]!r}"
+
+    gen_cfg, com_cfg = generated["config"], committed["config"]
+    for f in ("storage_backend", "storage_root", "chunking_strategy", "chunk_size",
+              "chunk_overlap", "vector_store", "collection_prefix"):
+        assert gen_cfg[f] == com_cfg[f], f"config.{f}: {gen_cfg[f]!r} != {com_cfg[f]!r}"
+
+    assert validate_yaml_text(render_adapter(spec, answers)) == []
+
+
+@pytest.mark.unit
+def test_roundtrip_multimodal_audio_variant():
+    spec = SPEC_REGISTRY["multimodal"]
+    answers = _default_answers(spec)
+    answers["name"] = "simple-chat-with-files-audio"
+    answers["enable_audio_transcription"] = True
+
+    entries = yaml.safe_load((CONFIG_ADAPTERS / "multimodal.yaml").read_text())["adapters"]
+    committed = next(e for e in entries if e["name"] == "simple-chat-with-files-audio")
+    answers["supported_types"] = committed["config"]["supported_types"]
+
+    text = render_adapter(spec, answers)
+    generated = yaml.safe_load(text)["adapters"][0]
+
+    assert generated["config"]["enable_audio_transcription"] == committed["config"]["enable_audio_transcription"]
+    assert generated["config"]["supported_types"] == committed["config"]["supported_types"]
+    assert validate_yaml_text(text) == []
+
+
 # --------------------------------------------------------------------------- #
 # Validator
 # --------------------------------------------------------------------------- #
