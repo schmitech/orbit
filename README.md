@@ -6,7 +6,7 @@
   # ORBIT
   ### Open Retrieval-Based Inference Toolkit
 
-  Connect your data (files, databases, vector stores, APIs, and MCP tools) to any local or cloud LLM. Exposes a unified endpoint for your apps, with built-in authentication, observability, and governance.
+  Connect your data (files, databases, APIs, and MCP tools) to any local or cloud LLM. Exposes a unified endpoint for your apps, with built-in authentication and observability.
 </div>
 
 <p align="center">
@@ -35,7 +35,7 @@
 <div id="see-orbit-in-action" align="center">
   <video src="https://github.com/user-attachments/assets/4af9005e-a9c9-4f37-8f6a-84d86e6f6dde" controls muted playsinline width="85%"></video>
   <br />
-  <em>Ask database questions in plain language, in any language. ORBIT selects a reviewed query template, runs its parameterized query against the database, and charts the result in chat.</em>
+  <em>Ask database questions in plain language, in any language.<br />ORBIT picks a reviewed query template, runs its parameterized query, and charts the result in chat.</em>
   <br />
   👉 <strong><a href="https://orbit.schmitech.ca/intent-sql-postgres">Try the SQL Database query demo live →</a></strong>
 </div>
@@ -62,7 +62,7 @@
 
 ORBIT sits between your applications and the models, data, and tools they need. Define adapters in YAML, expose them through one OpenAI-compatible endpoint, and move from a local prototype to a governed deployment without replacing the architecture.
 
-> **Where does it fit?** ORBIT combines an AI gateway with retrieval and tool execution. It is a backend API rather than just a chat UI, and it includes production controls rather than leaving them to application code. See [ORBIT vs. Open WebUI](docs/openwebui/orbit-vs-openwebui.md) and [ORBIT vs. LiteLLM](docs/litellm/orbit-vs-litellm.md).
+> **Where does it fit?** Open WebUI gives you a chat UI. LiteLLM routes model calls. ORBIT is the layer underneath both: it turns a natural-language question into a governed, auditable query against your own databases, APIs, and tools — and ships the auth, quotas, moderation, and audit trail that requires. [See the head-to-head comparison ↓](#how-orbit-differs-from-open-webui-and-litellm)
 
 ORBIT is actively maintained. See the [release history](https://github.com/schmitech/orbit/releases), [changelog](CHANGELOG.md), and [commit history](https://github.com/schmitech/orbit/commits/main).
 
@@ -226,15 +226,26 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 </p>
 </details>
 
-## Why ORBIT?
+## How ORBIT differs from Open WebUI and LiteLLM
 
-| If you need… | ORBIT gives you… |
-| :--- | :--- |
-| More than model routing | RAG, structured-data retrieval, web search, and tool execution behind the gateway. |
-| More than a chat interface | A backend that works with ORBIT Chat or any client that can call an OpenAI-compatible API. |
-| More than a prototype framework | Authentication, RBAC, SSO, quotas, moderation, circuit breakers, fallbacks, metrics, and audit logs. |
-| Private deployment | Local inference, encrypted file storage, cloud secret managers, and fully offline operation. |
-| Less orchestration code | YAML-defined adapters, datasources, prompts, provider routing, and guardrails. |
+Open WebUI is a chat application. LiteLLM is a model router. ORBIT is neither — it is the layer where a question becomes a **governed query against your own systems of record**, and it ships the production controls that decision requires.
+
+| | Open WebUI | LiteLLM | ORBIT |
+| :--- | :--- | :--- | :--- |
+| **Structured data (SQL, Mongo, Elasticsearch, REST, GraphQL)** | Vector stores only | None | First-class datasources |
+| **How database queries are produced** | n/a | n/a | Reviewed, parameterized templates selected by embeddings + reranking — the LLM never emits SQL |
+| **Natural-language intent routing** | Model/pipeline routing | Model-selection routing | Routes the query to the right datasource and skill |
+| **MCP** | Client | Client | **Server _and_ client** — with lifecycle management, pooling, and circuit breaking |
+| **Cost attribution** | Provider-dependent | Per LLM call | Per call type: inference, embeddings, image/video/audio, OCR, realtime voice, MCP tool loops, reranking |
+| **Deny-by-identity** | Requires an existing account row | Virtual keys are allow-list only | Wildcard blacklist on email/user_id/username — blocks external SSO users who have never logged in, revokes live sessions immediately |
+| **File encryption at rest** | Not available | AWS KMS on S3 only | AES-256-GCM on any backend, no cloud KMS required |
+| **Async ingestion** | HTTP/WebSocket only | OpenAI Batches (submit/poll) | Broker-native RabbitMQ, at-least-once, dead-lettering, same pipeline as `/v1/chat` |
+| **Fault tolerance** | Fallback routing | Cooldowns | Circuit breakers across providers, datasources, and MCP servers |
+| **Licensing** | Open source | Open core — some features are commercial | Apache 2.0, no paywalled features |
+
+**The one that matters most:** for intent-based SQL and API adapters, ORBIT does not ask an LLM to write a query. It selects from reviewed, predefined templates and executes the template's parameterized statement. The same question produces the same statement every time — you can unit-test it, review it in a pull request, and show an auditor exactly what ran. An unmatched intent fails visibly instead of inventing a number. That tradeoff is why ORBIT can be pointed at a production database.
+
+Full breakdowns: [ORBIT vs. Open WebUI](docs/openwebui/orbit-vs-openwebui.md) · [ORBIT vs. LiteLLM](docs/litellm/orbit-vs-litellm.md)
 
 ## Capabilities
 
