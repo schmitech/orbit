@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.15.3] - 2026-08-09
 
 ### Core System Updates
 - **Intent Template Matching Eval Harness**: Added `server/tests/intent_eval/`, a regression harness that drives a real intent retriever in-process (no HTTP, no LLM pipeline) against a corpus of `(query, expected_template_id)` cases and reports top-1 match rate, recall@3/@5, and confusion pairs. Query embeddings are cached to a committed fixture keyed by provider/model/query so CI runs offline once the cache covers a corpus; a stale-identity check ensures a provider or model change is detected as incomplete coverage rather than silently reused. The seed corpus (`corpora/intent-sql-sqlite-hr.yaml`, 149 cases) is generated from `hr-templates.yaml`'s own `nl_examples`, with a companion generator that regenerates auto-derived cases from the templates file while preserving hand-appended ones. Baseline (`baseline.json`) is checked in as raw correct-counts, not pre-divided rates, to avoid floating-point rounding producing a false regression. See `server/tests/intent_eval/README.md` for setup and `docs/roadmap/intent-template-retrieval.md` for the rationale.

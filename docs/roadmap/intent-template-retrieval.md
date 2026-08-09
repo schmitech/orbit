@@ -1,7 +1,5 @@
 # Intent Template Retrieval — Robustness & Capability Roadmap
 
-**Status:** Phase 1 (1A eval harness, 1B diagnostics UI) shipped and verified. Phases 2–6 not started.
-
 ## Context
 
 ORBIT's differentiator is **deterministic retrieval**: a question is embedded, matched against curated YAML templates, parameters are extracted and validated, and a pre-approved parameterized query executes. No free-form text-to-SQL. That is auditable and safe *by construction*.
@@ -16,8 +14,6 @@ Exploration found the architecture sound but the promise under-delivered in four
 Intended outcome: template retrieval that is measurably accurate (an eval harness with a CI gate), safe to hand an auditor, self-improving from production traffic, and graceful when it cannot answer.
 
 **Guiding constraint:** template loading is already centralized in `HttpAdapter._load_multiple_template_libraries()`, and the guard/metric hooks are 2-line insertions. So every phase below lands as **additive edits** to the three near-duplicate bases. The eval harness comes first; base deduplication is deferred to verified slices at the end.
-
-> Line references throughout are accurate as of `4b32949c` (v2.15.2). Phase 2 rewrites the `intent_http_base.py` region cited below, so prefer the named symbols (`_create_example_embedding_texts`, `_rescue_by_nl_example`, `enforce_row_cap`, …) once the numbers drift.
 
 ---
 
