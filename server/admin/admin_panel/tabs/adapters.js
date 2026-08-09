@@ -9,6 +9,7 @@ export function createAdaptersTab({
   var cachedAdapterFiles = null;   // Cached adapter file listing
   var cachedAdapterSpecs = null;   // Adapter SDK families available for creation
   var adapterPreviewEditor = null; // Read-only Ace editor for the create preview
+  var importEditor = null;         // Ace editor instance for the import panel
   var selectedAdapterEntry = null; // { name, filename, ... }
 
   async function loadAdapterFiles() {
@@ -37,6 +38,7 @@ export function createAdaptersTab({
     // Destroy previous editors
     if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
     if (adapterPreviewEditor) { adapterPreviewEditor.destroy(); adapterPreviewEditor = null; }
+    if (importEditor) { importEditor.destroy(); importEditor = null; }
 
     // Lazy-load adapter file listing, capability metadata (needed to know which
     // adapters support template reload) and the SDK spec registry (create form)
@@ -72,7 +74,13 @@ export function createAdaptersTab({
       "aria-label": "Create adapter",
     }, svgIcon(iconPlus), el("span", null, "Create Adapter"));
     createLaunchBtn.addEventListener("click", function () { openAdapterCreatePanel(); });
-    leftPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn));
+    var importLaunchBtn = el("button", {
+      className: "secondary",
+      type: "button",
+      "aria-label": "Import adapter",
+    }, "Import Adapter");
+    importLaunchBtn.addEventListener("click", function () { openAdapterImportPanel(); });
+    leftPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, importLaunchBtn));
 
     var table = el("table");
     // Filled in below, once the paginator the sorter drives exists.
@@ -523,6 +531,153 @@ export function createAdaptersTab({
 
     specSelect.addEventListener("change", buildAdapterCreateForm);
 
+    // ----- Import panel: paste or upload a single-adapter YAML export -----
+    var importPanel = el("div", { className: "panel", style: "display:none" });
+    container.insertBefore(importPanel, layout);
+
+    var closeImportBtn = el("button", { className: "secondary", type: "button" }, "Close");
+    closeImportBtn.addEventListener("click", function () { closeAdapterImportPanel(); });
+    importPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "Import Adapter"),
+      closeImportBtn
+    ));
+
+    var importFileInput = el("input", { type: "file", accept: ".yaml,.yml" });
+    var importHint = el("p", { className: "muted", style: "margin:0" },
+      "Paste one adapter — a full exported 'adapters:' document, a bare '- name: ...' entry, "
+      + "or a mapping starting with 'name: ...' — or choose a file above. Use Format to "
+      + "normalize indentation and check it before importing.");
+    var importEditorWrap = el("div", { className: "adapter-ace-wrap", style: "height:320px" });
+    var importOverwriteLabel = el("label", { className: "adapter-checkbox-field" },
+      el("input", { type: "checkbox", id: "adapter-import-overwrite" }),
+      el("span", null, "Overwrite if a file with this adapter's name already exists")
+    );
+    var importOverwrite = importOverwriteLabel.querySelector("input");
+    var importBanner = el("div", { className: "settings-banner", style: "display:none", role: "status" });
+    var formatBtn = el("button", { className: "secondary", type: "button" }, "Format");
+    var importBtn = el("button", { type: "button" }, "Import Adapter");
+
+    function ensureImportEditor() {
+      if (importEditor) return importEditor;
+      ace.config.set("basePath", "/static");
+      ace.config.set("modePath", "/static");
+      ace.config.set("themePath", "/static");
+      ace.config.set("workerPath", "/static");
+      importEditor = ace.edit(importEditorWrap, {
+        mode: "ace/mode/yaml",
+        theme: "ace/theme/tomorrow",
+        fontSize: 15,
+        fontFamily: "var(--font-mono)",
+        showPrintMargin: false,
+        tabSize: 2,
+        useSoftTabs: true,
+        wrap: false,
+        showGutter: true,
+        highlightActiveLine: true,
+        showFoldWidgets: true,
+        displayIndentGuides: true,
+      });
+      return importEditor;
+    }
+
+    importFileInput.addEventListener("change", function () {
+      var file = importFileInput.files && importFileInput.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () { ensureImportEditor().setValue(String(reader.result || ""), -1); };
+      reader.readAsText(file);
+    });
+
+    importPanel.appendChild(el("div", { className: "admin-create-form" },
+      el("div", { className: "admin-create-form-grid" }, field("Adapter file", importFileInput)),
+      importHint,
+      importEditorWrap,
+      el("div", { className: "admin-create-form-grid" }, importOverwriteLabel),
+      importBanner,
+      el("div", { className: "admin-create-form-actions" }, formatBtn, importBtn)
+    ));
+
+    var importBannerTimeout = null;
+
+    function showImportBanner(message, autoHideMs) {
+      if (importBannerTimeout) { clearTimeout(importBannerTimeout); importBannerTimeout = null; }
+      clear(importBanner);
+      importBanner.appendChild(el("div", null, message));
+      importBanner.style.display = "";
+      if (autoHideMs) {
+        importBannerTimeout = setTimeout(function () {
+          importBanner.style.display = "none";
+          importBannerTimeout = null;
+        }, autoHideMs);
+      }
+    }
+
+    function hideImportBanner() {
+      if (importBannerTimeout) { clearTimeout(importBannerTimeout); importBannerTimeout = null; }
+      clear(importBanner);
+      importBanner.style.display = "none";
+    }
+
+    // Normalizes indentation/shape through the same PyYAML-based logic the import
+    // endpoint itself applies (server/routes/admin/adapters.py:_normalize_import_document),
+    // rather than shipping a second YAML formatter into the browser bundle.
+    formatBtn.addEventListener("click", function () {
+      var content = ensureImportEditor().getValue().trim();
+      if (!content) { showError("Paste or choose an adapter YAML file first."); return; }
+      withButton(formatBtn, async function () {
+        var data;
+        try {
+          data = await api("POST", endpoints.adapterImportFormat, { content: content });
+        } catch (err) {
+          throw new Error("Format failed: " + err.message);
+        }
+        ensureImportEditor().setValue(data.yaml, -1);
+        if (data.errors && data.errors.length) {
+          // Left up until the operator fixes it and re-formats — not on a timer,
+          // since it's still actionable.
+          showImportBanner("Formatted, but still invalid: " + data.errors.join("; "));
+        } else {
+          showImportBanner("Formatted and validated.", 3000);
+        }
+      });
+    });
+
+    importBtn.addEventListener("click", function () {
+      var content = ensureImportEditor().getValue().trim();
+      if (!content) { showError("Paste or choose an adapter YAML file first."); return; }
+      withButton(importBtn, async function () {
+        hideImportBanner();
+        var data;
+        try {
+          data = await api("POST", endpoints.adapterImport, { content: content, overwrite: importOverwrite.checked });
+        } catch (err) {
+          throw new Error("Import failed: " + err.message);
+        }
+        await loadAdapterFiles();
+        await loadAdapterCapabilities();
+        closeAdapterImportPanel();
+        selectedAdapterEntry = { name: data.name, filename: data.filename };
+        render(container);
+        if (data.reload_error) showError(data.message);
+        else showStatus(data.message);
+      });
+    });
+
+    function openAdapterImportPanel() {
+      ensureImportEditor().setValue("", -1);
+      importFileInput.value = "";
+      importOverwrite.checked = false;
+      hideImportBanner();
+      importPanel.style.display = "";
+      importPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      ensureImportEditor().resize();
+    }
+
+    function closeAdapterImportPanel() {
+      if (importBannerTimeout) { clearTimeout(importBannerTimeout); importBannerTimeout = null; }
+      importPanel.style.display = "none";
+    }
+
     // ----- Detail panel: editor + actions -----
     var detailPanel = el("div", { className: "panel" });
     layout.appendChild(detailPanel);
@@ -609,6 +764,7 @@ export function createAdaptersTab({
         ? el("button", { className: "btn btn--neutral" }, "Reload Templates")
         : null;
 
+      var exportBtn = el("button", { className: "secondary", type: "button" }, "Export");
       var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Adapter");
 
       var btnRow = el("div", { style: "display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-3)" });
@@ -619,8 +775,30 @@ export function createAdaptersTab({
         btnRow.appendChild(reloadTemplatesBtn);
       }
       btnRow.appendChild(el("span", { className: "ops-action-divider" }));
+      btnRow.appendChild(exportBtn);
       btnRow.appendChild(deleteBtn);
       detailPanel.appendChild(btnRow);
+
+      // Downloads the adapter as a standalone YAML file for moving it to another
+      // environment. The exported document is whatever is on disk verbatim — secrets
+      // stay as ${ENV_VAR} references, never resolved values, so this is safe to share.
+      exportBtn.addEventListener("click", function () {
+        withButton(exportBtn, async function () {
+          var text;
+          try {
+            text = await api("GET", endpoints.adapterCreate + "/" + encodeURIComponent(a.name) + "/export");
+          } catch (err) {
+            throw new Error("Export failed: " + err.message);
+          }
+          var blob = new Blob([typeof text === "string" ? text : JSON.stringify(text)], { type: "application/x-yaml" });
+          var url = URL.createObjectURL(blob);
+          var link = el("a", { href: url, download: a.name + ".yaml" });
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        });
+      });
 
       // Deleting removes the adapter's YAML block, its import line, and evicts it from
       // the running server. The server refuses with 409 while API keys or other
@@ -803,6 +981,7 @@ export function createAdaptersTab({
   function dispose() {
     if (adapterEditor) { adapterEditor.destroy(); adapterEditor = null; }
     if (adapterPreviewEditor) { adapterPreviewEditor.destroy(); adapterPreviewEditor = null; }
+    if (importEditor) { importEditor.destroy(); importEditor = null; }
   }
 
   return { render, dispose };

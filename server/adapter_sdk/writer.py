@@ -111,13 +111,26 @@ def write_adapter(
     """
     validate_adapter_name(name)
     target = adapters_dir / f"{name}.yaml"
-    if target.exists() and not overwrite:
+    existed = target.exists()
+    if existed and not overwrite:
         raise FileExistsError(f"{target} already exists (pass overwrite=True to replace)")
+    previous_text = target.read_text(encoding="utf-8") if existed else None
 
     _atomic_write(target, yaml_text)
 
     if register:
-        register_import(f"adapters/{name}.yaml", adapters_yaml)
+        try:
+            register_import(f"adapters/{name}.yaml", adapters_yaml)
+        except Exception:
+            # A failed registration must not leave a written-but-unregistered file
+            # behind — restore whatever was there before (or remove it, if this was
+            # a brand-new file), so the caller's error message and disk state agree
+            # and a retry is not a misleading 409 against content that shouldn't exist.
+            if previous_text is not None:
+                _atomic_write(target, previous_text)
+            else:
+                target.unlink(missing_ok=True)
+            raise
 
     return target
 

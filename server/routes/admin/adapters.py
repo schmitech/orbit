@@ -5,6 +5,7 @@ Adapter capabilities, config file CRUD, creation via the adapter SDK, and hot re
 import logging
 import asyncio
 import importlib
+import textwrap
 import yaml
 from datetime import datetime
 from pathlib import Path
@@ -386,6 +387,213 @@ async def preview_adapter(
     return {"yaml": yaml_text, "errors": errors}
 
 
+@router.get("/adapters/{adapter_name}/export", dependencies=[adapters_auth])
+async def export_adapter(
+    adapter_name: str,
+    request: Request,
+):
+    """Export a single adapter as a standalone YAML document, for moving it to
+    another environment. Thin wrapper over the same block lookup used by
+    GET /adapters/config/entry/{name}, just wrapped in its own `adapters:` root
+    and served with a download filename instead of as a JSON field."""
+    adapters_dir = _get_adapters_dir(request)
+    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
+    if not file_path:
+        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found in any config file")
+
+    lines = content.split("\n")
+    start, end = _find_adapter_block(lines, adapter_name)
+    if start < 0:
+        raise HTTPException(status_code=404, detail=f"Adapter block '{adapter_name}' not found")
+
+    block = "\n".join(lines[start:end])
+    yaml_text = f"adapters:\n{block}\n"
+    from fastapi.responses import Response
+    return Response(
+        content=yaml_text,
+        media_type="application/x-yaml",
+        headers={"Content-Disposition": f'attachment; filename="{adapter_name}.yaml"'},
+    )
+
+
+def _clean_pasted_yaml(content: str) -> str:
+    """Undo the whitespace damage clipboards and editors routinely do to a pasted
+    YAML snippet, before it ever reaches the parser:
+      - CRLF/CR line endings (Windows clipboards, some terminals) → LF.
+      - Tabs (invalid as YAML indentation — PyYAML rejects them outright) → spaces.
+      - A shared leading indent (copying one adapter block out of a nested,
+        multi-adapter file keeps that file's 2/4/6-space base indent) → stripped,
+        so a snippet copied at any nesting depth still parses as a fresh document.
+    """
+    normalized = content.replace("\r\n", "\n").replace("\r", "\n")
+    if "\t" in normalized:
+        normalized = normalized.expandtabs(2)
+    return textwrap.dedent(normalized)
+
+
+def _normalize_import_document(content: str) -> str:
+    """Coerce an imported single adapter into a full `adapters:` document.
+
+    Accepts three shapes, since an operator hand-copying one adapter out of a
+    multi-adapter file naturally strips the wrapper:
+      - a full document: `adapters:\n  - name: ...`  (what /export produces).
+      - a bare list entry: `- name: ...\n  type: ...` — re-indented under `adapters:`.
+      - a bare mapping: `name: ...\n type: ...` (no leading `- `) — re-serialized under
+        `adapters:` (comments/formatting are not preserved for this shape).
+    `content` is cleaned of clipboard/editor whitespace damage (see `_clean_pasted_yaml`)
+    before parsing. Raises HTTPException(422) if it still doesn't parse as YAML, or
+    matches none of the three shapes.
+    """
+    cleaned = _clean_pasted_yaml(content)
+    try:
+        parsed = yaml.safe_load(cleaned)
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=422, detail=f"invalid YAML: {exc}")
+
+    if isinstance(parsed, dict) and isinstance(parsed.get("adapters"), list):
+        return cleaned
+
+    if isinstance(parsed, list):
+        # Already list-item-shaped (starts with "- "); just nest it under `adapters:`.
+        reindented = "\n".join("  " + line if line.strip() else line for line in cleaned.splitlines())
+        return f"adapters:\n{reindented}\n"
+
+    if isinstance(parsed, dict) and parsed.get("name"):
+        # A bare mapping, no list marker — re-serialize rather than guess indentation.
+        return yaml.safe_dump({"adapters": [parsed]}, sort_keys=False)
+
+    raise HTTPException(
+        status_code=422,
+        detail="Content must be a single adapter: either a full 'adapters:' document "
+               "(as produced by Export), a bare '- name: ...' list entry, or a mapping "
+               "starting with 'name: ...'."
+    )
+
+
+@router.post("/adapters/import/format", dependencies=[adapters_auth])
+async def format_import_adapter(
+    request: Request,
+    body: dict = Body(...),
+):
+    """Normalize pasted/uploaded adapter YAML into the canonical `adapters:` document
+    shape, without writing anything. Lets the import panel offer a 'Format' action that
+    reuses the same PyYAML-based normalization import itself applies, instead of
+    duplicating a YAML formatter in the browser."""
+    content = body.get("content")
+    if not content:
+        raise HTTPException(status_code=422, detail="Missing 'content' field")
+    normalized = _normalize_import_document(content)
+    errors = validate_yaml_text(normalized)
+    return {"yaml": normalized, "errors": errors}
+
+
+@router.post("/adapters/import", dependencies=[adapters_auth])
+async def import_adapter(
+    request: Request,
+    body: dict = Body(...),
+):
+    """Import a single-adapter YAML document exported from another environment
+    (or hand-written to the same shape). Applies the same collision rules as
+    create: a same-named file is waivable with `overwrite`, but a name already
+    owned by a *different* file never is — otherwise import would be a way to
+    create the duplicate-name situation that guard exists to prevent."""
+    raw_content = body.get("content")
+    if not raw_content:
+        raise HTTPException(status_code=422, detail="Missing 'content' field")
+    register = body.get("register", True)
+    overwrite = bool(body.get("overwrite"))
+
+    content = _normalize_import_document(raw_content)
+
+    errors = validate_yaml_text(content)
+    if errors:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
+
+    parsed = yaml.safe_load(content) or {}
+    entries = parsed.get("adapters") or []
+    if len(entries) != 1:
+        raise HTTPException(
+            status_code=422,
+            detail="Import accepts exactly one adapter per file — the writer is "
+                   "one-file-per-adapter. Split the bundle and import each adapter separately."
+        )
+
+    name = entries[0].get("name")
+    try:
+        adapter_writer.validate_adapter_name(name)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    adapters_dir, adapters_yaml = _adapter_sdk_paths(request)
+    if not adapters_dir.is_dir():
+        raise HTTPException(status_code=500, detail=f"Adapters directory not found: {adapters_dir}")
+
+    filename = f"{name}.yaml"
+    if (adapters_dir / filename).exists() and not overwrite:
+        raise HTTPException(status_code=409, detail=f"Adapter file '{filename}' already exists")
+
+    existing_file, _ = _find_adapter_file(adapters_dir, name)
+    if existing_file and existing_file.name != filename:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Adapter '{name}' already exists in {existing_file.name}"
+        )
+
+    try:
+        path = adapter_writer.write_adapter(
+            name, content,
+            register=register,
+            overwrite=overwrite,
+            adapters_dir=adapters_dir,
+            adapters_yaml=adapters_yaml,
+        )
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Adapter file was written to {adapters_dir / filename} but could not be "
+                   f"registered: {exc}"
+        )
+
+    from config.config_manager import clear_config_cache
+    clear_config_cache()
+
+    adapter_manager = getattr(request.app.state, "adapter_manager", None)
+    config_path = getattr(request.app.state, "config_path", None)
+    reload_summary = None
+    reload_error = None
+
+    if adapter_manager and config_path:
+        try:
+            new_config = reload_adapters_config(config_path)
+            reload_summary = await adapter_manager.reload_adapter_configs(new_config, name)
+            apply_mcp_auth_policy(request.app.state, new_config)
+        except Exception as e:
+            logger.error(f"Adapter '{name}' was imported but runtime reload failed: {e}", exc_info=True)
+            reload_error = str(e)
+    else:
+        reload_error = "adapter_manager or config_path not available in app state"
+
+    if reload_error:
+        message = (
+            f"Adapter '{name}' imported, but runtime reload failed ({reload_error}). "
+            "Use 'Reload Adapters' to apply."
+        )
+    else:
+        message = f"Adapter '{name}' imported and applied."
+
+    return {
+        "message": message,
+        "name": name,
+        "filename": filename,
+        "path": str(path),
+        "registered": bool(register),
+        "reload_summary": reload_summary,
+        "reload_error": reload_error,
+    }
+
+
 @router.post("/adapters", dependencies=[adapters_auth])
 async def create_adapter(
     request: Request,
@@ -408,7 +616,7 @@ async def create_adapter(
         raise HTTPException(status_code=422, detail="Missing 'name' in answers")
     try:
         adapter_writer.validate_adapter_name(name)
-    except ValueError as exc:
+    except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
     adapters_dir, adapters_yaml = _adapter_sdk_paths(request)

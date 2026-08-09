@@ -3,7 +3,8 @@
 ## [UNRELEASED]
 
 ### Bug Fixes & Technical Improvements
-- **Adapter SDK: Multimodal File-Retrieval Family**: The adapter creation form now supports the `simple-chat-with-files`-style multimodal family (`server/adapter_sdk/specs.py`), closing the SDK's largest spec-registry gap. A new `multimodal` spec covers `vision_provider`/`stt_provider`/`tts_provider`, storage/chunking/vector-store config, the conditional file-retrieval `capabilities` block (`retrieval_behavior: conditional`, `supports_file_ids`, `skip_when_no_files`, `requires_api_key_validation`, `requires_encryption`), and an optional audio-transcription toggle (`enable_audio_transcription`, `audio_transcription_language`, `supported_types`), matching both variants already shipped in `config/adapters/multimodal.yaml`. No admin-panel changes were needed — the create form already builds itself from `GET /admin/adapters/specs`.
+- **Adapter Export & Import**: Adapters can now move between environments without hand-copying YAML. The Adapters admin panel gained an "Export" action and an "Import Adapter" panel with a "Format" button to normalize and validate pasted or uploaded YAML before committing.
+- **Adapter SDK: Multimodal File-Retrieval Family**: The adapter creation form now supports the `simple-chat-with-files`-style multimodal family, covering vision/STT/TTS providers, storage/chunking/vector-store config, and an optional audio-transcription toggle.
 
 ## [2.15.1] - 2026-08-07
 

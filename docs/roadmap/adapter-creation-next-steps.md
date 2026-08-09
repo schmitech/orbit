@@ -137,18 +137,24 @@ checks, etc.) required.
 
 **Goal:** move an adapter between environments without hand-copying YAML.
 
-- [ ] `GET /admin/adapters/{name}/export` — the adapter's YAML block, served as a file
+- [x] `GET /admin/adapters/{name}/export` — the adapter's YAML block, served as a file
       download. Largely a thin wrapper over the existing
       `GET /admin/adapters/config/entry/{name}`.
-- [ ] `POST /admin/adapters/import` — accept a YAML document, run it through
+- [x] `POST /admin/adapters/import` — accept a YAML document, run it through
       `validate_yaml_text`, apply the same collision rules as create (target filename
       waivable by `overwrite`; a name owned by a *different* file never waivable), then
       write + register + reload.
-- [ ] Decide whether import accepts multi-adapter bundles. If yes, the writer needs a
+- [x] Decide whether import accepts multi-adapter bundles. If yes, the writer needs a
       multi-entry path; if no, reject with a clear message. Do not let a bundle write
-      partially and leave `adapters.yaml` half-registered.
-- [ ] Secrets: exported YAML contains `${ENV_VAR}` references, not values — verify this
-      holds for every spec before advertising export as safe to share.
+      partially and leave `adapters.yaml` half-registered. (Decided: reject — the writer
+      is one-file-per-adapter, so a bundle with more than one entry is a 422 telling the
+      operator to split it and import each adapter separately. No partial-write path.)
+- [x] Secrets: exported YAML contains `${ENV_VAR}` references, not values — verify this
+      holds for every spec before advertising export as safe to share. (Verified: every
+      spec's `AdapterSpec.fixed`/template output only ever embeds an answer value or a
+      literal `${VAR}` string — e.g. `WEB_SEARCH_EXTERNAL`'s `api_key` defaults —
+      never a resolved secret. Export also serves the file verbatim from disk, so
+      whatever is committed there is exactly what downloads.)
 
 ## 4. Round-trip editing (YAML → answers)
 

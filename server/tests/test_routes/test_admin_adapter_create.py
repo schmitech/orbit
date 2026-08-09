@@ -303,6 +303,223 @@ def test_create_requires_a_name(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# Export / Import
+# --------------------------------------------------------------------------- #
+
+def test_export_returns_standalone_yaml_document(tmp_path):
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.get("/admin/adapters/fetch/export")
+    assert resp.status_code == 200
+    assert resp.headers["content-disposition"] == 'attachment; filename="fetch.yaml"'
+    parsed = yaml.safe_load(resp.text)
+    assert parsed["adapters"][0]["name"] == "fetch"
+
+
+def test_export_unknown_adapter_is_404(tmp_path):
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.get("/admin/adapters/does-not-exist/export")
+    assert resp.status_code == 404
+
+
+def test_import_roundtrips_an_export(tmp_path):
+    app = _build_app(tmp_path)
+    (tmp_path / "config" / "adapters" / "fetch.yaml").write_text(
+        "adapters:\n  - name: fetch\n    type: fetch\n    datasource: none\n"
+        "    adapter: conversational\n    implementation: x\n",
+        encoding="utf-8",
+    )
+    with TestClient(app) as client:
+        exported = client.get("/admin/adapters/fetch/export").text
+        # Deleting the file but leaving its (still-present) import line behind
+        # simulates moving the adapter to a fresh environment that already has
+        # some other unrelated import to anchor new registrations against.
+        (tmp_path / "config" / "adapters" / "fetch.yaml").unlink()
+
+        resp = client.post("/admin/adapters/import", json={"content": exported})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["name"] == "fetch"
+    assert body["registered"] is True
+
+    config_dir = tmp_path / "config"
+    assert (config_dir / "adapters" / "fetch.yaml").is_file()
+    assert '- "adapters/fetch.yaml"' in (config_dir / "adapters.yaml").read_text(encoding="utf-8")
+
+
+def test_import_rejects_invalid_yaml(tmp_path):
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import", json={"content": "not: valid: yaml: at: all:"})
+    assert resp.status_code == 422
+
+
+def test_import_rejects_missing_required_field(tmp_path):
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import",
+                           json={"content": "adapters:\n  - name: broken\n"})
+    assert resp.status_code == 422
+
+
+def test_import_accepts_bare_list_entry(tmp_path):
+    """A single '- name: ...' entry copied out of a multi-adapter file, with no
+    surrounding 'adapters:' wrapper, should import just like a full export."""
+    payload = ("- name: bare-list\n"
+               "  type: fetch\n"
+               "  datasource: none\n"
+               "  adapter: conversational\n"
+               "  implementation: x\n")
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import", json={"content": payload})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["name"] == "bare-list"
+    written = (tmp_path / "config" / "adapters" / "bare-list.yaml").read_text(encoding="utf-8")
+    assert yaml.safe_load(written)["adapters"][0]["name"] == "bare-list"
+
+
+def test_import_accepts_snippet_copied_at_nested_indentation(tmp_path):
+    """Copying one adapter's block straight out of a multi-adapter file (as it appears
+    on screen, e.g. selecting lines in an editor) keeps that file's 2-space base indent
+    and CRLF line endings from the clipboard. Both must be tolerated."""
+    payload = ("  - name: nested-copy\r\n"
+               "    type: fetch\r\n"
+               "    datasource: none\r\n"
+               "    adapter: conversational\r\n"
+               "    implementation: x\r\n")
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import", json={"content": payload})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["name"] == "nested-copy"
+
+
+def test_import_accepts_bare_mapping(tmp_path):
+    """A bare mapping (no 'adapters:' key, no leading '- ') is also accepted."""
+    payload = ("name: bare-mapping\n"
+               "type: fetch\n"
+               "datasource: none\n"
+               "adapter: conversational\n"
+               "implementation: x\n")
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import", json={"content": payload})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["name"] == "bare-mapping"
+    written = (tmp_path / "config" / "adapters" / "bare-mapping.yaml").read_text(encoding="utf-8")
+    assert yaml.safe_load(written)["adapters"][0]["name"] == "bare-mapping"
+
+
+def test_import_rejects_unrecognized_shape(tmp_path):
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import", json={"content": "- 1\n- 2\n- 3\n"})
+    assert resp.status_code == 422
+
+
+def test_format_wraps_bare_mapping_under_adapters(tmp_path):
+    payload = "name: bare-mapping\ntype: fetch\ndatasource: none\nadapter: conversational\nimplementation: x\n"
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import/format", json={"content": payload})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["errors"] == []
+    assert yaml.safe_load(body["yaml"])["adapters"][0]["name"] == "bare-mapping"
+
+
+def test_format_reports_errors_without_failing(tmp_path):
+    payload = "adapters:\n  - name: broken\n"
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import/format", json={"content": payload})
+    assert resp.status_code == 200
+    assert resp.json()["errors"]
+
+
+def test_format_rejects_unparseable_yaml(tmp_path):
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import/format", json={"content": "not: valid: yaml: at: all:"})
+    assert resp.status_code == 422
+
+
+def test_format_requires_content(tmp_path):
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import/format", json={})
+    assert resp.status_code == 422
+
+
+def test_import_rejects_non_string_name_without_crashing(tmp_path):
+    payload = "adapters:\n  - name: 123\n    type: fetch\n    datasource: none\n    adapter: conversational\n    implementation: x\n"
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import", json={"content": payload})
+    assert resp.status_code == 400
+
+
+def test_import_rolls_back_new_file_on_registration_failure(tmp_path):
+    """If adapters.yaml has no usable import list, register_import raises after the file
+    is already written — the write must be rolled back rather than left dangling."""
+    app = _build_app(tmp_path)
+    (tmp_path / "config" / "adapters.yaml").write_text("adapters: {}\n", encoding="utf-8")
+    payload = "adapters:\n  - name: brand-new\n    type: fetch\n    datasource: none\n    adapter: conversational\n    implementation: x\n"
+    with TestClient(app) as client:
+        resp = client.post("/admin/adapters/import", json={"content": payload})
+    assert resp.status_code == 500
+    assert not (tmp_path / "config" / "adapters" / "brand-new.yaml").exists()
+
+
+def test_import_rolls_back_overwrite_on_registration_failure(tmp_path):
+    """An overwrite whose registration fails must restore the previous file contents,
+    not leave the new (unregistered) content sitting on disk."""
+    app = _build_app(tmp_path)
+    fetch_yaml = tmp_path / "config" / "adapters" / "fetch.yaml"
+    original = fetch_yaml.read_text(encoding="utf-8")
+    (tmp_path / "config" / "adapters.yaml").write_text("adapters: {}\n", encoding="utf-8")
+    payload = "adapters:\n  - name: fetch\n    type: fetch\n    datasource: none\n    adapter: conversational\n    implementation: x\n"
+    with TestClient(app) as client:
+        resp = client.post("/admin/adapters/import", json={"content": payload, "overwrite": True})
+    assert resp.status_code == 500
+    assert fetch_yaml.read_text(encoding="utf-8") == original
+
+
+def test_import_rejects_multi_adapter_bundle(tmp_path):
+    bundle = "adapters:\n  - name: a\n    type: fetch\n    datasource: none\n    adapter: conversational\n    implementation: x\n  - name: b\n    type: fetch\n    datasource: none\n    adapter: conversational\n    implementation: x\n"
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import", json={"content": bundle})
+    assert resp.status_code == 422
+    assert "one adapter" in resp.json()["detail"]
+
+
+def test_import_is_conflict_on_existing_file(tmp_path):
+    exported = "adapters:\n  - name: fetch\n    type: fetch\n    datasource: none\n    adapter: conversational\n    implementation: x\n"
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import", json={"content": exported})
+        assert resp.status_code == 409
+
+        overwritten = client.post("/admin/adapters/import", json={"content": exported, "overwrite": True})
+        assert overwritten.status_code == 200
+
+
+def test_import_overwrite_does_not_waive_cross_file_name_collision(tmp_path):
+    """overwrite only forgives the target *file*; a name owned by another file is still 409."""
+    app = _build_app(tmp_path)
+    adapters = tmp_path / "config" / "adapters"
+    adapters_yaml = tmp_path / "config" / "adapters.yaml"
+    (adapters / "fetch.yaml").unlink()
+    adapters_yaml.write_text(
+        'adapters:\n  import:\n    - "adapters/legacy.yaml"\n', encoding="utf-8"
+    )
+    (adapters / "legacy.yaml").write_text(
+        "adapters:\n  - name: fetch\n    type: fetch\n", encoding="utf-8"
+    )
+    payload = "adapters:\n  - name: fetch\n    type: fetch\n    datasource: none\n    adapter: conversational\n    implementation: x\n"
+    with TestClient(app) as client:
+        resp = client.post("/admin/adapters/import", json={"content": payload, "overwrite": True})
+    assert resp.status_code == 409
+    assert "legacy.yaml" in resp.json()["detail"]
+    assert not (adapters / "fetch.yaml").exists()
+
+
+def test_import_rejects_unsafe_name(tmp_path):
+    payload = 'adapters:\n  - name: "../escape"\n    type: fetch\n    datasource: none\n    adapter: conversational\n    implementation: x\n'
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/import", json={"content": payload})
+    assert resp.status_code == 400
+
+
+# --------------------------------------------------------------------------- #
 # Delete
 # --------------------------------------------------------------------------- #
 
@@ -435,6 +652,9 @@ def test_create_routes_require_adapters_manage(tmp_path, roles, allowed):
             client.get("/admin/adapters/specs"),
             client.post("/admin/adapters/preview", json={"spec": "fetch", "answers": {}}),
             client.post("/admin/adapters", json={"spec": "fetch", "answers": {}}),
+            client.get("/admin/adapters/fetch/export"),
+            client.post("/admin/adapters/import/format", json={"content": ""}),
+            client.post("/admin/adapters/import", json={"content": ""}),
             client.delete("/admin/adapters/fetch"),
         ]
     for resp in responses:

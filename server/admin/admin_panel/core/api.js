@@ -9,7 +9,9 @@ export const ENDPOINTS = {
   resume: "/admin/resume", adminExport: "/admin/export", login: "/admin/login", configSections: "/admin/config/sections",
   mcpServers: "/admin/mcp/servers", mcpTools: "/admin/mcp/tools", mcpDefaults: "/admin/mcp/defaults", mcpReload: "/admin/mcp/reload",
   adapterConfigs: "/admin/adapters/config", adapterSpecs: "/admin/adapters/specs", adapterCreate: "/admin/adapters",
-  adapterPreview: "/admin/adapters/preview", auditEvents: "/admin/audit/events", costsUsage: "/admin/observability/usage",
+  adapterPreview: "/admin/adapters/preview", adapterImport: "/admin/adapters/import",
+  adapterImportFormat: "/admin/adapters/import/format",
+  auditEvents: "/admin/audit/events", costsUsage: "/admin/observability/usage",
   feedbackAnalytics: "/admin/api/feedback-analytics", serverInfo: "/admin/info",
 };
 
