@@ -13,7 +13,7 @@
   <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=social" alt="GitHub stars" /></a>
   <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/Live_Sandbox-Try_Orbit-7C3AED?logo=playstation&logoColor=white" alt="Live Sandbox" /></a>
   <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit?color=red" alt="Last commit" /></a>
-  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.15.1-blue" alt="Version 2.15.1" /></a>
+  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.15.2-blue" alt="Version 2.15.2" /></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license" /></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white" alt="Python 3.12+" /></a>
 </p>

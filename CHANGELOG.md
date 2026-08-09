@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.15.2] - 2026-08-09
 
 ### Bug Fixes & Technical Improvements
 - **Adapter Export & Import**: Adapters can now move between environments without hand-copying YAML. The Adapters admin panel gained an "Export" action and an "Import Adapter" panel with a "Format" button to normalize and validate pasted or uploaded YAML before committing.
