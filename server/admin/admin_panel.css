@@ -1061,11 +1061,13 @@ textarea {
   gap: var(--sp-1);
 }
 
-.admin-create-form-grid label.adapter-checkbox-field {
+.adapter-checkbox-field {
+  display: inline-flex;
   flex-direction: row;
   align-items: center;
   gap: var(--sp-2);
   cursor: pointer;
+  line-height: 1.25;
 }
 
 .adapter-checkbox-field input[type="checkbox"] {

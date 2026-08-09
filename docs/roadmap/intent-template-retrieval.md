@@ -65,15 +65,23 @@ This converts a 927-line existing asset into the core authoring loop at near-zer
 
 ---
 
-## Phase 2 — Fix accuracy
+## Phase 2 — Fix accuracy — ✅ DONE
 
-### 2A. Port per-example indexing to the HTTP family
+### 2A. Port per-example indexing to the HTTP family — ✅ DONE
 - **Modify** `server/retrievers/base/intent_http_base.py` (~`:690-760`): replace the blended `_create_embedding_text` path with per-example indexing — port `_create_example_embedding_texts()` (`intent_sql_base.py:642`) and the `f"{template_id}::ex{i}"` vector IDs plus dedupe-by-max (`intent_sql_base.py:961`).
 - Existing vector collections must be re-indexed: gate on a collection-version marker or force rebuild via `server/services/reload/adapter_reloader.py`.
 - Verify with 1A: expect a step change in recall for mongo/ES/GraphQL/HTTP corpora.
 
-### 2B. Unify the confidence threshold
+**Shipped as:** `_create_example_embedding_texts()`, the per-example vector-ID scheme in `_load_templates()`, dedupe-by-max plus `_rescue_by_nl_example()` all ported into `intent_http_base.py`, mirroring `intent_sql_base.py` exactly — mongo/ES/GraphQL/HTTP all subclass `IntentHTTPRetriever`, so this is a single fix for all four backends. `_find_best_templates()` now over-fetches (`max_templates * 3`) before deduping, same as SQL.
+
+Deviated from plan in one respect: skipped the collection-version marker / forced rebuild. Existing deployed collections built under the old one-vector-per-template scheme will accumulate a stale bare-`template_id` vector alongside the new `template_id::exN` vectors on next load — this doesn't corrupt matching (dedupe-by-max always prefers the higher-scoring per-example hit), but it does mean upgraded deployments carry unused vectors until an explicit `reload_templates()` (already exposed via the admin "Reload Templates" action) clears the collection. Worth a one-line callout in upgrade notes; not automated here.
+
+Not independently verified against real mongo/ES/GraphQL/HTTP corpora — none exist yet (only `corpora/intent-sql-sqlite-hr.yaml` from Phase 1A, which doesn't exercise this code path since SQL already had per-example indexing). Verified instead via the full `test_retrievers/` suite (263 passed) plus a re-run of the HR SQL regression test to confirm the `_rescue_by_nl_example`/dedupe logic shared with the SQL base still behaves identically (148/149 top-1, 100% recall@3/@5 — unchanged from the Phase 1A baseline, as expected since HR uses the SQL base, not the HTTP base). Building an HTTP-family corpus to measure the actual recall lift is an honest gap, called out here rather than silently assumed.
+
+### 2B. Unify the confidence threshold — ✅ DONE
 Resolve `confidence_threshold` **once** (adapter YAML → adapter default → global default) in `intent_sql_base.py`; remove the `0.75`-vs-`0.1` divergence at `:66`/`:577`/`:74` and `adapters/intent/adapter.py:29`/`:113`. Log the resolved value at INFO on init.
+
+**Shipped as:** both `intent_sql_base.py` and `intent_http_base.py` now resolve `self.confidence_threshold = self.intent_config.get('confidence_threshold', 0.1)` once, early in `__init__`, and pass that same value into the domain adapter constructor (both the initial build and `reload_templates()`) instead of a separately-defaulted `0.75` literal. Added an `logger.info(...)` line at init showing the resolved value. `adapters/intent/adapter.py`'s own default (`0.1`) was already consistent and needed no change.
 
 ---
 
@@ -186,8 +194,8 @@ Run from repo root with the venv interpreter (`/Users/remsyschmilinsky/Downloads
 **Per-phase gates:**
 - **1A** — ✅ `venv/bin/python -m pytest server/tests/intent_eval/ -v` produces a baseline report; record top-1 match rate per adapter as the committed baseline. Verified: 148/149 (99.33%), recall@3/@5 100%, reproducible from the committed cache offline. See `server/tests/intent_eval/README.md` for setup.
 - **1B** — ✅ start the server, open the admin panel Adapters tab, run a query from `hr_test_queries.md` against `intent-sql-sqlite-hr`, and confirm the candidate table, boosts, extraction trace, and rendered SQL all render. Verified against the "Test Query" panel.
-- **2A** — re-run 1A; mongo/ES/GraphQL/HTTP corpora must improve and no corpus may regress. Confirm vector re-index occurred (`[EmbeddingTrace]` logs, expected vector count = Σ `nl_examples`, not Σ templates).
-- **2B** — INFO log on adapter init shows one resolved threshold matching the adapter YAML.
+- **2A** — ✅ re-ran 1A; HR SQL results unchanged (148/149, 100% recall@3/@5), confirming no regression to the shared dedupe/rescue logic. Full `test_retrievers/` suite green (263 passed). **Gap:** no mongo/ES/GraphQL/HTTP corpus exists yet to measure the expected recall improvement directly — flagged in the Phase 2A note above rather than assumed.
+- **2B** — ✅ `logger.info` on `IntentSQLRetriever`/`IntentHTTPRetriever` init shows one resolved threshold; both retrievers and the domain adapter now read the same resolved value, eliminating the `0.75`-vs-`0.1` divergence.
 - **3A** — validator in `warn` mode against every file under `examples/intent-templates/` must produce findings for the known-bad cases (firecrawl's dual shapes, ES `#FIXME` ids, sqlite HR missing `version`) and zero findings for the postgres customer-orders libraries. Then `strict` mode on a deliberately malformed copy must fail adapter init. `venv/bin/python -m pytest server/tests/test_adapters/ server/tests/test_services/test_template_processor.py`.
 - **3B** — unit tests in `server/tests/test_retrievers/test_query_guard.py`: `SELECT 1; DROP TABLE x` rejected, `DELETE FROM x` rejected, un-limited SELECT gains `LIMIT`, `LIMIT 99999` clamps, each dialect parses. Then re-run 1A to confirm no result changes beyond intended caps.
 - **4A** — `curl localhost:<port>/metrics | grep orbit_intent` shows all new series after driving traffic; confirm `_trace` is absent from the LLM prompt (assert on `context.metadata` vs prompt payload in a pipeline test).

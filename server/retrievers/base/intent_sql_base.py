@@ -57,24 +57,28 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         if not self.store_name:
             raise ValueError("store_name is required in adapter configuration. Please specify a store from stores.yaml")
         self.store_manager = None
-        
+
+        # Resolve once so the domain adapter's result-filtering threshold and this
+        # retriever's template-matching threshold can never diverge on the same config key.
+        self.confidence_threshold = self.intent_config.get('confidence_threshold', 0.1)
+
         # Create IntentAdapter if not provided
         if not domain_adapter:
             domain_adapter = IntentAdapter(
                 domain_config_path=self.intent_config.get('domain_config_path'),
                 template_library_path=self.intent_config.get('template_library_path'),
-                confidence_threshold=self.intent_config.get('confidence_threshold', 0.75),
+                confidence_threshold=self.confidence_threshold,
                 config=self.intent_config
             )
-        
+
         self.domain_adapter = domain_adapter
-        
+
         # Intent-specific settings
         self.template_collection_name = self.intent_config.get('template_collection_name', 'intent_query_templates')
-        self.confidence_threshold = self.intent_config.get('confidence_threshold', 0.1)
         self.max_templates = self.intent_config.get('max_templates', 5)
         
         # Debug configuration values
+        logger.info(f"IntentSQLRetriever resolved confidence_threshold={self.confidence_threshold}")
         logger.debug(f"Intent config loaded - confidence_threshold: {self.confidence_threshold}, template_collection_name: {self.template_collection_name}, max_templates: {self.max_templates}")
         logger.debug(f"Intent config keys: {list(self.intent_config.keys())}")
         
@@ -574,7 +578,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             self.domain_adapter = IntentAdapter(
                 domain_config_path=self.intent_config.get('domain_config_path'),
                 template_library_path=self.intent_config.get('template_library_path'),
-                confidence_threshold=self.intent_config.get('confidence_threshold', 0.75),
+                confidence_threshold=self.confidence_threshold,
                 config=self.intent_config
             )
 
@@ -948,26 +952,41 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             logger.debug(f"  Template store type: {self.template_store.store_type}")
             logger.debug("==================================")
 
-            # Search for similar templates
-            # Use higher limit to account for multiple vectors per template (per-example indexing)
+            # Search for similar templates. Per-example indexing means multiple
+            # vectors per template, so a fixed limit can be exhausted by one
+            # template's many nl_examples, starving other templates of result
+            # slots before dedup ever runs. Widen the search until we have
+            # max_templates distinct base templates or the store has no more
+            # results to give (capped to avoid unbounded scans).
             search_limit = self.max_templates * 3
-            search_results = await self.template_store.search_similar_templates(
-                query_embedding=query_embedding,
-                limit=search_limit,
-                threshold=self.confidence_threshold
-            )
+            max_search_limit = self.max_templates * 20
+            seen = {}
+            search_results = []
+            while True:
+                raw_results = await self.template_store.search_similar_templates(
+                    query_embedding=query_embedding,
+                    limit=search_limit,
+                    threshold=self.confidence_threshold
+                )
 
-            # Deduplicate: per-example indexing means multiple vectors per template.
-            # Strip "::exN" suffix and keep the highest-scoring hit per base template.
-            if search_results:
+                # Deduplicate: strip "::exN" suffix and keep the highest-scoring
+                # hit per base template.
                 seen = {}
-                for result in search_results:
+                for result in raw_results:
                     raw_tid = result.get('template_id', '')
                     base_tid = raw_tid.rsplit('::', 1)[0] if '::' in raw_tid else raw_tid
                     score = result.get('score', 0)
                     if base_tid not in seen or score > seen[base_tid]['score']:
                         result['template_id'] = base_tid
                         seen[base_tid] = result
+
+                if (len(seen) >= self.max_templates
+                        or len(raw_results) < search_limit
+                        or search_limit >= max_search_limit):
+                    break
+                search_limit *= 2
+
+            if seen:
                 search_results = sorted(seen.values(), key=lambda r: r.get('score', 0), reverse=True)
                 search_results = search_results[:self.max_templates]
 
