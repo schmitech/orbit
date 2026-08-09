@@ -11,6 +11,8 @@ export function createAdaptersTab({
   var adapterPreviewEditor = null; // Read-only Ace editor for the create preview
   var importEditor = null;         // Ace editor instance for the import panel
   var selectedAdapterEntry = null; // { name, filename, ... }
+  var editingAdapterName = null;   // set while the create form is prefilled to edit an existing adapter
+  var editingAdapterFilename = null; // that adapter's existing file, preserved across the save
 
   async function loadAdapterFiles() {
     try {
@@ -229,10 +231,11 @@ export function createAdaptersTab({
     var createPanel = el("div", { className: "panel", style: "display:none" });
     container.insertBefore(createPanel, layout);
 
+    var createPanelTitle = el("h2", null, "New Adapter");
     var closeCreateBtn = el("button", { className: "secondary", type: "button" }, "Close");
     closeCreateBtn.addEventListener("click", function () { closeAdapterCreatePanel(); });
     createPanel.appendChild(el("div", { className: "panel-header-row" },
-      el("h2", null, "New Adapter"),
+      createPanelTitle,
       closeCreateBtn
     ));
 
@@ -393,7 +396,7 @@ export function createAdaptersTab({
       });
     }
 
-    function buildAdapterCreateForm() {
+    function buildAdapterCreateForm(prefillAnswers) {
       var spec = currentSpec();
       clear(formGrid);
       createInputs = {};
@@ -410,9 +413,9 @@ export function createAdaptersTab({
         });
       }
 
-      var variant = spec.variant_field
-        ? (spec.variants && spec.variants.length ? spec.variants[0] : null)
-        : null;
+      var variant = prefillAnswers && spec.variant_field
+        ? prefillAnswers[spec.variant_field]
+        : (spec.variant_field ? (spec.variants && spec.variants.length ? spec.variants[0] : null) : null);
 
       ordered.forEach(function (q) {
         var input = makeQuestionInput(q);
@@ -420,12 +423,16 @@ export function createAdaptersTab({
         var initial = q.variant_defaults && variant !== null
           && Object.prototype.hasOwnProperty.call(q.variant_defaults, variant)
           ? q.variant_defaults[variant] : q.default;
+        if (prefillAnswers && Object.prototype.hasOwnProperty.call(prefillAnswers, q.field)) {
+          initial = prefillAnswers[q.field];
+        }
         applyDefault(q, input, initial);
         if (spec.variant_field && q.field === spec.variant_field) {
           input.value = variant;
           input._appliedDefault = variant;
           input.addEventListener("change", function () { applyVariantDefaults(input.value); });
         }
+        if (editingAdapterName && q.field === "name") input.readOnly = true;
         formGrid.appendChild(adapterQuestionField(q, input, questionHint(q)));
       });
 
@@ -494,6 +501,16 @@ export function createAdaptersTab({
       });
     });
 
+    // A rendered "adapters:\n  - name: ...\n    ..." document down to just the
+    // per-adapter block, matching what GET .../config/entry/{name} returns —
+    // that's the shape PUT .../config/entry/{name} (save_adapter_entry) expects,
+    // since it splices the block back into the file at its existing location.
+    function extractAdapterBlock(yamlText) {
+      var lines = yamlText.split("\n");
+      var idx = lines.findIndex(function (line) { return line.trim() === "adapters:"; });
+      return (idx === -1 ? lines : lines.slice(idx + 1)).join("\n").replace(/^\n+/, "");
+    }
+
     createBtn.addEventListener("click", function () {
       var spec = currentSpec();
       if (!spec) return;
@@ -501,15 +518,45 @@ export function createAdaptersTab({
       if (!answers.name) { showError("An adapter name is required."); return; }
       withButton(createBtn, async function () {
         var data;
-        try {
-          data = await api("POST", endpoints.adapterCreate, { spec: spec.key, answers: answers });
-        } catch (err) {
-          throw new Error("Create failed: " + err.message);
+        if (editingAdapterName) {
+          // Existing adapters can live in a shared, multi-adapter file (e.g.
+          // web-search-providers.yaml). POST /admin/adapters always targets
+          // "<name>.yaml" and would 409 on a name owned by a different file, so
+          // saving an edit goes through the same in-place block-splice endpoint
+          // the raw YAML editor uses instead, which preserves the original file.
+          var preview;
+          try {
+            preview = await api("POST", endpoints.adapterPreview, { spec: spec.key, answers: answers });
+          } catch (err) {
+            throw new Error("Save failed: " + err.message);
+          }
+          if (preview.errors && preview.errors.length) {
+            throw new Error("Save failed: " + preview.errors.join("; "));
+          }
+          try {
+            await api("PUT", endpoints.adapterConfigs + "/entry/" + encodeURIComponent(editingAdapterName),
+              { content: extractAdapterBlock(preview.yaml) });
+          } catch (err) {
+            throw new Error("Save failed: " + err.message);
+          }
+          await loadAdapterFiles();
+          var reloadPath = endpoints.reloadAdapters + "/async?adapter_name=" + encodeURIComponent(editingAdapterName);
+          var started = await api("POST", reloadPath);
+          await waitForAdminJob(started.job_id, "Reloading adapter…");
+          await loadAdapterCapabilities();
+          data = { name: answers.name, filename: editingAdapterFilename,
+            message: "Adapter '" + answers.name + "' saved and reloaded." };
+        } else {
+          try {
+            data = await api("POST", endpoints.adapterCreate, { spec: spec.key, answers: answers });
+          } catch (err) {
+            throw new Error("Create failed: " + err.message);
+          }
+          await loadAdapterFiles();
+          await loadAdapterCapabilities();
         }
-        await loadAdapterFiles();
-        await loadAdapterCapabilities();
         closeAdapterCreatePanel();
-        // Re-render so the new adapter appears in the (re-flattened) list, then
+        // Re-render so the adapter appears in the (re-flattened) list, then
         // open it in the detail editor.
         selectedAdapterEntry = { name: data.name, filename: data.filename };
         render(container);
@@ -518,14 +565,28 @@ export function createAdaptersTab({
       });
     });
 
-    function openAdapterCreatePanel() {
+    // `prefill` is `{spec, variant, answers, filename}` — `filename` from the
+    // caller's already-loaded adapter row, the rest from GET .../edit-form —
+    // used to open the form pre-populated with an existing adapter's answers.
+    // The name field is locked in that case: renaming here has nowhere good to
+    // go (the save path patches the existing block in place by current name),
+    // so editing in the form is save-in-place only.
+    function openAdapterCreatePanel(prefill) {
+      editingAdapterName = prefill ? prefill.answers.name : null;
+      editingAdapterFilename = prefill ? prefill.filename : null;
+      createPanelTitle.textContent = editingAdapterName ? "Edit Adapter: " + editingAdapterName : "New Adapter";
+      specSelect.disabled = !!editingAdapterName;
+      if (prefill) specSelect.value = prefill.spec;
       createPanel.style.display = "";
-      buildAdapterCreateForm();
+      buildAdapterCreateForm(prefill ? prefill.answers : null);
       createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     function closeAdapterCreatePanel() {
       hideCreatePreview();
+      editingAdapterName = null;
+      editingAdapterFilename = null;
+      specSelect.disabled = false;
       createPanel.style.display = "none";
     }
 
@@ -764,6 +825,7 @@ export function createAdaptersTab({
         ? el("button", { className: "btn btn--neutral" }, "Reload Templates")
         : null;
 
+      var editFormBtn = el("button", { className: "secondary", type: "button" }, "Edit in Form");
       var exportBtn = el("button", { className: "secondary", type: "button" }, "Export");
       var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Adapter");
 
@@ -775,9 +837,32 @@ export function createAdaptersTab({
         btnRow.appendChild(reloadTemplatesBtn);
       }
       btnRow.appendChild(el("span", { className: "ops-action-divider" }));
+      btnRow.appendChild(editFormBtn);
       btnRow.appendChild(exportBtn);
       btnRow.appendChild(deleteBtn);
       detailPanel.appendChild(btnRow);
+
+      // Tries to reopen this adapter in the spec-driven create form instead of raw
+      // YAML. Only possible when the adapter was produced by a known spec family
+      // and hasn't been hand-edited beyond what the form can represent — the
+      // backend confirms this by re-rendering the recovered answers and comparing
+      // them to the entry on disk (server/adapter_sdk/detector.py).
+      editFormBtn.addEventListener("click", function () {
+        withButton(editFormBtn, async function () {
+          var data;
+          try {
+            data = await api("GET", endpoints.adapterCreate + "/" + encodeURIComponent(a.name) + "/edit-form");
+          } catch (err) {
+            throw new Error("Edit in form failed: " + err.message);
+          }
+          if (!data.editable) {
+            showError(data.reason || "This adapter can't be edited through the form; use the YAML editor below.");
+            return;
+          }
+          data.filename = a.filename;
+          openAdapterCreatePanel(data);
+        });
+      });
 
       // Downloads the adapter as a standalone YAML file for moving it to another
       // environment. The exported document is whatever is on disk verbatim — secrets

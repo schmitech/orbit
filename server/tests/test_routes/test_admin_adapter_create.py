@@ -520,6 +520,153 @@ def test_import_rejects_unsafe_name(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# Round-trip editing (edit-form)
+# --------------------------------------------------------------------------- #
+
+def test_edit_form_detects_spec_and_answers_for_a_created_adapter(tmp_path):
+    spec = get_spec("passthrough")
+    answers = _default_answers(spec)
+    answers["name"] = "roundtrip-passthrough"
+    answers["available_skills"] = ["Image"]
+    with TestClient(_build_app(tmp_path)) as client:
+        create = client.post("/admin/adapters", json={"spec": "passthrough", "answers": answers})
+        assert create.status_code == 200, create.text
+
+        resp = client.get("/admin/adapters/roundtrip-passthrough/edit-form")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["editable"] is True
+    assert body["spec"] == "passthrough"
+    assert body["answers"]["name"] == "roundtrip-passthrough"
+    assert body["answers"]["available_skills"] == ["Image"]
+
+
+def test_edit_form_detects_variant_for_a_created_adapter(tmp_path):
+    spec = get_spec("doc-generator")
+    answers = _default_answers(spec, variant="docx")
+    answers["name"] = "roundtrip-docx"
+    with TestClient(_build_app(tmp_path)) as client:
+        create = client.post("/admin/adapters", json={"spec": "doc-generator", "answers": answers})
+        assert create.status_code == 200, create.text
+
+        resp = client.get("/admin/adapters/roundtrip-docx/edit-form")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["editable"] is True
+    assert body["spec"] == "doc-generator"
+    assert body["variant"] == "docx"
+    assert body["answers"]["document_format"] == "docx"
+
+
+def test_edit_save_preserves_shared_file_and_sibling(tmp_path):
+    """An adapter detected as editable but living in a multi-adapter file (like
+    web-search-providers.yaml) must be saved back in place, not moved to its own
+    "<name>.yaml" — that's what POST /admin/adapters (create/overwrite) does, and
+    it 409s here since the name is already owned by a different file. The admin
+    panel's "Edit in Form" save instead goes through preview + the same
+    PUT /adapters/config/entry/{name} block-splice the raw YAML editor uses."""
+    duckduckgo_spec = get_spec("web-search-external")
+    duckduckgo_answers = _default_answers(duckduckgo_spec, variant="duckduckgo")
+    duckduckgo_answers["name"] = "web-search-duckduckgo"
+    brave_answers = _default_answers(duckduckgo_spec, variant="brave")
+    brave_answers["name"] = "web-search-brave"
+
+    from adapter_sdk.renderer import render_adapter
+
+    def block(spec, answers):
+        text = render_adapter(spec, answers)
+        return text[text.index("adapters:") + len("adapters:"):].strip("\n")
+
+    app = _build_app(tmp_path)
+    shared_file = tmp_path / "config" / "adapters" / "web-search-providers.yaml"
+    shared_file.write_text(
+        "adapters:\n"
+        + block(duckduckgo_spec, duckduckgo_answers) + "\n\n"
+        + block(duckduckgo_spec, brave_answers) + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "config" / "adapters.yaml").write_text(
+        'adapters:\n  import:\n    - "adapters/fetch.yaml"\n    - "adapters/web-search-providers.yaml"\n',
+        encoding="utf-8",
+    )
+
+    with TestClient(app) as client:
+        edit_form = client.get("/admin/adapters/web-search-duckduckgo/edit-form")
+        assert edit_form.status_code == 200, edit_form.text
+        body = edit_form.json()
+        assert body["editable"] is True
+
+        # The (unavailable, until now) create/overwrite path 409s on this name —
+        # it belongs to web-search-providers.yaml, not "web-search-duckduckgo.yaml".
+        rejected = client.post("/admin/adapters",
+                               json={"spec": body["spec"], "answers": body["answers"], "overwrite": True})
+        assert rejected.status_code == 409
+
+        # Simulate the admin panel's actual save path: preview, then splice the
+        # block back into its existing file by name.
+        answers = dict(body["answers"])
+        answers["result_count"] = 9
+        preview = client.post("/admin/adapters/preview", json={"spec": body["spec"], "answers": answers})
+        assert preview.status_code == 200, preview.text
+        assert not preview.json()["errors"]
+
+        save = client.put(
+            "/admin/adapters/config/entry/web-search-duckduckgo",
+            json={"content": block(duckduckgo_spec, answers)},
+        )
+        assert save.status_code == 200, save.text
+
+    saved_text = shared_file.read_text(encoding="utf-8")
+    parsed = yaml.safe_load(saved_text)
+    names = {a["name"] for a in parsed["adapters"]}
+    assert names == {"web-search-duckduckgo", "web-search-brave"}
+    duckduckgo_entry = next(a for a in parsed["adapters"] if a["name"] == "web-search-duckduckgo")
+    assert duckduckgo_entry["web_search"]["result_count"] == 9
+    # The sibling adapter in the shared file must be untouched.
+    brave_entry = next(a for a in parsed["adapters"] if a["name"] == "web-search-brave")
+    assert brave_entry["web_search"]["provider"] == "brave"
+
+
+def test_edit_form_unknown_adapter_is_404(tmp_path):
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.get("/admin/adapters/does-not-exist/edit-form")
+    assert resp.status_code == 404
+
+
+def test_edit_form_refuses_adapter_not_produced_by_a_spec(tmp_path):
+    # The shared fixture's fetch.yaml is a hand-authored, incomplete entry
+    # (just `type: fetch`) with no matching implementation/adapter tuple.
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.get("/admin/adapters/fetch/edit-form")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["editable"] is False
+    assert "not" in body["reason"] or "wasn't generated" in body["reason"]
+
+
+def test_edit_form_refuses_hand_edited_adapter(tmp_path):
+    spec = get_spec("passthrough")
+    answers = _default_answers(spec)
+    answers["name"] = "hand-edited"
+    app = _build_app(tmp_path)
+    with TestClient(app) as client:
+        create = client.post("/admin/adapters", json={"spec": "passthrough", "answers": answers})
+        assert create.status_code == 200, create.text
+
+    # Add a field the spec doesn't model — a stand-in for an operator's manual tweak.
+    adapter_file = tmp_path / "config" / "adapters" / "hand-edited.yaml"
+    content = adapter_file.read_text(encoding="utf-8")
+    adapter_file.write_text(content.rstrip("\n") + "\n    requires_authenticated_user: true\n", encoding="utf-8")
+
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/hand-edited/edit-form")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["editable"] is False
+    assert "hand-edits" in body["reason"]
+
+
+# --------------------------------------------------------------------------- #
 # Delete
 # --------------------------------------------------------------------------- #
 
@@ -653,6 +800,7 @@ def test_create_routes_require_adapters_manage(tmp_path, roles, allowed):
             client.post("/admin/adapters/preview", json={"spec": "fetch", "answers": {}}),
             client.post("/admin/adapters", json={"spec": "fetch", "answers": {}}),
             client.get("/admin/adapters/fetch/export"),
+            client.get("/admin/adapters/fetch/edit-form"),
             client.post("/admin/adapters/import/format", json={"content": ""}),
             client.post("/admin/adapters/import", json={"content": ""}),
             client.delete("/admin/adapters/fetch"),

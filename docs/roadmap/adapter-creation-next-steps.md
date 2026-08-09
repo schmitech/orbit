@@ -162,15 +162,27 @@ Today the create form is write-only: once an adapter exists, the only way to cha
 is raw YAML in the Ace editor. A "Edit in form" action would need to parse an existing
 adapter back into an `answers` dict.
 
-- [ ] Spec detection: given an adapter entry, identify which `AdapterSpec` produced it
+- [x] Spec detection: given an adapter entry, identify which `AdapterSpec` produced it
       (match on the fixed `type`/`datasource`/`adapter`/`implementation` tuple, plus
       the variant field). Adapters not produced by a spec — hand-written or intent
       adapters — must degrade to the YAML editor rather than guessing.
-- [ ] Answer extraction per question field, then re-render and diff against the file to
+      (`detect_spec_and_variant` in `server/adapter_sdk/detector.py`; a same-tuple
+      tie between `passthrough` and `web-search-native` is broken by
+      `capabilities.web_search`, and the three variant fields that don't appear
+      literally in the rendered YAML — `doc-generator`'s `document_format`,
+      `web-search-external`'s `search_provider`, `media-generator`'s `media_type`
+      via its unique `type` per variant — each have an explicit resolver.)
+- [x] Answer extraction per question field, then re-render and diff against the file to
       confirm the round trip is lossless before offering it. If the re-render doesn't
       match, the form would silently drop hand-edits (comments, extra keys) — refuse
-      rather than lose them.
-- [ ] Consider `ruamel.yaml` for comment-preserving round trips.
+      rather than lose them. (`extract_answers` + `detect_editable_spec` in
+      `detector.py`; wired up as `GET /admin/adapters/{name}/edit-form` and an
+      "Edit in Form" button in the adapter detail panel that opens the create form
+      prefilled and saves back via the existing `overwrite` create path. Verified
+      against every committed `config/adapters/*.yaml` entry: spec-generated
+      adapters round-trip and open in the form, hand-edited ones — extra fields
+      like `allowed_models`, `requires_authenticated_user`, `confidence_threshold`
+      — correctly refuse rather than dropping those fields.)
 
 ## 5. Hardening the existing create path
 

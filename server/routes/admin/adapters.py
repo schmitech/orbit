@@ -22,6 +22,7 @@ from services.mcp_auth_policy import apply_mcp_auth_policy
 # Adapter SDK — generates new adapter configs from spec + answers
 from jinja2 import UndefinedError
 from adapter_sdk import writer as adapter_writer
+from adapter_sdk.detector import detect_editable_spec
 from adapter_sdk.renderer import render_adapter
 from adapter_sdk.specs import get_spec, serialize_registry
 from adapter_sdk.validator import validate_answers, validate_yaml_text
@@ -414,6 +415,43 @@ async def export_adapter(
         media_type="application/x-yaml",
         headers={"Content-Disposition": f'attachment; filename="{adapter_name}.yaml"'},
     )
+
+
+@router.get("/adapters/{adapter_name}/edit-form", dependencies=[adapters_auth])
+async def get_adapter_edit_form(
+    adapter_name: str,
+    request: Request,
+):
+    """Whether an existing adapter can be edited through the create form, and if
+    so, the (spec, variant, answers) that reproduce it.
+
+    Detection matches the adapter's fixed type/datasource/adapter/implementation
+    tuple against the SDK spec registry, then confirms the round trip is
+    lossless by re-rendering the recovered answers and comparing them to the
+    entry on disk. Anything not produced by a known spec, or hand-edited beyond
+    what the form can represent, comes back `editable: false` with a reason —
+    the caller should fall back to the raw YAML editor rather than guess."""
+    adapters_dir = _get_adapters_dir(request)
+    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
+    if not file_path:
+        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found in any config file")
+
+    lines = content.split("\n")
+    start, end = _find_adapter_block(lines, adapter_name)
+    if start < 0:
+        raise HTTPException(status_code=404, detail=f"Adapter block '{adapter_name}' not found")
+
+    block_text = "adapters:\n" + "\n".join(lines[start:end]) + "\n"
+    try:
+        parsed = yaml.safe_load(block_text) or {}
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not parse adapter block: {exc}")
+
+    entries = parsed.get("adapters") or []
+    if len(entries) != 1 or not isinstance(entries[0], dict):
+        raise HTTPException(status_code=500, detail="Could not parse a single adapter entry from its block")
+
+    return detect_editable_spec(entries[0])
 
 
 def _clean_pasted_yaml(content: str) -> str:
