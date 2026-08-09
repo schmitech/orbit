@@ -2,258 +2,201 @@
 
 ## Summary
 
-The admin panel can now create adapters from the SDK spec registry: `GET
-/admin/adapters/specs` drives a generated form, `POST /admin/adapters/preview`
-renders the YAML, and `POST /admin/adapters` writes `config/adapters/<name>.yaml`,
-registers it in `config/adapters.yaml`, and hot-reloads it. The path is fully
-deterministic — no LLM calls are involved in creating an adapter.
-
-Deletion has since landed too (section 1 below), so create/edit/delete are all covered.
-What remains is moving adapters *between environments* — export and import — plus
-round-trip editing and the spec families the SDK does not yet model. This document
-describes that work, ordered by value, and consolidates the deferred SDK-side phases
-(previously tracked in `docs/roadmap/adapter-sdk.md`).
+The admin panel's adapter SDK path is now feature-complete for the seven
+template-like families: create, preview, delete, export/import, round-trip
+editing, and creation hardening have all shipped (see "Shipped" below for
+where each lives). What remains is the harder, higher-value work the SDK has
+deferred since v1 — intent × datasource families, the config/query surface
+those adapters need beyond the adapter YAML itself — plus a handful of
+smaller, independent follow-ups noted during that work but not acted on.
 
 Reference: `server/adapter_sdk/README.md` (current REST surface).
 
-v1 of the SDK (shipped) covers the *template-like* families through a Python library +
-`click` wizard: document/media generators, passthrough, fetch, mcp-agent, and
-web-search. See `server/adapter_sdk/README.md`.
+---
+
+## Shipped (for reference — no longer tracked here)
+
+- **Create / preview**: `GET /admin/adapters/specs`, `POST /admin/adapters/preview`,
+  `POST /admin/adapters` — spec registry in `server/adapter_sdk/specs.py`,
+  Jinja templates in `server/adapter_sdk/templates/`.
+- **Delete**: `DELETE /admin/adapters/{name}` — `server/adapter_sdk/writer.py`
+  (`unregister_import`, `delete_adapter`), referrer/multi-adapter-file checks in
+  `server/routes/admin/adapters.py`.
+- **Multimodal (file-retrieval) family**: `MULTIMODAL` spec in `specs.py`, covering
+  `simple-chat-with-files`/`-audio` — vision/STT/TTS providers, storage/chunking/
+  vector-store config, optional audio-transcription toggle.
+- **Export / import**: `GET /admin/adapters/{name}/export`,
+  `POST /admin/adapters/import`, `POST /admin/adapters/import/format` — one adapter
+  per call, secrets stay as `${ENV_VAR}` refs, accepts a full document or a bare
+  list/mapping entry.
+- **Round-trip editing**: `GET /admin/adapters/{name}/edit-form` +
+  `server/adapter_sdk/detector.py` (`detect_spec_and_variant`, `extract_answers`,
+  `detect_editable_spec`) — detects which spec produced an existing adapter,
+  recovers its answers, and refuses (rather than guesses) when the round trip
+  isn't lossless. "Edit in Form" in `server/admin/admin_panel/tabs/adapters.js`
+  saves back through the block-splice endpoint (`PUT
+  /adapters/config/entry/{name}`) so adapters in shared, multi-adapter files
+  save correctly.
+- **Creation hardening**: disabled-provider and skill-name-collision checks on
+  create/import (`_enabled_inference_providers`, `_find_skill_name_owner` in
+  `server/routes/admin/adapters.py`), multi-worker generation propagation
+  (`_propagate_adapter_generation`, shared by create/import/delete), and
+  non-mapping-YAML-file crash guards in `_find_adapter_file` /
+  `_find_adapter_referrers` (`server/routes/admin/_yaml_config.py`,
+  `server/routes/admin/adapters.py`).
 
 ---
 
-## 1. Adapter deletion — **done**
-
-**Goal:** `DELETE /admin/adapters/{name}` — remove the adapter's YAML block, drop its
-import line, and evict it from the running server.
-
-Shipped: `writer.unregister_import` / `writer.delete_adapter`
-(`server/adapter_sdk/writer.py`), `DELETE /adapters/{adapter_name}`
-(`server/routes/admin/adapters.py`), and a type-to-confirm Delete button in the Adapters
-detail panel (`server/admin/admin_panel/tabs/adapters.js`). Referrers (API keys, other
-adapters' skill lists) produce a 409 that `force=true` waives; API keys are never
-cascaded. See [Creating Adapters](../adapters/adapter-creation.md#deleting-an-adapter).
-
-**The runtime side is already solved.** `AdapterReloader.reload_all_adapters`
-(`server/services/reload/adapter_reloader.py:222-238`) has a complete removal branch:
-for any adapter present in `config_manager` but absent from the new config it clears
-dependencies, removes it from the adapter cache, removes it from `config_manager`, and
-invalidates the autocomplete cache. So deletion needs no new eviction machinery — it
-needs the *file* work plus a full reload.
-
-**This is the one asymmetry to design around:** creation hot-applies with
-`reload_adapter_configs(new_config, name)` (scoped, cheap), but deletion **cannot** use
-the scoped path. `reload_single_adapter` (`:77-78`) raises
-`ValueError("Adapter '<name>' not found in configuration file")` when the name is gone
-— which is exactly the post-delete state. Deletion must call
-`reload_adapter_configs(new_config)` with `adapter_name=None`. That is heavier (it
-re-diffs every adapter) but it is the only path that runs the removal branch.
-
-**Tasks:**
-
-- [x] `writer.unregister_import(import_path, adapters_yaml)` — the inverse of
-      `register_import` (`server/adapter_sdk/writer.py:53`). Same text-insertion
-      discipline: delete the matching line via the existing `is_registered` regex,
-      preserving surrounding comments, then `_atomic_write`. Idempotent, returns
-      whether a line was removed.
-- [x] `writer.delete_adapter(name, *, adapters_dir, adapters_yaml, unregister=True)` —
-      `validate_adapter_name`, unlink the file, unregister. Raise `FileNotFoundError`
-      when absent.
-- [x] Route `DELETE /admin/adapters/{name}`, gated on `adapters_auth`, mirroring the
-      create route's structure in `server/routes/admin_routes.py`.
-- [x] **Multi-adapter files must be rejected, not silently mangled.** The writer is
-      one-file-per-adapter, but `config/adapters/` ships files declaring several
-      adapters (`web-search-providers.yaml`, `multimodal.yaml`). Use the existing
-      `_find_adapter_file` + `_find_adapter_block` helpers: if the file holds more than
-      one adapter, either splice out just that block and keep the file (preferred — the
-      helpers already do this for the PUT/toggle routes) or return `409` telling the
-      operator to edit the file directly. Never unlink a file that owns other adapters.
-- [x] **Referential integrity check before deleting.** An adapter name can be
-      referenced by an API key (`adapter_name` on the key record) and by other adapters'
-      `available_skills` / `auto_routable_skills` lists. Deleting one out from under a
-      live API key breaks that key's requests at runtime with no warning. Look for
-      references first and return `409` with the referrers listed, or require an
-      explicit `force: true`.
-- [x] Frontend: a Delete button in the Adapters detail panel, using the existing
-      `requireTypedConfirmation` helper (`server/admin/admin_panel.js:878`) — deletion
-      is destructive and irreversible from the panel, so type-to-confirm matches how
-      other destructive admin actions behave. On success clear `selectedAdapterEntry`,
-      re-render, and surface `reload_summary.removed_names`.
-- [x] Tests: file + import line both gone; multi-adapter file keeps its siblings;
-      referenced adapter returns 409; deleting a non-existent adapter returns 404;
-      permission guard.
-
-## 2. Multimodal file-retrieval family (SDK gap)
-
-**Goal:** support creating file-based-retrieval multimodal adapters like those in
-`config/adapters/multimodal.yaml` (e.g. `simple-chat-with-files`) from the create form.
-
-**Current gap (verified):** `SPEC_REGISTRY` in `server/adapter_sdk/specs.py:408-419`
-has exactly 7 keys — `passthrough`, `doc-generator`, `media-generator`, `fetch`,
-`mcp-agent`, `web-search-native`, `web-search-external`. The `_MULTIMODAL_IMPL`
-constant (`specs.py:20`,
-`implementations.passthrough.multimodal.MultimodalImplementation`) is reused only by
-`DOC_GENERATOR` and `MEDIA_GENERATOR`, which are output-*generation* specs — neither
-exposes fields for storage/chunking/vector_store config or file-retrieval capabilities
-(`supports_file_ids`, `skip_when_no_files`, `requires_api_key_validation`, etc.). There
-is no `multimodal`/file-retrieval-RAG family registered anywhere. `admin_panel.js` has
-no client-side special-casing for multimodal either — it builds the form purely from
-whatever `GET /admin/adapters/specs` returns, so this is a server-side spec gap, not a
-frontend one.
-
-**Why prioritize this:** compared to Phase 2 (intent × datasource, below) or full
-export/round-trip editing, this is a much smaller lift — it reuses an existing
-implementation class and mirrors the `doc-generator`/`media-generator` pattern already
-in `specs.py`, with no new orchestration (template generation, referential-integrity
-checks, etc.) required.
-
-**Tasks:**
-- [x] Add a `multimodal` (or `file-retrieval`) entry to `SPEC_REGISTRY` covering the
-      `simple-chat-with-files` shape: `type: passthrough`, `datasource: none`,
-      `implementation: implementations.passthrough.multimodal.MultimodalImplementation`,
-      plus questions for `vision_provider`/`stt_provider`/`tts_provider`,
-      storage (`storage_backend`, `storage_root`, `max_file_size`), chunking
-      (`chunking_strategy`, `chunk_size`, `chunk_overlap`), and vector store
-      (`vector_store`, `collection_prefix`).
-- [x] Model the file-retrieval `capabilities` block (`retrieval_behavior: conditional`,
-      `supports_file_ids`, `skip_when_no_files`, `requires_api_key_validation`,
-      `requires_encryption`, `optional_parameters: [file_ids, api_key, session_id]`) as
-      spec defaults/questions, distinct from the generation-only capabilities used by
-      `DOC_GENERATOR`/`MEDIA_GENERATOR`.
-- [x] Decide how `available_skills`/`auto_routable_skills` are populated for this family
-      — likely reuse whatever skill-listing mechanism the wizard already has, rather than
-      free-text entry. (Decided: reused the same free-text list mechanism `PASSTHROUGH`
-      already uses — there is no other skill-listing mechanism in the wizard to reuse.)
-- [x] Optional audio-transcription variant (`enable_audio_transcription`,
-      `audio_transcription_language`, `supported_types`) as a toggle/sub-question, mirroring
-      `simple-chat-with-files-audio`.
-- [x] Tests: render+validate against both existing `multimodal.yaml` entries; loader
-      integration. (`test_roundtrip_multimodal_simple_chat_with_files` and
-      `test_roundtrip_multimodal_audio_variant` in `test_adapter_sdk.py`; loader
-      integration covered via `validate_yaml_text` → `AdapterCapabilities.from_config`,
-      the same real capability parser the server uses at load time.)
-
-## 3. Export and import
-
-**Goal:** move an adapter between environments without hand-copying YAML.
-
-- [x] `GET /admin/adapters/{name}/export` — the adapter's YAML block, served as a file
-      download. Largely a thin wrapper over the existing
-      `GET /admin/adapters/config/entry/{name}`.
-- [x] `POST /admin/adapters/import` — accept a YAML document, run it through
-      `validate_yaml_text`, apply the same collision rules as create (target filename
-      waivable by `overwrite`; a name owned by a *different* file never waivable), then
-      write + register + reload.
-- [x] Decide whether import accepts multi-adapter bundles. If yes, the writer needs a
-      multi-entry path; if no, reject with a clear message. Do not let a bundle write
-      partially and leave `adapters.yaml` half-registered. (Decided: reject — the writer
-      is one-file-per-adapter, so a bundle with more than one entry is a 422 telling the
-      operator to split it and import each adapter separately. No partial-write path.)
-- [x] Secrets: exported YAML contains `${ENV_VAR}` references, not values — verify this
-      holds for every spec before advertising export as safe to share. (Verified: every
-      spec's `AdapterSpec.fixed`/template output only ever embeds an answer value or a
-      literal `${VAR}` string — e.g. `WEB_SEARCH_EXTERNAL`'s `api_key` defaults —
-      never a resolved secret. Export also serves the file verbatim from disk, so
-      whatever is committed there is exactly what downloads.)
-
-## 4. Round-trip editing (YAML → answers)
-
-Today the create form is write-only: once an adapter exists, the only way to change it
-is raw YAML in the Ace editor. A "Edit in form" action would need to parse an existing
-adapter back into an `answers` dict.
-
-- [x] Spec detection: given an adapter entry, identify which `AdapterSpec` produced it
-      (match on the fixed `type`/`datasource`/`adapter`/`implementation` tuple, plus
-      the variant field). Adapters not produced by a spec — hand-written or intent
-      adapters — must degrade to the YAML editor rather than guessing.
-      (`detect_spec_and_variant` in `server/adapter_sdk/detector.py`; a same-tuple
-      tie between `passthrough` and `web-search-native` is broken by
-      `capabilities.web_search`, and the three variant fields that don't appear
-      literally in the rendered YAML — `doc-generator`'s `document_format`,
-      `web-search-external`'s `search_provider`, `media-generator`'s `media_type`
-      via its unique `type` per variant — each have an explicit resolver.)
-- [x] Answer extraction per question field, then re-render and diff against the file to
-      confirm the round trip is lossless before offering it. If the re-render doesn't
-      match, the form would silently drop hand-edits (comments, extra keys) — refuse
-      rather than lose them. (`extract_answers` + `detect_editable_spec` in
-      `detector.py`; wired up as `GET /admin/adapters/{name}/edit-form` and an
-      "Edit in Form" button in the adapter detail panel that opens the create form
-      prefilled and saves back via the existing `overwrite` create path. Verified
-      against every committed `config/adapters/*.yaml` entry: spec-generated
-      adapters round-trip and open in the form, hand-edited ones — extra fields
-      like `allowed_models`, `requires_authenticated_user`, `confidence_threshold`
-      — correctly refuse rather than dropping those fields.)
-
-## 5. Hardening the existing create path
-
-Small, independent items — none blocking, all noted during implementation.
-
-- [ ] **Wire up `validate_providers`.** `server/adapter_sdk/validator.py` exposes
-      `validate_providers(entry, enabled_providers)` but nothing calls it. The create
-      route has `request.app.state.config` in hand and can pass the set of enabled
-      inference providers, catching "adapter references a provider that isn't
-      configured" at creation instead of at first request.
-- [ ] **Skill-name collisions.** Two adapters can declare the same `skill_name`, which
-      makes skill routing ambiguous. Check against existing adapters at create time and
-      warn (or 409).
-- [ ] **Concurrency.** `adapters.yaml` writes are atomic per-write but unlocked, so two
-      simultaneous creates can lose an import line. Acceptable for an admin panel today;
-      revisit if adapter creation ever becomes automated.
-- [ ] **Multi-worker propagation.** Under `performance.workers > 1`, the create route's
-      hot reload only applies in the worker that served the request — the same gap
-      documented for MCP in `docs/roadmap/mcp-hot-reload-multi-worker.md`. The fix is
-      shared: `server/services/adapter_reload_state.py` already has a generation-bump
-      mechanism for adapters; confirm the create/delete paths bump it.
-- [ ] **Pydantic request models.** The create endpoints take plain `dict` bodies to
-      match the neighbouring adapter routes. Typed models in
-      `server/models/schema.py` would give free 422s and OpenAPI docs.
-
-## 6. Intent × datasource families (SDK Phase 2)
+## 1. Intent × datasource families (SDK Phase 2)
 
 The create form covers the seven template-like families only. The parameter-heavy
-intent adapters (SQL/Mongo/Elasticsearch/HTTP/GraphQL/Firecrawl/Agent) are out of scope
-for the SDK itself, so the panel inherits that limit — a spec registry entry is the
-prerequisite for a form. No panel work is possible until the specs exist.
+intent adapters (SQL/Mongo/Elasticsearch/HTTP/GraphQL/Firecrawl/Agent) are out of
+scope for the SDK itself, so the panel inherits that limit — a spec registry entry
+is the prerequisite for a form. No panel work is possible until the specs exist.
+This is the biggest remaining piece of value and the reason the SDK hasn't
+replaced hand-written adapter YAML for most of `config/adapters/*.yaml` yet.
 
-**Goal:** generate intent retriever adapters and their supporting domain-config +
-template files, not just the adapter YAML.
-
-**Why it's hard:** the `config` block branches heavily by backend (Postgres pooling vs.
-DuckDB `read_only` vs. ES `index_pattern` vs. HTTP `base_url`+`auth` vs. Firecrawl
-chunking), and a working intent adapter also needs a `domain_config_path` +
-`template_library_path` that don't exist yet.
+**Why it's hard:** unlike the template-like families (one Jinja template, fixed
+`type`/`datasource`/`adapter`/`implementation` tuple, a flat list of questions),
+an intent adapter's `config` block branches heavily by backend — Postgres
+connection pooling vs. DuckDB `read_only` vs. Elasticsearch `index_pattern` vs.
+HTTP `base_url`+`auth` vs. Firecrawl chunking — and a working intent adapter also
+needs a `domain_config_path` + `template_library_path` pointing at files that
+don't exist yet (produced today only by
+`server/utils/templates/template_generator.py`, run by hand). Round-trip editing
+(now shipped for the template-like families) explicitly does not cover this
+family either — `detector.py`'s spec-detection tuple-matching has nothing to
+match an intent adapter against, so those always fall back to the YAML editor,
+which is correct today but becomes a real gap once intent specs exist.
 
 **Tasks:**
-- [ ] Extend `specs.py` with an intent-family spec model keyed by `(family, backend)` →
-      implementation class + per-backend `config` sub-schema. Reuse the tuple table
-      already documented in the plan.
+- [ ] Extend `server/adapter_sdk/specs.py` with an intent-family spec model keyed
+      by `(family, backend)` → implementation class + per-backend `config`
+      sub-schema. `AdapterSpec` as it exists (flat `questions` list, one
+      `variant_field`) may not fit a two-axis family/backend selection — decide
+      whether that needs a new dataclass shape or nested variants before writing
+      the first backend.
 - [ ] Add per-backend Jinja templates (or one parameterized template + backend
-      fragments) for the `config` and `fault_tolerance` blocks.
-- [ ] Orchestrate `utils/templates/template_generator.py` from the SDK: given a schema +
-      NL queries, produce the domain config + template library, then wire their paths
-      into the generated adapter. Do NOT reimplement template generation — call the
-      existing tool.
-- [ ] Extend the wizard: pick backend → collect connection/config answers → optionally
-      run template generation inline → render adapter + register.
-- [ ] Validation: verify `store_name` exists in `stores.yaml`, `datasource` exists in
-      `datasources.yaml`, and referenced template/domain files exist on disk.
-- [ ] Tests: render+validate each backend; round-trip against a committed intent adapter
-      (e.g. `customer-orders.yaml`); loader integration.
+      fragments) for the `config` and `fault_tolerance` blocks. Look at the
+      existing hand-written intent adapters (`config/adapters/customer-orders.yaml`
+      for SQL, `intent.yaml` for HTTP/GraphQL/Firecrawl/Agent,
+      `elasticsearch-logs.yaml`, `mongodb-mflix.yaml`,
+      `business-analytics.yaml`/`ev.yaml` for DuckDB) as the ground truth for what
+      each backend's `config` block actually needs.
+- [ ] Orchestrate `server/utils/templates/template_generator.py` from the SDK:
+      given a schema + NL queries, produce the domain config + template library,
+      then wire their paths into the generated adapter. Do NOT reimplement
+      template generation — call the existing tool.
+- [ ] Extend the create-form flow (backend or frontend): pick backend → collect
+      connection/config answers → optionally run template generation inline →
+      render adapter + register. Decide whether the "run template generation
+      inline" step is synchronous (the create route already does a bounded
+      amount of I/O) or needs the async-job pattern used elsewhere in
+      `server/routes/admin/jobs.py`.
+- [ ] Validation: verify `store_name` exists in `stores.yaml`, `datasource` exists
+      in `datasources.yaml`, and referenced template/domain files exist on disk,
+      before writing the adapter — a dangling reference here fails at first query,
+      not at creation.
+- [ ] Tests: render+validate each backend; round-trip against a committed intent
+      adapter (e.g. `customer-orders.yaml`); loader integration
+      (`AdapterCapabilities.from_config`, same as the template-like families'
+      tests).
+- [ ] Once specs exist, extend `detect_spec_and_variant`/`extract_answers` in
+      `detector.py` to cover them too, so round-trip editing isn't permanently
+      template-family-only.
 
-Worth surfacing in the UI meanwhile: the create panel currently offers seven families
-with no indication that intent adapters exist and must be hand-written. A one-line note
-pointing at the YAML editor would set expectations.
+Worth surfacing in the UI meanwhile: the create panel currently offers seven
+families with no indication that intent adapters exist and must be hand-written.
+A one-line note pointing at the YAML editor would set expectations until this
+lands.
 
-## 7. Cross-cutting / smaller follow-ups
+## 2. Autocomplete for provider/model/store/datasource answers
 
-- [ ] Multi-adapter files: support appending to an existing file (e.g.
-      `web-search-providers.yaml`) instead of always one-file-per-adapter. `writer`
-      currently writes `<name>.yaml` only.
-- [ ] Skill-graph checks: warn when a generated `skill_name` collides, or when
-      `available_skills` references a skill no adapter exposes.
-- [ ] CLI subcommands: `delete`, `export`, `import` (promote `cli.py` to a `click`
-      group); wire `orbit adapter ...` into `bin/orbit.py` so the CLI is reachable via
-      the main entrypoint. (Standalone launchers `bin/adapter-sdk.sh` /
-      `bin/adapter-sdk.bat` already exist; this would fold them into the main CLI.)
-- [ ] Autocomplete for provider/model/store/datasource answers, sourced from the
-      relevant config files.
+Several create-form questions are free-text today where the valid values are
+actually enumerable from config already loaded into `app.state.config` —
+`inference_provider` (`PASSTHROUGH`/`MULTIMODAL`/etc.), `vector_store`
+(`MULTIMODAL`), and any future intent-family `datasource`/`store_name` answers
+(section 1). A typo in any of these is invisible at creation time and only
+surfaces as a runtime error on first query — the same class of gap
+`validate_providers` (shipped) already closes for `inference_provider`, just
+not yet exposed as *guidance* in the form, only as a rejection after the fact.
+
+**Why raise this now:** `_enabled_inference_providers(config)`
+(`server/routes/admin/adapters.py`, shipped in the hardening pass) already
+extracts exactly the provider-name set this needs — the hard part (reading
+`app.state.config["inference"]` correctly, matching `ai_services.registry`'s
+enabled/disabled semantics) is done. Datasources and vector stores are the same
+shape: `config["datasources"]` and `config["vector_stores"]` (merged at startup
+from `datasources.yaml`/`stores.yaml` via `config_manager.py`'s import
+processing) are dicts keyed by name, already present in the same
+`app.state.config` object. This is now mostly plumbing, not new discovery.
+
+**Tasks:**
+- [ ] `GET /admin/adapters/answer-options` (or fold into `GET /admin/adapters/specs`)
+      returning `{"inference_providers": [...], "vector_stores": [...],
+      "datasources": [...]}` from `app.state.config`, reusing
+      `_enabled_inference_providers` for the first and simple `.keys()` reads for
+      the other two. Decide whether disabled providers/stores are omitted or
+      included-but-flagged — omitting matches `validate_providers`' current
+      strictness, but a flagged/greyed-out option is more discoverable than a
+      value that silently doesn't appear.
+- [ ] Extend `serialize_spec`/`Question` (`server/adapter_sdk/specs.py`) with an
+      optional `options_source: str` field (e.g. `"inference_providers"`) so the
+      admin panel knows which answer-options key feeds which question, instead
+      of hardcoding field-name-to-source mapping in the frontend.
+- [ ] Frontend (`server/admin/admin_panel/tabs/adapters.js`,
+      `buildAdapterCreateForm`/`makeQuestionInput`): render an `options_source`
+      question as a `<select>` (or a free-text input with a `<datalist>`, if "let
+      me type a value not in the list yet" needs to stay possible — e.g. a store
+      defined after the panel loaded its cache) instead of a plain text box.
+      `cachedAdapterSpecs`/`cachedAdapterCapabilities`'s existing lazy-load-and-cache
+      pattern is the model to follow for caching the new options endpoint.
+- [ ] Decide read staleness: the options list is a point-in-time snapshot like
+      `cachedAdapterSpecs` already is — reloading it on every panel open (cheap,
+      it's an in-memory config read) is simpler than adding cache-invalidation
+      hooks, and avoids a stale list surviving a config reload.
+- [ ] Tests: options endpoint reflects `app.state.config` correctly (enabled vs.
+      disabled providers, empty section skipped rather than erroring); permission
+      guard alongside the other `/adapters/*` routes.
+
+## 3. Remaining hardening items
+
+Two items noted during the creation-hardening pass were deliberately deferred as
+lower-value/non-blocking rather than left as oversights:
+
+- [ ] **Concurrency.** `adapters.yaml` writes are atomic per-write
+      (`adapter_sdk/writer.py`'s `_atomic_write`, temp file + `os.replace`) but
+      unlocked — two simultaneous creates can race and one's import-line
+      registration can be lost. Acceptable for an admin panel driven by one
+      operator at a time today; revisit with a file lock (or moving registration
+      through a single-writer queue) if adapter creation is ever automated
+      (e.g. bulk-provisioned via API/CLI).
+- [ ] **Pydantic request models.** `create_adapter`/`import_adapter`/`preview_adapter`
+      take plain `dict` bodies via `Body(...)`, matching the neighbouring adapter
+      routes but losing free 422s and OpenAPI schema docs. `models/schema.py`'s
+      `ApiKeyCreate` is the pattern to mirror. Lower priority than the correctness
+      fixes already shipped, and a wider surface change (touches three routes'
+      request handling) — worth doing opportunistically, not urgently.
+
+## 4. Cross-cutting / smaller follow-ups
+
+- [ ] **Multi-adapter files: append instead of always one-file-per-adapter.**
+      `writer.write_adapter` always writes `<name>.yaml`; there's no path to add
+      a new adapter into an existing shared file like
+      `config/adapters/web-search-providers.yaml`. Round-trip *editing* an
+      adapter already in a shared file works today (saves splice the block in
+      place via `PUT /adapters/config/entry/{name}`) — this item is specifically
+      about *creating a new* adapter directly into an existing file instead of
+      always getting its own.
+- [ ] **Skill-graph reference check.** The collision half of this
+      (`_find_skill_name_owner`, two adapters can't claim the same `skill_name`)
+      shipped in the hardening pass. Still missing: warning/rejecting when an
+      adapter's `available_skills`/`auto_routable_skills` names a skill *no*
+      adapter actually exposes — a silent dangling reference today, only visible
+      at runtime when the router can't find the skill.
+- [ ] **CLI subcommands: `delete`, `export`, `import`.** `server/adapter_sdk/cli.py`
+      only wraps create/list; promote it to a `click` group and wire
+      `orbit adapter ...` into `bin/orbit.py` so the CLI reaches the same
+      operations the admin panel now has. Standalone launchers
+      (`bin/adapter-sdk.sh` / `bin/adapter-sdk.bat`) already exist and would fold
+      into the main entrypoint.

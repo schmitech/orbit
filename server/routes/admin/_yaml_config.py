@@ -74,11 +74,13 @@ def _find_adapter_file(adapters_dir: Path, adapter_name: str):
         content = yaml_file.read_text(encoding="utf-8")
         try:
             parsed = yaml.safe_load(content) or {}
-            for a in parsed.get("adapters", []):
-                if isinstance(a, dict) and a.get("name") == adapter_name:
-                    return yaml_file, content
         except yaml.YAMLError:
             continue
+        if not isinstance(parsed, dict):
+            continue
+        for a in parsed.get("adapters", []):
+            if isinstance(a, dict) and a.get("name") == adapter_name:
+                return yaml_file, content
     return None, ""
 
 

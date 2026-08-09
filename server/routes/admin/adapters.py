@@ -25,7 +25,7 @@ from adapter_sdk import writer as adapter_writer
 from adapter_sdk.detector import detect_editable_spec
 from adapter_sdk.renderer import render_adapter
 from adapter_sdk.specs import get_spec, serialize_registry
-from adapter_sdk.validator import validate_answers, validate_yaml_text
+from adapter_sdk.validator import validate_answers, validate_providers, validate_yaml_text
 
 # Import auth dependencies
 from routes.auth_dependencies import require_permission
@@ -363,6 +363,78 @@ def _render_from_spec(spec_key: str, answers: Dict[str, Any]) -> str:
         raise HTTPException(status_code=422, detail=f"Missing answer: {exc}")
 
 
+def _enabled_inference_providers(config: Dict[str, Any]) -> Optional[set]:
+    """The set of provider names enabled under `inference:`, for `validate_providers`.
+
+    Mirrors `ai_services.registry._is_enabled`'s bool/str-flag semantics (a
+    provider with no `enabled` key defaults to enabled) without importing that
+    module's startup-registration side effects. Returns None (skip the check)
+    when the running config has no `inference` section at all — an empty dict
+    would instead mean "every provider is disabled," which is never the intent
+    of a missing section.
+    """
+    inference_cfg = config.get("inference")
+    if not isinstance(inference_cfg, dict):
+        return None
+
+    def is_enabled(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() != "false"
+        return True
+
+    return {
+        name for name, settings in inference_cfg.items()
+        if isinstance(settings, dict) and is_enabled(settings.get("enabled", True))
+    }
+
+
+async def _propagate_adapter_generation(request: Request, action: str) -> None:
+    """Bump the cross-worker adapter-config generation counter, if running under
+    a multi-worker supervisor. `create_adapter`/`import_adapter`/`delete_adapter`
+    each apply their change to the worker that served the request only — under
+    `performance.workers > 1`, sibling workers only pick it up once this counter
+    changes (see server/services/adapter_reload_state.py). `action` is just for
+    the warning log line (e.g. "creation", "import", "deletion")."""
+    import os
+    if not os.environ.get("ORBIT_SUPERVISOR_PID"):
+        return
+    from services import adapter_reload_state
+    new_generation = await adapter_reload_state.bump_generation(request.app.state, "adapter_config")
+    if new_generation is None:
+        logger.warning(f"Failed to propagate adapter {action} to other workers")
+        return
+    last_seen = getattr(request.app.state, "_adapter_reload_last_seen", None)
+    if last_seen is not None:
+        last_seen["adapter_config"] = new_generation
+
+
+def _find_skill_name_owner(adapters_dir: Path, skill_name: str, exclude_name: Optional[str] = None) -> Optional[str]:
+    """The adapter name already using `skill_name`, if any (other than `exclude_name`).
+
+    Skill routing is ambiguous once two adapters share a `capabilities.skill_name`
+    — clients invoke it as `skill=<name>` and auto-routing keys off it — so this
+    is checked before a new/edited adapter can claim one.
+    """
+    for yaml_file in adapters_dir.glob("*.yaml"):
+        try:
+            parsed = yaml.safe_load(yaml_file.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            continue
+        if not isinstance(parsed, dict):
+            continue
+        for entry in parsed.get("adapters", []):
+            if not isinstance(entry, dict):
+                continue
+            entry_name = entry.get("name")
+            if entry_name == exclude_name:
+                continue
+            if (entry.get("capabilities") or {}).get("skill_name") == skill_name:
+                return entry_name
+    return None
+
+
 @router.get("/adapters/specs", dependencies=[adapters_auth])
 async def list_adapter_specs():
     """List the adapter families the SDK can generate, with their form questions."""
@@ -555,12 +627,17 @@ async def import_adapter(
             detail="Import accepts exactly one adapter per file — the writer is "
                    "one-file-per-adapter. Split the bundle and import each adapter separately."
         )
+    entry = entries[0]
 
-    name = entries[0].get("name")
+    name = entry.get("name")
     try:
         adapter_writer.validate_adapter_name(name)
     except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+    provider_errors = validate_providers(entry, _enabled_inference_providers(request.app.state.config))
+    if provider_errors:
+        raise HTTPException(status_code=422, detail="; ".join(provider_errors))
 
     adapters_dir, adapters_yaml = _adapter_sdk_paths(request)
     if not adapters_dir.is_dir():
@@ -576,6 +653,16 @@ async def import_adapter(
             status_code=409,
             detail=f"Adapter '{name}' already exists in {existing_file.name}"
         )
+
+    skill_name = (entry.get("capabilities") or {}).get("skill_name")
+    if skill_name:
+        owner = _find_skill_name_owner(adapters_dir, skill_name, exclude_name=name)
+        if owner:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Skill name '{skill_name}' is already used by adapter '{owner}'; "
+                       "skill routing would be ambiguous between the two."
+            )
 
     try:
         path = adapter_writer.write_adapter(
@@ -613,6 +700,8 @@ async def import_adapter(
     else:
         reload_error = "adapter_manager or config_path not available in app state"
 
+    await _propagate_adapter_generation(request, "import")
+
     if reload_error:
         message = (
             f"Adapter '{name}' imported, but runtime reload failed ({reload_error}). "
@@ -646,6 +735,8 @@ async def create_adapter(
     yaml_text = _render_from_spec(spec_key, answers)
     # The form enforces the same bounds, but this endpoint is reachable without it.
     errors = validate_answers(get_spec(spec_key), answers) + validate_yaml_text(yaml_text)
+    rendered_entry = (yaml.safe_load(yaml_text) or {}).get("adapters", [{}])[0]
+    errors += validate_providers(rendered_entry, _enabled_inference_providers(request.app.state.config))
     if errors:
         raise HTTPException(status_code=422, detail="; ".join(errors))
 
@@ -675,6 +766,16 @@ async def create_adapter(
             status_code=409,
             detail=f"Adapter '{name}' already exists in {existing_file.name}"
         )
+
+    skill_name = (rendered_entry.get("capabilities") or {}).get("skill_name")
+    if skill_name:
+        owner = _find_skill_name_owner(adapters_dir, skill_name, exclude_name=name)
+        if owner:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Skill name '{skill_name}' is already used by adapter '{owner}'; "
+                       "skill routing would be ambiguous between the two."
+            )
 
     try:
         path = adapter_writer.write_adapter(
@@ -713,6 +814,8 @@ async def create_adapter(
             reload_error = str(e)
     else:
         reload_error = "adapter_manager or config_path not available in app state"
+
+    await _propagate_adapter_generation(request, "creation")
 
     if reload_error:
         message = (
@@ -791,6 +894,8 @@ async def _find_adapter_referrers(request: Request, adapters_dir: Path, name: st
         try:
             parsed = yaml.safe_load(yaml_file.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError:
+            continue
+        if not isinstance(parsed, dict):
             continue
         for entry in parsed.get("adapters", []) or []:
             if not isinstance(entry, dict) or entry.get("name") == name:
@@ -893,16 +998,7 @@ async def delete_adapter(
     except Exception as exc:
         logger.warning(f"Could not unregister capabilities for '{adapter_name}': {exc}")
 
-    import os
-    if os.environ.get('ORBIT_SUPERVISOR_PID'):
-        from services import adapter_reload_state
-        new_generation = await adapter_reload_state.bump_generation(request.app.state, "adapter_config")
-        if new_generation is None:
-            logger.warning("Failed to propagate adapter deletion to other workers")
-        else:
-            last_seen = getattr(request.app.state, "_adapter_reload_last_seen", None)
-            if last_seen is not None:
-                last_seen["adapter_config"] = new_generation
+    await _propagate_adapter_generation(request, "deletion")
 
     if reload_error:
         message = (

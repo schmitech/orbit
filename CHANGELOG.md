@@ -6,6 +6,7 @@
 - **Adapter Export & Import**: Adapters can now move between environments without hand-copying YAML. The Adapters admin panel gained an "Export" action and an "Import Adapter" panel with a "Format" button to normalize and validate pasted or uploaded YAML before committing.
 - **Adapter SDK: Multimodal File-Retrieval Family**: The adapter creation form now supports the `simple-chat-with-files`-style multimodal family, covering vision/STT/TTS providers, storage/chunking/vector-store config, and an optional audio-transcription toggle.
 - **Adapter Round-Trip Editing**: An "Edit in Form" action on existing adapters detects which spec family generated them and reopens the create form pre-filled, refusing (with a reason) when an adapter was hand-edited or wasn't spec-generated so no changes are silently dropped. Saves patch the adapter's existing YAML block in place, so adapters stored in shared, multi-adapter files (e.g. `web-search-providers.yaml`) save correctly instead of hitting a false conflict.
+- **Adapter Creation Hardening**: Creating or importing an adapter now rejects a disabled `inference_provider` and a `skill_name` already used by another adapter, both with a clear error instead of failing at first use. Adapter changes also propagate to sibling workers under `performance.workers > 1`, matching the existing MCP hot-reload behavior. Fixed a crash where a malformed, non-mapping YAML file anywhere in `config/adapters/` could 500 an unrelated create, import, or delete.
 
 ## [2.15.1] - 2026-08-07
 

@@ -303,6 +303,169 @@ def test_create_requires_a_name(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# Hardening: provider validation, skill-name collisions, multi-worker propagation
+# --------------------------------------------------------------------------- #
+
+def test_create_rejects_disabled_inference_provider(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = {"inference": {"openai": {"enabled": True}, "anthropic": {"enabled": False}}}
+    answers = _default_answers(get_spec("passthrough"))
+    answers["name"] = "provider-check"
+    answers["inference_provider"] = "anthropic"
+    with TestClient(app) as client:
+        resp = client.post("/admin/adapters", json={"spec": "passthrough", "answers": answers})
+    assert resp.status_code == 422
+    assert "anthropic" in resp.json()["detail"]
+
+
+def test_create_allows_enabled_inference_provider(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = {"inference": {"openai": {"enabled": True}}}
+    answers = _default_answers(get_spec("passthrough"))
+    answers["name"] = "provider-check-ok"
+    answers["inference_provider"] = "openai"
+    with TestClient(app) as client:
+        resp = client.post("/admin/adapters", json={"spec": "passthrough", "answers": answers})
+    assert resp.status_code == 200, resp.text
+
+
+def test_create_skips_provider_check_without_inference_config(tmp_path):
+    # app.state.config == {} in the shared fixture — no `inference:` section at all,
+    # which must skip the check rather than reject every provider as "not enabled".
+    answers = _default_answers(get_spec("passthrough"))
+    answers["name"] = "provider-check-skip"
+    answers["inference_provider"] = "some-unconfigured-provider"
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters", json={"spec": "passthrough", "answers": answers})
+    assert resp.status_code == 200, resp.text
+
+
+def test_create_rejects_duplicate_skill_name(tmp_path):
+    app = _build_app(tmp_path)
+    first = _default_answers(get_spec("fetch"))
+    first["name"] = "fetch-one"
+    first["skill_name"] = "Shared Skill"
+    second = _default_answers(get_spec("fetch"))
+    second["name"] = "fetch-two"
+    second["skill_name"] = "Shared Skill"
+    with TestClient(app) as client:
+        assert client.post("/admin/adapters", json={"spec": "fetch", "answers": first}).status_code == 200
+        resp = client.post("/admin/adapters", json={"spec": "fetch", "answers": second})
+    assert resp.status_code == 409
+    assert "Shared Skill" in resp.json()["detail"]
+    assert "fetch-one" in resp.json()["detail"]
+
+
+def test_skill_name_scan_skips_non_mapping_yaml_files(tmp_path):
+    """A malformed but syntactically-valid adapter file (root is a list, or a bare
+    scalar) must not crash the skill-name collision scan — it should be skipped,
+    the same as invalid YAML, rather than raising AttributeError on `.get()`."""
+    from routes.admin.adapters import _find_skill_name_owner
+
+    adapters_dir = _config_dir(tmp_path) / "adapters"
+    (adapters_dir / "not-a-mapping.yaml").write_text("- just\n- a\n- list\n", encoding="utf-8")
+    (adapters_dir / "a-bare-scalar.yaml").write_text("just a string\n", encoding="utf-8")
+
+    assert _find_skill_name_owner(adapters_dir, "Unique Skill") is None
+
+
+def test_create_tolerates_non_mapping_yaml_files_in_adapters_dir(tmp_path):
+    """End-to-end: a malformed sibling file elsewhere in config/adapters/ must not
+    break create — _find_adapter_file's cross-file collision check and
+    _find_skill_name_owner's collision scan both walk every file in the directory."""
+    app = _build_app(tmp_path)
+    adapters_dir = tmp_path / "config" / "adapters"
+    (adapters_dir / "not-a-mapping.yaml").write_text("- just\n- a\n- list\n", encoding="utf-8")
+    (adapters_dir / "a-bare-scalar.yaml").write_text("just a string\n", encoding="utf-8")
+
+    answers = _default_answers(get_spec("fetch"))
+    answers["name"] = "fetch-past-malformed-files"
+    answers["skill_name"] = "Unique Skill"
+    with TestClient(app) as client:
+        resp = client.post("/admin/adapters", json={"spec": "fetch", "answers": answers})
+    assert resp.status_code == 200, resp.text
+
+
+def test_delete_referrer_check_tolerates_non_mapping_yaml_files(tmp_path):
+    """Same hardening, exercised through delete's referrer scan
+    (_find_adapter_referrers), which walks every adapter file the same way."""
+    app = _build_app(tmp_path)
+    adapters_dir = tmp_path / "config" / "adapters"
+    (adapters_dir / "not-a-mapping.yaml").write_text("- just\n- a\n- list\n", encoding="utf-8")
+    (adapters_dir / "a-bare-scalar.yaml").write_text("just a string\n", encoding="utf-8")
+
+    with TestClient(app) as client:
+        resp = client.delete("/admin/adapters/fetch")
+    assert resp.status_code == 200, resp.text
+
+
+def test_create_overwrite_does_not_trip_its_own_skill_name(tmp_path):
+    app = _build_app(tmp_path)
+    answers = _default_answers(get_spec("fetch"))
+    answers["name"] = "fetch-self"
+    answers["skill_name"] = "Self Skill"
+    with TestClient(app) as client:
+        assert client.post("/admin/adapters", json={"spec": "fetch", "answers": answers}).status_code == 200
+        answers["fetch_timeout"] = 45
+        resp = client.post("/admin/adapters", json={"spec": "fetch", "answers": answers, "overwrite": True})
+    assert resp.status_code == 200, resp.text
+
+
+def test_import_rejects_duplicate_skill_name(tmp_path):
+    app = _build_app(tmp_path)
+    existing = _default_answers(get_spec("fetch"))
+    existing["name"] = "fetch-existing"
+    existing["skill_name"] = "Import Collision"
+    payload = (
+        "adapters:\n  - name: fetch-new\n    type: fetch\n    datasource: none\n"
+        "    adapter: conversational\n    implementation: x\n"
+        "    fetch_timeout: 30\n    fetch_user_agent: bot\n"
+        "    capabilities:\n      skill_name: Import Collision\n"
+    )
+    with TestClient(app) as client:
+        assert client.post("/admin/adapters", json={"spec": "fetch", "answers": existing}).status_code == 200
+        resp = client.post("/admin/adapters/import", json={"content": payload})
+    assert resp.status_code == 409
+    assert "Import Collision" in resp.json()["detail"]
+
+
+def test_create_propagates_generation_under_supervisor(tmp_path, monkeypatch):
+    monkeypatch.setenv("ORBIT_SUPERVISOR_PID", "1234")
+    calls = []
+
+    async def fake_bump_generation(app_state, kind):
+        calls.append(kind)
+        return 7
+
+    monkeypatch.setattr("services.adapter_reload_state.bump_generation", fake_bump_generation)
+
+    answers = _default_answers(get_spec("fetch"))
+    answers["name"] = "propagation-check"
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters", json={"spec": "fetch", "answers": answers})
+    assert resp.status_code == 200, resp.text
+    assert calls == ["adapter_config"]
+
+
+def test_create_does_not_propagate_generation_without_supervisor(tmp_path, monkeypatch):
+    monkeypatch.delenv("ORBIT_SUPERVISOR_PID", raising=False)
+    calls = []
+
+    async def fake_bump_generation(app_state, kind):
+        calls.append(kind)
+        return 7
+
+    monkeypatch.setattr("services.adapter_reload_state.bump_generation", fake_bump_generation)
+
+    answers = _default_answers(get_spec("fetch"))
+    answers["name"] = "no-propagation-check"
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters", json={"spec": "fetch", "answers": answers})
+    assert resp.status_code == 200, resp.text
+    assert calls == []
+
+
+# --------------------------------------------------------------------------- #
 # Export / Import
 # --------------------------------------------------------------------------- #
 
