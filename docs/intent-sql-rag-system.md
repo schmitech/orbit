@@ -297,20 +297,20 @@ The system uses a domain strategy architecture for specialized template rerankin
 
 ### 6. Validation System
 
-A comprehensive validation suite that ensures RAG system responses match actual database results.
+Template matching accuracy is measured by the intent-eval harness in `server/tests/intent_eval/`, which drives a real retriever directly (no HTTP, no LLM pipeline) against a corpus of `(query, expected_template_id)` cases and reports top-1 match rate, recall@3/@5, and confusion pairs.
 
 #### Key Components:
 
-**RAG Validator (`validate_rag_results.py`)**
-- Compares RAG responses with equivalent SQL queries
-- Validates result counts and response accuracy
-- Provides detailed error analysis and debugging information
-- Supports category-based testing and sampling
+**Corpora (`server/tests/intent_eval/corpora/*.yaml`)**
+- Seeded from each template library's own `nl_examples` via `generate_corpus_from_templates.py`
+- Hand-labeled queries can be appended for broader coverage
 
-**SQL Validation Templates (`sql_validation_templates.py`)**
-- Mirror RAG query templates with equivalent SQL
-- Ensure accurate comparison between RAG and direct SQL results
-- Handle different query types (customer, orders, analytics, etc.)
+**Runner (`server/tests/intent_eval/runner.py`)**
+- Constructs a real intent retriever and calls `utils/template_diagnostics.diagnose_template_query()` per case
+- Caches query embeddings to a JSON fixture so repeat runs don't require a reachable embedding provider
+
+**Regression gate (`server/tests/intent_eval/test_regression.py`)**
+- Asserts match rate against a checked-in baseline; ratchets upward only
 
 ## Extending to New Domains
 

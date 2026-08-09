@@ -824,6 +824,13 @@ export function createAdaptersTab({
       var reloadTemplatesBtn = supportsTemplateReload
         ? el("button", { className: "btn btn--neutral" }, "Reload Templates")
         : null;
+      // Test Query only applies to intent/composite retrievers (the ones with
+      // templates to match against) — driven by the same capability flag pattern
+      // as Reload Templates so it stays correct as new adapter types are added.
+      var supportsTestQuery = !!(adapterCap && adapterCap.supports_test_query);
+      var testQueryBtn = supportsTestQuery
+        ? el("button", { className: "btn btn--neutral" }, "Test Query")
+        : null;
 
       var editFormBtn = el("button", { className: "secondary", type: "button" }, "Edit in Form");
       var exportBtn = el("button", { className: "secondary", type: "button" }, "Export");
@@ -836,11 +843,35 @@ export function createAdaptersTab({
         btnRow.appendChild(el("span", { className: "ops-action-divider" }));
         btnRow.appendChild(reloadTemplatesBtn);
       }
+      if (testQueryBtn) {
+        btnRow.appendChild(el("span", { className: "ops-action-divider" }));
+        btnRow.appendChild(testQueryBtn);
+      }
       btnRow.appendChild(el("span", { className: "ops-action-divider" }));
       btnRow.appendChild(editFormBtn);
       btnRow.appendChild(exportBtn);
       btnRow.appendChild(deleteBtn);
       detailPanel.appendChild(btnRow);
+
+      // Test Query panel — collapsed by default, built lazily on first expand.
+      // Drives POST /admin/adapters/{name}/test-query, which runs template
+      // matching/extraction/rendering (and optionally execution) without the
+      // full LLM pipeline (server/utils/template_diagnostics.py).
+      if (testQueryBtn) {
+        var testQuerySection = el("details", { className: "panel", style: "margin-top:var(--sp-3)" });
+        var testQuerySummary = el("summary", { style: "cursor:pointer;font-weight:600" }, "Test Query");
+        testQuerySection.appendChild(testQuerySummary);
+        var testQueryBuilt = false;
+        testQueryBtn.addEventListener("click", function () {
+          testQuerySection.open = !testQuerySection.open;
+          if (testQuerySection.open && !testQueryBuilt) {
+            testQueryBuilt = true;
+            buildTestQueryBody(testQuerySection, a);
+          }
+          if (testQuerySection.open) testQuerySection.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+        detailPanel.appendChild(testQuerySection);
+      }
 
       // Tries to reopen this adapter in the spec-driven create form instead of raw
       // YAML. Only possible when the adapter was produced by a known spec family
@@ -1047,6 +1078,229 @@ export function createAdaptersTab({
         el("span", { className: "chip-label" }, label + ":"),
         " " + value
       );
+    }
+
+    function scoreBadgeClass(score) {
+      if (score >= 0.7) return "monitoring-badge green";
+      if (score >= 0.4) return "monitoring-badge amber";
+      return "monitoring-badge red";
+    }
+
+    function dataTable(headers, rows) {
+      var table = el("table");
+      table.appendChild(el("thead", null, el("tr", null, headers.map(function (h) { return el("th", null, h); }))));
+      var tbody = el("tbody");
+      rows.forEach(function (cells) { tbody.appendChild(el("tr", null, cells)); });
+      table.appendChild(tbody);
+      return el("div", { className: "table-wrap" }, table);
+    }
+
+    // Builds the Test Query form + results area inside an intent adapter's
+    // detail panel. Lazily constructed on first expand of the <details> section.
+    function buildTestQueryBody(section, a) {
+      var queryInput = el("input", { type: "text", style: "width:100%",
+        placeholder: "Natural language query to test, e.g. \"salary stats for engineering\"" });
+      var maxTemplatesInput = el("input", { type: "number", value: "5", min: "1", max: "20", style: "width:70px" });
+      var executeLabel = el("label", { className: "adapter-checkbox-field" },
+        el("input", { type: "checkbox", checked: "checked" }), el("span", null, "Execute"));
+      var verboseLabel = el("label", { className: "adapter-checkbox-field" },
+        el("input", { type: "checkbox" }), el("span", null, "Verbose"));
+      var allCandidatesLabel = el("label", { className: "adapter-checkbox-field" },
+        el("input", { type: "checkbox" }), el("span", null, "All candidates"));
+      var executeInput = executeLabel.querySelector("input");
+      var verboseInput = verboseLabel.querySelector("input");
+      var allCandidatesInput = allCandidatesLabel.querySelector("input");
+      var runBtn = el("button", { type: "button", className: "secondary" }, "Run");
+      var resultsContainer = el("div", { style: "margin-top:var(--sp-3)" });
+
+      section.appendChild(el("p", { className: "muted", style: "margin:var(--sp-2) 0" },
+        "Runs matching, parameter extraction, and (optionally) execution against this adapter's "
+        + "templates without the full LLM pipeline."));
+      section.appendChild(el("div", { className: "admin-create-form-grid" },
+        field("Query", queryInput),
+        field("Max candidates", maxTemplatesInput)
+      ));
+      section.appendChild(el("div", {
+        style: "display:flex;flex-wrap:wrap;gap:var(--sp-3);align-items:center;margin:var(--sp-2) 0"
+      }, executeLabel, verboseLabel, allCandidatesLabel, runBtn));
+      section.appendChild(resultsContainer);
+
+      function runTest() {
+        var query = queryInput.value.trim();
+        if (!query) { showError("Enter a query to test."); return; }
+        withButton(runBtn, async function () {
+          clear(resultsContainer);
+          resultsContainer.appendChild(skeleton());
+          var data;
+          try {
+            data = await api("POST", endpoints.adapterCreate + "/" + encodeURIComponent(a.name) + "/test-query", {
+              query: query,
+              max_templates: parseInt(maxTemplatesInput.value, 10) || 5,
+              execute: executeInput.checked,
+              include_all_candidates: allCandidatesInput.checked,
+              verbose: verboseInput.checked,
+            });
+          } catch (err) {
+            clear(resultsContainer);
+            resultsContainer.appendChild(el("div", { className: "empty-state" },
+              el("p", null, "Test query failed: " + err.message)));
+            return;
+          }
+          clear(resultsContainer);
+          renderTestQueryResults(resultsContainer, data);
+        });
+      }
+
+      runBtn.addEventListener("click", runTest);
+      queryInput.addEventListener("keydown", function (e) { if (e.key === "Enter") runTest(); });
+    }
+
+    function renderTestQueryResults(container, data) {
+      var timing = data.timing || {};
+      if (Object.keys(timing).length) {
+        var timingParts = Object.keys(timing).map(function (k) {
+          return k.replace(/_ms$/, "").replace(/_/g, " ") + ": " + timing[k] + "ms";
+        });
+        container.appendChild(el("p", { className: "muted", style: "font-size:var(--text-xs)" }, timingParts.join(" · ")));
+      }
+
+      var search = data.template_search;
+      if (search) {
+        container.appendChild(el("h4", null,
+          "Template candidates (" + (search.candidates_found || 0) + " found, threshold "
+          + search.confidence_threshold + ")"));
+        if (search.error) {
+          container.appendChild(el("p", null, search.error));
+        } else if ((search.candidates || []).length) {
+          container.appendChild(dataTable(
+            ["Score", "Template", "Description"],
+            search.candidates.map(function (c) {
+              var sim = c.similarity || 0;
+              var badge = el("span", { className: scoreBadgeClass(sim) }, sim.toFixed(4));
+              var rescued = c.rescued_by_nl_example
+                ? el("span", { className: "muted", style: "margin-left:6px" }, "(rescued)")
+                : null;
+              return [
+                el("td", null, badge, rescued),
+                el("td", null, c.template_id || "?"),
+                el("td", { className: "muted" }, c.description || "")
+              ];
+            })
+          ));
+        } else {
+          container.appendChild(el("p", { className: "muted" }, "No candidates found."));
+        }
+      }
+
+      var reranking = data.reranking;
+      if (reranking && reranking.applied && (reranking.reranked_scores || []).length) {
+        container.appendChild(el("h4", null, "Reranking" + (reranking.order_changed ? " (order changed)" : "")));
+        container.appendChild(dataTable(
+          ["Template", "Original", "Boost", "Final"],
+          reranking.reranked_scores.slice(0, 5).map(function (entry) {
+            var boost = entry.boost || 0;
+            return [
+              el("td", null, entry.template_id || "?"),
+              el("td", null, (entry.original_similarity || 0).toFixed(4)),
+              el("td", null, boost > 0 ? "+" + boost.toFixed(3) : "0"),
+              el("td", null, (entry.final_similarity || 0).toFixed(4))
+            ];
+          })
+        ));
+      }
+
+      var selected = data.selected_template;
+      if (selected) {
+        container.appendChild(el("h4", null, "Selected template"));
+        if (selected.error) {
+          container.appendChild(el("p", null, selected.error
+            + (selected.best_score != null ? " (best score: " + selected.best_score + ")" : "")));
+        } else {
+          container.appendChild(el("p", null,
+            el("strong", null, selected.template_id || "?"),
+            " — similarity " + (selected.similarity || 0).toFixed(4)
+          ));
+          if (selected.description) container.appendChild(el("p", { className: "muted" }, selected.description));
+        }
+      }
+
+      var extraction = data.parameter_extraction;
+      if (extraction) {
+        container.appendChild(el("h4", null, "Parameter extraction (" + (extraction.method || "?") + ")"));
+        if (extraction.error) container.appendChild(el("p", null, extraction.error));
+        var extracted = extraction.extracted || {};
+        if (Object.keys(extracted).length) {
+          container.appendChild(dataTable(
+            ["Parameter", "Value"],
+            Object.keys(extracted).map(function (k) {
+              return [el("td", null, k), el("td", null, String(extracted[k]))];
+            })
+          ));
+        } else {
+          container.appendChild(el("p", { className: "muted" }, "No parameters extracted."));
+        }
+        (extraction.validation_errors || []).forEach(function (err) {
+          container.appendChild(el("p", { style: "color:#bd3f4d" }, "Validation: " + err));
+        });
+      }
+
+      var rendered = data.rendered_query;
+      if (rendered) {
+        container.appendChild(el("h4", null, "Rendered query"));
+        if (rendered.error) container.appendChild(el("p", null, rendered.error));
+        var queryText = rendered.query || rendered.endpoint || rendered.raw_template;
+        if (queryText) container.appendChild(el("pre", null, String(queryText)));
+        var params = rendered.parameters || rendered.variables;
+        if (params && Object.keys(params).length) {
+          container.appendChild(el("p", { className: "muted", style: "font-size:var(--text-xs)" },
+            "Parameters: " + JSON.stringify(params)));
+        }
+      }
+
+      var tried = data.templates_tried;
+      if (tried && tried.length > 1) {
+        container.appendChild(el("h4", null, "Templates tried (" + tried.length + ")"));
+        container.appendChild(dataTable(
+          ["Outcome", "Template", "Score", "Detail"],
+          tried.map(function (entry) {
+            var detail = entry.detail || (entry.outcome === "success" ? (entry.row_count || 0) + " rows" : "");
+            return [
+              el("td", null, entry.outcome || "?"),
+              el("td", null, entry.template_id || "?"),
+              el("td", null, (entry.similarity || 0).toFixed(4)),
+              el("td", { className: "muted" }, detail)
+            ];
+          })
+        ));
+      }
+
+      var execution = data.execution;
+      if (execution) {
+        container.appendChild(el("h4", null, "Execution"));
+        if (execution.error) container.appendChild(el("p", null, execution.error));
+        container.appendChild(el("p", { className: "muted" },
+          (execution.success ? "Success" : "Failed") + " — " + (execution.row_count || 0) + " rows"));
+        var results = execution.results || [];
+        if (results.length) {
+          container.appendChild(el("pre", null, JSON.stringify(results.slice(0, 10), null, 2)));
+          if (results.length > 10) {
+            container.appendChild(el("p", { className: "muted", style: "font-size:var(--text-xs)" },
+              "... and " + (results.length - 10) + " more rows"));
+          }
+        }
+      } else if (selected && !selected.error) {
+        container.appendChild(el("p", { className: "muted" }, "(execution skipped)"));
+      }
+
+      // Verbose diagnostics
+      var vsInfo = data.vector_store_info;
+      if (vsInfo && !vsInfo.error) {
+        container.appendChild(el("h4", null, "Vector store"));
+        container.appendChild(el("p", { className: "muted", style: "font-size:var(--text-xs)" },
+          "type: " + (vsInfo.store_type || "?") + " · collection: " + (vsInfo.collection_name || "?")
+          + " · vectors: " + (vsInfo.total_vectors != null ? vsInfo.total_vectors : "?")
+          + " · dimensions: " + (vsInfo.embedding_dimension != null ? vsInfo.embedding_dimension : "?")));
+      }
     }
 
     // Restore selection if we had one

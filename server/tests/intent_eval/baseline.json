@@ -1,0 +1,8 @@
+{
+  "intent-sql-sqlite-hr": {
+    "total": 149,
+    "top1_correct": 148,
+    "recall_at_3_correct": 149,
+    "recall_at_5_correct": 149
+  }
+}

@@ -65,6 +65,34 @@ def _supports_template_reload(adapter_instance, adapter_config: dict) -> bool:
         return False
 
 
+def _supports_test_query(adapter_instance, adapter_config: dict) -> bool:
+    """Whether an adapter is an intent/composite retriever eligible for /test-query.
+
+    Mirrors the isinstance check in test_adapter_query() itself. Checks the live
+    instance when cached; otherwise resolves the implementation class from config
+    without instantiating it, so uncached adapters report accurately.
+    """
+    from retrievers.base.intent_sql_base import IntentSQLRetriever
+    from retrievers.base.intent_http_base import IntentHTTPRetriever
+    from retrievers.base.intent_composite_base import CompositeIntentRetriever
+
+    intent_bases = (IntentSQLRetriever, IntentHTTPRetriever, CompositeIntentRetriever)
+
+    if adapter_instance is not None:
+        return isinstance(adapter_instance, intent_bases)
+
+    implementation_path = (adapter_config or {}).get('implementation')
+    if not implementation_path or '.' not in implementation_path:
+        return False
+    try:
+        module_path, class_name = implementation_path.rsplit('.', 1)
+        module = importlib.import_module(module_path)
+        adapter_class = getattr(module, class_name)
+        return issubclass(adapter_class, intent_bases)
+    except Exception:
+        return False
+
+
 @router.get("/adapters/capabilities", dependencies=[adapters_auth])
 async def get_adapter_capabilities(
     request: Request,
@@ -88,6 +116,7 @@ async def get_adapter_capabilities(
                 "adapter_type": (adapter_config or {}).get("adapter"),
                 "cached": bool(adapter_instance),
                 "supports_template_reload": _supports_template_reload(adapter_instance, adapter_config),
+                "supports_test_query": _supports_test_query(adapter_instance, adapter_config),
             })
 
         return {"adapters": capabilities}

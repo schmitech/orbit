@@ -1,0 +1,453 @@
+adapter: intent-sql-sqlite-hr
+source: examples/intent-templates/sql-intent-template/sqlite/hr/hr-templates.yaml
+note: Auto-generated from nl_examples via generate_corpus_from_templates.py. Safe to hand-edit or append
+  cases below this line; re-running the generator only rewrites the auto-generated section if you overwrite
+  the whole file.
+cases:
+- query: Find employees named John
+  expected_template_id: search_employees_by_name
+  expect: match
+- query: Search for employees with Smith in their name
+  expected_template_id: search_employees_by_name
+  expect: match
+- query: Show me employees named Alice
+  expected_template_id: search_employees_by_name
+  expect: match
+- query: Find employee with email john.doe@company.com
+  expected_template_id: find_employee_by_email
+  expect: match
+- query: Who has email jane.smith@company.com?
+  expected_template_id: find_employee_by_email
+  expect: match
+- query: Get employee by email
+  expected_template_id: find_employee_by_email
+  expect: match
+- query: Show me employees in Engineering
+  expected_template_id: list_employees_by_department
+  expect: match
+- query: List employees in Sales department
+  expected_template_id: list_employees_by_department
+  expect: match
+- query: Get staff in Marketing
+  expected_template_id: list_employees_by_department
+  expect: match
+- query: How many employees per department?
+  expected_template_id: count_employees_by_department
+  expect: match
+- query: Show me employee count by department
+  expected_template_id: count_employees_by_department
+  expect: match
+- query: Get employee distribution by department
+  expected_template_id: count_employees_by_department
+  expect: match
+- query: Show me Software Engineers
+  expected_template_id: list_employees_by_position
+  expect: match
+- query: List all Sales Representatives
+  expected_template_id: list_employees_by_position
+  expect: match
+- query: Get employees with Manager position
+  expected_template_id: list_employees_by_position
+  expect: match
+- query: Show me employees earning between 80000 and 120000
+  expected_template_id: find_employees_by_salary_range
+  expect: match
+- query: Find employees with salary 100000 to 150000
+  expected_template_id: find_employees_by_salary_range
+  expect: match
+- query: Get staff earning 50000 to 80000
+  expected_template_id: find_employees_by_salary_range
+  expect: match
+- query: Who earns at least 100000?
+  expected_template_id: find_employees_earning_at_least
+  expect: match
+- query: Find employees making 75000 or more
+  expected_template_id: find_employees_earning_at_least
+  expect: match
+- query: Show me who makes at least $50000
+  expected_template_id: find_employees_earning_at_least
+  expect: match
+- query: List employees earning over 80000
+  expected_template_id: find_employees_earning_at_least
+  expect: match
+- query: Who earns $45000?
+  expected_template_id: find_employees_earning_exactly
+  expect: match
+- query: Find employees making exactly 75000
+  expected_template_id: find_employees_earning_exactly
+  expect: match
+- query: Show me who makes 100000
+  expected_template_id: find_employees_earning_exactly
+  expect: match
+- query: Which employees earn 60000?
+  expected_template_id: find_employees_earning_exactly
+  expect: match
+- query: Who earns less than 50000?
+  expected_template_id: find_employees_earning_less_than
+  expect: match
+- query: Find employees making under 75000
+  expected_template_id: find_employees_earning_less_than
+  expect: match
+- query: Show me who makes below $60000
+  expected_template_id: find_employees_earning_less_than
+  expect: match
+- query: Which employees earn less than 100000?
+  expected_template_id: find_employees_earning_less_than
+  expect: match
+- query: Who earns more than 50000?
+  expected_template_id: find_employees_earning_more_than
+  expect: match
+- query: Find employees making over 75000
+  expected_template_id: find_employees_earning_more_than
+  expect: match
+- query: Show me who makes above $60000
+  expected_template_id: find_employees_earning_more_than
+  expect: match
+- query: Which employees earn greater than 100000?
+  expected_template_id: find_employees_earning_more_than
+  expect: match
+- query: Find Engineering department
+  expected_template_id: find_department_by_name
+  expect: match
+- query: Show me Sales department
+  expected_template_id: find_department_by_name
+  expect: match
+- query: Get Marketing department info
+  expected_template_id: find_department_by_name
+  expect: match
+- query: Show me departments in San Francisco
+  expected_template_id: list_departments_by_location
+  expect: match
+- query: List departments in New York
+  expected_template_id: list_departments_by_location
+  expect: match
+- query: Get departments located in Los Angeles
+  expected_template_id: list_departments_by_location
+  expect: match
+- query: Show me positions in Engineering
+  expected_template_id: list_positions_by_department
+  expect: match
+- query: List jobs in Sales department
+  expected_template_id: list_positions_by_department
+  expect: match
+- query: Get positions in Marketing
+  expected_template_id: list_positions_by_department
+  expect: match
+- query: Show me positions with salary range 80000 to 150000
+  expected_template_id: find_positions_by_salary_range
+  expect: match
+- query: Find jobs paying 100000 to 200000
+  expected_template_id: find_positions_by_salary_range
+  expect: match
+- query: Get positions with salaries 50000 to 100000
+  expected_template_id: find_positions_by_salary_range
+  expect: match
+- query: How many employees do we have?
+  expected_template_id: count_all_employees
+  expect: match
+- query: Count all employees
+  expected_template_id: count_all_employees
+  expect: match
+- query: What's the total number of employees?
+  expected_template_id: count_all_employees
+  expect: match
+- query: What's the average salary?
+  expected_template_id: average_salary
+  expect: match
+- query: Get the mean salary
+  expected_template_id: average_salary
+  expect: match
+- query: Calculate average employee salary
+  expected_template_id: average_salary
+  expect: match
+- query: What's the average salary by department?
+  expected_template_id: average_salary_by_department
+  expect: match
+- query: Show me average salary per department
+  expected_template_id: average_salary_by_department
+  expect: match
+- query: Get mean salary by department
+  expected_template_id: average_salary_by_department
+  expect: match
+- query: Show me salary statistics
+  expected_template_id: salary_statistics
+  expect: match
+- query: Get salary statistics
+  expected_template_id: salary_statistics
+  expect: match
+- query: What are the salary stats?
+  expected_template_id: salary_statistics
+  expect: match
+- query: Show me employees hired in the last 30 days
+  expected_template_id: list_recent_hires
+  expect: match
+- query: List recent hires
+  expected_template_id: list_recent_hires
+  expect: match
+- query: Get employees hired this month
+  expected_template_id: list_recent_hires
+  expect: match
+- query: Show me employees hired in 2020
+  expected_template_id: list_employees_by_hire_year
+  expect: match
+- query: List employees hired in 2021
+  expected_template_id: list_employees_by_hire_year
+  expect: match
+- query: Get staff hired in 2022
+  expected_template_id: list_employees_by_hire_year
+  expect: match
+- query: Show me full profile for employee 1
+  expected_template_id: employee_full_profile
+  expect: match
+- query: Get complete employee information
+  expected_template_id: employee_full_profile
+  expect: match
+- query: Display employee profile
+  expected_template_id: employee_full_profile
+  expect: match
+- query: Show me Engineering department roster
+  expected_template_id: department_roster
+  expect: match
+- query: Get complete Sales team list
+  expected_template_id: department_roster
+  expect: match
+- query: List all employees in Marketing with their positions
+  expected_template_id: department_roster
+  expect: match
+- query: Find Software Engineers in Engineering
+  expected_template_id: employees_by_department_and_position
+  expect: match
+- query: Show me Sales Representatives in Sales
+  expected_template_id: employees_by_department_and_position
+  expect: match
+- query: Get Managers in Marketing
+  expected_template_id: employees_by_department_and_position
+  expect: match
+- query: Show salary disparities within positions
+  expected_template_id: salary_equity_by_position
+  expect: match
+- query: Find pay equity issues
+  expected_template_id: salary_equity_by_position
+  expect: match
+- query: Which positions have the biggest salary gaps?
+  expected_template_id: salary_equity_by_position
+  expect: match
+- query: Identify compensation inequities
+  expected_template_id: salary_equity_by_position
+  expect: match
+- query: Show me salary spread by role
+  expected_template_id: salary_equity_by_position
+  expect: match
+- query: Who might be thinking of leaving?
+  expected_template_id: flight_risk_employees
+  expect: match
+- query: Show flight risk employees
+  expected_template_id: flight_risk_employees
+  expect: match
+- query: Find underpaid long-tenured staff
+  expected_template_id: flight_risk_employees
+  expect: match
+- query: Identify retention risks
+  expected_template_id: flight_risk_employees
+  expect: match
+- query: Which employees are we at risk of losing?
+  expected_template_id: flight_risk_employees
+  expect: match
+- query: How much of each department's budget goes to salaries?
+  expected_template_id: department_budget_utilization
+  expect: match
+- query: Show budget utilization by department
+  expected_template_id: department_budget_utilization
+  expect: match
+- query: Which departments are over budget on payroll?
+  expected_template_id: department_budget_utilization
+  expect: match
+- query: Compare salary spend to budget
+  expected_template_id: department_budget_utilization
+  expect: match
+- query: Show me department budget efficiency
+  expected_template_id: department_budget_utilization
+  expect: match
+- query: What's the manager to employee ratio?
+  expected_template_id: manager_span_analysis
+  expect: match
+- query: Show span of control by department
+  expected_template_id: manager_span_analysis
+  expect: match
+- query: Are we top-heavy in any department?
+  expected_template_id: manager_span_analysis
+  expect: match
+- query: Analyze management structure
+  expected_template_id: manager_span_analysis
+  expect: match
+- query: Which departments have too many managers?
+  expected_template_id: manager_span_analysis
+  expect: match
+- query: Who is overdue for promotion?
+  expected_template_id: promotion_candidates
+  expect: match
+- query: Find employees earning above their grade
+  expected_template_id: promotion_candidates
+  expect: match
+- query: Show promotion candidates
+  expected_template_id: promotion_candidates
+  expect: match
+- query: Which employees have outgrown their role?
+  expected_template_id: promotion_candidates
+  expect: match
+- query: Identify employees needing title adjustment
+  expected_template_id: promotion_candidates
+  expect: match
+- query: When do we hire the most?
+  expected_template_id: hiring_trends_by_month
+  expect: match
+- query: Show hiring patterns by month
+  expected_template_id: hiring_trends_by_month
+  expect: match
+- query: What's our hiring seasonality?
+  expected_template_id: hiring_trends_by_month
+  expect: match
+- query: Analyze recruitment trends
+  expected_template_id: hiring_trends_by_month
+  expect: match
+- query: Which months have the most new hires?
+  expected_template_id: hiring_trends_by_month
+  expect: match
+- query: What's our payroll by location?
+  expected_template_id: cost_per_location
+  expect: match
+- query: Compare costs across offices
+  expected_template_id: cost_per_location
+  expect: match
+- query: Show headcount and salary by city
+  expected_template_id: cost_per_location
+  expect: match
+- query: Which location has highest labor costs?
+  expected_template_id: cost_per_location
+  expect: match
+- query: Analyze geographic cost distribution
+  expected_template_id: cost_per_location
+  expect: match
+- query: What's our tenure distribution?
+  expected_template_id: tenure_distribution_analysis
+  expect: match
+- query: How long do employees stay?
+  expected_template_id: tenure_distribution_analysis
+  expect: match
+- query: Show workforce by years of service
+  expected_template_id: tenure_distribution_analysis
+  expect: match
+- query: Analyze employee retention by tenure
+  expected_template_id: tenure_distribution_analysis
+  expect: match
+- query: What percentage of staff are new?
+  expected_template_id: tenure_distribution_analysis
+  expect: match
+- query: Which positions have only one person?
+  expected_template_id: single_point_of_failure_positions
+  expect: match
+- query: Show single points of failure
+  expected_template_id: single_point_of_failure_positions
+  expect: match
+- query: Find succession planning risks
+  expected_template_id: single_point_of_failure_positions
+  expect: match
+- query: Identify key person dependencies
+  expected_template_id: single_point_of_failure_positions
+  expect: match
+- query: Which roles need backup coverage?
+  expected_template_id: single_point_of_failure_positions
+  expect: match
+- query: Who is paid outside their salary band?
+  expected_template_id: compensation_band_outliers
+  expect: match
+- query: Find compensation outliers
+  expected_template_id: compensation_band_outliers
+  expect: match
+- query: Show employees with salary exceptions
+  expected_template_id: compensation_band_outliers
+  expect: match
+- query: Identify pay band violations
+  expected_template_id: compensation_band_outliers
+  expect: match
+- query: Which salaries need adjustment?
+  expected_template_id: compensation_band_outliers
+  expect: match
+- query: Rank employees by salary in Engineering
+  expected_template_id: department_salary_ranking
+  expect: match
+- query: Show salary ranking in Sales
+  expected_template_id: department_salary_ranking
+  expect: match
+- query: Who are the top earners in Marketing?
+  expected_template_id: department_salary_ranking
+  expect: match
+- query: Display salary hierarchy in Finance
+  expected_template_id: department_salary_ranking
+  expect: match
+- query: How has each department grown over time?
+  expected_template_id: headcount_growth_by_department
+  expect: match
+- query: Show headcount growth by department
+  expected_template_id: headcount_growth_by_department
+  expect: match
+- query: Which departments are expanding?
+  expected_template_id: headcount_growth_by_department
+  expect: match
+- query: Analyze department growth trends
+  expected_template_id: headcount_growth_by_department
+  expect: match
+- query: Find employees without department assignments
+  expected_template_id: employees_without_assignments
+  expect: match
+- query: Show employees missing position assignments
+  expected_template_id: employees_without_assignments
+  expect: match
+- query: Identify incomplete employee records
+  expected_template_id: employees_without_assignments
+  expect: match
+- query: Which employees have missing data?
+  expected_template_id: employees_without_assignments
+  expect: match
+- query: Find data quality issues in employee records
+  expected_template_id: employees_without_assignments
+  expect: match
+- query: Who works in multiple departments?
+  expected_template_id: cross_department_employees
+  expect: match
+- query: Show cross-functional employees
+  expected_template_id: cross_department_employees
+  expect: match
+- query: Find employees with dual assignments
+  expected_template_id: cross_department_employees
+  expect: match
+- query: Identify matrix organization members
+  expected_template_id: cross_department_employees
+  expect: match
+- query: Show salary percentiles for all employees
+  expected_template_id: salary_percentile_analysis
+  expect: match
+- query: Where does each employee rank in salary?
+  expected_template_id: salary_percentile_analysis
+  expect: match
+- query: Display salary quartile distribution
+  expected_template_id: salary_percentile_analysis
+  expect: match
+- query: Rank employees by compensation percentile
+  expected_template_id: salary_percentile_analysis
+  expect: match
+- query: Who are the top earners in the company?
+  expected_template_id: top_earners_company_wide
+  expect: match
+- query: Show me the highest paid employees
+  expected_template_id: top_earners_company_wide
+  expect: match
+- query: List the top 10 salaries
+  expected_template_id: top_earners_company_wide
+  expect: match
+- query: Who makes the most money?
+  expected_template_id: top_earners_company_wide
+  expect: match
+- query: Display our best compensated staff
+  expected_template_id: top_earners_company_wide
+  expect: match

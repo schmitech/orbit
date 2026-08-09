@@ -141,7 +141,10 @@ class TemplateReranker:
         action_verbs = self.domain_config.vocabulary.get('action_verbs', {})
         
         # Check if action or its synonyms are in query
-        verbs = action_verbs.get(action, [])
+        # Copy before appending — action_verbs.get(action, []) returns the actual
+        # list stored in domain_config when the key exists, so appending in place
+        # would grow it by one "action" entry on every call.
+        verbs = list(action_verbs.get(action, []))
         verbs.append(action)  # Include the action itself
         
         for verb in verbs:

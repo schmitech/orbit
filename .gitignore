@@ -25,7 +25,11 @@ logs/
 
 # Database files
 examples/chroma/chroma_db*
-examples/sqlite/sqlite_db* 
+examples/sqlite/sqlite_db*
+
+# Intent-eval harness — rebuildable vector store; the embedding cache and
+# corpora/baseline ARE committed since they're what make CI reproducible.
+server/tests/intent_eval/fixtures/chroma_*
 
 # Model files
 *.gguf
