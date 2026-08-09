@@ -485,7 +485,8 @@
   },
   "chat": {
     "errors": {
-      "servicePaused": "ORBIT サーバーは一時停止中です。時間をおいてもう一度お試しください。"
+      "servicePaused": "ORBIT サーバーは一時停止中です。時間をおいてもう一度お試しください。",
+      "authenticationRequired": "このエージェントを使用するにはサインインしてください。"
     }
   },
   "voice": {

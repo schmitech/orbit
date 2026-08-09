@@ -485,7 +485,8 @@
   },
   "chat": {
     "errors": {
-      "servicePaused": "ORBIT 服务器已暂停。请稍后重试。"
+      "servicePaused": "ORBIT 服务器已暂停。请稍后重试。",
+      "authenticationRequired": "请登录以使用此智能体。"
     }
   },
   "voice": {

@@ -5,6 +5,7 @@
 import { debugLog } from './utils/debug';
 import { getAccessToken } from './auth/tokenStore';
 import { getUserIdHeaderValue } from './auth/userId';
+import i18n from './i18n';
 import type { AdapterModelsResponse, AllModelsResponse } from './types';
 
 // Type definitions for the API
@@ -223,7 +224,7 @@ export class ApiRequestError extends Error {
   }
 }
 
-async function buildHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
+export async function buildHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     'X-User-ID': await getUserIdHeaderValue(),
     ...extra
@@ -272,6 +273,10 @@ async function buildErrorMessage(response: Response): Promise<string> {
     }
   } catch {
     // Ignore response parsing errors and fall back to the status line.
+  }
+
+  if (response.status === 401) {
+    return `${baseMessage}: ${i18n.t('chat.errors.authenticationRequired')}`;
   }
 
   return baseMessage;

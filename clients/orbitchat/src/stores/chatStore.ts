@@ -46,9 +46,17 @@ function isServicePausedError(error: unknown): error is ApiRequestError {
   return error instanceof ApiRequestError && error.status === 503;
 }
 
+function isAuthenticationError(error: unknown): error is ApiRequestError {
+  return error instanceof ApiRequestError && error.status === 401;
+}
+
 function getChatErrorMessage(error: unknown, fallbackMessage: string): string {
   if (isServicePausedError(error)) {
     return i18n.t('chat.errors.servicePaused');
+  }
+
+  if (isAuthenticationError(error)) {
+    return i18n.t('chat.errors.authenticationRequired');
   }
 
   if (error instanceof Error) {

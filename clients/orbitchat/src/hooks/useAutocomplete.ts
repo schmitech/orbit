@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, RefObject } from 'react';
 import { getEnableAutocomplete } from '../utils/runtimeConfig';
 import { debugLog, debugWarn } from '../utils/debug';
+import { buildHeaders } from '../apiClient';
 
 const DEBOUNCE_DELAY = 300;  // 300ms debounce
 const MIN_QUERY_LENGTH = 3;
@@ -199,9 +200,9 @@ export function useAutocomplete(
     }, 150);
 
     try {
-      const headers: Record<string, string> = {
+      const headers = await buildHeaders({
         'X-Adapter-Name': adapterName
-      };
+      });
       if (sessionId) {
         headers['X-Session-ID'] = sessionId;
       }
@@ -225,7 +226,10 @@ export function useAutocomplete(
 
       if (!response.ok) {
         debugWarn('[useAutocomplete] Request failed:', response.status);
-        if ([404, 405, 501].includes(response.status)) {
+        if (response.status === 401) {
+          debugWarn('[useAutocomplete] Authentication required; suppressing autocomplete');
+          setSuggestions(getFallbackSuggestions(searchQuery));
+        } else if ([404, 405, 501].includes(response.status)) {
           unsupportedAdaptersRef.current.set(
             adapterName,
             Date.now() + UNSUPPORTED_ADAPTER_TTL_MS

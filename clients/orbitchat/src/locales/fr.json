@@ -485,7 +485,8 @@
   },
   "chat": {
     "errors": {
-      "servicePaused": "Le serveur ORBIT est en pause. Veuillez réessayer plus tard."
+      "servicePaused": "Le serveur ORBIT est en pause. Veuillez réessayer plus tard.",
+      "authenticationRequired": "Veuillez vous connecter pour utiliser cet agent."
     }
   },
   "voice": {
