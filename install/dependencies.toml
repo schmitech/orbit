@@ -32,6 +32,7 @@ dependencies = [
     "nh3>=0.3.3",
     "pydantic>=2.12.5",
     "jinja2>=3.1.6",
+    "sqlglot>=30.15.0",
     "PyYAML>=6.0.3",
     "fastapi>=0.135.3",
     "orjson>=3.11.8",

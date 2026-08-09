@@ -87,6 +87,8 @@ Resolve `confidence_threshold` **once** (adapter YAML → adapter default → gl
 
 ## Phase 3 — Make it defensible
 
+**Status:** 3B shipped; 3A not started.
+
 ### 3A. Unified template schema + load-time validation
 - **Create** `server/adapters/templates/schema.py` — pydantic v2 models with `model_config = ConfigDict(extra="forbid")`, which alone catches the entire schema-drift class (`semantic_types` dict-vs-list, firecrawl's two incompatible template shapes, the three `#FIXME` ES templates):
   - `ParameterSpec`: name, type, required, default, description, `allowed_values`, `min`, `max`, `max_length`, `pattern`, `aliases`, `example`, `location`
@@ -98,7 +100,7 @@ Resolve `confidence_threshold` **once** (adapter YAML → adapter default → gl
 - **`approved` enforcement as a separate knob**, `require_approved: false` default. When true, `get_all_templates()` filters `approved is not True` and logs the drop count. Do *not* default it on — that would silently empty the sqlite HR library and every example omitting the field.
 - **Replace** the four forked validators (`utils/templates/validate_output.py`, `examples/intent-templates/http-intent-template/validate_output.py`, `examples/intent-templates/graphql-intent-template/validate_output.py`, and the drift-checking half of `compare_structures.py`) with thin CLI wrappers over the new validator. Authoring-time and load-time validation become the same code and can never disagree.
 
-### 3B. Query safety layer
+### 3B. Query safety layer — ✅ DONE
 Add `sqlglot` to `install/dependencies.toml`. **Create** `server/retrievers/base/query_guard.py`:
 - `assert_single_statement(sql)` — `sqlglot.parse()`, reject >1 non-empty statement.
 - `assert_read_only(sql)` — walk the AST, reject `exp.Insert/Update/Delete/Drop/Alter/Create/Grant/Merge/Command`, including inside CTEs.
@@ -109,6 +111,8 @@ Add `sqlglot` to `install/dependencies.toml`. **Create** `server/retrievers/base
 Wire at exactly one point per base — after `_process_sql_template()` (`intent_sql_base.py:1195`), before `_execute_template()` (`:1117`); mirrored two-line calls in the HTTP and composite bases.
 
 **Risk:** `enforce_row_cap` can change results for a template that relied on no LIMIT. Mitigate with a high default (1000), a `max_rows` config, and a log line on every injection.
+
+**Shipped as:** `server/retrievers/base/query_guard.py` — `assert_single_statement`, `assert_read_only`, `enforce_row_cap`, `resolve_dialect` (maps a retriever's real SQL datasource name — `postgres`/`mysql`/`mariadb`/`mssql`/`sqlite`/`duckdb`/`oracle`/`athena` — to a sqlglot dialect). `sqlglot>=30.15.0` added to `install/dependencies.toml`'s always-installed default profile (it's now a core dependency of every intent SQL adapter, not an optional extra). Wired into `intent_sql_base.py::_execute_template` at exactly the specified point — after `_process_sql_template()`, before the query reaches `execute_query()` — gated by two new adapter-config knobs, `query_guard_enabled` (default `true`) and `query_guard_max_rows` (default `1000`). A rejection short-circuits to the same `(results, error)` return shape the rest of `_execute_template` already uses, so it falls through the existing "try next template" retry loop rather than crashing the request. Unit tests in `server/tests/test_retrievers/test_query_guard.py` (29 cases) cover exactly the Verification-section checklist below.
 
 ---
 

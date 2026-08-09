@@ -76,7 +76,12 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         # Intent-specific settings
         self.template_collection_name = self.intent_config.get('template_collection_name', 'intent_query_templates')
         self.max_templates = self.intent_config.get('max_templates', 5)
-        
+
+        # Query safety guard: rejects rendered SQL with more than one statement
+        # or a write/DDL operation, and caps unbounded result sets. See query_guard.py.
+        self.query_guard_enabled = self.intent_config.get('query_guard_enabled', True)
+        self.query_guard_max_rows = self.intent_config.get('query_guard_max_rows', 1000)
+
         # Debug configuration values
         logger.info(f"IntentSQLRetriever resolved confidence_threshold={self.confidence_threshold}")
         logger.debug(f"Intent config loaded - confidence_threshold: {self.confidence_threshold}, template_collection_name: {self.template_collection_name}, max_templates: {self.max_templates}")
@@ -1148,6 +1153,22 @@ JSON:"""
                     formatted_parameters[param_name] = f"%{cleaned_value}%"
 
             sql_query = self._process_sql_template(sql_template, formatted_parameters)
+
+            if self.query_guard_enabled:
+                from retrievers.base.query_guard import (
+                    QueryGuardError, assert_read_only, assert_single_statement,
+                    enforce_row_cap, resolve_dialect,
+                )
+                dialect = resolve_dialect(self._get_datasource_name())
+                try:
+                    assert_single_statement(sql_query, dialect=dialect)
+                    assert_read_only(sql_query, dialect=dialect)
+                    sql_query = enforce_row_cap(sql_query, self.query_guard_max_rows, dialect=dialect)
+                except QueryGuardError as e:
+                    logger.error(
+                        f"Query guard rejected rendered SQL for template {template.get('id')}: {e}"
+                    )
+                    return [], f"Query rejected by safety guard: {e}"
 
             logger.debug(f"Executing SQL: {sql_query}")
 
