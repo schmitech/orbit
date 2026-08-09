@@ -1070,6 +1070,14 @@ textarea {
   line-height: 1.25;
 }
 
+/* `.admin-create-form-grid label` (0,1,1) otherwise beats `.adapter-checkbox-field`
+   alone (0,1,0) and forces these checkboxes into column layout, stacking the box
+   above its label instead of beside it. */
+.admin-create-form-grid label.adapter-checkbox-field {
+  flex-direction: row;
+  justify-self: start;
+}
+
 .adapter-checkbox-field input[type="checkbox"] {
   width: 16px;
   height: 16px;

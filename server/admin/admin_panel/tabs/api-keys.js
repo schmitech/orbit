@@ -65,7 +65,8 @@ export function createApiKeysTab({
     var notesCounter = characterCount(notesInput, 2000);
     var createAllowedUsersSelect = allowedUsersSelect();
     var createClearAllowedUsersBtn = clearAllowedUsersButton(createAllowedUsersSelect);
-    var createAllowedEmailsInput = el("input", { type: "text", placeholder: "alice@company.com, bob@company.com" });
+    var createAllowedEmailsInput = el("input", { type: "text", maxlength: "2000", placeholder: "alice@company.com, bob@company.com" });
+    var createAllowedEmailsCounter = characterCount(createAllowedEmailsInput, 2000);
     var createBtn = el("button", { type: "button" }, "Create Key");
     function openCreatePanel() {
       createPanel.style.display = "";
@@ -98,7 +99,7 @@ export function createApiKeysTab({
       el("div", { className: "stack" }, field(
         "Pre-authorize email addresses (optional)", createAllowedEmailsInput,
         "Comma-separated emails for people who have not logged in yet."
-      )),
+      ), createAllowedEmailsCounter),
       el("div", { className: "admin-create-form-actions" },
         createBtn
       )
@@ -567,7 +568,8 @@ export function createApiKeysTab({
     fillPromptSelect(promptSelect, getCachedPrompts(), key.system_prompt_id);
     var editAllowedUsersSelect = allowedUsersSelect(key.allowed_user_ids || []);
     var editClearAllowedUsersBtn = clearAllowedUsersButton(editAllowedUsersSelect);
-    var editAllowedEmailsInput = el("input", { type: "text", value: (key.allowed_emails || []).join(", ") });
+    var editAllowedEmailsInput = el("input", { type: "text", maxlength: "2000", value: (key.allowed_emails || []).join(", ") });
+    var editAllowedEmailsCounter = characterCount(editAllowedEmailsInput, 2000);
     var saveBtn = el("button", {
       type: "button",
       className: "btn btn--primary",
@@ -599,7 +601,7 @@ export function createApiKeysTab({
         el("div", { className: "stack" }, field(
           "Pre-authorize email addresses (optional)", editAllowedEmailsInput,
           "Comma-separated emails for people who have not logged in yet."
-        ))
+        ), editAllowedEmailsCounter)
       )
     );
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Details");

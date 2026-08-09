@@ -338,44 +338,74 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
     wrap.appendChild(el("div", { className: "table-wrap" }, table));
   }
 
+  // Mirrors admin_panel.js's createPaginator numbering (ellipsis past 7 pages) —
+  // that one paginates an already-loaded client-side array, while audit rows
+  // are fetched a page at a time from the server, so the page list here is
+  // driven by resp.total/offset instead of an in-memory item count.
+  function buildAuditPageNumbers(cur, total) {
+    if (total <= 7) {
+      const arr = [];
+      for (let i = 1; i <= total; i++) arr.push(i);
+      return arr;
+    }
+    const pages = [1];
+    if (cur > 3) pages.push("...");
+    for (let j = Math.max(2, cur - 1); j <= Math.min(total - 1, cur + 1); j++) pages.push(j);
+    if (cur < total - 2) pages.push("...");
+    pages.push(total);
+    return pages;
+  }
+
   function renderAuditPager(bar, state, resp, reload) {
     clear(bar);
     const returned = (resp && resp.returned) || 0;
+    const total = (resp && resp.total) || 0;
     if (state.offset === 0 && returned === 0) return;
 
     const pageNum = Math.floor(state.offset / AUDIT_PAGE_SIZE) + 1;
+    const totalPages = Math.max(pageNum, Math.ceil(total / AUDIT_PAGE_SIZE));
     const start = state.offset + 1;
     const end = state.offset + returned;
 
-    const hasPrev = state.offset > 0;
-    const hasNext = returned >= AUDIT_PAGE_SIZE;
+    function goToPage(n) {
+      n = Math.max(1, Math.min(n, totalPages));
+      state.offset = (n - 1) * AUDIT_PAGE_SIZE;
+      state.selectedIndex = null;
+      reload();
+    }
 
     bar.appendChild(el("span", { className: "pagination-info" },
       returned > 0
-        ? "Showing " + start + "–" + end + " · Page " + pageNum
+        ? "Showing " + start + "–" + end + " of " + total
         : "Page " + pageNum));
 
     const btns = el("div", { className: "pagination-buttons" });
     const prevAttrs = { type: "button", className: "pagination-btn", "aria-label": "Previous page" };
-    if (!hasPrev) prevAttrs.disabled = "true";
+    if (pageNum <= 1) prevAttrs.disabled = "true";
     const prevBtn = el("button", prevAttrs, "‹");
-    prevBtn.addEventListener("click", () => {
-      state.offset = Math.max(0, state.offset - AUDIT_PAGE_SIZE);
-      state.selectedIndex = null;
-      reload();
-    });
+    prevBtn.addEventListener("click", () => goToPage(pageNum - 1));
     btns.appendChild(prevBtn);
 
-    btns.appendChild(el("span", { className: "pagination-btn active", "aria-current": "page" }, String(pageNum)));
+    buildAuditPageNumbers(pageNum, totalPages).forEach((p) => {
+      if (p === "...") {
+        btns.appendChild(el("span", { className: "pagination-ellipsis" }, "…"));
+        return;
+      }
+      const pageAttrs = {
+        type: "button",
+        className: "pagination-btn" + (p === pageNum ? " active" : ""),
+        "aria-label": "Page " + p,
+      };
+      if (p === pageNum) pageAttrs["aria-current"] = "page";
+      const btn = el("button", pageAttrs, String(p));
+      btn.addEventListener("click", () => goToPage(p));
+      btns.appendChild(btn);
+    });
 
     const nextAttrs = { type: "button", className: "pagination-btn", "aria-label": "Next page" };
-    if (!hasNext) nextAttrs.disabled = "true";
+    if (pageNum >= totalPages) nextAttrs.disabled = "true";
     const nextBtn = el("button", nextAttrs, "›");
-    nextBtn.addEventListener("click", () => {
-      state.offset = state.offset + AUDIT_PAGE_SIZE;
-      state.selectedIndex = null;
-      reload();
-    });
+    nextBtn.addEventListener("click", () => goToPage(pageNum + 1));
     btns.appendChild(nextBtn);
 
     bar.appendChild(btns);

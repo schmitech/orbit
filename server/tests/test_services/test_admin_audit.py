@@ -544,3 +544,16 @@ class TestAuditEventsEndpoint:
         rids1 = [e["resource_id"] for e in page1["events"]]
         rids2 = [e["resource_id"] for e in page2["events"]]
         assert set(rids1).isdisjoint(set(rids2))
+
+    async def test_admin_only_pagination_reports_total_beyond_first_page(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        await _seed_events(audit_service, count_ok=30, count_fail=0)
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            page1 = client.get("/admin/audit/events?source=admin&limit=25&offset=0").json()
+            page2 = client.get("/admin/audit/events?source=admin&limit=25&offset=25").json()
+
+        assert page1["total"] == 30
+        assert page1["returned"] == 25
+        assert page2["total"] == 30
+        assert page2["returned"] == 5

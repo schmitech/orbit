@@ -172,7 +172,10 @@ export function createAdaptersTab({
     function buildAdapterRows(pageItems) {
       clear(tbody);
       if (!pageItems || pageItems.length === 0) {
-        tbody.appendChild(el("tr", null, el("td", { colSpan: "3", className: "empty-state" }, "No adapters found")));
+        tbody.appendChild(el("tr", null, el("td", { colSpan: "3", className: "empty-state" },
+          el("div", { className: "empty-state-icon" }, "\u{1F50C}"),
+          el("p", null, "No adapters found")
+        )));
         return;
       }
       pageItems.forEach(function (a) {
@@ -355,13 +358,28 @@ export function createAdaptersTab({
       return parts.join(" ");
     }
 
+    // List questions pack every entry into one comma-separated box, so a raw
+    // character count against that box's inflated maxlength would be meaningless —
+    // count entries against max_items instead, the bound that actually matters.
+    function entryCount(input, maxItems) {
+      var counter = el("div", { className: "character-count", "aria-live": "polite" });
+      function sync() {
+        var count = (input.value || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean).length;
+        counter.textContent = count + "/" + maxItems + " entries";
+        counter.classList.toggle("near-limit", count >= maxItems);
+      }
+      input.addEventListener("input", sync);
+      sync();
+      return counter;
+    }
+
     function adapterQuestionField(q, input, hint) {
       if (q.type !== "bool") {
         var control = field(q.prompt, input, hint);
-        // A counter only earns its space on the fields long enough that you can
-        // lose track; short identifiers just get the hint.
-        if (q.type === "str" && q.max_length >= 200) {
+        if (q.type === "str" && q.max_length) {
           control.appendChild(characterCount(input, q.max_length));
+        } else if (q.type === "list" && q.max_items) {
+          control.appendChild(entryCount(input, q.max_items));
         }
         return control;
       }

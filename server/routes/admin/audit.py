@@ -188,9 +188,12 @@ async def list_admin_audit_events(
     if call_type is not None and call_type != "inference":
         native_inference_filters["call_type"] = call_type
 
-    merging_sources = source == "all" and admin_enabled and inference_enabled
-    needs_post_filter = any(v is not None for v in (event_prefix, q, since, until)) or merging_sources or source != "admin"
-    fetch_limit = min(offset + (limit * 10 if needs_post_filter else limit), 5000)
+    # Always oversample rather than fetching exactly the requested page: the
+    # response's "total" is len(filtered) over whatever was fetched, so a plain
+    # per-page fetch (previously skipped here whenever source == "admin" and no
+    # other filter was active) made "total" collapse to the current page size —
+    # reporting no further pages even when older admin events existed.
+    fetch_limit = min(offset + (limit * 10), 5000)
 
     rows: List[dict] = []
     try:

@@ -126,14 +126,14 @@ def _q_skill_name(default: Optional[str] = None) -> Question:
 def _q_skill_description(default: Optional[str] = None) -> Question:
     return Question("skill_description", "Skill description", default=default,
                     max_length=500,
-                    help="One line describing what the skill does. Can be AI-generated.")
+                    help="One line describing what the skill does. An AI assistant can help you draft this.")
 
 
 def _q_routing_examples(default: Optional[List[str]] = None) -> Question:
     return Question("routing_examples", "Routing example phrases", type="list",
                     default=default if default is not None else [],
                     max_length=200, max_items=50,
-                    help="Phrases that boost auto-routing to this skill. Can be AI-generated.")
+                    help="Phrases that boost auto-routing to this skill. An AI assistant can help you draft these.")
 
 
 # --------------------------------------------------------------------------- #
