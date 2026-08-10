@@ -48,6 +48,16 @@
 
 <br>
 
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/29bd32ae-8849-4b5e-a669-e6442b30a8b8" controls muted playsinline width="85%"></video>
+  <br />
+  <em>Chat with a private HR database using Ollama models.<br />Uses a deterministic retrieval adapter to select a reviewed query template with embeddings, then returns the answer in chat.</em>
+  <br />
+  👉 <strong><a href="https://orbit.schmitech.ca/hr-db-chatbot">Try the HR database demo live →</a></strong>
+</div>
+
+<br>
+
 > ⭐ **Cloning ORBIT?** If it looks useful, [star the repository](https://github.com/schmitech/orbit). It helps other developers discover the project and signals that we should keep investing in new model, datasource, and agent integrations.
 
 ---
