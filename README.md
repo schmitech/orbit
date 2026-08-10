@@ -34,9 +34,11 @@
 
 <div align="center">
   <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/TRY%20ORBIT%20LIVE-Explore%20the%20Sandbox%20%E2%86%92-7C3AED?style=for-the-badge" alt="Try ORBIT live — explore the sandbox" /></a>
-  <br />
-  <strong>See what ORBIT can do before you install:</strong> explore the live sandbox instantly—no download, Docker, or setup required.
 </div>
+
+<br />
+
+> ⭐ **Like ORBIT?** [star the repository](https://github.com/schmitech/orbit). It helps other developers discover the project and signals that we should keep investing in new model, datasource, and agent integrations.
 
 <br />
 
@@ -47,12 +49,6 @@
   <br />
   👉 <strong><a href="https://orbit.schmitech.ca/intent-sql-postgres">Try the SQL Database query demo live →</a></strong>
 </div>
-
-> [!NOTE]
-> **Deterministic structured retrieval:** For intent-based SQL and API adapters, ORBIT uses
-> embeddings and reranking to select from reviewed, predefined query templates, then executes
-> the template's predefined, parameterized SQL or query DSL. It does not use an LLM to generate
-> arbitrary datasource queries.
 
 <br>
 
@@ -76,9 +72,20 @@
 
 <br>
 
-> ⭐ **Cloning ORBIT?** If it looks useful, [star the repository](https://github.com/schmitech/orbit). It helps other developers discover the project and signals that we should keep investing in new model, datasource, and agent integrations.
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/9c6530be-1116-4a14-aa82-321448ea5a8d" controls muted playsinline width="70%"></video>
+  <br />
+  <em>Speech‑to‑Speech using grounded knowledge. ORBIT uses deterministic intent retrieval, a mechanism that prevents models from generating responses based on probabilistic inference typical of LLMs
+  </em>
+</div>
 
----
+</br>
+
+> [!NOTE]
+> **Deterministic structured retrieval:** For intent-based SQL and API adapters, ORBIT uses
+> embeddings and reranking to select from reviewed, predefined query templates, then executes
+> the template's predefined, parameterized SQL or query DSL. It does not use an LLM to generate
+> arbitrary datasource queries.
 
 ## One backend for private AI applications
 
