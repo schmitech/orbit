@@ -32,6 +32,14 @@
 
 <br>
 
+<div align="center">
+  <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/TRY%20ORBIT%20LIVE-Explore%20the%20Sandbox%20%E2%86%92-7C3AED?style=for-the-badge" alt="Try ORBIT live — explore the sandbox" /></a>
+  <br />
+  <strong>See what ORBIT can do before you install:</strong> explore the live sandbox instantly—no download, Docker, or setup required.
+</div>
+
+<br />
+
 <div id="see-orbit-in-action" align="center">
   <video src="https://github.com/user-attachments/assets/4af9005e-a9c9-4f37-8f6a-84d86e6f6dde" controls muted playsinline width="85%"></video>
   <br />
@@ -51,9 +59,19 @@
 <div align="center">
   <video src="https://github.com/user-attachments/assets/29bd32ae-8849-4b5e-a669-e6442b30a8b8" controls muted playsinline width="85%"></video>
   <br />
-  <em>Chat with a private HR database using Ollama models.<br />Uses a deterministic retrieval adapter to select a reviewed query template with embeddings, then returns the answer in chat.</em>
+  <em>Chat with a private HR database using Ollama models.<br />Uses a deterministic retrieval adapter to select a reviewed query template, then returns the answer in chat.</em>
   <br />
   👉 <strong><a href="https://orbit.schmitech.ca/hr-db-chatbot">Try the HR database demo live →</a></strong>
+</div>
+
+<br>
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="80%"></video>
+  <br />
+  <em>Upload PDFs, spreadsheets, and images, then query them together with context preserved across the conversation.</em>
+  <br />
+  👉 <a href="https://orbit.schmitech.ca/chat-with-files/"><strong>Try the multimodal agent demo ive →</strong></a>
 </div>
 
 <br>
@@ -77,14 +95,6 @@ ORBIT sits between your applications and the models, data, and tools they need. 
 ORBIT is actively maintained. See the [release history](https://github.com/schmitech/orbit/releases), [changelog](CHANGELOG.md), and [commit history](https://github.com/schmitech/orbit/commits/main).
 
 ## 🚀 Quick Start
-
-<div align="center">
-  <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/TRY%20ORBIT%20LIVE-Explore%20the%20Sandbox%20%E2%86%92-7C3AED?style=for-the-badge" alt="Try ORBIT live — explore the sandbox" /></a>
-  <br />
-  <strong>See what ORBIT can do before you install:</strong> explore the live sandbox instantly—no download, Docker, or setup required.
-</div>
-
-<br />
 
 Otherwise, skip the clone and config-file editing — pull a flavor image and run it. ORBIT, the orbitchat web UI, and a minimalistic document-chat setup are all inside to get you started in minutes.
 
@@ -193,17 +203,6 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 | **Query databases in multiple languages** | Generate and execute safe queries across SQL, MongoDB, Elasticsearch, and composite datasources. [Try the SQL demo →](docs/tutorial/sql-database-sqlite.md) |
 | **Build tool-using agents** | Give models scoped access to MCP servers with bounded, multi-step server-side tool loops. [Read the MCP guide →](docs/adapters/mcp-agent.md) |
 | **Offer one governed AI endpoint** | Route local and cloud models with per-key access, quotas, fallbacks, moderation, metrics, and auditability. [Create your first key →](docs/tutorial/creating-api-keys.md) |
-
-<details>
-<summary><strong>Chat with private documents</strong></summary>
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="80%"></video>
-  <br />
-  <em>Upload PDFs, spreadsheets, and images, then query them together with context preserved across the conversation.</em>
-  <br />
-  👉 <a href="https://orbit.schmitech.ca/chat-with-files/"><strong>Try this live in your browser →</strong></a>
-</p>
-</details>
 
 <details>
 <summary><strong>Talk to a real-time voice assistant grounded in your data</strong></summary>
