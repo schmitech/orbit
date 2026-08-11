@@ -1,5 +1,9 @@
 # Troubleshooting
 
+**Reference · read as needed**
+
+This page covers cross-cutting setup issues. Level-specific gotchas (e.g. skill-routing mismatches, MCP connection errors) live inline on their own tutorial pages rather than being duplicated here — check the page for the feature you're using first.
+
 | Symptom | Try this |
 |:---|:---|
 | `curl /health` hangs or refuses | Server isn't running — check `./bin/orbit.sh start` logs |

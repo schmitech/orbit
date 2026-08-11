@@ -44,7 +44,7 @@ New to ORBIT? Start here.
 | [Tutorial](tutorial.md) | Step-by-step guide to chat with your data |
 | [Server Setup](server.md) | Detailed server configuration and deployment options |
 | [Configuration Reference (`config.yaml`)](../install/default-config/config.yaml) | Complete, commented configuration reference |
-| [ORBIT and Open WebUI](orbit-vs-openwebui.md) | Architectural comparison |
+| [ORBIT and Open WebUI](openwebui/openwebui-integration.md) | Connecting Open WebUI to ORBIT |
 
 ---
 
@@ -66,13 +66,13 @@ Understand how ORBIT works.
 |-------|-------------|
 | [Creating Adapters](adapters/adapter-creation.md) | Generating new adapters from the admin panel or CLI, including the optional AI fill |
 | [Adapter Configuration](adapters/adapter-configuration.md) | Setting up and configuring adapters |
-| [Adapter Capabilities](adapters/capabilities/capability_for_all_adapters.md) | Capability system for adapter behavior control |
+| [Adapter Capabilities](adapters/capabilities/capability-reference.md) | Capability system for adapter behavior control |
 | [QA Adapters](adapters/adapters.md) | Question-answering with SQL and vector stores |
 | [Intent Adapters](intent-sql-rag-system.md) | Natural language to SQL/API query generation |
 | [Composite Intent Retriever](adapters/composite-intent-retriever.md) | Route queries across multiple data sources |
 | [Intent Agent Retriever](adapters/intent-agent-retriever.md) | Function calling and tool execution capabilities |
-| [File Adapter](file-adapter-guide.md) | Document upload and processing |
-| [Passthrough Adapter](multimodal-conversational-adapter.md) | Direct conversational AI without retrieval |
+| [File Adapter](adapters/file-adapter-guide.md) | Document upload and processing |
+| [Passthrough Adapter](adapters/multimodal-conversational-adapter.md) | Direct conversational AI without retrieval |
 | [Skills](adapters/skills.md) | Cross-adapter capabilities (image generation and more) |
 
 ---
@@ -86,6 +86,7 @@ Customize ORBIT for your environment.
 | [Configuration Reference (`config.yaml`)](../install/default-config/config.yaml) | All configuration options explained inline |
 | [Environment Variables (`env.example`)](../env.example) | Required and optional environment settings |
 | [Inference Providers (`inference.yaml`)](../install/default-config/inference.yaml) | Configure OpenAI, Anthropic, Ollama, llama.cpp, and more |
+| [Core AI Services & Data Sources (tutorial)](tutorial/core-services/overview.md) | How `inference.yaml`, `datasources.yaml`, and `embeddings.yaml` fit together, explained for newcomers |
 | [System Prompts](server.md#system-prompts) | Customize AI behavior with system prompts |
 
 ---
@@ -100,9 +101,9 @@ Connect ORBIT to your data.
 |-------|-------------|
 | [SQL Databases](sql-retriever-architecture.md) | PostgreSQL, MySQL, SQLite, DuckDB, Oracle, SQL Server |
 | [MongoDB](mongodb-installation-linux.md) | NoSQL document database setup |
-| [Vector Stores](vector_store_integration_guide.md) | Chroma, Qdrant, Pinecone, Milvus integration |
-| [Vector Retriever Architecture](vector-retriever-architecture.md) | Technical deep dive into vector retriever implementation |
-| [Chroma Setup](chroma-setup.md) | Detailed Chroma vector database configuration |
+| [Vector Stores](vector-stores/vector_store_integration_guide.md) | Chroma, Qdrant, Pinecone, Milvus integration |
+| [Vector Retriever Architecture](vector-stores/vector-retriever-architecture.md) | Technical deep dive into vector retriever implementation |
+| [Chroma Setup](vector-stores/chroma-setup.md) | Detailed Chroma vector database configuration |
 | [Elasticsearch](intent-sql-rag-system.md) | Full-text search integration |
 
 ### APIs & External Services
@@ -116,7 +117,7 @@ Connect ORBIT to your data.
 
 | Guide | Description |
 |-------|-------------|
-| [File Processing](file-adapter-guide.md) | PDF, DOCX, CSV, images, audio support |
+| [File Processing](adapters/file-adapter-guide.md) | PDF, DOCX, CSV, images, audio support |
 | [Document Chart Generation Playbook](adapters/playbook-document-chart-generation.md) | Manual prompts for validating PDF, Word, and PowerPoint charts |
 | [AI/LLM Document OCR](ai-document-ocr.md) | LLM-based OCR for scanned PDFs and images (Mistral / vision providers) |
 | [Chunking Architecture](chunking/chunking-architecture.md) | Document chunking and embedding strategies |
@@ -170,8 +171,8 @@ For power users and contributors.
 | [Fault Tolerance Architecture](fault-tolerance/fault-tolerance-architecture.md) | System resilience overview |
 | [Circuit Breaker Patterns](fault-tolerance/circuit-breaker-patterns.md) | Failure handling patterns |
 | [Troubleshooting](fault-tolerance/fault-tolerance-troubleshooting.md) | Debug common issues |
-| [Performance Tuning](performance-enhancements.md) | Optimize for production workloads |
-| [Memory Management](memory_leak_prevention.md) | Prevent memory leaks |
+| [Performance Tuning](server.md#performance-optimizations) | Optimize for production workloads |
+| [Memory Management](fault-tolerance/memory_leak_prevention.md) | Prevent memory leaks |
 | [Rate Limiting](rate-limiting-architecture.md) | Rate limiting and throttling architecture |
 | [Datasource Pooling](datasource-pooling.md) | Connection pooling for data sources |
 | [PostgreSQL Startup Lock Troubleshooting](postgres-startup-lock-troubleshooting.md) | Diagnose startup hangs/statement timeouts against a Postgres backend |

@@ -1,6 +1,8 @@
 # Example 4: DuckDB Analytics
 
-DuckDB is ideal for analytical questions over columnar data — aggregations, trends, comparisons. Example from `config/adapters/intent.yaml`:
+**Level 3 · Intermediate adapters & composition**
+
+Same Intent adapter pattern as [SQL Database (SQLite)](sql-database-sqlite.md), just with `datasource: "duckdb"` — DuckDB is ideal for analytical questions over columnar data — aggregations, trends, comparisons. Example from `config/adapters/intent.yaml`:
 
 ```yaml
 - name: "intent-duckdb-analytics"
@@ -38,7 +40,11 @@ Good fits:
 - "Which products had the highest growth rate?"
 - "Compare this year's performance to last year"
 
-> You can stick with `ollama_cloud` / `gpt-oss:120b` if you prefer local-style hosted models — just update `inference_provider` and `model` to match whatever's enabled in your `config/inference.yaml`.
+> You can stick with `ollama_cloud` / `gpt-oss:120b` if you prefer local-style hosted models — just update `inference_provider` and `model` to match whatever's enabled in your `config/inference.yaml` (see [Core AI Services: Inference Providers](core-services/inference-providers.md)).
+
+<!-- MEDIA: screenshot | duckdb-analytics/query-result | Chat showing a revenue-trend question answered from DuckDB analytics data -->
+> 🖼️ **Screenshot placeholder:** an analytics question answered by `intent-duckdb-analytics`.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
 ---
 

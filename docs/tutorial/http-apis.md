@@ -1,6 +1,8 @@
 # Example 6: HTTP APIs
 
-Treat any REST API as a data source — no SQL, no embeddings, just templates mapped to HTTP requests.
+**Level 3 · Intermediate adapters & composition**
+
+The Fetch/HTTP adapter type from [Adapter Types](adapter-types.md) — same intent-template pattern as the database examples, but the "datasource" is a REST endpoint instead of a database. Treat any REST API as a data source — no SQL, no embeddings, just templates mapped to HTTP requests.
 
 ```yaml
 - name: "intent-http-jsonplaceholder"

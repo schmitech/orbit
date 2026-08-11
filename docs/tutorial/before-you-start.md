@@ -1,5 +1,7 @@
 # Before you start
 
+**Level 0 · Orientation**
+
 You need three things:
 
 1. **ORBIT installed.** Follow the [Quick Start](../../README.md#-quick-start) release-tarball steps. Developing from a git clone instead? See the aside below.
@@ -23,6 +25,10 @@ curl -s http://localhost:3000/health
 
 If that responds, you're ready.
 
+<!-- MEDIA: screenshot | before-you-start/terminal-server-start | Terminal showing `./bin/orbit.sh start` output ending in "Uvicorn running on http://0.0.0.0:3000" -->
+> 🖼️ **Screenshot placeholder:** terminal output of a successful `./bin/orbit.sh start`.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+
 ### CLI or web UI — your choice
 
 Every admin task in this tutorial (creating API keys, managing prompts/personas, toggling adapters, editing config, viewing audit events, watching live metrics) can be done two ways:
@@ -31,6 +37,12 @@ Every admin task in this tutorial (creating API keys, managing prompts/personas,
 - **Admin panel** — point your browser at **`http://localhost:3000/admin`** and sign in with the default admin credentials, `admin` / `admin123` (override via `ORBIT_DEFAULT_ADMIN_PASSWORD` in your `.env`).
 
 The panel covers Users, API Keys, Prompts/Personas, Adapters (with live toggle + per-adapter YAML editor), Settings (in-browser `config.yaml` editor), Audit, and Overview monitoring. The CLI is faster for scripted setup; the UI is friendlier for exploration. Use whichever you prefer — they act on the same underlying state.
+
+For a full visual tour of every tab, see [Admin Panel Tour](admin-panel-tour.md).
+
+<!-- MEDIA: screenshot | before-you-start/admin-login | Admin panel login screen at http://localhost:3000/admin -->
+> 🖼️ **Screenshot placeholder:** the admin panel login screen.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
 ### Install the chat client (`orbitchat`)
 

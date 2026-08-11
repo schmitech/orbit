@@ -1,6 +1,10 @@
 # Example 8: Agent with Function Calling
 
+**Level 3 · Intermediate adapters & composition**
+
 The Agent Retriever extends the intent pattern with *tool execution*. Instead of returning retrieved documents, it runs built-in tools (calculator, date/time, JSON transforms) or calls external APIs (weather, finance, location) and synthesizes the result.
+
+> **How this differs from MCP tool calling:** this adapter matches your message to a *predefined* tool template (fixed set, listed below) — simpler to reason about and a good starting point. [Opportunistic MCP Tool Calling](mcp-tool-calling.md) (Level 4) is the more flexible step up: the model can call any tool from a connected MCP server on any turn, with no template match required. Learn this one first.
 
 ### How it works
 
@@ -122,6 +126,6 @@ See [Intent Agent Retriever](../adapters/intent-agent-retriever.md) for custom t
 
 ---
 
-[Tutorial home](../tutorial.md) | [Previous: Example 7: Multi-Source Composite](multi-source-composite.md) | [Next: Example 9: Skills and Image Generation](skills-image-generation.md)
+[Tutorial home](../tutorial.md) | [Previous: Example 7: Multi-Source Composite](multi-source-composite.md) | [Next: Skills, MCP Tools, and Skill Routing](skills-concepts.md)
 
 ---

@@ -1,5 +1,7 @@
 # Creating API Keys
 
+**Level 0 · Orientation**
+
 API keys decide *which adapter* a caller uses and *which system prompt* gets injected. One key, one adapter, one prompt — that's the model.
 
 These tutorial flows use the web admin panel; the CLI remains available for automation if you need it.
@@ -10,6 +12,10 @@ These tutorial flows use the web admin panel; the CLI remains available for auto
 2. Go to **API Keys** → **+ Create**.
 3. Pick the adapter, name the key, select or create a persona, and save.
 4. The `orbit_…` key is shown once — copy it immediately; ORBIT never shows it again.
+
+<!-- MEDIA: screenshot | creating-api-keys/api-keys-tab | API Keys tab showing the key list and the "+ Create" form -->
+> 🖼️ **Screenshot placeholder:** the API Keys tab and creation form.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
 The admin panel also lets you:
 
@@ -23,7 +29,7 @@ If you need scripted setup, see [Server](../server.md) for the `orbit` command r
 
 ### What else lives in the admin panel
 
-Beyond API keys, the panel at `/admin` handles everything you'd otherwise edit by hand or script:
+For a full visual tour of every tab (including MCP, Costs, Feedback, Ops, and Audit — not shown below), see [Admin Panel Tour](admin-panel-tour.md). Quick summary of the core tabs:
 
 | Tab | What you can do |
 |:---|:---|

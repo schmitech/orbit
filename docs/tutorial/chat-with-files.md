@@ -1,6 +1,8 @@
 # Example 2: Chat with Files
 
-Let users upload PDFs, images, or audio and ask questions about them. The `simple-chat-with-files` adapter is pre-configured in `config/adapters/multimodal.yaml`:
+**Level 1 · Foundations**
+
+This is the Multimodal adapter type from [Adapter Types](adapter-types.md) — conversational chat that conditionally retrieves from files only when one is attached. Let users upload PDFs, images, or audio and ask questions about them. The `simple-chat-with-files` adapter is pre-configured in `config/adapters/multimodal.yaml`:
 
 ```yaml
 - name: "simple-chat-with-files"
@@ -41,6 +43,10 @@ Then go to **API Keys** → **+ Create**:
 2. Name the key `Document Assistant`.
 3. Select the persona you just created.
 4. Save the key and copy the `orbit_…` value shown once.
+
+<!-- MEDIA: screenshot | chat-with-files/upload-and-ask | Chat window with a PDF attached and a question answered from its contents -->
+> 🖼️ **Screenshot placeholder:** a file attached in chat with a grounded answer.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
 ### Try it
 

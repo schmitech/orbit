@@ -1,5 +1,7 @@
 # Example 12: Message Queue (Async) Requests
 
+**Level 5 · Advanced / production**
+
 Everything so far has gone through synchronous HTTP (`/v1/chat`). ORBIT can also consume requests off a message broker and publish responses back — the same inference pipeline, a decoupled/batch-friendly transport. Useful when a producer shouldn't block on an LLM response, or when requests arrive from a queue-based system instead of a web client.
 
 ### How it works

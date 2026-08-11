@@ -1,6 +1,8 @@
 # Example 3: Vector Store Q&A
 
-If your documents are already embedded in a vector store, the QA adapter handles semantic search + answer generation.
+**Level 1 · Foundations**
+
+This is the QA adapter type from [Adapter Types](adapter-types.md). If your documents are already embedded in a vector store, the QA adapter handles semantic search + answer generation — see [Core AI Services: Embeddings](core-services/embeddings.md) for how the embedding model that indexed these documents connects to the adapter below.
 
 ### Option A: Chroma (runs locally, no extra services)
 
@@ -58,8 +60,14 @@ Then go to **API Keys** → **+ Create**:
 
 **Tip:** If answers come back "I don't have information about that," lower `confidence_threshold` incrementally (try 0.2, then 0.15). Thresholds behave consistently across Chroma, Qdrant, FAISS, and Milvus as of 2.6.4.
 
+<!-- MEDIA: screenshot | vector-store-qa/city-assistant-answer | Chat showing a question answered with retrieved city data and confidence score -->
+> 🖼️ **Screenshot placeholder:** the City Assistant answering from retrieved vector-store context.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+
+You've now tried all three Level 1 foundations (SQL, files, vector QA). Before moving to more advanced patterns, [Core AI Services & Data Sources](core-services/overview.md) explains what's underneath every adapter you've configured so far — worth reading now that you've seen it in practice more than once.
+
 ---
 
-[Tutorial home](../tutorial.md) | [Previous: Example 2: Chat with Files](chat-with-files.md) | [Next: Example 4: DuckDB Analytics](duckdb-analytics.md)
+[Tutorial home](../tutorial.md) | [Previous: Example 2: Chat with Files](chat-with-files.md) | [Next: Core AI Services & Data Sources](core-services/overview.md) · [Example 4: DuckDB Analytics](duckdb-analytics.md)
 
 ---

@@ -1,8 +1,10 @@
 # Example 9: Skills and Image Generation
 
-Skills let one adapter call another adapter for a single message without changing API keys or switching the whole conversation. The calling adapter must explicitly allow the skill, and the skill adapter must expose itself with a `skill_name`.
+**Level 4 · Skills, skill routing & MCP tools**
 
-This example uses the image-generation skill:
+If you haven't read [Skills, MCP Tools, and Skill Routing](skills-concepts.md) yet, start there — it defines what a "skill" is before this page puts one to use. Skills let one adapter call another adapter for a single message without changing API keys or switching the whole conversation. The calling adapter must explicitly allow the skill, and the skill adapter must expose itself with a `skill_name`.
+
+This example — your first skill — uses image generation:
 
 - [`config/adapters/image-generator.yaml`](../../config/adapters/image-generator.yaml) exposes the `image-generator` adapter as the `Image` skill.
 - [`config/adapters/multimodal.yaml`](../../config/adapters/multimodal.yaml) allows `simple-chat-with-files` to invoke `Image` through `capabilities.available_skills`.
@@ -112,10 +114,32 @@ A successful response includes image fields:
 4. `ImageGenerationStep` generates the image; the normal chat inference path is skipped for this request.
 5. The original conversation continues on `simple-chat-with-files` after the skill response.
 
+<!-- MEDIA: screenshot | skills-image-generation/generated-image | OrbitChat showing the /Image skill picker and a generated illustration -->
+> 🖼️ **Screenshot placeholder:** the `/` skill picker and a resulting generated image.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+
+## The rest of the generator cluster
+
+`image-generator` is one of eight generator adapters that all follow this exact same skill pattern — `expose_as_skill: true`, a `skill_name`, and a consumer adapter listing that name in `available_skills`. Once you understand `Image`, you understand all eight:
+
+| Config file | Skill name | Generates |
+|---|---|---|
+| `config/adapters/image-generator.yaml` | `Image` | Images from text descriptions |
+| `config/adapters/video-generator.yaml` | `Video` | Short video clips from text |
+| `config/adapters/audio-generator.yaml` | `Audio` | Speech/audio output |
+| `config/adapters/pdf-generator.yaml` | `PDF` | PDF documents |
+| `config/adapters/word-generator.yaml` | `Word` | Word (.docx) documents |
+| `config/adapters/excel-generator.yaml` | `Excel` | Excel (.xlsx) spreadsheets |
+| `config/adapters/pptx-generator.yaml` | `PowerPoint` | PowerPoint (.pptx) decks |
+| `config/adapters/csv-generator.yaml` | `CSV` | CSV files |
+| `config/adapters/markdown-generator.yaml` | `Markdown` | Markdown documents |
+
+Enable the ones you need in `config/adapters.yaml`'s import list, add the matching skill name to your chat adapter's `available_skills`, and it's reachable the same way `Image` is above — via an explicit `skill` field, the `/` picker in OrbitChat, or (if `auto_skill_routing` is enabled) inferred automatically from plain language like "turn this into a PDF."
+
 See [Skills](../adapters/skills.md) for the full capability reference, admin endpoints, UI integration notes, and the pattern for exposing additional adapters as skills.
 
 ---
 
-[Tutorial home](../tutorial.md) | [Previous: Example 8: Agent with Function Calling](agent-function-calling.md) | [Next: Example 10: Opportunistic MCP Tool Calling](mcp-tool-calling.md)
+[Tutorial home](../tutorial.md) | [Previous: Skills, MCP Tools, and Skill Routing](skills-concepts.md) | [Next: Example 10: Opportunistic MCP Tool Calling](mcp-tool-calling.md)
 
 ---

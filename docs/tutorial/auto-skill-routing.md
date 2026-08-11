@@ -1,6 +1,8 @@
 # Example 11: Web Search and Automatic Skill Routing
 
-Two related features that both let a conversational adapter do more than plain chat without the client sending an explicit `skill` field: the **web search** skill (provider-native search grounding) and **automatic skill routing** (ChatGPT-style intent detection that infers a skill from plain language). Both are already enabled on `simple-chat` in this repo — no config changes needed to try them.
+**Level 4 · Skills, skill routing & MCP tools**
+
+Two related but distinct features that both let a conversational adapter do more than plain chat without the client sending an explicit `skill` field: the **web search** skill (provider-native search grounding) and **automatic skill routing** (ChatGPT-style intent detection that infers a skill from plain language). Both are already enabled on `simple-chat` in this repo — no config changes needed to try them.
 
 ## Part 1 — Web search skill
 
@@ -67,6 +69,10 @@ curl -X POST http://localhost:3000/v1/chat \
 ```
 
 Confirm this returns a plain conversational answer — the embedding pre-filter found no matching skill, so no extra LLM call happened and no routing occurred.
+
+<!-- MEDIA: screenshot | auto-skill-routing/inferred-skill-response | API response showing a web-search-grounded answer with no explicit skill field sent -->
+> 🖼️ **Screenshot placeholder:** a response routed automatically with no `skill` field in the request.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
 ### How it works
 

@@ -1,6 +1,10 @@
 # Example 10: Opportunistic MCP Tool Calling
 
+**Level 4 · Skills, skill routing & MCP tools**
+
 Beyond the templated function-calling in [Example 8](agent-function-calling.md), any conversational adapter can let the model decide, turn by turn, whether to call an external MCP tool — no `skill` field, no adapter swap, same thread throughout. This example wires up the bundled sample CRM server and turns it on for `simple-chat`.
+
+> **How this differs from Agent Function Calling:** [Example 8](agent-function-calling.md) matches your message to one of a *fixed* set of predefined tool templates (calculator, date/time, JSON). This example lets the model call *any* tool from a connected MCP server, on any turn, decided by the model itself rather than a template match — see [Skills, MCP Tools, and Skill Routing](skills-concepts.md) for how the two mechanisms relate.
 
 ### How it works
 
@@ -60,6 +64,10 @@ capabilities:
 
 `simple-chat` uses `inference_provider: "openai"`, which supports native tool calling, so no provider change is needed. Restart ORBIT after saving.
 
+<!-- MEDIA: screenshot | mcp-tool-calling/mcp-tab | MCP tab showing the business-sample server configured with allow_opportunistic enabled -->
+> 🖼️ **Screenshot placeholder:** the MCP tab showing `business-sample` configured.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+
 ### 4. Create an API key (or reuse your first-chat key)
 
 If you already created a `simple-chat` key in [Your first chat](first-chat.md), reuse it. Otherwise, open `http://localhost:3000/admin` → **API Keys** → **+ Create**, pick `simple-chat`, name it, and save.
@@ -100,6 +108,6 @@ See [MCP Agent Skill: Opportunistic Mode](../adapters/mcp-agent.md#opportunistic
 
 ---
 
-[Tutorial home](../tutorial.md) | [Previous: Example 9: Skills and Image Generation](skills-image-generation.md) | [Next: Example 11: Web Search and Automatic Skill Routing](auto-skill-routing.md)
+[Tutorial home](../tutorial.md) | [Previous: Example 9: Skills and Image Generation](skills-image-generation.md) | [Next: Web Search and Automatic Skill Routing](auto-skill-routing.md)
 
 ---

@@ -1,6 +1,8 @@
 # Example 1: SQL Database (SQLite)
 
-Let's try the most common ORBIT pattern: asking questions in English against a real SQL database. We'll use a small local SQLite file with sample HR data.
+**Level 1 · Foundations**
+
+This is the Intent adapter family from [Adapter Types](adapter-types.md) — one query template gets picked and its parameterized SQL run, rather than free-form SQL generation. Let's try the most common ORBIT pattern: asking questions in English against a real SQL database. We'll use a small local SQLite file with sample HR data.
 
 ### 1. Generate sample data
 
@@ -28,6 +30,10 @@ Then go to **API Keys** → **+ Create**:
 2. Name the key `HR Chatbot`.
 3. Select the `HR Assistant` persona.
 4. Save the key and copy the `orbit_…` value shown once.
+
+<!-- MEDIA: screenshot | sql-database-sqlite/adapter-config | Adapters tab showing the intent-sql-sqlite-hr adapter's YAML in the Ace editor -->
+> 🖼️ **Screenshot placeholder:** the `intent-sql-sqlite-hr` adapter config in the Adapters tab.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
 ### 4. Start chatting
 

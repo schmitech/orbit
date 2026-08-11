@@ -1,6 +1,8 @@
 # Example 5: MongoDB Queries
 
-Natural language → MongoDB find/aggregate queries.
+**Level 3 · Intermediate adapters & composition**
+
+Same Intent adapter pattern as the SQL examples, but against a NoSQL datasource — `datasource: "mongodb"` — natural language → MongoDB find/aggregate queries.
 
 ```yaml
 - name: "intent-mongodb-mflix"
@@ -31,6 +33,10 @@ Using MongoDB's `sample_mflix` dataset:
 - "Find movies directed by Christopher Nolan"
 - "What are the top rated action movies from the 2000s?"
 - "Show me movies with Leonardo DiCaprio"
+
+<!-- MEDIA: screenshot | mongodb-queries/movie-result | Chat showing a Christopher Nolan movie query answered from MongoDB -->
+> 🖼️ **Screenshot placeholder:** a movie question answered by `intent-mongodb-mflix`.
+> _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
 ---
 
