@@ -47,7 +47,7 @@
   <br />
   <em>Upload PDFs, spreadsheets, and images, then query them together with context preserved across the conversation.</em>
   <br />
-  👉 <a href="https://orbit.schmitech.ca/chat-with-files/"><strong>Try the multimodal agent demo ive →</strong></a>
+  👉 <a href="https://orbit.schmitech.ca/chat-with-files/"><strong>Try the multimodal agent demo live →</strong></a>
 </div>
 
 <br>
@@ -74,7 +74,20 @@ ORBIT sits between your applications and the models, data, and tools they need. 
 
 ORBIT is actively maintained. See the [release history](https://github.com/schmitech/orbit/releases), [changelog](CHANGELOG.md), and [commit history](https://github.com/schmitech/orbit/commits/main).
 
-⭐ **Finding ORBIT useful?** [star the repository](https://github.com/schmitech/orbit). It helps other developers discover the project and signals that we should keep investing in new model, datasource, and agent integrations.
+## Capabilities
+
+| Capability | Included |
+| :--- | :--- |
+| **Model gateway** | 41 configured inference backends and providers, OpenAI-compatible APIs, per-key routing, model switching, retries, and fallbacks. |
+| **Retrieval** | Vector RAG, file and multimodal RAG, SQL, MongoDB, Elasticsearch, REST, GraphQL, web search, and multi-source answers. |
+| **Agents and protocols** | MCP tool calling, bounded multi-step loops, natural-language skill routing, A2A, and asynchronous RabbitMQ requests. |
+| **Media** | Image, video, speech, PDF, Word, Excel, PowerPoint, CSV, and markdown generation. |
+| **Security** | API keys, RBAC, Entra ID and Auth0 SSO, rate limits, quotas, moderation, file encryption, and cloud secret managers. |
+| **Operations** | Admin UI, health checks, metrics, audit logs, per-request token and estimated-cost tracking, spend analytics, circuit breakers, datasource pooling, and hot adapter reloads. |
+
+[Browse all adapters](docs/adapters/adapters.md) · [See provider configuration](config/inference.yaml) · [Read the configuration reference](install/default-config/config.yaml)
+
+⭐ **Finding ORBIT useful?** [Star the repository](https://github.com/schmitech/orbit) to help other developers discover it and support continued investment in new model, datasource, and agent integrations.
 
 ## 🚀 Quick Start
 
@@ -84,7 +97,38 @@ ORBIT is actively maintained. See the [release history](https://github.com/schmi
   <em>Explore the live sandbox instantly—no download, Docker, or setup required.</em>
 </div>
 
-### Using Docker
+### Install ORBIT
+
+#### Option 1 (Preferred): Stable release tarball
+
+**Prerequisites:** Linux or macOS, Python 3.12+, and an internet connection for downloading dependencies.
+
+Download and install the latest stable release:
+
+```bash
+curl -L https://github.com/schmitech/orbit/releases/download/v2.15.3/orbit-2.15.3.tar.gz -o orbit-2.15.3.tar.gz
+tar -xzf orbit-2.15.3.tar.gz
+cd orbit-2.15.3
+./install/setup.sh --profile default
+./bin/orbit.sh start
+```
+
+ORBIT starts on [http://localhost:3000](http://localhost:3000). For Windows, follow the [Windows installation guide](install/windows.md).
+
+ORBIT is highly configurable. The main server settings live in `./config/config.yaml`; inference providers, adapters, models, data sources, and other capabilities are configured in the other files under `./config/`.
+
+See the [server management guide](docs/server.md#server-management) for commands to start, stop, restart, pause, and monitor ORBIT.
+
+To use the optional ORBIT chatbot web interface, install and run `orbitchat` from your host machine:
+
+```bash
+npm install -g orbitchat
+ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' orbitchat
+```
+
+Then open [http://localhost:5173](http://localhost:5173) in your browser.
+
+#### Option 2: Docker
 
 **Prerequisites:** Docker, 4 GB of free RAM, and 3 GB of disk space.
 
@@ -160,15 +204,13 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   -d '{"messages":[{"role":"user","content":"What can ORBIT connect to?"}]}'
 ```
 
-Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `admin123` — which can be changed inside the admin panel).
+Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `admin123`, set via `auth.default_admin_password` in `config.yaml` — change this immediately after first login).
 
 For custom Docker deployments, follow [Docker guide](docker/README.md).
 
-### Using Latest Release
+Continue with the [tutorial's fastest path](docs/tutorial.md#fastest-path): [verify your installation](docs/tutorial/before-you-start.md), then [create your first chat](docs/tutorial/first-chat.md) with a persona, API key, and OrbitChat.
 
-Follow the installation instructions for [Linux/Mac](docs/server.md) or [Windows](install/windows.md).
-
-Follow the [tutorial](docs/tutorial.md) to get started with ORBIT.
+**Before you go further, read this:** adapters — not the server code — are what define what ORBIT can actually do (retrieval sources, models, voice, file/multimodal handling, and more). They're configured entirely in YAML under `config/adapters/` and registered in `config/adapters.yaml`. See the [Adapter overview](docs/adapters/adapters.md) to understand this system before customizing your deployment.
 
 ---
 
@@ -212,19 +254,6 @@ Follow the [tutorial](docs/tutorial.md) to get started with ORBIT.
 </p>
 </details>
 
-## Capabilities
-
-| Capability | Included |
-| :--- | :--- |
-| **Model gateway** | 37+ local and cloud providers, OpenAI-compatible APIs, per-key routing, model switching, retries, and fallbacks. |
-| **Retrieval** | Vector RAG, file and multimodal RAG, SQL, MongoDB, Elasticsearch, REST, GraphQL, web search, and multi-source answers. |
-| **Agents and protocols** | MCP tool calling, bounded multi-step loops, natural-language skill routing, A2A, and asynchronous RabbitMQ requests. |
-| **Media** | Image, video, speech, PDF, Word, Excel, PowerPoint, CSV, and markdown generation. |
-| **Security** | API keys, RBAC, Entra ID and Auth0 SSO, rate limits, quotas, moderation, AES-256-GCM file encryption, and cloud secret managers. |
-| **Operations** | Admin UI, health checks, metrics, audit logs, per-request token and estimated-cost tracking, spend analytics, circuit breakers, datasource pooling, and hot adapter reloads. |
-
-[Browse all adapters](docs/adapters/adapters.md) · [See provider configuration](config/inference.yaml) · [Read the configuration reference](install/default-config/config.yaml)
-
 ## Clients and documentation
 
 | Start here | Resource |
@@ -233,8 +262,11 @@ Follow the [tutorial](docs/tutorial.md) to get started with ORBIT.
 | **Configure adapters** | [Adapter overview](docs/adapters/adapters.md) · [Configuration guide](docs/adapters/adapter-configuration.md) |
 | **Connect private data** | [Files](docs/adapters/file-adapter-guide.md) · [Vector stores](docs/vector-stores/vector_store_integration_guide.md) · [SQL](docs/sql-retriever-architecture.md) |
 | **Build agents** | [MCP tools](docs/tutorial/mcp-tool-calling.md) · [Auto skill routing](docs/tutorial/auto-skill-routing.md) · [A2A](docs/a2a-protocol.md) |
+| **Add voice** | [Real-time voice (speech-to-speech)](docs/adapters/grounded-realtime-voice.md) · [Audio services & STT/TTS adapters](docs/audio/audio-services-adapter-guide.md) |
 | **Run in production** | [Authentication](docs/authentication.md) · [Usage and cost tracking](docs/token-usage-and-cost-tracking.md) · [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
 | **Use a client** | [ORBIT Chat](clients/orbitchat/) · [Node.js SDK](clients/node-api/) · [API key and Python examples](docs/api-keys.md) |
+
+See the [full documentation index](docs/README.md) for architecture deep-dives, vector store setup, security hardening, and every other guide under `docs/`.
 
 ## Contributing
 

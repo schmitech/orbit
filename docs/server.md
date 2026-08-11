@@ -1,6 +1,27 @@
 # 🚀 ORBIT Server
 
-## 🛠️ Installation
+This guide covers installing, running, configuring, and operating an ORBIT server. Start with the [installation](#installation), then use the [Admin Panel](#admin-panel) for browser-based administration or the [CLI](#server-management) for terminal-based operations.
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Server Management](#server-management)
+- [Admin Panel](#admin-panel)
+- [Authentication and User Management](#authentication-and-user-management)
+- [API Key Management](#api-key-management)
+- [System Prompt Management](#system-prompt-management)
+- [Configuration Management](#configuration-management)
+- [API Endpoints](#api-endpoints)
+- [HTTPS Configuration](#https-configuration)
+- [System Prompt Storage](#system-prompt-storage)
+- [Logging](#logging)
+- [Production Deployment](#production-deployment)
+- [Llama.cpp Integration](#llamacpp-integration)
+- [Performance Optimizations](#performance-optimizations)
+- [Dependencies](#dependencies)
+- [License](#license)
+
+## Installation
 
 Follow the main installation guide in the project root:
 
@@ -10,16 +31,20 @@ curl -L https://github.com/schmitech/orbit/releases/download/v2.15.3/orbit-2.15.
 tar -xzf orbit-2.15.3.tar.gz
 cd orbit-2.15.3
 
-# Activate virtual environment
-source venv/bin/activate
-
 # Install ORBIT
-./install.sh
+./install/setup.sh --profile default
+
+# Optional: activate the environment for direct Python or CLI work
+source venv/bin/activate
 ```
+
+Server settings live in `./config/config.yaml`, with inference providers, adapters, models, and data sources configured in the other files under `./config/`. See [Configuration Management](#configuration-management) for CLI-based configuration changes.
+
+Adapters — defined under `./config/adapters/` and registered in `./config/adapters.yaml` — are what determine ORBIT's actual capabilities (retrieval sources, models, voice, file/multimodal handling, and more). See the [Adapter overview](adapters/adapters.md) before customizing your deployment.
 
 ---
 
-## ▶️ Server Management
+## Server Management
 
 ORBIT uses a unified CLI tool for all server management operations. The `orbit` command provides server control, API key management, user management, system prompt management, and configuration management.
 
@@ -110,7 +135,31 @@ Example status output:
 
 ---
 
-## 🔐 Authentication & User Management
+## Admin Panel
+
+The Admin Panel provides a browser-based interface for monitoring and managing ORBIT. Start the server, then open:
+
+```text
+http://localhost:3000/admin
+```
+
+Sign in with the bootstrap administrator account:
+
+- **Username:** `admin`
+- **Password:** `admin123` by default, or the value of `ORBIT_DEFAULT_ADMIN_PASSWORD`
+
+Change the default password immediately after the first login. The panel groups its tools into these areas:
+
+- **Dashboard:** Server health, runtime status, and activity overview
+- **Feedback and Costs:** User feedback, usage, and estimated cost reporting
+- **Users and API Keys:** Accounts, roles, credentials, and access control
+- **Personas and Adapters:** System prompts, adapter settings, and reload operations
+- **Settings and MCP:** Runtime configuration and MCP connections
+- **Ops and Audit:** Server controls, jobs, logs, and administrative events
+
+The Admin Panel uses the same authentication and role-based permissions as the management APIs. For SSO configuration and security details, see [Authentication](authentication.md).
+
+## Authentication and User Management
 
 ### Login and Authentication
 
@@ -183,7 +232,7 @@ Example status output:
 
 ---
 
-## 🔑 API Key Management
+## API Key Management
 
 The orbit CLI provides comprehensive API key management with adapter support:
 
@@ -237,7 +286,7 @@ The orbit CLI provides comprehensive API key management with adapter support:
 
 ---
 
-## 📝 System Prompt Management
+## System Prompt Management
 
 Manage system prompts that define AI behavior:
 
@@ -274,7 +323,7 @@ Manage system prompts that define AI behavior:
 
 ---
 
-## ⚙️ Configuration Management
+## Configuration Management
 
 The CLI provides comprehensive configuration management:
 
@@ -334,7 +383,7 @@ The CLI provides comprehensive configuration management:
 
 ---
 
-## 🔗 API Endpoints
+## API Endpoints
 
 ### API Documentation
 - **Swagger UI**: `GET /docs`
@@ -573,7 +622,7 @@ asyncio.run(main())
 
 ---
 
-## 🔒 HTTPS Configuration
+## HTTPS Configuration
 
 ORBIT serves HTTPS natively via uvicorn. When enabled, the server binds exclusively on the TLS port (default 3443) using TLS 1.2+ with forward-secrecy cipher suites. TLS 1.0 and 1.1 are not negotiated.
 
@@ -698,7 +747,7 @@ Priority: 110 | Port: 80   | Protocol: TCP | Action: Allow  (HTTP — only neede
 
 ---
 
-# System Prompts
+## System Prompt Storage
 
 This feature allows you to create, manage, and associate system prompts with API keys. When a client uses an API key, the server automatically uses the associated system prompt to guide the LLM's responses.
 
@@ -839,7 +888,7 @@ EOF
 
 3. Now when clients use this API key, the LLM will follow the support assistant guidelines.
 
-## 📜 Logging
+## Logging
 
 The application implements a dual logging system:
 
@@ -887,7 +936,7 @@ I0000 00:00:1783186897.127984  432192 fork_posix.cc:71] Other threads are curren
 
 ---
 
-## 🔧 Production Deployment
+## Production Deployment
 
 For production environments, you can use the orbit CLI with process management tools:
 
@@ -965,7 +1014,7 @@ nohup ./bin/orbit.sh start > orbit.log 2>&1 &
 
 ---
 
-## 🦙 Llama.cpp Integration
+## Llama.cpp Integration
 
 The server supports running inference locally using llama.cpp, which provides efficient CPU-based inference for LLM models without requiring a GPU or external API service.
 
@@ -1039,14 +1088,14 @@ Make sure you've accepted the model's license terms on the Hugging Face website 
 Start the server as usual and it will use the configured llama.cpp model:
 
 ```bash
-./start.sh
+./bin/orbit.sh start
 ```
 
 The server will automatically verify and initialize the llama.cpp model at startup.
 
 ---
 
-## ⚡ Performance Optimizations
+## Performance Optimizations
 
 ORBIT includes several performance optimizations to improve response times and reduce bandwidth usage.
 
@@ -1118,7 +1167,7 @@ curl -H 'If-None-Match: "abc123def456"' http://localhost:3000/health/adapters -v
 
 ---
 
-## 📌 Dependencies
+## Dependencies
 - FastAPI
 - Uvicorn
 - ChromaDB
@@ -1134,6 +1183,6 @@ curl -H 'If-None-Match: "abc123def456"' http://localhost:3000/health/adapters -v
 
 ---
 
-## 📃 License
+## License
 
 Apache 2.0 License - See [LICENSE](LICENSE).

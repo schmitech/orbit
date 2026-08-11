@@ -124,6 +124,12 @@ ORBIT comes with a variety of pre-built retriever implementations and domain ada
 | **Generic SQL** | `SQLiteRetriever` | `sqlite` | Generic retriever for SQLite. |
 | | `PostgreSQLRetriever` | `postgres` | Generic retriever for PostgreSQL. |
 | | `MySQLRetriever` | `mysql` | Generic retriever for MySQL. |
+| **File / Multimodal** | `FileVectorRetriever` | `none` | Backs both audio transcription and file-upload retrieval; used by the `file` and `multimodal` domain adapters. |
+| **Passthrough / Conversational** | `ConversationalImplementation` | `none` | Pure conversational passthrough with no retrieval — see `config/adapters/passthrough.yaml`. |
+| **Passthrough / Multimodal** | `MultimodalImplementation` | `none` | Conditional file retrieval (only when `file_ids` are present) plus vision, STT, and TTS provider hooks — see `config/adapters/multimodal.yaml`. |
+| **Real-time Voice** | N/A (WebSocket, `type: openai_realtime`) | `none` | Speech-to-speech via OpenAI's Realtime API, served over the WebSocket endpoint in `server/routes/voice_routes.py`. |
+| | N/A (WebSocket, `type: openai_realtime_translation`) | `none` | Real-time speech-to-speech translation via OpenAI's Realtime API. |
+| | N/A (WebSocket, `type: gemini_live`) | `none` | Speech-to-speech via Gemini Live. |
 
 ### Domain Adapters
 
@@ -134,6 +140,32 @@ ORBIT comes with a variety of pre-built retriever implementations and domain ada
 | `intent` (agent) | `IntentAgentRetriever` | Extends intent adapter with function calling and built-in tool execution. |
 | `composite` | N/A (uses child adapters) | Routes queries to child adapters; delegates formatting to the selected child. |
 | `generic` | `GenericDocumentAdapter` | Provides basic, general-purpose document formatting. |
+| `conversational` | N/A (no retrieval) | Pure passthrough chat/voice; no domain adapter needed since there's nothing to format. |
+| `multimodal` | N/A (conditional retrieval) | Retrieves against uploaded files only when `file_ids` are present; otherwise behaves like `conversational`. |
+
+### Audio Adapters (`config/adapters/audio.yaml`)
+
+`config/adapters/audio.yaml` bundles every audio-related adapter — file transcription, regular request/response voice chat (STT in, TTS out, over the normal chat completions endpoint), and real-time speech-to-speech served over the WebSocket voice endpoint. Include it from `config/adapters.yaml`'s import list to load these:
+
+```yaml
+  - "adapters/audio.yaml"
+```
+
+| Name | `type` | STT / TTS | Description |
+| :--- | :--- | :--- | :--- |
+| `audio-transcription` | `retriever` | STT: Cohere | Transcribes uploaded audio files (`file_ids`) and retrieves against the transcribed text. |
+| `voice-chat` | `passthrough` | STT: OpenAI · TTS: OpenAI | Request/response voice chat — send `audio_input`, get an audio reply back. |
+| `multilingual-voice-assistant` | `passthrough` | STT: Gemini · TTS: Gemini | Translates between a source and target language over voice. |
+| `premium-voice-chat` | `passthrough` | STT: Whisper (local) · TTS: ElevenLabs | High-quality TTS via ElevenLabs, free local STT. |
+| `vllm-voice-chat-hybrid` | `passthrough` | STT: Whisper (local) · TTS: vLLM (local Orpheus) | Fully local audio pipeline, cloud LLM for inference. |
+| `coqui-voice-chat` | `passthrough` | TTS: Coqui (local) | Text input, local open-source TTS output only (no STT). |
+| `local-voice-chat-coqui-whisper` | `passthrough` | STT: Whisper (local) · TTS: Coqui (local) | 100% local voice-to-voice, no API costs. |
+| `hybrid-voice-chat-local-audio` | `passthrough` | STT: Whisper (local) · TTS: Coqui (local) | Local audio I/O paired with a cloud LLM for best quality/cost balance. |
+| `open-ai-real-time-voice-chat` | `openai_realtime` | Built into OpenAI Realtime | Real-time speech-to-speech, no discrete STT → LLM → TTS round trip; supports barge-in. |
+| `gemini-live-voice-chat` | `gemini_live` | Built into Gemini Live | Real-time speech-to-speech via Gemini Live; supports barge-in. |
+| `open-ai-real-time-translation` | `openai_realtime_translation` | Built into OpenAI Realtime | Stateless real-time speech translation to a `target_language`; no system prompt or VAD. |
+
+Real-time adapters (`openai_realtime`, `openai_realtime_translation`, `gemini_live`) are tested over `ws://<host>:<port>/ws/voice/<adapter-name>`, not the chat completions endpoint. See `server/routes/voice_routes.py` and [Grounded Real-Time Voice](./grounded-realtime-voice.md) for the WebSocket protocol.
 
 ## Configuration Examples
 
@@ -194,6 +226,55 @@ This adapter uses the `IntentPostgreSQLRetriever` to translate natural language 
     max_templates: 5
 ```
 
+### Example 5: Passthrough / Conversational
+
+This adapter uses `ConversationalImplementation` for pure chat with no retrieval — see `config/adapters/passthrough.yaml`.
+
+```yaml
+- name: "simple-chat"
+  enabled: true
+  type: "passthrough"
+  datasource: "none"
+  adapter: "conversational"
+  implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+  inference_provider: "ollama_cloud"
+  model: "gpt-oss:120b"
+  tts_provider: "gemini"
+```
+
+### Example 6: Passthrough / Multimodal (files, vision, STT/TTS)
+
+This adapter uses `MultimodalImplementation` to retrieve against uploaded files only when `file_ids` are present, with vision/STT/TTS providers for non-text input and output — see `config/adapters/multimodal.yaml`.
+
+```yaml
+- name: "simple-chat-with-files"
+  enabled: true
+  type: "passthrough"
+  datasource: "none"
+  adapter: "multimodal"
+  implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+  inference_provider: "openai"
+  model: "gpt-5.4-mini"
+  vision_provider: "gemini"
+  stt_provider: "openai"
+  tts_provider: "gemini"
+  capabilities:
+    retrieval_behavior: "conditional"  # Only retrieves when file_ids are present
+    skip_when_no_files: true
+```
+
+### Example 7: Real-time Voice (speech-to-speech)
+
+Real-time speech-to-speech adapters (`openai_realtime`, `openai_realtime_translation`, `gemini_live`) speak directly over a WebSocket — no discrete STT → LLM → TTS round trip. They're served by `server/routes/voice_routes.py` rather than the chat completions endpoint. See `config/adapters/audio.yaml` for the full set, including regular request/response voice chat (STT/TTS over the normal chat endpoint) and audio file transcription.
+
+```yaml
+- name: "open-ai-real-time-voice-chat"
+  enabled: false
+  type: "openai_realtime"
+  datasource: "none"
+  adapter: "conversational"
+```
+
 ## Extending the Architecture
 
 You can easily extend ORBIT with your own custom retrievers and domain adapters.
@@ -235,3 +316,7 @@ For more in-depth information on specific retriever types, see the following gui
 -   **[Composite Intent Retriever](./composite-intent-retriever.md)**: A guide to the composite retriever that routes queries across multiple intent adapters to find the best matching data source.
 
 -   **[Intent Agent Retriever](./intent-agent-retriever.md)**: A guide to the agent retriever that extends intent-based retrieval with function calling, tool execution, and response synthesis.
+
+-   **[Multimodal Conversational Adapter](./multimodal-conversational-adapter.md)**: A guide to the passthrough/multimodal adapter — conditional file retrieval, vision, and STT/TTS provider hooks.
+
+-   **[Grounded Real-Time Voice](./grounded-realtime-voice.md)**: A guide to the real-time speech-to-speech adapters (`openai_realtime`, `openai_realtime_translation`, `gemini_live`) and how they connect over the WebSocket voice endpoint.
