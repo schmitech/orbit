@@ -52,12 +52,6 @@
 
 <br>
 
-> [!NOTE]
-> **Deterministic structured retrieval:** For intent-based SQL and API adapters, ORBIT uses
-> embeddings and reranking to select from reviewed, predefined query templates, then executes
-> the template's predefined, parameterized SQL or query DSL. It does not use an LLM to generate
-> arbitrary datasource queries.
-
 ## Architecture
 
 <div align="center">
