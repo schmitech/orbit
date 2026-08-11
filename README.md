@@ -121,6 +121,8 @@ See the [server management guide](docs/server.md#server-management) for commands
 
 To use the optional ORBIT chatbot web interface, install and run `orbitchat` from your host machine:
 
+See the [OrbitChat project and documentation](clients/orbitchat/README.md) for configuration, custom adapters, authentication, and advanced usage.
+
 ```bash
 npm install -g orbitchat
 ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' orbitchat
