@@ -1,0 +1,120 @@
+# SLA Metrics API Domain Configuration
+# A small mock REST API (examples/mcp-server/src/sla-server.js) serving support
+# SLA metrics for the same synthetic customers used by the MCP business server
+# and the billing/contracts SQLite database.
+
+domain_name: "sla_metrics_api"
+domain_type: "rest_api"
+version: "1.0.0"
+description: "Support SLA compliance metrics per customer, keyed by the same cus_XXXX customer IDs used across the Customer 360 example."
+
+# API Configuration
+api_config:
+  base_url: "http://localhost:9998"
+  api_version: "v1"
+  protocol: "http"
+  default_timeout: 15
+  rate_limit: null
+
+# Authentication (None required)
+authentication:
+  type: "none"
+  description: "The local SLA metrics mock server requires no authentication"
+
+# Entity Definitions
+entities:
+  sla_status:
+    entity_type: "resource"
+    endpoint_base: "/customers/{customerId}/sla"
+    primary_key: "customerId"
+    display_name: "SLA Status"
+    description: "SLA compliance status and response/resolution metrics for one customer"
+    searchable_fields:
+      - customerId
+    filterable_fields:
+      - customerId
+
+  sla_breach:
+    entity_type: "resource"
+    endpoint_base: "/sla/breaches"
+    primary_key: "customerId"
+    display_name: "SLA Breach"
+    description: "Customers with SLA breaches in the last 90 days"
+    searchable_fields: []
+    filterable_fields:
+      - minBreaches
+      - limit
+
+  sla_summary:
+    entity_type: "resource"
+    endpoint_base: "/sla/summary"
+    primary_key: "customerId"
+    display_name: "SLA Summary"
+    description: "Portfolio-level SLA summary, filterable by segment or region"
+    searchable_fields: []
+    filterable_fields:
+      - segment
+      - region
+
+# Vocabulary and Synonyms
+vocabulary:
+  entity_synonyms:
+    sla: ["SLA", "service level agreement", "support SLA"]
+    breach: ["breach", "violation", "miss"]
+    compliance: ["compliance", "compliance rate", "adherence"]
+
+  action_synonyms:
+    retrieve: ["get", "show", "retrieve", "fetch", "find"]
+    list: ["list", "show all", "find"]
+
+  field_synonyms:
+    complianceRatePct: ["compliance rate", "SLA compliance", "adherence rate"]
+    breachesLast90d: ["breaches", "SLA breaches", "violations"]
+    avgFirstResponseHours: ["first response time", "response time"]
+    avgResolutionHours: ["resolution time", "time to resolve"]
+
+# Response Patterns
+response_patterns:
+  single_item:
+    description: "Response contains a single SLA status object"
+    format: "object"
+  collection:
+    description: "Response contains an array of SLA records"
+    format: "array"
+
+# Common Query Parameters
+common_parameters:
+  limit:
+    name: "limit"
+    type: "integer"
+    description: "Limit number of results"
+    default: 25
+
+# Error Handling
+error_handling:
+  404:
+    description: "Customer not found"
+    action: "Return empty result or verify the customer ID"
+  500:
+    description: "Server error"
+    action: "Retry with exponential backoff"
+
+# Best Practices
+best_practices:
+  - "Use /customers/{customerId}/sla for single-customer lookups"
+  - "Use /sla/breaches to find at-risk accounts across the portfolio"
+  - "Use /sla/summary with segment/region filters for aggregate views"
+
+# Example Queries
+example_queries:
+  - query: "What's the SLA compliance rate for cus_0012?"
+    endpoint: "/customers/cus_0012/sla"
+    description: "Get SLA status for a specific customer"
+
+  - query: "Which customers have SLA breaches?"
+    endpoint: "/sla/breaches?minBreaches=1"
+    description: "List customers with at least one SLA breach"
+
+  - query: "Show me SLA summary for Enterprise customers"
+    endpoint: "/sla/summary?segment=Enterprise"
+    description: "Portfolio SLA summary filtered by segment"

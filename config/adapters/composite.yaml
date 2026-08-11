@@ -95,6 +95,62 @@ adapters:
         default_merge_strategy: "side_by_side"  # side_by_side or labeled_concat
 
 
+  # Example: Customer 360 — Billing (SQLite) + Support SLA (HTTP)
+  # Unlike the examples above, these two child adapters share the same
+  # cus_XXXX customer ID space (see examples/mcp-server/src/data.js), so
+  # cross-adapter queries genuinely join related domain data instead of
+  # merely searching across unrelated topics. Requires the SLA mock server
+  # to be running: `cd examples/mcp-server && npm run sla`.
+  # See examples/customer-360-composite/README.md for the full walkthrough.
+  - name: "composite-customer-360"
+    enabled: true
+    type: "retriever"
+    adapter: "composite"
+    implementation: "retrievers.implementations.composite.CompositeIntentRetriever"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      requires_api_key_validation: true
+      supports_autocomplete: true
+      # Opportunistic MCP tool calling: lets the model also call the
+      # business-sample MCP server's live CRM tools (customer health,
+      # opportunities, support tickets) on any turn, alongside the composite
+      # billing/SLA retrieval above. Requires mcp_clients.enabled: true AND
+      # allow_opportunistic: true on the business-sample server in
+      # config/mcp_clients.yaml. See docs/adapters/mcp-agent.md#opportunistic-mode.
+      mcp_tools: true
+      mcp_servers:
+        - "business-sample"
+    config:
+      child_adapters:
+        - "intent-sql-sqlite-billing"
+        - "intent-http-sla-metrics"
+
+      confidence_threshold: 0.4
+      max_templates_per_source: 3
+      parallel_search: true
+      search_timeout: 8.0
+      verbose: false
+
+      cross_adapter_templates:
+        enabled: true
+        template_library_path:
+          - "examples/intent-templates/cross-adapter-template/billing_sla_cross_adapter_templates.yaml"
+        template_collection_name: "composite_customer360_cross_adapter_templates"
+        store_name: "chroma"
+
+      cross_adapter_execution:
+        timeout_per_adapter: 10.0
+        partial_results: true
+        default_merge_strategy: "side_by_side"
+
   # Example: Full Multi-Database Explorer
   # Routes queries across SQL, DuckDB, MongoDB, and HTTP sources
   - name: "composite-full-explorer"

@@ -64,6 +64,7 @@ import:
   - "adapters/business-analytics.yaml"
   - "adapters/elasticsearch-logs.yaml"
   - "adapters/customer-orders.yaml"
+  - "adapters/billing-sla.yaml"
   - "adapters/ev.yaml"
   - "adapters/contact.yaml"
   - "adapters/composite.yaml"

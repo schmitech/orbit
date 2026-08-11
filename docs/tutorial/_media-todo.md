@@ -34,3 +34,4 @@ grep -rn "<!-- MEDIA:" docs/tutorial/
 | `skills-image-generation/generated-image` | screenshot | `skills-image-generation.md` | `/` skill picker and a generated image | Needed |
 | `mcp-tool-calling/mcp-tab` | screenshot | `mcp-tool-calling.md` | MCP tab showing `business-sample` configured | Needed |
 | `auto-skill-routing/inferred-skill-response` | screenshot | `auto-skill-routing.md` | Response auto-routed with no `skill` field | Needed |
+| `customer-360-cross-adapter/cross-adapter-response` | screenshot | `customer-360-cross-adapter.md` | API response JSON showing a cross_adapter routing block with both Billing and Support SLA sources merged side_by_side | Needed |

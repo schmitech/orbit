@@ -1,0 +1,56 @@
+# Cross-adapter templates for the Customer 360 composite example.
+# These templates are owned by the composite retriever and trigger parallel
+# execution across two genuinely related child adapters, merging results:
+#   - intent-sql-sqlite-billing (contracts, invoices, payments)
+#   - intent-http-sla-metrics (support SLA compliance, via a local REST API)
+#
+# Both adapters share the same cus_XXXX customer ID space used by the
+# companion examples/mcp-server/ MCP business server, so a single query can
+# join billing health with support-SLA health for one customer — unlike the
+# unrelated-domain examples in cross_adapter_templates.yaml.
+
+templates:
+  - id: customer_360_billing_and_sla
+    description: Combine billing/contract data with support SLA metrics for a customer
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-sql-sqlite-billing"
+        label: "Billing"
+      - adapter: "intent-http-sla-metrics"
+        label: "Support SLA"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "show me billing and support SLA status for customer cus_0007"
+      - "customer 360 view for cus_0012 including invoices and SLA"
+      - "give me the full account picture — contracts, invoices, and SLA compliance — for cus_0021"
+      - "billing and SLA health for cus_0034"
+      - "show me the complete customer profile for cus_0028"
+    tags:
+      - comparison
+      - cross-source
+      - billing
+      - sla
+      - customer-360
+
+  - id: compare_overdue_billing_and_sla_breaches
+    description: Cross-reference customers with overdue invoices against SLA breaches
+    cross_adapter: true
+    target_adapters:
+      - adapter: "intent-sql-sqlite-billing"
+        label: "Billing"
+      - adapter: "intent-http-sla-metrics"
+        label: "Support SLA"
+    merge_strategy: side_by_side
+    partial_results: true
+    nl_examples:
+      - "which customers have both overdue invoices and SLA breaches"
+      - "cross-reference billing risk with support SLA breaches"
+      - "show me overdue accounts alongside their SLA compliance"
+      - "compare payment risk with SLA violations"
+    tags:
+      - comparison
+      - cross-source
+      - billing
+      - sla
+      - risk

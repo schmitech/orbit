@@ -101,6 +101,8 @@ With HR, EV population, and Movie databases wired up:
 
 See [Composite Intent Retriever](../adapters/composite-intent-retriever.md) for tuning reranking, string-similarity weighting, and cross-adapter templates. For the underlying intent-matching mechanics shared by every adapter in the table above, see [Intent Agent Retriever](../adapters/intent-agent-retriever.md).
 
+Everything above routes a query to the single best-matching source. When your sources hold genuinely related data — not just different topics — a query can fan out to *several* sources at once and merge the results. See [Example 13: Customer 360 — Cross-Adapter Composition](customer-360-cross-adapter.md) (Level 5) for that pattern.
+
 ---
 
 [Tutorial home](../tutorial.md) | [Previous: Example 6: HTTP APIs](http-apis.md) | [Next: Example 8: Agent with Function Calling](agent-function-calling.md)

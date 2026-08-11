@@ -1,0 +1,472 @@
+domain_name: Billing & Contracts
+description: Billing database with contracts, invoices, and payments, keyed by the same customer IDs used by the companion MCP business server and SLA metrics API
+domain_type: billing
+semantic_types:
+  customer_id:
+    description: Customer identifier shared across the billing, SLA, and MCP CRM systems
+    patterns:
+    - customer
+    - account
+    regex_patterns:
+    - \bcus_\d{4}\b
+  currency_amount:
+    description: Monetary amount
+    patterns:
+    - amount
+    - price
+    - cost
+    - value
+    - total
+    regex_patterns:
+    - \$\d+[,\d]*(\.\d{2})?
+  date_value:
+    description: Date values in various formats
+    patterns:
+    - date
+    - day
+    - when
+    - due
+    - start
+    - end
+    - invoiced
+    - paid
+    regex_patterns:
+    - \b\d{4}-\d{2}-\d{2}\b
+  status:
+    description: Contract, invoice, or payment status
+    patterns:
+    - status
+    - state
+    - active
+    - overdue
+    - paid
+    - expired
+vocabulary:
+  entity_synonyms:
+    contract:
+    - agreement
+    - subscription
+    - plan
+    invoice:
+    - bill
+    - billing statement
+    - charge
+    payment:
+    - transaction
+    - remittance
+    customer:
+    - account
+    - client
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    - retrieve
+    filter:
+    - filter
+    - only
+    - just
+    - where
+    - with
+    count:
+    - count
+    - number of
+    - how many
+    - total
+  field_synonyms:
+    plan_tier:
+    - plan
+    - tier
+    - subscription level
+    due_date:
+    - due date
+    - payment due
+    contract_value:
+    - contract value
+    - deal size
+    - ACV
+entities:
+  customers:
+    name: customers
+    entity_type: primary
+    table_name: customers
+    description: Reference table of customers (full CRM record lives in the MCP business server)
+    primary_key: customer_id
+    display_name_field: customer_name
+    searchable_fields:
+    - customer_name
+    common_filters:
+    - customer_id
+    default_sort_field: customer_name
+    default_sort_order: ASC
+  contracts:
+    name: contracts
+    entity_type: primary
+    table_name: contracts
+    description: Customer subscription contracts
+    primary_key: contract_id
+    display_name_field: contract_id
+    searchable_fields: []
+    common_filters:
+    - customer_id
+    - plan_tier
+    - status
+    default_sort_field: start_date
+    default_sort_order: DESC
+  invoices:
+    name: invoices
+    entity_type: primary
+    table_name: invoices
+    description: Invoices billed against a contract
+    primary_key: invoice_id
+    display_name_field: invoice_id
+    searchable_fields: []
+    common_filters:
+    - customer_id
+    - contract_id
+    - status
+    default_sort_field: invoice_date
+    default_sort_order: DESC
+  payments:
+    name: payments
+    entity_type: primary
+    table_name: payments
+    description: Payments received against an invoice
+    primary_key: payment_id
+    display_name_field: payment_id
+    searchable_fields: []
+    common_filters:
+    - customer_id
+    - invoice_id
+    - status
+    default_sort_field: payment_date
+    default_sort_order: DESC
+fields:
+  customers:
+    customer_id:
+      name: customer_id
+      data_type: string
+      db_column: customer_id
+      description: Customer ID (matches the MCP business server and SLA metrics API)
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: customer_id
+      summary_priority: 10
+    customer_name:
+      name: customer_name
+      data_type: string
+      db_column: customer_name
+      description: Customer name
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+  contracts:
+    contract_id:
+      name: contract_id
+      data_type: string
+      db_column: contract_id
+      description: Contract ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    customer_id:
+      name: customer_id
+      data_type: string
+      db_column: customer_id
+      description: Customer ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: customer_id
+      summary_priority: 9
+    plan_tier:
+      name: plan_tier
+      data_type: string
+      db_column: plan_tier
+      description: Subscription plan tier (Starter, Growth, Enterprise)
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 8
+    seats:
+      name: seats
+      data_type: integer
+      db_column: seats
+      description: Licensed seat count
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 5
+    start_date:
+      name: start_date
+      data_type: date
+      db_column: start_date
+      description: Contract start date
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 6
+    end_date:
+      name: end_date
+      data_type: date
+      db_column: end_date
+      description: Contract end date
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 6
+    billing_cycle:
+      name: billing_cycle
+      data_type: string
+      db_column: billing_cycle
+      description: Billing cycle (monthly or annual)
+      required: true
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 4
+    auto_renew:
+      name: auto_renew
+      data_type: boolean
+      db_column: auto_renew
+      description: Whether the contract auto-renews
+      required: false
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 3
+    contract_value:
+      name: contract_value
+      data_type: decimal
+      db_column: contract_value
+      description: Total contract value
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: currency_amount
+      summary_priority: 8
+    status:
+      name: status
+      data_type: string
+      db_column: status
+      description: Contract status (active, expired, pending_renewal)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: status
+      summary_priority: 7
+  invoices:
+    invoice_id:
+      name: invoice_id
+      data_type: string
+      db_column: invoice_id
+      description: Invoice ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    contract_id:
+      name: contract_id
+      data_type: string
+      db_column: contract_id
+      description: Contract ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 6
+    customer_id:
+      name: customer_id
+      data_type: string
+      db_column: customer_id
+      description: Customer ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: customer_id
+      summary_priority: 9
+    invoice_date:
+      name: invoice_date
+      data_type: date
+      db_column: invoice_date
+      description: Invoice issue date
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 7
+    due_date:
+      name: due_date
+      data_type: date
+      db_column: due_date
+      description: Invoice due date
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 8
+    amount:
+      name: amount
+      data_type: decimal
+      db_column: amount
+      description: Invoice amount
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: currency_amount
+      summary_priority: 9
+    currency:
+      name: currency
+      data_type: string
+      db_column: currency
+      description: Currency code
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 2
+    status:
+      name: status
+      data_type: string
+      db_column: status
+      description: Invoice status (paid, open, overdue, void)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: status
+      summary_priority: 9
+  payments:
+    payment_id:
+      name: payment_id
+      data_type: string
+      db_column: payment_id
+      description: Payment ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    invoice_id:
+      name: invoice_id
+      data_type: string
+      db_column: invoice_id
+      description: Invoice ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 7
+    customer_id:
+      name: customer_id
+      data_type: string
+      db_column: customer_id
+      description: Customer ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: customer_id
+      summary_priority: 9
+    payment_date:
+      name: payment_date
+      data_type: date
+      db_column: payment_date
+      description: Payment date
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 7
+    amount:
+      name: amount
+      data_type: decimal
+      db_column: amount
+      description: Payment amount
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: currency_amount
+      summary_priority: 8
+    method:
+      name: method
+      data_type: string
+      db_column: method
+      description: Payment method (credit_card, ach, wire)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 4
+    status:
+      name: status
+      data_type: string
+      db_column: status
+      description: Payment status (succeeded, failed, refunded)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: status
+      summary_priority: 6
+relationships:
+  - from_entity: customers
+    to_entity: contracts
+    relationship_type: one_to_many
+    from_key: customer_id
+    to_key: customer_id
+    description: Customers can have multiple contracts
+  - from_entity: contracts
+    to_entity: invoices
+    relationship_type: one_to_many
+    from_key: contract_id
+    to_key: contract_id
+    description: Contracts generate multiple invoices
+  - from_entity: invoices
+    to_entity: payments
+    relationship_type: one_to_many
+    from_key: invoice_id
+    to_key: invoice_id
+    description: Invoices can have multiple payments
+query_patterns: []
+metadata:
+  generated_at: '2026-08-11T00:00:00.000000'
+  generator_version: 1.0.0
+  auto_generated: false

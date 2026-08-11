@@ -1,0 +1,109 @@
+# Billing (SQLite) + Support SLA (HTTP) adapters
+# Two intent adapters over genuinely related domain data, sharing the same
+# cus_XXXX customer ID space used by examples/mcp-server/. Composed together
+# via config/adapters/composite.yaml's "composite-customer-360" adapter.
+# See examples/customer-360-composite/README.md for the full walkthrough.
+
+adapters:
+  - name: "intent-sql-sqlite-billing"
+    enabled: true
+    type: "retriever"
+    datasource: "sqlite"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
+    database: "examples/intent-templates/sql-intent-template/sqlite/billing/billing.db"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+    capabilities:
+      expose_as_skill: true
+      skill_name: "Billing"
+      skill_description: "Billing, contracts, invoices, and payments"
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      requires_api_key_validation: true
+      supports_autocomplete: true
+      context_format: "toon"
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+    config:
+      check_same_thread: false
+      domain_config_path: "examples/intent-templates/sql-intent-template/sqlite/billing/billing-domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/sql-intent-template/sqlite/billing/billing-templates.yaml"
+      template_collection_name: "billing_intent_templates"
+      store_name: "chroma"
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 10
+      reload_templates_on_start: false
+      force_reload_templates: false
+      use_connection_pool: false
+      pool_size: 1
+      connection_timeout: 30
+      enable_query_monitoring: true
+      query_timeout: 5000
+
+    fault_tolerance:
+      operation_timeout: 30.0
+      failure_threshold: 5
+      recovery_timeout: 60.0
+      max_retries: 3
+      retry_delay: 1.0
+
+  # HTTP JSON API Adapter - SLA Metrics (local mock server)
+  # Requires examples/mcp-server: `npm run sla` (listens on http://localhost:9998)
+  - name: "intent-http-sla-metrics"
+    enabled: true
+    type: "retriever"
+    datasource: "http"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentHTTPJSONRetriever"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+    capabilities:
+      expose_as_skill: true
+      skill_name: "Support SLA"
+      skill_description: "Support SLA compliance metrics"
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      requires_api_key_validation: true
+      supports_autocomplete: true
+      context_format: "toon"
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+    config:
+      domain_config_path: "examples/intent-templates/http-intent-template/examples/sla-metrics/templates/sla_metrics_domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/http-intent-template/examples/sla-metrics/templates/sla_metrics_templates.yaml"
+      template_collection_name: "sla_metrics_http_templates"
+      store_name: "chroma"
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 10
+      verbose: false
+      reload_templates_on_start: false
+      force_reload_templates: false
+      base_url: "http://localhost:9998"
+      default_timeout: 15
+      enable_retries: true
+      max_retries: 3
+      retry_delay: 1.0
+
+    fault_tolerance:
+      operation_timeout: 30.0
+      failure_threshold: 5
+      recovery_timeout: 60.0
+      max_retries: 3
+      retry_delay: 1.0

@@ -1,0 +1,264 @@
+status: completed
+generated_at: '2026-08-11T00:00:00.000000'
+last_updated: '2026-08-11T00:00:00.000000'
+generator_version: 1.0.0
+total_templates: 8
+templates:
+  # ============================================================================
+  # CONTRACT TEMPLATES
+  # ============================================================================
+
+  - id: get_contract_by_customer
+    description: Get the contract(s) for a specific customer
+    sql_template: |
+      SELECT contract_id, customer_id, plan_tier, seats, start_date, end_date,
+             billing_cycle, auto_renew, contract_value, status
+      FROM contracts
+      WHERE customer_id = ?
+      ORDER BY start_date DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: customer_id
+        type: string
+        description: Customer ID, for example cus_0007
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "What contract does customer cus_0007 have?"
+      - "Show me the contract for cus_0012"
+      - "Get contract details for customer cus_0021"
+    tags: [contract, lookup, customer]
+    result_format: table
+
+  - id: list_contracts_expiring_soon
+    description: List contracts expiring within a given number of days
+    sql_template: |
+      SELECT contract_id, customer_id, plan_tier, end_date, contract_value, auto_renew, status
+      FROM contracts
+      WHERE end_date <= date('now', '+' || ? || ' days')
+        AND status != 'expired'
+      ORDER BY end_date ASC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: days_ahead
+        type: integer
+        description: Look-ahead window in days
+        required: false
+        default: 60
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Which contracts are expiring in the next 60 days?"
+      - "Show me contracts expiring soon"
+      - "List contracts up for renewal this quarter"
+    tags: [contract, expiring, renewal]
+    result_format: table
+
+  - id: billing_summary_by_customer
+    description: Summarize contract value, invoice totals, and payment status for a customer
+    sql_template: |
+      SELECT c.customer_id, c.plan_tier, c.contract_value,
+             COUNT(DISTINCT i.invoice_id) AS invoice_count,
+             SUM(CASE WHEN i.status = 'overdue' THEN i.amount ELSE 0 END) AS overdue_amount,
+             SUM(CASE WHEN i.status = 'paid' THEN i.amount ELSE 0 END) AS paid_amount
+      FROM contracts c
+      LEFT JOIN invoices i ON i.contract_id = c.contract_id
+      WHERE c.customer_id = ?
+      GROUP BY c.customer_id, c.plan_tier, c.contract_value
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: customer_id
+        type: string
+        description: Customer ID, for example cus_0007
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Give me a billing summary for customer cus_0021"
+      - "Summarize invoices and payments for cus_0007"
+      - "What's the billing overview for customer cus_0012?"
+    tags: [billing, summary, customer, aggregate]
+    result_format: summary
+
+  # ============================================================================
+  # INVOICE TEMPLATES
+  # ============================================================================
+
+  - id: list_invoices_for_customer
+    description: List all invoices for a specific customer
+    sql_template: |
+      SELECT invoice_id, contract_id, invoice_date, due_date, amount, currency, status
+      FROM invoices
+      WHERE customer_id = ?
+      ORDER BY invoice_date DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: customer_id
+        type: string
+        description: Customer ID, for example cus_0007
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me invoices for customer cus_0007"
+      - "List all invoices for cus_0012"
+      - "What invoices does cus_0021 have?"
+    tags: [invoice, lookup, customer]
+    result_format: table
+
+  - id: list_overdue_invoices
+    description: List overdue invoices, optionally filtered to one customer
+    sql_template: |
+      SELECT invoice_id, customer_id, invoice_date, due_date, amount, currency, status
+      FROM invoices
+      WHERE status = 'overdue'
+        AND (? IS NULL OR customer_id = ?)
+      ORDER BY due_date ASC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: customer_id_filter
+        type: string
+        description: Optional customer ID to filter by, for example cus_0007
+        required: false
+        default: null
+      - name: customer_id_filter
+        type: string
+        description: Optional customer ID to filter by, for example cus_0007
+        required: false
+        default: null
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "What invoices are overdue for customer cus_0007?"
+      - "Show me all overdue invoices"
+      - "Which customers have overdue bills?"
+      - "List overdue invoices across all customers"
+    tags: [invoice, overdue, risk]
+    result_format: table
+
+  - id: invoice_totals_by_status
+    description: Total invoice amount grouped by status
+    sql_template: |
+      SELECT status, COUNT(*) AS invoice_count, SUM(amount) AS total_amount
+      FROM invoices
+      GROUP BY status
+      ORDER BY total_amount DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "How much do we have in open vs paid invoices?"
+      - "Show me invoice totals by status"
+      - "Break down invoice amounts by status"
+    tags: [invoice, aggregate, status]
+    result_format: table
+
+  # ============================================================================
+  # PAYMENT TEMPLATES
+  # ============================================================================
+
+  - id: get_payment_history_for_customer
+    description: Get payment history for a specific customer
+    sql_template: |
+      SELECT payment_id, invoice_id, payment_date, amount, method, status
+      FROM payments
+      WHERE customer_id = ?
+      ORDER BY payment_date DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: customer_id
+        type: string
+        description: Customer ID, for example cus_0007
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me payment history for customer cus_0007"
+      - "What payments has cus_0012 made?"
+      - "List all payments for customer cus_0021"
+    tags: [payment, history, customer]
+    result_format: table
+
+  - id: list_failed_payments
+    description: List failed or refunded payments
+    sql_template: |
+      SELECT payment_id, customer_id, invoice_id, payment_date, amount, method, status
+      FROM payments
+      WHERE status IN ('failed', 'refunded')
+      ORDER BY payment_date DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me failed payments"
+      - "Which payments were refunded?"
+      - "List failed or refunded transactions"
+    tags: [payment, failed, refunded]
+    result_format: table

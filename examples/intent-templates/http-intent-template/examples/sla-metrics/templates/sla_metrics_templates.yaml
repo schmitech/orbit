@@ -1,0 +1,199 @@
+# SLA Metrics API Templates
+# Templates for the local SLA metrics mock server (examples/mcp-server/src/sla-server.js)
+
+templates:
+  # ============================================================================
+  # SLA STATUS TEMPLATES
+  # ============================================================================
+
+  - id: get_sla_status_for_customer
+    version: "1.0.0"
+    description: "Get SLA compliance status and response/resolution metrics for one customer"
+
+    http_method: "GET"
+    endpoint_template: "/customers/{customer_id}/sla"
+
+    headers:
+      Accept: "application/json"
+
+    parameters:
+      - name: customer_id
+        type: string
+        required: true
+        description: "Customer ID, for example cus_0007"
+        location: "path"
+        example: "cus_0007"
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "customerId"
+          path: "$.customerId"
+          type: "string"
+        - name: "customerName"
+          path: "$.customerName"
+          type: "string"
+        - name: "planTier"
+          path: "$.planTier"
+          type: "string"
+        - name: "slaTargetHours"
+          path: "$.slaTargetHours"
+          type: "integer"
+        - name: "avgFirstResponseHours"
+          path: "$.avgFirstResponseHours"
+          type: "number"
+        - name: "avgResolutionHours"
+          path: "$.avgResolutionHours"
+          type: "number"
+        - name: "ticketsOpen"
+          path: "$.ticketsOpen"
+          type: "integer"
+        - name: "breachesLast90d"
+          path: "$.breachesLast90d"
+          type: "integer"
+        - name: "complianceRatePct"
+          path: "$.complianceRatePct"
+          type: "integer"
+        - name: "lastBreachDate"
+          path: "$.lastBreachDate"
+          type: "string"
+
+    nl_examples:
+      - "What's the SLA compliance rate for cus_0012?"
+      - "Show me support SLA status for customer cus_0007"
+      - "How is customer cus_0021 doing on SLA?"
+      - "Get SLA metrics for cus_0034"
+      - "What is the first response time for cus_0015?"
+
+    semantic_tags:
+      action: "retrieve"
+      primary_entity: "sla_status"
+      requires_id: true
+
+    result_format: "single"
+    tags: ["sla", "status", "customer"]
+
+  # ============================================================================
+
+  - id: list_sla_breaches
+    version: "1.0.0"
+    description: "List customers with SLA breaches in the last 90 days"
+
+    http_method: "GET"
+    endpoint_template: "/sla/breaches"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      minBreaches: "{{min_breaches}}"
+      limit: "{{limit}}"
+
+    parameters:
+      - name: min_breaches
+        type: integer
+        required: false
+        default: 1
+        description: "Minimum number of breaches to include"
+        location: "query"
+        min: 0
+
+      - name: limit
+        type: integer
+        required: false
+        default: 25
+        description: "Maximum number of customers to return"
+        location: "query"
+        min: 1
+        max: 100
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "customerId"
+          path: "$.customerId"
+          type: "string"
+        - name: "customerName"
+          path: "$.customerName"
+          type: "string"
+        - name: "breachesLast90d"
+          path: "$.breachesLast90d"
+          type: "integer"
+        - name: "complianceRatePct"
+          path: "$.complianceRatePct"
+          type: "integer"
+
+    nl_examples:
+      - "Which customers have SLA breaches?"
+      - "Show me customers with support SLA violations"
+      - "List accounts that missed their SLA"
+      - "Who has breached their SLA in the last 90 days?"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "sla_breach"
+
+    result_format: "table"
+    tags: ["sla", "breach", "risk"]
+
+  # ============================================================================
+
+  - id: get_sla_summary
+    version: "1.0.0"
+    description: "Get a portfolio-level SLA summary, optionally filtered by segment or region"
+
+    http_method: "GET"
+    endpoint_template: "/sla/summary"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      segment: "{{segment}}"
+      region: "{{region}}"
+
+    parameters:
+      - name: segment
+        type: string
+        required: false
+        description: "Customer segment filter: SMB, Mid-Market, or Enterprise"
+        location: "query"
+
+      - name: region
+        type: string
+        required: false
+        description: "Region filter, for example North America, EMEA, APAC, LATAM"
+        location: "query"
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "customerId"
+          path: "$.customerId"
+          type: "string"
+        - name: "customerName"
+          path: "$.customerName"
+          type: "string"
+        - name: "planTier"
+          path: "$.planTier"
+          type: "string"
+        - name: "complianceRatePct"
+          path: "$.complianceRatePct"
+          type: "integer"
+        - name: "breachesLast90d"
+          path: "$.breachesLast90d"
+          type: "integer"
+
+    nl_examples:
+      - "Show me SLA summary for Enterprise customers"
+      - "What's the SLA compliance across all APAC customers?"
+      - "Give me a portfolio SLA overview"
+      - "Summarize SLA compliance by segment"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "sla_summary"
+      filter_by: "segment_or_region"
+
+    result_format: "table"
+    tags: ["sla", "summary", "portfolio"]

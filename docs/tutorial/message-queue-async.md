@@ -104,6 +104,6 @@ See [`server/tests/messaging/playbook-message-queue.md`](../../server/tests/mess
 
 ---
 
-[Tutorial home](../tutorial.md) | [Previous: Example 11: Web Search and Automatic Skill Routing](auto-skill-routing.md) | [Next: Creating API Keys](creating-api-keys.md)
+[Tutorial home](../tutorial.md) | [Previous: Example 11: Web Search and Automatic Skill Routing](auto-skill-routing.md) | [Next: Example 13: Customer 360 — Cross-Adapter Composition](customer-360-cross-adapter.md)
 
 ---

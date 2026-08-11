@@ -45,6 +45,7 @@ Answer these in order — each one narrows it down:
    - Let the model call tools/functions via a templated pattern (calculator, date/time, your own APIs) → [Agent with Function Calling](tutorial/agent-function-calling.md)
    - Let the model call your tools opportunistically, on any conversational turn, no template → [Opportunistic MCP Tool Calling](tutorial/mcp-tool-calling.md)
    - Combine more than one of the above into a single chat → [Multi-Source Composite](tutorial/multi-source-composite.md)
+   - Join genuinely related data that lives in different systems, not just route between unrelated ones → [Customer 360 — Cross-Adapter Composition](tutorial/customer-360-cross-adapter.md)
    - Generate images (or other media) from chat → start with [Skills, MCP Tools, and Skill Routing](tutorial/skills-concepts.md), then [Skills and Image Generation](tutorial/skills-image-generation.md)
    - Answer with live web results, or auto-route plain language to a skill → [Web Search and Automatic Skill Routing](tutorial/auto-skill-routing.md)
    - Process requests asynchronously off a message queue instead of synchronous HTTP → [Message Queue (Async) Requests](tutorial/message-queue-async.md)
@@ -62,6 +63,7 @@ Still not sure, or want to scan everything at once? Use the full table below.
 | L3 | Query MongoDB collections | [MongoDB Queries](tutorial/mongodb-queries.md) | MongoDB sample data | Ask natural-language movie database questions. |
 | L3 | Wrap REST or GraphQL APIs | [HTTP APIs](tutorial/http-apis.md) | API adapter config | Ask questions that ORBIT resolves through HTTP calls. |
 | L3 | Route across multiple data sources | [Multi-Source Composite](tutorial/multi-source-composite.md) | Multiple configured child adapters | Ask one question and let ORBIT choose the right source. |
+| L5 | Merge results from related data across systems | [Customer 360 — Cross-Adapter Composition](tutorial/customer-360-cross-adapter.md) | Billing SQLite + SLA mock API adapters | Ask one question and get merged results from multiple sources at once. |
 | L3 | Let the model call tools (templated) | [Agent with Function Calling](tutorial/agent-function-calling.md) | Agent template config | Run calculator, date/time, JSON, or HTTP-backed tool examples. |
 | L4 | Generate images from chat | [Skills and Image Generation](tutorial/skills-image-generation.md) | Image skill adapter | Invoke the `Image` skill from OrbitChat or curl. |
 | L4 | Let the model call tools opportunistically, any turn | [Opportunistic MCP Tool Calling](tutorial/mcp-tool-calling.md) | MCP server + `mcp_tools` capability | Ask a business question with no `skill` field and get a tool-backed answer. |
