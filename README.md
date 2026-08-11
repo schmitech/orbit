@@ -32,32 +32,12 @@
 
 <br>
 
-<div align="center">
-  <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/TRY%20ORBIT%20LIVE-Explore%20the%20Sandbox%20%E2%86%92-7C3AED?style=for-the-badge" alt="Try ORBIT live — explore the sandbox" /></a>
-</div>
-
-<br />
-
-> ⭐ **Like ORBIT?** [star the repository](https://github.com/schmitech/orbit). It helps other developers discover the project and signals that we should keep investing in new model, datasource, and agent integrations.
-
-<br />
-
 <div id="see-orbit-in-action" align="center">
   <video src="https://github.com/user-attachments/assets/4af9005e-a9c9-4f37-8f6a-84d86e6f6dde" controls muted playsinline width="85%"></video>
   <br />
   <em>Ask database questions in plain language, in any language.<br />ORBIT picks a reviewed query template, runs its parameterized query, and charts the result in chat.</em>
   <br />
   👉 <strong><a href="https://orbit.schmitech.ca/intent-sql-postgres">Try the SQL Database query demo live →</a></strong>
-</div>
-
-<br>
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/29bd32ae-8849-4b5e-a669-e6442b30a8b8" controls muted playsinline width="85%"></video>
-  <br />
-  <em>Chat with a private HR database using Ollama models.<br />Uses a deterministic retrieval adapter to select a reviewed query template, then returns the answer in chat.</em>
-  <br />
-  👉 <strong><a href="https://orbit.schmitech.ca/hr-db-chatbot">Try the HR database demo live →</a></strong>
 </div>
 
 <br>
@@ -72,20 +52,21 @@
 
 <br>
 
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/9c6530be-1116-4a14-aa82-321448ea5a8d" controls muted playsinline width="70%"></video>
-  <br />
-  <em>Speech‑to‑Speech using grounded knowledge. ORBIT uses deterministic intent retrieval, a mechanism that prevents models from generating responses based on probabilistic inference typical of LLMs
-  </em>
-</div>
-
-</br>
-
 > [!NOTE]
 > **Deterministic structured retrieval:** For intent-based SQL and API adapters, ORBIT uses
 > embeddings and reranking to select from reviewed, predefined query templates, then executes
 > the template's predefined, parameterized SQL or query DSL. It does not use an LLM to generate
 > arbitrary datasource queries.
+
+## Architecture
+
+<div align="center">
+<p>
+  <img src="https://github.com/user-attachments/assets/b2fcbed3-5c28-4d1a-85bd-edc3b7299f6d" alt="ORBIT request and integration architecture" width="600" />
+  <br />
+  <em>Authenticate and route REST, OpenAI-compatible, MCP, A2A, or message-queue requests to models, private data, and tools.</em>
+</p>
+</div>
 
 ## One backend for private AI applications
 
@@ -101,13 +82,21 @@ ORBIT sits between your applications and the models, data, and tools they need. 
 
 ORBIT is actively maintained. See the [release history](https://github.com/schmitech/orbit/releases), [changelog](CHANGELOG.md), and [commit history](https://github.com/schmitech/orbit/commits/main).
 
+⭐ **Finding ORBIT useful?** [star the repository](https://github.com/schmitech/orbit). It helps other developers discover the project and signals that we should keep investing in new model, datasource, and agent integrations.
+
 ## 🚀 Quick Start
 
-Otherwise, skip the clone and config-file editing — pull a flavor image and run it. ORBIT, the orbitchat web UI, and a minimalistic document-chat setup are all inside to get you started in minutes.
+<div align="center">
+  <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/TRY%20ORBIT%20LIVE-Explore%20the%20Sandbox%20%E2%86%92-7C3AED?style=for-the-badge" alt="Try ORBIT live — explore the sandbox" /></a>
+  <br />
+  <em>Explore the live sandbox instantly—no download, Docker, or setup required.</em>
+</div>
+
+### Using Docker
 
 **Prerequisites:** Docker, 4 GB of free RAM, and 3 GB of disk space.
 
-<details open>
+<details>
 <summary><strong>Option 1: Local / Offline (Ollama)</strong></summary>
 
 ```bash
@@ -167,11 +156,7 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
 | Embeddings | `gemini-embedding-2-preview` |
 </details>
 
-> [!TIP]
-> These are just the defaults. Change the active model per adapter from the Admin Panel's adapter settings (persists across restarts, stored in the `orbit-data` volume), or inspect/edit the resolved YAML directly at `/orbit/config-runtime/adapters/multimodal.yaml` inside the running container (`docker exec -it orbit sh`) — note that a container restart regenerates this file from the image default, so edits there don't survive a restart on their own.
-
-> [!NOTE]
-> `-e OPENAI_API_KEY` (no `=value`) passes through whatever that variable is already set to in your shell — export it first, don't paste the key inline as `-e OPENAI_API_KEY=sk-...`, which would leave it sitting in your shell history. Each cloud flavor needs exactly one credential — the same key powers chat, vision, and embeddings, so nothing silently falls back to a different provider. `docker pull` never needs, receives, or persists a credential; only `docker run` does.
+</br>
 
 Port `5173` is the chat UI, `3000` is the OpenAI-compatible API if you want to call ORBIT directly:
 
@@ -183,22 +168,15 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   -d '{"messages":[{"role":"user","content":"What can ORBIT connect to?"}]}'
 ```
 
-You can also access the Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `admin123` — which can be changed inside the admin panel).
+Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `admin123` — which can be changed inside the admin panel).
 
-<br>
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/13f03f18-8421-48a1-8643-fd6a488fdec7" controls muted playsinline width="85%"></video>
-  <br />
-  <em>Monitor health, latency, usage, costs, feedback, sessions, and audit events; manage users, API keys, quotas, adapters settings, MCP servers, and logs in one place.</em>
-</div>
-<br>
+For custom Docker deployments, follow [Docker guide](docker/README.md).
 
-> [!IMPORTANT]
-> These images ship with a default database and API key for first-run convenience. Rotate the default API key/admin password before exposing ORBIT beyond localhost.
+### Using Latest Release
 
-For production deployments, **ALWAYS** use the latest stable [release](https://github.com/schmitech/orbit/releases).
+Follow the installation instructions for [Linux/Mac](docs/server.md) or [Windows](install/windows.md).
 
-You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutorial.md), or [Windows guide](install/windows.md).
+Follow the [tutorial](docs/tutorial.md) to get started with ORBIT.
 
 ---
 
@@ -214,7 +192,7 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 <details>
 <summary><strong>Talk to a real-time voice assistant grounded in your data</strong></summary>
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/d1214904-267e-4295-8a0c-246dd37b7e56" controls muted playsinline width="80%"></video>
+  <video src="https://github.com/user-attachments/assets/9c6530be-1116-4a14-aa82-321448ea5a8d" controls muted playsinline width="60%"></video>
   <br />
   <em>Speech-to-speech voice grounded in SQL databases, APIs, or data lakes — interrupt it mid-answer and it stops and responds immediately.</em>
 </p>
@@ -242,27 +220,6 @@ You can also follow the [Docker guide](docker/README.md), [tutorial](docs/tutori
 </p>
 </details>
 
-## How ORBIT differs from Open WebUI and LiteLLM
-
-Open WebUI is a chat application. LiteLLM is a model router. ORBIT is neither — it is the layer where a question becomes a **governed query against your own systems of record**, and it ships the production controls that decision requires.
-
-| | Open WebUI | LiteLLM | ORBIT |
-| :--- | :--- | :--- | :--- |
-| **Structured data (SQL, Mongo, Elasticsearch, REST, GraphQL)** | Vector stores only | None | First-class datasources |
-| **How database queries are produced** | n/a | n/a | Reviewed, parameterized templates selected by embeddings + reranking — the LLM never emits SQL |
-| **Natural-language intent routing** | Model/pipeline routing | Model-selection routing | Routes the query to the right datasource and skill |
-| **MCP** | Client | Client | **Server _and_ client** — with lifecycle management, pooling, and circuit breaking |
-| **Cost attribution** | Provider-dependent | Per LLM call | Per call type: inference, embeddings, image/video/audio, OCR, realtime voice, MCP tool loops, reranking |
-| **Deny-by-identity** | Requires an existing account row | Virtual keys are allow-list only | Wildcard blacklist on email/user_id/username — blocks external SSO users who have never logged in, revokes live sessions immediately |
-| **File encryption at rest** | Not available | AWS KMS on S3 only | AES-256-GCM on any backend, no cloud KMS required |
-| **Async ingestion** | HTTP/WebSocket only | OpenAI Batches (submit/poll) | Broker-native RabbitMQ, at-least-once, dead-lettering, same pipeline as `/v1/chat` |
-| **Fault tolerance** | Fallback routing | Cooldowns | Circuit breakers across providers, datasources, and MCP servers |
-| **Licensing** | Open source | Open core — some features are commercial | Apache 2.0, no paywalled features |
-
-**The one that matters most:** for intent-based SQL and API adapters, ORBIT does not ask an LLM to write a query. It selects from reviewed, predefined templates and executes the template's parameterized statement. The same question produces the same statement every time — you can unit-test it, review it in a pull request, and show an auditor exactly what ran. An unmatched intent fails visibly instead of inventing a number. That tradeoff is why ORBIT can be pointed at a production database.
-
-Full breakdowns: [ORBIT vs. Open WebUI](docs/openwebui/orbit-vs-openwebui.md) · [ORBIT vs. LiteLLM](docs/litellm/orbit-vs-litellm.md)
-
 ## Capabilities
 
 | Capability | Included |
@@ -275,14 +232,6 @@ Full breakdowns: [ORBIT vs. Open WebUI](docs/openwebui/orbit-vs-openwebui.md) ·
 | **Operations** | Admin UI, health checks, metrics, audit logs, per-request token and estimated-cost tracking, spend analytics, circuit breakers, datasource pooling, and hot adapter reloads. |
 
 [Browse all adapters](docs/adapters/adapters.md) · [See provider configuration](config/inference.yaml) · [Read the configuration reference](install/default-config/config.yaml)
-
-## Architecture
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/b2fcbed3-5c28-4d1a-85bd-edc3b7299f6d" alt="ORBIT request and integration architecture" width="700" />
-  <br />
-  <em>Authenticate and route REST, OpenAI-compatible, MCP, A2A, or message-queue requests to models, private data, and tools.</em>
-</p>
 
 ## Clients and documentation
 
