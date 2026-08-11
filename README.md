@@ -78,8 +78,6 @@
 
 ORBIT sits between your applications and the models, data, and tools they need. Define adapters in YAML, expose them through one OpenAI-compatible endpoint, and move from a local prototype to a governed deployment without replacing the architecture.
 
-> **Where does it fit?** Open WebUI gives you a chat UI. LiteLLM routes model calls. ORBIT is the layer underneath both: it turns a natural-language question into a governed, auditable query against your own databases, APIs, and tools — and ships the auth, quotas, moderation, and audit trail that requires. [See the head-to-head comparison ↓](#how-orbit-differs-from-open-webui-and-litellm)
-
 ORBIT is actively maintained. See the [release history](https://github.com/schmitech/orbit/releases), [changelog](CHANGELOG.md), and [commit history](https://github.com/schmitech/orbit/commits/main).
 
 ⭐ **Finding ORBIT useful?** [star the repository](https://github.com/schmitech/orbit). It helps other developers discover the project and signals that we should keep investing in new model, datasource, and agent integrations.
