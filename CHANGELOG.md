@@ -7,6 +7,7 @@
 
 ### Bug Fixes & Technical Improvements
 - **Conversation History Token Budget Under-Reservation**: `ChatHistoryService` reserved a hardcoded 700 tokens for the system prompt and query buffer when sizing the conversation-history window — too small even before the chart-instruction changes above, since the (previously unconditional) chart formatting block alone ran ~1,200 tokens. Replaced with a configurable `history.system_overhead_tokens` (default `1200`).
+- **Anthropic Requests 404ing on Every Model**: `config/inference.yaml`'s Anthropic `api_base` included a trailing `/v1`, which the `anthropic` SDK client appended `/v1/messages` onto, producing a doubled `.../v1/v1/messages` path that Anthropic's API 404'd on regardless of which Claude model was configured. Fixed by dropping the trailing `/v1` from `api_base`.
 
 ## [2.15.4] - 2026-08-12
 

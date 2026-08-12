@@ -376,7 +376,7 @@ inference:
   anthropic:
     enabled: true
     api_key: ${ANTHROPIC_API_KEY}
-    api_base: "https://api.anthropic.com/v1"
+    api_base: "https://api.anthropic.com"
     model: "claude-sonnet-4-6"
     context_window: 200000  # Claude 3/4 supports 200K context
     max_tokens: 1024
