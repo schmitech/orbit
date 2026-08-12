@@ -302,6 +302,23 @@ How to prevent it:
 
 Reference: https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/
 
+### `install-scripts` warning for `browser-tabs-lock`
+
+During `npm install -g orbitchat` you may see:
+
+```txt
+npm warn install-scripts 1 package had install scripts blocked because they are not covered by allowScripts:
+npm warn install-scripts   browser-tabs-lock@1.3.0 (postinstall: node scripts/postinstall.js)
+```
+
+This is harmless — `browser-tabs-lock` (a transitive dependency of `@auth0/auth0-react`) only prints a promotional console message in its postinstall script. npm blocks install scripts from dependencies by default unless the top-level project explicitly allows them, so this warning is expected and does not affect functionality.
+
+To silence it, allow the script explicitly:
+
+```bash
+npm install -g --allow-scripts=browser-tabs-lock orbitchat
+```
+
 ## Security
 
 - The browser **never** sees real API keys. The Express proxy maps adapter names to keys server-side.
