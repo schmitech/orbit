@@ -13,6 +13,7 @@ from pathlib import Path
 
 from adapters.base import DocumentAdapter
 from adapters.factory import DocumentAdapterFactory
+from adapters.templates.validator import TemplateValidationError
 
 logger = logging.getLogger(__name__)
 MAX_FORMATTED_VALUE_LENGTH = 500
@@ -107,15 +108,46 @@ class HttpAdapter(DocumentAdapter):
                 return None
 
             with open(full_path, 'r') as f:
-                config = yaml.safe_load(f)
+                source_text = f.read()
+            config = yaml.safe_load(source_text)
 
             logger.debug(f"Loaded {config_type} from: {full_path}")
 
+            if config_type.startswith("template library") and isinstance(config, dict):
+                self._validate_and_hash_templates(config, path=str(full_path), source_text=source_text)
+
             return config
 
+        except TemplateValidationError:
+            # In strict mode this must fail adapter init, not be swallowed as a
+            # generic load error.
+            raise
         except Exception as e:
             logger.error(f"Error loading {config_type}: {str(e)}")
             return None
+
+    def _validate_and_hash_templates(self, library: Dict[str, Any], *, path: str, source_text: str) -> None:
+        """
+        Run schema validation over a loaded template library (`template_validation`
+        config knob: "warn" (default, log and keep) or "strict", raises and fails
+        adapter init on any error). Also attaches `_content_hash` to every
+        template dict — cheap now, and the primitive later phases can use for
+        audit logging and cache invalidation.
+        """
+        from adapters.templates.validator import content_hash, validate_library
+
+        strict = self.config.get('template_validation', 'warn') == 'strict'
+        report = validate_library(library, path=path, strict=strict, source_text=source_text)
+        report.log_summary(logger)
+
+        templates = library.get('templates', [])
+        entries = list(templates.values()) if isinstance(templates, dict) else templates
+        if isinstance(entries, list):
+            for template in entries:
+                if isinstance(template, dict):
+                    template['_content_hash'] = content_hash(
+                        {k: v for k, v in template.items() if k != '_content_hash'}
+                    )
 
     def _load_multiple_template_libraries(self, paths: List[str]) -> Dict[str, Any]:
         """
@@ -163,26 +195,40 @@ class HttpAdapter(DocumentAdapter):
             template_id: The template identifier
 
         Returns:
-            Template dictionary or None if not found
+            Template dictionary or None if not found (or not approved, when
+            require_approved is set — vector search can surface a hit for an
+            unapproved template via a persistent embedding collection built
+            before approval enforcement was turned on, so this must apply the
+            same predicate as get_all_templates() rather than trust the caller
+            already filtered).
         """
         if not self.template_library:
             return None
+
+        require_approved = self.config.get('require_approved', False)
+
+        def _matches(template: Any) -> bool:
+            if not isinstance(template, dict) or template.get('id') != template_id:
+                return False
+            if require_approved and template.get('approved') is not True:
+                return False
+            return True
 
         templates = self.template_library.get('templates', {})
 
         # Handle both dictionary and list formats
         if isinstance(templates, dict):
             # Check if template_id is a direct key
-            if template_id in templates:
+            if template_id in templates and _matches(templates[template_id]):
                 return templates[template_id]
             # Otherwise search through values for matching id
             for template in templates.values():
-                if isinstance(template, dict) and template.get('id') == template_id:
+                if _matches(template):
                     return template
         elif isinstance(templates, list):
             # Search through list for matching id
             for template in templates:
-                if isinstance(template, dict) and template.get('id') == template_id:
+                if _matches(template):
                     return template
 
         return None
@@ -202,12 +248,24 @@ class HttpAdapter(DocumentAdapter):
         # Handle both dictionary and list formats
         if isinstance(templates, dict):
             # Convert dictionary to list of values
-            return list(templates.values())
+            all_templates = list(templates.values())
         elif isinstance(templates, list):
             # Already a list
-            return templates
+            all_templates = templates
         else:
             return []
+
+        # `require_approved` is off by default: most example templates and the
+        # sqlite HR library omit `approved` entirely, so defaulting this on
+        # would silently empty their template lists.
+        if self.config.get('require_approved', False):
+            approved = [t for t in all_templates if isinstance(t, dict) and t.get('approved') is True]
+            dropped = len(all_templates) - len(approved)
+            if dropped:
+                logger.warning(f"require_approved is set: dropped {dropped} unapproved template(s)")
+            return approved
+
+        return all_templates
 
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -1152,18 +1152,41 @@ JSON:"""
                     cleaned_value = param_value.strip().strip('"').strip("'")
                     formatted_parameters[param_name] = f"%{cleaned_value}%"
 
+            # Resolve template defaults before anything downstream reads
+            # formatted_parameters — including the query guard's bound-LIMIT
+            # clamp below. A caller can omit a parameter entirely (e.g. an
+            # empty {}), and the per-placeholder-style default-filling further
+            # down only runs *after* the guard, so an oversized template
+            # default (e.g. a `limit` param defaulting above the row cap)
+            # would clamp against a missing value now and get inserted
+            # unclamped later when the placeholder is actually bound.
+            for param_def in template.get('parameters', []):
+                param_name = param_def.get('name')
+                if param_name and param_name not in formatted_parameters and 'default' in param_def:
+                    formatted_parameters[param_name] = param_def['default']
+
             sql_query = self._process_sql_template(sql_template, formatted_parameters)
 
             if self.query_guard_enabled:
                 from retrievers.base.query_guard import (
                     QueryGuardError, assert_read_only, assert_single_statement,
-                    enforce_row_cap, resolve_dialect,
+                    clamp_bound_limit_parameter, enforce_row_cap, resolve_dialect,
                 )
                 dialect = resolve_dialect(self._get_datasource_name())
                 try:
                     assert_single_statement(sql_query, dialect=dialect)
                     assert_read_only(sql_query, dialect=dialect)
                     sql_query = enforce_row_cap(sql_query, self.query_guard_max_rows, dialect=dialect)
+                    # enforce_row_cap only clamps a *literal* LIMIT — when the
+                    # LIMIT count is bound to a placeholder (e.g. the DuckDB
+                    # analytics templates' `LIMIT :limit`), the value isn't in
+                    # the SQL text at all, it's in formatted_parameters, which
+                    # is resolved before the guard ever runs. Clamp it there.
+                    clamp_bound_limit_parameter(
+                        sql_query, formatted_parameters, self.query_guard_max_rows,
+                        dialect=dialect,
+                        positional_param_names=[p.get('name') for p in template.get('parameters', [])],
+                    )
                 except QueryGuardError as e:
                     logger.error(
                         f"Query guard rejected rendered SQL for template {template.get('id')}: {e}"

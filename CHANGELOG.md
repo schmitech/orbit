@@ -1,5 +1,14 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core System Updates
+- **Intent Template Schema Validation**: Intent template libraries are now validated against a formal schema at load time, catching malformed or drifted templates (typos, unsupported fields, missing metadata) before they can cause silent matching failures. Validation defaults to warn-and-continue, with an opt-in strict mode for CI/CD gating. Templates can also be marked as requiring explicit approval before they're served.
+
+### Bug Fixes & Technical Improvements
+- **Template Approval Enforcement Gap**: Closed a path where an unapproved template could still be looked up and executed via direct ID lookup, bypassing the new approval check.
+- **Template Metadata Normalization**: Fixed a case where template metadata normalized during validation wasn't actually applied to the template used at runtime, which could cause matching/reranking errors despite validation reporting success.
+
 ## [2.15.3] - 2026-08-09
 
 ### Core System Updates
