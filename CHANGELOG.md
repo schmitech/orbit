@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.15.4] - 2026-08-12
 
 ### Core System Updates
 - **Intent Template Schema Validation**: Intent template libraries are now validated against a formal schema at load time, catching malformed or drifted templates (typos, unsupported fields, missing metadata) before they can cause silent matching failures. Validation defaults to warn-and-continue, with an opt-in strict mode for CI/CD gating. Templates can also be marked as requiring explicit approval before they're served.
