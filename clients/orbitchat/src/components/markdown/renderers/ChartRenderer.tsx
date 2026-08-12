@@ -1766,7 +1766,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ code, language }) 
           </p>
         )}
         <div ref={chartViewportRef} style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
-          <div style={{ minWidth: '100%' }}>
+          <div style={{ minWidth: '100%', display: 'flex', justifyContent: 'center' }}>
             <ResponsiveContainer width={intrinsicChartWidth} height={height}>
         {config.type === 'bar' && config.layout !== 'horizontal' && (
           <BarChart data={config.data} margin={chartMargin} barCategoryGap="20%">
