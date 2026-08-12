@@ -28,6 +28,10 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
     Dramatically simplified with automatic handling of setup and configuration.
     """
 
+    # Anthropic's explicit cache_control breakpoints give a ~90% discount on
+    # cached-prefix reads; see cache_prefix_len handling in generate()/generate_stream().
+    SUPPORTS_PROMPT_CACHING = True
+
     def __init__(self, config: Dict[str, Any]):
         """
         Initialize the Anthropic inference service.
@@ -65,6 +69,28 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
                 filtered.append(msg)
         system_content = "\n\n".join(system_parts) if system_parts else None
         return system_content, filtered
+
+    @staticmethod
+    def _build_system_param(system_content, cache_prefix_len):
+        """
+        Build the `system` param for the Messages API, adding an ephemeral
+        cache_control breakpoint after the turn-invariant prefix when the
+        caller (LLMInferenceStep) has identified one.
+
+        A bare string is cheaper/simpler and used whenever there's no prefix
+        to mark; the content-block form is only needed to attach cache_control.
+        """
+        if not system_content:
+            return None
+        if not cache_prefix_len or cache_prefix_len <= 0 or cache_prefix_len > len(system_content):
+            return system_content
+
+        prefix = system_content[:cache_prefix_len]
+        tail = system_content[cache_prefix_len:]
+        blocks = [{"type": "text", "text": prefix, "cache_control": {"type": "ephemeral"}}]
+        if tail:
+            blocks.append({"type": "text", "text": tail})
+        return blocks
 
     @staticmethod
     def _extract_text_and_citations(content_blocks):
@@ -262,6 +288,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
             The generated response text
         """
         usage_sink = self._take_usage_sink(kwargs)
+        cache_prefix_len = kwargs.pop('cache_prefix_len', None)
         if not self.initialized:
             await self.initialize()
 
@@ -290,8 +317,9 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
                 **kwargs  # Any other parameters
             }
 
-            if system_content:
-                params["system"] = system_content
+            system_param = self._build_system_param(system_content, cache_prefix_len)
+            if system_param:
+                params["system"] = system_param
             if self._supports_effort():
                 params["output_config"] = {"effort": effort}
             if web_search:
@@ -328,6 +356,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
             Response chunks as they are generated
         """
         usage_sink = self._take_usage_sink(kwargs)
+        cache_prefix_len = kwargs.pop('cache_prefix_len', None)
         if not self.initialized:
             await self.initialize()
 
@@ -356,8 +385,9 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
                 **kwargs  # Any other parameters
             }
 
-            if system_content:
-                params["system"] = system_content
+            system_param = self._build_system_param(system_content, cache_prefix_len)
+            if system_param:
+                params["system"] = system_param
             if self._supports_effort():
                 params["output_config"] = {"effort": effort}
             if web_search:

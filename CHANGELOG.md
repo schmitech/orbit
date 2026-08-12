@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Core System Updates
+- **Per-Turn Prompt Token Reduction**: Chart-formatting instructions are no longer sent unconditionally on every turn — a new `supports_charts` adapter capability gates them off entirely for non-analytics adapters, and chart-capable adapters get a ~120-token hint instead of the ~1,200-token full spec unless the turn (or recent history) actually looks chart-related. The system message is also now built as a stable prefix (system prompt, chart instruction, persona footer) followed by a volatile tail (language/time instructions, RAG context), so provider-side prompt caching can hit the unchanging prefix instead of being busted every turn by the second-granularity clock instruction. Anthropic now requests an explicit `cache_control` breakpoint on that prefix; OpenAI and Gemini benefit passively from the same stable ordering. See `docs/roadmap/token-optimization-plan.md` for phased rollout status — MCP tool-schema filtering and cache-token-aware cost reporting are tracked there as not yet started.
+
+### Bug Fixes & Technical Improvements
+- **Conversation History Token Budget Under-Reservation**: `ChatHistoryService` reserved a hardcoded 700 tokens for the system prompt and query buffer when sizing the conversation-history window — too small even before the chart-instruction changes above, since the (previously unconditional) chart formatting block alone ran ~1,200 tokens. Replaced with a configurable `history.system_overhead_tokens` (default `1200`).
+
 ## [2.15.4] - 2026-08-12
 
 ### Core System Updates

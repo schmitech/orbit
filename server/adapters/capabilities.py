@@ -51,6 +51,7 @@ class AdapterCapabilities:
     supports_threading: bool = False  # Supports conversation threading on retrieved datasets
     supports_language_filtering: bool = False  # Can filter/boost by detected language
     supports_autocomplete: bool = False  # Provides autocomplete suggestions from nl_examples
+    supports_charts: bool = False  # Emits chart-formatting instructions (see prompt_builder.build_chart_instruction)
 
     # Additional parameters to pass to get_relevant_context()
     required_parameters: List[str] = field(default_factory=list)
@@ -142,6 +143,7 @@ class AdapterCapabilities:
             supports_threading=capabilities_config.get('supports_threading', False),
             supports_language_filtering=capabilities_config.get('supports_language_filtering', False),
             supports_autocomplete=capabilities_config.get('supports_autocomplete', False),
+            supports_charts=capabilities_config.get('supports_charts', False),
             required_parameters=capabilities_config.get('required_parameters', []),
             optional_parameters=capabilities_config.get('optional_parameters', []),
             skip_when_no_files=capabilities_config.get('skip_when_no_files', False),

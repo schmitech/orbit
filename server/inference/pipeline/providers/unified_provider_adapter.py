@@ -83,20 +83,32 @@ class UnifiedProviderAdapter(LLMProvider):
             yield chunk
 
     async def generate_tracked(
-        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        prompt: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
+        cache_prefix_len: Optional[int] = None,
+        **kwargs,
     ) -> str:
-        """Same as generate(), filling usage_sink when the service supports it."""
+        """Same as generate(), filling usage_sink/applying cache breakpoints when the service supports them."""
         if not self.service:
             raise RuntimeError("Provider not initialized. Call initialize() first.")
-        return await self.service.generate_tracked(prompt, usage_sink=usage_sink, **kwargs)
+        return await self.service.generate_tracked(
+            prompt, usage_sink=usage_sink, cache_prefix_len=cache_prefix_len, **kwargs
+        )
 
     async def generate_stream_tracked(
-        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        prompt: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
+        cache_prefix_len: Optional[int] = None,
+        **kwargs,
     ) -> AsyncGenerator[str, None]:
         """Streaming counterpart of generate_tracked()."""
         if not self.service:
             raise RuntimeError("Provider not initialized. Call initialize() first.")
-        async for chunk in self.service.generate_stream_tracked(prompt, usage_sink=usage_sink, **kwargs):
+        async for chunk in self.service.generate_stream_tracked(
+            prompt, usage_sink=usage_sink, cache_prefix_len=cache_prefix_len, **kwargs
+        ):
             yield chunk
 
     async def generate_with_tools(

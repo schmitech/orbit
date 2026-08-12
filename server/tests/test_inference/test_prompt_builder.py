@@ -108,7 +108,7 @@ async def test_prompt_builder_includes_time_instruction_when_clock_service_enabl
 
 def test_build_chart_instruction_contains_all_chart_types():
     builder = PromptInstructionBuilder(config={})
-    instruction = builder.build_chart_instruction()
+    instruction = builder._build_chart_instruction_full()
 
     for chart_type in ("bar", "line", "pie", "area", "scatter", "composed", "radar", "funnel", "radialbar"):
         assert chart_type in instruction, f"Chart type '{chart_type}' missing from chart instruction"
@@ -116,7 +116,7 @@ def test_build_chart_instruction_contains_all_chart_types():
 
 def test_build_chart_instruction_contains_new_config_options():
     builder = PromptInstructionBuilder(config={})
-    instruction = builder.build_chart_instruction()
+    instruction = builder._build_chart_instruction_full()
 
     assert "layout" in instruction
     assert "innerRadius" in instruction
@@ -126,7 +126,7 @@ def test_build_chart_instruction_contains_new_config_options():
 
 def test_build_chart_instruction_contains_usage_notes_for_new_types():
     builder = PromptInstructionBuilder(config={})
-    instruction = builder.build_chart_instruction()
+    instruction = builder._build_chart_instruction_full()
 
     assert "radar" in instruction
     assert "funnel" in instruction
@@ -136,9 +136,93 @@ def test_build_chart_instruction_contains_usage_notes_for_new_types():
 
 def test_build_chart_instruction_rules_updated():
     builder = PromptInstructionBuilder(config={})
-    instruction = builder.build_chart_instruction()
+    instruction = builder._build_chart_instruction_full()
 
     # Rule 7 — radar xKey guidance
     assert "spoke" in instruction or "radar" in instruction
     # Rule 8 — horizontal bar guidance
     assert "layout: horizontal" in instruction
+
+
+def test_build_chart_instruction_empty_when_adapter_lacks_capability():
+    from adapters.capabilities import get_capability_registry, AdapterCapabilities
+
+    get_capability_registry().unregister("no-charts-adapter")
+    builder = PromptInstructionBuilder(config={})
+    context = ProcessingContext(adapter_name="no-charts-adapter", message="show me a bar chart")
+
+    assert builder.build_chart_instruction(context) == ""
+
+
+def test_build_chart_instruction_hint_when_turn_not_chart_related():
+    from adapters.capabilities import get_capability_registry, AdapterCapabilities
+
+    get_capability_registry().register(
+        "charts-adapter", AdapterCapabilities(supports_charts=True)
+    )
+    builder = PromptInstructionBuilder(config={})
+    context = ProcessingContext(adapter_name="charts-adapter", message="hello")
+
+    instruction = builder.build_chart_instruction(context)
+    assert instruction == builder._CHART_HINT
+    assert "--- CHART FORMATTING RULES ---" not in instruction
+    get_capability_registry().unregister("charts-adapter")
+
+
+def test_build_chart_instruction_full_when_turn_is_chart_related():
+    from adapters.capabilities import get_capability_registry, AdapterCapabilities
+
+    get_capability_registry().register(
+        "charts-adapter", AdapterCapabilities(supports_charts=True)
+    )
+    builder = PromptInstructionBuilder(config={})
+    context = ProcessingContext(adapter_name="charts-adapter", message="show me a bar chart of sales")
+
+    instruction = builder.build_chart_instruction(context)
+    assert "--- CHART FORMATTING RULES ---" in instruction
+    get_capability_registry().unregister("charts-adapter")
+
+
+def test_build_chart_instruction_full_when_chart_fence_in_recent_history():
+    from adapters.capabilities import get_capability_registry, AdapterCapabilities
+
+    get_capability_registry().register(
+        "charts-adapter", AdapterCapabilities(supports_charts=True)
+    )
+    builder = PromptInstructionBuilder(config={})
+    context = ProcessingContext(
+        adapter_name="charts-adapter",
+        message="make it horizontal",
+        context_messages=[
+            {"role": "user", "content": "chart the sales"},
+            {"role": "assistant", "content": "```chart\ntype: bar\n```"},
+        ],
+    )
+
+    instruction = builder.build_chart_instruction(context)
+    assert "--- CHART FORMATTING RULES ---" in instruction
+    get_capability_registry().unregister("charts-adapter")
+
+
+@pytest.mark.asyncio
+async def test_build_system_message_prefix_is_stable_across_calls():
+    """The prefix must stay byte-identical across turns for prompt caching to hit."""
+    from adapters.capabilities import get_capability_registry
+
+    get_capability_registry().unregister("voice-chat")
+    clock_service = MagicMock()
+    clock_service.enabled = True
+    clock_service.get_time_instruction.side_effect = [
+        "Current time is 10:00:00.",
+        "Current time is 10:00:01.",
+    ]
+    builder = PromptInstructionBuilder(config={}, clock_service=clock_service)
+    context = ProcessingContext(adapter_name="voice-chat", message="hello")
+
+    content1, prefix_len1 = await builder.build_system_message(context)
+    content2, prefix_len2 = await builder.build_system_message(context)
+
+    assert prefix_len1 == prefix_len2
+    assert content1[:prefix_len1] == content2[:prefix_len2]
+    # The volatile tail (time instruction) differs between the two calls.
+    assert content1 != content2

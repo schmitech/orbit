@@ -52,18 +52,27 @@ class LLMProvider(ABC):
         pass
 
     async def generate_tracked(
-        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        prompt: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
+        cache_prefix_len: Optional[int] = None,
+        **kwargs,
     ) -> str:
         """
-        Same as generate(), but fills usage_sink with token usage when the
-        underlying service supports it. Non-abstract with a plain delegation
-        default so legacy provider implementations and test doubles that only
-        implement generate() keep working unchanged.
+        Same as generate(), but fills usage_sink with token usage / applies a
+        prompt-caching breakpoint when the underlying service supports them.
+        Non-abstract with a plain delegation default (both extra kwargs
+        dropped) so legacy provider implementations and test doubles that
+        only implement generate() keep working unchanged.
         """
         return await self.generate(prompt, **kwargs)
 
     async def generate_stream_tracked(
-        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        prompt: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
+        cache_prefix_len: Optional[int] = None,
+        **kwargs,
     ) -> AsyncGenerator[str, None]:
         """Streaming counterpart of generate_tracked()."""
         async for chunk in self.generate_stream(prompt, **kwargs):

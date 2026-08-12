@@ -22,6 +22,7 @@ adapters:
       skill_description: "Billing, contracts, invoices, and payments"
       retrieval_behavior: "always"
       formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false
       supports_session_tracking: false
       supports_threading: true
@@ -74,6 +75,7 @@ adapters:
       skill_description: "Support SLA compliance metrics"
       retrieval_behavior: "always"
       formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false
       supports_session_tracking: false
       supports_threading: true

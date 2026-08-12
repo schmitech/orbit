@@ -88,6 +88,13 @@ class ProcessingContext:
     requested_skill: Optional[str] = None
     original_adapter_name: Optional[str] = None
 
+    # Length of the cacheable (turn-invariant) prefix of the system message,
+    # set by PromptInstructionBuilder.build_system_message(). Providers that
+    # support prompt caching (SUPPORTS_PROMPT_CACHING) use this to place a
+    # cache breakpoint right after the static system prompt/chart-instruction
+    # block and before the per-turn tail (language/time/RAG context).
+    cacheable_prefix_len: Optional[int] = None
+
     # Web search: enables the provider's native web search on the inference call
     web_search: bool = False
 

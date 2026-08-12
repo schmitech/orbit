@@ -136,7 +136,12 @@ class LLMInferenceStep(PipelineStep):
                 kwargs['web_search'] = True
 
             usage_sink: dict = {}
-            response = await llm_provider.generate_tracked(full_prompt, usage_sink=usage_sink, **kwargs)
+            response = await llm_provider.generate_tracked(
+                full_prompt,
+                usage_sink=usage_sink,
+                cache_prefix_len=context.cacheable_prefix_len,
+                **kwargs,
+            )
             context.response = response
             self._record_usage(context, usage_sink)
 
@@ -210,7 +215,12 @@ class LLMInferenceStep(PipelineStep):
             llm_chunk_count = 0
             usage_sink: dict = {}
             cancelled = False
-            async for chunk in llm_provider.generate_stream_tracked(full_prompt, usage_sink=usage_sink, **kwargs):
+            async for chunk in llm_provider.generate_stream_tracked(
+                full_prompt,
+                usage_sink=usage_sink,
+                cache_prefix_len=context.cacheable_prefix_len,
+                **kwargs,
+            ):
                 # Check for cancellation before yielding each chunk
                 if context.is_cancelled():
                     logger.debug("[LLM_INFERENCE] >>> CANCELLATION DETECTED <<< after %d chunks, accumulated_chars=%d", llm_chunk_count, len(accumulated_response))
@@ -389,8 +399,10 @@ class LLMInferenceStep(PipelineStep):
         """
         messages = []
 
-        # Build system message
-        system_content = await self._build_system_message_content(context)
+        # Build system message, tracking the cacheable (turn-invariant) prefix
+        # length so a supporting provider can place a prompt-caching breakpoint.
+        system_content, prefix_len = await self._create_prompt_builder().build_system_message(context)
+        context.cacheable_prefix_len = prefix_len
         messages.append({"role": "system", "content": system_content})
 
         # Add conversation history

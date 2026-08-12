@@ -8,10 +8,11 @@
 #   LLMInferenceStep passes web_search=True to the provider
 #   The provider activates its native search tool and returns a grounded response
 #
-# SUPPORTED PROVIDERS: only "gemini", "openai", and "xai" support native web search.
-#   - gemini:  google_search grounding tool (e.g. gemini-3.1-pro-preview)
-#   - openai:  web_search_preview tool via the Responses API
-#   - xai:     web_search tool (e.g. grok-4.3)
+# SUPPORTED PROVIDERS: only "gemini", "openai", "xai", and "anthropic" support native web search.
+#   - gemini:     google_search grounding tool (e.g. gemini-3.1-pro-preview)
+#   - openai:     web_search tool via the Responses API
+#   - xai:        web_search tool via the Responses API (e.g. grok-4.3)
+#   - anthropic:  web_search_20250305 server tool (e.g. claude-sonnet-4-6)
 #   Other providers produce undefined behavior — most will forward the unknown
 #   web_search kwarg to the underlying API and return an error (e.g. HTTP 400).
 #
@@ -34,8 +35,15 @@ adapters:
     datasource: "none"
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
-    inference_provider: "gemini"
-    model: "gemini-3.1-pro-preview"
+    # inference_provider: "gemini"
+    # model: "gemini-3.6-flash"
+    inference_provider: "openai"
+    model: "gpt-5.6"
+    # inference_provider: "xai"
+    # model: "grok-4.5"
+    # inference_provider: "anthropic"
+    # model: "claude-opus-5"
+
     capabilities:
       web_search: true                   # Enable native web search on the inference call
       expose_as_skill: true              # Publish this adapter as a skill
@@ -73,3 +81,4 @@ adapters:
       retrieval_behavior: "none"         # No context retrieval (pure conversational)
       formatting_style: "standard"
       requires_api_key_validation: false # No separate key needed for skill invocation
+      requires_authenticated_user: false # Override auth.require_authenticated_user; leave off for this public skill adapter

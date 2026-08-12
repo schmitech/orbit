@@ -19,6 +19,7 @@ adapters:
     capabilities:
       retrieval_behavior: "always"
       formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false
       supports_session_tracking: false
       supports_threading: true
@@ -183,6 +184,7 @@ adapters:
       skill_description: "HTTP JSON API Adapter - Paris Open Data (Que Faire à Paris)"
       retrieval_behavior: "always"
       formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false
       supports_session_tracking: false
       supports_threading: true
@@ -245,6 +247,7 @@ adapters:
     capabilities:
       retrieval_behavior: "always"
       formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false
       supports_session_tracking: false
       supports_threading: true
@@ -347,6 +350,7 @@ adapters:
     capabilities:
       retrieval_behavior: "always"
       formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false
       supports_session_tracking: false
       supports_threading: true
@@ -420,6 +424,7 @@ adapters:
     capabilities:
       retrieval_behavior: "always"
       formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false
       supports_session_tracking: false
       supports_threading: false

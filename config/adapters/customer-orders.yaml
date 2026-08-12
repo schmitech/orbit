@@ -49,6 +49,7 @@ adapters:
       skill_description: "Customer Orders Skills"
       retrieval_behavior: "always"       # Always retrieves matching intents/templates
       formatting_style: "standard"       # Standard format with citations and confidence scores
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false           # Does not support file filtering
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: false # API key used for access control only

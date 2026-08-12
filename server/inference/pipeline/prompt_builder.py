@@ -9,12 +9,23 @@ prompt-service backed behavior.
 from __future__ import annotations
 
 import logging
+import re
 from collections import OrderedDict
 from typing import Optional
 
 from .base import ProcessingContext
+from adapters.capabilities import get_capability_registry
 
 logger = logging.getLogger(__name__)
+
+# Turns that plausibly want a chart get the full formatting spec; everything
+# else on a chart-capable adapter gets the compact CHART_HINT instead.
+_CHART_INTENT_RE = re.compile(
+    r"\b(chart|graph|plot|visuali[sz]e|bar chart|line chart|pie chart|"
+    r"trend|histogram|breakdown by|breakdown of)\b",
+    re.IGNORECASE,
+)
+_CHART_FENCE_RE = re.compile(r"```chart\b")
 
 
 class PromptInstructionBuilder:
@@ -40,44 +51,76 @@ class PromptInstructionBuilder:
 
     async def build_system_message_content(self, context: ProcessingContext) -> str:
         """Build the content for a system message / realtime session instructions."""
-        parts = []
+        content, _ = await self.build_system_message(context)
+        return content
+
+    async def build_system_message(self, context: ProcessingContext) -> tuple[str, int]:
+        """
+        Build the system message content, split into a stable prefix and a
+        volatile tail.
+
+        The prefix (system prompt, chart instruction, persona/answer-mode
+        footer) is byte-identical across turns for a given adapter/context,
+        so it is the cacheable portion. The tail (language instruction, time
+        instruction, RAG/file context) changes every turn and must stay
+        behind the prefix so provider-side prefix caching (Anthropic
+        cache_control, OpenAI/Gemini implicit caching) can hit.
+
+        Returns:
+            (full_content, prefix_len) where full_content[:prefix_len] is the
+            cacheable prefix.
+        """
+        prefix_parts = []
 
         system_prompt = await self.get_system_prompt(context)
-        parts.append(system_prompt)
+        prefix_parts.append(system_prompt)
 
-        time_instruction = self.build_time_instruction(context)
-        if time_instruction:
-            parts.append(time_instruction)
-
-        language_instruction = self.build_language_instruction(context)
-        if language_instruction:
-            parts.append(language_instruction)
-
-        chart_instruction = self.build_chart_instruction()
+        chart_instruction = self.build_chart_instruction(context)
         if chart_instruction:
-            parts.append(chart_instruction)
+            prefix_parts.append(chart_instruction)
 
         if context.formatted_context:
             is_file_or_multimodal = context.adapter_name and (
                 "file" in context.adapter_name.lower() or "multimodal" in context.adapter_name.lower()
             )
-
             if is_file_or_multimodal:
-                parts.append(
-                    f"\n<context>\n## UPLOADED FILE CONTENT\n\n{context.formatted_context}\n</context>"
-                )
-                parts.append(
+                prefix_parts.append(
                     "\nAnswer using the uploaded file content in <context>. If the answer is not there, say so."
                 )
             else:
-                parts.append(f"\n<context>\n{context.formatted_context}\n</context>")
-                parts.append(
+                prefix_parts.append(
                     "\nPrioritize the <context> section when answering. If the answer is not there, say so."
                 )
         else:
-            parts.append("\nAnswer based on the system prompt. Maintain your persona.")
+            prefix_parts.append("\nAnswer based on the system prompt. Maintain your persona.")
 
-        return "\n".join(parts)
+        prefix = "\n".join(prefix_parts)
+
+        tail_parts = []
+
+        language_instruction = self.build_language_instruction(context)
+        if language_instruction:
+            tail_parts.append(language_instruction)
+
+        time_instruction = self.build_time_instruction(context)
+        if time_instruction:
+            tail_parts.append(time_instruction)
+
+        if context.formatted_context:
+            is_file_or_multimodal = context.adapter_name and (
+                "file" in context.adapter_name.lower() or "multimodal" in context.adapter_name.lower()
+            )
+            if is_file_or_multimodal:
+                tail_parts.append(
+                    f"\n<context>\n## UPLOADED FILE CONTENT\n\n{context.formatted_context}\n</context>"
+                )
+            else:
+                tail_parts.append(f"\n<context>\n{context.formatted_context}\n</context>")
+
+        if not tail_parts:
+            return prefix, len(prefix)
+
+        return prefix + "\n" + "\n".join(tail_parts), len(prefix)
 
     def build_time_instruction(self, context: ProcessingContext) -> str:
         """Build time instruction based on clock service and context."""
@@ -217,8 +260,56 @@ class PromptInstructionBuilder:
 
         return instruction
 
-    def build_chart_instruction(self) -> str:
-        """Build compact chart formatting instruction for LLM."""
+    def build_chart_instruction(self, context: ProcessingContext) -> str:
+        """
+        Build chart formatting instruction for LLM, gated on adapter capability
+        and turn intent.
+
+        - Adapters without `supports_charts` get nothing (charts aren't part
+          of their contract, so paying for the spec every turn is wasted).
+        - Chart-capable adapters get the full, detailed spec (CHART_FULL) only
+          when the current turn plausibly wants a chart (keyword match, or a
+          ```chart fence already present in recent history — a follow-up like
+          "make it horizontal" still needs the full spec). Otherwise they get
+          a compact one-paragraph hint (CHART_HINT) that's enough for the
+          model to know charts are possible without paying ~1200 tokens/turn.
+        """
+        capabilities = get_capability_registry().get(context.adapter_name)
+        if not capabilities or not capabilities.supports_charts:
+            return ""
+
+        if self._chart_intent_detected(context):
+            return self._build_chart_instruction_full()
+        return self._CHART_HINT
+
+    @staticmethod
+    def _chart_intent_detected(context: ProcessingContext) -> bool:
+        message = context.message or ""
+        if _CHART_INTENT_RE.search(message):
+            return True
+
+        recent_history = (context.context_messages or [])[-4:]
+        for msg in recent_history:
+            content = msg.get("content", "") or ""
+            if _CHART_FENCE_RE.search(content) or _CHART_INTENT_RE.search(content):
+                return True
+        return False
+
+    _CHART_HINT = (
+        "When the user asks for a chart, graph, or visualization, output a fenced code block "
+        "with language `chart` containing `type`, `title`, and `data`/`labels` (or a markdown "
+        "table for tabular data). Supported types: bar, line, pie, area, scatter, composed, "
+        "radar, funnel, radialbar. Example:\n"
+        "```chart\n"
+        "type: bar\n"
+        "title: Sales by Quarter\n"
+        "data: [45000, 52000, 48000, 60000]\n"
+        "labels: [Q1, Q2, Q3, Q4]\n"
+        "```"
+    )
+
+    def _build_chart_instruction_full(self) -> str:
+        """Full chart formatting spec — sent only when the turn looks chart-related."""
         return (
             "--- CHART FORMATTING RULES ---\n"
             "When the user asks for a chart, graph, or visualization, output a fenced code block with language `chart`.\n"

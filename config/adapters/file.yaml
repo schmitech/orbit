@@ -14,8 +14,8 @@ adapters:
     implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
 
     # Provider overrides
-    inference_provider: "openai"
-    model: "gpt-5.4-mini"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
     embedding_provider: "openai"
     vision_provider: "gemini"  # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
     audio_provider: "openai"   # Audio provider for audio file transcription: openai, google, ollama (see sound.yaml)
@@ -27,6 +27,7 @@ adapters:
       supports_file_ids: true            # Accepts file_ids parameter to filter by specific files
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: true  # Validates file ownership via API key
+      requires_authenticated_user: false # Override auth.require_authenticated_user; leave off unless this adapter should require login
       requires_encryption: false         # Set true to require encrypted file storage (files.encryption.enabled must be true)
       optional_parameters:
         - "file_ids"

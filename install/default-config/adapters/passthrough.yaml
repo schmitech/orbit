@@ -49,6 +49,7 @@ adapters:
         - "word-generation"
       retrieval_behavior: "none"         # No context retrieval (pure conversational)
       formatting_style: "standard"       # Standard formatting (not used since no retrieval)
+      supports_charts: true              # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false           # Does not support file filtering
       supports_session_tracking: false   # Does not need session tracking
       requires_api_key_validation: false # No API key validation needed

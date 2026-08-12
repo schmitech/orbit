@@ -43,6 +43,7 @@ adapters:
         - "web-search"
       retrieval_behavior: "always"
       formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false
       supports_session_tracking: false
       supports_threading: true

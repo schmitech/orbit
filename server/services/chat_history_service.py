@@ -259,8 +259,11 @@ class ChatHistoryService:
                 or inference_config.get('num_predict')
                 or 1024
             )
-            # System prompt (~500 tokens) + current query buffer (~200 tokens)
-            overhead_tokens = 700
+            # System prompt + chart instruction (when applicable) + current query
+            # buffer. Configurable since the chart-formatting block alone can run
+            # ~1200 tokens on adapters with supports_charts enabled; 700 badly
+            # under-counted that. See history.system_overhead_tokens in config.yaml.
+            overhead_tokens = self.config.get('history', {}).get('system_overhead_tokens', 1200)
             reserved_tokens = max_output_tokens + overhead_tokens
 
             # Calculate available tokens for conversation history

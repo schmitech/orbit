@@ -62,6 +62,13 @@ class InferenceService(ProviderAIService):
     # that would forward it, unrecognized, straight into the provider SDK.
     SUPPORTS_USAGE_REPORTING: bool = False
 
+    # Set True on implementations that turn a `cache_prefix_len` kwarg into a
+    # provider-side prompt-caching breakpoint (e.g. Anthropic cache_control).
+    # Left False here so generate_tracked/generate_stream_tracked never pass
+    # cache_prefix_len to an implementation that would forward it, unrecognized,
+    # straight into the provider SDK.
+    SUPPORTS_PROMPT_CACHING: bool = False
+
     def __init__(self, config: Dict[str, Any], provider_name: str):
         """
         Initialize the inference service.
@@ -136,28 +143,39 @@ class InferenceService(ProviderAIService):
         pass
 
     async def generate_tracked(
-        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        prompt: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
+        cache_prefix_len: Optional[int] = None,
+        **kwargs,
     ) -> str:
         """
-        Same as generate(), but fills usage_sink with token usage when this
-        implementation supports it. Safe to call on any implementation —
-        usage_sink is only forwarded when SUPPORTS_USAGE_REPORTING is True,
-        so un-migrated implementations never see the extra kwarg.
+        Same as generate(), but fills usage_sink with token usage and applies
+        a prompt-caching breakpoint when this implementation supports them.
+        Safe to call on any implementation — usage_sink/cache_prefix_len are
+        only forwarded when the corresponding SUPPORTS_* flag is True, so
+        un-migrated implementations never see the extra kwargs.
         """
         if usage_sink is not None and self.SUPPORTS_USAGE_REPORTING:
-            return await self.generate(prompt, usage_sink=usage_sink, **kwargs)
+            kwargs["usage_sink"] = usage_sink
+        if cache_prefix_len is not None and self.SUPPORTS_PROMPT_CACHING:
+            kwargs["cache_prefix_len"] = cache_prefix_len
         return await self.generate(prompt, **kwargs)
 
     async def generate_stream_tracked(
-        self, prompt: str, usage_sink: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        prompt: str,
+        usage_sink: Optional[Dict[str, Any]] = None,
+        cache_prefix_len: Optional[int] = None,
+        **kwargs,
     ) -> AsyncGenerator[str, None]:
         """Streaming counterpart of generate_tracked()."""
         if usage_sink is not None and self.SUPPORTS_USAGE_REPORTING:
-            async for chunk in self.generate_stream(prompt, usage_sink=usage_sink, **kwargs):
-                yield chunk
-        else:
-            async for chunk in self.generate_stream(prompt, **kwargs):
-                yield chunk
+            kwargs["usage_sink"] = usage_sink
+        if cache_prefix_len is not None and self.SUPPORTS_PROMPT_CACHING:
+            kwargs["cache_prefix_len"] = cache_prefix_len
+        async for chunk in self.generate_stream(prompt, **kwargs):
+            yield chunk
 
     async def validate_config(self) -> bool:
         """

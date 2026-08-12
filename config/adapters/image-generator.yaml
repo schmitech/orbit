@@ -8,7 +8,7 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     image_provider: "gemini"            # Optional adapter override; omit to use config/image.yaml
-    rewrite_provider: "openai"          # Text LLM used to enrich prompts before image generation
+    rewrite_provider: "openai"          #Text LLM used to enrich prompts before image generation
     rewrite_model: "gpt-5.4-mini"       # Text LLM used to enrich prompts before image generation
 
     capabilities:
@@ -29,6 +29,7 @@ adapters:
       supports_file_ids: false
       supports_session_tracking: true
       requires_api_key_validation: false
+      requires_authenticated_user: false # Override auth.require_authenticated_user; leave off for this public skill adapter
       optional_parameters:
         - "session_id"
 

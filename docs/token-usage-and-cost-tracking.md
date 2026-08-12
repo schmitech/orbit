@@ -362,3 +362,49 @@ Costs tab's totals need no changes to include media spend.
   is a locally-computed number, not what the provider will actually invoice
   (rounding, committed-use discounts, free tier credits, etc. are all
   invisible to this feature).
+
+## Reducing prompt-token cost per turn
+
+Two independent levers reduce the fixed per-turn prompt cost, separate from
+the pricing/audit machinery documented above:
+
+- **Chart formatting instructions are gated**, not sent unconditionally.
+  `AdapterCapabilities.supports_charts` (default `False`) controls whether an
+  adapter's system message includes chart instructions at all. When enabled,
+  `PromptInstructionBuilder.build_chart_instruction()`
+  (`server/inference/pipeline/prompt_builder.py`) sends a ~120-token
+  `_CHART_HINT` on ordinary turns and only expands to the full ~1200-token
+  spec (`_build_chart_instruction_full()`) when the current message or
+  recent history looks chart-related (keyword match, or an existing
+  ` ```chart ` fence in the last few turns). Set `supports_charts: true` in
+  an adapter's `capabilities` block for adapters that actually produce
+  visualizations (see `config/adapters/business-analytics.yaml` and other
+  analytics/intent-SQL adapters).
+- **The system message is split into a stable prefix and a volatile tail**
+  so provider-side prompt caching can hit. `PromptInstructionBuilder.build_system_message()`
+  returns `(content, prefix_len)`: the prefix (system prompt, chart
+  instruction, persona/answer-mode footer) is byte-identical turn to turn;
+  the tail (language instruction, time instruction, RAG/file `<context>`
+  block) changes every turn and is appended after the breakpoint. This is
+  threaded through the pipeline as `context.cacheable_prefix_len`
+  (`server/inference/pipeline/base.py`) and forwarded to
+  `generate_tracked`/`generate_stream_tracked` as `cache_prefix_len`. A
+  provider only receives it when it sets `SUPPORTS_PROMPT_CACHING = True`
+  (mirrors the existing `SUPPORTS_USAGE_REPORTING` gate) — currently only
+  `AnthropicInferenceService`, which turns it into an explicit
+  `cache_control: {"type": "ephemeral"}` breakpoint on the `system` param.
+  OpenAI and Gemini need no provider-side change at all: their automatic/
+  implicit prompt caching activates on its own once the prefix is stable,
+  which the split alone already provides.
+  - `history.system_overhead_tokens` in `config.yaml` (default `1200`)
+    replaces a previously hardcoded, too-small 700-token reserve in
+    `ChatHistoryService._calculate_max_token_budget()` — the chart
+    instruction block alone can run ~1200 tokens on `supports_charts`
+    adapters, so the old constant under-reserved space for it.
+- **Not yet done**: relevance-filtering MCP tool schemas per turn (today
+  every enabled server's full tool list is sent on every loop iteration —
+  potentially tens of thousands of tokens with a large server like GitHub's
+  MCP endpoint enabled) and cache-token-aware pricing (reading Anthropic's
+  `cache_read_input_tokens`/`cache_creation_input_tokens` and pricing them at
+  a discounted rate rather than folding them into the full-price prompt
+  total).
