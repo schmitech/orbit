@@ -69,6 +69,7 @@ class UsageReportingMixin:
         prompt_tokens: Optional[int],
         completion_tokens: Optional[int],
         reasoning_tokens: Optional[int] = None,
+        cached_prompt_tokens: Optional[int] = None,
     ) -> None:
         """
         Fill the caller-supplied sink dict with usage for this call.
@@ -79,6 +80,12 @@ class UsageReportingMixin:
         thoughts_token_count) — purely informational, already folded into
         completion_tokens for cost purposes. None when the provider doesn't
         report it separately.
+
+        cached_prompt_tokens is the subset of prompt_tokens served from a
+        provider-side cache (e.g. DeepSeek prompt_cache_hit_tokens, xAI/OpenAI
+        prompt_tokens_details.cached_tokens) — already folded into
+        prompt_tokens for the raw total, but priced at a discounted rate by
+        PricingService.estimate() when the pricing table has one configured.
         """
         if sink is None:
             return
@@ -89,6 +96,7 @@ class UsageReportingMixin:
             "completion_tokens": completion_tokens,
             "total_tokens": prompt_tokens + completion_tokens,
             "reasoning_tokens": reasoning_tokens,
+            "cached_prompt_tokens": cached_prompt_tokens,
             "model": getattr(self, "model", None),
             "provider": getattr(self, "provider_name", None),
             "reported": True,
@@ -156,6 +164,7 @@ def accumulate_usage_sink(
             "completion_tokens": source.get("completion_tokens") or 0,
             "total_tokens": source.get("total_tokens") or 0,
             "reasoning_tokens": source.get("reasoning_tokens"),
+            "cached_prompt_tokens": source.get("cached_prompt_tokens"),
             "usage_unit": source.get("usage_unit"),
             "usage_quantity": source.get("usage_quantity"),
             "reported": True,
@@ -167,3 +176,7 @@ def accumulate_usage_sink(
     source_reasoning = source.get("reasoning_tokens")
     if source_reasoning is not None:
         target["reasoning_tokens"] = (target.get("reasoning_tokens") or 0) + source_reasoning
+
+    source_cached = source.get("cached_prompt_tokens")
+    if source_cached is not None:
+        target["cached_prompt_tokens"] = (target.get("cached_prompt_tokens") or 0) + source_cached

@@ -36,6 +36,7 @@ class TestUsageReportingMixin:
             "completion_tokens": 50,
             "total_tokens": 150,
             "reasoning_tokens": None,
+            "cached_prompt_tokens": None,
             "model": "gpt-4o-mini",
             "provider": "openai",
             "reported": True,

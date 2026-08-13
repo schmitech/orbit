@@ -7,11 +7,11 @@
 | Phase 1 — Gate the chart formatting block | ✅ Done | `supports_charts` capability + hint/full split + intent gate shipped |
 | Phase 2a — Stable prefix/tail split | ✅ Done | `build_system_message()` returns `(content, prefix_len)` |
 | Phase 2b — Carry breakpoint to provider | 🟡 Partial | Anthropic only (explicit `cache_control`); OpenAI/Gemini need no code (benefit passively from 2a); Anthropic history/tool breakpoints (max 4) not added — single breakpoint only |
-| Phase 2c — Extend caching to remaining providers (DeepSeek, xAI, Mistral, Cohere, Groq, etc.) | ⬜ Not started | New — audit each provider's actual caching support before wiring; several may already cache automatically and only need usage-extraction fixes (Phase 4.3) |
+| Phase 2c — Extend caching to remaining providers (DeepSeek, xAI, Mistral, Cohere, Groq, etc.) | ✅ Done (DeepSeek, xAI, Anthropic usage) | DeepSeek `prompt_cache_hit_tokens` and xAI `prompt_tokens_details.cached_tokens` now extracted; Anthropic's own usage now also folds `cache_read_input_tokens`/`cache_creation_input_tokens` into prompt_tokens. Mistral/Cohere/Groq/other OpenAI-compatible providers audited — no documented caching mechanism found, left untouched (would need re-checking if a provider adds one) |
 | Phase 3 — Relevance-filter MCP tools | ⬜ Not started | Biggest remaining win (20k–50k tokens/turn on MCP-enabled adapters) |
 | Phase 4.1 — Fix history overhead constant | ✅ Done | `history.system_overhead_tokens` (default 1200), replaces hardcoded 700 |
 | Phase 4.2 — Tokenizer-accurate estimate | ⬜ Not started (re-scoped) | Left `len//3` heuristic as-is — intentionally fast, real tokenizer already applied async; not a bug, decided not worth the risk |
-| Phase 4.3 — Cache-token-aware pricing | ⬜ Not started | Anthropic cache reads still priced at full input rate in audit records |
+| Phase 4.3 — Cache-token-aware pricing | ✅ Done | `cached_prompt_tokens` threaded through `usage_sink`/`accumulate_usage_sink`/`record_usage`; `PricingService` prices it at optional `cached_input_per_1m` (configured for Anthropic + DeepSeek in `config/pricing.yaml`), falls back to full input rate when no discount tier is configured (xAI: no confirmed discount, so full rate) |
 | Phase 4.4 — Docs | ✅ Done | `docs/token-usage-and-cost-tracking.md` updated |
 
 Also shipped, not in the original phase list: two post-review fixes — an
@@ -22,8 +22,10 @@ in the new caching test module so collection doesn't fail without the
 optional Anthropic dependency installed.
 
 Full regression suite as of this pass: `server/tests/test_inference/`,
-`server/tests/test_pipeline_steps/`, `server/tests/test_services/test_pricing_service.py`,
-`server/tests/test_adapters/` — **457 passed, 25 skipped**.
+`server/tests/test_pipeline_steps/`, `server/tests/test_services/`, `server/tests/test_adapters/` —
+**1053 passed, 38 skipped, 1 pre-existing unrelated failure** (`test_chat_history_service.py`'s
+`test_runtime_provider_selects_its_own_history_budget_without_param_overrides`, a stale expected
+constant predating this pass, not caused by it).
 
 ---
 
@@ -157,44 +159,55 @@ Per provider:
 history) after turn 1. On OpenAI, 50% off cached input tokens. Reported cost falls out of this
 automatically only if usage extraction also reads the cache fields — see Phase 4.
 
-### 2c. Extend caching/cache-usage extraction to the remaining providers ⬜ Not started
+### 2c. Extend caching/cache-usage extraction to the remaining providers ✅ Done
 
 Phase 2a's stable prefix already benefits *every* provider passively wherever the underlying API
-does automatic/implicit caching — no code required. This subtask is about the providers that need
-either an explicit opt-in (like Anthropic's `cache_control`) or usage-extraction changes to surface
-a cache hit that's already happening silently. Per-provider, based on each API's documented
-caching behavior (verify against current provider docs before implementing — these mechanisms
-change):
+does automatic/implicit caching — no code required. This subtask covers providers that need
+usage-extraction changes to surface a cache hit that's already happening silently, and folds in
+the pricing side of the gap (originally slated as a separate Phase 4.3 item — implemented together
+since one is meaningless without the other):
 
-- **DeepSeek** — context caching is automatic (no request-side flag), and usage already reports
-  `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` on `response.usage`. No `cache_prefix_len`
-  wiring needed (same as OpenAI/Gemini in 2b); the gap is purely in usage extraction/pricing — see
-  Phase 4.3, since `deepseek_inference_service.py`'s usage reporting doesn't yet read those fields.
-- **xAI (Grok)** — OpenAI-compatible usage shape; check whether `usage.prompt_tokens_details.cached_tokens`
-  is populated the way OpenAI's is. If so, same passive-caching / usage-extraction gap as DeepSeek,
-  no explicit breakpoint needed.
-- **Mistral** — confirm current support before doing anything; historically no documented
-  prompt-caching mechanism (implicit or explicit). If still true, this provider gets no work item
-  beyond the passive benefit of a stable prefix (fewer tokens sent, even without a cache discount).
-- **Cohere** — confirm current support; historically no prompt-caching mechanism. Same fallback as
-  Mistral if true.
-- **Groq, Mistral, DeepInfra, Together, Fireworks, Cerebras, Moonshot, Minimax, Nebius, Scaleway,
-  Perplexity, Venice** — all share the OpenAI-compatible `openai` python client per
-  `docs/token-usage-and-cost-tracking.md`'s SDK-family table. Audit each provider's actual API docs
-  for a caching mechanism (some proxy to upstream models that do support it, e.g. an
-  OpenAI-compatible endpoint fronting a cached-capable backend) before assuming none exists —
-  don't blanket-copy the Anthropic `cache_control` approach onto a provider that doesn't support it,
-  since an unrecognized param can be rejected by the SDK call (see `SUPPORTS_PROMPT_CACHING` guard
-  in `inference_service.py`, which exists precisely to prevent that).
-- For any provider found to support automatic caching with reported cache-hit tokens: extend
-  `_report_usage`/`UsageReportingMixin` (Phase 4.3) so the hit is priced at a discount instead of
-  folded into the full-price prompt total, mirroring the Anthropic
-  `cache_read_input_tokens` handling already planned there.
+- **DeepSeek** ✅ Done — `deepseek_inference_service.py`'s `generate`/`generate_stream` now read
+  `usage.prompt_cache_hit_tokens` and pass it through `_report_usage(..., cached_prompt_tokens=...)`.
+  No request-side flag needed; caching is automatic. `config/pricing.yaml`'s `deepseek-chat*` entry
+  gets a `cached_input_per_1m: 0.028` tier (~1/10th of the input rate, matching DeepSeek's published
+  cache-hit price).
+- **xAI (Grok)** ✅ Done — confirmed `usage.prompt_tokens_details.cached_tokens` is populated
+  (OpenAI-compatible shape); extracted in `generate`/`generate_stream`/`generate_with_tools` via a
+  new `_extract_cached_prompt_tokens()` helper. No `cached_input_per_1m` tier added to
+  `pricing.yaml` — xAI's docs don't confirm a discounted cache rate, so cached tokens fall back to
+  the full input rate rather than guessing a discount (see `PricingService.estimate()` below).
+  `_extract_cached_prompt_tokens()` also checks `input_tokens_details.cached_tokens` (the Responses
+  API's shape for the same field), so the `web_search=True` branches in `generate`/`generate_stream`
+  — which route through `client.responses.create` instead of `chat.completions` — now report
+  cached tokens too (post-review fix; originally shipped only checking the chat.completions shape).
+- **Anthropic usage accounting** ✅ Done (bonus, found while wiring the above) — Anthropic's
+  `usage.input_tokens` excludes `cache_read_input_tokens` and `cache_creation_input_tokens` (both
+  billed separately by Anthropic). All three `_report_usage()` call sites now sum all three into
+  `prompt_tokens` via a new `_total_input_tokens()` helper, and pass `cache_read_input_tokens` as
+  `cached_prompt_tokens` via `_cache_read_tokens()` — previously prompt_tokens silently undercounted
+  actual billed input whenever a cache breakpoint (Phase 2b) hit.
+- **Mistral** ⬜ Confirmed no work needed — no documented prompt-caching mechanism (implicit or
+  explicit) as of this pass. Gets the passive benefit of Phase 2a's stable prefix only.
+- **Cohere** ⬜ Confirmed no work needed — same as Mistral.
+- **Groq, DeepInfra, Together, Fireworks, Cerebras, Moonshot, Minimax, Nebius, Scaleway,
+  Perplexity, Venice** ⬜ Not individually re-audited this pass — all share the OpenAI-compatible
+  `openai` python client; none currently extract cached-token usage. Revisit per-provider (some may
+  proxy to upstream models that do support caching) rather than blanket-copying the
+  DeepSeek/xAI pattern, since an unpopulated `prompt_tokens_details` is a silent no-op, not a bug.
 
-**Saving:** proportional to how many of these providers turn out to already do automatic caching
-server-side — likely free wins once usage extraction is corrected, since 2a's stable prefix means
-the discount silently applies today on any provider with implicit caching; ORBIT just isn't
-pricing it correctly yet.
+**Pricing plumbing** (was Phase 4.3): `UsageReportingMixin._report_usage()`/`accumulate_usage_sink()`
+now carry an optional `cached_prompt_tokens` field end-to-end through `usage_sink` ->
+`record_usage()`'s line items -> `PricingService.estimate(..., cached_prompt_tokens=...)`.
+`ModelRate` gained an optional `cached_input_per_1m`; when configured, the cached subset of
+`prompt_tokens` is priced at that rate and the remainder at the normal `input_per_1m` rate; when not
+configured (e.g. xAI, or any provider with no known discount), the entire `prompt_tokens` total is
+priced at the full rate exactly as before — cached tokens are never left unpriced, only un-discounted.
+
+**Saving:** DeepSeek and xAI cache hits are now priced accurately (DeepSeek at a real discount;
+xAI at parity, ready for a discount once one is confirmed). Anthropic's prompt_tokens total is now
+correct rather than undercounted, which also fixes `total_tokens`/`cost_usd` on any turn that hits
+the Phase 2b cache breakpoint.
 
 ---
 
@@ -241,13 +254,13 @@ Reuse the two-stage pattern already proven in `server/services/skill_intent_rout
    Swapping it for the real tokenizer synchronously here risked adding latency to every message
    write for a marginal accuracy gain — revisit if the async path turns out not to backfill in
    practice.
-3. ⬜ Not started — no `cached_prompt_tokens`/`cache_write_tokens` extraction, no
-   `cached_input_per_1m`/`cache_write_per_1m` pricing tiers. **Consequence:** Anthropic cache reads
-   (now happening thanks to Phase 2b) are still priced at the full input rate in audit
-   records/cost reporting — the token savings are real on Anthropic's invoice but not yet reflected
-   in ORBIT's own cost estimate.
+3. ✅ Done (moved into, and completed under, Phase 2c above) — `cached_prompt_tokens` extraction and
+   `cached_input_per_1m` pricing tier implemented for Anthropic, DeepSeek, and xAI. ⬜ Not done:
+   `cache_write_tokens`/`cache_write_per_1m` (Anthropic cache-creation writes are folded into
+   `prompt_tokens` at the full input rate rather than their own ~1.25x premium tier — a known,
+   accepted approximation, not a silent gap).
 4. ✅ Done — `docs/token-usage-and-cost-tracking.md` has a new "Reducing prompt-token cost per turn"
-   section documenting the gating, prefix/tail split, and the two `⬜` gaps above.
+   section documenting the gating, prefix/tail split, and cache pricing.
 
 ---
 

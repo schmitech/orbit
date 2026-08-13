@@ -168,6 +168,43 @@ class TestPricingServiceAudioTiering:
 
 
 @pytest.mark.unit
+class TestPricingServiceCachedPromptTokens:
+    def test_cached_tokens_priced_at_discount_when_configured(self):
+        svc = PricingService(make_config({
+            "anthropic": {"claude-sonnet*": {
+                "input_per_1m": 3.0, "output_per_1m": 15.0, "cached_input_per_1m": 0.3,
+            }},
+        }))
+        estimate = svc.estimate(
+            "anthropic", "claude-sonnet-5",
+            prompt_tokens=1_000_000, completion_tokens=0,
+            cached_prompt_tokens=900_000,
+        )
+        # 100k uncached @ 3.0 + 900k cached @ 0.3 = 0.3 + 0.27
+        assert estimate.cost_usd == pytest.approx(0.57)
+
+    def test_cached_tokens_fall_back_to_full_rate_when_no_discount_configured(self):
+        svc = PricingService(make_config({
+            "xai": {"grok-4*": {"input_per_1m": 3.0, "output_per_1m": 15.0}},
+        }))
+        estimate = svc.estimate(
+            "xai", "grok-4",
+            prompt_tokens=1_000_000, completion_tokens=0,
+            cached_prompt_tokens=900_000,
+        )
+        assert estimate.cost_usd == pytest.approx(3.0)
+
+    def test_no_cached_tokens_unaffected_by_configured_discount(self):
+        svc = PricingService(make_config({
+            "anthropic": {"claude-sonnet*": {
+                "input_per_1m": 3.0, "output_per_1m": 15.0, "cached_input_per_1m": 0.3,
+            }},
+        }))
+        estimate = svc.estimate("anthropic", "claude-sonnet-5", prompt_tokens=1_000_000, completion_tokens=0)
+        assert estimate.cost_usd == pytest.approx(3.0)
+
+
+@pytest.mark.unit
 class TestPricingServiceMedia:
     def test_media_arithmetic(self):
         svc = PricingService(make_config({}, media={

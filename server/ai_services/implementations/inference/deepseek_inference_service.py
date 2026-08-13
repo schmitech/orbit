@@ -69,6 +69,7 @@ class DeepSeekInferenceService(UsageReportingMixin, InferenceService, OpenAIComp
                     getattr(usage, "prompt_tokens", None),
                     getattr(usage, "completion_tokens", None),
                     reasoning_tokens=self._extract_reasoning_tokens(usage),
+                    cached_prompt_tokens=getattr(usage, "prompt_cache_hit_tokens", None),
                 )
 
             return response.choices[0].message.content
@@ -113,6 +114,7 @@ class DeepSeekInferenceService(UsageReportingMixin, InferenceService, OpenAIComp
                         getattr(chunk.usage, "prompt_tokens", None),
                         getattr(chunk.usage, "completion_tokens", None),
                         reasoning_tokens=self._extract_reasoning_tokens(chunk.usage),
+                        cached_prompt_tokens=getattr(chunk.usage, "prompt_cache_hit_tokens", None),
                     )
 
         except Exception as e:

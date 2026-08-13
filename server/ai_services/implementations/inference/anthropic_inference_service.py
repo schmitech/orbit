@@ -131,6 +131,33 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
 
         return "\n\n**Sources:**\n" + "\n".join(lines)
 
+    @staticmethod
+    def _cache_read_tokens(usage: Any) -> Any:
+        """
+        Cache-read subset of input tokens — populated when a cache_control
+        breakpoint (see _build_system_param) hits on a prior turn's cached
+        prefix. Not part of usage.input_tokens; billed separately (and at a
+        discount) by Anthropic, so it's reported here as cached_prompt_tokens
+        for PricingService to price at cached_input_per_1m when configured.
+        """
+        return getattr(usage, "cache_read_input_tokens", None)
+
+    @classmethod
+    def _total_input_tokens(cls, usage: Any) -> Any:
+        """
+        Anthropic's usage.input_tokens excludes cache_read_input_tokens and
+        cache_creation_input_tokens (both billed separately). Sum all three
+        so prompt_tokens reflects total billed input, matching the invoice.
+        """
+        input_tokens = getattr(usage, "input_tokens", None)
+        if input_tokens is None:
+            return None
+        return (
+            input_tokens
+            + (getattr(usage, "cache_read_input_tokens", None) or 0)
+            + (getattr(usage, "cache_creation_input_tokens", None) or 0)
+        )
+
     async def generate_with_tools(
         self,
         messages: List[Dict[str, Any]],
@@ -186,8 +213,9 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
         if usage is not None:
             self._report_usage(
                 usage_sink,
-                getattr(usage, "input_tokens", None),
+                self._total_input_tokens(usage),
                 getattr(usage, "output_tokens", None),
+                cached_prompt_tokens=self._cache_read_tokens(usage),
             )
 
         text = None
@@ -331,8 +359,9 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
             if usage is not None:
                 self._report_usage(
                     usage_sink,
-                    getattr(usage, "input_tokens", None),
+                    self._total_input_tokens(usage),
                     getattr(usage, "output_tokens", None),
+                    cached_prompt_tokens=self._cache_read_tokens(usage),
                 )
 
             text, citations = self._extract_text_and_citations(response.content)
@@ -408,8 +437,9 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
                         if usage is not None:
                             self._report_usage(
                                 usage_sink,
-                                getattr(usage, "input_tokens", None),
+                                self._total_input_tokens(usage),
                                 getattr(usage, "output_tokens", None),
+                                cached_prompt_tokens=self._cache_read_tokens(usage),
                             )
                     if web_search:
                         _, citations = self._extract_text_and_citations(final_message.content)

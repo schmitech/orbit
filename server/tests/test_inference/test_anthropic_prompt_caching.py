@@ -13,9 +13,10 @@ from ai_services.implementations.inference.anthropic_inference_service import An
 
 
 class _FakeMessage:
-    def __init__(self, content, stop_reason="end_turn"):
+    def __init__(self, content, stop_reason="end_turn", usage=None):
         self.content = content
         self.stop_reason = stop_reason
+        self.usage = usage
 
 
 class _FakeMessages:
@@ -121,3 +122,37 @@ async def test_cache_prefix_len_never_reaches_provider_kwargs():
     await service.generate("hello", messages=messages, cache_prefix_len=1)
 
     assert "cache_prefix_len" not in service.client.messages.last_params
+
+
+@pytest.mark.asyncio
+async def test_generate_reports_cache_read_tokens_and_total_input_tokens():
+    """
+    Anthropic's usage.input_tokens excludes cache_read_input_tokens and
+    cache_creation_input_tokens (both billed separately) — prompt_tokens
+    reported to PricingService must be the sum of all three, with the
+    cache-read portion also surfaced separately as cached_prompt_tokens so
+    it can be priced at a discount.
+    """
+    from types import SimpleNamespace
+
+    service = _make_service()
+    usage = SimpleNamespace(
+        input_tokens=50,
+        output_tokens=20,
+        cache_read_input_tokens=900,
+        cache_creation_input_tokens=30,
+    )
+    service.client = _FakeClient(
+        _FakeMessage([TextBlock(type="text", text="Hello!", citations=None)], usage=usage)
+    )
+    messages = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "hello"},
+    ]
+
+    usage_sink = {}
+    await service.generate("hello", messages=messages, usage_sink=usage_sink)
+
+    assert usage_sink["prompt_tokens"] == 980  # 50 + 900 + 30
+    assert usage_sink["cached_prompt_tokens"] == 900
+    assert usage_sink["completion_tokens"] == 20

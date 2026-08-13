@@ -25,6 +25,11 @@ class ModelRate:
     # priced as unpriced, never silently folded into the text rate.
     audio_input_per_1m: Optional[float] = None
     audio_output_per_1m: Optional[float] = None
+    # Discounted rate for provider-side cache reads (Anthropic cache_control,
+    # DeepSeek/xAI automatic prompt caching). None means "no discount
+    # configured" — cached tokens are then priced at the full input_per_1m
+    # rate rather than assuming a made-up discount.
+    cached_input_per_1m: Optional[float] = None
 
 
 @dataclass
@@ -72,6 +77,7 @@ class PricingService:
                     output_per_1m=rate.get('output_per_1m'),
                     audio_input_per_1m=rate.get('audio_input_per_1m'),
                     audio_output_per_1m=rate.get('audio_output_per_1m'),
+                    cached_input_per_1m=rate.get('cached_input_per_1m'),
                 )
             self._providers[provider] = rates
 
@@ -153,6 +159,7 @@ class PricingService:
         completion_tokens: Optional[int],
         audio_prompt_tokens: Optional[int] = None,
         audio_completion_tokens: Optional[int] = None,
+        cached_prompt_tokens: Optional[int] = None,
     ) -> CostEstimate:
         """
         Estimate cost for text tokens, plus an optional audio-token portion
@@ -161,6 +168,13 @@ class PricingService:
         unpriced rather than silently priced at the text rate — audio tokens
         typically cost far more (~10-20x) than text, so folding them into the
         text rate would materially understate cost.
+
+        cached_prompt_tokens (a subset of prompt_tokens already served from a
+        provider-side cache) is priced at rate.cached_input_per_1m when
+        configured; otherwise it's priced at the same full input_per_1m rate
+        as the rest of prompt_tokens — unlike audio, an unconfigured cache
+        discount just means "no discount available yet," not "unknown cost,"
+        since the tokens are still real input tokens either way.
         """
         rate, matched_source = self._resolve_with_source(provider, model)
         if rate is None:
@@ -191,8 +205,15 @@ class PricingService:
 
         prompt_tokens = prompt_tokens or 0
         completion_tokens = completion_tokens or 0
-        cost = (prompt_tokens / 1_000_000.0) * rate.input_per_1m + \
-               (completion_tokens / 1_000_000.0) * rate.output_per_1m
+
+        cached_prompt_tokens = cached_prompt_tokens or 0
+        if cached_prompt_tokens and rate.cached_input_per_1m is not None:
+            uncached_prompt_tokens = max(prompt_tokens - cached_prompt_tokens, 0)
+            cost = (uncached_prompt_tokens / 1_000_000.0) * rate.input_per_1m + \
+                   (cached_prompt_tokens / 1_000_000.0) * rate.cached_input_per_1m
+        else:
+            cost = (prompt_tokens / 1_000_000.0) * rate.input_per_1m
+        cost += (completion_tokens / 1_000_000.0) * rate.output_per_1m
 
         if has_audio_tokens:
             cost += (audio_prompt_tokens or 0) / 1_000_000.0 * rate.audio_input_per_1m

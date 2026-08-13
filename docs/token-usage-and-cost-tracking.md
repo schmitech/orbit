@@ -401,10 +401,25 @@ the pricing/audit machinery documented above:
     `ChatHistoryService._calculate_max_token_budget()` — the chart
     instruction block alone can run ~1200 tokens on `supports_charts`
     adapters, so the old constant under-reserved space for it.
-- **Not yet done**: relevance-filtering MCP tool schemas per turn (today
-  every enabled server's full tool list is sent on every loop iteration —
-  potentially tens of thousands of tokens with a large server like GitHub's
-  MCP endpoint enabled) and cache-token-aware pricing (reading Anthropic's
-  `cache_read_input_tokens`/`cache_creation_input_tokens` and pricing them at
-  a discounted rate rather than folding them into the full-price prompt
-  total).
+- **Cache-token-aware pricing.** `UsageReportingMixin._report_usage()` accepts an optional
+  `cached_prompt_tokens` (the subset of `prompt_tokens` served from a provider-side cache), threaded
+  through `accumulate_usage_sink()` and `record_usage()` to `PricingService.estimate(...,
+  cached_prompt_tokens=...)`. A `ModelRate.cached_input_per_1m` tier — set in `config/pricing.yaml`
+  — prices that subset at a discount instead of folding it into the full-price prompt total; with no
+  tier configured, cached tokens are simply priced at the full input rate (never left unpriced).
+  Wired for:
+  - **Anthropic** — `cache_read_input_tokens` (billed at a discount) and `cache_creation_input_tokens`
+    (billed at a premium, but folded into the base rate here as an approximation) are summed into
+    `prompt_tokens` in `AnthropicInferenceService`, since Anthropic's raw `usage.input_tokens`
+    excludes both. `cached_input_per_1m` is configured per Claude tier in `pricing.yaml`.
+  - **DeepSeek** — automatic caching; `usage.prompt_cache_hit_tokens` extracted directly, with a
+    configured discount tier.
+  - **xAI (Grok)** — automatic caching; `usage.prompt_tokens_details.cached_tokens` extracted, but no
+    discount tier configured yet (no confirmed discounted rate in xAI's docs) — cached tokens price
+    at parity with the rest of the prompt until one is confirmed.
+  - **Mistral, Cohere** — audited, no prompt-caching mechanism found; nothing to wire.
+- **Not yet done**: relevance-filtering MCP tool schemas per turn (today every enabled server's
+  full tool list is sent on every loop iteration — potentially tens of thousands of tokens with a
+  large server like GitHub's MCP endpoint enabled), and cached-token extraction for the remaining
+  OpenAI-compatible providers (Groq, DeepInfra, Together, Fireworks, Cerebras, Moonshot, Minimax,
+  Nebius, Scaleway, Perplexity, Venice) — not yet individually audited.

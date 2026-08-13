@@ -39,6 +39,19 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
         self.max_tokens = self._get_max_tokens(default=2048)
         self.top_p = self._get_top_p(default=1.0)
 
+    @staticmethod
+    def _extract_cached_prompt_tokens(usage: Any) -> Any:
+        """
+        Cached-prompt subset of prompt tokens, from whichever
+        OpenAI-compatible usage shape xAI reports it under: chat.completions
+        nests it under prompt_tokens_details.cached_tokens, the Responses API
+        (used for web_search=True, see _build_web_search_params) nests it
+        under input_tokens_details.cached_tokens instead — same field,
+        different parent, so both are checked here.
+        """
+        details = getattr(usage, "prompt_tokens_details", None) or getattr(usage, "input_tokens_details", None)
+        return getattr(details, "cached_tokens", None) if details is not None else None
+
     async def generate_with_tools(
         self,
         messages: List[Dict[str, Any]],
@@ -82,6 +95,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
                 getattr(usage, "prompt_tokens", None),
                 getattr(usage, "completion_tokens", None),
                 reasoning_tokens=self._extract_reasoning_tokens(usage),
+                cached_prompt_tokens=self._extract_cached_prompt_tokens(usage),
             )
 
         choice = response.choices[0]
@@ -142,6 +156,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
                         getattr(usage, "input_tokens", None),
                         getattr(usage, "output_tokens", None),
                         reasoning_tokens=self._extract_reasoning_tokens(usage),
+                        cached_prompt_tokens=self._extract_cached_prompt_tokens(usage),
                     )
                 return response.output_text + self._format_url_citations(self._extract_annotations(response))
 
@@ -167,6 +182,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
                     getattr(usage, "prompt_tokens", None),
                     getattr(usage, "completion_tokens", None),
                     reasoning_tokens=self._extract_reasoning_tokens(usage),
+                    cached_prompt_tokens=self._extract_cached_prompt_tokens(usage),
                 )
 
             return response.choices[0].message.content
@@ -214,6 +230,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
                             getattr(usage, "input_tokens", None),
                             getattr(usage, "output_tokens", None),
                             reasoning_tokens=self._extract_reasoning_tokens(usage),
+                            cached_prompt_tokens=self._extract_cached_prompt_tokens(usage),
                         )
 
                 sources = self._format_url_citations(annotations)
@@ -246,6 +263,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
                         getattr(chunk.usage, "prompt_tokens", None),
                         getattr(chunk.usage, "completion_tokens", None),
                         reasoning_tokens=self._extract_reasoning_tokens(chunk.usage),
+                        cached_prompt_tokens=self._extract_cached_prompt_tokens(chunk.usage),
                     )
 
         except Exception as e:

@@ -329,6 +329,7 @@ def record_usage(
                 "completion_tokens": usage_sink.get("completion_tokens") or 0,
                 "total_tokens": usage_sink.get("total_tokens") or 0,
                 "reasoning_tokens": usage_sink.get("reasoning_tokens"),
+                "cached_prompt_tokens": usage_sink.get("cached_prompt_tokens"),
                 "reported": True,
             })
 
@@ -344,6 +345,7 @@ def record_usage(
                 "completion_tokens": component.get("completion_tokens") or 0,
                 "total_tokens": component.get("total_tokens") or 0,
                 "reasoning_tokens": component.get("reasoning_tokens"),
+                "cached_prompt_tokens": component.get("cached_prompt_tokens"),
                 "reported": True,
             }]
         for item in items:
@@ -368,12 +370,24 @@ def record_usage(
         if item.get("reasoning_tokens") is not None
     ]
     reasoning_tokens = sum(reasoning_values) if reasoning_values else None
+    # Informational + priceable: the subset of prompt_tokens served from a
+    # provider-side cache (e.g. Anthropic cache_control, DeepSeek/xAI
+    # automatic caching). Already folded into prompt_tokens above; used
+    # below to price that subset at a discount when the pricing table has
+    # one configured for this provider/model.
+    cached_values = [
+        item.get("cached_prompt_tokens")
+        for item in line_items
+        if item.get("cached_prompt_tokens") is not None
+    ]
+    cached_prompt_tokens = sum(cached_values) if cached_values else None
 
     usage = {
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "total_tokens": total_tokens,
         "reasoning_tokens": reasoning_tokens,
+        "cached_prompt_tokens": cached_prompt_tokens,
         "provider": provider,
         "model": model,
         "cost_usd": None,
@@ -399,6 +413,7 @@ def record_usage(
                     item.get("model"),
                     item.get("prompt_tokens") or 0,
                     item.get("completion_tokens") or 0,
+                    cached_prompt_tokens=item.get("cached_prompt_tokens"),
                 )
                 if estimate.cost_usd is not None:
                     priced_costs.append(estimate.cost_usd)
