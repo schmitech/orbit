@@ -1176,6 +1176,42 @@ async def test_get_context_messages_format(chat_history_services):
 
 
 @pytest.mark.asyncio
+async def test_get_context_messages_surfaces_mcp_tools_used(chat_history_services):
+  """
+  A turn whose metadata records mcp_tools_used (see response_processor.py)
+  must have that list surfaced on the reconstructed context message, so
+  MCPToolSelector can still find it after history is reloaded from storage —
+  role/content alone carries no trace of which tools a prior turn called.
+  """
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  session_id = f"session_{generate_id(backend_type)}"
+  await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="What's the weather in Paris?",
+    assistant_response="It's sunny.",
+    metadata={"mcp_tools_used": ["weather__get_current"]},
+  )
+  await chat_history.add_conversation_turn(
+    session_id=session_id,
+    user_message="And tomorrow?",
+    assistant_response="Also sunny.",
+  )
+
+  context, _ = await chat_history.get_context_messages(session_id)
+
+  # add_conversation_turn stores the same metadata dict on both the user and
+  # assistant message of a turn, so both carry mcp_tools_used here.
+  assert context[0]["mcp_tools_used"] == ["weather__get_current"]
+  assert context[1]["mcp_tools_used"] == ["weather__get_current"]
+  # The second turn has no mcp_tools_used metadata — must not inherit it.
+  assert "mcp_tools_used" not in context[2]
+  assert "mcp_tools_used" not in context[3]
+
+
+@pytest.mark.asyncio
 async def test_get_context_messages_chronological_order(chat_history_services):
   """Context messages are returned oldest-first."""
   services = chat_history_services

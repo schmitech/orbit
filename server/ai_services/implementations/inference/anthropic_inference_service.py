@@ -166,6 +166,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using the Anthropic Messages API."""
         usage_sink = self._take_usage_sink(kwargs)
+        cache_prefix_len = kwargs.pop('cache_prefix_len', None)
         if not self.initialized:
             await self.initialize()
 
@@ -191,8 +192,9 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
         # on purpose to force a text answer instead of further tool calls.
         if anthropic_tools:
             params["tools"] = anthropic_tools
-        if system_content:
-            params["system"] = system_content
+        system_param = self._build_system_param(system_content, cache_prefix_len)
+        if system_param:
+            params["system"] = system_param
         kwargs.pop("temperature", None)
         effort = self._resolve_effort(kwargs)
         if self._supports_effort():

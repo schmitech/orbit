@@ -247,6 +247,7 @@ class ResponseProcessor:
         runtime_provider: Optional[str] = None,
         usage: Optional[Dict[str, Any]] = None,
         audit_adapter_name: Optional[str] = None,
+        sources: Optional[list] = None,
     ) -> tuple[str, Optional[str]]:
         """
         Complete post-processing of a chat response.
@@ -288,6 +289,10 @@ class ResponseProcessor:
                 record, so cost/usage attributes to the adapter that actually ran,
                 not the one the client originally addressed. Falls back to
                 adapter_name when not given (no swap occurred).
+            sources: Optional context.sources from this turn — only the
+                mcp_tool_call entries are used, recorded in metadata so a
+                later turn's MCPToolSelector can reconstruct which tools this
+                thread already relied on (see mcp_tool_selector.py).
 
         Returns:
             Tuple of (processed_response_text, assistant_message_id)
@@ -316,6 +321,18 @@ class ResponseProcessor:
                     if first_doc_meta:
                         metadata["template_id"] = first_doc_meta.get('template_id')
                         metadata["parameters_used"] = first_doc_meta.get('parameters_used', {})
+
+            # Record which MCP tools this turn actually called, so a later
+            # turn's MCPToolSelector can always keep offering them (its
+            # "already called in this thread" union guarantee otherwise has
+            # nothing to scan once history is reloaded from storage, since
+            # get_context_messages() only reconstructs role/content).
+            mcp_tools_used = sorted({
+                src.get("tool") for src in (sources or [])
+                if src.get("type") == "mcp_tool_call" and src.get("tool")
+            })
+            if mcp_tools_used:
+                metadata["mcp_tools_used"] = mcp_tools_used
 
             # Store turn with clean response - warning is only for display
             _, assistant_message_id = await self.conversation_handler.store_turn(

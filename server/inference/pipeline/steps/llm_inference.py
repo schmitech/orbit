@@ -271,6 +271,29 @@ class LLMInferenceStep(PipelineStep):
         from services.mcp_client_service import get_mcp_client_manager
         return get_mcp_client_manager(config)
 
+    async def _select_relevant_tools(self, context: ProcessingContext, tools: list, usage_sink: dict) -> list:
+        """
+        Relevance-filter the full MCP tool list down to what this turn
+        actually needs (see services.mcp_tool_selector). Embedding cost is
+        accumulated into the same usage_sink the tool-calling loop reports
+        into, so it lands on this request's audit record. Falls back to the
+        unfiltered list — this must never block a turn over a missing
+        adapter_manager or embedding provider.
+        """
+        if not self.container.has('adapter_manager'):
+            return tools
+        from services.mcp_tool_selector import MCPToolSelector
+        config = self.container.get_or_none('config') or {}
+        adapter_manager = self.container.get('adapter_manager')
+        selector = MCPToolSelector(config, adapter_manager)
+        return await selector.select_tools(
+            message=context.message,
+            tools=tools,
+            adapter_name=context.adapter_name,
+            context_messages=context.context_messages,
+            usage_sink=usage_sink,
+        )
+
     @staticmethod
     def _effective_provider_name(context: ProcessingContext) -> str:
         """
@@ -310,6 +333,7 @@ class LLMInferenceStep(PipelineStep):
         await self._build_message_format(context)
 
         usage_sink: dict = {}
+        tools = await self._select_relevant_tools(context, tools, usage_sink)
         final_text, sources, _ = await run_tool_calling_loop(
             provider=llm_provider,
             mcp_manager=mcp_manager,
@@ -321,6 +345,7 @@ class LLMInferenceStep(PipelineStep):
             cancel_event=context.cancel_event,
             is_cancelled=context.is_cancelled,
             usage_sink=usage_sink,
+            cache_prefix_len=context.cacheable_prefix_len,
         )
         context.response = final_text or ""
         context.sources = (context.sources or []) + sources

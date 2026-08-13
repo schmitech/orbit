@@ -48,7 +48,7 @@ adapters:
         effort: "low"           # Maps to reasoning_effort; ignored for models that don't support it (e.g. grok-4.3)
       - name: "openai"
         provider: "openai"
-        model: "gpt-5.6"
+        model: "gpt-5.4-mini"
         context_window: 400000
         max_tokens: 128000
         effort: "low"           # Maps to reasoning_effort; ignored for non-reasoning models
@@ -57,9 +57,9 @@ adapters:
         model: "gpt-oss:20b"
         context_window: 131072
         max_tokens: 32768
-      - name: "claude"
+      - name: "claude-sonnet-5"
         provider: "anthropic"
-        model: "claude-sonnet-4-5-20250929"
+        model: "claude-sonnet-5"
         context_window: 1000000  # e.g. Claude's extended-context variant
         max_tokens: 64000
         effort: "low"           # Ignored for Claude models that don't support the effort parameter
@@ -96,20 +96,23 @@ adapters:
       # so they stay here to remain reachable at all.
       available_skills:
         - "mcp-agent"
+        - "Image"
         - "HR"
         - "business-analytics"
         - "customer-orders"
+      supports_charts: true
       retrieval_behavior: "none"         # No context retrieval (pure conversational)
       formatting_style: "standard"       # Standard formatting (not used since no retrieval)
       supports_file_ids: false           # Does not support file filtering
       supports_session_tracking: false   # Does not need session tracking
-      requires_api_key_validation: false # No API key validation needed
+      requires_api_key_validation: true # No API key validation needed
+      requires_authenticated_user: false # Override auth.require_authenticated_user; leave off for this public chat adapter
       # Surface reachable skills' routing_examples (e.g. "search the web for",
       # "make a pdf of") as chat-input autocomplete suggestions. Since this adapter
       # has no retriever templates of its own, autocomplete draws entirely on the
       # routing_examples of the skills listed in auto_routable_skills/available_skills
       # above, rather than on nl_examples. See docs/autocomplete-architecture.md.
-      supports_autocomplete: false
+      supports_autocomplete: true
       # Automatic skill intent detection: infer a skill (PDF, Image, web-search, ...)
       # from plain natural language without the client sending skill=<name>.
       # Requires skill_routing.auto_detect: true in config.yaml to take effect.
@@ -119,9 +122,12 @@ adapters:
       auto_skill_routing: true
       # Opportunistic MCP tool calling: the model may call these tools on any
       # turn without the client sending skill:"mcp-agent" — no adapter swap,
-      # same thread throughout. Requires mcp_client.enabled: true AND
-      # mcp_client.allow_opportunistic: true in config/mcp_client.yaml.
+      # same thread throughout. Requires mcp_clients.enabled: true in
+      # config/mcp_clients.yaml AND allow_opportunistic: true on each server
+      # listed below (settable per server, or as a shared default).
       # See docs/adapters/mcp-agent.md#opportunistic-mode.
       mcp_tools: true
       mcp_servers:
         - "business-sample"
+        - "filesystem"
+        - "github"

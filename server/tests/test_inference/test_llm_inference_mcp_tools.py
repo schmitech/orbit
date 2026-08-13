@@ -70,6 +70,22 @@ class _FakeProvider:
         return self._gwt_result
 
 
+class _FakeTrackedProvider(_FakeProvider):
+    """Records the cache_prefix_len passed to generate_with_tools_tracked —
+    the kwarg a real provider (e.g. Anthropic) would turn into a
+    cache_control breakpoint. _FakeProvider above has no *_tracked method at
+    all, so mcp_tool_loop's _call_with_tools falls back to plain
+    generate_with_tools() for it, never exercising this kwarg."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.received_cache_prefix_lens = []
+
+    async def generate_with_tools_tracked(self, messages, tools, usage_sink=None, cache_prefix_len=None, **kwargs):
+        self.received_cache_prefix_lens.append(cache_prefix_len)
+        return await self.generate_with_tools(messages, tools, **kwargs)
+
+
 class _FakeMCPManager:
     def __init__(self, tools, allow_opportunistic=True, tool_output="TOOL_OUTPUT", max_iterations=3):
         self._tools = tools
@@ -152,6 +168,28 @@ class TestOpportunisticMCPToolsEnabled:
         assert provider.generate_calls == 0  # plain generate() never invoked
         assert provider.generate_with_tools_calls == 1
         assert result_ctx.response == "tool-derived answer"
+
+    async def test_cacheable_prefix_len_reaches_the_tool_calling_loop(self):
+        """
+        Regression: context.cacheable_prefix_len (computed by
+        _build_message_format, the same value the plain generate() path
+        already forwards) was silently dropped on this path — the inline
+        opportunistic MCP loop never passed it into run_tool_calling_loop,
+        so a provider's cache breakpoint (Anthropic cache_control) never
+        applied to any turn on an mcp_tools: true adapter.
+        """
+        provider = _FakeTrackedProvider(generate_with_tools_result=_final_result())
+        manager = _FakeMCPManager(_TOOLS, tool_output="doc-contents")
+        step = _make_step(provider, manager)
+        ctx = ProcessingContext(
+            message="what's in the docs?", adapter_name="simple-chat-with-files",
+            mcp_tools=True, mcp_servers_allowlist=["filesystem"],
+        )
+
+        await step.process(ctx)
+
+        assert ctx.cacheable_prefix_len is not None
+        assert provider.received_cache_prefix_lens == [ctx.cacheable_prefix_len]
 
     async def test_streaming_yields_final_text_and_sets_sources(self):
         provider = _FakeProvider(generate_with_tools_result=_final_result("streamed tool answer"))

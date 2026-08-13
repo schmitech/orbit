@@ -407,6 +407,8 @@ def record_usage(
             pricing_service = container.get('pricing_service')
             priced_costs = []
             sources = set()
+            unpriced_items = []
+            per_item_debug = []
             for item in line_items:
                 estimate = pricing_service.estimate(
                     item.get("provider"),
@@ -415,9 +417,18 @@ def record_usage(
                     item.get("completion_tokens") or 0,
                     cached_prompt_tokens=item.get("cached_prompt_tokens"),
                 )
+                per_item_debug.append({
+                    "provider": item.get("provider"), "model": item.get("model"),
+                    "prompt_tokens": item.get("prompt_tokens"),
+                    "cached_prompt_tokens": item.get("cached_prompt_tokens"),
+                    "completion_tokens": item.get("completion_tokens"),
+                    "cost_usd": estimate.cost_usd, "pricing_source": estimate.pricing_source,
+                })
                 if estimate.cost_usd is not None:
                     priced_costs.append(estimate.cost_usd)
                     sources.add(estimate.pricing_source)
+                else:
+                    unpriced_items.append(item)
                 if len(line_items) == 1:
                     usage["input_rate_per_1m"] = estimate.input_rate_per_1m
                     usage["output_rate_per_1m"] = estimate.output_rate_per_1m
@@ -428,8 +439,29 @@ def record_usage(
                     all_priced = len(priced_costs) == len(line_items)
                     if not all_priced:
                         usage["pricing_source"] = "mixed"
+                        # The only genuinely actionable case: a line item's
+                        # tokens counted toward prompt_tokens/total_tokens
+                        # above but contributed $0 to cost_usd, silently
+                        # undercounting the request's true cost. The audit
+                        # ledger keeps no per-call breakdown, so this is the
+                        # only place to see which call it was.
+                        logger.warning(
+                            "Request priced as 'mixed' with %d/%d line items unpriced "
+                            "(cost_usd is understated by their tokens): %s",
+                            len(unpriced_items), len(line_items), unpriced_items,
+                        )
                     else:
+                        # Multiple sources that all priced fine (e.g. an
+                        # inference call plus a routine embedding call for
+                        # skill routing/RAG/tool selection) is completely
+                        # normal, not exceptional — DEBUG only, so this
+                        # doesn't drown out the WARNING case above on any
+                        # adapter that combines inference with embeddings.
                         usage["pricing_source"] = sources.pop() if len(sources) == 1 else "mixed"
+                        logger.debug(
+                            "Multi-call request priced as '%s' (total cost_usd=%s) from %d line items: %s",
+                            usage["pricing_source"], usage["cost_usd"], len(line_items), per_item_debug,
+                        )
         except Exception:
             logger.debug("Pricing estimate failed", exc_info=True)
 

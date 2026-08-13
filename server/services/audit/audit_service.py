@@ -356,6 +356,7 @@ class AuditService:
                 completion_tokens=usage.get("completion_tokens"),
                 total_tokens=usage.get("total_tokens"),
                 reasoning_tokens=usage.get("reasoning_tokens"),
+                cached_prompt_tokens=usage.get("cached_prompt_tokens"),
                 cost_usd=usage.get("cost_usd"),
                 input_rate_per_1m=usage.get("input_rate_per_1m"),
                 output_rate_per_1m=usage.get("output_rate_per_1m"),

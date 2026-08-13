@@ -292,6 +292,62 @@ class TestAnthropicToolCallingStreaming:
         ]
         assert result.assistant_message["tool_calls"][0]["function"]["name"] == "read_file"
 
+    async def test_cache_prefix_len_adds_cache_control_breakpoint(self):
+        """
+        Regression: cache_prefix_len was accepted by generate()/generate_stream()
+        but silently dropped by generate_with_tools() — every MCP-tool-calling
+        turn (mcp_tools: true opportunistic path, or the explicit mcp-agent
+        skill) therefore never got Anthropic's cache_control breakpoint, so
+        cached_prompt_tokens stayed 0 forever on any adapter using tools.
+        """
+        service = AnthropicInferenceService({
+            "inference": {"anthropic": {"api_key": "test-key", "model": "claude-sonnet-4-5-20250929"}}
+        })
+        service.initialized = True
+        messages = _FakeAnthropicMessages(SimpleNamespace(
+            content=[SimpleNamespace(type="text", text="done")],
+            stop_reason="end_turn",
+        ))
+        service.client = SimpleNamespace(messages=messages)
+
+        system = "You are ORBIT Assistant.\nCHART RULES...\n"
+        tail = "\nIMPORTANT: current time is now."
+        await service.generate_with_tools(
+            [
+                {"role": "system", "content": system + tail},
+                {"role": "user", "content": "hello"},
+            ],
+            [],
+            cache_prefix_len=len(system),
+        )
+
+        sent_system = messages.stream_params["system"]
+        assert isinstance(sent_system, list)
+        assert sent_system[0]["text"] == system
+        assert sent_system[0]["cache_control"] == {"type": "ephemeral"}
+        assert sent_system[1]["text"] == tail
+        assert "cache_control" not in sent_system[1]
+
+    async def test_cache_prefix_len_never_reaches_stream_kwargs(self):
+        """cache_prefix_len must be consumed, never forwarded raw into the SDK call."""
+        service = AnthropicInferenceService({
+            "inference": {"anthropic": {"api_key": "test-key", "model": "claude-sonnet-4-5-20250929"}}
+        })
+        service.initialized = True
+        messages = _FakeAnthropicMessages(SimpleNamespace(
+            content=[SimpleNamespace(type="text", text="done")],
+            stop_reason="end_turn",
+        ))
+        service.client = SimpleNamespace(messages=messages)
+
+        await service.generate_with_tools(
+            [{"role": "system", "content": "sys"}, {"role": "user", "content": "hello"}],
+            [],
+            cache_prefix_len=1,
+        )
+
+        assert "cache_prefix_len" not in messages.stream_params
+
 
 # ----------------------------------------------------------------------------
 # Ollama: OpenAI loop history -> Ollama /api/chat messages

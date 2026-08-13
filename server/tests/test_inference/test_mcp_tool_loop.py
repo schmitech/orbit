@@ -55,13 +55,15 @@ class _FakeTrackedProvider:
         self._usages = list(usages or [])
         self.calls = []
         self.received_sinks = []
+        self.received_cache_prefix_lens = []
 
     async def generate_with_tools(self, messages, tools, **kwargs):
         raise AssertionError("generate_with_tools_tracked should be used, not the plain method")
 
-    async def generate_with_tools_tracked(self, messages, tools, usage_sink=None, **kwargs):
+    async def generate_with_tools_tracked(self, messages, tools, usage_sink=None, cache_prefix_len=None, **kwargs):
         self.calls.append((len(messages), len(tools)))
         self.received_sinks.append(usage_sink)
+        self.received_cache_prefix_lens.append(cache_prefix_len)
         if usage_sink is not None and self._usages:
             usage_sink.update(self._usages.pop(0))
         if self._results:
@@ -348,6 +350,28 @@ class TestRunToolCallingLoopUsageTracking:
         # If a shared sink had been reused, total_tokens would read 22 (last
         # call's value only) instead of the true sum.
         assert usage_sink["total_tokens"] == 33
+
+    async def test_cache_prefix_len_forwarded_to_every_call_including_final_synthesis(self):
+        """
+        Regression: run_tool_calling_loop previously never accepted or forwarded
+        cache_prefix_len at all — so an Anthropic-backed adapter with tools
+        enabled (mcp_tools: true opportunistic, or the explicit mcp-agent skill)
+        never got a cache_control breakpoint on ANY turn, even though the plain
+        (no-tools) generate() path already had one working. The system message
+        doesn't change mid-loop, so the same breakpoint must reach every
+        iteration, including the final no-tools synthesis call on exhaustion.
+        """
+        provider = _FakeTrackedProvider([_tool_call_result(), _tool_call_result()])
+        manager = _FakeMCPManager()
+
+        await run_tool_calling_loop(
+            provider, manager, _initial_messages("x"), _TOOLS, max_iterations=2,
+            usage_sink={}, cache_prefix_len=123,
+        )
+
+        # 2 main-loop iterations (both exhaust tool calls) + 1 final synthesis call.
+        assert len(provider.received_cache_prefix_lens) == 3
+        assert provider.received_cache_prefix_lens == [123, 123, 123]
 
     async def test_non_reporting_provider_leaves_sink_unreported(self):
         """A provider that never fills its sink must leave usage_sink empty/

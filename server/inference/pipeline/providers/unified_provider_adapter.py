@@ -127,12 +127,15 @@ class UnifiedProviderAdapter(LLMProvider):
         messages: List[Dict[str, Any]],
         tools: List[Dict[str, Any]],
         usage_sink: Optional[Dict[str, Any]] = None,
+        cache_prefix_len: Optional[int] = None,
         **kwargs,
     ):
-        """Same as generate_with_tools(), filling usage_sink when the service supports it."""
+        """Same as generate_with_tools(), filling usage_sink/applying cache breakpoints when the service supports them."""
         if not self.service:
             raise RuntimeError("Provider not initialized. Call initialize() first.")
-        return await self.service.generate_with_tools_tracked(messages, tools, usage_sink=usage_sink, **kwargs)
+        return await self.service.generate_with_tools_tracked(
+            messages, tools, usage_sink=usage_sink, cache_prefix_len=cache_prefix_len, **kwargs
+        )
 
     async def close(self) -> None:
         """Clean up resources."""

@@ -1241,7 +1241,7 @@ class TestUsageFieldsRoundTrip:
             provider="openai", blocked=False, ip="127.0.0.1",
             model="gpt-4o-mini",
             prompt_tokens=1000, completion_tokens=200, total_tokens=1200,
-            reasoning_tokens=80,
+            reasoning_tokens=80, cached_prompt_tokens=900,
             cost_usd=0.00027, input_rate_per_1m=0.15, output_rate_per_1m=0.60,
             pricing_source="exact",
         )
@@ -1255,8 +1255,50 @@ class TestUsageFieldsRoundTrip:
         assert stored['completion_tokens'] == 200
         assert stored['total_tokens'] == 1200
         assert stored['reasoning_tokens'] == 80
+        assert stored['cached_prompt_tokens'] == 900
         assert stored['cost_usd'] == pytest.approx(0.00027)
         assert stored['pricing_source'] == "exact"
+
+    @pytest.mark.asyncio
+    async def test_log_conversation_persists_cached_prompt_tokens(self, sqlite_service_with_audit):
+        """
+        cached_prompt_tokens (Anthropic cache_control reads, DeepSeek/xAI
+        automatic caching — see PricingService.estimate) must flow from the
+        usage dict passed to log_conversation() through AuditRecord and into
+        the stored row, the same path reasoning_tokens already takes, so the
+        admin audit dossier can display it (see audit.js).
+        """
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+
+        await audit_service.log_conversation(
+            query="hello", response="hi there",
+            provider="anthropic", model="claude-sonnet-5",
+            usage={
+                "prompt_tokens": 1000, "completion_tokens": 50, "total_tokens": 1050,
+                "cached_prompt_tokens": 900,
+                "cost_usd": 0.00105, "pricing_source": "exact",
+            },
+        )
+
+        results = await audit_service.query_audit_logs({})
+        assert len(results) == 1
+        assert results[0]['cached_prompt_tokens'] == 900
+
+    @pytest.mark.asyncio
+    async def test_log_conversation_omits_cached_prompt_tokens_when_absent(self, sqlite_service_with_audit):
+        """A provider that never reports a cache hit must not gain a stray 0/None row."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+
+        await audit_service.log_conversation(
+            query="hello", response="hi there",
+            provider="ollama", model="granite4:1b",
+            usage={"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60},
+        )
+
+        results = await audit_service.query_audit_logs({})
+        assert results[0].get('cached_prompt_tokens') is None
 
     @pytest.mark.asyncio
     async def test_sqlite_store_local_zero_cost_is_not_dropped(self, sqlite_service_with_audit):
@@ -1331,6 +1373,7 @@ class TestUsageFieldsRoundTrip:
 
         for expected in (
             'prompt_tokens', 'completion_tokens', 'total_tokens', 'reasoning_tokens',
+            'cached_prompt_tokens',
             'cost_usd', 'input_rate_per_1m', 'output_rate_per_1m', 'pricing_source',
             'usage_unit', 'usage_quantity',
         ):

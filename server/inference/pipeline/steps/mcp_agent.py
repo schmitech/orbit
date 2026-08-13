@@ -132,9 +132,10 @@ class MCPAgentStep(PipelineStep):
                 "Check mcp_clients configuration and server connectivity."
             )
 
-        messages = await self._build_initial_messages(context)
+        messages, cache_prefix_len = await self._build_initial_messages(context)
 
         usage_sink: dict = {}
+        tools = await self._select_relevant_tools(context, tools, usage_sink)
         final_text, sources, _ = await run_tool_calling_loop(
             provider=provider,
             mcp_manager=mcp_manager,
@@ -146,6 +147,7 @@ class MCPAgentStep(PipelineStep):
             cancel_event=context.cancel_event,
             is_cancelled=context.is_cancelled,
             usage_sink=usage_sink,
+            cache_prefix_len=cache_prefix_len,
         )
         provider_name = usage_sink.get("provider") or getattr(context, 'runtime_provider', None)
         model_name = usage_sink.get("model") or getattr(context, 'runtime_model_name', None)
@@ -160,16 +162,47 @@ class MCPAgentStep(PipelineStep):
     # Helpers
     # ------------------------------------------------------------------
 
+    async def _select_relevant_tools(self, context: ProcessingContext, tools: list, usage_sink: dict) -> list:
+        """
+        Relevance-filter the full MCP tool list down to what this turn
+        actually needs (see services.mcp_tool_selector). Embedding cost is
+        accumulated into the same usage_sink the tool-calling loop reports
+        into, so it lands on this request's audit record. Falls back to the
+        unfiltered list — this must never block a turn over a missing
+        adapter_manager or embedding provider.
+        """
+        if not self.container.has('adapter_manager'):
+            return tools
+        from services.mcp_tool_selector import MCPToolSelector
+        config = self.container.get_or_none('config') or {}
+        adapter_manager = self.container.get('adapter_manager')
+        selector = MCPToolSelector(config, adapter_manager)
+        return await selector.select_tools(
+            message=context.message,
+            tools=tools,
+            adapter_name=context.adapter_name,
+            context_messages=context.context_messages,
+            usage_sink=usage_sink,
+        )
+
     async def _build_initial_messages(
         self, context: ProcessingContext
-    ) -> List[Dict[str, Any]]:
-        """Build the initial OpenAI-format messages list from the processing context."""
+    ) -> "tuple[List[Dict[str, Any]], Optional[int]]":
+        """
+        Build the initial OpenAI-format messages list from the processing
+        context, plus the prompt-caching breakpoint (see
+        PromptInstructionBuilder.build_system_message) for the stable prefix
+        of the system message just built — the caller forwards this to
+        run_tool_calling_loop so Anthropic's cache_control breakpoint applies
+        to the tool-calling path the same way it already does for plain
+        generation (see llm_inference.py's _run_inline_mcp_tools).
+        """
         prompt_builder = PromptInstructionBuilder(
             config=self.container.get_or_none("config") or {},
             prompt_service=self.container.get_or_none("prompt_service"),
             clock_service=self.container.get_or_none("clock_service"),
         )
-        system_content = await prompt_builder.build_system_message_content(context)
+        system_content, cache_prefix_len = await prompt_builder.build_system_message(context)
 
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": system_content}
@@ -182,7 +215,7 @@ class MCPAgentStep(PipelineStep):
             })
 
         messages.append({"role": "user", "content": context.message})
-        return messages
+        return messages, cache_prefix_len
 
     async def _resolve_provider(self, context: ProcessingContext):
         """Resolve the inference provider, preferring the adapter's configured provider."""

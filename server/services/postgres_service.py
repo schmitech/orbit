@@ -303,6 +303,7 @@ class PostgresService(DatabaseService):
                     completion_tokens INTEGER,
                     total_tokens INTEGER,
                     reasoning_tokens INTEGER,
+                    cached_prompt_tokens INTEGER,
                     cost_usd DOUBLE PRECISION,
                     input_rate_per_1m DOUBLE PRECISION,
                     output_rate_per_1m DOUBLE PRECISION,

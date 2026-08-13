@@ -199,6 +199,14 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
       if (ev.reasoning_tokens != null) {
         usageRows.splice(2, 0, ["Reasoning tokens", formatNum(ev.reasoning_tokens)]);
       }
+      // Only shown when the provider reports a prompt-cache hit (Anthropic
+      // cache_control, DeepSeek/xAI automatic caching) — already included in
+      // "Prompt tokens" above; priced at a discount when the pricing table
+      // has a cached_input_per_1m tier configured for this provider/model
+      // (see PricingService.estimate), otherwise at the full input rate.
+      if (ev.cached_prompt_tokens != null) {
+        usageRows.splice(1, 0, ["Cached prompt tokens", formatNum(ev.cached_prompt_tokens)]);
+      }
       // Only shown for discrete-unit media requests (images/video seconds/
       // TTS characters/STT seconds/OCR pages) — token-billed requests never
       // set these, so the row is omitted entirely rather than showing "—".

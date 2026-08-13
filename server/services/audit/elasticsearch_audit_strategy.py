@@ -203,6 +203,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             "completion_tokens": {"type": "integer"},
             "total_tokens": {"type": "integer"},
             "reasoning_tokens": {"type": "integer"},
+            "cached_prompt_tokens": {"type": "integer"},
             "cost_usd": {"type": "double"},
             "input_rate_per_1m": {"type": "double"},
             "output_rate_per_1m": {"type": "double"},

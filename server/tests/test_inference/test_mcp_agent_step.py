@@ -67,6 +67,18 @@ class _FakeProvider:
         )
 
 
+class _FakeTrackedProvider(_FakeProvider):
+    """Records the cache_prefix_len passed to generate_with_tools_tracked."""
+
+    def __init__(self, results):
+        super().__init__(results)
+        self.received_cache_prefix_lens = []
+
+    async def generate_with_tools_tracked(self, messages, tools, usage_sink=None, cache_prefix_len=None, **kwargs):
+        self.received_cache_prefix_lens.append(cache_prefix_len)
+        return await self.generate_with_tools(messages, tools, **kwargs)
+
+
 class _FakeMCPManager:
     def __init__(self, tools, max_iterations=3, tool_output="TOOL_OUTPUT"):
         self._tools = tools
@@ -105,7 +117,24 @@ def _make_step(provider, manager):
             return [
                 {"role": "system", "content": "sys"},
                 {"role": "user", "content": context.message},
-            ]
+            ], None
+
+    return _Step(_FakeContainer())
+
+
+def _make_step_with_cache_prefix_len(provider, manager, cache_prefix_len):
+    class _Step(MCPAgentStep):
+        async def _resolve_provider(self, context):
+            return provider
+
+        def _get_mcp_manager(self):
+            return manager
+
+        async def _build_initial_messages(self, context):
+            return [
+                {"role": "system", "content": "sys"},
+                {"role": "user", "content": context.message},
+            ], cache_prefix_len
 
     return _Step(_FakeContainer())
 
@@ -150,6 +179,31 @@ class TestMCPAgentLoop:
         assert sources == []
         assert manager.called_with == []  # no tool executed
         assert len(provider.calls) == 1
+
+    async def test_cache_prefix_len_from_initial_messages_reaches_the_loop(self):
+        """
+        Regression: _build_initial_messages computed the system message via
+        build_system_message_content() (losing the prefix/tail split) and
+        _run_agent_loop never forwarded any breakpoint to run_tool_calling_loop —
+        so the explicit mcp-agent skill's Anthropic calls never got a
+        cache_control breakpoint either, same bug as the inline opportunistic
+        path in llm_inference.py.
+        """
+        provider = _FakeTrackedProvider([
+            ToolCallingResult(
+                text="just an answer",
+                tool_calls=None,
+                assistant_message={"role": "assistant", "content": "just an answer"},
+                finish_reason="stop",
+            )
+        ])
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step_with_cache_prefix_len(provider, manager, cache_prefix_len=42)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        await step._run_agent_loop(ctx)
+
+        assert provider.received_cache_prefix_lens == [42]
 
     async def test_single_tool_call_then_final_answer(self):
         provider = _FakeProvider([

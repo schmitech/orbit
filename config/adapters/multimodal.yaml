@@ -10,12 +10,12 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "openai"          # Override default inference provider
-    model: "gpt-5.4-mini"                # Specific model for this adapter
-    embedding_provider: "openai"
-    embedding_model: "text-embedding-3-small"
-    vision_provider: "gemini"           # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
-    stt_provider: "openai"               # STT provider for audio transcription (see stt.yaml)
+    inference_provider: "ollama_cloud"          # Override default inference provider
+    model: "gpt-oss:120b"                # Specific model for this adapter
+    embedding_provider: "cohere"
+    embedding_model: "embed-v4.0"
+    vision_provider: "cohere"           # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    stt_provider: "whisper"               # STT provider for audio transcription (see stt.yaml)
     tts_provider: "gemini"               # For TTS output (see tts.yaml)
     # Optional generation parameter overrides - fall back to config/inference.yaml
     # defaults for the resolved inference_provider when omitted.
@@ -152,6 +152,11 @@ adapters:
         context_window: 1048576
         max_tokens: 65536
         effort: "low"           # Maps to thinking_level (minimal | low | medium | high)
+      - name: "gpt-5.6-luna"
+        provider: "openai"
+        model: "gpt-5.6-luna"
+        context_window: 1048576
+        max_tokens: 65536
       - name: "nemotron-3-ultra"
         provider: "ollama_cloud"
         model: "nemotron-3-ultra:cloud"
@@ -186,6 +191,7 @@ adapters:
         - "Audio"
         - "PDF"
         - "Word"
+        - "CSV"
         - "Excel"
         - "PowerPoint"
         - "HR"
@@ -198,6 +204,7 @@ adapters:
         - "Fetch"
         - "Markdown"
       formatting_style: "clean"          # Clean format (no citations) to prevent LLM citation markers
+      supports_charts: true               # Emit chart-formatting instructions when the turn looks chart-related (e.g. visualizing an uploaded CSV/spreadsheet)
       supports_threading: false
       # Automatic skill intent detection: infer a skill (PDF, Image, Audio, ...)
       # from plain natural language without the client sending skill=<name>.
@@ -226,7 +233,7 @@ adapters:
       # same thread throughout. Requires mcp_client.enabled: true AND
       # mcp_client.allow_opportunistic: true in config/mcp_client.yaml.
       # See docs/adapters/mcp-agent.md#opportunistic-mode.
-      mcp_tools: false
+      mcp_tools: true
       mcp_servers:              # allowlist — keep narrow; every enabled
         - "business-sample"      # conversational turn, not just tool-using ones
 
@@ -240,7 +247,7 @@ adapters:
       # Processing configuration
       # Chunking strategy options: "fixed", "semantic", "token", "recursive"
       # These settings override global defaults in config.yaml
-      chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive"
+      chunking_strategy: "recursive"  # "fixed", "semantic", "token", "recursive"
       chunk_size: 1000  # Increased to fit token-optimized CSV/JSON summaries in single chunks
       chunk_overlap: 100  # Characters for fixed/semantic, tokens for token/recursive
 
@@ -273,9 +280,11 @@ adapters:
     capabilities:
       retrieval_behavior: "conditional"
       formatting_style: "clean"
+      supports_charts: true               # Emit chart-formatting instructions when the turn looks chart-related (e.g. visualizing an uploaded CSV/spreadsheet)
       supports_file_ids: true
       supports_session_tracking: true
       requires_api_key_validation: true
+      requires_authenticated_user: false # Override auth.require_authenticated_user; leave off unless this adapter should require login
       requires_encryption: false         # Set true to require encrypted file storage (files.encryption.enabled must be true)
       skip_when_no_files: true
       optional_parameters:

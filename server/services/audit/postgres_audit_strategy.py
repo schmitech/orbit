@@ -344,6 +344,7 @@ class PostgresAuditStrategy(AuditStorageStrategy):
 
         for field in (
             'prompt_tokens', 'completion_tokens', 'total_tokens', 'reasoning_tokens',
+            'cached_prompt_tokens',
             'cost_usd', 'input_rate_per_1m', 'output_rate_per_1m', 'pricing_source',
             'usage_unit', 'usage_quantity', 'call_type',
         ):

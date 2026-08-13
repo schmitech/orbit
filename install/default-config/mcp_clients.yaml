@@ -39,6 +39,15 @@ mcp_clients:
   pool_size: 2                      # Warm connections kept per server, reused across tool calls; 0 disables pooling
   pool_idle_timeout: 300            # Seconds a pooled connection may sit idle before it's discarded and rebuilt; 0 = never evict
 
+  # Per-turn tool relevance filtering: above max_tools, an embedding
+  # pre-filter keeps only tools relevant to the current message (plus any
+  # tool already called earlier in the thread). Falls back to the full
+  # tool list if no embedding provider is configured.
+  tool_selection:
+    enabled: true
+    max_tools: 15
+    embedding_threshold: 0.3
+
   servers:
     # ── Filesystem MCP server (stdio, read-only local files) ─────────────
     # - name: "filesystem"

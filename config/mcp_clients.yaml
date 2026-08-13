@@ -56,7 +56,22 @@ mcp_clients:
   tool_result_max_chars: 8000       # Cap on result text injected into model context (prevents context overflow)
   pool_size: 2
   pool_idle_timeout: 300
-  
+
+  # ── Per-turn tool relevance filtering ──────────────────────────────────
+  # With several servers enabled (especially a large one like GitHub's MCP
+  # endpoint, ~70-100 tools), the full tool-schema list can be 20k-50k
+  # tokens, re-sent on every iteration of the tool-calling loop. When the
+  # tool count for a request exceeds max_tools, an embedding pre-filter
+  # keeps only the tools relevant to the current message (plus any tool
+  # already called earlier in the same thread, which is never dropped).
+  # Falls back to the full tool list — never blocks a turn — if no
+  # embedding provider is configured (adapter embedding_provider or the
+  # global embedding.provider in embeddings.yaml).
+  tool_selection:
+    enabled: true
+    max_tools: 1                   # No filtering below this many tools for a request
+    embedding_threshold: 0.3        # Cosine-similarity cutoff against the query
+
   servers:
     # ── Filesystem MCP server (stdio, read-only local files) ─────────────
     #

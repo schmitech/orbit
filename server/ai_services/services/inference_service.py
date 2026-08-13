@@ -294,17 +294,21 @@ class InferenceService(ProviderAIService):
         messages: List[Dict[str, Any]],
         tools: List[Dict[str, Any]],
         usage_sink: Optional[Dict[str, Any]] = None,
+        cache_prefix_len: Optional[int] = None,
         **kwargs,
     ) -> "ToolCallingResult":
         """
         Same as generate_with_tools(), but fills usage_sink with token usage
-        when this implementation supports it. Safe to call on any
-        implementation — usage_sink is only forwarded when
-        SUPPORTS_USAGE_REPORTING is True, so un-migrated implementations
-        (which splat **kwargs straight into the provider SDK) never see it.
+        and applies a prompt-caching breakpoint when this implementation
+        supports them. Safe to call on any implementation — usage_sink/
+        cache_prefix_len are only forwarded when the corresponding SUPPORTS_*
+        flag is True, so un-migrated implementations (which splat **kwargs
+        straight into the provider SDK) never see the extra kwargs.
         """
         if usage_sink is not None and self.SUPPORTS_USAGE_REPORTING:
-            return await self.generate_with_tools(messages, tools, usage_sink=usage_sink, **kwargs)
+            kwargs["usage_sink"] = usage_sink
+        if cache_prefix_len is not None and self.SUPPORTS_PROMPT_CACHING:
+            kwargs["cache_prefix_len"] = cache_prefix_len
         return await self.generate_with_tools(messages, tools, **kwargs)
 
     async def generate_with_fallback(

@@ -397,6 +397,72 @@ class TestResponseProcessor:
         assert audit_call[1]['adapter_name'] == "pdf-generator"
 
     @pytest.mark.asyncio
+    async def test_mcp_tool_calls_recorded_in_stored_metadata(
+        self, base_config, mock_conversation_handler, mock_logger_service
+    ):
+        """
+        sources containing mcp_tool_call entries must be reduced to a flat
+        mcp_tools_used list in the metadata handed to store_turn, so a later
+        turn's MCPToolSelector can reconstruct which tools this thread
+        already used once history is reloaded from storage (see
+        ChatHistoryService.get_context_messages and MCPToolSelector).
+        """
+        processor = ResponseProcessor(
+            config=base_config,
+            conversation_handler=mock_conversation_handler,
+            logger_service=mock_logger_service,
+        )
+
+        await processor.process_response(
+            response="It's sunny in Paris.",
+            message="What's the weather in Paris?",
+            client_ip="127.0.0.1",
+            adapter_name="simple-chat",
+            session_id="session123",
+            user_id="user456",
+            api_key="key789",
+            backend="openai",
+            processing_time=1.5,
+            sources=[
+                {"type": "mcp_tool_call", "tool": "weather__get_current", "arguments": {}},
+                {"type": "mcp_tool_call", "tool": "weather__get_current", "arguments": {}},
+                {"type": "mcp_tool_call", "tool": "geo__lookup_city", "arguments": {}},
+            ],
+        )
+
+        history_call = mock_conversation_handler.store_turn.call_args
+        assert history_call[1]['metadata']['mcp_tools_used'] == [
+            "geo__lookup_city", "weather__get_current",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_no_mcp_tools_used_key_when_sources_has_no_tool_calls(
+        self, base_config, mock_conversation_handler, mock_logger_service
+    ):
+        """Ordinary (non-MCP) turns must not gain an empty mcp_tools_used key."""
+        processor = ResponseProcessor(
+            config=base_config,
+            conversation_handler=mock_conversation_handler,
+            logger_service=mock_logger_service,
+        )
+
+        await processor.process_response(
+            response="Hi there.",
+            message="hello",
+            client_ip="127.0.0.1",
+            adapter_name="simple-chat",
+            session_id="session123",
+            user_id="user456",
+            api_key="key789",
+            backend="openai",
+            processing_time=1.5,
+            sources=None,
+        )
+
+        history_call = mock_conversation_handler.store_turn.call_args
+        assert "mcp_tools_used" not in history_call[1]['metadata']
+
+    @pytest.mark.asyncio
     async def test_process_response_audit_falls_back_to_adapter_name_when_no_swap(
         self, base_config, mock_conversation_handler, mock_logger_service
     ):

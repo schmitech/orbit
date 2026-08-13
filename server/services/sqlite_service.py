@@ -286,6 +286,7 @@ class SQLiteService(DatabaseService):
                     completion_tokens INTEGER,
                     total_tokens INTEGER,
                     reasoning_tokens INTEGER,
+                    cached_prompt_tokens INTEGER,
                     cost_usd REAL,
                     input_rate_per_1m REAL,
                     output_rate_per_1m REAL,

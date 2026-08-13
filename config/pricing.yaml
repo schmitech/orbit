@@ -13,6 +13,11 @@
 # input_per_1m / output_per_1m are USD per 1,000,000 tokens.
 # A rate of 0.0 means "known to be free" (e.g. local models) and is reported
 # distinctly from "unpriced" in the UI.
+#
+# cached_input_per_1m is an optional discounted rate for the subset of
+# prompt tokens a provider serves from its own cache (Anthropic cache_control
+# breakpoints, DeepSeek/xAI automatic caching). Omit it and cached tokens are
+# simply priced at the full input_per_1m rate — accurate but not discounted.
 
 pricing:
   currency: "USD"
@@ -34,9 +39,9 @@ pricing:
       "gpt-realtime*": { input_per_1m: 4.00, output_per_1m: 16.00, audio_input_per_1m: 32.00, audio_output_per_1m: 64.00 }
 
     anthropic:
-      "claude-opus*":    { input_per_1m: 15.00, output_per_1m: 75.00 }
-      "claude-sonnet*":  { input_per_1m: 3.00,  output_per_1m: 15.00 }
-      "claude-haiku*":   { input_per_1m: 0.80,  output_per_1m: 4.00 }
+      "claude-opus*":    { input_per_1m: 15.00, output_per_1m: 75.00, cached_input_per_1m: 1.50 }
+      "claude-sonnet*":  { input_per_1m: 3.00,  output_per_1m: 15.00, cached_input_per_1m: 0.30 }
+      "claude-haiku*":   { input_per_1m: 0.80,  output_per_1m: 4.00,  cached_input_per_1m: 0.08 }
 
     gemini:
       # Live/realtime voice variant — was previously falling through to the
@@ -99,7 +104,7 @@ pricing:
       "*": { input_per_1m: null, output_per_1m: null }
 
     deepseek:
-      "deepseek-chat*": { input_per_1m: 0.28, output_per_1m: 0.42 }
+      "deepseek-chat*": { input_per_1m: 0.28, output_per_1m: 0.42, cached_input_per_1m: 0.028 }
 
     groq:
       "*": { input_per_1m: 0.05, output_per_1m: 0.08 }

@@ -93,12 +93,14 @@ class LLMProvider(ABC):
         messages: Any,
         tools: Any,
         usage_sink: Optional[Dict[str, Any]] = None,
+        cache_prefix_len: Optional[int] = None,
         **kwargs,
     ) -> Any:
         """
-        Same as generate_with_tools(), but fills usage_sink with token usage
-        when the underlying service supports it. Non-abstract with a plain
-        delegation default so legacy providers and test doubles that only
+        Same as generate_with_tools(), but fills usage_sink with token usage /
+        applies a prompt-caching breakpoint when the underlying service
+        supports them. Non-abstract with a plain delegation default (both
+        extra kwargs dropped) so legacy providers and test doubles that only
         implement generate_with_tools() keep working unchanged.
         """
         return await self.generate_with_tools(messages, tools, **kwargs)

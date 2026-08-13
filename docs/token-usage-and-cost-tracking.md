@@ -29,8 +29,9 @@ provider SDK response
        - looks up cost via PricingService (server/services/pricing_service.py)
        - writes context.metadata["usage"]
   -> ResponseProcessor.log_conversation() -> AuditService.log_conversation()
-  -> AuditRecord (prompt_tokens, completion_tokens, total_tokens, cost_usd,
-     input_rate_per_1m, output_rate_per_1m, pricing_source)
+  -> AuditRecord (prompt_tokens, completion_tokens, total_tokens,
+     cached_prompt_tokens, cost_usd, input_rate_per_1m, output_rate_per_1m,
+     pricing_source)
   -> audit_logs table / collection / index
   -> GET /admin/audit/events (per-record) and GET /admin/observability/usage (aggregated)
 ```
@@ -265,12 +266,14 @@ the matching/precedence rules above don't change, and it should preserve the
 - **Per-record**: `GET /admin/audit/events` — each inference-source row
   carries `prompt_tokens`, `completion_tokens`, `total_tokens`,
   `reasoning_tokens` (informational, only set for providers that break it
-  out — see above), `cost_usd`, `input_rate_per_1m`, `output_rate_per_1m`,
-  `pricing_source`, `usage_unit`, `usage_quantity` (the latter two only set
-  for discrete-unit media requests — see below) in `request_summary` (and at
-  the top level of the row). Rendered as the Tokens/Cost columns and the
-  "Usage & cost" section of the record dossier in the admin panel's Audit
-  tab.
+  out — see above), `cached_prompt_tokens` (informational + priceable subset
+  of `prompt_tokens` served from a provider-side cache — see "Reducing
+  prompt-token cost per turn" below), `cost_usd`, `input_rate_per_1m`,
+  `output_rate_per_1m`, `pricing_source`, `usage_unit`, `usage_quantity` (the
+  latter two only set for discrete-unit media requests — see below) in
+  `request_summary` (and at the top level of the row). Rendered as the
+  Tokens/Cost columns and the "Usage & cost" section of the record dossier in
+  the admin panel's Audit tab.
 - **Aggregated**: `GET /admin/observability/usage` (admin panel: the
   **Costs** tab) — token/cost totals, a time-bucketed series, and top-N
   groups by model/provider/adapter/user, over a configurable window. Backed
@@ -362,6 +365,19 @@ Costs tab's totals need no changes to include media spend.
   is a locally-computed number, not what the provider will actually invoice
   (rounding, committed-use discounts, free tier credits, etc. are all
   invisible to this feature).
+- **Diagnosing a `mixed`-priced row.** A request that combines more than one
+  priceable call in the same turn (e.g. inference plus a skill-routing/RAG/
+  MCP-tool-selection embedding call) gets `pricing_source: "mixed"` on its
+  audit row. The audit ledger only stores the *summed* totals, not a
+  per-call breakdown, so a `mixed` row alone can't tell you whether that's
+  benign (every call priced fine, just from different sources) or a real gap
+  (a call's tokens counted toward `prompt_tokens`/`total_tokens` but
+  contributed `$0` because nothing priced it, silently understating
+  `cost_usd`). `record_usage()` (`server/inference/pipeline/steps/_utils.py`)
+  logs the full per-call breakdown when this happens — at `WARNING` only for
+  the genuine-gap case (so it doesn't drown in noise on every routine
+  embedding-plus-inference turn, which logs at `DEBUG`). Check `orbit.log`
+  for `Request priced as 'mixed'` when a `mixed` row's cost looks off.
 
 ## Reducing prompt-token cost per turn
 
@@ -388,14 +404,21 @@ the pricing/audit machinery documented above:
   block) changes every turn and is appended after the breakpoint. This is
   threaded through the pipeline as `context.cacheable_prefix_len`
   (`server/inference/pipeline/base.py`) and forwarded to
-  `generate_tracked`/`generate_stream_tracked` as `cache_prefix_len`. A
-  provider only receives it when it sets `SUPPORTS_PROMPT_CACHING = True`
-  (mirrors the existing `SUPPORTS_USAGE_REPORTING` gate) — currently only
-  `AnthropicInferenceService`, which turns it into an explicit
-  `cache_control: {"type": "ephemeral"}` breakpoint on the `system` param.
-  OpenAI and Gemini need no provider-side change at all: their automatic/
-  implicit prompt caching activates on its own once the prefix is stable,
-  which the split alone already provides.
+  `generate_tracked`/`generate_stream_tracked` **and** `generate_with_tools_tracked`
+  as `cache_prefix_len` — the latter covers the MCP tool-calling path
+  (`LLMInferenceStep._run_inline_mcp_tools`'s opportunistic loop and
+  `MCPAgentStep._run_agent_loop`'s explicit `mcp-agent` skill), which
+  originally had no caching breakpoint at all even though it's what every
+  turn on an `mcp_tools: true` adapter actually runs; `mcp_tool_loop.py`'s
+  `run_tool_calling_loop()` forwards the same breakpoint to every iteration,
+  including the final no-tools synthesis call, since the system message
+  doesn't change mid-loop. A provider only receives it when it sets
+  `SUPPORTS_PROMPT_CACHING = True` (mirrors the existing
+  `SUPPORTS_USAGE_REPORTING` gate) — currently only `AnthropicInferenceService`,
+  which turns it into an explicit `cache_control: {"type": "ephemeral"}`
+  breakpoint on the `system` param. OpenAI and Gemini need no provider-side
+  change at all: their automatic/implicit prompt caching activates on its
+  own once the prefix is stable, which the split alone already provides.
   - `history.system_overhead_tokens` in `config.yaml` (default `1200`)
     replaces a previously hardcoded, too-small 700-token reserve in
     `ChatHistoryService._calculate_max_token_budget()` — the chart
@@ -418,8 +441,20 @@ the pricing/audit machinery documented above:
     discount tier configured yet (no confirmed discounted rate in xAI's docs) — cached tokens price
     at parity with the rest of the prompt until one is confirmed.
   - **Mistral, Cohere** — audited, no prompt-caching mechanism found; nothing to wire.
-- **Not yet done**: relevance-filtering MCP tool schemas per turn (today every enabled server's
-  full tool list is sent on every loop iteration — potentially tens of thousands of tokens with a
-  large server like GitHub's MCP endpoint enabled), and cached-token extraction for the remaining
-  OpenAI-compatible providers (Groq, DeepInfra, Together, Fireworks, Cerebras, Moonshot, Minimax,
-  Nebius, Scaleway, Perplexity, Venice) — not yet individually audited.
+- **MCP tool schemas are relevance-filtered per turn**, instead of always sending every tool from
+  every enabled server. `services/mcp_tool_selector.py`'s `MCPToolSelector` embeds each tool's
+  `name + description` and keeps only those scoring above `mcp_clients.tool_selection.embedding_threshold`
+  (default `0.3`) against the current message, capped at `mcp_clients.tool_selection.max_tools`
+  (default `15`) — plus any tool already called earlier in the thread, which is never dropped.
+  Skips filtering entirely (zero embedding cost) when a request's tool count is already at or
+  under `max_tools`. Wired into both `LLMInferenceStep._run_inline_mcp_tools` (opportunistic
+  inline calling) and `MCPAgentStep._run_agent_loop` (the explicit `mcp-agent` skill), right before
+  the tool list is handed to `run_tool_calling_loop` — the loop already keeps whatever list it's
+  given fixed for every iteration, so no change was needed there. Set
+  `mcp_clients.tool_selection.enabled: false` to disable; with no embedding provider configured
+  (adapter `embedding_provider` or global `embedding.provider`), an embedding-client init failure,
+  or any other internal error, it falls back to the unfiltered tool list rather than blocking the
+  turn.
+- **Not yet done**: cached-token extraction for the remaining OpenAI-compatible providers (Groq,
+  DeepInfra, Together, Fireworks, Cerebras, Moonshot, Minimax, Nebius, Scaleway, Perplexity,
+  Venice) — not yet individually audited.

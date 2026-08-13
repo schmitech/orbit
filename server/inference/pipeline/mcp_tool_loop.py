@@ -53,16 +53,24 @@ async def await_or_cancel(coro, cancel_event: Optional[asyncio.Event]):
     return task.result()
 
 
-def _call_with_tools(provider, messages, tools, usage_sink: Optional[Dict[str, Any]]):
+def _call_with_tools(
+    provider,
+    messages,
+    tools,
+    usage_sink: Optional[Dict[str, Any]],
+    cache_prefix_len: Optional[int] = None,
+):
     """
     Call generate_with_tools_tracked when the provider has it, else fall back
     to plain generate_with_tools. Some test doubles and third-party providers
     implement only generate_with_tools directly rather than subclassing
     LLMProvider (which provides the tracked default) — this keeps the loop
-    working for them, just without usage reporting for that call.
+    working for them, just without usage reporting/prompt caching for that call.
     """
     if hasattr(provider, "generate_with_tools_tracked"):
-        return provider.generate_with_tools_tracked(messages, tools, usage_sink=usage_sink)
+        return provider.generate_with_tools_tracked(
+            messages, tools, usage_sink=usage_sink, cache_prefix_len=cache_prefix_len
+        )
     return provider.generate_with_tools(messages, tools)
 
 
@@ -75,6 +83,7 @@ async def run_tool_calling_loop(
     cancel_event: Optional[asyncio.Event] = None,
     is_cancelled: Optional[Callable[[], bool]] = None,
     usage_sink: Optional[Dict[str, Any]] = None,
+    cache_prefix_len: Optional[int] = None,
 ) -> Tuple[Optional[str], List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Execute the bounded tool-calling loop.
@@ -93,6 +102,12 @@ async def run_tool_calling_loop(
             used per call (see accumulate_usage_sink) since _report_usage()
             overwrites rather than accumulates — reusing one sink across calls
             would silently drop all but the last iteration's counts.
+        cache_prefix_len: Optional prompt-caching breakpoint (see
+            PromptInstructionBuilder.build_system_message), forwarded to every
+            call this loop makes including the final no-tools synthesis call —
+            the system message doesn't change mid-loop, so the same breakpoint
+            applies to all of them. Dropped by providers that don't support it
+            (see generate_with_tools_tracked's SUPPORTS_PROMPT_CACHING gate).
 
     Returns:
         (final_text, sources, messages) — messages is the same list passed in,
@@ -124,7 +139,7 @@ async def run_tool_calling_loop(
 
         iter_sink: Optional[Dict[str, Any]] = {} if usage_sink is not None else None
         result = await await_or_cancel(
-            _call_with_tools(provider, messages, tools, iter_sink), cancel_event
+            _call_with_tools(provider, messages, tools, iter_sink, cache_prefix_len), cancel_event
         )
         if usage_sink is not None:
             accumulate_usage_sink(usage_sink, iter_sink)
@@ -194,7 +209,7 @@ async def run_tool_calling_loop(
     try:
         final_iter_sink: Optional[Dict[str, Any]] = {} if usage_sink is not None else None
         final_result = await await_or_cancel(
-            _call_with_tools(provider, messages, [], final_iter_sink), cancel_event
+            _call_with_tools(provider, messages, [], final_iter_sink, cache_prefix_len), cancel_event
         )
         if usage_sink is not None:
             accumulate_usage_sink(usage_sink, final_iter_sink)

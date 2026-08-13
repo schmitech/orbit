@@ -466,6 +466,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     completion_tokens INTEGER,
     total_tokens INTEGER,
     reasoning_tokens INTEGER,
+    cached_prompt_tokens INTEGER,
     cost_usd REAL,
     input_rate_per_1m REAL,
     output_rate_per_1m REAL,
@@ -499,6 +500,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `completion_tokens` (INTEGER): Output token count reported by the provider, inclusive of any billed reasoning tokens
 - `total_tokens` (INTEGER): `prompt_tokens + completion_tokens`
 - `reasoning_tokens` (INTEGER): Reasoning/thinking tokens broken out from `completion_tokens` where the provider reports them separately (OpenAI-shaped `completion_tokens_details`/`output_tokens_details`, Gemini/Vertex `thoughts_token_count`); `NULL` when the provider doesn't report this breakdown
+- `cached_prompt_tokens` (INTEGER): Subset of `prompt_tokens` served from a provider-side prompt cache (Anthropic `cache_control` breakpoints, DeepSeek/xAI automatic caching); already included in `prompt_tokens`/`total_tokens`, and priced at a discount when `config/pricing.yaml` has a `cached_input_per_1m` tier for that provider/model (see `docs/token-usage-and-cost-tracking.md`). `NULL` when the provider doesn't report a cache hit
 - `cost_usd` (REAL): Estimated cost from `config/pricing.yaml` (see `docs/token-usage-and-cost-tracking.md`). `NULL` means unpriced (no matching rate), distinct from `0.0` which means an explicit free/local rate
 - `input_rate_per_1m` (REAL): Input rate ($/1M tokens) used for this estimate, captured at write time so historical rows stay auditable after `pricing.yaml` changes
 - `output_rate_per_1m` (REAL): Output rate ($/1M tokens) used for this estimate
@@ -854,6 +856,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.12** (2026-08-13): Cached prompt token tracking
+  - Added `audit_logs.cached_prompt_tokens` — the subset of `prompt_tokens` served from a provider-side prompt cache (Anthropic `cache_control`, DeepSeek/xAI automatic caching), already priced at a discount by `PricingService.estimate()` when configured; previously computed but silently dropped before reaching the audit ledger
+  - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`); MongoDB is schemaless and needs no migration; the Elasticsearch mapping gained an explicit `integer` type for the same reason `reasoning_tokens` has one
+  - `install/orbit.db.default` (the default database shipped with new installs) updated in place to include the column
 - **v1.11** (2026-08-05): Email-preauthorized API keys
   - Added `api_keys.allowed_emails` (JSON array of normalized email addresses), allowing an administrator to restrict a key before an OIDC user has been JIT-provisioned. A caller matching either `allowed_emails` or `allowed_user_ids` is authorized; any configured allowlist fails closed for anonymous callers
   - Applied to existing SQLite/Postgres databases by the additive startup migration (`_migrate_table_schema`); schemaless backends need no migration

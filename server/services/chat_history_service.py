@@ -1984,10 +1984,19 @@ class ChatHistoryService:
             for msg in selected_messages:
                 role = msg.get("role")
                 if role in ["user", "assistant", "system"]:
-                    context_messages.append({
+                    entry = {
                         "role": role,
                         "content": msg.get("content", "")
-                    })
+                    }
+                    # Surface which MCP tools this turn used (see
+                    # response_processor.py), so MCPToolSelector's
+                    # already-called-tool union guarantee still works once
+                    # history is reloaded from storage — role/content alone
+                    # carries no trace of a prior turn's tool calls.
+                    mcp_tools_used = (msg.get("metadata") or {}).get("mcp_tools_used")
+                    if mcp_tools_used:
+                        entry["mcp_tools_used"] = mcp_tools_used
+                    context_messages.append(entry)
 
             return context_messages, accumulated_tokens
 

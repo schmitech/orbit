@@ -93,6 +93,7 @@ class AuditRecord:
     completion_tokens: Optional[int] = None
     total_tokens: Optional[int] = None
     reasoning_tokens: Optional[int] = None  # Subset of completion_tokens; informational, already priced within it
+    cached_prompt_tokens: Optional[int] = None  # Subset of prompt_tokens served from a provider cache; already priced within it (see PricingService.estimate)
     cost_usd: Optional[float] = None
     input_rate_per_1m: Optional[float] = None
     output_rate_per_1m: Optional[float] = None
@@ -155,6 +156,8 @@ class AuditRecord:
             result['total_tokens'] = self.total_tokens
         if self.reasoning_tokens is not None:
             result['reasoning_tokens'] = self.reasoning_tokens
+        if self.cached_prompt_tokens is not None:
+            result['cached_prompt_tokens'] = self.cached_prompt_tokens
         if self.cost_usd is not None:
             result['cost_usd'] = self.cost_usd
         if self.input_rate_per_1m is not None:
@@ -237,6 +240,7 @@ class AuditRecord:
         result['completion_tokens'] = self.completion_tokens
         result['total_tokens'] = self.total_tokens
         result['reasoning_tokens'] = self.reasoning_tokens
+        result['cached_prompt_tokens'] = self.cached_prompt_tokens
         result['cost_usd'] = self.cost_usd
         result['input_rate_per_1m'] = self.input_rate_per_1m
         result['output_rate_per_1m'] = self.output_rate_per_1m

@@ -1,6 +1,13 @@
 # Reduce per-turn token consumption on paid APIs
 
-## Status (updated after first implementation pass)
+## Status — roadmap complete
+
+Every phase below is done or deliberately closed. The two `⬜` rows (Phase 2b's incremental
+history/tool cache breakpoints, and Phase 4.2's synchronous tokenizer swap) are conscious
+decisions not to implement, not deferred work — see each phase's detail section for the reasoning.
+Manually verified end-to-end against a live server + OrbitChat per
+`docs/qa/token-optimization-regression-playbook.md`, including the audit-ledger cost math for
+Anthropic (with cache reads), xAI (with reasoning + cached tokens), and the MCP-tools path.
 
 | Phase | Status | Notes |
 |---|---|---|
@@ -8,7 +15,7 @@
 | Phase 2a — Stable prefix/tail split | ✅ Done | `build_system_message()` returns `(content, prefix_len)` |
 | Phase 2b — Carry breakpoint to provider | 🟡 Partial | Anthropic only (explicit `cache_control`); OpenAI/Gemini need no code (benefit passively from 2a); Anthropic history/tool breakpoints (max 4) not added — single breakpoint only |
 | Phase 2c — Extend caching to remaining providers (DeepSeek, xAI, Mistral, Cohere, Groq, etc.) | ✅ Done (DeepSeek, xAI, Anthropic usage) | DeepSeek `prompt_cache_hit_tokens` and xAI `prompt_tokens_details.cached_tokens` now extracted; Anthropic's own usage now also folds `cache_read_input_tokens`/`cache_creation_input_tokens` into prompt_tokens. Mistral/Cohere/Groq/other OpenAI-compatible providers audited — no documented caching mechanism found, left untouched (would need re-checking if a provider adds one) |
-| Phase 3 — Relevance-filter MCP tools | ⬜ Not started | Biggest remaining win (20k–50k tokens/turn on MCP-enabled adapters) |
+| Phase 3 — Relevance-filter MCP tools | ✅ Done | New `MCPToolSelector` (`server/services/mcp_tool_selector.py`), wired into both `LLMInferenceStep._run_inline_mcp_tools` and `MCPAgentStep._run_agent_loop`; gated by `mcp_clients.tool_selection` (default `enabled: true`, `max_tools: 15`) |
 | Phase 4.1 — Fix history overhead constant | ✅ Done | `history.system_overhead_tokens` (default 1200), replaces hardcoded 700 |
 | Phase 4.2 — Tokenizer-accurate estimate | ⬜ Not started (re-scoped) | Left `len//3` heuristic as-is — intentionally fast, real tokenizer already applied async; not a bug, decided not worth the risk |
 | Phase 4.3 — Cache-token-aware pricing | ✅ Done | `cached_prompt_tokens` threaded through `usage_sink`/`accumulate_usage_sink`/`record_usage`; `PricingService` prices it at optional `cached_input_per_1m` (configured for Anthropic + DeepSeek in `config/pricing.yaml`), falls back to full input rate when no discount tier is configured (xAI: no confirmed discount, so full rate) |
@@ -148,6 +155,26 @@ Per provider:
   skipped this common case). ⬜ Not done: the second breakpoint on the last trimmed-history message
   (incremental history caching) and the tool-list breakpoint ordering — still a single
   system-prefix breakpoint only.
+
+  **Post-review fix (found during manual QA, not code review):** the breakpoint above was only ever
+  reachable from the plain `generate()`/`generate_stream()` path. `generate_with_tools()` — the path
+  every MCP-tools turn actually takes, whether the opportunistic inline loop (`mcp_tools: true`) or
+  the explicit `mcp-agent` skill — accepted no `cache_prefix_len` at all and always sent `system` as
+  a bare string, so **any adapter with tools enabled never got a cache hit on any turn**, including
+  turns that didn't call a tool (the loop still sends the full tool schema on every call). Manual
+  regression testing against `simple-chat-with-files` (`mcp_tools: true`) surfaced this as
+  `cached_prompt_tokens: 0` on every turn despite the plain-generation path working correctly in
+  isolation. Fixed by threading `cache_prefix_len` through the same `SUPPORTS_PROMPT_CACHING` gate
+  the plain path uses, at every layer: `InferenceService.generate_with_tools_tracked()` (base gate),
+  `UnifiedProviderAdapter`/`LLMProvider.generate_with_tools_tracked()` (pipeline layer),
+  `AnthropicInferenceService.generate_with_tools()` (now calls `_build_system_param()` too),
+  `mcp_tool_loop.py`'s `_call_with_tools()`/`run_tool_calling_loop()` (new `cache_prefix_len` param,
+  forwarded to every iteration *and* the final no-tools synthesis call, since the system message
+  doesn't change mid-loop), and both callers —
+  `LLMInferenceStep._run_inline_mcp_tools` (already had `context.cacheable_prefix_len` computed, just
+  never forwarded it) and `MCPAgentStep._run_agent_loop`/`_build_initial_messages` (was calling the
+  prefix-losing `build_system_message_content()` wrapper instead of `build_system_message()`, so it
+  had no prefix length to forward in the first place).
 - **OpenAI** ✅ Passive win from 2a, ⬜ `prompt_cache_key` not added — automatic prefix caching
   already benefits from the stable prefix with zero code change; the optional
   `(adapter_name, system_prompt_id, model)`-derived `prompt_cache_key` for better cache routing was
@@ -209,36 +236,69 @@ xAI at parity, ready for a discount once one is confirmed). Anthropic's prompt_t
 correct rather than undercounted, which also fixes `total_tokens`/`cost_usd` on any turn that hits
 the Phase 2b cache breakpoint.
 
----
-
-## Phase 3 — Relevance-filter MCP tools per turn ⬜ Not started
-
-**Files:** `server/services/mcp_client_service.py`, `server/inference/pipeline/mcp_tool_loop.py`,
-`config/mcp_clients.yaml`
-
-Reuse the two-stage pattern already proven in `server/services/skill_intent_router.py`:
-
-1. Add `MCPClientManager.get_relevant_tools(message, allowed_servers, opportunistic_only, top_n)`
-   next to `get_all_tools()` (`mcp_client_service.py:244-258`). Build a per-`(provider, toolset)`
-   embedding index over each tool's `name + description` — mirror `_build_phrase_index` /
-   `_phrase_cache` (`skill_intent_router.py:188-240`), including the `embed_query_tracked` +
-   `accumulate_usage_sink` path so the embedding cost lands on the audit record.
-2. Score with the same `_cosine` helper, keep tools above `embedding_threshold`, cap at `top_n`
-   (config `mcp_clients.tool_selection.max_tools`, default 15).
-3. **Always union in** every tool already called in this thread (walk `messages` for
-   `tool_calls[].function.name`), so a multi-step task cannot lose a tool it is mid-way through.
-4. Call it from `llm_inference.py:285-289` (`_run_inline_mcp_tools`) instead of `get_all_tools()`,
-   and keep the resulting list **fixed for the whole loop** in `run_tool_calling_loop`
-   (`mcp_tool_loop.py:126-127`) — do not re-select per iteration, or the cache prefix breaks and
-   the model loses tools mid-plan.
-5. Config gate `mcp_clients.tool_selection.enabled` (default `true`) with fallback to the full list
-   when no embedding provider is configured — log one warning, never fail the turn.
-
-**Saving:** 20k–50k → ~2-4k tokens per iteration, multiplied by up to 9 calls per MCP turn.
+**Post-review fix (audit trail visibility):** `cached_prompt_tokens` was computed and priced
+correctly by `record_usage()`/`PricingService`, but never actually persisted — `AuditService.log_conversation()`
+only forwarded the fields `reasoning_tokens` and older were already whitelisted for, so
+`context.metadata["usage"]["cached_prompt_tokens"]` was silently dropped before it reached the audit
+record, and the admin panel's Audit tab had no way to show it during manual QA (see
+`docs/qa/token-optimization-regression-playbook.md`, Section 3). Fixed by threading
+`cached_prompt_tokens` through the same path `reasoning_tokens` already takes: `AuditRecord`
+dataclass (`audit_storage_strategy.py`) → `log_conversation()` → the SQLite/Postgres `audit_logs`
+table schema (auto-migrated onto existing installs via each service's `_migrate_table_schema`) →
+each strategy's row-to-dict field whitelist → the Elasticsearch explicit type mapping → a new
+"Cached prompt tokens" row in the Audit tab's detail dossier (`admin_panel/tabs/audit.js`), shown
+only when the provider actually reported one.
 
 ---
 
-## Phase 4 — Correct the accounting so the win is visible 🟡 Partial
+## Phase 3 — Relevance-filter MCP tools per turn ✅ Done
+
+**Files:** `server/services/mcp_tool_selector.py` (new), `server/inference/pipeline/steps/llm_inference.py`,
+`server/inference/pipeline/steps/mcp_agent.py`, `config/mcp_clients.yaml`
+
+Implemented as a standalone `MCPToolSelector` (single-stage embedding filter, no LLM-confirm stage
+— a false positive here just offers the model one extra tool, not a wrong action, so the cheaper
+approach is enough) rather than a new method on `MCPClientManager` itself — this keeps
+`mcp_client_service.py` (which has no `adapter_manager` reference) unchanged, and lets the selector
+be constructed cheaply per call while its embedding-client/phrase-index caches stay at class level
+across requests:
+
+1. ✅ `MCPToolSelector.select_tools(message, tools, adapter_name, context_messages, usage_sink)` —
+   builds a per-`(embedding_provider, frozenset of tool names)` phrase index over each tool's
+   `name + description`, mirroring `_build_phrase_index`/`_phrase_cache` from
+   `skill_intent_router.py`, including the `embed_query_tracked`/`embed_documents_tracked` +
+   `accumulate_usage_sink` path so embedding cost lands on the same `usage_sink` the tool-calling
+   loop already reports into (and therefore on the audit record).
+2. ✅ Scores with the same `_cosine` helper, keeps tools scoring `>= embedding_threshold` among the
+   top `max_tools` by score (config `mcp_clients.tool_selection.max_tools`, default `15`;
+   `embedding_threshold`, default `0.3`).
+3. ✅ **Always unions in** every tool already called earlier in the thread — scans `context_messages`
+   for `tool_calls[].function.name` — added on top of the capped selection, never dropped even if
+   it pushes the returned list past `max_tools`. Post-review fix: this scan was originally a no-op
+   for every ordinary stored-session follow-up, because `ChatHistoryService.get_context_messages()`
+   only ever reconstructs `role`/`content` from the database — a persisted turn's message dict never
+   carries a `tool_calls` key regardless of what tools it actually called. Fixed by having
+   `response_processor.py` reduce a turn's `mcp_tool_call` sources to a flat `mcp_tools_used` name
+   list and record it in that turn's stored metadata, and having `get_context_messages()` surface
+   that field back onto the reconstructed message; `MCPToolSelector._called_tool_names()` now scans
+   both `tool_calls` (the shape of a live in-memory tool-calling loop) and `mcp_tools_used` (the
+   shape of a reloaded, persisted turn).
+4. ✅ Called from `LLMInferenceStep._run_inline_mcp_tools` and `MCPAgentStep._run_agent_loop`
+   (both via a shared `_select_relevant_tools` helper) right after `get_all_tools()`, before
+   `run_tool_calling_loop` starts — the returned list is then passed into the loop once and stays
+   fixed for every iteration (the loop was already structured this way; no change needed there).
+5. ✅ Gated by `mcp_clients.tool_selection.enabled` (default `true`); no embedding provider
+   configured, embedding-client init failure, tool count already at/under `max_tools`, or any
+   internal exception all fall back to the unfiltered tool list rather than blocking the turn —
+   the "no provider configured" case logs one warning (class-level flag, not per-request).
+
+**Saving:** 20k–50k → ~2-4k tokens per iteration on adapters/servers with a large tool count,
+multiplied by up to `max_tool_iterations` calls per MCP turn. No change on requests already at or
+under `max_tools` tools — the selector skips embedding entirely in that case.
+
+---
+
+## Phase 4 — Correct the accounting so the win is visible ✅ Done (4.2 deliberately not implemented)
 
 **Files:** `server/services/chat_history_service.py`,
 `server/ai_services/providers/usage_reporting.py`, provider services, `docs/token-usage-and-cost-tracking.md`
