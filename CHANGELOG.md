@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.15.5] - 2026-08-13
 
 ### Core System Updates
 - **Per-Turn Prompt Token Reduction**: Gated chart-formatting instructions behind a new `supports_charts` adapter capability and restructured system messages into stable prefixes to maximize prompt-cache hits across providers.
