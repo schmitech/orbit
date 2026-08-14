@@ -56,7 +56,7 @@
 
 <div align="center">
 <p>
-  <img src="https://github.com/user-attachments/assets/b2fcbed3-5c28-4d1a-85bd-edc3b7299f6d" alt="ORBIT request and integration architecture" width="600" />
+  <img src="https://github.com/user-attachments/assets/8de74ddc-15b1-45f4-8837-45195ae67fe5" alt="ORBIT request and integration architecture" width="600" />
   <br />
   <em>Authenticate and route REST, OpenAI-compatible, MCP, A2A, or message-queue requests to models, private data, and tools.</em>
 </p>
