@@ -165,6 +165,16 @@ const extractLanguageFromClassName = (className?: string | null): string => {
   return LANGUAGE_ALIASES[sanitized] ?? sanitized;
 };
 
+// Some models label an SVG fence as `xml`/`html` or leave it untagged. When the
+// declared language doesn't say "svg" but the content plainly is one, still
+// route it to SVGRenderer instead of falling back to a plain code block.
+const SVG_FALLBACK_LANGUAGES = new Set(['', 'xml', 'html']);
+
+const looksLikeRawSvg = (code: string): boolean => {
+  const trimmed = code.trim();
+  return trimmed.startsWith('<svg') && trimmed.endsWith('</svg>');
+};
+
 const getCodeFromChildren = (children: React.ReactNode): string => {
   return React.Children.toArray(children)
     .map((child) => {
@@ -289,7 +299,10 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
       );
     }
 
-    if (language === 'svg' && enableSVG) {
+    if (
+      enableSVG &&
+      (language === 'svg' || (SVG_FALLBACK_LANGUAGES.has(language) && looksLikeRawSvg(code)))
+    ) {
       return (
         <div ref={containerRef}>
           <Suspense fallback={rendererFallback}>
