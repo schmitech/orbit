@@ -439,6 +439,102 @@ class TestSkillRouting:
         assert context.original_adapter_name is None
 
 
+class TestSkillRoutingWithCompositeAdapter:
+    """Tests that skill routing works identically when the calling adapter is a
+    composite retriever (adapter: "composite"), e.g. composite-customer-360 in
+    config/adapters/composite.yaml. Skill routing is resolved entirely in
+    RequestContextBuilder before the pipeline picks a retriever, so it must
+    behave the same regardless of adapter type."""
+
+    def _make_builder(self, base_config, adapter_config, skill_adapter_name=None):
+        from unittest.mock import MagicMock
+
+        manager = MagicMock()
+        manager.get_adapter_config.side_effect = lambda name: (
+            adapter_config if name in ("composite_adapter", skill_adapter_name) else None
+        )
+        manager.get_skill_adapter.return_value = skill_adapter_name
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def _composite_adapter_cfg(self, available_skills=None, auto_routable_skills=None):
+        return {
+            'type': 'retriever',
+            'adapter': 'composite',
+            'inference_provider': 'openai',
+            'config': {
+                'child_adapters': ['intent-sql-sqlite-billing', 'intent-http-sla-metrics'],
+            },
+            'capabilities': {
+                'retrieval_behavior': 'always',
+                'supports_threading': True,
+                'available_skills': available_skills or [],
+                'auto_routable_skills': auto_routable_skills or [],
+            },
+        }
+
+    def test_skill_routes_to_skill_adapter_from_composite_caller(self, base_config):
+        """A composite adapter's allowed skill swaps adapter_name to the skill adapter,
+        exactly like an intent/passthrough/multimodal caller."""
+        adapter_cfg = self._composite_adapter_cfg(available_skills=['web-search'])
+        builder = self._make_builder(base_config, adapter_cfg, skill_adapter_name='web-search-chat')
+
+        context = builder.build_context(
+            message="what's the latest on this outage",
+            adapter_name="composite_adapter",
+            context_messages=[],
+            skill="web-search",
+        )
+
+        assert context.adapter_name == 'web-search-chat'
+        assert context.original_adapter_name == 'composite_adapter'
+        assert context.requested_skill == 'web-search'
+
+    def test_skill_not_in_allowlist_raises_for_composite_caller(self, base_config):
+        """Composite adapters are subject to the same available_skills allowlist check."""
+        adapter_cfg = self._composite_adapter_cfg(available_skills=[])
+        builder = self._make_builder(base_config, adapter_cfg, skill_adapter_name='web-search-chat')
+
+        with pytest.raises(ValueError, match="not available"):
+            builder.build_context(
+                message="test",
+                adapter_name="composite_adapter",
+                context_messages=[],
+                skill="web-search",
+            )
+
+    def test_auto_detected_skill_allowed_via_auto_routable_for_composite_caller(self, base_config):
+        """Auto-routable skills work for composite callers the same as any other adapter type."""
+        adapter_cfg = self._composite_adapter_cfg(auto_routable_skills=['web-search'])
+        builder = self._make_builder(base_config, adapter_cfg, skill_adapter_name='web-search-chat')
+
+        context = builder.build_context(
+            message="search the web for this",
+            adapter_name="composite_adapter",
+            context_messages=[],
+            skill="web-search",
+            skill_auto_detected=True,
+        )
+
+        assert context.adapter_name == 'web-search-chat'
+        assert context.requested_skill == 'web-search'
+
+    def test_no_skill_leaves_composite_adapter_unchanged(self, base_config):
+        """Omitting skill= on a composite adapter leaves adapter_name untouched, so the
+        composite retriever runs normally (child-adapter fan-out unaffected)."""
+        adapter_cfg = self._composite_adapter_cfg(available_skills=['web-search'])
+        builder = self._make_builder(base_config, adapter_cfg, skill_adapter_name='web-search-chat')
+
+        context = builder.build_context(
+            message="hello",
+            adapter_name="composite_adapter",
+            context_messages=[],
+        )
+
+        assert context.adapter_name == 'composite_adapter'
+        assert context.requested_skill is None
+        assert context.original_adapter_name is None
+
+
 class TestWebSearchCapability:
     """Tests for the web_search capability flag on ProcessingContext."""
 

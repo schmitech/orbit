@@ -58,7 +58,7 @@ adapters:
       retry_delay: 1.0
 
   # HTTP JSON API Adapter - SLA Metrics (local mock server)
-  # Requires examples/mcp-server: `npm run sla` (listens on http://localhost:9998)
+  # Requires examples/mcp-server: `npm run sla` (listens on http://localhost:8081)
   - name: "intent-http-sla-metrics"
     enabled: true
     type: "retriever"
@@ -97,7 +97,7 @@ adapters:
       verbose: false
       reload_templates_on_start: false
       force_reload_templates: false
-      base_url: "http://localhost:9998"
+      base_url: "http://localhost:8081"
       default_timeout: 15
       enable_retries: true
       max_retries: 3

@@ -48,7 +48,7 @@ MCP protocol) built specifically so `IntentHTTPJSONRetriever` can query it.
 # 1. Start the SLA metrics mock API
 cd examples/mcp-server
 npm install
-npm run sla                              # http://localhost:9998
+npm run sla                              # http://localhost:8081
 
 # 2. Generate the billing database (in a separate terminal)
 cd examples/intent-templates/sql-intent-template/sqlite/billing
@@ -65,7 +65,7 @@ python3 server/main.py
 
 2. **SLA only** — "What's the SLA compliance rate for cus_0012?"
    Routes solely to `intent-http-sla-metrics` (`get_sla_status_for_customer`),
-   which calls `GET http://localhost:9998/customers/cus_0012/sla`.
+   which calls `GET http://localhost:8081/customers/cus_0012/sla`.
 
 3. **Cross-adapter (the payoff)** — "Show me billing and support SLA status
    for customer cus_0021"

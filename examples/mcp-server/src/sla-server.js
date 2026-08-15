@@ -2,7 +2,7 @@ import express from "express";
 import { data, normalize } from "./data.js";
 
 const portArg = process.argv.find((arg) => arg.startsWith("--port="))?.slice("--port=".length);
-const PORT = Number(process.env.SLA_PORT || portArg || 9998);
+const PORT = Number(process.env.SLA_PORT || portArg || 8081);
 const HOST = process.env.HOST || "0.0.0.0";
 
 const PLAN_TIER_BY_SEGMENT = {

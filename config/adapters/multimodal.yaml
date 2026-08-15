@@ -195,6 +195,7 @@ adapters:
         - "Excel"
         - "PowerPoint"
         - "HR"
+        - "customer-360"
         - "business-analytics"
         - "customer-orders"
         - "web-search"

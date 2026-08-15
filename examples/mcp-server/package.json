@@ -10,8 +10,8 @@
     "sla": "node src/sla-server.js",
     "sla:dev": "node --watch src/sla-server.js",
     "smoke": "node src/smoke-test.js",
-    "lint": "node --check src/server.js src/data.js src/smoke-test.js",
-    "build": "npm run lint && esbuild src/server.js --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js"
+    "lint": "node --check src/server.js src/sla-server.js src/data.js src/smoke-test.js",
+    "build": "npm run lint && esbuild src/server.js src/sla-server.js --outdir=dist --bundle --platform=node --format=esm --packages=external"
   },
   "dependencies": {
     "@faker-js/faker": "^10.1.0",

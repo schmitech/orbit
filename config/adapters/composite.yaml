@@ -112,8 +112,164 @@ adapters:
     model: "gpt-5.4-mini"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
+    allowed_models:
+      - name: "minimax-m3"
+        provider: "ollama_cloud"
+        model: "minimax-m3:cloud"
+        context_window: 512000
+        max_tokens: 32768
+        effort: "high"
+      - name: "minimax-m2.7"
+        provider: "ollama_cloud"
+        model: "minimax-m2.7:cloud"
+        context_window: 200000
+        max_tokens: 24576
+        effort: "medium"
+      - name: "glm-5.2"
+        provider: "ollama_cloud"
+        model: "glm-5.2:cloud"
+        context_window: 976000
+        max_tokens: 32768
+        effort: "high"
+      - name: "glm-5.1"
+        provider: "ollama_cloud"
+        model: "glm-5.1:cloud"
+        context_window: 198000
+        max_tokens: 24576
+        effort: "high"
+      - name: "kimi-k3"
+        provider: "ollama_cloud"
+        model: "kimi-k3:cloud"
+        context_window: 1000000
+        max_tokens: 32768
+        effort: "high"
+      - name: "kimi-k2.7-code"
+        provider: "ollama_cloud"
+        model: "kimi-k2.7-code:cloud"
+        context_window: 256000
+        max_tokens: 24576
+        effort: "high"
+      - name: "deepseek-v4-flash"
+        provider: "ollama_cloud"
+        model: "deepseek-v4-flash:cloud"
+        context_window: 1000000
+        max_tokens: 32768
+        effort: "medium"
+      - name: "deepseek-v4-pro"
+        provider: "ollama_cloud"
+        model: "deepseek-v4-pro:cloud"
+        context_window: 1000000
+        max_tokens: 49152
+        effort: "high"
+      - name: "qwen3.5"
+        provider: "ollama_cloud"
+        model: "qwen3.5:cloud"
+        context_window: 256000
+        max_tokens: 16384
+        effort: "medium"
+      - name: "qwen3.5-397b"
+        provider: "ollama_cloud"
+        model: "qwen3.5:397b-cloud"
+        context_window: 256000
+        max_tokens: 32768
+        effort: "high"
+      - name: "gemma4"
+        provider: "ollama_cloud"
+        model: "gemma4:cloud"
+        context_window: 256000
+        max_tokens: 16384
+        effort: "low"
+      - name: "gemma4-31b"
+        provider: "ollama_cloud"
+        model: "gemma4:31b-cloud"
+        context_window: 256000
+        max_tokens: 24576
+        effort: "low"
+      - name: "mistral-large-3"
+        provider: "ollama_cloud"
+        model: "mistral-large-3:675b-cloud"
+        context_window: 256000
+        max_tokens: 32768
+      - name: "deepseek"
+        provider: "deepseek"
+        model: "deepseek-chat"
+        context_window: 65536
+        max_tokens: 8000
+      - name: "cohere"
+        provider: "cohere"
+        model: "command-a-03-2025"
+        context_window: 256000
+        max_tokens: 8000
+      - name: "grok-4.3"
+        provider: "xai"
+        model: "grok-4.3"
+        context_window: 1000000
+        max_tokens: 16000
+        effort: "low"           # Maps to reasoning_effort; ignored for models that don't support it (e.g. grok-4.3)
+      - name: "gemma4-e2b"
+        provider: "ollama"
+        model: "gemma4-e2b-cpu"
+        context_window: 8192
+        max_tokens: 2048
+      - name: "gpt-oss-120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:120b-cloud"
+        context_window: 131072
+        max_tokens: 32768
+        effort: "medium"
+      - name: "gpt-oss-20b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b-cloud"
+        context_window: 131072
+        max_tokens: 16384
+        effort: "low"
+      - name: "claude"
+        provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+        context_window: 1000000
+        max_tokens: 64000
+        effort: "low"           # Ignored for Claude models that don't support the effort parameter
+      - name: "gemini"
+        provider: "gemini"
+        model: "gemini-3.6-flash"
+        context_window: 1048576
+        max_tokens: 65536
+        effort: "low"           # Maps to thinking_level (minimal | low | medium | high)
+      - name: "gpt-5.6-luna"
+        provider: "openai"
+        model: "gpt-5.6-luna"
+        context_window: 1048576
+        max_tokens: 65536
+      - name: "nemotron-3-ultra"
+        provider: "ollama_cloud"
+        model: "nemotron-3-ultra:cloud"
+        context_window: 256000
+        max_tokens: 32768
+        effort: "high"
+      - name: "nemotron-3-super"
+        provider: "ollama_cloud"
+        model: "nemotron-3-super:cloud"
+        context_window: 256000
+        max_tokens: 32768
+        effort: "high"
     capabilities:
       retrieval_behavior: "always"
+      expose_as_skill: true
+      skill_name: "customer-360"
+      skill_description: "Cross-source billing + support SLA lookups"
+      available_skills:
+        - "Image"
+        - "Video"
+        - "Audio"
+        - "PDF"
+        - "Word"
+        - "CSV"
+        - "Excel"
+        - "PowerPoint"
+        - "web-search"
+        - "mcp-agent"
+        - "Fetch"
+        - "Markdown"
       formatting_style: "standard"
       supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
       supports_file_ids: false
@@ -152,9 +308,6 @@ adapters:
         timeout_per_adapter: 10.0
         partial_results: true
         default_merge_strategy: "side_by_side"
-
-  # Example: Full Multi-Database Explorer
-  # Routes queries across SQL, DuckDB, MongoDB, and HTTP sources
   - name: "composite-full-explorer"
     enabled: false
     type: "retriever"
