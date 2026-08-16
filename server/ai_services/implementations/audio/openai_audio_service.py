@@ -64,17 +64,19 @@ class OpenAIAudioService(UsageReportingMixin, AudioService, OpenAIBaseService):
 
             # Extract instructions before spreading kwargs (avoid leaking to non-gpt-4o models)
             instructions = kwargs.pop('instructions', None) or self.tts_instructions
+            # Use provided model or default from config
+            model = kwargs.pop('model', None) or self.tts_model
 
             # Build request params
             tts_params = dict(
-                model=self.tts_model,
+                model=model,
                 voice=tts_voice,
                 input=text,
                 response_format=tts_format,
                 **kwargs
             )
             # gpt-4o-mini-tts supports an instructions param for tone/emotion control
-            if instructions and 'gpt-4o' in self.tts_model:
+            if instructions and 'gpt-4o' in model:
                 tts_params['instructions'] = instructions
 
             # Call OpenAI TTS API

@@ -31,7 +31,7 @@ adapters:
       - name: "cohere"
         provider: "cohere"
         model: "command-a-03-2025"
-      - name: "ollama-gpt-oss-120b"
+      - name: "ollama-gpt-oss:120b"
         provider: "ollama_cloud"
         model: "gpt-oss:120b"
       - name: "claude-sonnet-4-5"

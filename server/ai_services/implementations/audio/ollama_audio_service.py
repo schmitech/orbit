@@ -59,12 +59,14 @@ class OllamaAudioService(AudioService, OllamaBaseService):
             
             # Use provided format or default from config
             audio_format = format or self.tts_format
+            # Use provided model or default from config
+            model = kwargs.pop('model', None) or self.tts_model
 
             # Prepare request payload
             # Note: Ollama's audio API structure may vary
             # This is a placeholder implementation that follows Ollama's chat API pattern
             payload = {
-                "model": self.tts_model,
+                "model": model,
                 "prompt": text,
                 "stream": False,
                 "options": {

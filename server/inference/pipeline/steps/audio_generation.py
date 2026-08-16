@@ -60,15 +60,29 @@ class AudioGenerationStep(PipelineStep):
         rewrite_sink: dict = {}
         text = await self._rewrite_text(context, rewrite_sink)
         try:
-            audio_bytes = await audio_service.text_to_speech(text, voice=context.tts_voice)
+            generate_kwargs = dict(context.runtime_audio_param_overrides or {})
+            if context.runtime_model_name:
+                generate_kwargs["model"] = context.runtime_model_name
+            # The client's tts_voice request field applies unless the matched
+            # allowed_audio_models entry carries its own voice override.
+            generate_kwargs.setdefault("voice", context.tts_voice)
+            audio_bytes = await audio_service.text_to_speech(text, **generate_kwargs)
             context.generated_audio = base64.b64encode(audio_bytes).decode("utf-8")
             context.generated_audio_format = self._resolve_format(context)
             context.generated_audio_revised_prompt = text
             context.response = text
             # Report the TTS model as the model that produced the response —
-            # not the rewrite LLM used to resolve the text to speak above.
-            context.runtime_provider = self._resolve_provider(context, self.container.get_or_none('config') or {})
-            context.runtime_model_name = getattr(audio_service, "tts_model", None) or getattr(audio_service, "model", None)
+            # not the rewrite LLM used to resolve the text to speak above. Reflects
+            # a runtime override (allowed_audio_models) when one was resolved for this request.
+            context.runtime_provider = (
+                context.runtime_provider
+                or self._resolve_provider(context, self.container.get_or_none('config') or {})
+            )
+            context.runtime_model_name = (
+                context.runtime_model_name
+                or getattr(audio_service, "tts_model", None)
+                or getattr(audio_service, "model", None)
+            )
             # TTS is billed per character — an exact, locally-known quantity,
             # not something to read back from the (bare-bytes) response.
             record_media_generation_usage(
@@ -219,6 +233,12 @@ class AudioGenerationStep(PipelineStep):
             logger.warning("No TTS provider configured.")
             return None
 
+        if self.container.has('adapter_manager'):
+            adapter_manager = self.container.get('adapter_manager')
+            if hasattr(adapter_manager, 'get_overridden_audio'):
+                return await adapter_manager.get_overridden_audio(provider, context.adapter_name)
+
+        # Fallback for containers without a full adapter_manager (e.g. tests)
         from ai_services.factory import AIServiceFactory
         from ai_services.base import ServiceType
         return await AIServiceFactory.create_and_initialize_service(
@@ -229,9 +249,13 @@ class AudioGenerationStep(PipelineStep):
         """Return the TTS provider name for this request.
 
         Resolution order:
-        1. Adapter-level tts_provider
-        2. Global tts.provider (from tts.yaml)
+        1. Runtime override (resolved from allowed_audio_models)
+        2. Adapter-level tts_provider
+        3. Global tts.provider (from tts.yaml)
         """
+        if context.runtime_provider:
+            return context.runtime_provider
+
         if context.adapter_name and self.container.has('adapter_manager'):
             try:
                 adapter_manager = self.container.get('adapter_manager')
@@ -246,7 +270,16 @@ class AudioGenerationStep(PipelineStep):
         return config.get('tts', {}).get('provider')
 
     def _resolve_format(self, context: ProcessingContext) -> str:
-        """Return the configured audio format for the resolved provider."""
+        """Return the audio format actually produced for this request.
+
+        A runtime override (from allowed_audio_models) takes priority — otherwise the
+        bytes text_to_speech() returned would be in the override's format but reported
+        under the provider's configured default (wrong extension/MIME type for clients).
+        """
+        overrides = context.runtime_audio_param_overrides or {}
+        if overrides.get('format'):
+            return overrides['format']
+
         config = self.container.get_or_none('config') or {}
         provider = self._resolve_provider(context, config)
         tts_providers_config = config.get('tts_providers', {}) or {}

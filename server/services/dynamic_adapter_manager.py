@@ -411,6 +411,22 @@ class DynamicAdapterManager:
             return []
         return adapter_config.get('allowed_video_models') or []
 
+    def get_allowed_audio_models(self, adapter_name: str) -> list:
+        """
+        Return the allowed_audio_models list for an adapter, or an empty list if not defined.
+
+        Args:
+            adapter_name: The adapter name
+
+        Returns:
+            List of allowed audio model dicts (each has 'name', 'provider', 'model',
+            plus optional provider-specific overrides like voice/format)
+        """
+        adapter_config = self.config_manager.get(adapter_name)
+        if not adapter_config:
+            return []
+        return adapter_config.get('allowed_audio_models') or []
+
     def get_skill_adapter(self, skill_name: str) -> Optional[str]:
         """Return the adapter_name registered for a skill, or None."""
         return self.config_manager.get_skill_adapter(skill_name)

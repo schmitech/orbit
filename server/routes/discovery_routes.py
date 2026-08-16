@@ -178,6 +178,7 @@ async def list_adapter_models(
         adapter_config.get('allowed_models')
         or adapter_config.get('allowed_image_models')
         or adapter_config.get('allowed_video_models')
+        or adapter_config.get('allowed_audio_models')
         or []
     )
 

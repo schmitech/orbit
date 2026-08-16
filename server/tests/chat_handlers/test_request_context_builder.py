@@ -620,6 +620,164 @@ class TestAllowedVideoModelsViaSkillRouting:
         assert context.runtime_video_param_overrides is None
 
 
+class TestAllowedAudioModels:
+    """Tests for runtime model override via allowed_audio_models (audio_generation adapters)."""
+
+    def _builder_with_allowed_audio_models(self, base_config, allowed_audio_models):
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'audio_generation',
+            'tts_provider': 'gemini',
+            'config': {},
+            'allowed_audio_models': allowed_audio_models,
+        }
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def test_valid_audio_model_overrides_provider_and_params(self, base_config):
+        """A model name present in allowed_audio_models sets runtime_provider/model and passes
+        through non-name/provider/model keys as runtime_audio_param_overrides."""
+        allowed = [{
+            'name': 'openai-tts', 'provider': 'openai', 'model': 'gpt-4o-mini-tts',
+            'voice': 'coral',
+        }]
+        builder = self._builder_with_allowed_audio_models(base_config, allowed)
+
+        context = builder.build_context(
+            message="read this out loud",
+            adapter_name="audio-generator",
+            context_messages=[],
+            requested_model="openai-tts",
+        )
+
+        assert context.runtime_provider == 'openai'
+        assert context.runtime_model_name == 'gpt-4o-mini-tts'
+        assert context.runtime_audio_param_overrides == {'voice': 'coral'}
+        assert context.runtime_param_overrides is None
+
+    def test_unknown_audio_model_raises(self, base_config):
+        """A model name not in allowed_audio_models raises ValueError."""
+        allowed = [{'name': 'openai-tts', 'provider': 'openai', 'model': 'gpt-4o-mini-tts'}]
+        builder = self._builder_with_allowed_audio_models(base_config, allowed)
+
+        with pytest.raises(ValueError, match="not allowed"):
+            builder.build_context(
+                message="read this out loud",
+                adapter_name="audio-generator",
+                context_messages=[],
+                requested_model="unknown-audio-model",
+            )
+
+    def test_no_allowed_audio_models_ignores_requested_model(self, base_config):
+        """When the adapter defines no allowed_audio_models, any requested_model is ignored."""
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'audio_generation',
+            'tts_provider': 'gemini',
+            'config': {},
+        }
+        builder = RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+        context = builder.build_context(
+            message="read this out loud",
+            adapter_name="audio-generator",
+            context_messages=[],
+            requested_model="anything",
+        )
+
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+        assert context.runtime_audio_param_overrides is None
+
+
+class TestAllowedAudioModelsViaSkillRouting:
+    """Tests for allowed_audio_models resolution after skill routing (not before)."""
+
+    def _make_builder(self, base_config, caller_cfg, audio_cfg, skill_adapter_name='audio-generator'):
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.side_effect = lambda name: (
+            audio_cfg if name == skill_adapter_name else caller_cfg
+        )
+        manager.get_skill_adapter.return_value = skill_adapter_name
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def _configs(self):
+        caller_cfg = {
+            'type': 'multimodal',
+            'inference_provider': 'openai',
+            'config': {},
+            'capabilities': {'available_skills': ['Audio'], 'auto_routable_skills': ['Audio']},
+            'allowed_models': [{'name': 'claude', 'provider': 'anthropic', 'model': 'claude-sonnet-4-5'}],
+        }
+        audio_cfg = {
+            'type': 'audio_generation',
+            'tts_provider': 'gemini',
+            'config': {},
+            'allowed_audio_models': [
+                {'name': 'openai-tts', 'provider': 'openai', 'model': 'gpt-4o-mini-tts', 'voice': 'coral'},
+            ],
+        }
+        return caller_cfg, audio_cfg
+
+    def test_explicit_audio_skill_with_valid_audio_model(self, base_config):
+        """Explicit Audio skill + a matching allowed_audio_models name resolves cleanly,
+        even though the calling adapter's own allowed_models doesn't contain it."""
+        caller_cfg, audio_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, audio_cfg)
+
+        context = builder.build_context(
+            message="read this out loud",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="openai-tts",
+            skill="Audio",
+            skill_auto_detected=False,
+        )
+
+        assert context.adapter_name == 'audio-generator'
+        assert context.runtime_provider == 'openai'
+        assert context.runtime_model_name == 'gpt-4o-mini-tts'
+        assert context.runtime_audio_param_overrides == {'voice': 'coral'}
+
+    def test_explicit_audio_skill_invalid_model_raises(self, base_config):
+        """Explicit Audio skill + an unrecognized audio model name still raises."""
+        caller_cfg, audio_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, audio_cfg)
+
+        with pytest.raises(ValueError, match="not allowed"):
+            builder.build_context(
+                message="read this out loud",
+                adapter_name="test_adapter",
+                context_messages=[],
+                requested_model="unknown-audio-model",
+                skill="Audio",
+                skill_auto_detected=False,
+            )
+
+    def test_auto_detected_audio_skill_ignores_callers_llm_model(self, base_config):
+        """Auto-detected Audio skill carries along the calling adapter's previously
+        selected LLM model name (e.g. 'claude'), which has no meaning for the audio
+        adapter — this must be silently ignored, not raise."""
+        caller_cfg, audio_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, audio_cfg)
+
+        context = builder.build_context(
+            message="read this out loud",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="claude",
+            skill="Audio",
+            skill_auto_detected=True,
+        )
+
+        assert context.adapter_name == 'audio-generator'
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+        assert context.runtime_audio_param_overrides is None
+
+
 class TestSkillRouting:
     """Tests for skill invocation via RequestContextBuilder."""
 

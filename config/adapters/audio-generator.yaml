@@ -14,6 +14,25 @@ adapters:
                                  # with no history speak the input message verbatim.
     rewrite_model: "gpt-5.4-mini"  # Optional: specific model on rewrite_provider (defaults to
                                    # that provider's configured default model)
+
+    # Lets a client pick which provider/model/voice to use at runtime (mirrors
+    # allowed_image_models/allowed_video_models). Only providers whose "model" is an
+    # actual per-request API selection are listed here — google's Cloud TTS voice name
+    # already encodes the model, so it has no separate model override to expose.
+    allowed_audio_models:
+      - name: "gemini-tts"
+        provider: "gemini"
+        model: "gemini-3.1-flash-tts-preview"
+        voice: "Achernar"
+      - name: "openai-tts"
+        provider: "openai"
+        model: "gpt-4o-mini-tts"
+        voice: "coral"
+      - name: "elevenlabs-tts"
+        provider: "elevenlabs"
+        model: "eleven_multilingual_v2"
+        voice: "5opxviIE64D8KxYYJKpx"
+
     capabilities:
       expose_as_skill: true
       skill_name: "Audio"

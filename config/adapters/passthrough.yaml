@@ -52,7 +52,7 @@ adapters:
         context_window: 400000
         max_tokens: 128000
         effort: "low"           # Maps to reasoning_effort; ignored for non-reasoning models
-      - name: "gpt-oss-120b"
+      - name: "gpt-oss:120b"
         provider: "ollama_cloud"
         model: "gpt-oss:20b"
         context_window: 131072

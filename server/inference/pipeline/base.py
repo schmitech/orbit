@@ -89,6 +89,9 @@ class ProcessingContext:
     # Optional provider-specific overrides (aspect_ratio/resolution/duration/...) from the
     # matched allowed_video_models entry, for video_generation adapters
     runtime_video_param_overrides: Optional[Dict[str, Any]] = None
+    # Optional provider-specific overrides (voice/format/...) from the
+    # matched allowed_audio_models entry, for audio_generation adapters
+    runtime_audio_param_overrides: Optional[Dict[str, Any]] = None
 
     # Skill invocation (set when client sends skill= in request)
     requested_skill: Optional[str] = None

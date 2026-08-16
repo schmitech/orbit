@@ -187,9 +187,10 @@ class GeminiAudioService(AudioService, GoogleBaseService):
                 ),
             )
 
+            model = kwargs.get('model') or self.tts_model
             response = await asyncio.to_thread(
                 client.models.generate_content,
-                model=self.tts_model,
+                model=model,
                 contents=text,
                 config=config
             )

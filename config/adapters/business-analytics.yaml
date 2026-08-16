@@ -17,7 +17,7 @@ adapters:
       - name: "llama-3.1-8b-instruct"
         provider: "openrouter"
         model: "meta-llama/llama-3.1-8b-instruct"
-      - name: "ollama-gpt-oss-120b"
+      - name: "ollama-gpt-oss:120b"
         provider: "ollama_cloud"
         model: "gpt-oss:20b"
       - name: "claude-sonnet-4-5"

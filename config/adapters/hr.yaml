@@ -22,7 +22,7 @@ adapters:
       - name: "llama-cpp-gemma4"
         provider: "llama_cpp"
         model: "gemma4-e2b-direct-cpu"
-      - name: "gpt-oss-120b"
+      - name: "gpt-oss:120b"
         provider: "ollama_cloud"
         model: "gpt-oss:120b"
       - name: "ollama-nemotron-3"

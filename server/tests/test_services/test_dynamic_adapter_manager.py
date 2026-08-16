@@ -255,6 +255,25 @@ class TestGetAllowedVideoModels:
         assert manager.get_allowed_video_models("video-generator") == []
 
 
+class TestGetAllowedAudioModels:
+
+    def test_returns_allowed_audio_models_list(self, manager):
+        models = [{"name": "openai-tts", "provider": "openai", "model": "gpt-4o-mini-tts", "voice": "coral"}]
+        manager.config_manager.get.return_value = {'allowed_audio_models': models}
+
+        result = manager.get_allowed_audio_models("audio-generator")
+
+        assert result == models
+
+    def test_returns_empty_list_when_adapter_not_found(self, manager):
+        manager.config_manager.get.return_value = None
+        assert manager.get_allowed_audio_models("missing") == []
+
+    def test_returns_empty_list_when_field_absent(self, manager):
+        manager.config_manager.get.return_value = {}
+        assert manager.get_allowed_audio_models("audio-generator") == []
+
+
 # ---------------------------------------------------------------------------
 # reload_templates
 # ---------------------------------------------------------------------------

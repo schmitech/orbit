@@ -103,6 +103,10 @@ class FaultTolerantAdapterManager:
         """Get the allowed video models for an adapter."""
         return self.base_adapter_manager.get_allowed_video_models(adapter_name)
 
+    def get_allowed_audio_models(self, adapter_name: str) -> list:
+        """Get the allowed audio models for an adapter."""
+        return self.base_adapter_manager.get_allowed_audio_models(adapter_name)
+
     def get_cached_adapters(self) -> List[str]:
         """Get list of currently cached adapter names."""
         return self.base_adapter_manager.get_cached_adapters()

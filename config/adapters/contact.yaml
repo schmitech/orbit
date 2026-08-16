@@ -14,7 +14,7 @@ adapters:
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text"
     allowed_models:
-      - name: "ollama-gpt-oss-120b"
+      - name: "ollama-gpt-oss:120b"
         provider: "ollama_cloud"
         model: "gpt-oss:20b"
       - name: "claude-sonnet-4-5"
