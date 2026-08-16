@@ -10,6 +10,7 @@ The database contains the following tables:
 
 - `users` - User accounts and authentication
 - `sessions` - Active user sessions
+- `user_blacklist` - Pattern-based identity denial rules
 - `api_keys` - API keys for authentication
 - `system_prompts` - System prompts for chat
 - `chat_history` - Chat message history
@@ -89,6 +90,25 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 ---
 
+### user_blacklist
+
+Stores pattern-based identity denial rules, evaluated on every authentication.
+
+```sql
+CREATE TABLE IF NOT EXISTS user_blacklist (
+    id TEXT PRIMARY KEY,
+    pattern TEXT NOT NULL,
+    entry_type TEXT NOT NULL,
+    reason TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL
+)
+```
+
+**Indexes:** `idx_user_blacklist_entry_type_pattern` unique on `(entry_type, pattern)` — see [`docs/sqlite-schema.md#user_blacklist`](sqlite-schema.md#user_blacklist) for full details.
+
+---
+
 ### api_keys
 
 ```sql
@@ -104,11 +124,15 @@ CREATE TABLE IF NOT EXISTS api_keys (
     quota_daily_limit INTEGER,
     quota_monthly_limit INTEGER,
     quota_throttle_enabled INTEGER,
-    quota_throttle_priority INTEGER
+    quota_throttle_priority INTEGER,
+    allowed_user_ids TEXT,
+    allowed_emails TEXT
 )
 ```
 
 **Indexes:** `idx_api_keys_api_key` on `api_key`
+
+`allowed_user_ids`, `allowed_emails`: per-user API key restrictions — see [`docs/sqlite-schema.md#api_keys`](sqlite-schema.md#api_keys) for full field details.
 
 ---
 
@@ -274,6 +298,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     completion_tokens INTEGER,
     total_tokens INTEGER,
     reasoning_tokens INTEGER,
+    cached_prompt_tokens INTEGER,
     cost_usd DOUBLE PRECISION,
     input_rate_per_1m DOUBLE PRECISION,
     output_rate_per_1m DOUBLE PRECISION,
@@ -294,7 +319,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `idx_audit_logs_model` on `model`
 - `idx_audit_logs_call_type` on `call_type`
 
-`prompt_tokens`, `completion_tokens`, `total_tokens`, `reasoning_tokens`, `cost_usd`, `input_rate_per_1m`, `output_rate_per_1m`, `pricing_source`, `usage_unit`, `usage_quantity`: token usage and cost tracking columns — see [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field descriptions (identical semantics; `cost_usd`/`input_rate_per_1m`/`output_rate_per_1m` are `DOUBLE PRECISION` in Postgres vs. `REAL` in SQLite).
+`prompt_tokens`, `completion_tokens`, `total_tokens`, `reasoning_tokens`, `cached_prompt_tokens`, `cost_usd`, `input_rate_per_1m`, `output_rate_per_1m`, `pricing_source`, `usage_unit`, `usage_quantity`: token usage and cost tracking columns — see [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field descriptions (identical semantics; `cost_usd`/`input_rate_per_1m`/`output_rate_per_1m` are `DOUBLE PRECISION` in Postgres vs. `REAL` in SQLite).
 
 `call_type` (TEXT): coarse classification of the AI call this row represents — `inference` (chat/text generation, the default), `embedding`, `image`, `video`, `audio`, or `document` (OCR). See [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field description.
 
@@ -467,6 +492,10 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are 
 
 ## Version History
 
+- **v1.3** (2026-08-15): Doc sync with SQLite v1.10–v1.12
+  - Documented `user_blacklist` table (identity denial rules)
+  - Updated `api_keys` CREATE TABLE and field descriptions to include `allowed_user_ids` and `allowed_emails` (matches SQLite v1.10/v1.11)
+  - Updated `audit_logs` CREATE TABLE and field descriptions to include `cached_prompt_tokens` (matches SQLite v1.12)
 - **v1.2** (2026-08-02): Doc sync with SQLite v1.6–v1.9
   - Corrected `chat_history` CREATE TABLE and indexes to include `api_key_hash` / `idx_chat_history_api_key_hash` (matches SQLite v1.8)
   - Corrected `conversation_threads` index list to include `idx_conversation_threads_owner` (matches SQLite v1.8)

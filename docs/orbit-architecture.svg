@@ -1,0 +1,107 @@
+<svg width="680" height="600" viewBox="0 0 680 600" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif" role="img">
+<title>ORBIT architecture diagram</title>
+<desc>Clients connect through the ORBIT API gateway over REST, OpenAI-compatible, MCP, A2A, or async MQ transports, which handles auth and quotas, routes requests through an adapter layer covering chat/voice, documents, structured data, APIs, tool agents, and generation, then forwards them to local or cloud model providers.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+
+<rect x="0" y="0" width="680" height="600" fill="#FFFFFF"/>
+
+<!-- Client tier (gray) -->
+<g>
+<rect x="41" y="40" width="110" height="44" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="96" y="66" text-anchor="middle" font-size="14" font-weight="500" fill="#2C2C2A">Chat UI</text>
+</g>
+<g>
+<rect x="163" y="40" width="110" height="44" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="218" y="66" text-anchor="middle" font-size="14" font-weight="500" fill="#2C2C2A">OpenAI SDK</text>
+</g>
+<g>
+<rect x="285" y="40" width="110" height="44" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="340" y="66" text-anchor="middle" font-size="14" font-weight="500" fill="#2C2C2A">MCP agent</text>
+</g>
+<g>
+<rect x="407" y="40" width="110" height="44" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="462" y="66" text-anchor="middle" font-size="14" font-weight="500" fill="#2C2C2A">A2A peer</text>
+</g>
+<g>
+<rect x="529" y="40" width="110" height="44" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="584" y="66" text-anchor="middle" font-size="14" font-weight="500" fill="#2C2C2A">MQ client</text>
+</g>
+
+<!-- Bus into API -->
+<line x1="96" y1="84" x2="96" y2="100" stroke="#888780" stroke-width="0.5"/>
+<line x1="218" y1="84" x2="218" y2="100" stroke="#888780" stroke-width="0.5"/>
+<line x1="340" y1="84" x2="340" y2="100" stroke="#888780" stroke-width="0.5"/>
+<line x1="462" y1="84" x2="462" y2="100" stroke="#888780" stroke-width="0.5"/>
+<line x1="584" y1="84" x2="584" y2="100" stroke="#888780" stroke-width="0.5"/>
+<line x1="96" y1="100" x2="584" y2="100" stroke="#888780" stroke-width="0.5"/>
+<line x1="340" y1="100" x2="340" y2="110" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- ORBIT API (dark blue) -->
+<g>
+<rect x="140" y="110" width="400" height="56" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="340" y="132" text-anchor="middle" font-size="14" font-weight="500" fill="#042C53">ORBIT API</text>
+<text x="340" y="150" text-anchor="middle" font-size="12" fill="#0C447C">REST · OpenAI-compat · MCP · A2A · MQ (async)</text>
+</g>
+
+<line x1="340" y1="166" x2="340" y2="192" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- Auth and ops (dark blue) -->
+<g>
+<rect x="100" y="192" width="480" height="56" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="340" y="214" text-anchor="middle" font-size="14" font-weight="500" fill="#042C53">Auth, quotas &amp; audit</text>
+<text x="340" y="232" text-anchor="middle" font-size="12" fill="#0C447C">API keys, rate limits, metrics, audit logs</text>
+</g>
+
+<line x1="340" y1="248" x2="340" y2="274" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- Adapter router container (gray) -->
+<g>
+<rect x="90" y="274" width="500" height="232" rx="20" fill="#FFFFFF" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="110" y="302" font-size="14" font-weight="500" fill="#2C2C2A">Adapter router</text>
+<text x="110" y="320" font-size="12" fill="#5F5E5A">Routes each request by type</text>
+</g>
+
+<g>
+<rect x="107" y="330" width="146" height="70" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="180" y="356" text-anchor="middle" font-size="14" font-weight="500" fill="#042C53">Chat &amp; voice</text>
+<text x="180" y="380" text-anchor="middle" font-size="12" fill="#0C447C">Passthrough &amp; voice</text>
+</g>
+<g>
+<rect x="267" y="330" width="146" height="70" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="340" y="356" text-anchor="middle" font-size="14" font-weight="500" fill="#042C53">Documents</text>
+<text x="340" y="380" text-anchor="middle" font-size="12" fill="#0C447C">Files &amp; vector RAG</text>
+</g>
+<g>
+<rect x="427" y="330" width="146" height="70" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="500" y="356" text-anchor="middle" font-size="14" font-weight="500" fill="#042C53">Structured data</text>
+<text x="500" y="380" text-anchor="middle" font-size="12" fill="#0C447C">SQL, NoSQL, routing</text>
+</g>
+<g>
+<rect x="107" y="416" width="146" height="70" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="180" y="442" text-anchor="middle" font-size="14" font-weight="500" fill="#042C53">APIs &amp; indexes</text>
+<text x="180" y="466" text-anchor="middle" font-size="12" fill="#0C447C">REST, GraphQL, ES</text>
+</g>
+<g>
+<rect x="267" y="416" width="146" height="70" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="340" y="442" text-anchor="middle" font-size="14" font-weight="500" fill="#042C53">Tool agents</text>
+<text x="340" y="466" text-anchor="middle" font-size="12" fill="#0C447C">Callable MCP tools</text>
+</g>
+<g>
+<rect x="427" y="416" width="146" height="70" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="500" y="442" text-anchor="middle" font-size="14" font-weight="500" fill="#042C53">Generation</text>
+<text x="500" y="466" text-anchor="middle" font-size="12" fill="#0C447C">Web search &amp; media</text>
+</g>
+
+<line x1="340" y1="506" x2="340" y2="532" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- Providers (gray) -->
+<g>
+<rect x="110" y="532" width="460" height="56" rx="10" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="340" y="554" text-anchor="middle" font-size="14" font-weight="500" fill="#2C2C2A">Model providers — local or cloud</text>
+<text x="340" y="572" text-anchor="middle" font-size="12" fill="#5F5E5A">Inference, embedding, rerank, vision, speech, moderation</text>
+</g>
+</svg>
