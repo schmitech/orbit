@@ -11,6 +11,18 @@ adapters:
     rewrite_provider: "openai"          # Text LLM used to enrich prompts before image generation
     rewrite_model: "gpt-5.4-mini"       # Text LLM used to enrich prompts before image generation
 
+    # Lets a client pick which provider/model to use at runtime (mirrors allowed_image_models).
+    allowed_video_models:
+      - name: "veo-video"
+        provider: "gemini"
+        model: "veo-3.1-generate-preview"
+        aspect_ratio: "16:9"
+      - name: "xai-video"
+        provider: "xai"
+        model: "grok-imagine-video"
+        aspect_ratio: "16:9"
+        resolution: "720p"
+
     capabilities:
       expose_as_skill: true
       skill_name: "Video"

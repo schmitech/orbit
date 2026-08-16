@@ -62,6 +62,7 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
         if not self.initialized:
             await self.initialize()
 
+        model = kwargs.get("model") or self.model
         aspect_ratio = kwargs.get("aspect_ratio", self.aspect_ratio)
         number_of_videos = kwargs.get("number_of_videos", self.number_of_videos)
         person_generation = kwargs.get("person_generation", self.person_generation)
@@ -79,7 +80,7 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
                 config_kwargs["person_generation"] = person_generation
 
             operation = client.models.generate_videos(
-                model=self.model,
+                model=model,
                 prompt=prompt,
                 config=genai_types.GenerateVideosConfig(**config_kwargs),
             )

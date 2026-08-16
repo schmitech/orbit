@@ -74,15 +74,22 @@ class VideoGenerationStep(PipelineStep):
             logger.debug("Video generation prompt after rewrite: %r", prompt[:200])
 
         try:
-            result = await video_service.generate_video(prompt)
+            generate_kwargs = dict(context.runtime_video_param_overrides or {})
+            if context.runtime_model_name:
+                generate_kwargs["model"] = context.runtime_model_name
+            result = await video_service.generate_video(prompt, **generate_kwargs)
             context.video = base64.b64encode(result["video_bytes"]).decode("utf-8")
             context.video_format = result.get("format", "mp4")
             context.video_revised_prompt = result.get("revised_prompt") or prompt
             context.response = context.video_revised_prompt
             # Report the video model as the model that produced the response —
-            # not the rewrite LLM used to refine the prompt above.
-            context.runtime_provider = self._resolve_provider(context, self.container.get_or_none('config') or {})
-            context.runtime_model_name = getattr(video_service, "model", None)
+            # not the rewrite LLM used to refine the prompt above. Reflects a runtime
+            # override (allowed_video_models) when one was resolved for this request.
+            context.runtime_provider = (
+                context.runtime_provider
+                or self._resolve_provider(context, self.container.get_or_none('config') or {})
+            )
+            context.runtime_model_name = context.runtime_model_name or getattr(video_service, "model", None)
             record_media_generation_usage(
                 self.container, context, context.runtime_provider, context.runtime_model_name,
                 call_type="video",
@@ -249,6 +256,10 @@ class VideoGenerationStep(PipelineStep):
 
     def _resolve_provider(self, context: ProcessingContext, config: Dict[str, Any]) -> Optional[str]:
         """Return the provider name for this request."""
+        # A runtime override (resolved from allowed_video_models) takes priority.
+        if context.runtime_provider:
+            return context.runtime_provider
+
         if context.adapter_name and self.container.has('adapter_manager'):
             try:
                 adapter_manager = self.container.get('adapter_manager')

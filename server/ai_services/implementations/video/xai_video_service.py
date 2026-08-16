@@ -81,7 +81,8 @@ class XAIVideoService(VideoGenerationService):
             if not await self.initialize():
                 raise ValueError("Failed to initialize xAI video generation service")
 
-        self._validate_model()
+        model = kwargs.get("model") or self.model
+        self._validate_model(model)
 
         aspect_ratio = kwargs.get("aspect_ratio", self.aspect_ratio)
         resolution = kwargs.get("resolution", self.resolution)
@@ -93,7 +94,7 @@ class XAIVideoService(VideoGenerationService):
             try:
                 response = await self.client.video.generate(
                     prompt=prompt,
-                    model=self.model,
+                    model=model,
                     duration=duration,
                     aspect_ratio=aspect_ratio,
                     resolution=resolution,
@@ -129,14 +130,14 @@ class XAIVideoService(VideoGenerationService):
             resp.raise_for_status()
             return resp.content
 
-    def _validate_model(self) -> None:
-        if not self.model:
+    def _validate_model(self, model: str) -> None:
+        if not model:
             raise ValueError("xAI video generation model is not configured.")
 
-        if not self.model.lower().startswith("grok-imagine-video"):
+        if not model.lower().startswith("grok-imagine-video"):
             raise ValueError(
                 "xAI video generation requires a video model such as 'grok-imagine-video'. "
-                f"Configured model '{self.model}' is not compatible with the video endpoint."
+                f"Configured model '{model}' is not compatible with the video endpoint."
             )
 
     def _normalize_api_host(self, base_url: str) -> str:

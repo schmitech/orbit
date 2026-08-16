@@ -174,7 +174,12 @@ async def list_adapter_models(
     if adapter_config is None:
         raise HTTPException(status_code=404, detail=f"Adapter '{resolved_name}' not found")
 
-    allowed = adapter_config.get('allowed_models') or adapter_config.get('allowed_image_models') or []
+    allowed = (
+        adapter_config.get('allowed_models')
+        or adapter_config.get('allowed_image_models')
+        or adapter_config.get('allowed_video_models')
+        or []
+    )
 
     if allowed:
         models = [

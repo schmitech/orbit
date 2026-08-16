@@ -217,6 +217,67 @@ class RequestContextBuilder:
         )
         return runtime_provider, runtime_model_name, runtime_param_overrides
 
+    def resolve_video_model_override(
+        self,
+        adapter_name: str,
+        requested_model: Optional[str],
+    ) -> tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
+        """
+        Resolve a client-requested model name against the adapter's allowed_video_models list.
+
+        Mirrors resolve_image_model_override(), but for video-generation adapters.
+        Video params (aspect_ratio/resolution/duration/...) vary by provider, so
+        every key on the matched entry other than 'name'/'provider'/'model' is passed
+        through as a generic param override.
+
+        Args:
+            adapter_name: The adapter name
+            requested_model: Optional model name from the request body
+
+        Returns:
+            Tuple of (runtime_provider, runtime_model_name, runtime_param_overrides).
+            All None when requested_model is falsy or the adapter has no allowed_video_models.
+
+        Raises:
+            ValueError: If requested_model doesn't match any allowed_video_models entry.
+        """
+        if not requested_model:
+            return None, None, None
+
+        adapter_config = self.get_adapter_config(adapter_name)
+        allowed = adapter_config.get('allowed_video_models') or []
+        if not allowed:
+            return None, None, None
+
+        match = next((m for m in allowed if m.get('name') == requested_model), None)
+        if match is None:
+            allowed_names = [m['name'] for m in allowed if m.get('name')]
+            raise ValueError(
+                f"Video model '{requested_model}' is not allowed for adapter '{adapter_name}'. "
+                f"Allowed video models: {allowed_names}"
+            )
+
+        runtime_provider = match.get('provider')
+        runtime_model_name = match.get('model')
+        if not runtime_provider or not runtime_model_name:
+            raise ValueError(
+                f"Adapter '{adapter_name}' has an invalid allowed_video_models entry for "
+                f"'{requested_model}'. Each entry must include 'name', 'provider', and 'model'."
+            )
+
+        runtime_param_overrides = {
+            key: value
+            for key, value in match.items()
+            if key not in ('name', 'provider', 'model') and value is not None
+        } or None
+
+        logger.debug(
+            f"Runtime video model override: '{requested_model}' → "
+            f"{runtime_provider}/{runtime_model_name} for adapter '{adapter_name}'"
+            + (f" (params: {runtime_param_overrides})" if runtime_param_overrides else "")
+        )
+        return runtime_provider, runtime_model_name, runtime_param_overrides
+
     def get_time_format(self, adapter_name: str) -> Optional[str]:
         """
         Get the time format setting for an adapter.
@@ -337,6 +398,7 @@ class RequestContextBuilder:
 
         final_cfg = self.get_adapter_config(adapter_name)
         runtime_image_param_overrides = None
+        runtime_video_param_overrides = None
 
         if final_cfg.get('type') == 'image_generation':
             # Image-generation adapters have their own allowed_image_models list
@@ -352,6 +414,18 @@ class RequestContextBuilder:
                 # selected LLM model name, which has no meaning here. Only an explicit,
                 # user-driven route (direct call or explicit skill=) should reject an
                 # unrecognized name.
+                if not skill or not skill_auto_detected:
+                    raise
+                runtime_provider, runtime_model_name = None, None
+            runtime_param_overrides = None
+        elif final_cfg.get('type') == 'video_generation':
+            # Video-generation adapters have their own allowed_video_models list,
+            # validated against the final adapter — same leniency as images.
+            try:
+                runtime_provider, runtime_model_name, runtime_video_param_overrides = (
+                    self.resolve_video_model_override(adapter_name, requested_model)
+                )
+            except ValueError:
                 if not skill or not skill_auto_detected:
                     raise
                 runtime_provider, runtime_model_name = None, None
@@ -408,6 +482,7 @@ class RequestContextBuilder:
             runtime_model_name=runtime_model_name,
             runtime_param_overrides=runtime_param_overrides,
             runtime_image_param_overrides=runtime_image_param_overrides,
+            runtime_video_param_overrides=runtime_video_param_overrides,
             requested_skill=requested_skill,
             original_adapter_name=original_adapter_name,
             web_search=web_search,

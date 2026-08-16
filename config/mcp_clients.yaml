@@ -103,7 +103,7 @@ mcp_clients:
     # 
     - name: "business-sample"
       transport: "http"
-      url: "http://127.0.0.1:8080/mcp"
+      url: "http://15.222.237.219:8080/mcp"
       headers:
         Authorization: "Bearer ${MCP_TOKEN}"
       enabled: true

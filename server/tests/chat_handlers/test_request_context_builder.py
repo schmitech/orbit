@@ -462,6 +462,164 @@ class TestAllowedImageModelsViaSkillRouting:
         assert context.runtime_image_param_overrides is None
 
 
+class TestAllowedVideoModels:
+    """Tests for runtime model override via allowed_video_models (video_generation adapters)."""
+
+    def _builder_with_allowed_video_models(self, base_config, allowed_video_models):
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'video_generation',
+            'video_provider': 'gemini',
+            'config': {},
+            'allowed_video_models': allowed_video_models,
+        }
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def test_valid_video_model_overrides_provider_and_params(self, base_config):
+        """A model name present in allowed_video_models sets runtime_provider/model and passes
+        through non-name/provider/model keys as runtime_video_param_overrides."""
+        allowed = [{
+            'name': 'xai-video', 'provider': 'xai', 'model': 'grok-imagine-video',
+            'aspect_ratio': '16:9', 'resolution': '720p',
+        }]
+        builder = self._builder_with_allowed_video_models(base_config, allowed)
+
+        context = builder.build_context(
+            message="a video of a cat",
+            adapter_name="video-generator",
+            context_messages=[],
+            requested_model="xai-video",
+        )
+
+        assert context.runtime_provider == 'xai'
+        assert context.runtime_model_name == 'grok-imagine-video'
+        assert context.runtime_video_param_overrides == {'aspect_ratio': '16:9', 'resolution': '720p'}
+        assert context.runtime_param_overrides is None
+
+    def test_unknown_video_model_raises(self, base_config):
+        """A model name not in allowed_video_models raises ValueError."""
+        allowed = [{'name': 'xai-video', 'provider': 'xai', 'model': 'grok-imagine-video'}]
+        builder = self._builder_with_allowed_video_models(base_config, allowed)
+
+        with pytest.raises(ValueError, match="not allowed"):
+            builder.build_context(
+                message="a video of a cat",
+                adapter_name="video-generator",
+                context_messages=[],
+                requested_model="unknown-video-model",
+            )
+
+    def test_no_allowed_video_models_ignores_requested_model(self, base_config):
+        """When the adapter defines no allowed_video_models, any requested_model is ignored."""
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'video_generation',
+            'video_provider': 'gemini',
+            'config': {},
+        }
+        builder = RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+        context = builder.build_context(
+            message="a video of a cat",
+            adapter_name="video-generator",
+            context_messages=[],
+            requested_model="anything",
+        )
+
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+        assert context.runtime_video_param_overrides is None
+
+
+class TestAllowedVideoModelsViaSkillRouting:
+    """Tests for allowed_video_models resolution after skill routing (not before)."""
+
+    def _make_builder(self, base_config, caller_cfg, video_cfg, skill_adapter_name='video-generator'):
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.side_effect = lambda name: (
+            video_cfg if name == skill_adapter_name else caller_cfg
+        )
+        manager.get_skill_adapter.return_value = skill_adapter_name
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def _configs(self):
+        caller_cfg = {
+            'type': 'multimodal',
+            'inference_provider': 'openai',
+            'config': {},
+            'capabilities': {'available_skills': ['Video'], 'auto_routable_skills': ['Video']},
+            'allowed_models': [{'name': 'claude', 'provider': 'anthropic', 'model': 'claude-sonnet-4-5'}],
+        }
+        video_cfg = {
+            'type': 'video_generation',
+            'video_provider': 'gemini',
+            'config': {},
+            'allowed_video_models': [
+                {'name': 'xai-video', 'provider': 'xai', 'model': 'grok-imagine-video', 'aspect_ratio': '16:9'},
+            ],
+        }
+        return caller_cfg, video_cfg
+
+    def test_explicit_video_skill_with_valid_video_model(self, base_config):
+        """Explicit Video skill + a matching allowed_video_models name resolves cleanly,
+        even though the calling adapter's own allowed_models doesn't contain it."""
+        caller_cfg, video_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, video_cfg)
+
+        context = builder.build_context(
+            message="make a video of a cat",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="xai-video",
+            skill="Video",
+            skill_auto_detected=False,
+        )
+
+        assert context.adapter_name == 'video-generator'
+        assert context.runtime_provider == 'xai'
+        assert context.runtime_model_name == 'grok-imagine-video'
+        assert context.runtime_video_param_overrides == {'aspect_ratio': '16:9'}
+
+    def test_explicit_video_skill_invalid_model_raises(self, base_config):
+        """Explicit Video skill + an unrecognized video model name still raises."""
+        caller_cfg, video_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, video_cfg)
+
+        with pytest.raises(ValueError, match="not allowed"):
+            builder.build_context(
+                message="make a video of a cat",
+                adapter_name="test_adapter",
+                context_messages=[],
+                requested_model="unknown-video-model",
+                skill="Video",
+                skill_auto_detected=False,
+            )
+
+    def test_auto_detected_video_skill_ignores_callers_llm_model(self, base_config):
+        """Auto-detected Video skill carries along the calling adapter's previously
+        selected LLM model name (e.g. 'claude'), which has no meaning for the video
+        adapter — this must be silently ignored, not raise."""
+        caller_cfg, video_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, video_cfg)
+
+        context = builder.build_context(
+            message="make a video of a cat",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="claude",
+            skill="Video",
+            skill_auto_detected=True,
+        )
+
+        assert context.adapter_name == 'video-generator'
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+        assert context.runtime_video_param_overrides is None
+
+
 class TestSkillRouting:
     """Tests for skill invocation via RequestContextBuilder."""
 

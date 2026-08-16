@@ -4,6 +4,7 @@
 
 ### Core System Updates
 - **Runtime Image Model Selection**: Image-generation adapters can now expose an `allowed_image_models` allowlist, enabling clients to select supported provider/model combinations and provider-specific generation settings (for example size, quality, or aspect ratio) per request. The model-discovery API and chat model picker now expose these image choices.
+- **Runtime Video Model Selection**: Video-generation adapters can now expose an `allowed_video_models` allowlist, letting clients select supported provider/model combinations and provider-specific settings (such as aspect ratio, resolution, or duration) per request. The model-discovery API and chat model picker now expose these video choices.
 
 ### Bug Fixes & Technical Improvements
 - **Image Skill Model Routing**: Fixed Image skill requests validating a selected image model against the calling chat adapter before the skill adapter was resolved. Explicit Image requests now validate against the image adapter's allowlist, while auto-routed Image requests safely ignore a stale caller LLM model selection.

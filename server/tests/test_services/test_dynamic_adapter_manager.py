@@ -236,6 +236,25 @@ class TestGetAllowedImageModels:
         assert manager.get_allowed_image_models("image-generator") == []
 
 
+class TestGetAllowedVideoModels:
+
+    def test_returns_allowed_video_models_list(self, manager):
+        models = [{"name": "xai-video", "provider": "xai", "model": "grok-imagine-video", "aspect_ratio": "16:9"}]
+        manager.config_manager.get.return_value = {'allowed_video_models': models}
+
+        result = manager.get_allowed_video_models("video-generator")
+
+        assert result == models
+
+    def test_returns_empty_list_when_adapter_not_found(self, manager):
+        manager.config_manager.get.return_value = None
+        assert manager.get_allowed_video_models("missing") == []
+
+    def test_returns_empty_list_when_field_absent(self, manager):
+        manager.config_manager.get.return_value = {}
+        assert manager.get_allowed_video_models("video-generator") == []
+
+
 # ---------------------------------------------------------------------------
 # reload_templates
 # ---------------------------------------------------------------------------

@@ -38,6 +38,17 @@ adapters:
       retrieval_behavior: "none"
       formatting_style: "standard"
       requires_api_key_validation: false
+      # ORBIT-only skills: auto-routed from natural language, NOT user-invokable
+      auto_routable_skills:
+        - "Image"
+        - "Video"
+      available_skills:
+        - "Image"
+        - "Video"
+      # Automatic skill intent detection: infer a skill (Image, Video, ...) from
+      # plain natural language without the client sending skill=<name>. Requires
+      # skill_routing.auto_detect: true in config.yaml to take effect.
+      auto_skill_routing: true
       # Optionally restrict which MCP servers this adapter may use.
       # Omit (or set to null) to allow all enabled servers.
       mcp_servers:
