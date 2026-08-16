@@ -86,7 +86,8 @@ class XAIImageService(ImageGenerationService):
             if not await self.initialize():
                 raise ValueError("Failed to initialize xAI image generation service")
 
-        self._validate_model()
+        model = kwargs.get("model") or self.model
+        self._validate_model(model)
 
         async def _generate() -> Dict[str, Any]:
             image_format = "base64"
@@ -98,7 +99,7 @@ class XAIImageService(ImageGenerationService):
             if n and int(n) > 1:
                 responses = await self.client.image.sample_batch(
                     prompt=prompt,
-                    model=self.model,
+                    model=model,
                     n=int(n),
                     user=user,
                     image_format=image_format,
@@ -109,7 +110,7 @@ class XAIImageService(ImageGenerationService):
             else:
                 response = await self.client.image.sample(
                     prompt=prompt,
-                    model=self.model,
+                    model=model,
                     user=user,
                     image_format=image_format,
                     aspect_ratio=aspect_ratio,
@@ -132,16 +133,16 @@ class XAIImageService(ImageGenerationService):
             error_message="xAI image generation failed",
         )
 
-    def _validate_model(self) -> None:
-        if not self.model:
+    def _validate_model(self, model: str) -> None:
+        if not model:
             raise ValueError("xAI image generation model is not configured.")
 
-        model_lower = self.model.lower()
+        model_lower = model.lower()
         if not model_lower.startswith("grok-imagine-image"):
             raise ValueError(
                 "xAI image generation requires an image model such as "
                 "'grok-imagine-image' or 'grok-imagine-image-pro'. "
-                f"Configured model '{self.model}' is not compatible with the image endpoint."
+                f"Configured model '{model}' is not compatible with the image endpoint."
             )
 
     def _normalize_api_host(self, base_url: str) -> str:

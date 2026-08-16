@@ -117,7 +117,10 @@ export function ChatInterface({
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
   useEffect(() => {
-    const adapterName = currentConversation?.adapterName;
+    // A selected skill (e.g. "Image") routes to its own backing adapter with its
+    // own model list (e.g. image-generator's allowed_image_models) — fall back to
+    // the conversation's adapter when no skill is active.
+    const adapterName = skillState.selectedSkill?.adapter_name ?? currentConversation?.adapterName;
     let cancelled = false;
 
     async function loadModels() {
@@ -142,7 +145,7 @@ export function ChatInterface({
 
     void loadModels();
     return () => { cancelled = true; };
-  }, [currentConversation?.adapterName]);
+  }, [currentConversation?.adapterName, skillState.selectedSkill]);
 
   const {
     adapterNotesError,

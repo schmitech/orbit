@@ -304,6 +304,164 @@ class TestAllowedModels:
         assert context.runtime_model_name is None
 
 
+class TestAllowedImageModels:
+    """Tests for runtime model override via allowed_image_models (image_generation adapters)."""
+
+    def _builder_with_allowed_image_models(self, base_config, allowed_image_models):
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'image_generation',
+            'image_provider': 'gemini',
+            'config': {},
+            'allowed_image_models': allowed_image_models,
+        }
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def test_valid_image_model_overrides_provider_and_params(self, base_config):
+        """A model name present in allowed_image_models sets runtime_provider/model and passes
+        through non-name/provider/model keys as runtime_image_param_overrides."""
+        allowed = [{
+            'name': 'gpt-image-2', 'provider': 'openai', 'model': 'gpt-image-2',
+            'size': '1024x1024', 'quality': 'auto',
+        }]
+        builder = self._builder_with_allowed_image_models(base_config, allowed)
+
+        context = builder.build_context(
+            message="draw a cat",
+            adapter_name="image-generator",
+            context_messages=[],
+            requested_model="gpt-image-2",
+        )
+
+        assert context.runtime_provider == 'openai'
+        assert context.runtime_model_name == 'gpt-image-2'
+        assert context.runtime_image_param_overrides == {'size': '1024x1024', 'quality': 'auto'}
+        assert context.runtime_param_overrides is None
+
+    def test_unknown_image_model_raises(self, base_config):
+        """A model name not in allowed_image_models raises ValueError."""
+        allowed = [{'name': 'gpt-image-2', 'provider': 'openai', 'model': 'gpt-image-2'}]
+        builder = self._builder_with_allowed_image_models(base_config, allowed)
+
+        with pytest.raises(ValueError, match="not allowed"):
+            builder.build_context(
+                message="draw a cat",
+                adapter_name="image-generator",
+                context_messages=[],
+                requested_model="unknown-image-model",
+            )
+
+    def test_no_allowed_image_models_ignores_requested_model(self, base_config):
+        """When the adapter defines no allowed_image_models, any requested_model is ignored."""
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'image_generation',
+            'image_provider': 'gemini',
+            'config': {},
+        }
+        builder = RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+        context = builder.build_context(
+            message="draw a cat",
+            adapter_name="image-generator",
+            context_messages=[],
+            requested_model="anything",
+        )
+
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+        assert context.runtime_image_param_overrides is None
+
+
+class TestAllowedImageModelsViaSkillRouting:
+    """Tests for allowed_image_models resolution after skill routing (not before)."""
+
+    def _make_builder(self, base_config, caller_cfg, image_cfg, skill_adapter_name='image-generator'):
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.side_effect = lambda name: (
+            image_cfg if name == skill_adapter_name else caller_cfg
+        )
+        manager.get_skill_adapter.return_value = skill_adapter_name
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def _configs(self):
+        caller_cfg = {
+            'type': 'multimodal',
+            'inference_provider': 'openai',
+            'config': {},
+            'capabilities': {'available_skills': ['Image'], 'auto_routable_skills': ['Image']},
+            'allowed_models': [{'name': 'claude', 'provider': 'anthropic', 'model': 'claude-sonnet-4-5'}],
+        }
+        image_cfg = {
+            'type': 'image_generation',
+            'image_provider': 'gemini',
+            'config': {},
+            'allowed_image_models': [
+                {'name': 'gpt-image-2', 'provider': 'openai', 'model': 'gpt-image-2', 'size': '1024x1024'},
+            ],
+        }
+        return caller_cfg, image_cfg
+
+    def test_explicit_image_skill_with_valid_image_model(self, base_config):
+        """Explicit Image skill + a matching allowed_image_models name resolves cleanly,
+        even though the calling adapter's own allowed_models doesn't contain it."""
+        caller_cfg, image_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, image_cfg)
+
+        context = builder.build_context(
+            message="draw a cat",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="gpt-image-2",
+            skill="Image",
+            skill_auto_detected=False,
+        )
+
+        assert context.adapter_name == 'image-generator'
+        assert context.runtime_provider == 'openai'
+        assert context.runtime_model_name == 'gpt-image-2'
+        assert context.runtime_image_param_overrides == {'size': '1024x1024'}
+
+    def test_explicit_image_skill_invalid_model_raises(self, base_config):
+        """Explicit Image skill + an unrecognized image model name still raises."""
+        caller_cfg, image_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, image_cfg)
+
+        with pytest.raises(ValueError, match="not allowed"):
+            builder.build_context(
+                message="draw a cat",
+                adapter_name="test_adapter",
+                context_messages=[],
+                requested_model="unknown-image-model",
+                skill="Image",
+                skill_auto_detected=False,
+            )
+
+    def test_auto_detected_image_skill_ignores_callers_llm_model(self, base_config):
+        """Auto-detected Image skill carries along the calling adapter's previously
+        selected LLM model name (e.g. 'claude'), which has no meaning for the image
+        adapter — this must be silently ignored, not raise."""
+        caller_cfg, image_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, image_cfg)
+
+        context = builder.build_context(
+            message="draw a cat",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="claude",
+            skill="Image",
+            skill_auto_detected=True,
+        )
+
+        assert context.adapter_name == 'image-generator'
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+        assert context.runtime_image_param_overrides is None
+
+
 class TestSkillRouting:
     """Tests for skill invocation via RequestContextBuilder."""
 

@@ -214,6 +214,29 @@ class TestGetAllowedModels:
 
 
 # ---------------------------------------------------------------------------
+# get_allowed_image_models
+# ---------------------------------------------------------------------------
+
+class TestGetAllowedImageModels:
+
+    def test_returns_allowed_image_models_list(self, manager):
+        models = [{"name": "gpt-image-2", "provider": "openai", "model": "gpt-image-2", "size": "1024x1024"}]
+        manager.config_manager.get.return_value = {'allowed_image_models': models}
+
+        result = manager.get_allowed_image_models("image-generator")
+
+        assert result == models
+
+    def test_returns_empty_list_when_adapter_not_found(self, manager):
+        manager.config_manager.get.return_value = None
+        assert manager.get_allowed_image_models("missing") == []
+
+    def test_returns_empty_list_when_field_absent(self, manager):
+        manager.config_manager.get.return_value = {}
+        assert manager.get_allowed_image_models("image-generator") == []
+
+
+# ---------------------------------------------------------------------------
 # reload_templates
 # ---------------------------------------------------------------------------
 

@@ -846,11 +846,21 @@ class PipelineChatService:
             # allowed_models entry (e.g. a bigger context_window, or simply a
             # different provider with different context/output defaults) for this
             # turn. build_context() below re-resolves the same thing from
-            # requested_model; cheap dict lookup, and this call raises first on an
-            # invalid model.
-            runtime_provider, _, runtime_param_overrides = self.context_builder.resolve_runtime_model_override(
-                adapter_name, requested_model
-            )
+            # requested_model.
+            #
+            # This is validated against the ADAPTER AS GIVEN, before any skill
+            # routing/auto-detection happens below — requested_model may actually
+            # be meant for a skill's backing adapter (e.g. an image model name for
+            # the "Image" skill), which isn't resolved until build_context() runs
+            # post-swap. So a mismatch here is not necessarily invalid — swallow it
+            # and let build_context's post-routing resolution be authoritative
+            # (it still raises for genuinely invalid models).
+            try:
+                runtime_provider, _, runtime_param_overrides = self.context_builder.resolve_runtime_model_override(
+                    adapter_name, requested_model
+                )
+            except ValueError:
+                runtime_provider, runtime_param_overrides = None, None
 
             if thread_id:
                 context_messages, effective_session_id = await self._resolve_context_for_thread(
@@ -1048,11 +1058,21 @@ class PipelineChatService:
             # allowed_models entry (e.g. a bigger context_window, or simply a
             # different provider with different context/output defaults) for this
             # turn. build_context() below re-resolves the same thing from
-            # requested_model; cheap dict lookup, and this call raises first on an
-            # invalid model.
-            runtime_provider, _, runtime_param_overrides = self.context_builder.resolve_runtime_model_override(
-                adapter_name, requested_model
-            )
+            # requested_model.
+            #
+            # This is validated against the ADAPTER AS GIVEN, before any skill
+            # routing/auto-detection happens below — requested_model may actually
+            # be meant for a skill's backing adapter (e.g. an image model name for
+            # the "Image" skill), which isn't resolved until build_context() runs
+            # post-swap. So a mismatch here is not necessarily invalid — swallow it
+            # and let build_context's post-routing resolution be authoritative
+            # (it still raises for genuinely invalid models).
+            try:
+                runtime_provider, _, runtime_param_overrides = self.context_builder.resolve_runtime_model_override(
+                    adapter_name, requested_model
+                )
+            except ValueError:
+                runtime_provider, runtime_param_overrides = None, None
 
             if thread_id:
                 context_messages, effective_session_id = await self._resolve_context_for_thread(

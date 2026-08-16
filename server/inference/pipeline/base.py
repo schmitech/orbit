@@ -83,6 +83,9 @@ class ProcessingContext:
     # Optional temperature/max_tokens/context_window overrides from the matched
     # allowed_models entry, layered on top of the adapter's own overrides
     runtime_param_overrides: Optional[Dict[str, Any]] = None
+    # Optional provider-specific overrides (size/quality/aspect_ratio/...) from the
+    # matched allowed_image_models entry, for image_generation adapters
+    runtime_image_param_overrides: Optional[Dict[str, Any]] = None
 
     # Skill invocation (set when client sends skill= in request)
     requested_skill: Optional[str] = None

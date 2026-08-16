@@ -139,11 +139,13 @@ async def list_adapter_models(
 
     Requires a valid API key (X-API-Key header). No admin credentials needed.
 
-    If the adapter defines an 'allowed_models' list in its config, that list
-    is returned and 'has_restrictions' is true.
+    If the adapter defines an 'allowed_models' (or 'allowed_image_models', for
+    image-generation adapters) list in its config, that list is returned and
+    'has_restrictions' is true.
 
-    If no 'allowed_models' are defined, the adapter's single default model
-    (inference_provider + model) is returned and 'has_restrictions' is false.
+    If neither is defined, the adapter's single default model (inference_provider +
+    model, or image_provider + config/image.yaml model for generation adapters) is
+    returned and 'has_restrictions' is false.
 
     Clients can use this endpoint to build a per-adapter model picker.
     """
@@ -172,7 +174,7 @@ async def list_adapter_models(
     if adapter_config is None:
         raise HTTPException(status_code=404, detail=f"Adapter '{resolved_name}' not found")
 
-    allowed = adapter_config.get('allowed_models') or []
+    allowed = adapter_config.get('allowed_models') or adapter_config.get('allowed_image_models') or []
 
     if allowed:
         models = [

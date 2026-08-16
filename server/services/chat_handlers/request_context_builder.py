@@ -156,6 +156,67 @@ class RequestContextBuilder:
         )
         return runtime_provider, runtime_model_name, runtime_param_overrides
 
+    def resolve_image_model_override(
+        self,
+        adapter_name: str,
+        requested_model: Optional[str],
+    ) -> tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
+        """
+        Resolve a client-requested model name against the adapter's allowed_image_models list.
+
+        Mirrors resolve_runtime_model_override(), but for image-generation adapters.
+        Image params (size/quality/aspect_ratio/output_format/...) vary by provider, so
+        every key on the matched entry other than 'name'/'provider'/'model' is passed
+        through as a generic param override, rather than a fixed LLM-shaped key set.
+
+        Args:
+            adapter_name: The adapter name
+            requested_model: Optional model name from the request body
+
+        Returns:
+            Tuple of (runtime_provider, runtime_model_name, runtime_param_overrides).
+            All None when requested_model is falsy or the adapter has no allowed_image_models.
+
+        Raises:
+            ValueError: If requested_model doesn't match any allowed_image_models entry.
+        """
+        if not requested_model:
+            return None, None, None
+
+        adapter_config = self.get_adapter_config(adapter_name)
+        allowed = adapter_config.get('allowed_image_models') or []
+        if not allowed:
+            return None, None, None
+
+        match = next((m for m in allowed if m.get('name') == requested_model), None)
+        if match is None:
+            allowed_names = [m['name'] for m in allowed if m.get('name')]
+            raise ValueError(
+                f"Image model '{requested_model}' is not allowed for adapter '{adapter_name}'. "
+                f"Allowed image models: {allowed_names}"
+            )
+
+        runtime_provider = match.get('provider')
+        runtime_model_name = match.get('model')
+        if not runtime_provider or not runtime_model_name:
+            raise ValueError(
+                f"Adapter '{adapter_name}' has an invalid allowed_image_models entry for "
+                f"'{requested_model}'. Each entry must include 'name', 'provider', and 'model'."
+            )
+
+        runtime_param_overrides = {
+            key: value
+            for key, value in match.items()
+            if key not in ('name', 'provider', 'model') and value is not None
+        } or None
+
+        logger.debug(
+            f"Runtime image model override: '{requested_model}' → "
+            f"{runtime_provider}/{runtime_model_name} for adapter '{adapter_name}'"
+            + (f" (params: {runtime_param_overrides})" if runtime_param_overrides else "")
+        )
+        return runtime_provider, runtime_model_name, runtime_param_overrides
+
     def get_time_format(self, adapter_name: str) -> Optional[str]:
         """
         Get the time format setting for an adapter.
@@ -235,12 +296,11 @@ class RequestContextBuilder:
             if tts_voice:
                 logger.debug(f"Using adapter config tts_voice: {tts_voice} for adapter: {adapter_name}")
 
-        # Resolve runtime model override from adapter's allowed_models
-        runtime_provider, runtime_model_name, runtime_param_overrides = (
-            self.resolve_runtime_model_override(adapter_name, requested_model)
-        )
-
-        # Resolve skill invocation: validate allowlist and swap adapter
+        # Resolve skill invocation first: validate allowlist and swap adapter_name to
+        # the skill's backing adapter. Model-override resolution (below) depends on
+        # knowing the FINAL adapter — allowed_models/allowed_image_models must be
+        # validated against whichever adapter actually generates the response, not
+        # the caller adapter a skill may swap away from.
         original_adapter_name = None
         requested_skill = None
         if skill:
@@ -270,24 +330,52 @@ class RequestContextBuilder:
             original_adapter_name = adapter_name
             requested_skill = skill
             adapter_name = skill_adapter_name
-            skill_inference_provider = self.get_inference_provider(adapter_name)
-            if skill_inference_provider:
-                # Skill has its own LLM (e.g. image/video generation) — use it.
-                inference_provider = skill_inference_provider
-                runtime_provider = None
-                runtime_model_name = None
-                runtime_param_overrides = None
-            else:
-                # Skill has no configured LLM (e.g. fetch) — keep the invoking
-                # adapter's provider/model so the caller's LLM processes the result.
-                pass  # inference_provider, runtime_provider, runtime_model_name, runtime_param_overrides unchanged
             logger.debug(
                 f"Skill routing: '{requested_skill}' → adapter '{adapter_name}' "
                 f"(original: '{original_adapter_name}')"
             )
 
-        # Resolve web search capability from the (possibly skill-swapped) adapter
         final_cfg = self.get_adapter_config(adapter_name)
+        runtime_image_param_overrides = None
+
+        if final_cfg.get('type') == 'image_generation':
+            # Image-generation adapters have their own allowed_image_models list
+            # (different param shape than allowed_models), validated against the
+            # final adapter — never the calling adapter's allowed_models.
+            try:
+                runtime_provider, runtime_model_name, runtime_image_param_overrides = (
+                    self.resolve_image_model_override(adapter_name, requested_model)
+                )
+            except ValueError:
+                # requested_model wasn't necessarily meant for this adapter — e.g. an
+                # auto-detected skill carries along the calling adapter's previously
+                # selected LLM model name, which has no meaning here. Only an explicit,
+                # user-driven route (direct call or explicit skill=) should reject an
+                # unrecognized name.
+                if not skill or not skill_auto_detected:
+                    raise
+                runtime_provider, runtime_model_name = None, None
+            runtime_param_overrides = None
+        else:
+            # Resolve runtime model override from the adapter's allowed_models. For a
+            # skill with no LLM of its own (e.g. fetch), this stays the CALLING
+            # adapter's override, since that adapter's LLM processes the result.
+            runtime_provider, runtime_model_name, runtime_param_overrides = (
+                self.resolve_runtime_model_override(
+                    original_adapter_name or adapter_name, requested_model
+                )
+            )
+            if skill:
+                skill_inference_provider = self.get_inference_provider(adapter_name)
+                if skill_inference_provider:
+                    # Skill has its own LLM (e.g. video generation) — use it.
+                    inference_provider = skill_inference_provider
+                    runtime_provider = None
+                    runtime_model_name = None
+                    runtime_param_overrides = None
+                # else: skill has no configured LLM — keep the invoking adapter's
+                # provider/model/overrides resolved above unchanged.
+
         web_search = bool(final_cfg.get('capabilities', {}).get('web_search', False))
 
         # Resolve opportunistic MCP tool-calling capability the same way.
@@ -319,6 +407,7 @@ class RequestContextBuilder:
             runtime_provider=runtime_provider,
             runtime_model_name=runtime_model_name,
             runtime_param_overrides=runtime_param_overrides,
+            runtime_image_param_overrides=runtime_image_param_overrides,
             requested_skill=requested_skill,
             original_adapter_name=original_adapter_name,
             web_search=web_search,

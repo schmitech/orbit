@@ -34,6 +34,7 @@ class OpenAIImageService(ImageGenerationService, OpenAIBaseService):
         if not self.initialized:
             await self.initialize()
 
+        model = kwargs.get("model") or self.model
         size = kwargs.get("size", self.size)
         quality = kwargs.get("quality", self.quality)
         style = kwargs.get("style", self.style)
@@ -41,12 +42,12 @@ class OpenAIImageService(ImageGenerationService, OpenAIBaseService):
         output_compression = kwargs.get("output_compression", self.output_compression)
         background = kwargs.get("background", self.background)
         moderation = kwargs.get("moderation", self.moderation)
-        model_lower = (self.model or "").lower()
+        model_lower = (model or "").lower()
         is_gpt_image = model_lower.startswith("gpt-image")
         is_dalle = model_lower.startswith("dall-e")
 
         params: Dict[str, Any] = {
-            "model": self.model,
+            "model": model,
             "prompt": prompt,
             "n": 1,
             "size": size,
@@ -90,7 +91,7 @@ class OpenAIImageService(ImageGenerationService, OpenAIBaseService):
                     "completion_tokens": completion_tokens,
                     "total_tokens": prompt_tokens + completion_tokens,
                     "provider": self.provider_name,
-                    "model": self.model,
+                    "model": model,
                     "reported": True,
                 }
             elif is_dalle:

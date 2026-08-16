@@ -34,7 +34,7 @@ class OllamaImageService(ImageGenerationService, OllamaBaseService):
             url = self._build_images_url()
 
             payload: Dict[str, Any] = {
-                "model": self.model,
+                "model": kwargs.get("model") or self.model,
                 "prompt": prompt,
                 "n": kwargs.get("n", self.n),
                 "size": kwargs.get("size", self.size),

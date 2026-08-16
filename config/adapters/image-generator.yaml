@@ -11,6 +11,29 @@ adapters:
     rewrite_provider: "openai"          #Text LLM used to enrich prompts before image generation
     rewrite_model: "gpt-5.4-mini"       # Text LLM used to enrich prompts before image generation
 
+    # Optional: clients may request any of these image models at runtime via the
+    # "model" field. If omitted, the adapter always uses image_provider/config/image.yaml
+    # defaults. Each entry may carry provider-specific overrides (size/quality/aspect_ratio/
+    # output_format/style/n), which take precedence over config/image.yaml for that request only.
+    allowed_image_models:
+      - name: "gpt-image-2"
+        provider: "openai"
+        model: "gpt-image-2"
+        size: "1024x1024"
+        quality: "auto"
+      - name: "gemini-flash-image"
+        provider: "gemini"
+        model: "gemini-3.1-flash-image"
+        aspect_ratio: "1:1"
+      - name: "ollama-z-image"
+        provider: "ollama"
+        model: "x/z-image-turbo"
+        size: "1024x1024"
+      - name: "xai-image"
+        provider: "xai"
+        model: "grok-imagine-image-quality"
+        aspect_ratio: "1:1"
+
     capabilities:
       expose_as_skill: true
       skill_name: "Image"

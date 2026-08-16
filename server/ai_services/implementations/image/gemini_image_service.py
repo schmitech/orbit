@@ -52,13 +52,15 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
         except Exception:
             return False
 
-    def _is_gemini_model(self) -> bool:
-        return self.model.startswith("gemini-")
+    def _is_gemini_model(self, model: str) -> bool:
+        return model.startswith("gemini-")
 
     async def generate_image(self, prompt: str, **kwargs) -> Dict[str, Any]:
         """Generate an image using Google Gemini or Imagen."""
         if not self.initialized:
             await self.initialize()
+
+        model = kwargs.get("model") or self.model
 
         try:
             from google.genai import types as genai_types
@@ -67,12 +69,12 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
 
             usage_dict = None
             media_usage = None
-            if self._is_gemini_model():
+            if self._is_gemini_model(model):
                 # Gemini models (e.g. gemini-3.1-flash-image) use generate_content
                 # with IMAGE response modality, not the Imagen generate_images API.
                 response = await asyncio.to_thread(
                     client.models.generate_content,
-                    model=self.model,
+                    model=model,
                     contents=prompt,
                     config=genai_types.GenerateContentConfig(
                         response_modalities=["TEXT", "IMAGE"],
@@ -95,7 +97,7 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
                         "completion_tokens": completion_tokens,
                         "total_tokens": prompt_tokens + completion_tokens,
                         "provider": self.provider_name,
-                        "model": self.model,
+                        "model": model,
                         "reported": True,
                     }
             else:
@@ -105,7 +107,7 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
                 number_of_images = kwargs.get("number_of_images", self.number_of_images)
                 response = await asyncio.to_thread(
                     client.models.generate_images,
-                    model=self.model,
+                    model=model,
                     prompt=prompt,
                     config=genai_types.GenerateImagesConfig(
                         number_of_images=number_of_images,

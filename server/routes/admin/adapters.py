@@ -176,6 +176,7 @@ async def list_adapter_configs(
                         "model": adapter.get("model", ""),
                         "embedding_provider": adapter.get("embedding_provider", ""),
                         "allowed_models": adapter.get("allowed_models") or [],
+                        "allowed_image_models": adapter.get("allowed_image_models") or [],
                     })
         except Exception:
             pass  # File might have invalid YAML — show it anyway with empty adapters
