@@ -39,6 +39,16 @@
 #     -H "X-API-Key: <key for an adapter that allows web-search-duckduckgo>" \
 #     -d '{"messages":[{"role":"user","content":"What are today'\''s top news headlines?"}],
 #          "skill":"web-search-duckduckgo"}'
+#
+# RUNTIME BACKEND SWITCHING: web-search-duckduckgo also declares
+# allowed_search_providers, letting a client pick a different search backend at
+# request time via the "model" field (matched by name — e.g. "brave", "serper"),
+# without needing a separate adapter/API key per backend:
+#   curl -X POST http://localhost:3000/v1/chat \
+#     -H "Content-Type: application/json" \
+#     -H "X-API-Key: <key for an adapter that allows web-search-duckduckgo>" \
+#     -d '{"messages":[{"role":"user","content":"..."}],
+#          "skill":"web-search-duckduckgo","model":"brave"}'
 
 adapters:
 
@@ -52,6 +62,40 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     inference_provider: "anthropic"
     model: "claude-haiku-4-5-20251001"
+    # Lets a client pick which search backend this adapter uses at runtime (mirrors
+    # allowed_image_models/allowed_video_models/allowed_audio_models). Unlike those,
+    # there's no separate LLM to pick here — the backend itself is the selectable
+    # thing, so entries carry the same shape as the 'web_search' block below rather
+    # than a provider/model pair. Required API keys/URLs still come from env vars.
+    allowed_search_providers:
+      - name: "duckduckgo"
+        provider: "duckduckgo"
+        result_count: 5
+      - name: "brave"
+        provider: "brave"
+        api_key: "${BRAVE_SEARCH_API_KEY}"
+        result_count: 5
+      - name: "searxng"
+        provider: "searxng"
+        query_url: "${SEARXNG_URL}"
+        result_count: 5
+      - name: "serper"
+        provider: "serper"
+        api_key: "${SERPER_API_KEY}"
+        result_count: 5
+      - name: "tavily"
+        provider: "tavily"
+        api_key: "${TAVILY_API_KEY}"
+        result_count: 5
+      - name: "perplexity"
+        provider: "perplexity"
+        api_key: "${PERPLEXITY_API_KEY}"
+        result_count: 5
+      - name: "google-pse"
+        provider: "google_pse"
+        api_key: "${GOOGLE_PSE_API_KEY}"
+        search_engine_id: "${GOOGLE_PSE_ENGINE_ID}"
+        result_count: 5
     web_search:
       provider: "duckduckgo"
       result_count: 5

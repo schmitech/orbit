@@ -194,6 +194,21 @@ async def list_adapter_models(
             "models": models,
         }
 
+    # web-search adapters: the selectable thing is the search backend itself
+    # (duckduckgo/brave/serper/...), which has no 'model' field.
+    allowed_search_providers = adapter_config.get('allowed_search_providers') or []
+    if allowed_search_providers:
+        providers = [
+            {"name": m.get('name', ''), "provider": m.get('provider', '')}
+            for m in allowed_search_providers
+            if m.get('name') and m.get('provider')
+        ]
+        return {
+            "adapter_name": resolved_name,
+            "has_restrictions": True,
+            "models": providers,
+        }
+
     config = getattr(request.app.state, 'config', {})
 
     # Image/video/audio generation adapters don't run a text LLM — the response

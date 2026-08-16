@@ -274,6 +274,25 @@ class TestGetAllowedAudioModels:
         assert manager.get_allowed_audio_models("audio-generator") == []
 
 
+class TestGetAllowedSearchProviders:
+
+    def test_returns_allowed_search_providers_list(self, manager):
+        providers = [{"name": "brave", "provider": "brave", "api_key": "test-key", "result_count": 5}]
+        manager.config_manager.get.return_value = {'allowed_search_providers': providers}
+
+        result = manager.get_allowed_search_providers("web-search-duckduckgo")
+
+        assert result == providers
+
+    def test_returns_empty_list_when_adapter_not_found(self, manager):
+        manager.config_manager.get.return_value = None
+        assert manager.get_allowed_search_providers("missing") == []
+
+    def test_returns_empty_list_when_field_absent(self, manager):
+        manager.config_manager.get.return_value = {}
+        assert manager.get_allowed_search_providers("web-search-duckduckgo") == []
+
+
 # ---------------------------------------------------------------------------
 # reload_templates
 # ---------------------------------------------------------------------------

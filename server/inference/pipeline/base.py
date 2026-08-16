@@ -92,6 +92,9 @@ class ProcessingContext:
     # Optional provider-specific overrides (voice/format/...) from the
     # matched allowed_audio_models entry, for audio_generation adapters
     runtime_audio_param_overrides: Optional[Dict[str, Any]] = None
+    # Search backend override (provider/result_count/filter_list/...) from the
+    # matched allowed_search_providers entry, for web-search adapters
+    runtime_search_provider_overrides: Optional[Dict[str, Any]] = None
 
     # Skill invocation (set when client sends skill= in request)
     requested_skill: Optional[str] = None

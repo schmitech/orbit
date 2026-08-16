@@ -42,7 +42,10 @@ class WebSearchStep(PipelineStep):
             except Exception:
                 pass
 
-        ws_config: dict = adapter_config.get('web_search', {})
+        # A runtime override (from allowed_search_providers) replaces the adapter's
+        # static web_search block entirely — it already carries provider plus every
+        # other option (result_count/filter_list/api_key/...) for the chosen backend.
+        ws_config: dict = context.runtime_search_provider_overrides or adapter_config.get('web_search', {})
         provider_name: str = ws_config.get('provider', 'duckduckgo')
         result_count: int = int(ws_config.get('result_count', 5))
         filter_list: list | None = ws_config.get('filter_list')

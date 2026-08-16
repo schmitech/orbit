@@ -339,6 +339,73 @@ class RequestContextBuilder:
         )
         return runtime_provider, runtime_model_name, runtime_param_overrides
 
+    def resolve_search_provider_override(
+        self,
+        adapter_name: str,
+        requested_provider: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Resolve a client-requested search backend name against the adapter's
+        allowed_search_providers list.
+
+        Mirrors resolve_image_model_override()/resolve_video_model_override()/
+        resolve_audio_model_override(), but for web-search adapters (type
+        'web-search'). Unlike those, there's no separate LLM-shaped 'model' concept
+        here — the selectable thing IS the search backend, so the matched entry's
+        full config (provider/result_count/filter_list/api_key/...) is returned as-is
+        for WebSearchStep to use in place of the adapter's static 'web_search' block.
+
+        Args:
+            adapter_name: The adapter name
+            requested_provider: Optional search-provider name from the request's
+                'model' field
+
+        Returns:
+            The matched allowed_search_providers entry (minus 'name'), or None when
+            requested_provider is falsy or the adapter has no allowed_search_providers.
+
+        Raises:
+            ValueError: If requested_provider doesn't match any allowed_search_providers entry.
+        """
+        if not requested_provider:
+            return None
+
+        adapter_config = self.get_adapter_config(adapter_name)
+        allowed = adapter_config.get('allowed_search_providers') or []
+        if not allowed:
+            return None
+
+        match = next((m for m in allowed if m.get('name') == requested_provider), None)
+        if match is None:
+            # OpenAI-compatible clients (e.g. LiteLLM) echo the adapter name back as
+            # the model field. Treat that specific case as "no override" so they keep
+            # using the adapter's static web_search config, same as resolve_runtime_model_override.
+            if requested_provider == adapter_name:
+                logger.debug(
+                    f"Ignoring model echo '{requested_provider}' from OpenAI-compatible client "
+                    f"for adapter '{adapter_name}' — using adapter default"
+                )
+                return None
+            allowed_names = [m['name'] for m in allowed if m.get('name')]
+            raise ValueError(
+                f"Search provider '{requested_provider}' is not allowed for adapter "
+                f"'{adapter_name}'. Allowed search providers: {allowed_names}"
+            )
+
+        if not match.get('provider'):
+            raise ValueError(
+                f"Adapter '{adapter_name}' has an invalid allowed_search_providers entry for "
+                f"'{requested_provider}'. Each entry must include 'name' and 'provider'."
+            )
+
+        overrides = {key: value for key, value in match.items() if key != 'name' and value is not None}
+
+        logger.debug(
+            f"Runtime search provider override: '{requested_provider}' → "
+            f"{overrides.get('provider')} for adapter '{adapter_name}'"
+        )
+        return overrides
+
     def get_time_format(self, adapter_name: str) -> Optional[str]:
         """
         Get the time format setting for an adapter.
@@ -461,6 +528,7 @@ class RequestContextBuilder:
         runtime_image_param_overrides = None
         runtime_video_param_overrides = None
         runtime_audio_param_overrides = None
+        runtime_search_provider_overrides = None
 
         if final_cfg.get('type') == 'image_generation':
             # Image-generation adapters have their own allowed_image_models list
@@ -504,6 +572,25 @@ class RequestContextBuilder:
                     raise
                 runtime_provider, runtime_model_name = None, None
             runtime_param_overrides = None
+        elif final_cfg.get('type') == 'web-search':
+            # External-search-provider adapters have their own allowed_search_providers
+            # list — the selectable thing is the search backend itself (duckduckgo/
+            # brave/serper/...), not an LLM, so this bypasses the generic allowed_models
+            # resolution below the same way image/video/audio do.
+            try:
+                runtime_search_provider_overrides = (
+                    self.resolve_search_provider_override(adapter_name, requested_model)
+                )
+            except ValueError:
+                if not skill or not skill_auto_detected:
+                    raise
+                runtime_search_provider_overrides = None
+            runtime_provider, runtime_model_name, runtime_param_overrides = None, None, None
+            if skill:
+                skill_inference_provider = self.get_inference_provider(adapter_name)
+                if skill_inference_provider:
+                    # Skill has its own fixed synthesis LLM — use it, not the caller's.
+                    inference_provider = skill_inference_provider
         else:
             # Resolve runtime model override from the adapter's allowed_models. For a
             # skill with no LLM of its own (e.g. fetch), this stays the CALLING
@@ -558,6 +645,7 @@ class RequestContextBuilder:
             runtime_image_param_overrides=runtime_image_param_overrides,
             runtime_video_param_overrides=runtime_video_param_overrides,
             runtime_audio_param_overrides=runtime_audio_param_overrides,
+            runtime_search_provider_overrides=runtime_search_provider_overrides,
             requested_skill=requested_skill,
             original_adapter_name=original_adapter_name,
             web_search=web_search,

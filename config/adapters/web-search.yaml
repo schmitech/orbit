@@ -44,6 +44,24 @@ adapters:
     # inference_provider: "anthropic"
     # model: "claude-opus-5"
 
+    # Lets a client pick which of the native-search-capable providers/models to use
+    # at runtime (mirrors allowed_image_models/allowed_video_models/allowed_audio_models).
+    # Only gemini, openai, xai, and anthropic support native web search (see header above) —
+    # do not add entries for other providers here.
+    allowed_models:
+      - name: "gemini-search"
+        provider: "gemini"
+        model: "gemini-3.6-flash"
+      - name: "openai-search"
+        provider: "openai"
+        model: "gpt-5.6"
+      - name: "xai-search"
+        provider: "xai"
+        model: "grok-4.5"
+      - name: "anthropic-search"
+        provider: "anthropic"
+        model: "claude-opus-5"
+
     capabilities:
       web_search: true                   # Enable native web search on the inference call
       expose_as_skill: true              # Publish this adapter as a skill

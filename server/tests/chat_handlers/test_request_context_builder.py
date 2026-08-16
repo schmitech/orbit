@@ -778,6 +778,197 @@ class TestAllowedAudioModelsViaSkillRouting:
         assert context.runtime_audio_param_overrides is None
 
 
+class TestAllowedSearchProviders:
+    """Tests for runtime search-backend override via allowed_search_providers (web-search adapters)."""
+
+    def _builder_with_allowed_search_providers(self, base_config, allowed_search_providers):
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'web-search',
+            'inference_provider': 'anthropic',
+            'model': 'claude-haiku-4-5-20251001',
+            'config': {},
+            'web_search': {'provider': 'duckduckgo', 'result_count': 5},
+            'allowed_search_providers': allowed_search_providers,
+        }
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def test_valid_search_provider_overrides_backend(self, base_config):
+        """A name present in allowed_search_providers sets runtime_search_provider_overrides
+        and leaves the LLM synthesis path (runtime_provider/model) untouched."""
+        allowed = [{'name': 'brave', 'provider': 'brave', 'api_key': 'brave-key', 'result_count': 5}]
+        builder = self._builder_with_allowed_search_providers(base_config, allowed)
+
+        context = builder.build_context(
+            message="latest news",
+            adapter_name="web-search-duckduckgo",
+            context_messages=[],
+            requested_model="brave",
+        )
+
+        assert context.runtime_search_provider_overrides == {
+            'provider': 'brave', 'api_key': 'brave-key', 'result_count': 5,
+        }
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+        assert context.runtime_param_overrides is None
+
+    def test_unknown_search_provider_raises(self, base_config):
+        """A name not in allowed_search_providers raises ValueError."""
+        allowed = [{'name': 'brave', 'provider': 'brave'}]
+        builder = self._builder_with_allowed_search_providers(base_config, allowed)
+
+        with pytest.raises(ValueError, match="not allowed"):
+            builder.build_context(
+                message="latest news",
+                adapter_name="web-search-duckduckgo",
+                context_messages=[],
+                requested_model="unknown-backend",
+            )
+
+    def test_adapter_name_echo_treated_as_no_override(self, base_config):
+        """An OpenAI-compatible client echoing the adapter name as 'model' is treated
+        as no override, not an invalid search-provider name."""
+        allowed = [{'name': 'brave', 'provider': 'brave'}]
+        builder = self._builder_with_allowed_search_providers(base_config, allowed)
+
+        context = builder.build_context(
+            message="latest news",
+            adapter_name="web-search-duckduckgo",
+            context_messages=[],
+            requested_model="web-search-duckduckgo",
+        )
+
+        assert context.runtime_search_provider_overrides is None
+
+    def test_no_allowed_search_providers_ignores_requested_model(self, base_config):
+        """When the adapter defines no allowed_search_providers, any requested_model is ignored."""
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.return_value = {
+            'type': 'web-search',
+            'inference_provider': 'anthropic',
+            'model': 'claude-haiku-4-5-20251001',
+            'config': {},
+            'web_search': {'provider': 'duckduckgo', 'result_count': 5},
+        }
+        builder = RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+        context = builder.build_context(
+            message="latest news",
+            adapter_name="web-search-duckduckgo",
+            context_messages=[],
+            requested_model="anything",
+        )
+
+        assert context.runtime_search_provider_overrides is None
+
+
+class TestAllowedSearchProvidersViaSkillRouting:
+    """Tests for allowed_search_providers resolution after skill routing (not before)."""
+
+    def _make_builder(self, base_config, caller_cfg, search_cfg, skill_adapter_name='web-search-duckduckgo'):
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.side_effect = lambda name: (
+            search_cfg if name == skill_adapter_name else caller_cfg
+        )
+        manager.get_skill_adapter.return_value = skill_adapter_name
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def _configs(self):
+        caller_cfg = {
+            'type': 'multimodal',
+            'inference_provider': 'openai',
+            'config': {},
+            'capabilities': {
+                'available_skills': ['web-search-duckduckgo'],
+                'auto_routable_skills': ['web-search-duckduckgo'],
+            },
+            'allowed_models': [{'name': 'claude', 'provider': 'anthropic', 'model': 'claude-sonnet-4-5'}],
+        }
+        search_cfg = {
+            'type': 'web-search',
+            'inference_provider': 'anthropic',
+            'model': 'claude-haiku-4-5-20251001',
+            'config': {},
+            'web_search': {'provider': 'duckduckgo', 'result_count': 5},
+            'allowed_search_providers': [
+                {'name': 'brave', 'provider': 'brave', 'api_key': 'brave-key'},
+            ],
+        }
+        return caller_cfg, search_cfg
+
+    def test_explicit_skill_with_valid_search_provider(self, base_config):
+        """Explicit skill + a matching allowed_search_providers name resolves cleanly,
+        even though the calling adapter's own allowed_models doesn't contain it."""
+        caller_cfg, search_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, search_cfg)
+
+        context = builder.build_context(
+            message="latest news",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="brave",
+            skill="web-search-duckduckgo",
+            skill_auto_detected=False,
+        )
+
+        assert context.adapter_name == 'web-search-duckduckgo'
+        assert context.runtime_search_provider_overrides == {'provider': 'brave', 'api_key': 'brave-key'}
+
+    def test_explicit_skill_preserves_skill_adapters_synthesis_provider(self, base_config):
+        """Routing through skill= must use the skill (web-search) adapter's own fixed
+        inference_provider for synthesis, not the calling adapter's."""
+        caller_cfg, search_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, search_cfg)
+
+        context = builder.build_context(
+            message="latest news",
+            adapter_name="test_adapter",
+            context_messages=[],
+            skill="web-search-duckduckgo",
+            skill_auto_detected=False,
+        )
+
+        assert context.inference_provider == 'anthropic'
+
+    def test_explicit_skill_invalid_provider_raises(self, base_config):
+        """Explicit skill + an unrecognized search-provider name still raises."""
+        caller_cfg, search_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, search_cfg)
+
+        with pytest.raises(ValueError, match="not allowed"):
+            builder.build_context(
+                message="latest news",
+                adapter_name="test_adapter",
+                context_messages=[],
+                requested_model="unknown-backend",
+                skill="web-search-duckduckgo",
+                skill_auto_detected=False,
+            )
+
+    def test_auto_detected_skill_ignores_callers_llm_model(self, base_config):
+        """Auto-detected skill carries along the calling adapter's previously selected
+        LLM model name (e.g. 'claude'), which has no meaning for the search adapter —
+        this must be silently ignored, not raise."""
+        caller_cfg, search_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, search_cfg)
+
+        context = builder.build_context(
+            message="latest news",
+            adapter_name="test_adapter",
+            context_messages=[],
+            requested_model="claude",
+            skill="web-search-duckduckgo",
+            skill_auto_detected=True,
+        )
+
+        assert context.adapter_name == 'web-search-duckduckgo'
+        assert context.runtime_search_provider_overrides is None
+
+
 class TestSkillRouting:
     """Tests for skill invocation via RequestContextBuilder."""
 

@@ -182,6 +182,23 @@ class TestWebSearchStepSuccess:
         assert call_kwargs.get('query') == 'test'
 
     @pytest.mark.asyncio
+    async def test_runtime_search_provider_override_replaces_static_config(self):
+        """context.runtime_search_provider_overrides (from allowed_search_providers)
+        takes priority over the adapter's static web_search block."""
+        step = WebSearchStep(_FakeContainer(ws_config={'provider': 'duckduckgo', 'result_count': 5}))
+        ctx = ProcessingContext(message='test', adapter_name='my-adapter')
+        ctx.runtime_search_provider_overrides = {'provider': 'brave', 'api_key': 'brave-key', 'result_count': 3}
+
+        search_fn = AsyncMock(return_value=_make_results(1))
+        with patch('web_search.registry.get_provider', return_value=search_fn) as get_provider:
+            await step.process(ctx)
+
+        get_provider.assert_called_once_with('brave')
+        call_kwargs = search_fn.call_args.kwargs
+        assert call_kwargs.get('api_key') == 'brave-key'
+        assert call_kwargs.get('count') == 3
+
+    @pytest.mark.asyncio
     async def test_result_without_snippet_still_formats(self):
         from web_search.base import SearchResult
         step = WebSearchStep(_FakeContainer())
