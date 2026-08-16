@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.15.6] - 2026-08-16
 
 ### Core System Updates
 - **Runtime Image Model Selection**: Image-generation adapters can now expose an `allowed_image_models` allowlist, enabling clients to select supported provider/model combinations and provider-specific generation settings (for example size, quality, or aspect ratio) per request. The model-discovery API and chat model picker now expose these image choices.

@@ -13,7 +13,7 @@
   <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=social" alt="GitHub stars" /></a>
   <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/Live_Sandbox-Try_Orbit-7C3AED?logo=playstation&logoColor=white" alt="Live Sandbox" /></a>
   <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit?color=red" alt="Last commit" /></a>
-  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.15.5-blue" alt="Version 2.15.5" /></a>
+  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.15.6-blue" alt="Version 2.15.6" /></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license" /></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white" alt="Python 3.12+" /></a>
 </p>
@@ -106,9 +106,9 @@ ORBIT is actively maintained. See the [release history](https://github.com/schmi
 Download and install the latest stable release:
 
 ```bash
-curl -L https://github.com/schmitech/orbit/releases/download/v2.15.5/orbit-2.15.5.tar.gz -o orbit-2.15.5.tar.gz
-tar -xzf orbit-2.15.5.tar.gz
-cd orbit-2.15.5
+curl -L https://github.com/schmitech/orbit/releases/download/v2.15.6/orbit-2.15.6.tar.gz -o orbit-2.15.6.tar.gz
+tar -xzf orbit-2.15.6.tar.gz
+cd orbit-2.15.6
 ./install/setup.sh --profile default
 ./bin/orbit.sh start
 ```
