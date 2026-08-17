@@ -117,10 +117,13 @@ export function ChatInterface({
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
   useEffect(() => {
-    // A selected skill (e.g. "Image") routes to its own backing adapter with its
-    // own model list (e.g. image-generator's allowed_image_models) — fall back to
-    // the conversation's adapter when no skill is active.
-    const adapterName = skillState.selectedSkill?.adapter_name ?? currentConversation?.adapterName;
+    // Always query against the conversation's own adapter — it's the one with an API
+    // key configured client-side. A selected skill (e.g. "Image") is passed as the
+    // `skill` query param so the server resolves models for the skill's backing
+    // adapter (e.g. image-generator's allowed_image_models) instead — this works even
+    // when that backing adapter has no top-level entry/API key of its own.
+    const adapterName = currentConversation?.adapterName;
+    const skill = skillState.selectedSkill?.name;
     let cancelled = false;
 
     async function loadModels() {
@@ -130,8 +133,7 @@ export function ChatInterface({
         return;
       }
       try {
-        // Both args are the same: this API uses adapterName as the client key too.
-        const models = await ModelsService.listAdapterModels(adapterName, adapterName);
+        const models = await ModelsService.listAdapterModels(adapterName, adapterName, skill);
         if (cancelled) return;
         setAvailableModels(models);
         setSelectedModel(models.length > 0 ? models[0].name : null);

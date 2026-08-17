@@ -969,6 +969,100 @@ class TestAllowedSearchProvidersViaSkillRouting:
         assert context.runtime_search_provider_overrides is None
 
 
+class TestAllowedModelsOnSkillWithOwnLLM:
+    """Tests for allowed_models resolution on a skill that has its own fixed LLM
+    (e.g. web-search.yaml's passthrough adapter with capabilities.web_search: true) —
+    the model override must validate against the SKILL adapter's own allowed_models,
+    not the calling adapter's, once the skill has its own inference_provider."""
+
+    def _make_builder(self, base_config, caller_cfg, skill_cfg, skill_adapter_name='web-search-chat'):
+        from unittest.mock import MagicMock
+        manager = MagicMock()
+        manager.get_adapter_config.side_effect = lambda name: (
+            skill_cfg if name == skill_adapter_name else caller_cfg
+        )
+        manager.get_skill_adapter.return_value = skill_adapter_name
+        return RequestContextBuilder(config=base_config, adapter_manager=manager)
+
+    def _configs(self):
+        caller_cfg = {
+            'type': 'multimodal',
+            'inference_provider': 'ollama_cloud',
+            'config': {},
+            'capabilities': {'available_skills': ['web-search'], 'auto_routable_skills': ['web-search']},
+            'allowed_models': [{'name': 'gemini', 'provider': 'gemini', 'model': 'gemini-3.6-flash'}],
+        }
+        skill_cfg = {
+            'type': 'passthrough',
+            'inference_provider': 'openai',
+            'model': 'gpt-5.6',
+            'config': {},
+            'capabilities': {'web_search': True},
+            'allowed_models': [
+                {'name': 'gemini-search', 'provider': 'gemini', 'model': 'gemini-3.6-flash'},
+                {'name': 'openai-search', 'provider': 'openai', 'model': 'gpt-5.6'},
+            ],
+        }
+        return caller_cfg, skill_cfg
+
+    def test_explicit_skill_with_own_valid_model_resolves(self, base_config):
+        """Reproduces the reported bug: selecting a model from the skill's OWN
+        allowed_models (not the caller's) must succeed, not raise ValueError."""
+        caller_cfg, skill_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, skill_cfg)
+
+        context = builder.build_context(
+            message="what's in the news today",
+            adapter_name="simple-chat-with-files",
+            context_messages=[],
+            requested_model="gemini-search",
+            skill="web-search",
+            skill_auto_detected=False,
+        )
+
+        assert context.adapter_name == 'web-search-chat'
+        assert context.inference_provider == 'openai'
+        assert context.runtime_provider == 'gemini'
+        assert context.runtime_model_name == 'gemini-3.6-flash'
+
+    def test_explicit_skill_invalid_model_raises(self, base_config):
+        """A model name that's not in the SKILL's allowed_models still raises, even
+        if it happens to match the calling adapter's own allowed_models."""
+        caller_cfg, skill_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, skill_cfg)
+
+        with pytest.raises(ValueError, match="not allowed"):
+            builder.build_context(
+                message="what's in the news today",
+                adapter_name="simple-chat-with-files",
+                context_messages=[],
+                requested_model="gemini",  # valid for the CALLER, not for web-search-chat
+                skill="web-search",
+                skill_auto_detected=False,
+            )
+
+    def test_auto_detected_skill_ignores_callers_llm_model(self, base_config):
+        """Auto-detected skill carries along the calling adapter's previously
+        selected model name, which has no meaning for the skill's own LLM — must be
+        silently ignored, not raise."""
+        caller_cfg, skill_cfg = self._configs()
+        builder = self._make_builder(base_config, caller_cfg, skill_cfg)
+
+        context = builder.build_context(
+            message="what's in the news today",
+            adapter_name="simple-chat-with-files",
+            context_messages=[],
+            requested_model="gemini",
+            skill="web-search",
+            skill_auto_detected=True,
+        )
+
+        assert context.adapter_name == 'web-search-chat'
+        assert context.inference_provider == 'openai'
+        assert context.runtime_provider is None
+        assert context.runtime_model_name is None
+
+
 class TestSkillRouting:
     """Tests for skill invocation via RequestContextBuilder."""
 

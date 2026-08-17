@@ -106,6 +106,7 @@ class FetchStep(PipelineStep):
             if content:
                 logger.debug("FetchStep: Jina Reader succeeded for %s", url)
                 context.formatted_context = f"Source: {url}\n\n{content}"
+                context.response = context.formatted_context
                 return context
 
             logger.debug("FetchStep: Jina Reader failed or returned thin content, falling back to direct fetch")
@@ -143,6 +144,7 @@ class FetchStep(PipelineStep):
                 return context
 
             context.formatted_context = _parse_html(response.text, url)
+            context.response = context.formatted_context
         return context
 
 

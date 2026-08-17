@@ -17,18 +17,23 @@ export class ModelsService {
    *
    * @param adapterName - The adapter to query (e.g. "simple-chat")
    * @param clientAdapterName - Adapter name associated with the API key (for auth header)
+   * @param skill - Optional skill name (e.g. "Image"). When provided, models are listed
+   *                for the adapter that skill routes to, not `adapterName` itself — lets a
+   *                skill's backing adapter (e.g. image-generator) stay off the top-level
+   *                adapter list while still getting a contextual model picker.
    * @returns Adapter name, restriction flag, and model list
    */
   static async getAdapterModels(
     adapterName: string,
-    clientAdapterName: string
+    clientAdapterName: string,
+    skill?: string
   ): Promise<AdapterModelsResponse> {
     const api = await getApi();
     const client = new api.ApiClient({ apiUrl: '', adapterName: clientAdapterName });
     if (!client.getAdapterModels) {
       throw new Error('getAdapterModels is not available on this API client');
     }
-    return client.getAdapterModels(adapterName);
+    return client.getAdapterModels(adapterName, skill);
   }
 
   /**
@@ -54,9 +59,10 @@ export class ModelsService {
    */
   static async listAdapterModels(
     adapterName: string,
-    clientAdapterName: string
+    clientAdapterName: string,
+    skill?: string
   ): Promise<AllowedModel[]> {
-    const result = await ModelsService.getAdapterModels(adapterName, clientAdapterName);
+    const result = await ModelsService.getAdapterModels(adapterName, clientAdapterName, skill);
     return result.models;
   }
 }

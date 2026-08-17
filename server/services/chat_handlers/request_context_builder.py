@@ -592,24 +592,31 @@ class RequestContextBuilder:
                     # Skill has its own fixed synthesis LLM — use it, not the caller's.
                     inference_provider = skill_inference_provider
         else:
-            # Resolve runtime model override from the adapter's allowed_models. For a
-            # skill with no LLM of its own (e.g. fetch), this stays the CALLING
-            # adapter's override, since that adapter's LLM processes the result.
-            runtime_provider, runtime_model_name, runtime_param_overrides = (
-                self.resolve_runtime_model_override(
-                    original_adapter_name or adapter_name, requested_model
+            skill_inference_provider = self.get_inference_provider(adapter_name) if skill else None
+            if skill and skill_inference_provider:
+                # Skill has its own fixed LLM (e.g. web-search) with its own allowed_models —
+                # validate requested_model against ITS list, not the caller's. Same
+                # auto-detected-skill leniency as the image/video/audio/web-search branches:
+                # an unrecognized name from an auto-routed skill is silently ignored rather
+                # than rejected, since it may just be the caller's previously selected model.
+                try:
+                    runtime_provider, runtime_model_name, runtime_param_overrides = (
+                        self.resolve_runtime_model_override(adapter_name, requested_model)
+                    )
+                except ValueError:
+                    if not skill_auto_detected:
+                        raise
+                    runtime_provider, runtime_model_name, runtime_param_overrides = None, None, None
+                inference_provider = skill_inference_provider
+            else:
+                # Resolve runtime model override from the adapter's allowed_models. For a
+                # skill with no LLM of its own (e.g. fetch), this stays the CALLING
+                # adapter's override, since that adapter's LLM processes the result.
+                runtime_provider, runtime_model_name, runtime_param_overrides = (
+                    self.resolve_runtime_model_override(
+                        original_adapter_name or adapter_name, requested_model
+                    )
                 )
-            )
-            if skill:
-                skill_inference_provider = self.get_inference_provider(adapter_name)
-                if skill_inference_provider:
-                    # Skill has its own LLM (e.g. video generation) — use it.
-                    inference_provider = skill_inference_provider
-                    runtime_provider = None
-                    runtime_model_name = None
-                    runtime_param_overrides = None
-                # else: skill has no configured LLM — keep the invoking adapter's
-                # provider/model/overrides resolved above unchanged.
 
         web_search = bool(final_cfg.get('capabilities', {}).get('web_search', False))
 

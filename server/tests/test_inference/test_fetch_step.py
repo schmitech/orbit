@@ -299,7 +299,9 @@ class TestFetchStepProcess:
         assert not result.has_error()
         assert jina_markdown in result.formatted_context
         assert "Source:" in result.formatted_context
-        assert result.response == ""  # response left empty; LLM fills it
+        # 'fetch' is in NO_LLM_ADAPTER_TYPES — LLMInferenceStep never runs for it, so
+        # FetchStep must set context.response itself on success.
+        assert result.response == result.formatted_context
 
     @pytest.mark.asyncio
     async def test_jina_thin_content_falls_back_to_direct_fetch(self):
@@ -321,6 +323,7 @@ class TestFetchStepProcess:
 
         assert not result.has_error()
         assert "Real content" in result.formatted_context
+        assert result.response == result.formatted_context
 
     @pytest.mark.asyncio
     async def test_redirect_to_private_ip_mid_chain_blocked(self):

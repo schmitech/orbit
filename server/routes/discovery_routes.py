@@ -132,7 +132,17 @@ async def list_available_models(
 async def list_adapter_models(
     adapter_name: str,
     request: Request,
-    x_api_key: str = Header(..., alias="X-API-Key")
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    skill: Optional[str] = Query(
+        None,
+        description=(
+            "Optional skill name. When provided, models are listed for the adapter "
+            "that skill routes to (via the caller adapter's available_skills), not "
+            "the caller adapter itself — lets a client show a contextual model picker "
+            "once a skill like Image/Video/Audio is active, without that skill's "
+            "backing adapter needing its own top-level entry."
+        ),
+    ),
 ):
     """
     List models available for a specific adapter.
@@ -173,6 +183,48 @@ async def list_adapter_models(
     adapter_config = adapter_manager.get_adapter_config(resolved_name) if hasattr(adapter_manager, 'get_adapter_config') else None
     if adapter_config is None:
         raise HTTPException(status_code=404, detail=f"Adapter '{resolved_name}' not found")
+
+    if skill:
+        capabilities_cfg = adapter_config.get('capabilities', {}) or {}
+        available_skills = capabilities_cfg.get('available_skills', [])
+        if skill not in available_skills:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Skill '{skill}' is not available for adapter '{resolved_name}'.",
+            )
+        skill_adapter_name = (
+            adapter_manager.get_skill_adapter(skill)
+            if hasattr(adapter_manager, 'get_skill_adapter')
+            else None
+        )
+        if not skill_adapter_name:
+            raise HTTPException(status_code=404, detail=f"No adapter is registered for skill '{skill}'")
+        skill_adapter_config = adapter_manager.get_adapter_config(skill_adapter_name)
+        if skill_adapter_config is None:
+            raise HTTPException(status_code=404, detail=f"Adapter '{skill_adapter_name}' not found")
+
+        # A skill with no LLM/media-provider of its own (e.g. Fetch, PDF extraction)
+        # falls back to the CALLING adapter's own inference provider at request time
+        # (see request_context_builder.py's build_context() 'else' branch) — mirror
+        # that here, or discovery would report a sanitized single-default-model name
+        # (from the generic fallback below) that never matches what a real request
+        # actually gets validated against.
+        skill_has_own_llm = bool(skill_adapter_config.get('inference_provider'))
+        skill_has_own_allowed_list = any(
+            skill_adapter_config.get(field)
+            for field in (
+                'allowed_models', 'allowed_image_models', 'allowed_video_models',
+                'allowed_audio_models', 'allowed_search_providers',
+            )
+        )
+        is_media_generation_type = skill_adapter_config.get('type') in (
+            'image_generation', 'video_generation', 'audio_generation',
+        )
+        if skill_has_own_llm or skill_has_own_allowed_list or is_media_generation_type:
+            resolved_name = skill_adapter_name
+            adapter_config = skill_adapter_config
+        # else: keep listing the calling adapter's own models (adapter_config/resolved_name
+        # unchanged) — the skill has no model of its own to report.
 
     allowed = (
         adapter_config.get('allowed_models')

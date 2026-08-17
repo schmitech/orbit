@@ -183,7 +183,7 @@ export interface ApiClient {
   }>;
   getConversationHistory?(sessionId?: string, limit?: number): Promise<ConversationHistoryResponse>;
   stopChat?(sessionId: string, requestId: string): Promise<boolean>;
-  getAdapterModels?(adapterName: string): Promise<AdapterModelsResponse>;
+  getAdapterModels?(adapterName: string, skill?: string): Promise<AdapterModelsResponse>;
   getAllModels?(): Promise<AllModelsResponse>;
   getAdapterSkills?(adapterName: string): Promise<{ adapter_name: string; available_skills: string[] }>;
   getAllSkills?(): Promise<{ skills: Array<{ name: string; description: string; adapter_name: string; enabled: boolean }> }>;
@@ -739,8 +739,9 @@ function createProxyApi(): ApiFunctions {
         return result.status === 'cancelled';
       },
 
-      async getAdapterModels(adapterName: string): Promise<AdapterModelsResponse> {
-        const response = await fetch(`/api/admin/adapters/${encodeURIComponent(adapterName)}/models`, {
+      async getAdapterModels(adapterName: string, skill?: string): Promise<AdapterModelsResponse> {
+        const query = skill ? `?skill=${encodeURIComponent(skill)}` : '';
+        const response = await fetch(`/api/admin/adapters/${encodeURIComponent(adapterName)}/models${query}`, {
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
           }),
