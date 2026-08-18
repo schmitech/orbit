@@ -44,6 +44,12 @@ Reference: `server/adapter_sdk/README.md` (current REST surface).
   non-mapping-YAML-file crash guards in `_find_adapter_file` /
   `_find_adapter_referrers` (`server/routes/admin/_yaml_config.py`,
   `server/routes/admin/adapters.py`).
+- **Configured answer suggestions**: `GET /admin/adapters/answer-options` now
+  supplies enabled inference providers, vector stores, and datasources from the
+  running configuration. Questions declare their `options_source` in the SDK,
+  and the create form renders a styled, keyboard-accessible free-text combobox
+  that refreshes its suggestions whenever the panel opens. Vector stores retain
+  their runtime's default-disabled behavior when `enabled` is omitted.
 
 ---
 
@@ -110,56 +116,7 @@ families with no indication that intent adapters exist and must be hand-written.
 A one-line note pointing at the YAML editor would set expectations until this
 lands.
 
-## 2. Autocomplete for provider/model/store/datasource answers
-
-Several create-form questions are free-text today where the valid values are
-actually enumerable from config already loaded into `app.state.config` —
-`inference_provider` (`PASSTHROUGH`/`MULTIMODAL`/etc.), `vector_store`
-(`MULTIMODAL`), and any future intent-family `datasource`/`store_name` answers
-(section 1). A typo in any of these is invisible at creation time and only
-surfaces as a runtime error on first query — the same class of gap
-`validate_providers` (shipped) already closes for `inference_provider`, just
-not yet exposed as *guidance* in the form, only as a rejection after the fact.
-
-**Why raise this now:** `_enabled_inference_providers(config)`
-(`server/routes/admin/adapters.py`, shipped in the hardening pass) already
-extracts exactly the provider-name set this needs — the hard part (reading
-`app.state.config["inference"]` correctly, matching `ai_services.registry`'s
-enabled/disabled semantics) is done. Datasources and vector stores are the same
-shape: `config["datasources"]` and `config["vector_stores"]` (merged at startup
-from `datasources.yaml`/`stores.yaml` via `config_manager.py`'s import
-processing) are dicts keyed by name, already present in the same
-`app.state.config` object. This is now mostly plumbing, not new discovery.
-
-**Tasks:**
-- [ ] `GET /admin/adapters/answer-options` (or fold into `GET /admin/adapters/specs`)
-      returning `{"inference_providers": [...], "vector_stores": [...],
-      "datasources": [...]}` from `app.state.config`, reusing
-      `_enabled_inference_providers` for the first and simple `.keys()` reads for
-      the other two. Decide whether disabled providers/stores are omitted or
-      included-but-flagged — omitting matches `validate_providers`' current
-      strictness, but a flagged/greyed-out option is more discoverable than a
-      value that silently doesn't appear.
-- [ ] Extend `serialize_spec`/`Question` (`server/adapter_sdk/specs.py`) with an
-      optional `options_source: str` field (e.g. `"inference_providers"`) so the
-      admin panel knows which answer-options key feeds which question, instead
-      of hardcoding field-name-to-source mapping in the frontend.
-- [ ] Frontend (`server/admin/admin_panel/tabs/adapters.js`,
-      `buildAdapterCreateForm`/`makeQuestionInput`): render an `options_source`
-      question as a `<select>` (or a free-text input with a `<datalist>`, if "let
-      me type a value not in the list yet" needs to stay possible — e.g. a store
-      defined after the panel loaded its cache) instead of a plain text box.
-      `cachedAdapterSpecs`/`cachedAdapterCapabilities`'s existing lazy-load-and-cache
-      pattern is the model to follow for caching the new options endpoint.
-- [ ] Decide read staleness: the options list is a point-in-time snapshot like
-      `cachedAdapterSpecs` already is — reloading it on every panel open (cheap,
-      it's an in-memory config read) is simpler than adding cache-invalidation
-      hooks, and avoids a stale list surviving a config reload.
-- [ ] Tests: options endpoint reflects `app.state.config` correctly (enabled vs.
-      disabled providers, empty section skipped rather than erroring); permission
-      guard alongside the other `/adapters/*` routes.
-
-## 3. Remaining hardening items
+## 2. Remaining hardening items
 
 Two items noted during the creation-hardening pass were deliberately deferred as
 lower-value/non-blocking rather than left as oversights:
@@ -178,7 +135,7 @@ lower-value/non-blocking rather than left as oversights:
       fixes already shipped, and a wider surface change (touches three routes'
       request handling) — worth doing opportunistically, not urgently.
 
-## 4. Cross-cutting / smaller follow-ups
+## 3. Cross-cutting / smaller follow-ups
 
 - [ ] **Multi-adapter files: append instead of always one-file-per-adapter.**
       `writer.write_adapter` always writes `<name>.yaml`; there's no path to add
