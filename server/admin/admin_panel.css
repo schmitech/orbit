@@ -3716,6 +3716,15 @@ button.settings-nav-group-header:hover:not(:disabled) {
   font-size: var(--text-xs);
 }
 
+/* Each row is a select-button plus an optional ping icon-button sitting
+   beside it. They must be siblings, not nested — a <button> can't contain
+   another interactive <button> without breaking accessibility semantics. */
+.mcp-list-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-1);
+}
+
 .mcp-list-item {
   display: flex;
   align-items: flex-start;
@@ -3723,7 +3732,8 @@ button.settings-nav-group-header:hover:not(:disabled) {
      every row starts at a different x depending on how long its name is. */
   justify-content: flex-start;
   gap: var(--sp-3);
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: 52px;
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid transparent;
@@ -3732,6 +3742,46 @@ button.settings-nav-group-header:hover:not(:disabled) {
   color: var(--ink);
   text-align: left;
   font-weight: 500;
+}
+
+/* Compact icon-only ping control, sized to sit beside a 52px row without
+   inheriting the base button's 44px min-height/solid-brand look — a quiet
+   ghost circle, not a second call-to-action competing with row selection. */
+.mcp-list-ping {
+  align-self: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-muted);
+  border: 1px solid var(--border);
+}
+
+.mcp-list-ping:hover:not(:disabled) {
+  background: var(--panel-hover);
+  color: var(--ink);
+  border-color: var(--border-light);
+  box-shadow: none;
+}
+
+.mcp-list-ping:active:not(:disabled) {
+  background: var(--neutral-200);
+  transform: none;
+  box-shadow: none;
+}
+
+.mcp-list-ping svg {
+  width: 13px;
+  height: 13px;
+}
+
+.mcp-ping-icon.is-spinning {
+  animation: buttonSpin 0.8s linear infinite;
+  display: inline-flex;
 }
 
 .mcp-list-item:hover:not(.is-selected) {
@@ -3809,6 +3859,10 @@ button.settings-nav-group-header:hover:not(:disabled) {
   color: var(--brand-600);
 }
 
+.mcp-checked-at {
+  color: var(--ink-muted);
+}
+
 .mcp-dot {
   flex: 0 0 8px;
   width: 8px;
@@ -3824,6 +3878,11 @@ button.settings-nav-group-header:hover:not(:disabled) {
 .mcp-dot--unknown { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-muted); }
 .mcp-dot--off     { background: transparent; box-shadow: inset 0 0 0 1.5px var(--border); }
 .mcp-dot--on      { background: var(--success-500); }
+.mcp-dot--checking {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--brand-600);
+  animation: pulse 1s ease-in-out infinite;
+}
 
 /* ----- Detail ----- */
 
@@ -3901,7 +3960,21 @@ button.settings-nav-group-header:hover:not(:disabled) {
   font-weight: 600;
 }
 
-.mcp-test-btn {
+.mcp-tools-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.mcp-last-checked {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.mcp-ping-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
   min-height: 36px;
   padding: var(--sp-2) var(--sp-3);
 }

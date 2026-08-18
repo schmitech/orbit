@@ -490,14 +490,20 @@ async def reload_mcp_clients(request: Request):
 
 
 @router.get("/mcp/tools", dependencies=[config_auth])
-async def discover_mcp_tools(request: Request):
-    """Re-dial every enabled MCP server and report reachability plus its tools.
+async def discover_mcp_tools(request: Request, server: Optional[str] = None):
+    """Re-dial MCP server(s) and report reachability plus their tools.
 
     Uses the live MCPClientManager as-is — the PATCH endpoints already apply
     config changes to it immediately, so this only needs to force a fresh
     re-dial for current reachability, not reload config from disk (which
     would rebuild the manager and re-dial every server on every click). Use
     POST /mcp/reload to pick up out-of-band edits to mcp_clients.yaml.
+
+    With `server` omitted, every enabled server is re-dialed and reported.
+    With `server` set, only that one is re-dialed and the response's
+    `servers` map contains just that entry — letting the UI ping a single
+    server without disturbing the reachability/tools already known for
+    every other one.
     """
     from services.mcp_client_service import get_mcp_client_manager
 
@@ -509,13 +515,17 @@ async def discover_mcp_tools(request: Request):
             "servers": {},
         }
 
+    if server is not None and server not in manager._server_configs:
+        raise HTTPException(status_code=404, detail=f"Unknown MCP server: {server}")
+
     try:
-        await manager.refresh_tool_cache()
+        await manager.refresh_tool_cache([server] if server is not None else None)
     except Exception as exc:
         logger.warning("MCP tool discovery failed: %s", exc)
 
     servers: Dict[str, Any] = {}
-    for name in manager._server_configs:
+    names = [server] if server is not None else list(manager._server_configs)
+    for name in names:
         tools = []
         for tool in manager._tools_cache.get(name, []):
             fn = tool.get("function", {})

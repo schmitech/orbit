@@ -1,5 +1,14 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core System Updates
+- **Scoped MCP Server Discovery**: The MCP tools endpoint now accepts an optional server name, allowing administrators to re-dial and inspect one live MCP server without refreshing the tool cache or reachability status of every configured server.
+
+### Bug Fixes & Technical Improvements
+- **MCP Admin Diagnostics**: The MCP panel now provides per-server ping controls, live reachability and tool counts, and continuously updated “last checked” timestamps. Ping controls are unavailable until a server is saved and live, preventing requests for disabled or unsaved servers.
+- **MCP Panel Interaction Responsiveness**: Selecting a server or pinging it now updates only the affected row and tools area, preserving the rest of the form and eliminating master-detail panel flicker.
+
 ## [2.15.6] - 2026-08-16
 
 ### Core System Updates

@@ -15,6 +15,14 @@ export function createMcpTab({
   var mcpTools = null;     // { available, servers: { name: {reachable, tools} } }
   var mcpSelected = null;  // server name, or MCP_DEFAULTS_KEY
   var mcpPending = {};     // unsaved edits for the current selection only
+  var mcpPinging = {};     // server name -> true while its own ping is in flight
+  var mcpLastChecked = {}; // server name -> Date.now() of its last completed ping
+  var mcpCheckedAtNodes = []; // {node, ts, apply} for every "Checked Xs ago" span in the current render
+  var mcpCheckedAtTimer = null; // ticks mcpCheckedAtNodes so the relative text ages while the tab sits open
+  var mcpRowSync = {};    // server name -> fn that repaints just that list row (dot/meta/ping button)
+  var mcpDetailSync = null; // { name, sync() } for the currently open server detail's tools section, or null
+  var mcpSelectSync = {}; // list key -> fn(selected) that toggles just that row's selected styling
+  var mcpDetailContainer = null; // the current detail <div>, so selecting a row can rebuild just it
 
   var MCP_DEFAULTS_KEY = "__defaults__";
   var MCP_CREATE_KEY = "__create__";
@@ -68,11 +76,20 @@ export function createMcpTab({
   // summary, each row's accent and provenance, the server list — registers a
   // listener here. Edits then update those parts in place instead of
   // re-rendering the tab, which would rebuild the very input being typed into
-  // and drop the caret. Reset on every full render.
-  var mcpDirtyListeners = [];
+  // and drop the caret.
+  //
+  // Split into two arrays so the two get reset independently: mcpListDirty
+  // holds only the list's enabled-toggle rebuild listener and lives for the
+  // whole tab render, while mcpDetailDirty holds every control the current
+  // detail pane registers and must be cleared whenever that pane is
+  // replaced (a fresh detail render or mcpSelectServer's fast path) — else
+  // switching rows piles up listeners for detached controls indefinitely.
+  var mcpListDirty = [];
+  var mcpDetailDirty = [];
 
   function mcpSyncDirty() {
-    mcpDirtyListeners.forEach(function (fn) { fn(); });
+    mcpListDirty.forEach(function (fn) { fn(); });
+    mcpDetailDirty.forEach(function (fn) { fn(); });
   }
 
   function mcpHasPendingEdits() {
@@ -87,6 +104,121 @@ export function createMcpTab({
     if (typeof value === "boolean") return value ? "on" : "off";
     var unit = mcpSettingMeta(key).unit || "";
     return String(value) + unit;
+  }
+
+  function mcpRelativeTime(ts) {
+    var s = Math.round(Math.max(0, Date.now() - ts) / 1000);
+    if (s < 5) return "just now";
+    if (s < 60) return s + "s ago";
+    var m = Math.round(s / 60);
+    if (m < 60) return m + (m === 1 ? " min ago" : " mins ago");
+    var h = Math.round(m / 60);
+    return h + (h === 1 ? " hr ago" : " hrs ago");
+  }
+
+  // A "Checked Xs ago" span whose text keeps aging via mcpCheckedAtTimer
+  // instead of freezing at whatever it read during the render that created
+  // it — otherwise every timestamp reads "just now" until some unrelated
+  // interaction happens to rerender the tab. `ts` may be null (nothing
+  // checked yet); the span then hides itself until setTs gives it one.
+  function mcpCheckedAtSpan(ts, className) {
+    var span = el("span", { className: className || "mcp-checked-at" });
+    var entry = { node: span, ts: ts };
+    entry.apply = function () {
+      if (entry.ts == null) {
+        span.style.display = "none";
+        span.textContent = "";
+      } else {
+        span.style.display = "";
+        span.textContent = "Checked " + mcpRelativeTime(entry.ts);
+      }
+    };
+    entry.apply();
+    mcpCheckedAtNodes.push(entry);
+    return {
+      node: span,
+      setTs: function (ts) { entry.ts = ts; entry.apply(); },
+    };
+  }
+
+  function mcpStartCheckedAtTimer() {
+    if (mcpCheckedAtTimer) return;
+    mcpCheckedAtTimer = setInterval(function () {
+      // A list-only rebuild (see the `enabled` dirty-listener below) swaps
+      // in a fresh listSlot without resetting mcpCheckedAtNodes, so the old
+      // rows' entries are left pointing at now-detached nodes. Drop them
+      // here rather than letting them accumulate on every toggle.
+      mcpCheckedAtNodes = mcpCheckedAtNodes.filter(function (entry) {
+        if (!entry.node.isConnected) return false;
+        entry.apply();
+        return true;
+      });
+    }, 1000);
+  }
+
+  // Repaints only the pieces that a ping can change — this row's dot/meta/
+  // ping button, and the open detail pane's tools section if it's this same
+  // server — instead of a full mcpRerender(), which would tear down and
+  // rebuild the whole master-detail layout on every click and read as a
+  // flicker.
+  function mcpApplyPingState(name) {
+    if (mcpRowSync[name]) mcpRowSync[name]();
+    if (mcpDetailSync && mcpDetailSync.name === name) mcpDetailSync.sync();
+  }
+
+  // Re-dials a single server via GET /mcp/tools?server=<name>, merging its
+  // result into the shared mcpTools cache rather than replacing it — a ping
+  // of one server must never blank out what's already known about the rest.
+  async function mcpPingServer(name) {
+    if (mcpPinging[name]) return;
+    mcpPinging[name] = true;
+    mcpApplyPingState(name);
+    try {
+      var result = await api("GET", endpoints.mcpTools + "?server=" + encodeURIComponent(name));
+      if (!mcpTools) mcpTools = { available: result.available, servers: {} };
+      mcpTools.available = result.available;
+      mcpTools.reason = result.reason;
+      if (result.available && result.servers) {
+        mcpTools.servers = mcpTools.servers || {};
+        Object.assign(mcpTools.servers, result.servers);
+      }
+      mcpLastChecked[name] = Date.now();
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      mcpPinging[name] = false;
+      mcpApplyPingState(name);
+    }
+  }
+
+  // Reflects an unsaved enable/disable of `key` (a server name, or
+  // MCP_DEFAULTS_KEY) for whichever entry is currently selected — used for
+  // display everywhere except ping eligibility, which must stay pinned to
+  // the persisted value the live MCPClientManager actually has.
+  function mcpPendingToggleValue(key, saved) {
+    return (mcpSelected === key && mcpPending.enabled != null) ? mcpPending.enabled : saved;
+  }
+
+  // Derives a server row's dot state / meta text / checked-at from current
+  // state — used for both the initial render and mcpRowSync's repaint, so
+  // the two can never drift out of sync with each other.
+  function mcpServerRowStatus(server) {
+    var discovery = (mcpTools && mcpTools.servers && mcpTools.servers[server.name]) || null;
+    var pinging = !!mcpPinging[server.name];
+    var displayEnabled = mcpPendingToggleValue(server.name, server.enabled);
+    if (!displayEnabled) return { state: "off", meta: "Disabled", pinging: pinging, checkedAt: null };
+    if (pinging) return { state: "checking", meta: "Pinging…", pinging: pinging, checkedAt: null };
+    var checkedAt = mcpLastChecked[server.name] || null;
+    if (!discovery) return { state: "unknown", meta: "Not checked", pinging: pinging, checkedAt: checkedAt };
+    if (discovery.reachable) {
+      return {
+        state: "up",
+        meta: discovery.tools.length + (discovery.tools.length === 1 ? " tool" : " tools"),
+        pinging: pinging,
+        checkedAt: checkedAt,
+      };
+    }
+    return { state: "down", meta: "Unreachable", pinging: pinging, checkedAt: checkedAt };
   }
 
   async function renderMcp(container) {
@@ -112,7 +244,13 @@ export function createMcpTab({
       mcpSelected = MCP_DEFAULTS_KEY;
     }
 
-    mcpDirtyListeners = [];
+    mcpListDirty = [];
+    mcpDetailDirty = [];
+    mcpCheckedAtNodes = [];
+    mcpRowSync = {};
+    mcpDetailSync = null;
+    mcpSelectSync = {};
+    mcpStartCheckedAtTimer();
 
     var layout = el("div", { className: "mcp-layout" });
     container.appendChild(layout);
@@ -123,7 +261,7 @@ export function createMcpTab({
     // when it changes rather than on every keystroke. Focus lives in the
     // detail pane, so replacing the list is safe.
     var lastEnabled = mcpPending.enabled;
-    mcpDirtyListeners.push(function () {
+    mcpListDirty.push(function () {
       if (mcpPending.enabled === lastEnabled) return;
       lastEnabled = mcpPending.enabled;
       var fresh = mcpRenderList();
@@ -133,12 +271,51 @@ export function createMcpTab({
 
     var detail = el("div", { className: "panel mcp-detail" });
     layout.appendChild(detail);
+    mcpDetailContainer = detail;
     mcpRenderDetail(detail);
   }
 
   function mcpRerender() {
     var c = document.getElementById("tab-content");
     if (c && getActiveTab() === "mcp") renderMcp(c);
+  }
+
+  // Selecting a row never changes anything about the list itself (dot,
+  // meta, overrides) — only which row is highlighted and what the detail
+  // pane shows. Repaint just those two things instead of routing through
+  // mcpRerender(), which tears down and rebuilds the whole master-detail
+  // layout and reads as a flicker on every click.
+  function mcpSelectServer(key) {
+    if (mcpSelected === key) return;
+    if (mcpHasPendingEdits()) {
+      confirmAction({
+        title: "Unsaved Changes",
+        message: "You have unsaved changes here. Discard them?",
+        confirmLabel: "Discard",
+        isDanger: true,
+        onConfirm: function () {
+          mcpPending = {};
+          mcpSelected = key;
+          mcpRerender();
+        }
+      });
+      return;
+    }
+    var previous = mcpSelected;
+    mcpSelected = key;
+    if (mcpSelectSync[previous]) mcpSelectSync[previous](false);
+    if (mcpSelectSync[key]) mcpSelectSync[key](true);
+    if (mcpDetailContainer) {
+      mcpDetailSync = null;
+      // Every control the outgoing detail pane registered is about to be
+      // detached — drop them so mcpSyncDirty() doesn't keep invoking
+      // callbacks for DOM that no longer exists.
+      mcpDetailDirty = [];
+      clear(mcpDetailContainer);
+      mcpRenderDetail(mcpDetailContainer);
+    } else {
+      mcpRerender();
+    }
   }
 
   // ----- Server list (master) -----
@@ -172,13 +349,7 @@ export function createMcpTab({
 
     var list = el("div", { className: "mcp-list", role: "listbox", "aria-label": "MCP servers" });
 
-    // Reflect an unsaved enable/disable for whichever entry is selected.
-    function pendingEnabled(key, saved) {
-      return (mcpSelected === key && mcpPending.enabled != null)
-        ? mcpPending.enabled : saved;
-    }
-
-    var globalEnabled = pendingEnabled(MCP_DEFAULTS_KEY, mcpData.enabled);
+    var globalEnabled = mcpPendingToggleValue(MCP_DEFAULTS_KEY, mcpData.enabled);
     list.appendChild(mcpListItem({
       key: MCP_DEFAULTS_KEY,
       name: "Defaults",
@@ -196,28 +367,23 @@ export function createMcpTab({
     }
 
     servers.forEach(function (server) {
-      var discovery = (mcpTools && mcpTools.servers && mcpTools.servers[server.name]) || null;
-      var state = "off";
-      var meta = "Disabled";
-      if (pendingEnabled(server.name, server.enabled)) {
-        if (!discovery) {
-          state = "unknown";
-          meta = "Not checked";
-        } else if (discovery.reachable) {
-          state = "up";
-          meta = discovery.tools.length + (discovery.tools.length === 1 ? " tool" : " tools");
-        } else {
-          state = "down";
-          meta = "Unreachable";
-        }
-      }
+      var status = mcpServerRowStatus(server);
       list.appendChild(mcpListItem({
         key: server.name,
         name: server.name,
         transport: server.transport,
-        meta: meta,
-        state: state,
+        meta: status.meta,
+        state: status.state,
         overrides: Object.keys(server.overrides || {}).length,
+        checkedAt: status.checkedAt,
+        pinging: status.pinging,
+        // Gate on the saved `enabled` flag, not the pending toggle: the live
+        // MCPClientManager only knows about servers that are enabled on
+        // disk, so a server that's disabled-but-pending-enabled (or was
+        // never enabled) can't be resolved by GET /mcp/tools?server=<name>
+        // yet, and would just 404.
+        onPing: server.enabled ? function () { mcpPingServer(server.name); } : null,
+        server: server,
       }));
     });
 
@@ -233,11 +399,17 @@ export function createMcpTab({
     });
 
     var lines = [el("span", { className: "mcp-list-name" }, opts.name)];
+    var metaTextSpan = el("span", null, opts.meta);
     var metaParts = [];
     if (opts.transport) {
       metaParts.push(el("span", { className: "mcp-transport" }, opts.transport));
     }
-    metaParts.push(el("span", null, opts.meta));
+    metaParts.push(metaTextSpan);
+    // Always create the checked-at span, even with no timestamp yet, so a
+    // ping completing later can reveal it via setTs() rather than needing
+    // to splice a new node into an already-rendered meta line.
+    var checkedAtCtl = mcpCheckedAtSpan(opts.checkedAt || null);
+    metaParts.push(checkedAtCtl.node);
     if (opts.overrides) {
       metaParts.push(el("span", { className: "mcp-override-count" },
         opts.overrides + (opts.overrides === 1 ? " override" : " overrides")
@@ -255,25 +427,52 @@ export function createMcpTab({
     }, dot, el("span", { className: "mcp-list-copy" }, lines));
 
     item.addEventListener("click", function () {
-      if (mcpSelected === opts.key) return;
-      if (mcpHasPendingEdits()) {
-        confirmAction({
-          title: "Unsaved Changes",
-          message: "You have unsaved changes here. Discard them?",
-          confirmLabel: "Discard",
-          isDanger: true,
-          onConfirm: function () {
-            mcpPending = {};
-            mcpSelected = opts.key;
-            mcpRerender();
-          }
-        });
-        return;
-      }
-      mcpSelected = opts.key;
-      mcpRerender();
+      mcpSelectServer(opts.key);
     });
-    return item;
+
+    // Repaint just this row's selected styling when another row is picked —
+    // see mcpSelectServer.
+    mcpSelectSync[opts.key] = function (selected) {
+      item.classList.toggle("is-selected", selected);
+      item.setAttribute("aria-selected", String(selected));
+    };
+
+    // The select button and the ping button must be siblings, not nested —
+    // a <button> can't contain another interactive <button>.
+    var row = el("div", { className: "mcp-list-row" }, item);
+    var pingBtn = null;
+    var pingIcon = null;
+    if (opts.onPing) {
+      pingIcon = mcpPingIcon(opts.pinging);
+      pingBtn = el("button", {
+        type: "button",
+        className: "mcp-list-ping" + (opts.pinging ? " is-pinging" : ""),
+        "aria-label": "Ping " + opts.name,
+        title: "Ping " + opts.name,
+      }, pingIcon);
+      pingBtn.disabled = !!opts.pinging;
+      pingBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        opts.onPing();
+      });
+      row.appendChild(pingBtn);
+    }
+
+    // Repaint just this row on a ping, in place — see mcpApplyPingState.
+    if (opts.server) {
+      mcpRowSync[opts.key] = function () {
+        var status = mcpServerRowStatus(opts.server);
+        dot.className = "mcp-dot mcp-dot--" + status.state;
+        metaTextSpan.textContent = status.meta;
+        checkedAtCtl.setTs(status.checkedAt);
+        if (pingBtn) {
+          pingBtn.disabled = !!status.pinging;
+          pingBtn.classList.toggle("is-pinging", !!status.pinging);
+        }
+        if (pingIcon) pingIcon.classList.toggle("is-spinning", !!status.pinging);
+      };
+    }
+    return row;
   }
 
   // ----- Detail -----
@@ -378,7 +577,7 @@ export function createMcpTab({
   function mcpSaveRow(onSave) {
     var saveBtn = el("button", { type: "button", className: "btn btn--primary" }, "Save changes");
     saveBtn.disabled = !mcpHasPendingEdits();
-    mcpDirtyListeners.push(function () {
+    mcpDetailDirty.push(function () {
       saveBtn.disabled = !mcpHasPendingEdits();
     });
     saveBtn.addEventListener("click", function () {
@@ -432,7 +631,7 @@ export function createMcpTab({
           mcpSyncDirty();
         }
       });
-      mcpDirtyListeners.push(row.sync);
+      mcpDetailDirty.push(row.sync);
       ledger.appendChild(row);
     });
     detail.appendChild(ledger);
@@ -514,7 +713,7 @@ export function createMcpTab({
           { maxLength: MCP_CONNECTION_COMMAND_MAX_LENGTH }
         );
         connLedger.appendChild(commandRow);
-        mcpDirtyListeners.push(function () {
+        mcpDetailDirty.push(function () {
           commandRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.command"));
         });
 
@@ -558,7 +757,7 @@ export function createMcpTab({
           { type: "url", maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }
         );
         connLedger.appendChild(urlRow);
-        mcpDirtyListeners.push(function () {
+        mcpDetailDirty.push(function () {
           urlRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.url"));
         });
 
@@ -585,22 +784,53 @@ export function createMcpTab({
     }
 
     // ----- Tools -----
+    // Pinging is scoped to this one server (GET /mcp/tools?server=<name>) so
+    // checking it never re-dials, or disturbs the known status of, every
+    // other configured server. The checked-at span, ping button and tools
+    // list below are built once and repainted in place by mcpDetailSync, so
+    // a ping only ever touches this section — never the whole detail pane.
+    var toolsCheckedAtCtl = mcpCheckedAtSpan(mcpLastChecked[server.name] || null, "mcp-last-checked");
+    var toolsPingIcon = mcpPingIcon(!!mcpPinging[server.name]);
+    var toolsPingLabel = el("span", null, mcpPinging[server.name] ? "Pinging…" : "Ping server");
+    var toolsPingBtn = el("button", {
+      type: "button",
+      className: "btn btn--neutral mcp-ping-btn",
+    }, toolsPingIcon, toolsPingLabel);
+    toolsPingBtn.addEventListener("click", function () { mcpPingServer(server.name); });
+
+    // Gate on the saved `enabled` flag, not the pending toggle — see the
+    // matching comment in mcpRenderList. A newly-enabled-but-unsaved server
+    // isn't in the live manager yet, so pinging it would just 404.
+    function syncToolsHeader() {
+      var pinging = !!mcpPinging[server.name];
+      var canPing = server.enabled;
+      toolsCheckedAtCtl.setTs(mcpLastChecked[server.name] || null);
+      toolsPingIcon.classList.toggle("is-spinning", pinging);
+      toolsPingLabel.textContent = pinging ? "Pinging…" : "Ping server";
+      toolsPingBtn.disabled = pinging || !canPing;
+      toolsPingBtn.title = canPing ? "" : "Save this server as enabled before pinging it.";
+    }
+    syncToolsHeader();
+
     var toolsHeader = el("div", { className: "panel-header-row mcp-tools-header" },
       el("h3", null, "Tools"),
-      el("button", {
-        type: "button",
-        className: "btn btn--neutral mcp-test-btn",
-        onclick: function (e) {
-          var btn = e.currentTarget;
-          withButton(btn, async function () {
-            mcpTools = await api("GET", endpoints.mcpTools);
-            mcpRerender();
-          });
-        }
-      }, "Test connection")
+      el("div", { className: "mcp-tools-header-actions" }, toolsCheckedAtCtl.node, toolsPingBtn)
     );
     detail.appendChild(toolsHeader);
-    detail.appendChild(mcpRenderTools(server, enabled));
+
+    var toolsBody = el("div", { className: "mcp-tools-body" });
+    function syncToolsBody() {
+      clear(toolsBody);
+      var stillEnabled = mcpPending.enabled != null ? mcpPending.enabled : server.enabled;
+      toolsBody.appendChild(mcpRenderTools(server, stillEnabled));
+    }
+    syncToolsBody();
+    detail.appendChild(toolsBody);
+
+    mcpDetailSync = {
+      name: server.name,
+      sync: function () { syncToolsHeader(); syncToolsBody(); },
+    };
 
     // ----- Settings ledger -----
     // Name the override count up front, so the accent bar on individual rows
@@ -620,7 +850,7 @@ export function createMcpTab({
         : "All inherited from the defaults";
     }
     syncSummary();
-    mcpDirtyListeners.push(syncSummary);
+    mcpDetailDirty.push(syncSummary);
 
     detail.appendChild(el("div", { className: "panel-header-row mcp-settings-header" },
       el("h3", null, "Settings"),
@@ -667,7 +897,7 @@ export function createMcpTab({
           else delete mcpPending[spec.key];
         }
       });
-      mcpDirtyListeners.push(row.sync);
+      mcpDetailDirty.push(row.sync);
       ledger.appendChild(row);
     });
     detail.appendChild(ledger);
@@ -705,9 +935,12 @@ export function createMcpTab({
         "This server is disabled, so none of its tools reach the model."
       );
     }
+    if (mcpPinging[server.name]) {
+      return el("p", { className: "muted mcp-tools-empty" }, "Pinging " + server.name + "…");
+    }
     if (!mcpTools) {
       return el("p", { className: "muted mcp-tools-empty" },
-        "Select Test connection to dial this server and list what it exposes."
+        "Select Ping server to dial this server and list what it exposes."
       );
     }
     if (!mcpTools.available) {
@@ -716,7 +949,7 @@ export function createMcpTab({
     var discovery = (mcpTools.servers || {})[server.name];
     if (!discovery) {
       return el("p", { className: "muted mcp-tools-empty" },
-        "This server was added since tools were last discovered. Select Test connection."
+        "This server hasn't been pinged yet. Select Ping server to dial it and list what it exposes."
       );
     }
     if (!discovery.reachable) {
@@ -847,6 +1080,16 @@ export function createMcpTab({
 
   function mcpMinusIcon() {
     return mcpIconSvg("M3 8h10");
+  }
+
+  // Circular-arrow "retry" glyph, reused for both the per-row ping button
+  // and the detail pane's ping button. Spins in place while a ping for its
+  // server is in flight.
+  function mcpPingIcon(spinning) {
+    var icon = mcpIconSvg("M13 8a5 5 0 1 1-1.6-3.6M13 3.2V6.6H9.6");
+    icon.classList.add("mcp-ping-icon");
+    icon.classList.toggle("is-spinning", !!spinning);
+    return icon;
   }
 
   // A small "current/max" counter for a value field, since a single-line
@@ -1203,5 +1446,13 @@ export function createMcpTab({
     mcpPending = {};
   }
 
-  return { render: renderMcp, dispose: function () {}, hasPendingEdits: hasPendingEdits, clearPendingEdits: clearPendingEdits };
+  function dispose() {
+    if (mcpCheckedAtTimer) {
+      clearInterval(mcpCheckedAtTimer);
+      mcpCheckedAtTimer = null;
+    }
+    mcpCheckedAtNodes = [];
+  }
+
+  return { render: renderMcp, dispose: dispose, hasPendingEdits: hasPendingEdits, clearPendingEdits: clearPendingEdits };
 }
