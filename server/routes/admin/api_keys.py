@@ -70,6 +70,7 @@ async def create_api_key(
         adapter_name=api_key_data.adapter_name,
         allowed_user_ids=api_key_data.allowed_user_ids,
         allowed_emails=api_key_data.allowed_emails,
+        adapter_manager=getattr(request.app.state, 'adapter_manager', None),
     )
     
     # Log with masked API key

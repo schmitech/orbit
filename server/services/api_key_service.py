@@ -565,6 +565,7 @@ class ApiKeyService:
         adapter_name: Optional[str] = None,
         allowed_user_ids: Optional[list] = None,
         allowed_emails: Optional[list] = None,
+        adapter_manager=None,
     ) -> Dict[str, Any]:
         """
         Create a new API key for a specific adapter
@@ -578,6 +579,9 @@ class ApiKeyService:
                 Empty/None means unrestricted (any valid key works, current behavior).
             allowed_emails: Optional list of authenticated email addresses permitted to use
                 this key. Matched case-insensitively.
+            adapter_manager: Optional live adapter manager, so a newly created/hot-reloaded
+                adapter validates correctly instead of against this service's config
+                snapshot taken at startup (see _get_adapter_config).
 
         Returns:
             Dictionary containing the new API key and metadata
@@ -586,9 +590,9 @@ class ApiKeyService:
             # Validate that adapter_name is provided
             if not adapter_name:
                 raise HTTPException(status_code=400, detail="adapter_name must be provided")
-            
+
             # Validate adapter exists
-            adapter_config = self._get_adapter_config(adapter_name)
+            adapter_config = self._get_adapter_config(adapter_name, adapter_manager=adapter_manager)
             if not adapter_config:
                 raise HTTPException(status_code=400, detail=f"Adapter '{adapter_name}' not found in configuration")
             

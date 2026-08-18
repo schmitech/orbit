@@ -533,6 +533,30 @@ async def test_adapter_config_lookup(api_key_service):
 
 
 @pytest.mark.asyncio
+async def test_create_api_key_uses_live_adapter_manager(api_key_service):
+    """An adapter that only exists in the live adapter manager (e.g. just created
+    via hot-reload, not yet reflected in this service's startup config snapshot)
+    must still validate when adapter_manager is passed through."""
+    class _FakeAdapterManager:
+        def get_adapter_config(self, name):
+            if name == "freshly-created-adapter":
+                return {"name": name, "type": "passthrough"}
+            return None
+
+    # Not in TEST_CONFIG['adapters'], so the static-config fallback would reject it.
+    assert api_key_service._get_adapter_config("freshly-created-adapter") is None
+
+    result = await api_key_service.create_api_key(
+        client_name="Fresh Adapter Client",
+        adapter_name="freshly-created-adapter",
+        adapter_manager=_FakeAdapterManager(),
+    )
+
+    assert result is not None
+    assert result["adapter_name"] == "freshly-created-adapter"
+
+
+@pytest.mark.asyncio
 async def test_create_adapter_based_api_key(api_key_service):
     """Test creating an adapter-based API key"""
     result = await api_key_service.create_api_key(
