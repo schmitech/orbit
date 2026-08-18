@@ -344,7 +344,8 @@ export function createMcpTab({
       el("h2", null, "MCP servers"),
       el("div", { className: "mcp-list-actions" },
         el("button", {
-          type: "button", className: "btn btn--primary", onclick: function () {
+          type: "button", className: "btn btn--neutral btn--icon", "aria-label": "Add server", title: "Add server",
+          onclick: function () {
             if (mcpHasPendingEdits()) {
               confirmAction({ title: "Unsaved Changes", message: "Discard changes and add a server?", confirmLabel: "Discard", isDanger: true,
                 onConfirm: function () { mcpPending = {}; mcpSelected = MCP_CREATE_KEY; mcpRerender(); } });
@@ -353,7 +354,7 @@ export function createMcpTab({
             mcpSelected = MCP_CREATE_KEY;
             mcpRerender();
           }
-        }, "Add server"),
+        }, mcpPlusIcon()),
         refreshButton("Refresh servers and tools", function () {
           mcpData = null;
           mcpTools = null;
@@ -869,9 +870,19 @@ export function createMcpTab({
     syncSummary();
     mcpDetailDirty.push(syncSummary);
 
+    // A first-time visitor has no way to know the left-edge accent means
+    // "overridden" — the row's own title only surfaces on hover. Spell it
+    // out once here instead of repeating an "override" label on every row.
+    var overrideLegend = el("span", {
+      className: "mcp-override-legend",
+      tabIndex: "0",
+      "aria-label": "Blue marks a setting that overrides the default",
+      title: "Blue marks a setting that overrides the default",
+    }, el("span", { className: "mcp-override-legend-swatch", "aria-hidden": "true" }), "= overrides default");
+
     detail.appendChild(el("div", { className: "panel-header-row mcp-settings-header" },
       el("h3", null, "Settings"),
-      summary
+      el("div", { className: "mcp-settings-header-meta" }, overrideLegend, summary)
     ));
 
     var ledger = el("div", { className: "mcp-ledger" });
@@ -1436,6 +1447,10 @@ export function createMcpTab({
     row.sync = function () {
       var isOverride = !opts.isDefaults && opts.isOverridden();
       row.classList.toggle("is-override", isOverride);
+      // The accent bar already says "overridden" at a glance; the row's own
+      // title makes that legible on hover/focus without a text label eating
+      // space next to "Use default" on every overridden row.
+      row.title = isOverride ? "Blue marks a setting that overrides the default" : "";
       clear(provenance);
       provenance.classList.toggle("is-override", isOverride);
 
@@ -1456,7 +1471,6 @@ export function createMcpTab({
           mcpSyncDirty();
           control.focus(); // the button that had focus is about to be removed
         });
-        provenance.appendChild(el("span", null, "override"));
         provenance.appendChild(revert);
         return;
       }

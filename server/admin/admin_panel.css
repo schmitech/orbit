@@ -4076,6 +4076,7 @@ button.settings-nav-group-header:hover:not(:disabled) {
 .mcp-setting-row.is-override {
   background: var(--surface);
   box-shadow: inset 3px 0 0 var(--panel-accent);
+  cursor: help;
 }
 
 .mcp-setting-copy {
@@ -4269,6 +4270,29 @@ button.mcp-kv-btn:active:not(:disabled) {
 .mcp-revert:active:not(:disabled) {
   transform: none;
   box-shadow: none;
+}
+
+.mcp-settings-header-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.mcp-override-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  cursor: help;
+}
+
+.mcp-override-legend-swatch {
+  display: inline-block;
+  width: 3px;
+  height: 0.9em;
+  border-radius: 1px;
+  background: var(--panel-accent);
 }
 
 .mcp-save-row {
