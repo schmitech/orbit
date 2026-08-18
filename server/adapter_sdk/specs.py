@@ -42,6 +42,7 @@ class Question:
     max_items: Optional[int] = None   # list only
     min_value: Optional[int] = None   # int only
     max_value: Optional[int] = None   # int only
+    options_source: Optional[str] = None  # key into GET /admin/adapters/answer-options
 
 
 def question_limits(q: Question) -> Dict[str, Any]:
@@ -265,7 +266,8 @@ MULTIMODAL = AdapterSpec(
     },
     questions=[
         _q_name(default="simple-chat-with-files"),
-        Question("inference_provider", "Inference provider (override; blank for global default)", default=None),
+        Question("inference_provider", "Inference provider (override; blank for global default)", default=None,
+                 options_source="inference_providers"),
         Question("model", "Model (override; blank for global default)", default=None),
         Question("embedding_provider", "Embedding provider", default="openai"),
         Question("embedding_model", "Embedding model", default="text-embedding-3-small"),
@@ -286,7 +288,8 @@ MULTIMODAL = AdapterSpec(
                  choices=["fixed", "semantic", "token", "recursive"]),
         Question("chunk_size", "Chunk size", type="int", default=1000, min_value=1, max_value=100000),
         Question("chunk_overlap", "Chunk overlap", type="int", default=100, min_value=0, max_value=10000),
-        Question("vector_store", "Vector store (see stores.yaml)", default="chroma"),
+        Question("vector_store", "Vector store (see stores.yaml)", default="chroma",
+                 options_source="vector_stores"),
         Question("collection_prefix", "Collection prefix", default="files_", max_length=64),
         Question("requires_encryption", "Require encrypted file storage?", type="bool", default=False),
         Question("enable_audio_transcription", "Enable audio file transcription?", type="bool", default=False),
@@ -312,7 +315,8 @@ PASSTHROUGH = AdapterSpec(
     },
     questions=[
         _q_name(default="simple-chat"),
-        Question("inference_provider", "Inference provider (override; blank for global default)", default=None),
+        Question("inference_provider", "Inference provider (override; blank for global default)", default=None,
+                 options_source="inference_providers"),
         Question("model", "Model (override; blank for global default)", default=None),
         Question("available_skills", "Available skills (invokable via / picker)", type="list", default=[]),
         Question("auto_routable_skills", "Auto-routable skills (auto-only, not user-invokable)",
@@ -365,7 +369,7 @@ MCP_AGENT = AdapterSpec(
     questions=[
         _q_name(default="mcp-agent-chat"),
         Question("inference_provider", "Inference provider (must support native tool calling)", default="openai",
-                 help="openai, anthropic, gemini, or xai."),
+                 help="openai, anthropic, gemini, or xai.", options_source="inference_providers"),
         Question("model", "Model", default="gpt-5.4-mini"),
         _q_skill_name(default="mcp-agent"),
         _q_skill_description(default="Use external MCP server tools to answer (agentic tool calling)"),
@@ -444,7 +448,8 @@ WEB_SEARCH_EXTERNAL = AdapterSpec(
         _q_name(),
         _q_skill_name(),
         _q_skill_description(),
-        Question("inference_provider", "Inference provider (synthesizes the answer)", default="anthropic"),
+        Question("inference_provider", "Inference provider (synthesizes the answer)", default="anthropic",
+                 options_source="inference_providers"),
         Question("model", "Model", default="claude-haiku-4-5-20251001"),
         Question("result_count", "Number of results to fetch", type="int", default=5,
                  min_value=1, max_value=50),

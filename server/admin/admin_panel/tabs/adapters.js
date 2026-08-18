@@ -8,6 +8,7 @@ export function createAdaptersTab({
   var adapterOriginal = "";        // Dirty tracking baseline
   var cachedAdapterFiles = null;   // Cached adapter file listing
   var cachedAdapterSpecs = null;   // Adapter SDK families available for creation
+  var cachedAdapterAnswerOptions = null; // Enumerable values for options_source questions
   var adapterPreviewEditor = null; // Read-only Ace editor for the create preview
   var importEditor = null;         // Ace editor instance for the import panel
   var selectedAdapterEntry = null; // { name, filename, ... }
@@ -34,6 +35,17 @@ export function createAdaptersTab({
     return cachedAdapterSpecs;
   }
 
+  // Point-in-time snapshot of app.state.config, like cachedAdapterSpecs — reloaded
+  // on every panel open rather than invalidated, so a config reload can't leave it stale.
+  async function loadAdapterAnswerOptions() {
+    try {
+      cachedAdapterAnswerOptions = await api("GET", endpoints.adapterAnswerOptions);
+    } catch (_) {
+      cachedAdapterAnswerOptions = {};
+    }
+    return cachedAdapterAnswerOptions;
+  }
+
   function render(container) {
     clear(container);
 
@@ -45,12 +57,13 @@ export function createAdaptersTab({
     // Lazy-load adapter file listing, capability metadata (needed to know which
     // adapters support template reload) and the SDK spec registry (create form)
     var cachedAdapterCapabilities = getCachedAdapterCapabilities();
-    if (!cachedAdapterFiles || !cachedAdapterCapabilities || !cachedAdapterSpecs) {
+    if (!cachedAdapterFiles || !cachedAdapterCapabilities || !cachedAdapterSpecs || !cachedAdapterAnswerOptions) {
       container.appendChild(skeleton());
       Promise.all([
         cachedAdapterFiles ? Promise.resolve(cachedAdapterFiles) : loadAdapterFiles(),
         cachedAdapterCapabilities ? Promise.resolve(cachedAdapterCapabilities) : loadAdapterCapabilities(),
         cachedAdapterSpecs ? Promise.resolve(cachedAdapterSpecs) : loadAdapterSpecs(),
+        cachedAdapterAnswerOptions ? Promise.resolve(cachedAdapterAnswerOptions) : loadAdapterAnswerOptions(),
       ]).then(function () {
         if (getActiveTab() === "adapters") render(container);
       });
@@ -342,6 +355,144 @@ export function createAdaptersTab({
       return input;
     }
 
+    // A <select> would force the value to a known one; this combobox keeps the
+    // field free-text (so e.g. a store defined after the panel's cache loaded can
+    // still be typed) while suggesting the enumerable, enabled values as the user
+    // types — styled to the admin theme instead of the browser's native <datalist>.
+    // `cachedAdapterAnswerOptions` is read live on every open/keystroke, not
+    // snapshotted here, so a mid-session refresh (see openAdapterCreatePanel)
+    // reaches an already-built combobox with no separate rebuild step.
+    function wrapAnswerCombobox(q, input) {
+      var wrap = el("div", { className: "adapter-combobox" }, input);
+      var panel = el("div", { className: "adapter-combobox-panel", role: "listbox", style: "display:none" });
+      wrap.appendChild(panel);
+
+      input.setAttribute("autocomplete", "off");
+      input.setAttribute("role", "combobox");
+      input.setAttribute("aria-expanded", "false");
+      input.setAttribute("aria-autocomplete", "list");
+
+      var currentOptions = [];
+      var activeIndex = -1;
+
+      function optionsForQuery(query) {
+        var all = (cachedAdapterAnswerOptions || {})[q.options_source] || [];
+        if (!query) return all;
+        var lc = query.toLowerCase();
+        return all.filter(function (v) { return v.toLowerCase().indexOf(lc) !== -1; });
+      }
+
+      function renderPanel() {
+        clear(panel);
+        if (!currentOptions.length) {
+          panel.style.display = "none";
+          input.setAttribute("aria-expanded", "false");
+          return;
+        }
+        var query = input.value.trim();
+        currentOptions.forEach(function (value, i) {
+          var matchAt = query ? value.toLowerCase().indexOf(query.toLowerCase()) : -1;
+          var label = matchAt === -1
+            ? el("span", null, value)
+            : el("span", null,
+                value.slice(0, matchAt),
+                el("strong", null, value.slice(matchAt, matchAt + query.length)),
+                value.slice(matchAt + query.length)
+              );
+          var opt = el("div", {
+            className: "adapter-combobox-option" + (i === activeIndex ? " is-active" : ""),
+            role: "option",
+            "aria-selected": String(i === activeIndex),
+            dataset: { index: String(i) },
+          }, el("span", { className: "adapter-combobox-dot" }), label);
+          // Not renderPanel() here: rebuilding every option's DOM node on hover means a
+          // real click's mousedown and mouseup can land on two different node objects
+          // (a mousemove between them re-fires mouseenter and rebuilds mid-gesture) —
+          // browsers only dispatch "click" when both share the same target, so the
+          // click silently never fires. Toggling classes in place keeps the nodes stable.
+          opt.addEventListener("mouseenter", function () {
+            if (activeIndex === i) return;
+            var prev = panel.querySelector(".adapter-combobox-option.is-active");
+            if (prev) { prev.classList.remove("is-active"); prev.setAttribute("aria-selected", "false"); }
+            activeIndex = i;
+            opt.classList.add("is-active");
+            opt.setAttribute("aria-selected", "true");
+          });
+          panel.appendChild(opt);
+        });
+        panel.style.display = "";
+        input.setAttribute("aria-expanded", "true");
+      }
+
+      // Delegated on the panel, not per-option: a mousedown that lands on the
+      // panel's own padding (between/around rows) still has to preventDefault or
+      // the browser blurs the input right there, and the 100ms blur timeout below
+      // closes the panel before the click that follows ever reaches an option —
+      // the value never gets applied and the field looks like it lost its edit.
+      panel.addEventListener("mousedown", function (e) { e.preventDefault(); });
+      panel.addEventListener("click", function (e) {
+        var optEl = e.target.closest(".adapter-combobox-option");
+        if (!optEl) return;
+        // The preceding mousedown keeps focus on the input; suppress any
+        // remaining browser default action before applying the choice.
+        e.preventDefault();
+        var value = currentOptions[Number(optEl.dataset.index)];
+        if (value !== undefined) selectValue(value);
+      });
+
+      function scrollActiveIntoView() {
+        var activeEl = panel.querySelector(".is-active");
+        if (activeEl) activeEl.scrollIntoView({ block: "nearest" });
+      }
+
+      function openPanel() {
+        currentOptions = optionsForQuery(input.value.trim());
+        activeIndex = -1;
+        renderPanel();
+      }
+
+      function closePanel() {
+        panel.style.display = "none";
+        input.setAttribute("aria-expanded", "false");
+        activeIndex = -1;
+      }
+
+      function selectValue(value) {
+        input.value = value;
+        input.dispatchEvent(new Event("input", { bubbles: true })); // updates character/entry counts
+        closePanel();
+        input.focus();
+      }
+
+      input.addEventListener("focus", openPanel);
+      input.addEventListener("input", openPanel);
+      input.addEventListener("blur", function () { setTimeout(closePanel, 100); });
+      input.addEventListener("keydown", function (e) {
+        if (panel.style.display === "none" && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+          openPanel();
+          return;
+        }
+        if (!currentOptions.length) return;
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          activeIndex = Math.min(activeIndex + 1, currentOptions.length - 1);
+          renderPanel();
+          scrollActiveIntoView();
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          activeIndex = Math.max(activeIndex - 1, 0);
+          renderPanel();
+          scrollActiveIntoView();
+        } else if (e.key === "Enter") {
+          if (activeIndex >= 0) { e.preventDefault(); selectValue(currentOptions[activeIndex]); }
+        } else if (e.key === "Escape") {
+          closePanel();
+        }
+      });
+
+      return wrap;
+    }
+
     // Say what the bound is up front — a maxlength that silently stops accepting
     // keystrokes with no stated limit reads as a broken input.
     function questionHint(q) {
@@ -355,6 +506,7 @@ export function createAdaptersTab({
       } else if (q.type === "str" && q.max_length) {
         parts.push("Max " + q.max_length + " characters.");
       }
+      if (q.options_source) parts.push("Start typing to see configured values.");
       return parts.join(" ");
     }
 
@@ -375,7 +527,20 @@ export function createAdaptersTab({
 
     function adapterQuestionField(q, input, hint) {
       if (q.type !== "bool") {
-        var control = field(q.prompt, input, hint);
+        var control;
+        if (q.options_source) {
+          // A combobox's option panel must not be nested in the <label>. Apart
+          // from being invalid label content, option clicks then also trigger
+          // the label's native focus action, which can swallow the selection.
+          var id = input.id || "field-" + Math.random().toString(36).slice(2, 9);
+          input.id = id;
+          var fieldParts = [el("label", { htmlFor: id }, q.prompt)];
+          if (hint) fieldParts.push(el("span", { className: "muted" }, hint));
+          fieldParts.push(wrapAnswerCombobox(q, input));
+          control = el("div", { className: "stack" }, fieldParts);
+        } else {
+          control = field(q.prompt, input, hint);
+        }
         if (q.type === "str" && q.max_length) {
           control.appendChild(characterCount(input, q.max_length));
         } else if (q.type === "list" && q.max_items) {
@@ -453,7 +618,6 @@ export function createAdaptersTab({
         if (editingAdapterName && q.field === "name") input.readOnly = true;
         formGrid.appendChild(adapterQuestionField(q, input, questionHint(q)));
       });
-
     }
 
     function hideCreatePreview() {
@@ -598,6 +762,10 @@ export function createAdaptersTab({
       createPanel.style.display = "";
       buildAdapterCreateForm(prefill ? prefill.answers : null);
       createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Refresh the enumerable answer options (providers/stores/datasources) so a
+      // config change since the panel last loaded is reflected. No rebuild needed —
+      // the combobox reads `cachedAdapterAnswerOptions` live on each open/keystroke.
+      loadAdapterAnswerOptions();
     }
 
     function closeAdapterCreatePanel() {

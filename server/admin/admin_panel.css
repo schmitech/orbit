@@ -700,6 +700,73 @@ textarea {
   min-height: 80px;
 }
 
+/* Adapter create-form combobox — styled replacement for a bare <input list>
+   (native <datalist> popups ignore the page theme entirely). */
+.adapter-combobox {
+  position: relative;
+}
+
+.adapter-combobox-panel {
+  position: absolute;
+  top: calc(100% + var(--sp-2));
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--sp-1);
+  max-height: 15rem;
+  overflow-y: auto;
+  animation: adapter-combobox-in var(--transition-fast);
+}
+
+@keyframes adapter-combobox-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adapter-combobox-panel { animation: none; }
+}
+
+.adapter-combobox-option {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.adapter-combobox-option:hover,
+.adapter-combobox-option.is-active {
+  background: var(--brand-50);
+  color: var(--brand-700);
+}
+
+.adapter-combobox-option strong {
+  color: var(--brand-600);
+  font-weight: 700;
+}
+
+.adapter-combobox-option.is-active strong {
+  color: var(--brand-700);
+}
+
+/* A configured value is only ever offered here once it's enabled (see
+   _enabled_inference_providers / _enabled_config_section_names) — the dot marks that. */
+.adapter-combobox-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success-500);
+}
+
 .markdown-preview-shell {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

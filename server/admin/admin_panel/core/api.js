@@ -10,6 +10,7 @@ export const ENDPOINTS = {
   mcpServers: "/admin/mcp/servers", mcpTools: "/admin/mcp/tools", mcpDefaults: "/admin/mcp/defaults", mcpReload: "/admin/mcp/reload",
   adapterConfigs: "/admin/adapters/config", adapterSpecs: "/admin/adapters/specs", adapterCreate: "/admin/adapters",
   adapterPreview: "/admin/adapters/preview", adapterImport: "/admin/adapters/import",
+  adapterAnswerOptions: "/admin/adapters/answer-options",
   adapterImportFormat: "/admin/adapters/import/format",
   auditEvents: "/admin/audit/events", costsUsage: "/admin/observability/usage",
   feedbackAnalytics: "/admin/api/feedback-analytics", serverInfo: "/admin/info",

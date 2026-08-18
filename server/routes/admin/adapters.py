@@ -423,6 +423,32 @@ def _enabled_inference_providers(config: Dict[str, Any]) -> Optional[set]:
     }
 
 
+def _enabled_config_section_names(config: Dict[str, Any], key: str, default_enabled: bool = True) -> Optional[set]:
+    """Names enabled under a top-level `key` section (e.g. `datasources`, `vector_stores`).
+
+    `default_enabled` is the enabled-ness of an entry that omits `enabled` — True
+    for `_enabled_inference_providers`'s semantics, but vector stores must pass
+    False here: `store_manager.py` only registers a store when `enabled` is
+    truthy (`.get('enabled', False)`), so an omitted flag there means disabled,
+    not enabled. A missing section returns None (skip/omit).
+    """
+    section_cfg = config.get(key)
+    if not isinstance(section_cfg, dict):
+        return None
+
+    def is_enabled(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() != "false"
+        return default_enabled
+
+    return {
+        name for name, settings in section_cfg.items()
+        if isinstance(settings, dict) and is_enabled(settings.get("enabled", default_enabled))
+    }
+
+
 async def _propagate_adapter_generation(request: Request, action: str) -> None:
     """Bump the cross-worker adapter-config generation counter, if running under
     a multi-worker supervisor. `create_adapter`/`import_adapter`/`delete_adapter`
@@ -472,6 +498,21 @@ def _find_skill_name_owner(adapters_dir: Path, skill_name: str, exclude_name: Op
 async def list_adapter_specs():
     """List the adapter families the SDK can generate, with their form questions."""
     return {"specs": serialize_registry()}
+
+
+@router.get("/adapters/answer-options", dependencies=[adapters_auth])
+async def adapter_answer_options(request: Request):
+    """Enumerable answer values for create-form questions with an `options_source`.
+
+    Sourced from the already-loaded `app.state.config`, not a fresh disk read —
+    matches what `validate_providers` checks against at create time.
+    """
+    config = request.app.state.config
+    return {
+        "inference_providers": sorted(_enabled_inference_providers(config) or []),
+        "vector_stores": sorted(_enabled_config_section_names(config, "vector_stores", default_enabled=False) or []),
+        "datasources": sorted(_enabled_config_section_names(config, "datasources") or []),
+    }
 
 
 @router.post("/adapters/preview", dependencies=[adapters_auth])
