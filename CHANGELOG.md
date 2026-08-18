@@ -7,6 +7,7 @@
 - **Adapter Form Config Suggestions**: Adapter creation now suggests enabled inference providers, vector stores, and datasources from the running configuration. Suggestions remain free-text compatible, omit vector stores without an explicit enabled flag, and can be selected directly from the styled picker.
 
 ### Bug Fixes & Technical Improvements
+- **Video Generation Provider Updates**: Gemini Veo now forwards configured clip durations and defaults to Veo 3.1 with native audio. xAI video generation now defaults to Grok Imagine Video 1.5, with current resolution guidance, audio behavior, and SDK-aligned polling timeouts; installer defaults and selectable video models are synchronized.
 - **API Key Adapter Validation After Hot Reload**: Creating an API key now validates its adapter against the live adapter manager, so adapters created or reloaded after startup are accepted instead of being incorrectly reported as missing from the service's startup configuration snapshot.
 - **MCP Admin Diagnostics**: The MCP panel now provides per-server ping controls, live reachability and tool counts, and continuously updated “last checked” timestamps. Ping controls are unavailable until a server is saved and live, preventing requests for disabled or unsaved servers.
 - **MCP Panel Interaction Responsiveness**: Selecting a server or pinging it now updates only the affected row and tools area, preserving the rest of the form and eliminating master-detail panel flicker.

@@ -8,9 +8,11 @@ video_generation:
   gemini:
     enabled: false
     api_key: ${GOOGLE_API_KEY}
+    # Veo 3.1 generates native audio. It supports 4-, 6-, and 8-second clips.
     model: "veo-3.1-generate-preview"
     aspect_ratio: "16:9"         # 16:9, 9:16, 1:1
     number_of_videos: 1
+    duration: 6                   # Veo 3.1: 4, 6, or 8 seconds
     person_generation: null  # null (omit, recommended), allow_adult, disallow — Veo 3.x preview rejects allow_adult for text-to-video with a 400
     # Timeout configuration
     timeout:
@@ -26,14 +28,15 @@ video_generation:
   xai:
     enabled: false
     api_key: ${XAI_API_KEY}
-    model: "grok-imagine-video"
+    model: "grok-imagine-video-1.5"
     aspect_ratio: "16:9"         # 16:9, 9:16, 1:1, 4:3, 3:4, 3:2, 2:3
-    resolution: "480p"           # 480p (default, faster) or 720p
-    duration: 5                  # 1–15 seconds
+    resolution: "480p"           # 480p (default, faster), 720p, or 1080p (1.5 only)
+    duration: 10                 # 1–15 seconds
+    # Generated videos include audio by default.
     # Timeout configuration
     timeout:
       connect: 15000   # 15 seconds
-      total: 300000    # 5 minutes (video generation is slow)
+      total: 600000    # 10 minutes (xAI SDK default polling timeout)
     # Retry configuration
     retry:
       enabled: true

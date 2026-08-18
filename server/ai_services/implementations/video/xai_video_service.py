@@ -17,7 +17,7 @@ class XAIVideoService(VideoGenerationService):
     """xAI video generation via the official xAI SDK."""
 
     DEFAULT_API_BASE = "https://api.x.ai/v1"
-    DEFAULT_VIDEO_MODEL = "grok-imagine-video"
+    DEFAULT_VIDEO_MODEL = "grok-imagine-video-1.5"
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config, "xai")

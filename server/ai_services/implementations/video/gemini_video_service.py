@@ -28,6 +28,7 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
         provider_config = self._extract_provider_config()
         self.aspect_ratio = provider_config.get("aspect_ratio", "16:9")
         self.number_of_videos = provider_config.get("number_of_videos", 1)
+        self.duration = provider_config.get("duration")
         # None (the default) omits personGeneration entirely — Veo 3.x preview models
         # reject "allow_adult" for text-to-video with a 400 INVALID_ARGUMENT; only set
         # this if your account/model combination is confirmed to accept a specific value.
@@ -65,6 +66,7 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
         model = kwargs.get("model") or self.model
         aspect_ratio = kwargs.get("aspect_ratio", self.aspect_ratio)
         number_of_videos = kwargs.get("number_of_videos", self.number_of_videos)
+        duration = kwargs.get("duration", self.duration)
         person_generation = kwargs.get("person_generation", self.person_generation)
 
         def _run_sync() -> tuple[bytes, str]:
@@ -76,6 +78,8 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
                 "aspect_ratio": aspect_ratio,
                 "number_of_videos": number_of_videos,
             }
+            if duration is not None:
+                config_kwargs["duration_seconds"] = duration
             if person_generation:
                 config_kwargs["person_generation"] = person_generation
 

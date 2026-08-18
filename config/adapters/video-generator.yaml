@@ -1,4 +1,4 @@
-# Dedicated video generation adapter — converts text prompts to short videos via Veo 2.
+# Dedicated video generation adapter — converts text prompts to short videos via Veo or Grok.
   # Handled by VideoGenerationStep; LLMInferenceStep is skipped for this adapter type.
 adapters:
   - name: "video-generator"
@@ -19,14 +19,14 @@ adapters:
         aspect_ratio: "16:9"
       - name: "xai-video"
         provider: "xai"
-        model: "grok-imagine-video"
+        model: "grok-imagine-video-1.5"
         aspect_ratio: "16:9"
         resolution: "720p"
 
     capabilities:
       expose_as_skill: true
       skill_name: "Video"
-      skill_description: "Generate short videos from text descriptions using AI (Veo 2)"
+      skill_description: "Generate short videos from text descriptions using Veo or Grok"
       # Phrases that boost the skill-intent embedding pre-filter (auto-routing).
       routing_examples:
         - "make a video of"
