@@ -209,16 +209,33 @@ export function createMcpTab({
     if (!displayEnabled) return { state: "off", meta: "Disabled", pinging: pinging, checkedAt: null };
     if (pinging) return { state: "checking", meta: "Pinging…", pinging: pinging, checkedAt: null };
     var checkedAt = mcpLastChecked[server.name] || null;
-    if (!discovery) return { state: "unknown", meta: "Not checked", pinging: pinging, checkedAt: checkedAt };
-    if (discovery.reachable) {
-      return {
-        state: "up",
-        meta: discovery.tools.length + (discovery.tools.length === 1 ? " tool" : " tools"),
-        pinging: pinging,
-        checkedAt: checkedAt,
-      };
+    if (discovery) {
+      if (discovery.reachable) {
+        return {
+          state: "up",
+          meta: discovery.tools.length + (discovery.tools.length === 1 ? " tool" : " tools"),
+          pinging: pinging,
+          checkedAt: checkedAt,
+        };
+      }
+      return { state: "down", meta: "Unreachable", pinging: pinging, checkedAt: checkedAt };
     }
-    return { state: "down", meta: "Unreachable", pinging: pinging, checkedAt: checkedAt };
+    // Nothing pinged this session yet — fall back to what the backend
+    // already knows from its startup warm-up (or a previous admin session),
+    // so the dot doesn't sit blank until someone clicks Ping. There's no
+    // timestamp for that discovery, so checkedAt stays null.
+    if (server.status) {
+      if (server.status.reachable) {
+        return {
+          state: "up",
+          meta: server.status.tool_count + (server.status.tool_count === 1 ? " tool" : " tools"),
+          pinging: pinging,
+          checkedAt: null,
+        };
+      }
+      return { state: "down", meta: "Unreachable", pinging: pinging, checkedAt: null };
+    }
+    return { state: "unknown", meta: "Not checked", pinging: pinging, checkedAt: checkedAt };
   }
 
   async function renderMcp(container) {
@@ -929,6 +946,17 @@ export function createMcpTab({
     }));
   }
 
+  function mcpUnreachableNotice(server) {
+    return el("div", { className: "mcp-unreachable" },
+      el("strong", null, "Could not reach this server"),
+      el("p", null,
+        server.transport === "stdio"
+          ? "Check the command runs and is on PATH. Startup logs record the underlying error."
+          : "Check the URL is reachable and required headers are set. Startup logs record the underlying error."
+      )
+    );
+  }
+
   function mcpRenderTools(server, enabled) {
     if (!enabled) {
       return el("p", { className: "muted mcp-tools-empty" },
@@ -948,20 +976,23 @@ export function createMcpTab({
     }
     var discovery = (mcpTools.servers || {})[server.name];
     if (!discovery) {
+      // No ping this session, but the backend's startup warm-up (or a
+      // previous admin session) may already know whether this server is
+      // reachable — surface that instead of a blanket "not checked" when
+      // it's available. The tool list itself still needs an actual ping.
+      if (server.status) {
+        if (!server.status.reachable) return mcpUnreachableNotice(server);
+        return el("p", { className: "muted mcp-tools-empty" },
+          "Reachable — " + server.status.tool_count
+            + (server.status.tool_count === 1 ? " tool" : " tools")
+            + " available. Select Ping server to list them."
+        );
+      }
       return el("p", { className: "muted mcp-tools-empty" },
         "This server hasn't been pinged yet. Select Ping server to dial it and list what it exposes."
       );
     }
-    if (!discovery.reachable) {
-      return el("div", { className: "mcp-unreachable" },
-        el("strong", null, "Could not reach this server"),
-        el("p", null,
-          server.transport === "stdio"
-            ? "Check the command runs and is on PATH. Startup logs record the underlying error."
-            : "Check the URL is reachable and required headers are set. Startup logs record the underlying error."
-        )
-      );
-    }
+    if (!discovery.reachable) return mcpUnreachableNotice(server);
     if (!discovery.tools.length) {
       return el("p", { className: "muted mcp-tools-empty" },
         "Connected, but this server exposes no tools."

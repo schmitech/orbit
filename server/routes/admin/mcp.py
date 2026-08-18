@@ -341,8 +341,16 @@ def _read_mcp_config(request: Request) -> tuple[Path, str, Dict[str, Any]]:
 @router.get("/mcp/servers", dependencies=[config_auth])
 async def list_mcp_servers(request: Request):
     """Configured MCP servers with their effective settings and provenance."""
+    import services.mcp_client_service as mcp_client_service
+
     path, _, block = _read_mcp_config(request)
     overridable = _mcp_overridable()
+
+    # Read-only: never constructs or dials a manager. One is normally already
+    # live by the time the admin panel loads, via the startup warm-up task
+    # (see inference_server.py), so the panel can show real status on first
+    # paint instead of a blank "Not checked" until someone clicks Ping.
+    manager = mcp_client_service.get_current_mcp_client_manager()
 
     defaults = {}
     for key, (_coerce, fallback) in overridable.items():
@@ -352,6 +360,7 @@ async def list_mcp_servers(request: Request):
     for entry in block.get("servers") or []:
         if not isinstance(entry, dict) or not entry.get("name"):
             continue
+        name = entry["name"]
         overrides = {k: entry[k] for k in overridable if k in entry}
         effective = dict(defaults)
         effective.update(overrides)
@@ -368,14 +377,25 @@ async def list_mcp_servers(request: Request):
                 "args": entry.get("args") or [],
                 "env": entry.get("env") or {},
             }
+        # Only report a status once the server has actually been discovered
+        # at least once — is_reachable() defaults an undiscovered server to
+        # "reachable", which would otherwise flash green before the startup
+        # warm-up (or first ping) has actually dialed it.
+        status = None
+        if manager is not None and name in manager._tools_cache:
+            status = {
+                "reachable": manager.is_reachable(name),
+                "tool_count": len(manager._tools_cache[name]),
+            }
         servers.append({
-            "name": entry["name"],
+            "name": name,
             "transport": transport,
             "enabled": entry.get("enabled", True),
             "endpoint": _mcp_endpoint_label(entry),
             "overrides": overrides,
             "effective": effective,
             "connection": connection,
+            "status": status,
         })
 
     return {

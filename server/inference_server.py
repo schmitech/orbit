@@ -283,6 +283,13 @@ class InferenceServer:
                             await poll_task
                         except asyncio.CancelledError:
                             pass
+                    warm_up_task = getattr(app.state, '_mcp_warm_up_task', None)
+                    if warm_up_task is not None:
+                        warm_up_task.cancel()
+                        try:
+                            await warm_up_task
+                        except asyncio.CancelledError:
+                            pass
                     await self._shutdown_services(app)
                     logger.info("Services shut down successfully")
                 except Exception as e:
@@ -365,6 +372,27 @@ class InferenceServer:
         from services.pause_state import ensure_initialized
         await ensure_initialized(app.state)
 
+        # Warm up MCP server reachability in the background so the admin
+        # panel's status dots are populated by the time anyone opens it,
+        # instead of blank until a manual ping. Fire-and-forget: MCP client
+        # manager creation/dialing is otherwise fully lazy (first chat
+        # request or admin API call), and an unreachable external server
+        # must never delay ORBIT's own startup. Held on app.state, like
+        # _adapter_reload_poll_task, purely so it isn't garbage-collected
+        # mid-flight and so shutdown can cancel it if it's still running.
+        app.state._mcp_warm_up_task = asyncio.create_task(self._warm_up_mcp_clients(app))
+
+    async def _warm_up_mcp_clients(self, app: FastAPI) -> None:
+        try:
+            from services.mcp_client_service import get_mcp_client_manager
+
+            manager = get_mcp_client_manager(app.state.config or {})
+            if manager is not None:
+                await manager.refresh_tool_cache()
+                logger.info("MCP client warm-up complete")
+        except Exception as exc:
+            logger.warning("MCP client warm-up failed: %s", exc)
+
     async def _shutdown_services(self, app: FastAPI) -> None:
         """
         Shut down all services and clients.
@@ -380,6 +408,19 @@ class InferenceServer:
                 await asyncio.wait_for(message_consumer.stop(), timeout=10.0)
             except Exception as e:
                 logger.error("Error stopping message consumer: %s", e)
+
+        # Drain any MCP client pools — the startup warm-up (and any chat
+        # request that used MCP tools) leaves live stdio subprocesses/HTTP
+        # sessions open in the manager's pools. Cancelling the warm-up task
+        # alone doesn't touch these: by the time shutdown runs, warm-up has
+        # normally already completed and left its connections behind.
+        from services.mcp_client_service import get_current_mcp_client_manager
+        mcp_manager = get_current_mcp_client_manager()
+        if mcp_manager is not None:
+            try:
+                await mcp_manager.aclose()
+            except Exception as e:
+                logger.error("Error closing MCP client pools: %s", e)
 
         # Create a list to collect shutdown tasks
         shutdown_tasks = []
