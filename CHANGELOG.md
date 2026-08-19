@@ -1,10 +1,5 @@
 # Changelog
 
-## [UNRELEASED]
-
-### Bug Fixes & Technical Improvements
-- **Admin Panel Select Cleanup**: Custom select controls now release their document click handlers when forms or views are discarded. Teardown runs immediately through shared DOM clearing and also covers direct DOM removals, preventing stale controls from accumulating during repeated rerenders.
-
 ## [2.15.7] - 2026-08-19
 
 ### Core System Updates
@@ -18,6 +13,7 @@
 - **MCP Admin Diagnostics**: The MCP panel now provides per-server ping controls, live reachability and tool counts, and continuously updated “last checked” timestamps. Ping controls are unavailable until a server is saved and live, preventing requests for disabled or unsaved servers.
 - **MCP Panel Interaction Responsiveness**: Selecting a server or pinging it now updates only the affected row and tools area, preserving the rest of the form and eliminating master-detail panel flicker.
 - **MCP Client Shutdown Cleanup**: Graceful shutdown now drains active MCP connection pools after startup warm-up has stopped, closing idle stdio subprocesses and HTTP sessions instead of leaving them for the operating system to reclaim.
+- **Admin Panel Select Cleanup**: Custom select controls now release their document click handlers when forms or views are discarded. Teardown runs immediately through shared DOM clearing and also covers direct DOM removals, preventing stale controls from accumulating during repeated rerenders.
 
 ## [2.15.6] - 2026-08-16
 
