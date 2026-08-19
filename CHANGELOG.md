@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.15.7] - 2026-08-19
 
 ### Core System Updates
 - **Scoped MCP Server Discovery**: The MCP tools endpoint now accepts an optional server name, allowing administrators to re-dial and inspect one live MCP server without refreshing the tool cache or reachability status of every configured server. MCP clients are also warmed up asynchronously at startup so the panel can show initial server status without delaying service availability.
