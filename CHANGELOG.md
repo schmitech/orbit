@@ -4,7 +4,8 @@
 
 ### Core System Updates
 - **Scoped MCP Server Discovery**: The MCP tools endpoint now accepts an optional server name, allowing administrators to re-dial and inspect one live MCP server without refreshing the tool cache or reachability status of every configured server. MCP clients are also warmed up asynchronously at startup so the panel can show initial server status without delaying service availability.
-- **Adapter Form Config Suggestions**: Adapter creation now suggests enabled inference providers, vector stores, and datasources from the running configuration. Suggestions remain free-text compatible, omit vector stores without an explicit enabled flag, and can be selected directly from the styled picker.
+- **Adapter Form Config Suggestions**: Adapter creation now suggests enabled inference providers, vector stores, and datasources from the running configuration. Provider fields permit only active configured providers, preserve a clearable global-default override where supported, and retain an unavailable provider only while editing an adapter already set to it. Vector-store suggestions omit entries without an explicit enabled flag; vector stores and datasources remain free-text compatible.
+- **Adapter Form Options Layout**: Boolean adapter settings now appear together in a labeled, responsive options group instead of leaving sparse cells in the form's two-column field grid.
 
 ### Bug Fixes & Technical Improvements
 - **Video Generation Provider Updates**: Gemini Veo now forwards configured clip durations and defaults to Veo 3.1 with native audio. xAI video generation now defaults to Grok Imagine Video 1.5, with current resolution guidance, audio behavior, and SDK-aligned polling timeouts; installer defaults and selectable video models are synchronized.

@@ -261,6 +261,11 @@ export function createAdaptersTab({
     });
     var specHint = el("p", { className: "muted", style: "margin:0" }, "");
     var formGrid = el("div", { className: "admin-create-form-grid" });
+    // Boolean questions land here instead of the grid — a checkbox is a fraction
+    // of the width of a text field, so mixed into the two-column grid it leaves a
+    // half-empty cell next to it every time. Grouped and wrapped together, on/off
+    // switches read as one cluster of settings instead of debris between fields.
+    var optionsGroup = el("div", { className: "adapter-options-group is-empty" });
     var createBanner = el("div", { className: "settings-banner", style: "display:none", role: "status" });
     var previewWrap = el("div", {
       className: "adapter-ace-wrap",
@@ -280,6 +285,7 @@ export function createAdaptersTab({
       el("div", { className: "admin-create-form-grid" }, field("Adapter family", specSelect)),
       specHint,
       formGrid,
+      optionsGroup,
       createBanner,
       previewWrap,
       el("div", { className: "admin-create-form-actions" }, previewBtn, createBtn)
@@ -331,8 +337,41 @@ export function createAdaptersTab({
       return answers;
     }
 
+    // A locked-down field (currently just inference_provider) can only ever save
+    // successfully as one of the enabled, configured values — validate_providers
+    // rejects anything else server-side — so it's a <select>, not free text.
+    // Options are filled in by populateStrictSelect() once the initial value for
+    // this question is known, not here.
+    //
+    // `preserveUnavailable` keeps `currentValue` in the list even when it's not
+    // (or no longer) enabled — but only when it came from an existing saved
+    // adapter being edited. A brand-new form's `currentValue` is just the spec's
+    // static default (e.g. mcp_agent defaults inference_provider to "openai"),
+    // which the config may not have enabled at all; offering it there would start
+    // the form on a value the server is guaranteed to reject.
+    function populateStrictSelect(q, select, currentValue, preserveUnavailable) {
+      clear(select);
+      var options = ((cachedAdapterAnswerOptions || {})[q.options_source] || []).slice();
+      if (preserveUnavailable && currentValue && options.indexOf(currentValue) === -1) {
+        options.unshift(currentValue);
+      }
+      // Questions whose default is `null` (e.g. "override; blank for global
+      // default") must stay clearable — the old free-text combobox let a user
+      // just empty the box, and a <select> needs an explicit blank option to
+      // offer the same way back out once something else has been picked.
+      if (q.default === null && options.indexOf("") === -1) {
+        options.unshift("");
+      }
+      if (!options.length) options = [""];
+      options.forEach(function (v) {
+        var label = v || (q.default === null ? "(use global default)" : "(none configured)");
+        select.appendChild(el("option", { value: v }, label));
+      });
+    }
+
     function makeQuestionInput(q) {
       if (q.type === "bool") return el("input", { type: "checkbox" });
+      if (q.options_strict) return el("select", null);
       if (q.choices) {
         var sel = el("select", null);
         q.choices.forEach(function (c) { sel.appendChild(el("option", { value: c }, c)); });
@@ -506,7 +545,8 @@ export function createAdaptersTab({
       } else if (q.type === "str" && q.max_length) {
         parts.push("Max " + q.max_length + " characters.");
       }
-      if (q.options_source) parts.push("Start typing to see configured values.");
+      if (q.options_strict) parts.push("Only active, configured providers are listed.");
+      else if (q.options_source) parts.push("Start typing to see configured values.");
       return parts.join(" ");
     }
 
@@ -528,7 +568,7 @@ export function createAdaptersTab({
     function adapterQuestionField(q, input, hint) {
       if (q.type !== "bool") {
         var control;
-        if (q.options_source) {
+        if (q.options_source && !q.options_strict) {
           // A combobox's option panel must not be nested in the <label>. Apart
           // from being invalid label content, option clicks then also trigger
           // the label's native focus action, which can swallow the selection.
@@ -582,6 +622,7 @@ export function createAdaptersTab({
     function buildAdapterCreateForm(prefillAnswers) {
       var spec = currentSpec();
       clear(formGrid);
+      clear(optionsGroup);
       createInputs = {};
       hideCreatePreview();
       if (!spec) return;
@@ -606,9 +647,11 @@ export function createAdaptersTab({
         var initial = q.variant_defaults && variant !== null
           && Object.prototype.hasOwnProperty.call(q.variant_defaults, variant)
           ? q.variant_defaults[variant] : q.default;
-        if (prefillAnswers && Object.prototype.hasOwnProperty.call(prefillAnswers, q.field)) {
+        var isPrefilled = !!(prefillAnswers && Object.prototype.hasOwnProperty.call(prefillAnswers, q.field));
+        if (isPrefilled) {
           initial = prefillAnswers[q.field];
         }
+        if (q.options_strict) populateStrictSelect(q, input, defaultAsString(q, initial), isPrefilled);
         applyDefault(q, input, initial);
         if (spec.variant_field && q.field === spec.variant_field) {
           input.value = variant;
@@ -616,8 +659,13 @@ export function createAdaptersTab({
           input.addEventListener("change", function () { applyVariantDefaults(input.value); });
         }
         if (editingAdapterName && q.field === "name") input.readOnly = true;
-        formGrid.appendChild(adapterQuestionField(q, input, questionHint(q)));
+        var target = q.type === "bool" ? optionsGroup : formGrid;
+        target.appendChild(adapterQuestionField(q, input, questionHint(q)));
       });
+      if (optionsGroup.children.length) {
+        optionsGroup.insertBefore(el("span", { className: "adapter-options-group-label" }, "Options"), optionsGroup.firstChild);
+      }
+      optionsGroup.classList.toggle("is-empty", !optionsGroup.children.length);
     }
 
     function hideCreatePreview() {
@@ -753,19 +801,21 @@ export function createAdaptersTab({
     // The name field is locked in that case: renaming here has nowhere good to
     // go (the save path patches the existing block in place by current name),
     // so editing in the form is save-in-place only.
-    function openAdapterCreatePanel(prefill) {
+    async function openAdapterCreatePanel(prefill) {
       editingAdapterName = prefill ? prefill.answers.name : null;
       editingAdapterFilename = prefill ? prefill.filename : null;
       createPanelTitle.textContent = editingAdapterName ? "Edit Adapter: " + editingAdapterName : "New Adapter";
       specSelect.disabled = !!editingAdapterName;
       if (prefill) specSelect.value = prefill.spec;
+      // Refresh the enumerable answer options (providers/stores/datasources) so a
+      // config change since the panel last loaded is reflected, before the form is
+      // built — a strict field (e.g. inference_provider) bakes this list into a
+      // <select> at build time, unlike the free-text combobox which re-reads
+      // `cachedAdapterAnswerOptions` live on every open/keystroke.
+      await loadAdapterAnswerOptions();
       createPanel.style.display = "";
       buildAdapterCreateForm(prefill ? prefill.answers : null);
       createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-      // Refresh the enumerable answer options (providers/stores/datasources) so a
-      // config change since the panel last loaded is reflected. No rebuild needed —
-      // the combobox reads `cachedAdapterAnswerOptions` live on each open/keystroke.
-      loadAdapterAnswerOptions();
     }
 
     function closeAdapterCreatePanel() {
@@ -1077,7 +1127,7 @@ export function createAdaptersTab({
             return;
           }
           data.filename = a.filename;
-          openAdapterCreatePanel(data);
+          await openAdapterCreatePanel(data);
         });
       });
 
