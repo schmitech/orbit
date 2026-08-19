@@ -5,7 +5,7 @@ export function createApiKeysTab({
   syncBulkActionButton, withButton, confirmAction, requireTypedConfirmation, showStatus,
   showError, showTableLoadError, bindValidationClear, setFieldReadOnly,
   characterCount, createMarkdownPreview, copyTextToClipboard, maskSecret, promptIdentifier,
-  keyPath, fillPromptSelect,
+  keyPath, fillPromptSelect, createSelect,
   getCachedAdapters, getCachedPrompts, getCachedApiKeyUsers,
   getCachedKeys, setCachedKeys,
   loadAdaptersAndPrompts
@@ -35,7 +35,7 @@ export function createApiKeysTab({
 
     // Create key form
     var clientInput = el("input", { type: "text", required: "true", maxlength: "100" });
-    var adapterSelect = el("select");
+    var adapterSelect = createSelect({ ariaLabel: "Adapter" });
     var availableAdapterNames = [];
     var cachedAdapters = getCachedAdapters();
     if (cachedAdapters) {
@@ -45,21 +45,18 @@ export function createApiKeysTab({
       });
     }
     if (availableAdapterNames.length) {
-      availableAdapterNames.forEach(function (name, index) {
-        var option = el("option", { value: name }, name);
-        if (index === 0) option.selected = true;
-        adapterSelect.appendChild(option);
-      });
+      adapterSelect.setOptions(availableAdapterNames.map(function (name) { return { value: name, label: name }; }), availableAdapterNames[0]);
     } else {
-      adapterSelect.appendChild(el("option", { value: "" }, "No adapters available"));
+      adapterSelect.setOptions([{ value: "", label: "No adapters available" }], "");
       adapterSelect.disabled = true;
     }
-    var promptSelect = el("select", null, el("option", { value: "" }, "No persona"));
+    var promptSelect = createSelect({ ariaLabel: "Persona", options: [{ value: "", label: "No persona" }], value: "" });
     var cachedPrompts = getCachedPrompts();
     if (cachedPrompts) {
-      cachedPrompts.forEach(function (p) {
-        promptSelect.appendChild(el("option", { value: promptIdentifier(p) }, p.name + " (v" + (p.version || "1.0") + ")"));
-      });
+      var promptOptions = [{ value: "", label: "No persona" }].concat(cachedPrompts.map(function (p) {
+        return { value: promptIdentifier(p), label: p.name + " (v" + (p.version || "1.0") + ")" };
+      }));
+      promptSelect.setOptions(promptOptions, "");
     }
     var notesInput = el("textarea", { rows: "4", maxlength: "2000" });
     var notesCounter = characterCount(notesInput, 2000);
@@ -542,7 +539,7 @@ export function createApiKeysTab({
       notesPreview
     ));
     var clientInput = el("input", { type: "text", maxlength: "100", value: key.client_name || "" });
-    var adapterSelect = el("select");
+    var adapterSelect = createSelect({ ariaLabel: "Adapter" });
     var availableAdapterNames = [];
     var cachedAdapters = getCachedAdapters();
     if (cachedAdapters) {
@@ -555,16 +552,12 @@ export function createApiKeysTab({
       availableAdapterNames.push(key.adapter_name);
     }
     if (availableAdapterNames.length) {
-      availableAdapterNames.forEach(function (name) {
-        var option = el("option", { value: name }, name);
-        if (name === key.adapter_name) option.selected = true;
-        adapterSelect.appendChild(option);
-      });
+      adapterSelect.setOptions(availableAdapterNames.map(function (name) { return { value: name, label: name }; }), key.adapter_name);
     } else {
-      adapterSelect.appendChild(el("option", { value: key.adapter_name || "" }, key.adapter_name || "No adapters available"));
+      adapterSelect.setOptions([{ value: key.adapter_name || "", label: key.adapter_name || "No adapters available" }], key.adapter_name || "");
       adapterSelect.disabled = true;
     }
-    var promptSelect = el("select", null, el("option", { value: "" }, "No persona"));
+    var promptSelect = createSelect({ ariaLabel: "Persona", options: [{ value: "", label: "No persona" }], value: "" });
     fillPromptSelect(promptSelect, getCachedPrompts(), key.system_prompt_id);
     var editAllowedUsersSelect = allowedUsersSelect(key.allowed_user_ids || []);
     var editClearAllowedUsersBtn = clearAllowedUsersButton(editAllowedUsersSelect);

@@ -4,7 +4,7 @@ export function createUsersTab({
   createPaginator, createColumnSorter, itemsPerPage, markSelectedRow, syncVisibleSelection,
   syncBulkActionButton, withButton, confirmAction, requireTypedConfirmation, showStatus,
   showError, showTableLoadError, validateUsername, validatePassword, bindValidationClear,
-  getCurrentUser
+  createSelect, getCurrentUser
 }) {
   let selectedUser = null;
 
@@ -356,9 +356,10 @@ export function createUsersTab({
       "aria-label": "Add blacklist rule"
     }, svgIcon(iconPlus), el("span", null, "Add Rule"));
 
-    var typeSelect = el("select", { "aria-label": "Blacklist entry type" });
-    BLACKLIST_ENTRY_TYPES.forEach(function (entry) {
-      typeSelect.appendChild(el("option", { value: entry.value }, entry.label));
+    var typeSelect = createSelect({
+      ariaLabel: "Blacklist entry type",
+      options: BLACKLIST_ENTRY_TYPES.map(function (entry) { return { value: entry.value, label: entry.label }; }),
+      value: BLACKLIST_ENTRY_TYPES[0].value
     });
     var patternInput = el("input", {
       type: "text",
@@ -507,11 +508,10 @@ export function createUsersTab({
       }
 
       function editRow() {
-        var typeSel = el("select", { "aria-label": "Blacklist entry type" });
-        BLACKLIST_ENTRY_TYPES.forEach(function (entry) {
-          var option = el("option", { value: entry.value }, entry.label);
-          if (entry.value === rule.entry_type) option.selected = true;
-          typeSel.appendChild(option);
+        var typeSel = createSelect({
+          ariaLabel: "Blacklist entry type",
+          options: BLACKLIST_ENTRY_TYPES.map(function (entry) { return { value: entry.value, label: entry.label }; }),
+          value: rule.entry_type
         });
         var patternIn = el("input", {
           type: "text",

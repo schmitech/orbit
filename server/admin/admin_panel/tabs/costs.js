@@ -1,4 +1,4 @@
-export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshButton, formatNum, chartOptions, renderMetricCard, getActiveTab }) {
+export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshButton, formatNum, chartOptions, renderMetricCard, createSelect, getActiveTab }) {
   let charts = {};
   let selectedWindowDays = 7;
   let selectedGroupBy = "model";
@@ -153,6 +153,21 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
 
   async function render(container) {
     let requestVersion = 0;
+    const groupBySelect = createSelect({
+      className: "select-input",
+      ariaLabel: "Group by",
+      options: ["model", "provider", "adapter_name", "user_id", "call_type"].map((opt) => ({ value: opt, label: opt })),
+      value: selectedGroupBy
+    });
+    groupBySelect.addEventListener("change", () => { selectedGroupBy = groupBySelect.value; load(); });
+    const callTypeSelect = createSelect({
+      className: "select-input",
+      ariaLabel: "Call type",
+      options: [["all", "All call types"], ["inference", "Inference"], ["embedding", "Embedding"], ["reranking", "Reranking"], ["image", "Image"], ["video", "Video"], ["audio", "Audio"], ["document", "Document"]]
+        .map(([value, label]) => ({ value, label })),
+      value: selectedCallType
+    });
+    callTypeSelect.addEventListener("change", () => { selectedCallType = callTypeSelect.value; load(); });
     const header = el("div", { className: "panel" },
       el("div", { className: "panel-header-row" },
         el("div", null,
@@ -173,24 +188,8 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
             });
             return button;
           }),
-          el("select", {
-            className: "select-input",
-            id: "obs-group-by",
-            onchange: (e) => { selectedGroupBy = e.target.value; load(); }
-          },
-            ["model", "provider", "adapter_name", "user_id", "call_type"].map((opt) =>
-              el("option", { value: opt, selected: opt === selectedGroupBy ? "selected" : null }, opt)
-            )
-          ),
-          el("select", {
-            className: "select-input",
-            id: "obs-call-type",
-            onchange: (e) => { selectedCallType = e.target.value; load(); }
-          },
-            [["all", "All call types"], ["inference", "Inference"], ["embedding", "Embedding"], ["reranking", "Reranking"], ["image", "Image"], ["video", "Video"], ["audio", "Audio"], ["document", "Document"]].map((option) =>
-              el("option", { value: option[0], selected: option[0] === selectedCallType ? "selected" : null }, option[1])
-            )
-          ),
+          groupBySelect,
+          callTypeSelect,
           refreshButton("Refresh costs data", () => load())
         )
       )

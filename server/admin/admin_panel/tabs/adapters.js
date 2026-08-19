@@ -2,7 +2,7 @@ export function createAdaptersTab({
   api, endpoints, el, clear, skeleton, svgIcon, iconPlus, iconSave, iconRefresh,
   field, characterCount, withButton, createPaginator, createColumnSorter, itemsPerPage,
   markSelectedRow, confirmAction, requireTypedConfirmation, showError, showStatus, waitForAdminJob,
-  getActiveTab, getCachedAdapterCapabilities, loadAdapterCapabilities
+  createSelect, getActiveTab, getCachedAdapterCapabilities, loadAdapterCapabilities
 }) {
   var adapterEditor = null;        // Ace editor instance for Adapters tab
   var adapterOriginal = "";        // Dirty tracking baseline
@@ -255,9 +255,9 @@ export function createAdaptersTab({
       closeCreateBtn
     ));
 
-    var specSelect = el("select", null);
-    (cachedAdapterSpecs || []).forEach(function (s) {
-      specSelect.appendChild(el("option", { value: s.key }, s.title));
+    var specSelect = createSelect({
+      ariaLabel: "Adapter family",
+      options: (cachedAdapterSpecs || []).map(function (s) { return { value: s.key, label: s.title }; })
     });
     var specHint = el("p", { className: "muted", style: "margin:0" }, "");
     var formGrid = el("div", { className: "admin-create-form-grid" });
@@ -350,7 +350,6 @@ export function createAdaptersTab({
     // which the config may not have enabled at all; offering it there would start
     // the form on a value the server is guaranteed to reject.
     function populateStrictSelect(q, select, currentValue, preserveUnavailable) {
-      clear(select);
       var options = ((cachedAdapterAnswerOptions || {})[q.options_source] || []).slice();
       if (preserveUnavailable && currentValue && options.indexOf(currentValue) === -1) {
         options.unshift(currentValue);
@@ -363,19 +362,19 @@ export function createAdaptersTab({
         options.unshift("");
       }
       if (!options.length) options = [""];
-      options.forEach(function (v) {
-        var label = v || (q.default === null ? "(use global default)" : "(none configured)");
-        select.appendChild(el("option", { value: v }, label));
-      });
+      select.setOptions(options.map(function (v) {
+        return { value: v, label: v || (q.default === null ? "(use global default)" : "(none configured)") };
+      }));
     }
 
     function makeQuestionInput(q) {
       if (q.type === "bool") return el("input", { type: "checkbox" });
-      if (q.options_strict) return el("select", null);
+      if (q.options_strict) return createSelect({ ariaLabel: q.prompt });
       if (q.choices) {
-        var sel = el("select", null);
-        q.choices.forEach(function (c) { sel.appendChild(el("option", { value: c }, c)); });
-        return sel;
+        return createSelect({
+          ariaLabel: q.prompt,
+          options: q.choices.map(function (c) { return { value: c, label: c }; })
+        });
       }
       if (q.type === "int") {
         var num = el("input", { type: "number" });

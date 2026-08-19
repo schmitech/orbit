@@ -1,6 +1,6 @@
 import { ENDPOINTS, createApi } from "./admin_panel/core/api.js";
 import { standardChartOptions as feedbackChartOptions } from "./admin_panel/core/charts.js";
-import { clear, el, wrapTable } from "./admin_panel/core/dom.js";
+import { clear, el, wrapTable, createSelect } from "./admin_panel/core/dom.js";
 import { renderMetricCard } from "./admin_panel/core/metrics.js";
 import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
 import { createCostsTab } from "./admin_panel/tabs/costs.js";
@@ -1175,6 +1175,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     formatNum: formatNum,
     chartOptions: feedbackChartOptions,
     renderMetricCard: renderMetricCard,
+    createSelect: createSelect,
     getActiveTab: function () { return activeTab; }
   });
   var auditTab = createAuditTab({
@@ -1185,7 +1186,8 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     skeleton: skeleton,
     refreshButton: refreshButton,
     formatNum: formatNum,
-    markSelectedRow: markSelectedRow
+    markSelectedRow: markSelectedRow,
+    createSelect: createSelect
   });
   var overviewTab = createOverviewTab({
     api: api,
@@ -1234,6 +1236,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     validateUsername: validateUsername,
     validatePassword: validatePassword,
     bindValidationClear: bindValidationClear,
+    createSelect: createSelect,
     getCurrentUser: function () { return currentUser; }
   });
   var apiKeysTab = createApiKeysTab({
@@ -1274,6 +1277,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     promptIdentifier: promptIdentifier,
     keyPath: keyPath,
     fillPromptSelect: fillPromptSelect,
+    createSelect: createSelect,
     getCachedAdapters: function () { return cachedAdapters; },
     getCachedPrompts: function () { return cachedPrompts; },
     getCachedApiKeyUsers: function () { return cachedApiKeyUsers; },
@@ -1313,6 +1317,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     keyPath: keyPath,
     fillKeySelect: fillKeySelect,
     loadAvailableKeys: loadAvailableKeys,
+    createSelect: createSelect,
     getCachedKeys: function () { return cachedKeys; },
     getCachedPrompts: function () { return cachedPrompts; },
     setCachedPrompts: function (prompts) { cachedPrompts = prompts; }
@@ -1326,6 +1331,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     requireTypedConfirmation: requireTypedConfirmation,
     showError: showError,
     showServerOverlay: showServerOverlay,
+    createSelect: createSelect,
     getCurrentUser: function () { return currentUser; },
     getActiveTab: function () { return activeTab; }
   });
@@ -1342,6 +1348,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     field: field,
     characterCount: characterCount,
     withButton: withButton,
+    createSelect: createSelect,
     createPaginator: createPaginator,
     createColumnSorter: createColumnSorter,
     itemsPerPage: ITEMS_PER_PAGE,
@@ -1366,6 +1373,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     confirmAction: confirmAction,
     showError: showError,
     showStatus: showStatus,
+    createSelect: createSelect,
     getActiveTab: function () { return activeTab; }
   });
 
@@ -1586,27 +1594,22 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     throw new Error("Background job timed out");
   }
 
-  function fillKeySelect(select, keys, selectedKeyId) {
-    clear(select);
-    select.appendChild(el("option", { value: "" }, keys && keys.length ? "Select an API key" : "No API keys available"));
+  function fillKeySelect(select, keys, selectedKeyId, emptyLabel) {
+    var options = [{ value: "", label: emptyLabel || (keys && keys.length ? "Select an API key" : "No API keys available") }];
     (keys || []).forEach(function (key) {
-      var label = key.client_name || "Unnamed key";
-      var option = el("option", { value: key._id || "" }, label);
-      if (selectedKeyId && key._id === selectedKeyId) option.selected = true;
-      select.appendChild(option);
+      options.push({ value: key._id || "", label: key.client_name || "Unnamed key" });
     });
+    select.setOptions(options, selectedKeyId || "");
     select.disabled = !keys || keys.length === 0;
   }
 
   function fillPromptSelect(select, prompts, selectedPromptId) {
-    clear(select);
-    select.appendChild(el("option", { value: "" }, prompts && prompts.length ? "Select a persona" : "No personas available"));
+    var options = [{ value: "", label: prompts && prompts.length ? "Select a persona" : "No personas available" }];
     (prompts || []).forEach(function (prompt) {
       var promptId = promptIdentifier(prompt);
-      var option = el("option", { value: promptId }, prompt.name + " (v" + (prompt.version || "1.0") + ")");
-      if (selectedPromptId && promptId === selectedPromptId) option.selected = true;
-      select.appendChild(option);
+      options.push({ value: promptId, label: prompt.name + " (v" + (prompt.version || "1.0") + ")" });
     });
+    select.setOptions(options, selectedPromptId || "");
     select.disabled = !prompts || prompts.length === 0;
   }
 

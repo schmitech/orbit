@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Bug Fixes & Technical Improvements
+- **Admin Panel Select Cleanup**: Custom select controls now release their document click handlers when forms or views are discarded. Teardown runs immediately through shared DOM clearing and also covers direct DOM removals, preventing stale controls from accumulating during repeated rerenders.
+
 ## [2.15.7] - 2026-08-19
 
 ### Core System Updates

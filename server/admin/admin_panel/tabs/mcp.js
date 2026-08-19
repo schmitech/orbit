@@ -9,7 +9,7 @@
 // ==================================================================
 export function createMcpTab({
   api, endpoints, el, clear, skeleton, refreshButton, withButton,
-  confirmAction, showError, showStatus, getActiveTab
+  confirmAction, showError, showStatus, createSelect, getActiveTab
 }) {
   var mcpData = null;      // { enabled, defaults, servers, settings }
   var mcpTools = null;     // { available, servers: { name: {reachable, tools} } }
@@ -528,11 +528,15 @@ export function createMcpTab({
       var nameRow = mcpConnectionRow("Name", "Unique lowercase identifier", draft.name, function (next) { draft.name = next; },
         { maxLength: 64, autocomplete: "off" });
       ledger.appendChild(nameRow);
-      var transport = el("select", { className: "mcp-text", "aria-label": "Transport" },
-        el("option", { value: "http" }, "Streamable HTTP"),
-        el("option", { value: "stdio" }, "Subprocess (stdio)")
-      );
-      transport.value = draft.transport;
+      var transport = createSelect({
+        className: "mcp-text",
+        ariaLabel: "Transport",
+        options: [
+          { value: "http", label: "Streamable HTTP" },
+          { value: "stdio", label: "Subprocess (stdio)" },
+        ],
+        value: draft.transport
+      });
       transport.addEventListener("change", function () { draft.transport = transport.value; render(); });
       ledger.appendChild(el("div", { className: "mcp-setting-row mcp-connection-row" },
         el("span", { className: "mcp-setting-copy" }, el("span", { className: "mcp-setting-label" }, "Transport"),

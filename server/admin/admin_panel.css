@@ -2081,18 +2081,22 @@ tbody tr:nth-child(even) {
   border-radius: var(--radius-pill);
 }
 
-.log-file-select {
+.styled-select-trigger.log-file-select {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   padding: var(--sp-1) var(--sp-8) var(--sp-1) var(--sp-3);
   min-height: 30px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background-color: var(--surface);
-  color: var(--ink);
   max-width: 280px;
   width: auto;
-  cursor: pointer;
+}
+
+/* Costs toolbar selects ("group by" / call type): wide enough that the
+   longest option label (e.g. "adapter_name") never clips against the
+   chevron. */
+.styled-select-trigger.select-input {
+  width: auto;
+  min-width: 11rem;
 }
 
 .log-level-bar {
@@ -4229,6 +4233,12 @@ button.settings-nav-group-header:hover:not(:disabled) {
   text-align: left;
 }
 
+.styled-select-trigger.mcp-text {
+  padding: var(--sp-1) var(--sp-8) var(--sp-1) var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
 /* env/headers editors hold a variable number of rows, so the control column
    stacks rows vertically instead of the single-line layout other connection
    fields use. */
@@ -4628,25 +4638,132 @@ button.mcp-kv-btn:active:not(:disabled) {
   color: var(--ink-muted);
 }
 
-.audit-view__select {
+/* ============================================================
+   Styled Select — themed replacement for native <select>
+   ============================================================
+   A native select's open popup is rendered by the OS, not the page, so on
+   platforms with a dark system theme it shows up as an unstyled dark menu
+   no matter how the closed control is themed. This renders the listbox
+   from page markup instead, so it always matches the panel it lives in. */
+
+.styled-select {
+  position: relative;
+  width: 100%;
+}
+
+/* The log viewer's file picker sits inline among fixed-size toolbar
+   buttons, not stretched across a form column, so its wrapper must not
+   claim the row's remaining space the way a form-field select does. */
+.styled-select:has(.log-file-select),
+.styled-select:has(.select-input) {
+  width: auto;
+}
+
+.styled-select-trigger {
   width: 100%;
   min-height: 40px;
   padding: 8px var(--sp-8) 8px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font: inherit;
+  font-weight: 400;
   color: var(--ink);
-  background-color: var(--surface);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' fill='none'%3E%3Cpath d='M1.5 1.5 7 7l5.5-5.5' stroke='%233d4f6f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right var(--sp-3) center;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  text-align: left;
   cursor: pointer;
 }
 
-.audit-view__select:disabled {
+.styled-select-trigger:hover:not(:disabled) {
+  border-color: #b8c4d6;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.styled-select-trigger:active:not(:disabled) {
+  transform: none;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.styled-select-trigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.styled-select.is-open .styled-select-trigger {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px var(--brand-50);
+}
+
+.styled-select-trigger:disabled {
   background-color: var(--surface-sunken);
   color: var(--ink-muted);
   cursor: not-allowed;
+}
+
+.styled-select-value {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.styled-select-chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 8px;
+  color: var(--ink-secondary);
+  transition: transform var(--transition-fast);
+}
+
+.styled-select.is-open .styled-select-chevron {
+  transform: rotate(180deg);
+}
+
+.styled-select-listbox {
+  position: absolute;
+  top: calc(100% + var(--sp-1));
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: var(--sp-1);
+  list-style: none;
+  max-height: 15rem;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  animation: adapter-combobox-in var(--transition-fast);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .styled-select-listbox { animation: none; }
+}
+
+.styled-select-option {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.styled-select-option:hover,
+.styled-select-option.is-active {
+  background: var(--brand-50);
+  color: var(--brand-700);
+}
+
+.styled-select-option[aria-selected="true"] {
+  font-weight: 600;
+  color: var(--brand-600);
 }
 
 .audit-view__search {

@@ -5,7 +5,7 @@ export function createPromptsTab({
   syncBulkActionButton, withButton, confirmAction, requireTypedConfirmation, showStatus,
   showTableLoadError, bindValidationClear, setFieldReadOnly,
   characterCount, createMarkdownPreview, promptIdentifier,
-  keyPath, fillKeySelect, loadAvailableKeys,
+  keyPath, fillKeySelect, loadAvailableKeys, createSelect,
   getCachedKeys, getCachedPrompts, setCachedPrompts
 }) {
   let selectedPrompt = null;
@@ -32,14 +32,11 @@ export function createPromptsTab({
     var versionInput = el("input", { type: "text", value: "1.0", maxlength: "25" });
     var textArea = el("textarea", { rows: "5", required: "true", maxlength: "25000" });
     var textCounter = characterCount(textArea, 25000);
-    var createKeySelect = el("select", null, el("option", { value: "" }, "Loading API keys..."));
+    var createKeySelect = createSelect({ ariaLabel: "API Key", options: [{ value: "", label: "Loading API keys..." }], value: "" });
     var createBtn = el("button", { type: "button" }, "Create Persona");
 
     function fillCreatePersonaKeySelect(keys) {
-      fillKeySelect(createKeySelect, keys);
-      if (createKeySelect.options.length) {
-        createKeySelect.options[0].textContent = "No API key";
-      }
+      fillKeySelect(createKeySelect, keys, null, "No API key");
     }
 
     fillCreatePersonaKeySelect(getCachedKeys());
@@ -413,7 +410,7 @@ export function createPromptsTab({
 
     // Associate to API key
     panel.appendChild(el("h3", null, "Associate to API Key"));
-    var keySelect = el("select", null, el("option", { value: "" }, "Loading API keys..."));
+    var keySelect = createSelect({ ariaLabel: "API Key", options: [{ value: "", label: "Loading API keys..." }], value: "" });
     var assocBtn = el("button", { type: "button" }, "Associate");
     var selectedPromptKeyId = null;
     var cachedKeys = getCachedKeys();

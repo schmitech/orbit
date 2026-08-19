@@ -37,7 +37,7 @@ const AUDIT_CALL_TYPES = [
   { value: "document",  label: "Document" },
 ];
 
-export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshButton, formatNum, markSelectedRow }) {
+export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshButton, formatNum, markSelectedRow, createSelect }) {
   function obsCost(value) {
     if (value == null) return "—";
     if (value === 0) return "$0.00";
@@ -454,10 +454,10 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
     let searchDebounce = null;
 
     // ----- Filter strip -----
-    const sourceSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit stream" });
-    const outcomeSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit outcome" });
-    const domainSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit domain" });
-    const callTypeSelect = el("select", { className: "audit-view__select", "aria-label": "Filter audit call type" });
+    const sourceSelect = createSelect({ className: "audit-view__select", ariaLabel: "Filter audit stream" });
+    const outcomeSelect = createSelect({ className: "audit-view__select", ariaLabel: "Filter audit outcome" });
+    const domainSelect = createSelect({ className: "audit-view__select", ariaLabel: "Filter audit domain" });
+    const callTypeSelect = createSelect({ className: "audit-view__select", ariaLabel: "Filter audit call type" });
     const searchInput = el("input", {
       type: "search",
       placeholder: "Search actor id, provider, query, path, resource, IP…",
@@ -466,38 +466,18 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
     });
 
     function renderFilters() {
-      clear(sourceSelect);
-      AUDIT_STREAMS.forEach((stream) => {
-        const option = el("option", { value: stream.value }, stream.label);
-        if (state.source === stream.value) option.selected = true;
-        sourceSelect.appendChild(option);
-      });
+      sourceSelect.setOptions(AUDIT_STREAMS.map((s) => ({ value: s.value, label: s.label })), state.source);
 
-      clear(outcomeSelect);
-      [
-        ["all", "All"],
-        ["success", "Succeeded"],
-        ["failure", "Failed"],
-      ].forEach(([value, label]) => {
-        const option = el("option", { value: value }, label);
-        if (state.outcome === value) option.selected = true;
-        outcomeSelect.appendChild(option);
-      });
+      outcomeSelect.setOptions([
+        { value: "all", label: "All" },
+        { value: "success", label: "Succeeded" },
+        { value: "failure", label: "Failed" },
+      ], state.outcome);
 
-      clear(domainSelect);
-      AUDIT_DOMAINS.forEach((d) => {
-        const option = el("option", { value: d.value }, d.label);
-        if (state.domain === d.value) option.selected = true;
-        domainSelect.appendChild(option);
-      });
+      domainSelect.setOptions(AUDIT_DOMAINS.map((d) => ({ value: d.value, label: d.label })), state.domain);
       domainSelect.disabled = state.source === "inference";
 
-      clear(callTypeSelect);
-      AUDIT_CALL_TYPES.forEach((t) => {
-        const option = el("option", { value: t.value }, t.label);
-        if (state.callType === t.value) option.selected = true;
-        callTypeSelect.appendChild(option);
-      });
+      callTypeSelect.setOptions(AUDIT_CALL_TYPES.map((t) => ({ value: t.value, label: t.label })), state.callType);
       callTypeSelect.disabled = state.source === "admin";
     }
 

@@ -1,6 +1,6 @@
 export function createOpsTab({
   api, endpoints, el, clear, confirmDialog, requireTypedConfirmation, showError, showServerOverlay,
-  getCurrentUser, getActiveTab
+  createSelect, getCurrentUser, getActiveTab
 }) {
   var opsLogPollTimer = null;
 
@@ -129,9 +129,12 @@ export function createOpsTab({
     var pendingNewLines = 0;
     var selectedLogFile = null; // null = always load latest
 
-    var logFileSelect = el("select", { className: "log-file-select", "aria-label": "Select log file" },
-      el("option", { value: "" }, "Loading files…")
-    );
+    var logFileSelect = createSelect({
+      className: "log-file-select",
+      ariaLabel: "Select log file",
+      options: [{ value: "", label: "Loading files…" }],
+      value: ""
+    });
     logFileSelect.addEventListener("change", function () {
       selectedLogFile = logFileSelect.value || null;
       rawLogLines = [];
@@ -142,19 +145,15 @@ export function createOpsTab({
       try {
         var result = await api("GET", endpoints.logsFiles);
         var files = result.files || [];
-        logFileSelect.innerHTML = "";
-        files.forEach(function (f) {
+        var options = files.map(function (f) {
           var label = f.filename + (f.is_current ? " (current)" : "") +
             " — " + formatLogFileSize(f.size);
-          var opt = el("option", { value: f.is_current ? "" : f.filename }, label);
-          logFileSelect.appendChild(opt);
+          return { value: f.is_current ? "" : f.filename, label: label };
         });
-        if (!files.length) {
-          logFileSelect.appendChild(el("option", { value: "" }, "No log files found"));
-        }
+        if (!options.length) options.push({ value: "", label: "No log files found" });
+        logFileSelect.setOptions(options, options[0].value);
       } catch (_) {
-        logFileSelect.innerHTML = "";
-        logFileSelect.appendChild(el("option", { value: "" }, "orbit.log"));
+        logFileSelect.setOptions([{ value: "", label: "orbit.log" }], "");
       }
     }
 
