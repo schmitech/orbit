@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="https://github.com/schmitech/orbit">
+  <a href="https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=logo">
     <img src="https://github.com/user-attachments/assets/565d48af-1dc5-49cb-a1d4-77f4e696662c" alt="ORBIT" width="160" />
   </a>
 
@@ -7,11 +7,12 @@
   ### Open Retrieval-Based Inference Toolkit
 
   Connect your data (files, databases, APIs, and MCP tools) to any local or cloud LLM. Exposes a unified endpoint for your apps, with built-in authentication and observability.
+
+  <p><strong><a href="https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=hero">Try ORBIT in your browser — no installation required →</a></strong></p>
 </div>
 
 <p align="center">
   <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=social" alt="GitHub stars" /></a>
-  <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/Live_Sandbox-Try_Orbit-7C3AED?logo=playstation&logoColor=white" alt="Live Sandbox" /></a>
   <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit?color=red" alt="Last commit" /></a>
   <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.15.7-blue" alt="Version 2.15.7" /></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license" /></a>
@@ -19,8 +20,6 @@
 </p>
 
 <p align="center">
-  <a href="https://orbit.schmitech.ca/"><strong>⚡ Try Live Sandbox</strong></a>
-  &nbsp;•&nbsp;
   <a href="#-quick-start"><strong>Quick start</strong></a>
   &nbsp;•&nbsp;
   <a href="#see-orbit-in-action"><strong>Watch the demo</strong></a>
@@ -37,7 +36,7 @@
   <br />
   <em>Ask database questions in plain language, in any language.<br />ORBIT picks a reviewed query template, runs its parameterized query, and charts the result in chat.</em>
   <br />
-  👉 <strong><a href="https://orbit.schmitech.ca/intent-sql-postgres">Try the SQL Database query demo live →</a></strong>
+  👉 <strong><a href="https://orbit.schmitech.ca/intent-sql-postgres?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=sql_demo">Try the SQL Database query demo live →</a></strong>
 </div>
 
 <br>
@@ -47,7 +46,7 @@
   <br />
   <em>Upload PDFs, spreadsheets, and images, then query them together with context preserved across the conversation.</em>
   <br />
-  👉 <a href="https://orbit.schmitech.ca/chat-with-files/"><strong>Try the multimodal agent demo live →</strong></a>
+  👉 <a href="https://orbit.schmitech.ca/chat-with-files/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=multimodal_demo"><strong>Try the multimodal agent demo live →</strong></a>
 </div>
 
 <br>
@@ -92,7 +91,7 @@ ORBIT is actively maintained. See the [release history](https://github.com/schmi
 ## 🚀 Quick Start
 
 <div align="center">
-  <a href="https://orbit.schmitech.ca/"><img src="https://img.shields.io/badge/TRY%20ORBIT%20LIVE-Explore%20the%20Sandbox%20%E2%86%92-7C3AED?style=for-the-badge" alt="Try ORBIT live — explore the sandbox" /></a>
+  <a href="https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=quick_start"><img src="https://img.shields.io/badge/TRY%20ORBIT%20LIVE-Explore%20the%20Sandbox%20%E2%86%92-7C3AED?style=for-the-badge" alt="Try ORBIT live — explore the sandbox" /></a>
   <br />
   <em>Explore the live sandbox instantly—no download, Docker, or setup required.</em>
 </div>
@@ -241,7 +240,7 @@ Continue with the [tutorial's fastest path](docs/tutorial.md#fastest-path): [ver
   <br />
   <em>Connect filesystem, Slack, Postgres, GitHub, Jira, and other MCP servers without adding an agent framework.</em>
   <br />
-  👉 <a href="https://orbit.schmitech.ca/mcp-business-sample"><strong>Try the MCP tool calling demo live →</strong></a>
+  👉 <a href="https://orbit.schmitech.ca/mcp-business-sample?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=mcp_demo"><strong>Try the MCP tool calling demo live →</strong></a>
 </p>
 </details>
 
@@ -252,7 +251,7 @@ Continue with the [tutorial's fastest path](docs/tutorial.md#fastest-path): [ver
   <br />
   <em>Multi-step agent reasoning across 9 synthetic MCP tools: CRM health, telemetry seat utilization, P1 support escalations, and churn risk simulation.</em>
   <br />
-  👉 <a href="https://orbit.schmitech.ca/mcp-business-sample"><strong>Try the Business & Revenue Intelligence MCP demo live →</strong></a>
+  👉 <a href="https://orbit.schmitech.ca/mcp-business-sample?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=business_intelligence_demo"><strong>Try the Business & Revenue Intelligence MCP demo live →</strong></a>
 </p>
 </details>
 
