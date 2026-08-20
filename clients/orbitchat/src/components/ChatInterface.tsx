@@ -174,7 +174,7 @@ export function ChatInterface({
   }, [registerGoHome, goToAgentSelectionHome]);
 
   const chatMaxWidthClass = 'max-w-[96rem]';
-  const inputMaxWidthClass = 'max-w-[64rem]';
+  const inputMaxWidthClass = 'max-w-[88rem]';
   const emptyStateInputMaxWidthClass = 'max-w-[56rem]';
   const prominentWidthClass = `mx-auto w-full ${chatMaxWidthClass}`;
   const canStartNewConversation = canCreateNewConversation();
