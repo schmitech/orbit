@@ -174,7 +174,7 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming response using OpenRouter."""
-        usage_sink = self._take_usage_sink(kwargs)  # noqa: F841 - streaming usage unreported (native OpenRouter SDK, stream_options support unconfirmed)
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -184,8 +184,24 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
             stream = await self.client.chat.send_async(**params)
 
             async for event in stream:
+                # OpenRouter delivers mid-stream failures as a normal SSE data
+                # chunk carrying an `error` field (the HTTP response already
+                # started with 200), not as a raised exception - so it must be
+                # checked explicitly on every chunk.
+                error = getattr(event, "error", None)
+                if error is not None:
+                    raise RuntimeError(f"OpenRouter stream error {error.code}: {error.message}")
+
                 if event.choices and event.choices[0].delta.content:
                     yield event.choices[0].delta.content
+
+                usage = getattr(event, "usage", None)
+                if usage is not None:
+                    self._report_usage(
+                        usage_sink,
+                        getattr(usage, "prompt_tokens", None),
+                        getattr(usage, "completion_tokens", None),
+                    )
 
         except Exception as e:
             self._handle_error(e, "streaming generation")
