@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.15.8] - 2026-08-21
 
 ### Core System Updates
 - **OpenRouter Image Generation**: Added native OpenRouter image-generation support with configurable models, size, aspect ratio, quality, request timeouts, retries, connection verification, usage reporting, and runtime provider/model overrides. OpenRouter is included in both standard and installer configuration, remains disabled by default for fresh installations, and generates one image per request to match Orbit's image-service contract.
