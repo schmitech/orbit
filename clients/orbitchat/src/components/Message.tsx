@@ -30,6 +30,7 @@ import { useIsAuthenticated } from '../hooks/useIsAuthenticated';
 import { useSkills } from '../hooks/useSkills';
 import { useLoginPromptStore } from '../stores/loginPromptStore';
 import { useChatStore } from '../stores/chatStore';
+import { ModelsService } from '../services/modelsService';
 import { KeyCap, SkillPicker } from './SkillPicker';
 import { ModelPickerButton } from './ModelPickerButton';
 import { FileChip } from './FileChip';
@@ -344,6 +345,56 @@ export function Message({
     enabled: threadsEnabled && Boolean(message.threadInfo),
     selectionScopeKey: message.threadInfo?.thread_id || message.id,
   });
+  // The thread composer selects skills via its own `useSkills` instance
+  // (scoped per-thread), independent of the main composer's skill state that
+  // ChatInterface uses to fetch `availableModels`. So the thread's model list
+  // needs its own fetch keyed on its own selected skill, otherwise picking
+  // "/image" or "/video" in a thread never updates the model dropdown.
+  const [threadAvailableModels, setThreadAvailableModels] = useState<AllowedModel[]>(availableModels);
+  const prevThreadSkillNameRef = useRef<string | null>(selectedSkill?.name ?? null);
+  useEffect(() => {
+    // No skill selected in this thread — defer to the main composer's model
+    // list (already fetched by ChatInterface for the base adapter).
+    if (!selectedSkill) {
+      // Only reset the model when a skill was just cleared — otherwise this
+      // would clobber a model the user manually picked for an unskilled reply
+      // every time `availableModels` identity changes.
+      if (prevThreadSkillNameRef.current !== null) {
+        queueMicrotask(() => {
+          setThreadSelectedModel(availableModels.length > 0 ? (defaultModel ?? availableModels[0].name) : null);
+        });
+      }
+      prevThreadSkillNameRef.current = null;
+      return;
+    }
+    prevThreadSkillNameRef.current = selectedSkill.name;
+
+    const adapterName = currentConversation?.adapterName;
+    const skill = selectedSkill.name;
+    let cancelled = false;
+
+    async function loadThreadModels() {
+      if (!adapterName) {
+        setThreadAvailableModels([]);
+        return;
+      }
+      try {
+        const models = await ModelsService.listAdapterModels(adapterName, adapterName, skill);
+        if (cancelled) return;
+        setThreadAvailableModels(models);
+        setThreadSelectedModel(models.length > 0 ? models[0].name : null);
+      } catch {
+        if (!cancelled) {
+          setThreadAvailableModels([]);
+          setThreadSelectedModel(null);
+        }
+      }
+    }
+
+    void loadThreadModels();
+    return () => { cancelled = true; };
+  }, [currentConversation?.adapterName, selectedSkill, availableModels, defaultModel]);
+
   const threadSkillQuery = threadInput.startsWith('/') ? threadInput.slice(1) : '';
   const normalizedThreadSkillQuery = threadSkillQuery.toLowerCase().replace(/-/g, ' ');
   const filteredThreadSkills = normalizedThreadSkillQuery
@@ -1369,7 +1420,7 @@ export function Message({
                     </div>
                     <div className="flex items-center justify-between sm:justify-end gap-2">
                       <ModelPickerButton
-                        availableModels={availableModels}
+                        availableModels={selectedSkill ? threadAvailableModels : availableModels}
                         defaultModel={defaultModel}
                         selectedModel={threadSelectedModel}
                         onSelect={setThreadSelectedModel}
