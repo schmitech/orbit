@@ -23,7 +23,7 @@ adapters:
     model: "nvidia/nemotron-3-ultra-550b-a55b"
     embedding_provider: "openai"
     embedding_model: "text-embedding-3-small"
-    stt_provider: "cohere"
+    stt_provider: "openrouter"
     
     # Capabilities: Audio file transcription
     capabilities:

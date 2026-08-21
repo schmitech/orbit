@@ -2,7 +2,7 @@
 # Global STT settings and provider-specific configurations
 
 stt:
-  provider: "openai"       # Global default STT provider: whisper, openai, google, gemini, xai, ollama
+  provider: "openai"       # Global default STT provider: whisper, openai, google, gemini, xai, ollama, openrouter
   enabled: true             # Global STT enable/disable
 
 # STT Provider-specific configurations
@@ -232,6 +232,24 @@ stt_providers:
     api_base: "https://api.cohere.com/v2"
     stt_model: "cohere-transcribe-03-2026"  # Supported formats: FLAC, MP3, MPEG, MPGA, OGG, WAV (≤25 MB)
     language: "en"  # Required by Cohere. BCP-47 code, e.g. "en", "fr", "es". Set to null to omit (may cause 400).
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  openrouter:
+    enabled: true
+    api_key: ${OPENROUTER_API_KEY}
+    stt_model: "openai/whisper-large-v3"  # Any OpenRouter-hosted transcription model
+    language: null            # Optional ISO-639-1 code, e.g. "en"; null = auto-detect
+    response_format: null     # null (json, default) or "verbose_json" (OpenAI-compatible providers only)
     # Timeout configuration
     timeout:
       connect: 15000   # 15 seconds

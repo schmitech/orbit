@@ -14,6 +14,7 @@ Available providers:
     - CoquiAudioService: Coqui TTS (local, open-source TTS)
     - XAIAudioService: xAI Grok speech-to-text
     - SupertonicAudioService: Supertonic TTS (local, high-quality neural TTS)
+    - OpenRouterAudioService: OpenRouter speech-to-text
 """
 
 import logging
@@ -35,6 +36,7 @@ _implementations = [
     ('coqui_audio_service', 'CoquiAudioService'),
     ('xai_audio_service', 'XAIAudioService'),
     ('supertonic_audio_service', 'SupertonicAudioService'),
+    ('openrouter_audio_service', 'OpenRouterAudioService'),
 ]
 
 for module_name, class_name in _implementations:

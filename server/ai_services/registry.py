@@ -201,6 +201,7 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
         ("coqui", "CoquiAudioService", "Coqui TTS (Local)"),
         ("xai", "XAIAudioService", "xAI (Grok)"),
         ("supertonic", "SupertonicAudioService", "Supertonic TTS (Local)"),
+        ("openrouter", "OpenRouterAudioService", "OpenRouter"),
     ]
 
     if config:
