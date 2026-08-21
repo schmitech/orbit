@@ -44,3 +44,22 @@ video_generation:
       initial_wait_ms: 5000
       max_wait_ms: 60000
       exponential_base: 2
+
+  openrouter:
+    enabled: false
+    api_key: ${OPENROUTER_API_KEY}
+    model: "bytedance/seedance-2.0-mini"
+    aspect_ratio: "16:9"         # 16:9, 9:16, 1:1, 4:3, 3:4, 3:2, 2:3, 21:9, 9:21
+    resolution: "720p"           # 480p, 720p, 768p, 1080p, 1K, 2K, 4K (model-dependent)
+    duration: 8                  # seconds (model-dependent)
+    # Timeout configuration (covers job submission + polling until completion)
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 600000    # 10 minutes
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 1
+      initial_wait_ms: 5000
+      max_wait_ms: 60000
+      exponential_base: 2

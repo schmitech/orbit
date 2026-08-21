@@ -241,6 +241,7 @@ def register_video_generation_services(config: Dict[str, Any] = None) -> None:
     _register_services(ServiceType.VIDEO_GENERATION, 'ai_services.implementations.video', [
         ("gemini", "GeminiVideoService", "Gemini"),
         ("xai", "XAIVideoService", "xAI (Grok)"),
+        ("openrouter", "OpenRouterVideoService", "OpenRouter"),
     ], config=config, config_section='video_generation', default_enabled=False)
 
 

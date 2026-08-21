@@ -22,6 +22,11 @@ adapters:
         model: "grok-imagine-video-1.5"
         aspect_ratio: "16:9"
         resolution: "720p"
+      - name: "openrouter-seedance"
+        provider: "openrouter"
+        model: "bytedance/seedance-2.0-mini"
+        aspect_ratio: "16:9"
+        resolution: "720p"
 
     capabilities:
       expose_as_skill: true
