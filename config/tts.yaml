@@ -2,7 +2,7 @@
 # Global TTS settings and provider-specific configurations
 
 tts:
-  provider: "gemini"    # Global default TTS provider: openai, google, gemini, elevenlabs, ollama, vllm, coqui
+  provider: "gemini"    # Global default TTS provider: openai, google, gemini, elevenlabs, ollama, vllm, coqui, openrouter
   enabled: true             # Global TTS enable/disable
 
   # Content sanitization for TTS
@@ -271,6 +271,25 @@ tts_providers:
       max_retries: 1
       initial_wait_ms: 1000
       max_wait_ms: 5000
+      exponential_base: 2
+
+  openrouter:
+    enabled: true
+    api_key: ${OPENROUTER_API_KEY}
+    tts_model: "mistralai/voxtral-mini-tts-2603"  # Any OpenRouter-hosted TTS model
+    tts_voice: "en_paul_neutral"   # Voice name (model-dependent)
+    tts_format: "mp3"              # Output format: mp3, pcm
+    tts_speed: 1                   # Speech speed multiplier
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
       exponential_base: 2
 
   # Note: whisper is STT-only, configured in stt.yaml

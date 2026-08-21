@@ -14,7 +14,7 @@ Available providers:
     - CoquiAudioService: Coqui TTS (local, open-source TTS)
     - XAIAudioService: xAI Grok speech-to-text
     - SupertonicAudioService: Supertonic TTS (local, high-quality neural TTS)
-    - OpenRouterAudioService: OpenRouter speech-to-text
+    - OpenRouterAudioService: OpenRouter speech-to-text and text-to-speech
 """
 
 import logging

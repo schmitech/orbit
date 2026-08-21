@@ -1,10 +1,12 @@
 """
 OpenRouter audio service implementation using the native OpenRouter SDK.
 
-Provides speech-to-text via OpenRouter's transcription endpoint. OpenRouter
-does not currently expose text-to-speech through this service.
+Provides both speech-to-text and text-to-speech via OpenRouter's
+transcription and speech endpoints.
 
-API Documentation: https://openrouter.ai/docs/api/api-reference/stt/create-transcription
+API Documentation:
+    https://openrouter.ai/docs/api/api-reference/stt/create-transcription
+    https://openrouter.ai/docs/api/api-reference/tts/create-speech
 """
 
 import base64
@@ -49,11 +51,15 @@ _MIME_TYPE_FORMATS = {
     "audio/x-aac": "aac",
 }
 
+_SPEECH_FORMATS = {"mp3", "pcm"}
+
 
 class OpenRouterAudioService(UsageReportingMixin, AudioService):
-    """OpenRouter audio service for speech-to-text transcription."""
+    """OpenRouter audio service for speech-to-text and text-to-speech."""
 
     DEFAULT_STT_MODEL = "openai/whisper-large-v3"
+    DEFAULT_TTS_MODEL = "mistralai/voxtral-mini-tts-2603"
+    DEFAULT_TTS_FORMAT = "mp3"
 
     SUPPORTED_FORMATS = {"wav", "mp3", "flac", "m4a", "ogg", "webm", "aac"}
 
@@ -73,6 +79,11 @@ class OpenRouterAudioService(UsageReportingMixin, AudioService):
         self.model = self.stt_model
         self.language = provider_config.get("language")
         self.response_format = provider_config.get("response_format")
+
+        self.tts_model = provider_config.get("tts_model") or self.DEFAULT_TTS_MODEL
+        self.tts_voice = provider_config.get("tts_voice")
+        self.tts_format = provider_config.get("tts_format") or self.DEFAULT_TTS_FORMAT
+        self.tts_speed = provider_config.get("tts_speed")
 
         timeout_config = self._get_timeout_config()
         self._timeout_ms = timeout_config["total"]
@@ -187,10 +198,45 @@ class OpenRouterAudioService(UsageReportingMixin, AudioService):
         format: Optional[str] = None,
         **kwargs,
     ) -> bytes:
-        raise NotImplementedError(
-            "OpenRouter audio currently supports speech-to-text only. "
-            "Use another audio provider for text-to-speech."
-        )
+        if not self.initialized:
+            if not await self.initialize():
+                raise ValueError("Failed to initialize OpenRouter audio service")
+
+        tts_format = (format or kwargs.pop("response_format", None) or self.tts_format).lower()
+        if tts_format not in _SPEECH_FORMATS:
+            raise ValueError(
+                f"Unsupported OpenRouter TTS format '{tts_format}'. Supported formats: {sorted(_SPEECH_FORMATS)}."
+            )
+
+        model = kwargs.pop("model", None) or self.tts_model
+        tts_voice = voice or kwargs.pop("voice", None) or self.tts_voice
+        speed = kwargs.pop("speed", None) or self.tts_speed
+
+        params = {
+            "input": text,
+            "model": model,
+            "response_format": tts_format,
+            "voice": tts_voice,
+            "speed": speed,
+        }
+        if "provider" in kwargs:
+            params["provider"] = kwargs.pop("provider")
+        params = {k: v for k, v in params.items() if v is not None}
+
+        async def _speak() -> bytes:
+            response = await self.client.tts.create_speech_async(**params)
+            return await response.aread()
+
+        try:
+            return await self.retry_handler.execute_with_retry(
+                _speak,
+                error_message="OpenRouter text-to-speech failed",
+            )
+        except ValueError:
+            raise
+        except Exception as e:
+            self.logger.error(f"OpenRouter text-to-speech failed: {e}")
+            raise_sanitized(e, provider="openrouter", operation="text-to-speech")
 
     async def translate(
         self,
