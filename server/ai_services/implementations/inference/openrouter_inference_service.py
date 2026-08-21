@@ -108,6 +108,41 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
         self.initialized = False
         logger.debug("Closed OpenRouter service")
 
+    def _prepare_params(self, prompt: str, kwargs: dict) -> dict:
+        """Extract and clean parameters for OpenRouter API request."""
+        # Pop pipeline internal parameters that shouldn't leak to OpenRouter API
+        kwargs.pop('cache_prefix_len', None)
+
+        web_search = kwargs.pop('web_search', False)
+        if web_search and 'plugins' not in kwargs:
+            kwargs['plugins'] = [{'id': 'web'}]
+
+        messages = kwargs.pop('messages', None)
+        if messages is None:
+            messages = [{"role": "user", "content": prompt}]
+        else:
+            clean_messages = []
+            for msg in messages:
+                if isinstance(msg, dict):
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if content is None:
+                        content = ""
+                    elif not isinstance(content, (str, list, dict)):
+                        content = str(content)
+                    clean_messages.append({"role": role, "content": content})
+            messages = clean_messages
+
+        params = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": kwargs.pop('temperature', self.temperature),
+            "max_tokens": kwargs.pop('max_tokens', self.max_tokens),
+            "top_p": kwargs.pop('top_p', self.top_p),
+        }
+        params.update(kwargs)
+        return params
+
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using OpenRouter."""
         usage_sink = self._take_usage_sink(kwargs)
@@ -115,18 +150,8 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
             await self.initialize()
 
         try:
-            messages = kwargs.pop('messages', None)
-            if messages is None:
-                messages = [{"role": "user", "content": prompt}]
-
-            response = await self.client.chat.send_async(
-                model=self.model,
-                messages=messages,
-                temperature=kwargs.pop('temperature', self.temperature),
-                max_tokens=kwargs.pop('max_tokens', self.max_tokens),
-                top_p=kwargs.pop('top_p', self.top_p),
-                **kwargs
-            )
+            params = self._prepare_params(prompt, kwargs)
+            response = await self.client.chat.send_async(**params)
 
             usage = getattr(response, "usage", None)
             if usage is not None:
@@ -154,19 +179,9 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
             await self.initialize()
 
         try:
-            messages = kwargs.pop('messages', None)
-            if messages is None:
-                messages = [{"role": "user", "content": prompt}]
-
-            stream = await self.client.chat.send_async(
-                model=self.model,
-                messages=messages,
-                temperature=kwargs.pop('temperature', self.temperature),
-                max_tokens=kwargs.pop('max_tokens', self.max_tokens),
-                top_p=kwargs.pop('top_p', self.top_p),
-                stream=True,
-                **kwargs
-            )
+            params = self._prepare_params(prompt, kwargs)
+            params['stream'] = True
+            stream = await self.client.chat.send_async(**params)
 
             async for event in stream:
                 if event.choices and event.choices[0].delta.content:
@@ -178,5 +193,15 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
 
     def _handle_error(self, error: Exception, operation: str) -> None:
         """Handle OpenRouter API errors with appropriate logging."""
-        logger.error(f"OpenRouter error during {operation}: {str(error)}")
+        details = ""
+        body = getattr(error, "body", None)
+        if not body and hasattr(error, "raw_response"):
+            raw_resp = getattr(error, "raw_response")
+            try:
+                body = getattr(raw_resp, "text", None)
+            except Exception:
+                body = None
+        if body:
+            details = f" - Raw response: {body}"
+        logger.error(f"OpenRouter error during {operation}: {str(error)}{details}")
         raise_sanitized(error, provider="openrouter", operation=operation)

@@ -13,6 +13,10 @@ Usage
     venv/bin/python utils/scripts/generate_openrouter_models.py -o openrouter_models.yaml
     venv/bin/python utils/scripts/generate_openrouter_models.py --min-context 32000 --limit 200
     venv/bin/python utils/scripts/generate_openrouter_models.py --exclude free --exclude beta
+    venv/bin/python utils/scripts/generate_openrouter_models.py --free-only --min-context 0
+
+Note: --min-context defaults to 8000. Pass `--min-context 0` when running `--free-only`
+if you want to include free models with smaller context windows.
 
 Output is a standalone YAML file containing just the `allowed_models`
 list entries for provider "openrouter" — splice it into an adapter's
@@ -59,6 +63,21 @@ def compute_max_tokens(model):
     return DEFAULT_MAX_TOKENS_FALLBACK
 
 
+def is_free(model):
+    model_id = model.get("id", "")
+    if model_id.endswith(":free"):
+        return True
+    pricing = model.get("pricing") or {}
+    try:
+        prompt = pricing.get("prompt")
+        completion = pricing.get("completion")
+        if prompt is not None and float(prompt) == 0 and completion is not None and float(completion) == 0:
+            return True
+    except (ValueError, TypeError):
+        pass
+    return False
+
+
 def passes_filters(model, args):
     model_id = model["id"]
     context_length = model.get("context_length") or 0
@@ -71,7 +90,10 @@ def passes_filters(model, args):
         if modality and modality != "text->text":
             return False
 
-    if not args.include_free and model_id.endswith(":free"):
+    if args.free_only:
+        if not is_free(model):
+            return False
+    elif not args.include_free and model_id.endswith(":free"):
         return False
 
     for pattern in args.exclude:
@@ -113,6 +135,7 @@ def main():
     parser.add_argument("--min-context", type=int, default=8000, help="Minimum context_length to include a model")
     parser.add_argument("--limit", type=int, default=None, help="Cap the number of models emitted (after filtering)")
     parser.add_argument("--include-free", action="store_true", help="Include ':free' rate-limited variants (excluded by default)")
+    parser.add_argument("--free-only", "--only-free", action="store_true", help="Only include free models (ending in ':free' or zero pricing; pair with --min-context 0 to include smaller context models)")
     parser.add_argument("--text-only", action="store_true", help="Only include text->text models (drop vision/audio/image variants)")
     parser.add_argument("--exclude", action="append", default=[], help="Substring to exclude from model id (repeatable)")
     parser.add_argument("--include", action="append", default=[], help="If set, only keep models whose id contains one of these substrings (repeatable)")

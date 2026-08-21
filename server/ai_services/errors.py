@@ -42,19 +42,31 @@ _STATUS_MESSAGES = {
 # matching avoids hard imports on every provider SDK.
 _EXCEPTION_NAME_MESSAGES = {
     "AuthenticationError": _STATUS_MESSAGES[401],
+    "UnauthorizedResponseError": _STATUS_MESSAGES[401],
     "PermissionDeniedError": _STATUS_MESSAGES[403],
+    "ForbiddenResponseError": _STATUS_MESSAGES[403],
     "NotFoundError": _STATUS_MESSAGES[404],
+    "NotFoundResponseError": _STATUS_MESSAGES[404],
     "RateLimitError": _STATUS_MESSAGES[429],
+    "TooManyRequestsResponseError": _STATUS_MESSAGES[429],
     "APITimeoutError": _STATUS_MESSAGES[408],
     "Timeout": _STATUS_MESSAGES[408],
     "TimeoutError": _STATUS_MESSAGES[408],
+    "RequestTimeoutResponseError": _STATUS_MESSAGES[408],
+    "EdgeNetworkTimeoutResponseError": _STATUS_MESSAGES[408],
     "APIConnectionError": _STATUS_MESSAGES[503],
     "ConnectionError": _STATUS_MESSAGES[503],
     "ServiceUnavailableError": _STATUS_MESSAGES[503],
+    "ServiceUnavailableResponseError": _STATUS_MESSAGES[503],
+    "ProviderOverloadedResponseError": _STATUS_MESSAGES[503],
     "InternalServerError": _STATUS_MESSAGES[500],
+    "InternalServerResponseError": _STATUS_MESSAGES[500],
     "BadRequestError": _STATUS_MESSAGES[400],
+    "BadRequestResponseError": _STATUS_MESSAGES[400],
     "UnprocessableEntityError": _STATUS_MESSAGES[422],
+    "UnprocessableEntityResponseError": _STATUS_MESSAGES[422],
     "ConflictError": _STATUS_MESSAGES[409],
+    "ConflictResponseError": _STATUS_MESSAGES[409],
 }
 
 
@@ -89,6 +101,8 @@ def _extract_status_code(error: BaseException) -> Optional[int]:
         if isinstance(value, int) and 100 <= value <= 599:
             return value
     response = getattr(error, "response", None)
+    if response is None:
+        response = getattr(error, "raw_response", None)
     if response is not None:
         value = getattr(response, "status_code", None)
         if isinstance(value, int) and 100 <= value <= 599:

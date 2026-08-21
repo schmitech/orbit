@@ -1,5 +1,15 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Tools & Utility Scripts
+- **OpenRouter Free Models Filter**: Added `--free-only` (and `--only-free` alias) flag to `utils/scripts/generate_openrouter_models.py` to filter model catalogs specifically for free models (models with `:free` ID suffix or `$0` prompt and completion pricing).
+
+### Bug Fixes & Technical Improvements
+- **OpenRouter Service Pipeline Parameter Leakage**: Fixed pipeline internal parameters (`web_search`, `cache_prefix_len`) leaking into OpenRouter SDK requests as raw body properties, which caused upstream model providers (such as Google AI Studio) to reject requests with `400 INVALID_ARGUMENT`. Enabled web search requests are now mapped to OpenRouter's native `plugins: [{"id": "web"}]` parameter.
+- **OpenRouter Exception Diagnostics & Error Sanitization**: Enhanced `OpenRouterInferenceService` and `errors.py` error handling to safely extract and log raw HTTP response bodies from OpenRouter SDK exceptions (`raw_response.text`) and mapped OpenRouter SDK exception classes to user-facing error messages.
+- **Multimodal Message Content Preservation**: Ensured structured message content blocks (`list` / `dict` structures for multimodal text and image components) are preserved in `OpenRouterInferenceService` parameter preparation rather than being coerced into flat strings.
+
 ## [2.15.7] - 2026-08-19
 
 ### Core System Updates
