@@ -6,6 +6,7 @@ Available providers:
     - GeminiImageService: Google Imagen 3
     - OllamaImageService: Ollama experimental image generation
     - XAIImageService: xAI (Grok) image generation
+    - OpenRouterImageService: OpenRouter image generation
 """
 
 import logging
@@ -19,6 +20,7 @@ _implementations = [
     ('gemini_image_service', 'GeminiImageService'),
     ('ollama_image_service', 'OllamaImageService'),
     ('xai_image_service', 'XAIImageService'),
+    ('openrouter_image_service', 'OpenRouterImageService'),
 ]
 
 for module_name, class_name in _implementations:

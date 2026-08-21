@@ -229,6 +229,7 @@ def register_image_generation_services(config: Dict[str, Any] = None) -> None:
         ("gemini", "GeminiImageService", "Gemini"),
         ("ollama", "OllamaImageService", "Ollama"),
         ("xai", "XAIImageService", "xAI (Grok)"),
+        ("openrouter", "OpenRouterImageService", "OpenRouter"),
     ], config=config, config_section='image_generation', default_enabled=False)
 
 

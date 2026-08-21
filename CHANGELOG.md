@@ -2,6 +2,9 @@
 
 ## [UNRELEASED]
 
+### Core System Updates
+- **OpenRouter Image Generation**: Added native OpenRouter image-generation support with configurable models, size, aspect ratio, quality, request timeouts, retries, connection verification, usage reporting, and runtime provider/model overrides. OpenRouter is included in both standard and installer configuration, remains disabled by default for fresh installations, and generates one image per request to match Orbit's image-service contract.
+
 ### Tools & Utility Scripts
 - **OpenRouter Free Models Filter**: Added `--free-only` (and `--only-free` alias) flag to `utils/scripts/generate_openrouter_models.py` to filter model catalogs specifically for free models (models with `:free` ID suffix or `$0` prompt and completion pricing).
 

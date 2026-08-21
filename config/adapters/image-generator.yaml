@@ -33,6 +33,9 @@ adapters:
         provider: "xai"
         model: "grok-imagine-image-quality"
         aspect_ratio: "1:1"
+      - name: "openrouter-seedream"
+        provider: "openrouter"
+        model: "bytedance-seed/seedream-4.5"
 
     capabilities:
       expose_as_skill: true
