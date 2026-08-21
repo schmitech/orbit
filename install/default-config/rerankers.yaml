@@ -1,6 +1,6 @@
 # Global reranker configuration
 reranker:
-  provider: "anthropic"  # Default reranker provider (options: ollama, cohere, jina, openai, anthropic, voyage)
+  provider: "anthropic"  # Default reranker provider (options: ollama, cohere, jina, openai, anthropic, voyage, openrouter)
   enabled: false       # Whether reranking is enabled globally
 
 # Provider-specific configurations
@@ -84,4 +84,13 @@ rerankers:
     model: "rerank-2.5-lite"
     batch_size: 5
     top_n: null
-    truncation: true  # Auto-truncate long documents 
+    truncation: true  # Auto-truncate long documents
+
+  # OpenRouter Reranker - Unified rerank API proxying to models like Cohere
+  openrouter:
+    enabled: false
+    api_key: ${OPENROUTER_API_KEY}
+    api_base: "https://openrouter.ai/api/v1"
+    model: "cohere/rerank-v3.5"
+    batch_size: 5
+    top_n: null

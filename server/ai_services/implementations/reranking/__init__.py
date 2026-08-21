@@ -8,6 +8,7 @@ Available providers:
     - OpenAIRerankingService: OpenAI GPT-based reranking (complex queries)
     - AnthropicRerankingService: Anthropic Claude-based reranking (complex queries)
     - VoyageRerankingService: Voyage AI Reranker (cost-effective)
+    - OpenRouterRerankingService: OpenRouter unified Rerank API
 """
 
 import logging
@@ -23,6 +24,7 @@ _implementations = [
     ('openai_reranking_service', 'OpenAIRerankingService'),
     ('anthropic_reranking_service', 'AnthropicRerankingService'),
     ('voyage_reranking_service', 'VoyageRerankingService'),
+    ('openrouter_reranking_service', 'OpenRouterRerankingService'),
 ]
 
 for module_name, class_name in _implementations:

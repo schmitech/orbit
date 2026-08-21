@@ -144,6 +144,7 @@ def register_reranking_services(config: Dict[str, Any] = None) -> None:
         ("openai", "OpenAIRerankingService", "OpenAI"),
         ("anthropic", "AnthropicRerankingService", "Anthropic"),
         ("voyage", "VoyageRerankingService", "Voyage AI"),
+        ("openrouter", "OpenRouterRerankingService", "OpenRouter"),
     ], config=config, config_section='rerankers', default_enabled=True)
 
 
