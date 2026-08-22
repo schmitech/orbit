@@ -205,6 +205,8 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   -d '{"messages":[{"role":"user","content":"What can ORBIT connect to?"}]}'
 ```
 
+Python and Node.js versions of this call using the official OpenAI SDK, including streaming, are in [`examples/openai-compatible-api/`](examples/openai-compatible-api/).
+
 Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `admin123`, set via `auth.default_admin_password` in `config.yaml` — change this immediately after first login).
 
 For custom Docker deployments, follow [Docker guide](docker/README.md).
