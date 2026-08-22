@@ -183,7 +183,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
     const callTypeSelect = createSelect({
       className: "select-input",
       ariaLabel: "Call type",
-      options: [["all", "All call types"], ["inference", "Inference"], ["embedding", "Embedding"], ["reranking", "Reranking"], ["image", "Image"], ["video", "Video"], ["audio", "Audio"], ["document", "Document"]]
+      options: [["all", "All call types"], ["chat", "Chat"], ["embedding", "Embedding"], ["reranking", "Reranking"], ["image", "Image"], ["video", "Video"], ["audio", "Audio"], ["document", "Document"]]
         .map(([value, label]) => ({ value, label })),
       value: selectedCallType
     });
@@ -192,7 +192,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
       el("div", { className: "panel-header-row" },
         el("div", null,
           el("h2", null, "Costs"),
-          el("p", { className: "muted" }, "Usage and estimated cost across inference, embedding, and media providers. Cost is an estimate from the local rate table in config/pricing.yaml, not a provider invoice.")
+          el("p", { className: "muted" }, "Usage and estimated cost across chat, embedding, and media providers. Cost is an estimate from the local rate table in config/pricing.yaml, not a provider invoice.")
         ),
         el("div", { className: "monitoring-toolbar-right", id: "obs-window-controls" },
           [1, 7, 30].map((days) => {

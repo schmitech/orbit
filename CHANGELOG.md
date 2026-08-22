@@ -1,5 +1,14 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Breaking Changes
+- **Audit Chat Call Type**: Renamed the default text-generation audit `call_type` from `inference` to `chat`. The Audit API now uses `source=chat` and emits chat-named audit fields; `GET /admin/observability/usage` accepts `call_type=chat`. Clients using the prior `inference` audit values must update.
+
+### Core System Updates
+- **Audit Ledger Terminology**: The Audit and Costs panels now classify text-generation usage as Chat alongside embedding, reranking, image, video, audio, and document call types. The Audit Ledger stream remains labeled Inference because it contains all AI request modalities.
+- **Audit Store Clean Start**: Enabled `internal_services.audit.clear_on_startup` so the configured audit-log store is cleared on server startup instead of retaining records from the prior audit contract.
+
 ## [2.15.9] - 2026-08-22
 
 ### Core System Updates

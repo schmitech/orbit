@@ -4845,7 +4845,7 @@ button.mcp-kv-btn:active:not(:disabled) {
   background: var(--surface-raised);
 }
 
-.audit-table tbody tr.audit-row--source-inference:hover {
+.audit-table tbody tr.audit-row--source-chat:hover {
   background: #fff7ed;
 }
 
@@ -4860,8 +4860,8 @@ button.mcp-kv-btn:active:not(:disabled) {
   box-shadow: inset 3px 0 0 var(--brand-500);
 }
 
-.audit-table tbody tr.audit-row--source-inference.audit-row--active,
-.audit-table tbody tr.audit-row--source-inference.audit-row--active:hover {
+.audit-table tbody tr.audit-row--source-chat.audit-row--active,
+.audit-table tbody tr.audit-row--source-chat.audit-row--active:hover {
   background: #ffedd5;
 }
 
@@ -4910,7 +4910,7 @@ button.mcp-kv-btn:active:not(:disabled) {
   border-color: var(--brand-200);
 }
 
-.audit-source-badge--inference {
+.audit-source-badge--chat {
   color: #9a3412;
   background: #fff7ed;
   border-color: #fdba74;

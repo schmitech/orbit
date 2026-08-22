@@ -395,7 +395,7 @@ def record_usage(
         "output_rate_per_1m": None,
         "pricing_source": "unreported" if not reported else "unpriced",
         "reported": reported,
-        "call_type": "inference",
+        "call_type": "chat",
     }
 
     # Price every line item (generation + embedding) independently against its

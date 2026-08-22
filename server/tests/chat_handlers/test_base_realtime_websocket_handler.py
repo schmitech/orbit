@@ -169,7 +169,7 @@ def test_accumulate_realtime_usage_sums_across_turns():
 @pytest.mark.asyncio
 async def test_flush_realtime_usage_writes_one_audit_record_with_audio_tier():
     audit_service = AsyncMock()
-    audit_service.inference_events_enabled = True
+    audit_service.chat_events_enabled = True
     pricing_service = MagicMock()
     pricing_service.estimate.return_value = MagicMock(
         input_rate_per_1m=4.0, output_rate_per_1m=16.0, pricing_source="pattern", cost_usd=1.23,
@@ -203,7 +203,7 @@ async def test_flush_realtime_usage_noop_when_nothing_accumulated():
     """A session that never received a usage event must never write a
     fabricated audit row (e.g. a session that disconnected before any turn)."""
     audit_service = AsyncMock()
-    audit_service.inference_events_enabled = True
+    audit_service.chat_events_enabled = True
     handler = _make_handler(audit_service=audit_service)
 
     await handler._flush_realtime_usage()
@@ -214,7 +214,7 @@ async def test_flush_realtime_usage_noop_when_nothing_accumulated():
 @pytest.mark.asyncio
 async def test_flush_realtime_usage_includes_grounding_embedding_cost():
     audit_service = AsyncMock()
-    audit_service.inference_events_enabled = True
+    audit_service.chat_events_enabled = True
     pricing_service = MagicMock()
     pricing_service.estimate.return_value = MagicMock(
         input_rate_per_1m=0.02,

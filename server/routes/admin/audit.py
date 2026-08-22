@@ -24,13 +24,13 @@ async def list_admin_audit_events(
     request: Request,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    source: str = Query("all", pattern="^(all|admin|inference)$"),
+    source: str = Query("all", pattern="^(all|admin|chat)$"),
     event_type: Optional[str] = Query(None),
     event_prefix: Optional[str] = Query(None, description="Match event_type that starts with this prefix (e.g. 'auth.', 'admin.api_key.')"),
     actor_id: Optional[str] = Query(None),
     success: Optional[bool] = Query(None),
     resource_type: Optional[str] = Query(None),
-    call_type: Optional[str] = Query(None, description="Filter inference rows by AI call kind: inference, embedding, reranking, image, video, audio, document"),
+    call_type: Optional[str] = Query(None, description="Filter chat rows by AI call kind: chat, embedding, reranking, image, video, audio, document"),
     q: Optional[str] = Query(None, description="Free-text search across actor_username, path, resource_id, ip"),
     since: Optional[str] = Query(None, description="ISO timestamp (inclusive lower bound)"),
     until: Optional[str] = Query(None, description="ISO timestamp (exclusive upper bound)"),
@@ -40,7 +40,7 @@ async def list_admin_audit_events(
 
     The ledger can merge two sources:
       - admin/auth audit events
-      - inference request audit records
+      - chat request audit records
 
     We oversample each requested source, normalize the row shape, sort by
     timestamp descending, apply the remaining filters, then slice the page.
@@ -67,7 +67,7 @@ async def list_admin_audit_events(
             ).lower(),
         }
 
-    def _normalize_inference(row: dict) -> dict:
+    def _normalize_chat(row: dict) -> dict:
         api_key = row.get("api_key") or {}
         masked_key = api_key.get("key") if isinstance(api_key, dict) else None
 
@@ -80,7 +80,7 @@ async def list_admin_audit_events(
             actor_type = "api_key"
             actor_id_value = masked_key
 
-        provider = row.get("provider") or "inference"
+        provider = row.get("provider") or "chat"
         model = row.get("model")
         adapter_name = row.get("adapter_name")
         session_id = row.get("session_id")
@@ -89,17 +89,17 @@ async def list_admin_audit_events(
 
         return {
             **row,
-            "audit_source": "inference",
-            "audit_kind": "inference_request",
-            "call_type": row.get("call_type") or "inference",
-            "event_type": "inference.request",
-            "action": "BLOCK" if row.get("blocked") else "INFER",
-            "resource_type": "inference",
+            "audit_source": "chat",
+            "audit_kind": "chat_request",
+            "call_type": row.get("call_type") or "chat",
+            "event_type": "chat.request",
+            "action": "BLOCK" if row.get("blocked") else "CHAT",
+            "resource_type": "chat",
             "resource_id": adapter_name or provider,
             "actor_type": actor_type,
             "actor_id": actor_id_value,
             "actor_username": None,
-            "method": row.get("method") or "INFER",
+            "method": row.get("method") or "CHAT",
             "path": row.get("path") or provider,
             "status_code": None,
             "success": not bool(row.get("blocked")),
@@ -122,10 +122,10 @@ async def list_admin_audit_events(
                 "pricing_source": row.get("pricing_source"),
                 "usage_unit": row.get("usage_unit"),
                 "usage_quantity": row.get("usage_quantity"),
-                "call_type": row.get("call_type") or "inference",
+                "call_type": row.get("call_type") or "chat",
             },
             "title": model or provider,
-            "subtitle": adapter_name or "inference request",
+            "subtitle": adapter_name or "chat request",
             "search_text": " ".join(
                 value
                 for value in (
@@ -145,14 +145,14 @@ async def list_admin_audit_events(
 
     audit_service = getattr(request.app.state, "audit_service", None)
     admin_enabled = bool(audit_service and audit_service.admin_events_enabled)
-    inference_enabled = bool(audit_service and audit_service.inference_events_enabled)
+    chat_enabled = bool(audit_service and audit_service.chat_events_enabled)
 
-    if audit_service is None or (not admin_enabled and not inference_enabled):
+    if audit_service is None or (not admin_enabled and not chat_enabled):
         raise HTTPException(
             status_code=503,
             detail=(
                 "Audit ledger is not enabled. Enable either "
-                "internal_services.audit.enabled for inference requests or "
+                "internal_services.audit.enabled for chat requests or "
                 "internal_services.audit.admin_events.enabled for admin events."
             ),
         )
@@ -161,10 +161,10 @@ async def list_admin_audit_events(
             status_code=503,
             detail="Admin audit is not enabled. Set internal_services.audit.admin_events.enabled: true.",
         )
-    if source == "inference" and not inference_enabled:
+    if source == "chat" and not chat_enabled:
         raise HTTPException(
             status_code=503,
-            detail="Inference request audit is not enabled. Set internal_services.audit.enabled: true.",
+            detail="Chat request audit is not enabled. Set internal_services.audit.enabled: true.",
         )
 
     native_admin_filters: dict = {}
@@ -177,16 +177,11 @@ async def list_admin_audit_events(
     if resource_type is not None:
         native_admin_filters["resource_type"] = resource_type
 
-    native_inference_filters: dict = {}
+    native_chat_filters: dict = {}
     if success is not None:
-        native_inference_filters["blocked"] = not success
-    # Legacy rows written before call_type existed are NULL, not "inference" —
-    # a native "call_type = 'inference'" filter would exclude them at the
-    # storage layer before _normalize_inference()'s NULL-defaulting ever runs.
-    # Only push the filter down when it can't misfire on NULL; "inference" is
-    # applied via the post-filter below instead, after normalization.
-    if call_type is not None and call_type != "inference":
-        native_inference_filters["call_type"] = call_type
+        native_chat_filters["blocked"] = not success
+    if call_type is not None:
+        native_chat_filters["call_type"] = call_type
 
     # Always oversample rather than fetching exactly the requested page: the
     # response's "total" is len(filtered) over whatever was fetched, so a plain
@@ -207,15 +202,15 @@ async def list_admin_audit_events(
             )
             rows.extend(_normalize_admin(row) for row in admin_rows)
 
-        if source in ("all", "inference") and inference_enabled:
-            inference_rows = await audit_service.query_audit_logs(
-                filters=native_inference_filters,
+        if source in ("all", "chat") and chat_enabled:
+            chat_rows = await audit_service.query_audit_logs(
+                filters=native_chat_filters,
                 limit=fetch_limit,
                 offset=0,
                 sort_by="timestamp",
                 sort_order=-1,
             )
-            rows.extend(_normalize_inference(row) for row in inference_rows)
+            rows.extend(_normalize_chat(row) for row in chat_rows)
     except Exception as exc:
         logger.error(f"Failed to query audit events: {exc}")
         raise HTTPException(status_code=500, detail="Failed to query audit events")
@@ -247,9 +242,9 @@ async def list_admin_audit_events(
         if success is not None and bool(row.get("success")) != success:
             return False
         if call_type:
-            if row.get("audit_source") != "inference":
+            if row.get("audit_source") != "chat":
                 return False
-            if (row.get("call_type") or "inference") != call_type:
+            if (row.get("call_type") or "chat") != call_type:
                 return False
         if since_val and str(row.get("timestamp", "")) < since_val:
             return False
@@ -274,6 +269,6 @@ async def list_admin_audit_events(
         "total": total_after_filter,
         "sources": {
             "admin": admin_enabled,
-            "inference": inference_enabled,
+            "chat": chat_enabled,
         },
     }

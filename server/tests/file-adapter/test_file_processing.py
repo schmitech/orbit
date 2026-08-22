@@ -1829,7 +1829,7 @@ async def test_log_extraction_usage_writes_audit_record_when_reported(tmp_path):
     mock_pricing = Mock()
     mock_pricing.estimate_media.return_value = Mock(cost_usd=0.5, pricing_source="pattern")
     mock_audit = Mock()
-    mock_audit.inference_events_enabled = True
+    mock_audit.chat_events_enabled = True
     mock_audit.log_conversation = AsyncMock()
 
     service.app_state = Mock(audit_service=mock_audit, pricing_service=mock_pricing)
@@ -1862,7 +1862,7 @@ async def test_log_extraction_usage_skips_when_not_reported(tmp_path):
     service = FileProcessingService(config)
 
     mock_audit = Mock()
-    mock_audit.inference_events_enabled = True
+    mock_audit.chat_events_enabled = True
     mock_audit.log_conversation = AsyncMock()
     service.app_state = Mock(audit_service=mock_audit, pricing_service=None)
 
@@ -1904,7 +1904,7 @@ async def test_extract_audio_content_requests_verbose_json_for_usage_reporting(t
     mock_audio_service.transcribe = AsyncMock(side_effect=fake_transcribe)
 
     mock_audit = Mock()
-    mock_audit.inference_events_enabled = True
+    mock_audit.chat_events_enabled = True
     mock_audit.log_conversation = AsyncMock()
     service.app_state = Mock(audit_service=mock_audit, pricing_service=None)
 

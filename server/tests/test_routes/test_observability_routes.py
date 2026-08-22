@@ -26,8 +26,8 @@ def _user_info(roles):
 
 
 class FakeAuditService:
-    def __init__(self, inference_events_enabled=True, aggregate_result=None):
-        self.inference_events_enabled = inference_events_enabled
+    def __init__(self, chat_events_enabled=True, aggregate_result=None):
+        self.chat_events_enabled = chat_events_enabled
         self._aggregate_result = aggregate_result or {
             "totals": {
                 "requests": 5, "prompt_tokens": 500, "completion_tokens": 100,
@@ -434,6 +434,13 @@ def test_observability_usage_rejects_invalid_bucket():
     assert resp.status_code == 422
 
 
+def test_observability_usage_rejects_legacy_inference_call_type():
+    app = _build_app(["admin"], audit_service=FakeAuditService())
+    with TestClient(app) as client:
+        resp = client.get("/admin/observability/usage?call_type=inference")
+    assert resp.status_code == 422
+
+
 def test_observability_usage_rejects_days_out_of_range():
     app = _build_app(["admin"], audit_service=FakeAuditService())
     with TestClient(app) as client:
@@ -445,8 +452,8 @@ def test_observability_usage_rejects_days_out_of_range():
     assert resp.status_code == 422
 
 
-def test_observability_usage_503_when_inference_audit_disabled():
-    app = _build_app(["admin"], audit_service=FakeAuditService(inference_events_enabled=False))
+def test_observability_usage_503_when_chat_audit_disabled():
+    app = _build_app(["admin"], audit_service=FakeAuditService(chat_events_enabled=False))
     with TestClient(app) as client:
         resp = client.get("/admin/observability/usage")
     assert resp.status_code == 503

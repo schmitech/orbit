@@ -104,8 +104,8 @@ class AuditRecord:
     # the unit-billed quantity actually was.
     usage_unit: Optional[str] = None
     usage_quantity: Optional[float] = None
-    # Coarse classification of the AI call this row represents — "inference"
-    # (chat/text generation, the default), "embedding", "reranking", "image", "video",
+    # Coarse classification of the AI call this row represents — "chat"
+    # (text generation, the default), "embedding", "reranking", "image", "video",
     # "audio", or "document" (OCR). Set at the usage-recording call site
     # (record_usage/record_media_generation_usage), not inferred here.
     call_type: Optional[str] = None

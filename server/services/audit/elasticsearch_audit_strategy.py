@@ -547,12 +547,6 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         for key, value in (filters or {}).items():
             if key not in self._FILTERABLE_DIMENSIONS:
                 continue
-            if key == "call_type" and value == "inference":
-                must.append({"bool": {"should": [
-                    {"term": {"call_type": "inference"}},
-                    {"bool": {"must_not": [{"exists": {"field": "call_type"}}]}},
-                ], "minimum_should_match": 1}})
-                continue
             if key == "api_key":
                 # `value` may be a stable id or a masked key (whichever a
                 # group row's "key" was). Match it directly on both fields,

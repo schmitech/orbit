@@ -274,10 +274,6 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         for key, value in (filters or {}).items():
             if key not in self._FILTERABLE_DIMENSIONS:
                 continue
-            if key == "call_type" and value == "inference":
-                where_clauses.append("(call_type = ? OR call_type IS NULL)")
-                params.append(value)
-                continue
             field = self._resolve_dimension_field(key)
             where_clauses.append(f"{field} = ?")
             params.append(value)

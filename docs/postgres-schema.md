@@ -326,7 +326,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 `api_key_value` (TEXT): masked API key used for the request. `api_key_id` (TEXT): the key's stable, non-secret document id, resolved at write time (best-effort; `NULL` for older rows or a failed lookup). Together they back the `api_key` group-by/filter dimension on the Costs tab, which resolves to `COALESCE(api_key_id, api_key_value)` — see [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs).
 
-`call_type` (TEXT): coarse classification of the AI call this row represents — `inference` (chat/text generation, the default), `embedding`, `image`, `video`, `audio`, or `document` (OCR). See [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field description.
+`call_type` (TEXT): coarse classification of the AI call this row represents — `chat` (text generation, the default), `embedding`, `image`, `video`, `audio`, or `document` (OCR). See [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field description.
 
 **Configuration:** set `internal_services.audit.storage_backend: "database"` (or `"postgres"` explicitly) in `config/config.yaml` — see [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full config block and response-compression details, which apply identically here.
 

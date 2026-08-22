@@ -509,7 +509,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `pricing_source` (TEXT): How the rate was resolved — `exact`, `pattern`, `provider_default`, `local_zero`, or `unpriced`
 - `usage_unit` (TEXT): Discrete billing unit for media requests (`images`, `seconds`, `characters`, `audio_seconds`, `pages`, `audio_tokens`); `NULL` for token-billed requests
 - `usage_quantity` (REAL): Quantity in `usage_unit` for this request; `NULL` for token-billed requests. `cost_usd` is the single summable cost column across both token- and unit-billed requests
-- `call_type` (TEXT): Coarse classification of the AI call this row represents — `inference` (chat/text generation, the default), `embedding`, `image`, `video`, `audio`, or `document` (OCR). Set at the usage-recording call site (`record_usage`/`record_media_generation_usage` in `server/inference/pipeline/steps/_utils.py`), not inferred from `provider`/`model`. A chat turn that also folds in retrieval-embedding cost (per `docs/embedding-cost-tracking.md`) is still `inference` — only usage-only rows with no generation call (e.g. the standalone `/api/files/{file_id}/query` audit row) get `embedding`. `NULL` for rows written before this field was added, displayed as `inference` by the admin panel
+- `call_type` (TEXT): Coarse classification of the AI call this row represents — `chat` (text generation, the default), `embedding`, `image`, `video`, `audio`, or `document` (OCR). Set at the usage-recording call site (`record_usage`/`record_media_generation_usage` in `server/inference/pipeline/steps/_utils.py`), not inferred from `provider`/`model`. A chat turn that also folds in retrieval-embedding cost (per `docs/embedding-cost-tracking.md`) is still `chat` — only usage-only rows with no generation call (e.g. the standalone `/api/files/{file_id}/query` audit row) get `embedding`.
 
 **Indexes:**
 - `idx_audit_logs_timestamp` on `timestamp`
@@ -860,6 +860,9 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.15** (2026-08-22): Chat audit call-type terminology
+  - Renamed the default text-generation audit `call_type` from `inference` to `chat`, and renamed the audit-ledger stream contract accordingly.
+  - Existing audit data must be cleared before using the new contract; clients must use the new `chat` API values.
 - **v1.14** (2026-08-21): Stable API key identity for cost aggregation
   - Added `audit_logs.api_key_id` — the requesting key's stable, non-secret document id, resolved by `AuditService.log_conversation` via a lookup against the raw key at write time (best-effort; `NULL` on lookup failure or when no `api_key_service` is wired in, same as any row written before this column existed)
   - Added index `idx_audit_logs_api_key_id` on it
@@ -886,7 +889,7 @@ chmod 600 orbit.db  # Owner read/write only
   - Added `audit_logs.call_type` (`inference`, `embedding`, `image`, `video`, `audio`, `document`) and index `idx_audit_logs_call_type` — lets the admin panel Audit Ledger label and filter rows by the kind of AI call instead of showing every row as "Inference"
   - Set at the usage-recording call site (`record_usage`/`record_media_generation_usage`), not inferred from `provider`/`model` after the fact
   - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`); MongoDB and Elasticsearch need no migration (schemaless / dynamic mapping with an explicit `keyword` type added)
-  - Existing rows keep `call_type = NULL`, displayed and filterable as `inference` by the admin panel and API — no visual regression, but historical embedding/media rows won't retroactively reclassify
+  - Existing rows kept `call_type = NULL`, displayed and filterable as `inference` by the admin panel and API; historical embedding/media rows were not retroactively reclassified
 - **v1.8** (2026-07-31): Session ownership binding for chat history
   - Added `chat_history.api_key_hash` (SHA-256 of the creating API key) and index `idx_chat_history_api_key_hash` on `(session_id, api_key_hash)`
   - Closes a cross-tenant IDOR on `DELETE /admin/chat-history/{session_id}` and `DELETE /admin/conversations/{session_id}`, which previously checked only that the caller's key was valid, never that it owned the target session

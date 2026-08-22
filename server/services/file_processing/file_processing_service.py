@@ -495,7 +495,7 @@ class FileProcessingService:
         if not usage or not usage.get("reported"):
             return
         audit_service = getattr(self.app_state, 'audit_service', None) if self.app_state else None
-        if not audit_service or not getattr(audit_service, 'inference_events_enabled', False):
+        if not audit_service or not getattr(audit_service, 'chat_events_enabled', False):
             return
         pricing_service = getattr(self.app_state, 'pricing_service', None) if self.app_state else None
 

@@ -239,7 +239,7 @@ class BaseRealtimeWebSocketHandler:
         if not (acc.get("reported") or embedding_acc.get("reported")) or not self.audit_service:
             return
         try:
-            if not getattr(self.audit_service, "inference_events_enabled", False):
+            if not getattr(self.audit_service, "chat_events_enabled", False):
                 return
         except Exception:
             return

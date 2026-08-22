@@ -309,9 +309,6 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         for key, value in (filters or {}).items():
             if key not in self._FILTERABLE_DIMENSIONS:
                 continue
-            if key == "call_type" and value == "inference":
-                match.setdefault("$or", []).append({"call_type": {"$in": ["inference", None]}})
-                continue
             if key == "api_key":
                 match["_apiKeyResolved"] = value
                 continue

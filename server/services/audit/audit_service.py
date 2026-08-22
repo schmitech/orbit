@@ -400,7 +400,7 @@ class AuditService:
                 pricing_source=usage.get("pricing_source"),
                 usage_unit=usage.get("usage_unit"),
                 usage_quantity=usage.get("usage_quantity"),
-                call_type=usage.get("call_type") or "inference",
+                call_type=usage.get("call_type") or "chat",
             )
 
             # Store the record
@@ -542,8 +542,8 @@ class AuditService:
         return self._enabled
 
     @property
-    def inference_events_enabled(self) -> bool:
-        """Check if inference-request auditing is enabled and initialized."""
+    def chat_events_enabled(self) -> bool:
+        """Check if chat-request auditing is enabled and initialized."""
         return bool(
             self._enabled
             and self._strategy is not None

@@ -99,7 +99,7 @@ async def get_observability_usage(
     group_by: str = Query("model", pattern="^(model|provider|adapter_name|user_id|call_type|api_key|none)$"),
     provider: Optional[str] = Query(None),
     adapter_name: Optional[str] = Query(None),
-    call_type: Optional[str] = Query(None, pattern="^(inference|embedding|reranking|image|video|audio|document)$"),
+    call_type: Optional[str] = Query(None, pattern="^(chat|embedding|reranking|image|video|audio|document)$"),
     api_key: Optional[str] = Query(None),
     limit_groups: int = Query(10, ge=1, le=100),
 ):
@@ -122,16 +122,16 @@ async def get_observability_usage(
     other filters rather than replacing them.
 
     Reuses the audit.read permission (the same dependency that gates
-    /admin/audit/events) — it already grants reading full inference
+    /admin/audit/events) — it already grants reading full chat
     queries/responses, which is strictly more sensitive than aggregate
     token counts, so a separate permission would only create a role that
     could never be granted meaningfully.
     """
     audit_service = getattr(request.app.state, "audit_service", None)
-    if audit_service is None or not audit_service.inference_events_enabled:
+    if audit_service is None or not audit_service.chat_events_enabled:
         raise HTTPException(
             status_code=503,
-            detail="Inference request audit is not enabled. Set internal_services.audit.enabled: true.",
+            detail="Chat request audit is not enabled. Set internal_services.audit.enabled: true.",
         )
 
     # Audit records are stored with naive local timestamps (see
@@ -153,8 +153,6 @@ async def get_observability_usage(
         filters["adapter_name"] = adapter_name
     if call_type:
         # Keep legacy NULL rows in the default/all view. An explicit
-        # inference filter intentionally follows the audit-events endpoint's
-        # semantics, where NULL is interpreted as inference by the backend.
         filters["call_type"] = call_type
     if api_key:
         filters["api_key"] = api_key

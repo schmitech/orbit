@@ -2,7 +2,7 @@ const AUDIT_PAGE_SIZE = 25;
 const AUDIT_STREAMS = [
   { value: "all", label: "All" },
   { value: "admin", label: "Admin" },
-  { value: "inference", label: "Inference" },
+  { value: "chat", label: "Inference" },
 ];
 
 const AUDIT_DOMAINS = [
@@ -17,7 +17,7 @@ const AUDIT_DOMAINS = [
 ];
 
 const CALL_TYPE_LABELS = {
-  inference: "Inference",
+  chat: "Chat",
   embedding: "Embedding",
   reranking: "Reranking",
   image: "Image",
@@ -28,7 +28,7 @@ const CALL_TYPE_LABELS = {
 
 const AUDIT_CALL_TYPES = [
   { value: "all",       label: "All" },
-  { value: "inference", label: "Inference" },
+  { value: "chat", label: "Chat" },
   { value: "embedding", label: "Embedding" },
   { value: "reranking", label: "Reranking" },
   { value: "image",     label: "Image" },
@@ -57,8 +57,8 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
       + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
   }
 
-  function isInferenceAudit(ev) {
-    return !!ev && ev.audit_source === "inference";
+  function isChatAudit(ev) {
+    return !!ev && ev.audit_source === "chat";
   }
 
   function displayActorId(ev) {
@@ -68,38 +68,38 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
   }
 
   function auditCallType(ev) {
-    return (ev && ev.call_type) || "inference";
+    return (ev && ev.call_type) || "chat";
   }
 
   function auditSourceLabel(ev) {
-    if (isInferenceAudit(ev)) return CALL_TYPE_LABELS[auditCallType(ev)] || "Inference";
+    if (isChatAudit(ev)) return CALL_TYPE_LABELS[auditCallType(ev)] || "Chat";
     return "Admin";
   }
 
   function auditSourceBadgeClass(ev) {
-    if (isInferenceAudit(ev)) return "audit-source-badge audit-source-badge--" + auditCallType(ev);
+    if (isChatAudit(ev)) return "audit-source-badge audit-source-badge--" + auditCallType(ev);
     return "audit-source-badge audit-source-badge--admin";
   }
 
   function auditEventTitle(ev) {
-    if (isInferenceAudit(ev)) return ev.title || ev.provider || "inference";
+    if (isChatAudit(ev)) return ev.title || ev.provider || "chat";
     return ev.event_type || "—";
   }
 
   function auditEventSubtitle(ev) {
-    if (isInferenceAudit(ev)) return ev.subtitle || ev.adapter_name || "inference request";
+    if (isChatAudit(ev)) return ev.subtitle || ev.adapter_name || "chat request";
     return ev.action || "";
   }
 
   function auditResourceText(ev) {
-    if (isInferenceAudit(ev)) {
+    if (isChatAudit(ev)) {
       return ev.adapter_name || ev.provider || ev.resource_id || "—";
     }
     return ev.resource_id || ev.resource_type || "—";
   }
 
   function auditOutcomeLabel(ev) {
-    if (isInferenceAudit(ev)) {
+    if (isChatAudit(ev)) {
       return ev.success ? "served" : "blocked";
     }
     return ev.success ? "ok" : "fail";
@@ -135,15 +135,15 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
     const verdictCls = "audit-verdict audit-verdict--" + (ev.success ? "success" : "failure");
     panel.appendChild(el("div", null,
       el("span", { className: verdictCls },
-        isInferenceAudit(ev) ? (ev.success ? "Served" : "Blocked") : (ev.success ? "Succeeded" : "Failed"),
-        isInferenceAudit(ev)
-          ? " · " + (ev.provider || "inference")
+        isChatAudit(ev) ? (ev.success ? "Served" : "Blocked") : (ev.success ? "Succeeded" : "Failed"),
+        isChatAudit(ev)
+          ? " · " + (ev.provider || "chat")
           : " · HTTP " + (ev.status_code != null ? ev.status_code : "?")
       )
     ));
 
     panel.appendChild(el("h3", { className: "audit-section-heading" }, "Principals"));
-    if (isInferenceAudit(ev)) {
+    if (isChatAudit(ev)) {
       panel.appendChild(renderAuditFieldGrid([
         ["Actor type", ev.actor_type || ""],
         ["Actor ID", ev.actor_id || "—"],
@@ -160,8 +160,8 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
       ]));
     }
 
-    panel.appendChild(el("h3", { className: "audit-section-heading" }, isInferenceAudit(ev) ? "Inference" : "Request"));
-    if (isInferenceAudit(ev)) {
+    panel.appendChild(el("h3", { className: "audit-section-heading" }, isChatAudit(ev) ? "Chat" : "Request"));
+    if (isChatAudit(ev)) {
       panel.appendChild(renderAuditFieldGrid([
         ["Provider", ev.provider || "—"],
         ["Model", ev.model || "—"],
@@ -182,7 +182,7 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
       ]));
     }
 
-    if (isInferenceAudit(ev)) {
+    if (isChatAudit(ev)) {
       panel.appendChild(el("h3", { className: "audit-section-heading" }, "Usage & cost"));
       const usageRows = [
         ["Prompt tokens", ev.prompt_tokens != null ? formatNum(ev.prompt_tokens) : "—"],
@@ -227,7 +227,7 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
     if (ev.user_agent) originRows.push(["User-Agent", ev.user_agent]);
     panel.appendChild(renderAuditFieldGrid(originRows));
 
-    if (isInferenceAudit(ev)) {
+    if (isChatAudit(ev)) {
       panel.appendChild(el("h3", { className: "audit-section-heading" }, "Payload"));
       panel.appendChild(el("div", { className: "audit-dossier__payload" },
         el("div", { className: "audit-dossier__payload-block" },
@@ -264,7 +264,7 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
         el("p", { className: "muted" },
           state.offset > 0
             ? "Try jumping to page 1 or loosening the filters."
-            : "As admin actions and inference requests occur they will appear here.")
+            : "As admin actions and chat requests occur they will appear here.")
       ));
       return;
     }
@@ -303,7 +303,7 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
 
       const resourceText = auditResourceText(ev);
 
-      let rowClass = "selectable-row audit-row audit-row--source-" + (isInferenceAudit(ev) ? "inference" : "admin");
+      let rowClass = "selectable-row audit-row audit-row--source-" + (isChatAudit(ev) ? "chat" : "admin");
       if (isSelected) rowClass += " selected-row audit-row--active";
 
       const tr = el("tr", { className: rowClass },
@@ -318,11 +318,11 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
         el("td", null, actorCell),
         el("td", { className: "audit-col-resource" }, resourceText),
         el("td", { className: "audit-col-tokens" },
-          isInferenceAudit(ev) && ev.total_tokens != null ? formatNum(ev.total_tokens) : "—"),
-        el("td", { className: "audit-col-cost", title: isInferenceAudit(ev) ? (ev.pricing_source || "") : "" },
-          isInferenceAudit(ev) ? obsCost(ev.cost_usd) : "—"),
+          isChatAudit(ev) && ev.total_tokens != null ? formatNum(ev.total_tokens) : "—"),
+        el("td", { className: "audit-col-cost", title: isChatAudit(ev) ? (ev.pricing_source || "") : "" },
+          isChatAudit(ev) ? obsCost(ev.cost_usd) : "—"),
         el("td", { className: "audit-col-status" },
-          el("span", { className: "audit-status-code" }, isInferenceAudit(ev) ? (ev.provider || "") : String(ev.status_code != null ? ev.status_code : "")),
+          el("span", { className: "audit-status-code" }, isChatAudit(ev) ? (ev.provider || "") : String(ev.status_code != null ? ev.status_code : "")),
           el("span", { className: "badge " + statusCls }, statusLabel)
         )
       );
@@ -436,12 +436,12 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
       refreshBtn
     ));
     listPanel.appendChild(el("p", { className: "muted" },
-      "A unified register of admin/auth activity and inference requests captured by the audit service. ",
-      "Use the stream filter to isolate operational events from live inference traffic."));
+      "A unified register of admin/auth activity and chat requests captured by the audit service. ",
+      "Use the stream filter to isolate operational events from live chat traffic."));
 
     // ----- State (per-render closure) -----
     const state = {
-      source: "all",          // "all" | "admin" | "inference"
+      source: "all",          // "all" | "admin" | "chat"
       outcome: "all",        // "all" | "success" | "failure"
       domain: "all",         // event_prefix value, or "all"
       callType: "all",       // call_type value, or "all"
@@ -475,7 +475,7 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
       ], state.outcome);
 
       domainSelect.setOptions(AUDIT_DOMAINS.map((d) => ({ value: d.value, label: d.label })), state.domain);
-      domainSelect.disabled = state.source === "inference";
+      domainSelect.disabled = state.source === "chat";
 
       callTypeSelect.setOptions(AUDIT_CALL_TYPES.map((t) => ({ value: t.value, label: t.label })), state.callType);
       callTypeSelect.disabled = state.source === "admin";
@@ -483,7 +483,7 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
 
     sourceSelect.addEventListener("change", () => {
       state.source = sourceSelect.value;
-      if (state.source === "inference") state.domain = "all";
+      if (state.source === "chat") state.domain = "all";
       if (state.source === "admin") state.callType = "all";
       state.offset = 0;
       state.selectedIndex = null;
@@ -601,7 +601,7 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
       params.set("source", state.source);
       if (state.outcome === "success") params.set("success", "true");
       else if (state.outcome === "failure") params.set("success", "false");
-      if (state.domain && state.domain !== "all" && state.source !== "inference") params.set("event_prefix", state.domain);
+      if (state.domain && state.domain !== "all" && state.source !== "chat") params.set("event_prefix", state.domain);
       if (state.callType && state.callType !== "all" && state.source !== "admin") params.set("call_type", state.callType);
       if (state.q) params.set("q", state.q);
 
@@ -621,13 +621,13 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
       } catch (err) {
         clear(tableWrap);
         const msg = (err && err.message) || "";
-        if (/audit ledger is not enabled/i.test(msg) || /admin audit is not enabled/i.test(msg) || /inference request audit is not enabled/i.test(msg)) {
+        if (/audit ledger is not enabled/i.test(msg) || /admin audit is not enabled/i.test(msg) || /chat request audit is not enabled/i.test(msg)) {
           tableWrap.appendChild(el("div", { className: "empty-state" },
             el("p", null, "Audit ledger is not enabled."),
             el("p", { className: "muted" },
               "Set ",
               el("code", null, "internal_services.audit.enabled: true"),
-              " for inference request auditing, and ",
+              " for chat request auditing, and ",
               el("code", null, "internal_services.audit.admin_events.enabled: true"),
               " if you also want admin/auth events, then restart the server.")
           ));

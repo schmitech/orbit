@@ -1602,20 +1602,20 @@ class TestAggregateUsage:
         base = {"query": "q", "response": "r", "provider": "openai", "blocked": False, "ip": "127.0.0.1",
                 "timestamp": datetime(2026, 1, 1, 10, 0, 0), "cost_usd": 0.01}
         await self._seed(audit_service, [
-            {**base, "model": "gpt-4o-mini", "call_type": None},
+            {**base, "model": "gpt-4o-mini", "call_type": "chat"},
             {**base, "model": "text-embedding-3-small", "call_type": "embedding", "cost_usd": 0.02},
         ])
 
-        inference = await audit_service.aggregate_usage(
+        chat = await audit_service.aggregate_usage(
             since="2026-01-01T00:00:00", until="2026-01-02T00:00:00",
-            filters={"call_type": "inference"}, group_by="call_type",
+            filters={"call_type": "chat"}, group_by="call_type",
         )
         embeddings = await audit_service.aggregate_usage(
             since="2026-01-01T00:00:00", until="2026-01-02T00:00:00",
             filters={"call_type": "embedding"}, group_by="call_type",
         )
 
-        assert inference["totals"]["requests"] == 1
+        assert chat["totals"]["requests"] == 1
         assert embeddings["totals"]["requests"] == 1
         assert embeddings["groups"][0]["key"] == "embedding"
 

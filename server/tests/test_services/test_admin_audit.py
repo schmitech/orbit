@@ -484,6 +484,29 @@ class TestAuditEventsEndpoint:
         assert body["offset"] == 0
         assert body["returned"] == 0
 
+    async def test_returns_chat_records_with_chat_contract(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        await audit_service.log_conversation(
+            query="hello", response="world", provider="openai",
+            usage={"call_type": "chat"},
+        )
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            resp = client.get("/admin/audit/events?source=chat&call_type=chat")
+        assert resp.status_code == 200
+        event = resp.json()["events"][0]
+        assert event["audit_source"] == "chat"
+        assert event["audit_kind"] == "chat_request"
+        assert event["event_type"] == "chat.request"
+        assert event["call_type"] == "chat"
+
+    async def test_rejects_legacy_inference_source(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            resp = client.get("/admin/audit/events?source=inference")
+        assert resp.status_code == 422
+
     async def test_returns_seeded_events_newest_first(self, audit_service_with_admin):
         audit_service, _sqlite, _cfg = audit_service_with_admin
         await _seed_events(audit_service)
