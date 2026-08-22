@@ -8,6 +8,7 @@
 ### Core System Updates
 - **Audit Ledger Terminology**: The Audit and Costs panels now classify text-generation usage as Chat alongside embedding, reranking, image, video, audio, and document call types. The Audit Ledger stream remains labeled Inference because it contains all AI request modalities.
 - **Audit Store Clean Start**: Enabled `internal_services.audit.clear_on_startup` so the configured audit-log store is cleared on server startup instead of retaining records from the prior audit contract.
+- **Independent Admin-Audit Retention**: Added `internal_services.audit.admin_events.clear_on_startup` to clear privileged admin/auth event history independently of inference-request audit logs; it defaults to `false` in both runtime and installer configuration.
 
 ## [2.15.9] - 2026-08-22
 

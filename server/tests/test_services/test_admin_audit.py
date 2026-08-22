@@ -214,6 +214,37 @@ class TestAuditServiceAdminAPI:
             sqlite_service.close()
             SQLiteService.clear_cache()
 
+    async def test_admin_clear_on_startup_is_independent_from_inference_audit(
+        self, sqlite_admin_config, sample_admin_record
+    ):
+        audit_config = sqlite_admin_config["internal_services"]["audit"]
+        audit_config["clear_on_startup"] = False
+        audit_config["admin_events"]["clear_on_startup"] = False
+
+        sqlite_service = SQLiteService(sqlite_admin_config)
+        await sqlite_service.initialize()
+        service = AuditService(sqlite_admin_config, sqlite_service)
+        await service.initialize()
+
+        try:
+            await service.log_conversation(query="keep", response="this")
+            await service.log_admin_event(sample_admin_record)
+            assert len(await service.query_audit_logs({})) == 1
+            assert len(await service.query_admin_events({})) == 1
+            await service.close()
+
+            audit_config["admin_events"]["clear_on_startup"] = True
+            restarted_service = AuditService(sqlite_admin_config, sqlite_service)
+            await restarted_service.initialize()
+            try:
+                assert len(await restarted_service.query_audit_logs({})) == 1
+                assert await restarted_service.query_admin_events({}) == []
+            finally:
+                await restarted_service.close()
+        finally:
+            sqlite_service.close()
+            SQLiteService.clear_cache()
+
     async def test_log_admin_event_swallows_errors(self, audit_service_with_admin, sample_admin_record):
         audit_service, _sqlite, _cfg = audit_service_with_admin
 

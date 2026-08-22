@@ -219,7 +219,7 @@ auth:
       # provisioning, add an Auth0 Action (Actions > Flows > Login) that injects
       # a namespaced custom claim, e.g.:
       #   api.accessToken.setCustomClaim('https://your-api/email', event.user.email)
-      # then point this at that claim key. Leave unset if you don't need email captured.
+      # then point this at that claim key. Defaults to Auth0's standard `email` claim.
       # email_claim: "https://your-api/email"
 
     # Admin-panel browser SSO (server-side OAuth Authorization Code + PKCE).
@@ -403,7 +403,7 @@ internal_services:
     # Set to false for debugging/testing to see plain text responses
     # Compressed responses are stored as base64-encoded gzip data
     compress_responses: true
-    # Clear audit logs on server startup
+    # Clear inference-request audit logs on server startup
     # WARNING: This will delete ALL audit logs when the server starts
     # Use with caution - only recommended for development/testing environments
     clear_on_startup: false
@@ -413,6 +413,9 @@ internal_services:
     admin_events:
       enabled: false
       collection_name: "audit_admin_logs"
+      # Clear privileged admin/auth audit events independently on startup.
+      # Leave false to retain administrative event history when inference logs refresh.
+      clear_on_startup: false
 
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}

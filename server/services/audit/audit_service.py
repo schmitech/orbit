@@ -77,6 +77,7 @@ class AuditService:
         # Admin events sub-configuration (opt-in)
         admin_cfg = audit_config.get('admin_events', {})
         self._admin_enabled = bool(admin_cfg.get('enabled', False))
+        self._admin_clear_on_startup = bool(admin_cfg.get('clear_on_startup', False))
 
         # Get the inference provider from config (for default backend value)
         self._inference_provider = config.get('general', {}).get('inference_provider', 'ollama')
@@ -201,6 +202,15 @@ class AuditService:
                     logger.debug(
                         f"Admin audit storage initialized with {self._admin_strategy.backend_name} backend"
                     )
+                    if self._admin_clear_on_startup:
+                        logger.warning(
+                            "admin_events.clear_on_startup is enabled - clearing all admin audit logs"
+                        )
+                        success = await self._admin_strategy.clear()
+                        if success:
+                            logger.info("Admin audit logs cleared successfully on startup")
+                        else:
+                            logger.warning("Failed to clear admin audit logs on startup")
                 else:
                     logger.warning(
                         f"Admin audit strategy {self._admin_strategy.backend_name} failed to initialize"
