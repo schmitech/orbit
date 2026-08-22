@@ -91,7 +91,7 @@ Backend coverage is split by what can be tested without a live server:
 while the end-to-end grouped-aggregate assertions run against real SQLite.
 Labels remain the raw masked value until Phase 2.
 
-## Phase 2 — Resolve client names as labels
+## Phase 2 — Resolve client names as labels — **done** (2026-08-21)
 
 Turn `"...abc123"` into `"Acme Corp (...abc123)"`.
 
@@ -122,6 +122,25 @@ Design points to settle while implementing:
   the plaintext key appears nowhere in the response.
 - Verify: a suffix collision between two active keys produces the ambiguity
   marker, not a silently wrong name.
+
+**As shipped.** Resolution lives in `server/routes/admin/observability.py`
+(`_label_api_key_groups`), called only when `group_by == "api_key"`. It reads
+active keys via `api_key_service.database.find_many(collection_name,
+{"active": True})` — the same generic-database pattern already used by
+`routes/admin/api_keys.py` — masks each plaintext key with
+`mask_api_key(key, show_last=True, num_chars=6)` (matching the audit writer
+exactly), and groups the resulting masked→`client_name` map by masked value.
+A masked value mapping to more than one distinct `client_name` sets
+`label: null, ambiguous: true` on that group row instead of guessing; no
+match leaves `label` unset entirely, so `costs.js` (`label || key`) falls
+back to the masked value. Lookup failure or a missing `api_key_service` is
+caught and logged, never surfaces as a 500 — the endpoint just returns
+unlabeled groups. Plaintext keys are never included in the response; a test
+asserts this directly against the raw response body.
+
+No schema change — labeling is a read-time join, so
+`docs/sqlite-schema.md`, `docs/postgres-schema.md`, and
+`install/orbit.db.default` are unaffected this phase.
 
 ## Phase 3 — Filter by API key
 

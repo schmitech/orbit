@@ -130,7 +130,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
       charts.models = new Chart(modelsCanvas, {
         type: "bar",
         data: {
-          labels: groupRows.map((row) => row.key || "(unknown)"),
+          labels: groupRows.map((row) => row.label || row.key || "(unknown)"),
           datasets: [{ data: groupRows.map((row) => row.cost_usd), backgroundColor: "#5794f2" }]
         },
         options: modelOpts
@@ -143,7 +143,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
       charts.provider = new Chart(providerCanvas, {
         type: "doughnut",
         data: {
-          labels: groupRows.map((row) => row.key || "(unknown)"),
+          labels: groupRows.map((row) => row.label || row.key || "(unknown)"),
           datasets: [{ data: groupRows.map((row) => row.cost_usd), backgroundColor: ["#5794f2", "#28a66a", "#e0a22f", "#e05260", "#9b7ede", "#4fb8b0", "#f28cb1", "#c0ca33", "#8d6e63", "#78909c"], borderWidth: 0, hoverOffset: 4 }]
         },
         options: { responsive: true, maintainAspectRatio: false, cutout: "68%", plugins: providerOpts.plugins }

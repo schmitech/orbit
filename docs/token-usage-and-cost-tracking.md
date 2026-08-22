@@ -278,7 +278,11 @@ the matching/precedence rules above don't change, and it should preserve the
   **Costs** tab) — token/cost totals, a time-bucketed series, and top-N
   groups by model/provider/adapter/user/call type/API key, over a
   configurable window. Grouping by API key groups on the masked key stored on
-  each audit row (`...` + last 6 characters), never the key itself. Backed
+  each audit row (`...` + last 6 characters), never the key itself; each
+  group row also gets a `label` resolved from the matching active key's
+  `client_name` (falling back to the masked key if none matches, or marked
+  `ambiguous` if two active keys share a masked suffix — see
+  `docs/roadmap/costs-by-api-key.md`). Backed
   by `AuditStorageStrategy.aggregate_usage()`, implemented per storage
   backend (SQLite, Postgres, MongoDB, Elasticsearch) in
   `server/services/audit/`. Both endpoints are gated by the existing
