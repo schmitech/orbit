@@ -505,7 +505,7 @@ export function createApiKeysTab({
       var nk = renameInput.value.trim();
       if (!nk) return;
       withButton(renameBtn, async function () {
-        await api("PATCH", keyPath(keyId, "/rename?new_api_key=" + encodeURIComponent(nk)));
+        await api("PATCH", keyPath(keyId, "/rename"), { new_api_key: nk });
         onRefresh();
       }, "Key renamed");
     });

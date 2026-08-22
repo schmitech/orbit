@@ -97,6 +97,11 @@ class ApiKeyDeactivate(BaseModel):
     api_key: str
 
 
+class ApiKeyRename(BaseModel):
+    """API key rename request model"""
+    new_api_key: str = Field(min_length=8, description="New API key value")
+
+
 class ApiKeyQuota(BaseModel):
     """Quota configuration for an API key"""
     daily_limit: Optional[int] = Field(default=None, description="Daily request limit (None = unlimited)")

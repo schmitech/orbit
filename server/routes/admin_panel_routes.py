@@ -15,7 +15,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from routes.auth_helpers import get_admin_user, get_sso_service, render_login_html
 from auth.rbac import has_any_permission, has_permission
@@ -28,6 +28,20 @@ _SSO_ERROR_MESSAGES = {
 }
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_next_path(next_value: Optional[str]) -> str:
+    """Resolve a post-login redirect target to a same-origin relative path.
+
+    Rejects protocol-relative URLs (``//evil.com``) and anything else that
+    carries a scheme or netloc, which ``startswith("/")`` alone would admit.
+    """
+    if not next_value:
+        return "/admin"
+    parsed = urlsplit(next_value)
+    if parsed.scheme or parsed.netloc or not next_value.startswith("/") or next_value.startswith("//"):
+        return "/admin"
+    return next_value
 
 ADMIN_DIR = Path(__file__).parent.parent / "admin"
 
@@ -174,7 +188,7 @@ def create_admin_panel_router() -> APIRouter:
     @router.get("/admin/login", response_class=HTMLResponse)
     async def get_admin_login(request: Request, next: str = "/admin", error: Optional[str] = None):
         """Render the admin login page."""
-        next_path = next if next and next.startswith("/") else "/admin"
+        next_path = _safe_next_path(next)
         user_info = await get_admin_user(request)
         if user_info:
             return RedirectResponse(url=next_path, status_code=303)
@@ -203,14 +217,14 @@ def create_admin_panel_router() -> APIRouter:
         if not success or not token or not user_info or not has_any_permission(user_info):
             return HTMLResponse(
                 content=render_login_html(
-                    next_path=next if next and next.startswith("/") else "/admin",
+                    next_path=_safe_next_path(next),
                     error_message="Invalid admin username or password.",
                     sso_providers=_sso_providers(request),
                 ),
                 status_code=401
             )
 
-        destination = next if next and next.startswith("/") else "/admin"
+        destination = _safe_next_path(next)
         response = RedirectResponse(url=destination, status_code=303)
         secure_cookie = request.url.scheme == "https"
         response.set_cookie(
@@ -239,7 +253,7 @@ def create_admin_panel_router() -> APIRouter:
         if not sso or not sso.provider_enabled(provider):
             return _login_redirect("sso_unavailable")
 
-        next_path = next if next and next.startswith("/") else "/admin"
+        next_path = _safe_next_path(next)
         redirect_uri = sso.redirect_uri(provider, str(request.base_url))
         auth_url, state, code_verifier, nonce = sso.build_authorize_url(provider, redirect_uri)
 
@@ -315,9 +329,7 @@ def create_admin_panel_router() -> APIRouter:
 
         token = await auth_service.create_session(user)
 
-        destination = flow.get("next") or "/admin"
-        if not destination.startswith("/"):
-            destination = "/admin"
+        destination = _safe_next_path(flow.get("next"))
         response = RedirectResponse(url=destination, status_code=303)
         response.set_cookie(
             "dashboard_token",

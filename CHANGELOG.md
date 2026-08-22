@@ -10,6 +10,10 @@
 - **Audit Store Clean Start**: Enabled `internal_services.audit.clear_on_startup` so the configured audit-log store is cleared on server startup instead of retaining records from the prior audit contract.
 - **Independent Admin-Audit Retention**: Added `internal_services.audit.admin_events.clear_on_startup` to clear privileged admin/auth event history independently of inference-request audit logs; it defaults to `false` in both runtime and installer configuration.
 
+### Security
+- **Admin API-Key Rename Request Handling**: The API-key rename endpoint now accepts the replacement key in a validated JSON body instead of a URL query parameter, preventing sensitive key material from appearing in request URLs; the admin panel and route logging coverage use the new request schema.
+- **Admin Login Redirect Validation**: Login and SSO redirects now reject protocol-relative and external `next` URLs, preventing open redirects outside the Orbit admin origin.
+
 ## [2.15.9] - 2026-08-22
 
 ### Core System Updates

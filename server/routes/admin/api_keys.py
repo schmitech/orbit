@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Request, Depends, HTTPException, Query
 
 from models.schema import (
-    ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate,
+    ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate, ApiKeyRename,
     ApiKeyPromptAssociate, ApiKeyQuota, ApiKeyQuotaUpdate,
     ApiKeyUsage, ApiKeyQuotaResponse,
 )
@@ -257,7 +257,7 @@ async def get_api_key_status(
 @router.patch("/api-keys/{api_key_id}/rename", dependencies=[apikeys_auth])
 async def rename_api_key(
     api_key_id: str,
-    new_api_key: str = Query(..., min_length=8, description="New API key value"),
+    data: ApiKeyRename,
     request: Request = None,
 ):
     """
@@ -266,7 +266,7 @@ async def rename_api_key(
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
 
-    new_api_key = new_api_key.strip()
+    new_api_key = data.new_api_key.strip()
     if len(new_api_key) < 8:
         raise HTTPException(status_code=422, detail="New API key must be at least 8 characters")
 
