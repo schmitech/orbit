@@ -370,9 +370,9 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
         className={`group relative flex w-full cursor-pointer items-center overflow-visible rounded-xl border px-3 py-2 text-left text-sm transition-all duration-150
           ${
             isActive
-              ? 'border-sky-400/80 bg-sky-50/70 shadow-[0_0_0_1px_rgba(14,165,233,0.08),0_4px_14px_rgba(15,23,42,0.06)] dark:border-sky-400/45 dark:bg-sky-950/30 dark:shadow-[0_0_0_1px_rgba(56,189,248,0.07),0_6px_18px_rgba(0,0,0,0.28)]'
+              ? 'border-[#3574e0]/70 bg-[#3574e0]/[0.07] shadow-[0_0_0_1px_rgba(53,116,224,0.1),0_4px_14px_rgba(15,23,42,0.06)] dark:border-[#3574e0]/50 dark:bg-[#1e4fa3]/20 dark:shadow-[0_0_0_1px_rgba(30,79,163,0.25),0_6px_18px_rgba(0,0,0,0.28)]'
               : 'border-transparent hover:border-slate-200/60 hover:bg-slate-50 dark:hover:border-white/[0.05] dark:hover:bg-[#212228]'
-          } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 dark:focus-visible:ring-sky-400/40`}
+          } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3574e0]/50 dark:focus-visible:ring-[#3574e0]/40`}
         aria-current={isActive ? 'true' : undefined}
         aria-label={t('sidebar.conversationCard.openAriaLabel', { title: displayTitle })}
       >
@@ -388,7 +388,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
             }}
             onBlur={() => handleEditSubmit(conversation.id)}
             maxLength={MAX_TITLE_LENGTH}
-            className="relative z-10 flex-1 rounded-lg border border-sky-300 bg-white px-2 py-1 text-sm text-[#353740] focus:outline-none focus:ring-2 focus:ring-sky-400/50 dark:border-sky-500/40 dark:bg-[#1a1b1e] dark:text-[#ececf1]"
+            className="relative z-10 flex-1 rounded-lg border border-[#3574e0]/50 bg-white px-2 py-1 text-sm text-[#353740] focus:outline-none focus:ring-2 focus:ring-[#3574e0]/50 dark:border-[#3574e0]/40 dark:bg-[#1a1b1e] dark:text-[#ececf1]"
             autoFocus
             aria-label={t('sidebar.conversationCard.editInputAriaLabel')}
           />
@@ -399,7 +399,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
                 {displayTitle}
               </h3>
               {agentLabel && (
-                <span className="block max-w-full truncate text-left text-xs font-medium tracking-wide text-blue-700 dark:text-blue-300">
+                <span className="block max-w-full truncate text-left text-xs font-medium tracking-wide text-[#3574e0] dark:text-[#7ba3e8]">
                   {agentLabel}
                 </span>
               )}
@@ -567,7 +567,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
           {/* Search */}
           {hasSearchableConversations && (
           <div className="border-t border-gray-200 pt-4 mt-4 dark:border-[#2d2f39]">
-            <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.94))] shadow-[0_10px_28px_rgba(15,23,42,0.05)] transition-all duration-200 focus-within:border-sky-300/90 focus-within:shadow-[0_0_0_1px_rgba(125,211,252,0.55),0_10px_28px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(37,39,49,0.95),rgba(29,31,39,0.92))] dark:shadow-[0_12px_30px_rgba(0,0,0,0.2)] dark:focus-within:border-sky-400/30 dark:focus-within:shadow-[0_0_0_1px_rgba(56,189,248,0.22),0_12px_30px_rgba(0,0,0,0.2)]">
+            <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.94))] shadow-[0_10px_28px_rgba(15,23,42,0.05)] transition-all duration-200 focus-within:border-[#3574e0]/60 focus-within:shadow-[0_0_0_1px_rgba(53,116,224,0.45),0_10px_28px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(37,39,49,0.95),rgba(29,31,39,0.92))] dark:shadow-[0_12px_30px_rgba(0,0,0,0.2)] dark:focus-within:border-[#3574e0]/40 dark:focus-within:shadow-[0_0_0_1px_rgba(30,79,163,0.5),0_12px_30px_rgba(0,0,0,0.2)]">
               <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0))]" />
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <input
@@ -587,7 +587,7 @@ export function Sidebar({ onRequestClose, onToggleDesktopSidebar }: SidebarProps
                     setSearchQuery('');
                     searchInputRef.current?.focus();
                   }}
-                  className="absolute right-3 top-1/2 z-10 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-400 transition-colors hover:border-slate-300 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-500 dark:hover:border-white/20 dark:hover:text-slate-200 dark:focus:ring-sky-500/20"
+                  className="absolute right-3 top-1/2 z-10 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-400 transition-colors hover:border-slate-300 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#3574e0]/30 dark:border-white/10 dark:bg-white/5 dark:text-slate-500 dark:hover:border-white/20 dark:hover:text-slate-200 dark:focus:ring-[#3574e0]/25"
                   aria-label={t('sidebar.search.clearAriaLabel')}
                 >
                   <X className="h-3.5 w-3.5" />

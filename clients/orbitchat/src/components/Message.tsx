@@ -430,7 +430,7 @@ export function Message({
 
   const userMarkdownClass = useMemo(
     () =>
-      ['message-markdown w-full min-w-0', 'prose dark:prose-invert max-w-none', forcedThemeClass]
+      ['message-markdown w-full min-w-0', 'prose max-w-none', forcedThemeClass]
         .filter(Boolean)
         .join(' '),
     [forcedThemeClass]
@@ -558,7 +558,7 @@ export function Message({
 
   const bubbleClasses = isAssistant
     ? 'message-bubble message-bubble-assistant min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
-    : 'message-bubble message-bubble-user inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] border border-black/[0.06] bg-[#f4f4f4] px-4 py-3 text-[#111827] shadow-[0_1px_2px_rgba(16,24,40,0.06)] dark:border-white/[0.08] dark:bg-[#2a2a2a] dark:text-[#f5f5f5] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]';
+    : 'message-bubble message-bubble-user inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] border border-[#2f6fd6]/10 bg-[#3574e0] px-4 py-3 text-white shadow-[0_1px_2px_rgba(21,60,132,0.18)] dark:border-white/[0.06] dark:bg-[#1e4fa3] dark:text-[#eef3ff] dark:shadow-[0_1px_3px_rgba(0,0,0,0.35)]';
 
   const markCopied = useCallback(() => {
     setCopied(true);
@@ -1008,7 +1008,7 @@ export function Message({
             <div className="flex flex-col gap-2">
               <textarea
                 ref={editTextareaRef}
-                className="w-full resize-none overflow-hidden bg-transparent outline-none text-[#111827] dark:text-[#f5f5f5] leading-relaxed"
+                className="w-full resize-none overflow-hidden bg-transparent outline-none text-white placeholder-white/50 leading-relaxed"
                 value={editContent}
                 onChange={e => setEditContent(e.target.value)}
                 onCompositionStart={() => setIsEditComposing(true)}
@@ -1030,20 +1030,20 @@ export function Message({
                 style={{ minHeight: '24px' }}
               />
               <div className="flex items-center justify-between gap-2 mt-1">
-                <span className="text-xs text-gray-400 dark:text-[#6e6e80]">{t('message.edit.willRegenerateHint')}</span>
+                <span className="text-xs text-white/60">{t('message.edit.willRegenerateHint')}</span>
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
                       setIsEditing(false);
                       setEditContent(message.content || '');
                     }}
-                    className="px-3 py-1.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-[#4a4b54] dark:text-gray-200 dark:hover:bg-[#565869] transition-colors"
+                    className="px-3 py-1.5 text-xs font-medium rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors"
                   >
                     {t('common.cancel')}
                   </button>
                   <button
                     onClick={handleEditSubmit}
-                    className="px-3 py-1.5 text-xs font-medium rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                    className="px-3 py-1.5 text-xs font-medium rounded-full bg-white text-[#1e4fa3] hover:bg-white/90 transition-colors flex items-center gap-1.5"
                   >
                     <ArrowUp className="w-3.5 h-3.5" />
                     {t('common.send')}

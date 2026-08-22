@@ -1,7 +1,7 @@
 {
   "name": "orbitchat",
   "private": false,
-  "version": "3.13.16",
+  "version": "3.13.17",
   "type": "module",
   "bin": {
     "orbitchat": "./bin/orbitchat.js",

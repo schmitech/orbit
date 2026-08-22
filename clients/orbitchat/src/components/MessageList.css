@@ -50,6 +50,56 @@
   line-height: 1.7;
 }
 
+/* The bubble background is always the blue accent, in both themes, so
+   markdown text inside it must stay white regardless of the app theme —
+   overriding the global .prose rules that otherwise hardcode #353740. */
+.message-list .message-bubble.message-bubble-user .message-markdown p,
+.message-list .message-bubble.message-bubble-user .message-markdown li,
+.message-list .message-bubble.message-bubble-user .message-markdown h1,
+.message-list .message-bubble.message-bubble-user .message-markdown h2,
+.message-list .message-bubble.message-bubble-user .message-markdown h3,
+.message-list .message-bubble.message-bubble-user .message-markdown h4,
+.message-list .message-bubble.message-bubble-user .message-markdown h5,
+.message-list .message-bubble.message-bubble-user .message-markdown h6,
+.message-list .message-bubble.message-bubble-user .message-markdown strong,
+.message-list .message-bubble.message-bubble-user .message-markdown em,
+.message-list .message-bubble.message-bubble-user .message-markdown blockquote,
+.message-list .message-bubble.message-bubble-user .message-markdown th,
+.message-list .message-bubble.message-bubble-user .message-markdown td {
+  color: #ffffff;
+}
+
+.message-list .message-bubble.message-bubble-user .message-markdown a {
+  color: #eef3ff;
+  text-decoration-color: rgba(238, 243, 255, 0.5);
+}
+
+.message-list .message-bubble.message-bubble-user .message-markdown pre,
+.message-list .message-bubble.message-bubble-user .message-markdown code {
+  background-color: rgba(0, 0, 0, 0.18);
+  color: #ffffff;
+}
+
+.message-list .message-bubble.message-bubble-user .message-markdown blockquote {
+  background-color: rgba(0, 0, 0, 0.12);
+  border-left-color: rgba(255, 255, 255, 0.35);
+}
+
+.message-list .message-bubble.message-bubble-user .message-markdown th,
+.message-list .message-bubble.message-bubble-user .message-markdown td {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.message-list .message-bubble.message-bubble-user .message-markdown thead,
+.message-list .message-bubble.message-bubble-user .message-markdown tbody tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.message-list .message-bubble.message-bubble-user .message-markdown tbody tr:hover,
+.message-list .message-bubble.message-bubble-user .message-markdown tbody tr:active {
+  background-color: rgba(0, 0, 0, 0.18);
+}
+
 .message-list .message-markdown p,
 .message-list .message-markdown li,
 .message-list .message-markdown blockquote {

@@ -255,7 +255,7 @@ export function AgentSelectionList({
       {(eyebrow || title || subtitle) && (
         <div className="flex-shrink-0">
           {eyebrow && (
-            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#3574e0] dark:text-[#7ba3e8]">
               {eyebrow}
             </p>
           )}
@@ -291,7 +291,7 @@ export function AgentSelectionList({
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 z-10 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-400 transition-colors hover:border-slate-300 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-500 dark:hover:border-white/20 dark:hover:text-slate-200 dark:focus:ring-sky-500/20"
+              className="absolute right-3 top-1/2 z-10 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-400 transition-colors hover:border-slate-300 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#3574e0]/30 dark:border-white/10 dark:bg-white/5 dark:text-slate-500 dark:hover:border-white/20 dark:hover:text-slate-200 dark:focus:ring-[#3574e0]/25"
               aria-label={t('agentSelectionList.clearSearchAriaLabel')}
             >
               <X className="h-3.5 w-3.5" />
