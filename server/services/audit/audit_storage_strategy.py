@@ -348,7 +348,12 @@ class AuditStorageStrategy(ABC):
                 _GROUP_BY_FIELDS); an unrecognized value yields no groups.
                 Grouping by "api_key" groups on the masked key stored on the
                 record, not the key itself.
-            filters: Optional extra equality filters (e.g. {'provider': 'openai'})
+            filters: Optional extra equality filters (e.g. {'provider': 'openai'}).
+                Accepted keys are backend-specific (see _FILTERABLE_DIMENSIONS on
+                each strategy) but always include "provider", "adapter_name",
+                "model", "call_type", and "api_key" — the last matched against
+                the masked key, same as the "api_key" group_by dimension.
+                Unrecognized keys are silently ignored, never interpolated.
             limit_groups: Max number of distinct groups to return, ranked by cost
 
         Returns:

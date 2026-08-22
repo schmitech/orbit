@@ -214,6 +214,11 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         "api_key": "api_key_value",
     }
 
+    # Dimensions accepted in `filters`. Reuses _GROUP_BY_FIELDS for the
+    # logical-name -> column mapping; user_id is groupable but not (yet)
+    # filterable, so it is deliberately excluded here.
+    _FILTERABLE_DIMENSIONS = {"provider", "adapter_name", "model", "call_type", "api_key"}
+
     async def aggregate_usage(
         self,
         since: str,
@@ -242,13 +247,14 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         where_clauses = ["timestamp >= ?", "timestamp < ?"]
         params: List[Any] = [since, until]
         for key, value in (filters or {}).items():
-            if key not in {"provider", "adapter_name", "model", "call_type"}:
+            if key not in self._FILTERABLE_DIMENSIONS:
                 continue
             if key == "call_type" and value == "inference":
                 where_clauses.append("(call_type = ? OR call_type IS NULL)")
                 params.append(value)
                 continue
-            where_clauses.append(f"{key} = ?")
+            field = self._GROUP_BY_FIELDS[key]
+            where_clauses.append(f"{field} = ?")
             params.append(value)
         where_sql = " AND ".join(where_clauses)
 

@@ -1422,6 +1422,47 @@ class TestGroupByFieldMapping:
             assert "api_key.key" not in strategy._GROUP_BY_FIELDS, name
 
 
+class TestFilterFieldMapping:
+    """Every backend must accept the same logical filter dimension names,
+    reusing _GROUP_BY_FIELDS for the field mapping, and must not accept
+    filters outside that allowlist (e.g. user_id, which is groupable but not
+    filterable) or raw backend field names."""
+
+    _SHARED = ("provider", "adapter_name", "model", "call_type")
+
+    def _strategies(self):
+        from services.audit.sqlite_audit_strategy import SQLiteAuditStrategy
+        from services.audit.postgres_audit_strategy import PostgresAuditStrategy
+        from services.audit.mongodb_audit_strategy import MongoDBDAuditStrategy as MongoStrategy
+        from services.audit.elasticsearch_audit_strategy import ElasticsearchAuditStrategy
+        return [SQLiteAuditStrategy, PostgresAuditStrategy, MongoStrategy, ElasticsearchAuditStrategy]
+
+    @pytest.mark.unit
+    def test_api_key_is_filterable(self):
+        for strategy in self._strategies():
+            assert "api_key" in strategy._FILTERABLE_DIMENSIONS, strategy.__name__
+
+    @pytest.mark.unit
+    def test_shared_dimensions_are_filterable(self):
+        for strategy in self._strategies():
+            for dimension in self._SHARED:
+                assert dimension in strategy._FILTERABLE_DIMENSIONS, f"{strategy.__name__}:{dimension}"
+
+    @pytest.mark.unit
+    def test_user_id_is_not_filterable(self):
+        """user_id is a valid group_by dimension but was never added to the
+        filter allowlist — reusing _GROUP_BY_FIELDS for the field mapping
+        must not silently widen what's filterable."""
+        for strategy in self._strategies():
+            assert "user_id" not in strategy._FILTERABLE_DIMENSIONS, strategy.__name__
+
+    @pytest.mark.unit
+    def test_every_filterable_dimension_has_a_field_mapping(self):
+        for strategy in self._strategies():
+            for dimension in strategy._FILTERABLE_DIMENSIONS:
+                assert dimension in strategy._GROUP_BY_FIELDS, f"{strategy.__name__}:{dimension}"
+
+
 class TestAggregateUsage:
     """SQLite aggregate_usage: bucketing, group-by, unpriced counting, window exclusion."""
 
@@ -1526,6 +1567,58 @@ class TestAggregateUsage:
         assert groups["...bbb222"]['cost_usd'] == pytest.approx(0.05)
         # Ranked by cost — the more expensive key leads.
         assert result['groups'][0]['key'] == "...bbb222"
+
+    @pytest.mark.asyncio
+    async def test_aggregate_usage_filters_by_api_key(self, sqlite_service_with_audit):
+        """Filtering by `api_key` (the masked value) must narrow totals to
+        just that key's rows, matching the corresponding group's row from
+        the unfiltered aggregate."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+        base = {"query": "q", "response": "r", "provider": "openai", "blocked": False, "ip": "127.0.0.1",
+                "timestamp": datetime(2026, 1, 1, 10, 0, 0), "model": "gpt-4o-mini",
+                "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        await self._seed(audit_service, [
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00"}, "cost_usd": 0.01},
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00"}, "cost_usd": 0.02},
+            {**base, "api_key": {"key": "...bbb222", "timestamp": "2026-01-01T10:00:00"}, "cost_usd": 0.05},
+        ])
+
+        unfiltered = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00", group_by="api_key",
+        )
+        target_group = next(g for g in unfiltered['groups'] if g['key'] == "...aaa111")
+
+        filtered = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00",
+            filters={"api_key": "...aaa111"},
+        )
+
+        assert filtered['totals']['requests'] == target_group['requests'] == 2
+        assert filtered['totals']['cost_usd'] == pytest.approx(target_group['cost_usd']) == pytest.approx(0.03)
+
+    @pytest.mark.asyncio
+    async def test_aggregate_usage_api_key_filter_composes_with_provider_filter(self, sqlite_service_with_audit):
+        """The api_key filter must narrow further within another active
+        filter, not replace it."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+        base = {"query": "q", "response": "r", "blocked": False, "ip": "127.0.0.1",
+                "timestamp": datetime(2026, 1, 1, 10, 0, 0), "model": "gpt-4o-mini",
+                "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00"},
+                "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        await self._seed(audit_service, [
+            {**base, "provider": "openai", "cost_usd": 0.01},
+            {**base, "provider": "anthropic", "cost_usd": 0.02},
+        ])
+
+        result = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00",
+            filters={"api_key": "...aaa111", "provider": "openai"},
+        )
+
+        assert result['totals']['requests'] == 1
+        assert result['totals']['cost_usd'] == pytest.approx(0.01)
 
     @pytest.mark.asyncio
     async def test_aggregate_usage_unknown_group_by_yields_no_groups(self, sqlite_service_with_audit):

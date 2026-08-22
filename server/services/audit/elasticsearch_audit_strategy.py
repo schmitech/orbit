@@ -441,6 +441,11 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         "api_key": "api_key.key",
     }
 
+    # Dimensions accepted in `filters`. Reuses _GROUP_BY_FIELDS for the
+    # logical-name -> field mapping; user_id is groupable but not (yet)
+    # filterable, so it is deliberately excluded here.
+    _FILTERABLE_DIMENSIONS = {"provider", "adapter_name", "model", "call_type", "api_key"}
+
     async def aggregate_usage(
         self,
         since: str,
@@ -456,16 +461,16 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
 
         must = [{"range": {"timestamp": {"gte": since, "lt": until}}}]
         for key, value in (filters or {}).items():
-            if key in {"provider", "adapter_name", "model"}:
-                must.append({"term": {key: value}})
-            elif key == "call_type":
-                if value == "inference":
-                    must.append({"bool": {"should": [
-                        {"term": {"call_type": "inference"}},
-                        {"bool": {"must_not": [{"exists": {"field": "call_type"}}]}},
-                    ], "minimum_should_match": 1}})
-                else:
-                    must.append({"term": {key: value}})
+            if key not in self._FILTERABLE_DIMENSIONS:
+                continue
+            if key == "call_type" and value == "inference":
+                must.append({"bool": {"should": [
+                    {"term": {"call_type": "inference"}},
+                    {"bool": {"must_not": [{"exists": {"field": "call_type"}}]}},
+                ], "minimum_should_match": 1}})
+                continue
+            field = self._GROUP_BY_FIELDS[key]
+            must.append({"term": {field: value}})
         query = {"bool": {"must": must}}
 
         sum_aggs = {

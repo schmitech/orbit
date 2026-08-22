@@ -142,7 +142,7 @@ No schema change — labeling is a read-time join, so
 `docs/sqlite-schema.md`, `docs/postgres-schema.md`, and
 `install/orbit.db.default` are unaffected this phase.
 
-## Phase 3 — Filter by API key
+## Phase 3 — Filter by API key — **done** (2026-08-21)
 
 Grouping answers "who spends the most"; filtering answers "what does this one
 client spend over time". Today the filter allowlist in each strategy is
@@ -164,6 +164,32 @@ adding a second dropdown.
 - Verify: the filter composes with the existing `provider` / `adapter_name` /
   `call_type` filters rather than replacing them.
 - Verify: clicking a group row narrows the page and the chip clears it.
+
+**As shipped.** Each strategy gained `_FILTERABLE_DIMENSIONS = {"provider",
+"adapter_name", "model", "call_type", "api_key"}`, deliberately excluding
+`user_id` (groupable, never filterable, before or after this phase) even
+though it lives in `_GROUP_BY_FIELDS`; the field name for an allowed key
+comes from `_GROUP_BY_FIELDS[key]`, so `api_key` resolves to `api_key_value`
+/ `api_key.key` exactly as grouping does. The route gained an `api_key` query
+param, matched against the masked value (e.g. `...abc123`) and composed with
+the existing filters into the same `filters` dict — no precedence changes
+needed since each strategy already ANDs/`$match`es every filter key present.
+
+In `costs.js`, both the bar chart and the doughnut chart become clickable
+only when `group_by === "api_key"` (a row's `key` is only meaningful as an
+`api_key` filter value for that dimension); a click sets the filter and
+shows a dismissable chip above the charts. Switching `group_by` away and
+back leaves the filter in place — it is independent state, matching the
+"composes with other filters" contract.
+
+- [Backend] `TestFilterFieldMapping` unit tests assert `api_key` is filterable
+  on all four backends, the four pre-existing dimensions remain filterable,
+  and `user_id` is not. Live-SQLite tests confirm a filtered aggregate's
+  totals equal the corresponding unfiltered group's row, and that the
+  `api_key` filter composes with a `provider` filter (AND, not OR/replace).
+- [Route] tests assert the `api_key` query param reaches
+  `aggregate_usage(filters=...)` correctly, alone and combined with
+  `provider`/`call_type`.
 
 ## Phase 4 — Stable key identity
 

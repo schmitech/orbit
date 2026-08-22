@@ -236,6 +236,11 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         "api_key": "api_key.key",
     }
 
+    # Dimensions accepted in `filters`. Reuses _GROUP_BY_FIELDS for the
+    # logical-name -> field mapping; user_id is groupable but not (yet)
+    # filterable, so it is deliberately excluded here.
+    _FILTERABLE_DIMENSIONS = {"provider", "adapter_name", "model", "call_type", "api_key"}
+
     async def aggregate_usage(
         self,
         since: str,
@@ -253,13 +258,13 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
 
         match: Dict[str, Any] = {"timestamp": {"$gte": since, "$lt": until}}
         for key, value in (filters or {}).items():
-            if key in {"provider", "adapter_name", "model"}:
-                match[key] = value
-            elif key == "call_type":
-                if value == "inference":
-                    match.setdefault("$or", []).append({"call_type": {"$in": ["inference", None]}})
-                else:
-                    match[key] = value
+            if key not in self._FILTERABLE_DIMENSIONS:
+                continue
+            if key == "call_type" and value == "inference":
+                match.setdefault("$or", []).append({"call_type": {"$in": ["inference", None]}})
+                continue
+            field = self._GROUP_BY_FIELDS[key]
+            match[field] = value
 
         totals_pipeline = [
             {"$match": match},

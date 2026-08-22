@@ -3,6 +3,8 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
   let selectedWindowDays = 7;
   let selectedGroupBy = "model";
   let selectedCallType = "all";
+  let selectedApiKey = null;
+  let selectedApiKeyLabel = null;
 
   function dispose() {
     Object.keys(charts).forEach((key) => { try { charts[key].destroy(); } catch (_) {} });
@@ -80,7 +82,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
     return label;
   }
 
-  function initCharts(data) {
+  function initCharts(data, onGroupRowClick) {
     dispose();
     if (typeof Chart === "undefined") return;
 
@@ -123,10 +125,23 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
 
     const modelsCanvas = document.getElementById("obs-models-chart");
     const groupRows = data.groups.slice(0, 10);
+    // Rows are only clickable-to-filter when grouped by api_key — a group
+    // row's `key` is the masked value the `api_key` filter param expects,
+    // which is only true for this dimension.
+    const clickable = typeof onGroupRowClick === "function" && selectedGroupBy === "api_key";
+    const handleElementClick = (elements) => {
+      if (!clickable || !elements.length) return;
+      const row = groupRows[elements[0].index];
+      if (row) onGroupRowClick(row);
+    };
     if (modelsCanvas && groupRows.length) {
       const modelOpts = configureCostTooltip(chartOptions());
       modelOpts.indexAxis = "y";
       modelOpts.plugins.legend.display = false;
+      if (clickable) {
+        modelOpts.onClick = (_evt, elements) => handleElementClick(elements);
+        modelOpts.onHover = (evt, elements) => { evt.native.target.style.cursor = elements.length ? "pointer" : "default"; };
+      }
       charts.models = new Chart(modelsCanvas, {
         type: "bar",
         data: {
@@ -140,13 +155,18 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
     const providerCanvas = document.getElementById("obs-provider-chart");
     if (providerCanvas && groupRows.length) {
       const providerOpts = configureCostTooltip(chartOptions());
+      const doughnutOptions = { responsive: true, maintainAspectRatio: false, cutout: "68%", plugins: providerOpts.plugins };
+      if (clickable) {
+        doughnutOptions.onClick = (_evt, elements) => handleElementClick(elements);
+        doughnutOptions.onHover = (evt, elements) => { evt.native.target.style.cursor = elements.length ? "pointer" : "default"; };
+      }
       charts.provider = new Chart(providerCanvas, {
         type: "doughnut",
         data: {
           labels: groupRows.map((row) => row.label || row.key || "(unknown)"),
           datasets: [{ data: groupRows.map((row) => row.cost_usd), backgroundColor: ["#5794f2", "#28a66a", "#e0a22f", "#e05260", "#9b7ede", "#4fb8b0", "#f28cb1", "#c0ca33", "#8d6e63", "#78909c"], borderWidth: 0, hoverOffset: 4 }]
         },
-        options: { responsive: true, maintainAspectRatio: false, cutout: "68%", plugins: providerOpts.plugins }
+        options: doughnutOptions
       });
     }
   }
@@ -194,9 +214,44 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         )
       )
     );
+    const chipRow = el("div", { id: "obs-filter-chip-row", style: "display:none" });
     const content = el("div", { style: "display:grid;gap:var(--sp-4)" }, skeleton());
     container.appendChild(header);
+    container.appendChild(chipRow);
     container.appendChild(content);
+
+    function renderApiKeyChip() {
+      clear(chipRow);
+      if (!selectedApiKey) {
+        chipRow.style.display = "none";
+        return;
+      }
+      chipRow.style.display = "block";
+      const chip = el("span", {
+        className: "select-input",
+        style: "display:inline-flex;align-items:center;gap:var(--sp-2);padding:4px 10px;border-radius:999px"
+      },
+        el("span", null, "Filtered to: " + (selectedApiKeyLabel || selectedApiKey)),
+        el("button", {
+          type: "button",
+          "aria-label": "Clear API key filter",
+          style: "border:none;background:none;cursor:pointer;font-weight:600;padding:0 0 0 4px"
+        }, "×")
+      );
+      chip.querySelector("button").addEventListener("click", () => {
+        selectedApiKey = null;
+        selectedApiKeyLabel = null;
+        load();
+      });
+      chipRow.appendChild(chip);
+    }
+    renderApiKeyChip();
+
+    function onGroupRowClick(row) {
+      selectedApiKey = row.key;
+      selectedApiKeyLabel = row.label || row.key;
+      load();
+    }
 
     async function load() {
       const version = ++requestVersion;
@@ -205,6 +260,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         button.setAttribute("aria-pressed", button.textContent === label ? "true" : "false");
       });
       dispose();
+      renderApiKeyChip();
       clear(content);
       content.appendChild(skeleton());
       try {
@@ -213,6 +269,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         params.set("bucket", selectedWindowDays <= 1 ? "hour" : "day");
         params.set("group_by", selectedGroupBy);
         if (selectedCallType !== "all") params.set("call_type", selectedCallType);
+        if (selectedApiKey) params.set("api_key", selectedApiKey);
         const data = await api("GET", endpoints.costsUsage + "?" + params.toString());
         if (version !== requestVersion || getActiveTab() !== "costs") return;
         clear(content);
@@ -247,7 +304,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
             el("p", null, "No usage recorded for this selection in this time window.")));
         }
 
-        initCharts(data);
+        initCharts(data, onGroupRowClick);
       } catch (err) {
         if (version !== requestVersion || getActiveTab() !== "costs") return;
         clear(content);

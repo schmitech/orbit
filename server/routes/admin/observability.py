@@ -84,6 +84,7 @@ async def get_observability_usage(
     provider: Optional[str] = Query(None),
     adapter_name: Optional[str] = Query(None),
     call_type: Optional[str] = Query(None, pattern="^(inference|embedding|reranking|image|video|audio|document)$"),
+    api_key: Optional[str] = Query(None),
     limit_groups: int = Query(10, ge=1, le=100),
 ):
     """
@@ -98,6 +99,11 @@ async def get_observability_usage(
     a masked suffix, `label` is null and `ambiguous` is set instead of
     guessing. Rows with no matching active key have no `label` field at
     all — the caller falls back to the masked `key`.
+
+    `api_key` (the filter param) narrows the whole response — totals, series,
+    and groups — to one key, identified by its masked value exactly as
+    returned in a group row's `key` (e.g. `...abc123`); it composes with the
+    other filters rather than replacing them.
 
     Reuses the audit.read permission (the same dependency that gates
     /admin/audit/events) — it already grants reading full inference
@@ -134,6 +140,8 @@ async def get_observability_usage(
         # inference filter intentionally follows the audit-events endpoint's
         # semantics, where NULL is interpreted as inference by the backend.
         filters["call_type"] = call_type
+    if api_key:
+        filters["api_key"] = api_key
 
     result = await audit_service.aggregate_usage(
         since=since,

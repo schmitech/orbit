@@ -159,6 +159,30 @@ def test_observability_usage_filters_and_groups_by_call_type():
     assert audit_service.last_call_kwargs["filters"] == {"call_type": "embedding"}
 
 
+def test_observability_usage_filters_by_api_key():
+    audit_service = FakeAuditService()
+    app = _build_app(["admin"], audit_service=audit_service)
+    with TestClient(app) as client:
+        resp = client.get("/admin/observability/usage?api_key=...aaa111")
+
+    assert resp.status_code == 200
+    assert audit_service.last_call_kwargs["filters"] == {"api_key": "...aaa111"}
+
+
+def test_observability_usage_api_key_filter_composes_with_other_filters():
+    audit_service = FakeAuditService()
+    app = _build_app(["admin"], audit_service=audit_service)
+    with TestClient(app) as client:
+        resp = client.get(
+            "/admin/observability/usage?api_key=...aaa111&provider=openai&call_type=embedding"
+        )
+
+    assert resp.status_code == 200
+    assert audit_service.last_call_kwargs["filters"] == {
+        "provider": "openai", "call_type": "embedding", "api_key": "...aaa111",
+    }
+
+
 def test_observability_usage_groups_by_api_key():
     audit_service = FakeAuditService()
     app = _build_app(["admin"], audit_service=audit_service)
