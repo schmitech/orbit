@@ -202,22 +202,47 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error querying audit records from SQLite: {e}")
             return []
 
-    # Logical group-by dimension -> the column that actually holds it. Most are
-    # identity mappings; api_key is stored flattened as api_key_value (the
-    # masked key), so the logical name and the column name diverge.
+    # Logical group-by dimension -> the column that actually holds it. Most
+    # are identity mappings; api_key is handled separately by
+    # _resolve_dimension_field, since its expression depends on the
+    # (configurable) table name.
     _GROUP_BY_FIELDS = {
         "model": "model",
         "provider": "provider",
         "adapter_name": "adapter_name",
         "user_id": "user_id",
         "call_type": "call_type",
-        "api_key": "api_key_value",
     }
 
-    # Dimensions accepted in `filters`. Reuses _GROUP_BY_FIELDS for the
-    # logical-name -> column mapping; user_id is groupable but not (yet)
-    # filterable, so it is deliberately excluded here.
+    # Dimensions accepted in `filters`. Reuses _resolve_dimension_field for
+    # the logical-name -> column/expression mapping; user_id is groupable
+    # but not (yet) filterable, so it is deliberately excluded here.
     _FILTERABLE_DIMENSIONS = {"provider", "adapter_name", "model", "call_type", "api_key"}
+
+    def _resolve_dimension_field(self, dimension: str) -> Optional[str]:
+        """Return the SQL expression backing a logical dimension, for both
+        grouping and equality filtering.
+
+        api_key needs more than COALESCE(api_key_id, api_key_value): a key
+        that already has an id-bearing row (any row, not just ones in the
+        current window) must have ALL of its rows — including older ones
+        written before api_key_id existed, which only carry the masked
+        value — resolve to that same id. Otherwise legacy and new rows for
+        the one underlying key split into two groups, and filtering by the
+        id a group row exposes silently omits that key's legacy spend.
+        The self-join below finds that id when this row doesn't carry its
+        own; a key that has never written an id-bearing row still falls
+        back to its masked value, unchanged from before.
+        """
+        if dimension == "api_key":
+            return (
+                f"COALESCE({self._collection_name}.api_key_id, "
+                f"(SELECT sub.api_key_id FROM {self._collection_name} sub "
+                f"WHERE sub.api_key_value = {self._collection_name}.api_key_value "
+                f"AND sub.api_key_id IS NOT NULL LIMIT 1), "
+                f"{self._collection_name}.api_key_value)"
+            )
+        return self._GROUP_BY_FIELDS.get(dimension)
 
     async def aggregate_usage(
         self,
@@ -242,7 +267,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         # by day, substr(timestamp,1,13) buckets by hour (both index-friendly
         # alongside the range predicate below).
         bucket_expr = "substr(timestamp,1,13)" if bucket == "hour" else "substr(timestamp,1,10)"
-        group_column = self._GROUP_BY_FIELDS.get(group_by)
+        group_column = self._resolve_dimension_field(group_by)
 
         where_clauses = ["timestamp >= ?", "timestamp < ?"]
         params: List[Any] = [since, until]
@@ -253,7 +278,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
                 where_clauses.append("(call_type = ? OR call_type IS NULL)")
                 params.append(value)
                 continue
-            field = self._GROUP_BY_FIELDS[key]
+            field = self._resolve_dimension_field(key)
             where_clauses.append(f"{field} = ?")
             params.append(value)
         where_sql = " AND ".join(where_clauses)
@@ -395,6 +420,8 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
                 'key': flat_record.get('api_key_value'),
                 'timestamp': flat_record.get('api_key_timestamp')
             }
+            if flat_record.get('api_key_id'):
+                result['api_key']['id'] = flat_record.get('api_key_id')
 
         # Add optional fields
         if flat_record.get('session_id'):

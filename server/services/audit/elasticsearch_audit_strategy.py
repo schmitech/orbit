@@ -169,7 +169,8 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                             "api_key": {
                                 "properties": {
                                     "key": {"type": "keyword"},
-                                    "timestamp": {"type": "date"}
+                                    "timestamp": {"type": "date"},
+                                    "id": {"type": "keyword"}
                                 }
                             },
                             "session_id": {"type": "keyword"},
@@ -235,6 +236,20 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             logger.warning(
                 f"Failed to ensure usage-field mapping on {self._index_name} "
                 f"(non-fatal, existing dynamic mapping may mistype cost_usd): {e}"
+            )
+
+        try:
+            # Adds api_key.id to pre-existing indexes created before Phase 4
+            # of docs/roadmap/costs-by-api-key.md — put_mapping can add a new
+            # sub-field to an already-mapped object field without a reindex.
+            await self._es_client.indices.put_mapping(
+                index=self._index_name,
+                properties={"api_key": {"properties": {"id": {"type": "keyword"}}}},
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to ensure api_key.id mapping on {self._index_name} "
+                f"(non-fatal, the api_key group_by/filter falls back to the masked key): {e}"
             )
 
     async def store(self, record: AuditRecord) -> bool:
@@ -430,21 +445,80 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             return False
 
     # Logical group-by dimension -> the indexed field that actually holds it.
-    # Most are identity mappings; api_key is indexed as an object, so it
-    # resolves to the dotted path of the masked key's keyword subfield.
+    # Most are identity mappings; api_key is handled separately (see
+    # _fetch_api_key_masked_to_id_map / the groups terms script below).
     _GROUP_BY_FIELDS = {
         "model": "model",
         "provider": "provider",
         "adapter_name": "adapter_name",
         "user_id": "user_id",
         "call_type": "call_type",
-        "api_key": "api_key.key",
     }
 
-    # Dimensions accepted in `filters`. Reuses _GROUP_BY_FIELDS for the
-    # logical-name -> field mapping; user_id is groupable but not (yet)
+    def _resolve_dimension_field(self, dimension: str) -> Optional[str]:
+        """Field backing a logical dimension, for dimensions other than
+        api_key (which is resolved via _fetch_api_key_masked_to_id_map)."""
+        return self._GROUP_BY_FIELDS.get(dimension)
+
+    # Dimensions accepted in `filters`. Reuses _resolve_dimension_field for
+    # the logical-name -> field mapping; user_id is groupable but not (yet)
     # filterable, so it is deliberately excluded here.
     _FILTERABLE_DIMENSIONS = {"provider", "adapter_name", "model", "call_type", "api_key"}
+
+    async def _fetch_api_key_masked_to_id_map(self) -> Dict[str, str]:
+        """Map every masked key that has EVER written an id-bearing row
+        (anywhere in the index, not just the current query's window) to
+        that id. Used to resolve legacy rows (masked value only) onto the
+        same identity as newer rows for the same underlying key — without
+        this, a key with both pre- and post-Phase-4 rows would split into
+        two groups, and an id-filtered view would miss its legacy spend.
+
+        Best-effort: an aggregation failure (e.g. api_key.id unmapped on an
+        older index whose put_mapping backfill failed) returns an empty
+        map, degrading to the masked-value-only behavior rather than
+        breaking the whole request.
+        """
+        try:
+            response = await self._es_client.search(
+                index=self._index_name, size=0,
+                aggs={"by_masked": {
+                    "terms": {"field": "api_key.key", "size": 10000},
+                    "aggs": {"resolved_id": {"terms": {"field": "api_key.id", "size": 1}}},
+                }},
+            )
+        except Exception as e:
+            logger.warning(f"Failed to build api_key masked-value-to-id map, falling back to masked-only: {e}")
+            return {}
+
+        masked_to_id: Dict[str, str] = {}
+        for bucket in response.get("aggregations", {}).get("by_masked", {}).get("buckets", []):
+            id_buckets = bucket.get("resolved_id", {}).get("buckets", [])
+            if id_buckets:
+                masked_to_id[bucket["key"]] = id_buckets[0]["key"]
+        return masked_to_id
+
+    @staticmethod
+    def _api_key_terms_script(masked_to_id: Dict[str, str]) -> Dict[str, Any]:
+        """Painless script for the "groups" terms agg when group_by ==
+        "api_key": prefer this doc's own stable id; else resolve its masked
+        key through `masked_to_id` (built from the whole index, so a legacy
+        row lands in the same bucket as this key's newer, id-bearing rows);
+        else fall back to the masked key itself. `doc.containsKey` guards
+        every field access so an older index whose api_key.id mapping
+        backfill (Phase 4's put_mapping) never succeeded still falls back
+        cleanly instead of throwing "no field found"."""
+        return {
+            "source": (
+                "if (doc.containsKey('api_key.id') && doc['api_key.id'].size() != 0) "
+                "{ return doc['api_key.id'].value; } "
+                "if (!doc.containsKey('api_key.key') || doc['api_key.key'].size() == 0) { return null; } "
+                "def keyVal = doc['api_key.key'].value; "
+                "def resolved = params.maskedToId.get(keyVal); "
+                "return resolved != null ? resolved : keyVal;"
+            ),
+            "lang": "painless",
+            "params": {"maskedToId": masked_to_id},
+        }
 
     async def aggregate_usage(
         self,
@@ -459,6 +533,16 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         if not self._initialized or not self._es_client:
             raise NotImplementedError("Elasticsearch client not available for aggregation")
 
+        # The api_key dimension needs the whole-index masked-key/id map
+        # whether it's the active group_by or just a filter — otherwise a
+        # legacy row for a key that's since written an id-bearing row
+        # wouldn't be reachable by that id.
+        needs_api_key_resolution = group_by == "api_key" or "api_key" in (filters or {})
+        masked_to_id = await self._fetch_api_key_masked_to_id_map() if needs_api_key_resolution else {}
+        id_to_masked: Dict[str, List[str]] = {}
+        for masked, key_id in masked_to_id.items():
+            id_to_masked.setdefault(key_id, []).append(masked)
+
         must = [{"range": {"timestamp": {"gte": since, "lt": until}}}]
         for key, value in (filters or {}).items():
             if key not in self._FILTERABLE_DIMENSIONS:
@@ -469,7 +553,23 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                     {"bool": {"must_not": [{"exists": {"field": "call_type"}}]}},
                 ], "minimum_should_match": 1}})
                 continue
-            field = self._GROUP_BY_FIELDS[key]
+            if key == "api_key":
+                # `value` may be a stable id or a masked key (whichever a
+                # group row's "key" was). Match it directly on both fields,
+                # plus: any masked key known to resolve to `value` (in case
+                # `value` is an id and the matching row is a legacy,
+                # id-less one), and the id `value` resolves to if `value`
+                # is itself a masked key that has since gotten one.
+                candidate_ids = {value}
+                if value in masked_to_id and masked_to_id[value]:
+                    candidate_ids.add(masked_to_id[value])
+                candidate_keys = set(id_to_masked.get(value, [])) | {value}
+                must.append({"bool": {"should": [
+                    {"terms": {"api_key.id": sorted(candidate_ids)}},
+                    {"terms": {"api_key.key": sorted(candidate_keys)}},
+                ], "minimum_should_match": 1}})
+                continue
+            field = self._resolve_dimension_field(key)
             must.append({"term": {field: value}})
         query = {"bool": {"must": must}}
 
@@ -479,7 +579,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             "total_tokens": {"sum": {"field": "total_tokens"}},
             "cost_usd": {"sum": {"field": "cost_usd"}},
         }
-        group_column = self._GROUP_BY_FIELDS.get(group_by)
+        group_column = self._resolve_dimension_field(group_by)
         aggs = {
             **sum_aggs,
             "unpriced_requests": {"filter": {"bool": {"must": [
@@ -496,7 +596,15 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                 "aggs": sum_aggs,
             },
         }
-        if group_column:
+        if group_by == "api_key":
+            aggs["groups"] = {
+                "terms": {
+                    "script": self._api_key_terms_script(masked_to_id),
+                    "size": limit_groups, "order": {"cost_usd": "desc"},
+                },
+                "aggs": sum_aggs,
+            }
+        elif group_column:
             aggs["groups"] = {
                 "terms": {"field": group_column, "size": limit_groups, "order": {"cost_usd": "desc"}},
                 "aggs": sum_aggs,
@@ -521,7 +629,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         ]
 
         groups: List[Dict[str, Any]] = []
-        if group_column:
+        if group_by == "api_key" or group_column:
             for bucket_doc in es_aggs.get("groups", {}).get("buckets", []):
                 cost = bucket_doc.get("cost_usd", {}).get("value") or 0.0
                 groups.append({

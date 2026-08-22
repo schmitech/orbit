@@ -208,13 +208,19 @@ class AuditRecord:
             'ip_original_value': self.ip_metadata.get('originalValue', ''),
         }
 
-        # Flatten api_key if present
+        # Flatten api_key if present. api_key_id is the key document's stable
+        # _id (populated going forward — see AuditService.log_conversation),
+        # kept separate from api_key_value (the masked key, always present
+        # when api_key is) so historical rows without an id still group
+        # correctly on the masked value.
         if self.api_key:
             result['api_key_value'] = self.api_key.get('key', '')
             result['api_key_timestamp'] = self.api_key.get('timestamp', '')
+            result['api_key_id'] = self.api_key.get('id')
         else:
             result['api_key_value'] = None
             result['api_key_timestamp'] = None
+            result['api_key_id'] = None
 
         if self.session_id:
             result['session_id'] = self.session_id
@@ -346,13 +352,17 @@ class AuditStorageStrategy(ABC):
                 "adapter_name" | "user_id" | "call_type" | "api_key" | "none".
                 Each strategy maps it to its own backend field (see
                 _GROUP_BY_FIELDS); an unrecognized value yields no groups.
-                Grouping by "api_key" groups on the masked key stored on the
-                record, not the key itself.
+                Grouping by "api_key" prefers the stable, non-secret key
+                identifier recorded on the row (populated going forward —
+                see AuditService.log_conversation) and falls back to the
+                masked key for older rows that predate it; never the raw
+                key itself either way.
             filters: Optional extra equality filters (e.g. {'provider': 'openai'}).
                 Accepted keys are backend-specific (see _FILTERABLE_DIMENSIONS on
                 each strategy) but always include "provider", "adapter_name",
                 "model", "call_type", and "api_key" — the last matched against
-                the masked key, same as the "api_key" group_by dimension.
+                whichever of the stable identifier or masked key the group_by
+                dimension above would have produced for that row.
                 Unrecognized keys are silently ignored, never interpolated.
             limit_groups: Max number of distinct groups to return, ranked by cost
 

@@ -420,6 +420,71 @@ class TestAuditService:
         assert stored_api_key == "...mno345"
 
     @pytest.mark.asyncio
+    async def test_api_key_id_resolved_and_stored_when_api_key_service_wired(self, sqlite_config):
+        """When AuditService is given an api_key_service, log_conversation
+        must look up the raw key's document id and store it alongside the
+        masked value — the Phase 4 stable identifier."""
+        sqlite_service = SQLiteService(sqlite_config)
+        await sqlite_service.initialize()
+
+        full_api_key = "api_abc123def456ghi789jkl012mno345"
+        inserted_id = await sqlite_service.insert_one('api_keys', {
+            'api_key': full_api_key, 'client_name': 'Acme Corp', 'active': True,
+            'created_at': datetime(2026, 1, 1).isoformat(),
+        })
+
+        class _FakeApiKeyService:
+            def __init__(self, database):
+                self.database = database
+                self.collection_name = 'api_keys'
+
+        audit_service = AuditService(sqlite_config, sqlite_service, _FakeApiKeyService(sqlite_service))
+        await audit_service.initialize()
+
+        await audit_service.log_conversation(
+            query="Test query", response="Test response",
+            api_key=full_api_key, session_id="session_id_resolve_test",
+        )
+
+        results = await audit_service.query_audit_logs({'session_id': 'session_id_resolve_test'})
+        assert len(results) == 1
+        assert results[0]['api_key']['key'] == "...mno345"
+        assert results[0]['api_key']['id'] == str(inserted_id)
+
+        await audit_service.close()
+        sqlite_service.close()
+        SQLiteService.clear_cache()
+
+    @pytest.mark.asyncio
+    async def test_api_key_id_absent_when_key_not_found(self, sqlite_config):
+        """A raw key that doesn't match any api_keys document (e.g. it was
+        deleted after the request was authorized) must not block logging —
+        the record just falls back to masked-only, as if no lookup ran."""
+        sqlite_service = SQLiteService(sqlite_config)
+        await sqlite_service.initialize()
+
+        class _FakeApiKeyService:
+            def __init__(self, database):
+                self.database = database
+                self.collection_name = 'api_keys'
+
+        audit_service = AuditService(sqlite_config, sqlite_service, _FakeApiKeyService(sqlite_service))
+        await audit_service.initialize()
+
+        await audit_service.log_conversation(
+            query="Test query", response="Test response",
+            api_key="api_never_registered_key_000000", session_id="session_no_match_test",
+        )
+
+        results = await audit_service.query_audit_logs({'session_id': 'session_no_match_test'})
+        assert len(results) == 1
+        assert 'id' not in results[0]['api_key']
+
+        await audit_service.close()
+        sqlite_service.close()
+        SQLiteService.clear_cache()
+
+    @pytest.mark.asyncio
     async def test_disabled_audit_service(self, tmp_path):
         """Test that disabled audit service doesn't store records."""
         config = {
@@ -1375,9 +1440,15 @@ class TestUsageFieldsRoundTrip:
             'prompt_tokens', 'completion_tokens', 'total_tokens', 'reasoning_tokens',
             'cached_prompt_tokens',
             'cost_usd', 'input_rate_per_1m', 'output_rate_per_1m', 'pricing_source',
-            'usage_unit', 'usage_quantity',
+            'usage_unit', 'usage_quantity', 'api_key_id',
         ):
             assert expected in columns, f"migration did not add column {expected}"
+
+        # The migration must be additive, not merely column-present: an
+        # existing database must open and be queryable before any new row
+        # carrying api_key_id is ever written.
+        rows = await sqlite_service.find_many('audit_logs', {})
+        assert rows == []
 
         sqlite_service.close()
         SQLiteService.clear_cache()
@@ -1385,10 +1456,13 @@ class TestUsageFieldsRoundTrip:
 
 class TestGroupByFieldMapping:
     """Every backend must accept the same logical group-by dimension names and
-    map each to its own storage field. Verified directly on the mapping table
-    so Postgres/MongoDB/Elasticsearch are covered without a live server."""
+    resolve each to its own storage field/expression. Verified directly on
+    the mapping (via _resolve_dimension_field, uniform across all four
+    strategies since Phase 4) so Postgres/MongoDB/Elasticsearch are covered
+    without a live server."""
 
     _SHARED = ("model", "provider", "adapter_name", "user_id", "call_type")
+    _MINIMAL_CONFIG = {'internal_services': {'audit': {}}}
 
     def _strategies(self):
         from services.audit.sqlite_audit_strategy import SQLiteAuditStrategy
@@ -1396,39 +1470,53 @@ class TestGroupByFieldMapping:
         from services.audit.mongodb_audit_strategy import MongoDBDAuditStrategy as MongoStrategy
         from services.audit.elasticsearch_audit_strategy import ElasticsearchAuditStrategy
         return {
-            "sqlite": (SQLiteAuditStrategy, "api_key_value"),
-            "postgres": (PostgresAuditStrategy, "api_key_value"),
-            "mongodb": (MongoStrategy, "api_key.key"),
-            "elasticsearch": (ElasticsearchAuditStrategy, "api_key.key"),
+            "sqlite": SQLiteAuditStrategy(self._MINIMAL_CONFIG),
+            "postgres": PostgresAuditStrategy(self._MINIMAL_CONFIG),
+            "mongodb": MongoStrategy(self._MINIMAL_CONFIG),
+            "elasticsearch": ElasticsearchAuditStrategy(self._MINIMAL_CONFIG),
         }
 
     @pytest.mark.unit
-    def test_api_key_maps_to_backend_field(self):
-        for name, (strategy, expected_field) in self._strategies().items():
-            assert strategy._GROUP_BY_FIELDS["api_key"] == expected_field, name
+    def test_api_key_field_resolution(self):
+        """SQLite/Postgres resolve api_key to a self-joining COALESCE
+        expression (Phase 4 — merges legacy masked-only rows onto a newer
+        row's stable id for the same key) via _resolve_dimension_field.
+        Mongo/Elasticsearch resolve it via their own pipeline-level
+        mechanisms instead (a $lookup stage / a precomputed masked-to-id
+        map respectively — see the aggregate_usage tests), so
+        _resolve_dimension_field intentionally returns None for them."""
+        for name in ("sqlite", "postgres"):
+            field = self._strategies()[name]._resolve_dimension_field("api_key")
+            assert "api_key_id" in field and "api_key_value" in field and "SELECT" in field, name
+        for name in ("mongodb", "elasticsearch"):
+            assert self._strategies()[name]._resolve_dimension_field("api_key") is None, name
 
     @pytest.mark.unit
     def test_shared_dimensions_are_identity_mappings(self):
-        for name, (strategy, _) in self._strategies().items():
+        for name, strategy in self._strategies().items():
             for dimension in self._SHARED:
-                assert strategy._GROUP_BY_FIELDS[dimension] == dimension, f"{name}:{dimension}"
+                assert strategy._resolve_dimension_field(dimension) == dimension, f"{name}:{dimension}"
 
     @pytest.mark.unit
     def test_backend_field_names_are_not_accepted_as_dimensions(self):
         """The mapping is one-way: a caller passing the raw storage field name
         must not be able to reach it, so the API surface stays backend-agnostic."""
-        for name, (strategy, _) in self._strategies().items():
+        for name, strategy in self._strategies().items():
             assert "api_key_value" not in strategy._GROUP_BY_FIELDS, name
             assert "api_key.key" not in strategy._GROUP_BY_FIELDS, name
+            assert "api_key_id" not in strategy._GROUP_BY_FIELDS, name
 
 
 class TestFilterFieldMapping:
     """Every backend must accept the same logical filter dimension names,
-    reusing _GROUP_BY_FIELDS for the field mapping, and must not accept
-    filters outside that allowlist (e.g. user_id, which is groupable but not
-    filterable) or raw backend field names."""
+    reusing _resolve_dimension_field for non-api_key fields, and must not
+    accept filters outside that allowlist (e.g. user_id, which is groupable
+    but not filterable) or raw backend field names. api_key itself is
+    special-cased inside each aggregate_usage (see the mixed-legacy/new-row
+    tests), not resolved through this method."""
 
     _SHARED = ("provider", "adapter_name", "model", "call_type")
+    _MINIMAL_CONFIG = {'internal_services': {'audit': {}}}
 
     def _strategies(self):
         from services.audit.sqlite_audit_strategy import SQLiteAuditStrategy
@@ -1451,16 +1539,17 @@ class TestFilterFieldMapping:
     @pytest.mark.unit
     def test_user_id_is_not_filterable(self):
         """user_id is a valid group_by dimension but was never added to the
-        filter allowlist — reusing _GROUP_BY_FIELDS for the field mapping
+        filter allowlist — reusing _resolve_dimension_field for the mapping
         must not silently widen what's filterable."""
         for strategy in self._strategies():
             assert "user_id" not in strategy._FILTERABLE_DIMENSIONS, strategy.__name__
 
     @pytest.mark.unit
-    def test_every_filterable_dimension_has_a_field_mapping(self):
-        for strategy in self._strategies():
-            for dimension in strategy._FILTERABLE_DIMENSIONS:
-                assert dimension in strategy._GROUP_BY_FIELDS, f"{strategy.__name__}:{dimension}"
+    def test_every_non_api_key_filterable_dimension_has_a_field_mapping(self):
+        for strategy_cls in self._strategies():
+            instance = strategy_cls(self._MINIMAL_CONFIG)
+            for dimension in strategy_cls._FILTERABLE_DIMENSIONS - {"api_key"}:
+                assert instance._resolve_dimension_field(dimension), f"{strategy_cls.__name__}:{dimension}"
 
 
 class TestAggregateUsage:
@@ -1567,6 +1656,132 @@ class TestAggregateUsage:
         assert groups["...bbb222"]['cost_usd'] == pytest.approx(0.05)
         # Ranked by cost — the more expensive key leads.
         assert result['groups'][0]['key'] == "...bbb222"
+
+    @pytest.mark.asyncio
+    async def test_aggregate_usage_groups_by_api_key_prefers_stable_id(self, sqlite_service_with_audit):
+        """Rows carrying the stable api_key_id (Phase 4) must group on it,
+        not the masked value — and two rows sharing an id collapse into one
+        group even if that id happens to not match their masked suffix."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+        base = {"query": "q", "response": "r", "provider": "openai", "blocked": False, "ip": "127.0.0.1",
+                "timestamp": datetime(2026, 1, 1, 10, 0, 0), "model": "gpt-4o-mini",
+                "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        await self._seed(audit_service, [
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00", "id": "key-id-1"},
+             "cost_usd": 0.01},
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00", "id": "key-id-1"},
+             "cost_usd": 0.02},
+        ])
+
+        result = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00", group_by="api_key",
+        )
+
+        assert len(result['groups']) == 1
+        assert result['groups'][0]['key'] == "key-id-1"
+        assert result['groups'][0]['requests'] == 2
+        assert result['groups'][0]['cost_usd'] == pytest.approx(0.03)
+
+    @pytest.mark.asyncio
+    async def test_aggregate_usage_api_key_grouping_mixes_old_and_new_rows_without_duplicates(
+        self, sqlite_service_with_audit
+    ):
+        """A store containing both pre-Phase-4 rows (masked value only) and
+        post-Phase-4 rows (stable id present) for different keys must
+        produce exactly one group per key — the id-less rows must not
+        vanish, and neither key should appear twice."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+        base = {"query": "q", "response": "r", "provider": "openai", "blocked": False, "ip": "127.0.0.1",
+                "timestamp": datetime(2026, 1, 1, 10, 0, 0), "model": "gpt-4o-mini",
+                "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        await self._seed(audit_service, [
+            # Old-style rows for key A: no id, masked value only.
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00"}, "cost_usd": 0.01},
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00"}, "cost_usd": 0.01},
+            # New-style rows for key B: stable id present.
+            {**base, "api_key": {"key": "...bbb222", "timestamp": "2026-01-01T10:00:00", "id": "key-id-b"},
+             "cost_usd": 0.05},
+        ])
+
+        result = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00", group_by="api_key",
+        )
+
+        groups = {g['key']: g for g in result['groups']}
+        assert len(result['groups']) == 2
+        assert groups["...aaa111"]['requests'] == 2
+        assert groups["...aaa111"]['cost_usd'] == pytest.approx(0.02)
+        assert groups["key-id-b"]['requests'] == 1
+        assert groups["key-id-b"]['cost_usd'] == pytest.approx(0.05)
+
+    @pytest.mark.asyncio
+    async def test_aggregate_usage_merges_legacy_and_new_rows_for_the_same_key(
+        self, sqlite_service_with_audit
+    ):
+        """The exact upgrade scenario: one key with rows from before this
+        deployment (masked value only, no api_key_id) and rows from after
+        (stable id present). COALESCE(api_key_id, api_key_value) alone
+        would split these into two groups since the legacy rows' resolved
+        value ("...aaa111") differs from the new rows' ("key-id-1") — the
+        self-join must resolve the legacy rows onto the SAME id, since
+        another row for that key already recorded one."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+        base = {"query": "q", "response": "r", "provider": "openai", "blocked": False, "ip": "127.0.0.1",
+                "timestamp": datetime(2026, 1, 1, 10, 0, 0), "model": "gpt-4o-mini",
+                "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        await self._seed(audit_service, [
+            # Legacy rows for the key: no id yet.
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00"}, "cost_usd": 0.01},
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00"}, "cost_usd": 0.01},
+            # A newer row for the SAME key: stable id now present.
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00", "id": "key-id-1"},
+             "cost_usd": 0.05},
+        ])
+
+        result = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00", group_by="api_key",
+        )
+
+        assert len(result['groups']) == 1
+        assert result['groups'][0]['key'] == "key-id-1"
+        assert result['groups'][0]['requests'] == 3
+        assert result['groups'][0]['cost_usd'] == pytest.approx(0.07)
+
+        # Filtering by the id a group row exposes must include the legacy
+        # rows too, not just the ones that carry the id themselves.
+        filtered = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00",
+            filters={"api_key": "key-id-1"},
+        )
+        assert filtered['totals']['requests'] == 3
+        assert filtered['totals']['cost_usd'] == pytest.approx(0.07)
+
+    @pytest.mark.asyncio
+    async def test_aggregate_usage_filters_by_stable_api_key_id(self, sqlite_service_with_audit):
+        """Filtering by the stable id (as a group row's `key` would be, once
+        Phase 4 rows exist) must narrow to just that key's rows."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+        base = {"query": "q", "response": "r", "provider": "openai", "blocked": False, "ip": "127.0.0.1",
+                "timestamp": datetime(2026, 1, 1, 10, 0, 0), "model": "gpt-4o-mini",
+                "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        await self._seed(audit_service, [
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00", "id": "key-id-1"},
+             "cost_usd": 0.01},
+            {**base, "api_key": {"key": "...bbb222", "timestamp": "2026-01-01T10:00:00", "id": "key-id-2"},
+             "cost_usd": 0.05},
+        ])
+
+        result = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00",
+            filters={"api_key": "key-id-1"},
+        )
+
+        assert result['totals']['requests'] == 1
+        assert result['totals']['cost_usd'] == pytest.approx(0.01)
 
     @pytest.mark.asyncio
     async def test_aggregate_usage_filters_by_api_key(self, sqlite_service_with_audit):

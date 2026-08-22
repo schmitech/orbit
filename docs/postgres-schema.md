@@ -290,6 +290,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     ip_original_value TEXT,
     api_key_value TEXT,
     api_key_timestamp TEXT,
+    api_key_id TEXT,
     session_id TEXT,
     user_id TEXT,
     adapter_name TEXT,
@@ -319,10 +320,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `idx_audit_logs_model` on `model`
 - `idx_audit_logs_call_type` on `call_type`
 - `idx_audit_logs_api_key_value` on `api_key_value`
+- `idx_audit_logs_api_key_id` on `api_key_id`
 
 `prompt_tokens`, `completion_tokens`, `total_tokens`, `reasoning_tokens`, `cached_prompt_tokens`, `cost_usd`, `input_rate_per_1m`, `output_rate_per_1m`, `pricing_source`, `usage_unit`, `usage_quantity`: token usage and cost tracking columns — see [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field descriptions (identical semantics; `cost_usd`/`input_rate_per_1m`/`output_rate_per_1m` are `DOUBLE PRECISION` in Postgres vs. `REAL` in SQLite).
 
-`api_key_value` (TEXT): masked API key used for the request, and the column backing the `api_key` group-by dimension on the Costs tab — see [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs).
+`api_key_value` (TEXT): masked API key used for the request. `api_key_id` (TEXT): the key's stable, non-secret document id, resolved at write time (best-effort; `NULL` for older rows or a failed lookup). Together they back the `api_key` group-by/filter dimension on the Costs tab, which resolves to `COALESCE(api_key_id, api_key_value)` — see [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs).
 
 `call_type` (TEXT): coarse classification of the AI call this row represents — `inference` (chat/text generation, the default), `embedding`, `image`, `video`, `audio`, or `document` (OCR). See [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field description.
 
@@ -495,6 +497,9 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are 
 
 ## Version History
 
+- **v1.5** (2026-08-21): Stable API key identity for cost aggregation (matches SQLite v1.14)
+  - Added `audit_logs.api_key_id` and index `idx_audit_logs_api_key_id`. The `api_key` group-by/filter dimension now resolves to `COALESCE(api_key_id, api_key_value)`
+  - Created automatically on existing databases via `ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` on startup
 - **v1.4** (2026-08-21): Cost aggregation by API key (matches SQLite v1.13)
   - Added index `idx_audit_logs_api_key_value`, backing the `api_key` group-by dimension on `GET /admin/observability/usage`. No column change — `api_key_value` was already recorded
   - Created automatically on existing databases via `CREATE INDEX IF NOT EXISTS` on startup

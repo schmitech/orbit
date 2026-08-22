@@ -19,8 +19,14 @@ router = APIRouter()
 
 async def _label_api_key_groups(request: Request, groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Decorate `api_key`-grouped rows with a `label` field resolved from the
-    `api_keys` collection's `client_name`, matched by masking each stored
-    plaintext key the same way the audit writer masks it (show_last, 6 chars).
+    `api_keys` collection's `client_name`.
+
+    A group's `key` is now either an active key's stable document id (Phase 4
+    — exact, unambiguous, matched directly by `_id`) or, for rows written
+    before that column existed, the masked value (matched by masking each
+    stored plaintext key the same way the audit writer masks it: show_last,
+    6 chars — still subject to suffix collisions, which is exactly the
+    ambiguity Phase 4 fixes going forward).
 
     Falls back to leaving `label` unset (the caller/frontend fall back to the
     masked `key`) when the api key service is unavailable, on lookup failure,
@@ -46,17 +52,27 @@ async def _label_api_key_groups(request: Request, groups: List[Dict[str, Any]]) 
         logger.warning("Failed to resolve API key labels for cost aggregation", exc_info=True)
         return groups
 
+    id_to_name: Dict[str, str] = {}
     masked_to_names: Dict[str, list] = {}
     for doc in active_keys:
-        plaintext = doc.get("api_key")
         client_name = doc.get("client_name")
+        doc_id = doc.get("_id")
+        if doc_id is not None and client_name:
+            # _id is unique by construction, so an id match is exact — no
+            # collision handling needed here, unlike the masked-suffix path.
+            id_to_name[str(doc_id)] = client_name
+        plaintext = doc.get("api_key")
         if not plaintext:
             continue
         masked = mask_api_key(plaintext, show_last=True, num_chars=6)
         masked_to_names.setdefault(masked, []).append(client_name)
 
     for group in groups:
-        names = masked_to_names.get(group.get("key"))
+        key = group.get("key")
+        if key in id_to_name:
+            group["label"] = id_to_name[key]
+            continue
+        names = masked_to_names.get(key)
         if not names:
             continue
         # Ambiguity is about two distinct *keys* sharing a masked suffix, not

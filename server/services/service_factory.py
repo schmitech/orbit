@@ -627,8 +627,12 @@ class ServiceFactory:
 
             # Get database service if available (for SQLite/MongoDB backends)
             database_service = getattr(app.state, 'database_service', None)
+            # api_key_service is initialized earlier in _initialize_full_mode_services;
+            # passed through so log_conversation can resolve a stable key id
+            # (see docs/roadmap/costs-by-api-key.md Phase 4).
+            api_key_service = getattr(app.state, 'api_key_service', None)
 
-            app.state.audit_service = AuditService(self.config, database_service)
+            app.state.audit_service = AuditService(self.config, database_service, api_key_service)
             await app.state.audit_service.initialize()
 
             logger.info(f"Audit Service initialized with {app.state.audit_service.backend_name} backend")

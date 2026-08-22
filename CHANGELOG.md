@@ -6,6 +6,7 @@
 - **API-Key Cost Aggregation**: The Costs tab and `GET /admin/observability/usage` now support grouping usage and estimated cost by API key across SQLite, PostgreSQL, MongoDB, and Elasticsearch. Groups use the already stored masked key value; SQL audit tables now index that field for efficient aggregation.
 - **API-Key Cost Labels**: API-key cost groups now display the matching active key's client name in the Costs charts without exposing the key. Unmatched keys retain their masked value, while duplicate masked suffixes are explicitly marked ambiguous.
 - **API-Key Cost Drill-Down**: API-key groups in the Costs charts can now be selected to filter totals, trends, and groups to that masked key; the filter composes with the existing provider, adapter, and call-type filters and can be cleared from the panel.
+- **Stable API-Key Cost History**: Legacy audit records now merge with newer stable API-key identities, preserving complete historical cost totals and drill-down results after upgrades. Elasticsearch also safely falls back on older indexes when the API-key ID mapping is unavailable.
 
 ## [2.15.8] - 2026-08-21
 

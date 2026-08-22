@@ -222,6 +222,57 @@ def test_observability_usage_api_key_groups_get_client_name_label():
     assert "sk-live-bbb222" not in resp.text
 
 
+def test_observability_usage_api_key_groups_get_label_by_stable_id():
+    """A group row keyed by the Phase 4 stable id (not a masked value) must
+    resolve to that key's client_name via an exact _id match."""
+    aggregate_result = {
+        "totals": {"requests": 1, "prompt_tokens": 100, "completion_tokens": 20,
+                    "total_tokens": 120, "cost_usd": 0.01,
+                    "unpriced_requests": 0, "unreported_requests": 0},
+        "series": [],
+        "groups": [{"key": "key-id-1", "requests": 1, "total_tokens": 120, "cost_usd": 0.01}],
+    }
+    audit_service = FakeAuditService(aggregate_result=aggregate_result)
+    api_key_service = FakeApiKeyService(docs=[
+        {"_id": "key-id-1", "api_key": "sk-live-aaa111", "client_name": "Acme Corp", "active": True},
+    ])
+    app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
+    with TestClient(app) as client:
+        resp = client.get("/admin/observability/usage?group_by=api_key")
+
+    assert resp.status_code == 200
+    group = resp.json()["groups"][0]
+    assert group["key"] == "key-id-1"
+    assert group["label"] == "Acme Corp"
+    assert "ambiguous" not in group
+
+
+def test_observability_usage_api_key_id_match_is_exact_even_with_masked_suffix_collision():
+    """An id match must not be reclassified as ambiguous just because two
+    keys also happen to share a masked suffix — _id is unique by
+    construction, so the id path never needs the collision check."""
+    aggregate_result = {
+        "totals": {"requests": 1, "prompt_tokens": 100, "completion_tokens": 20,
+                    "total_tokens": 120, "cost_usd": 0.01,
+                    "unpriced_requests": 0, "unreported_requests": 0},
+        "series": [],
+        "groups": [{"key": "key-id-1", "requests": 1, "total_tokens": 120, "cost_usd": 0.01}],
+    }
+    audit_service = FakeAuditService(aggregate_result=aggregate_result)
+    api_key_service = FakeApiKeyService(docs=[
+        {"_id": "key-id-1", "api_key": "sk-live-1-aaa111", "client_name": "Acme Corp", "active": True},
+        {"_id": "key-id-2", "api_key": "sk-live-2-aaa111", "client_name": "Globex", "active": True},
+    ])
+    app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
+    with TestClient(app) as client:
+        resp = client.get("/admin/observability/usage?group_by=api_key")
+
+    assert resp.status_code == 200
+    group = resp.json()["groups"][0]
+    assert group["label"] == "Acme Corp"
+    assert "ambiguous" not in group
+
+
 def test_observability_usage_api_key_label_falls_back_when_no_match():
     aggregate_result = {
         "totals": {"requests": 1, "prompt_tokens": 100, "completion_tokens": 20,

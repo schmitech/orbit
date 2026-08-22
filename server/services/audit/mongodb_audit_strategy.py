@@ -224,20 +224,60 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error querying audit records from MongoDB: {e}")
             return []
 
-    # Logical group-by dimension -> the document field that actually holds it.
-    # Most are identity mappings; api_key is stored as a nested object, so it
-    # resolves to the dotted path of the masked key inside it.
+    # Logical group-by dimension -> the document field that actually holds
+    # it. Most are identity mappings; api_key is handled separately (see
+    # _api_key_resolution_stages) since it needs a self-lookup, not a plain
+    # field reference.
     _GROUP_BY_FIELDS = {
         "model": "model",
         "provider": "provider",
         "adapter_name": "adapter_name",
         "user_id": "user_id",
         "call_type": "call_type",
-        "api_key": "api_key.key",
     }
 
-    # Dimensions accepted in `filters`. Reuses _GROUP_BY_FIELDS for the
-    # logical-name -> field mapping; user_id is groupable but not (yet)
+    def _resolve_dimension_field(self, dimension: str) -> Optional[str]:
+        """Field backing a logical dimension, for dimensions other than
+        api_key (which needs the self-lookup in _api_key_resolution_stages,
+        applied as a pipeline stage rather than a plain field reference)."""
+        return self._GROUP_BY_FIELDS.get(dimension)
+
+    def _api_key_resolution_stages(self) -> List[Dict[str, Any]]:
+        """Pipeline stages computing `_apiKeyResolved` on every document:
+        this row's own stable id if it has one; otherwise, the id from ANY
+        other document (anywhere in the collection, not just this query's
+        window) sharing the same masked key, via a self-$lookup; otherwise
+        the masked key itself, for a key that has never written an
+        id-bearing row. Without this, a key with both pre-Phase-4 rows
+        (masked value only) and post-Phase-4 rows (stable id) would split
+        into two groups, and filtering by the id a new-style group row
+        exposes would silently miss that key's older rows.
+        """
+        return [
+            {"$lookup": {
+                "from": self._collection_name,
+                "let": {"maskedKey": "$api_key.key"},
+                "pipeline": [
+                    {"$match": {"$expr": {"$and": [
+                        {"$ne": ["$api_key.id", None]},
+                        {"$eq": ["$api_key.key", "$$maskedKey"]},
+                    ]}}},
+                    {"$limit": 1},
+                    {"$project": {"_id": 0, "resolvedId": "$api_key.id"}},
+                ],
+                "as": "_apiKeyLookup",
+            }},
+            {"$addFields": {
+                "_apiKeyResolved": {"$ifNull": [
+                    "$api_key.id",
+                    {"$arrayElemAt": ["$_apiKeyLookup.resolvedId", 0]},
+                    "$api_key.key",
+                ]},
+            }},
+        ]
+
+    # Dimensions accepted in `filters`. Reuses _resolve_dimension_field for
+    # the logical-name -> field mapping; user_id is groupable but not (yet)
     # filterable, so it is deliberately excluded here.
     _FILTERABLE_DIMENSIONS = {"provider", "adapter_name", "model", "call_type", "api_key"}
 
@@ -256,18 +296,31 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
 
         collection = self._database_service.get_collection(self._collection_name)
 
-        match: Dict[str, Any] = {"timestamp": {"$gte": since, "$lt": until}}
+        # The api_key dimension needs the resolved-identity stage applied
+        # before matching/grouping on it, whether it's the active group_by
+        # or just a filter — otherwise a legacy row for a key that's since
+        # written an id-bearing row wouldn't be reachable by that id.
+        needs_api_key_resolution = group_by == "api_key" or "api_key" in (filters or {})
+        prefix_stages = [{"$match": {"timestamp": {"$gte": since, "$lt": until}}}]
+        if needs_api_key_resolution:
+            prefix_stages += self._api_key_resolution_stages()
+
+        match: Dict[str, Any] = {}
         for key, value in (filters or {}).items():
             if key not in self._FILTERABLE_DIMENSIONS:
                 continue
             if key == "call_type" and value == "inference":
                 match.setdefault("$or", []).append({"call_type": {"$in": ["inference", None]}})
                 continue
-            field = self._GROUP_BY_FIELDS[key]
+            if key == "api_key":
+                match["_apiKeyResolved"] = value
+                continue
+            field = self._resolve_dimension_field(key)
             match[field] = value
+        if match:
+            prefix_stages.append({"$match": match})
 
-        totals_pipeline = [
-            {"$match": match},
+        totals_pipeline = prefix_stages + [
             {"$group": {
                 "_id": None,
                 "requests": {"$sum": 1},
@@ -289,8 +342,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         totals_doc = totals_result[0] if totals_result else {}
 
         date_unit = "hour" if bucket == "hour" else "day"
-        series_pipeline = [
-            {"$match": match},
+        series_pipeline = prefix_stages + [
             {"$addFields": {"_ts": {"$dateFromString": {"dateString": "$timestamp"}}}},
             {"$group": {
                 "_id": {"$dateTrunc": {"date": "$_ts", "unit": date_unit}},
@@ -314,12 +366,18 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         ]
 
         groups: List[Dict[str, Any]] = []
-        group_column = self._GROUP_BY_FIELDS.get(group_by)
-        if group_column:
-            groups_pipeline = [
-                {"$match": {**match, group_column: {"$ne": None}}},
+        if group_by == "api_key":
+            group_expr = "$_apiKeyResolved"
+            null_exclusion_match = {"_apiKeyResolved": {"$ne": None}}
+        else:
+            group_column = self._resolve_dimension_field(group_by)
+            group_expr = f"${group_column}" if group_column else None
+            null_exclusion_match = {group_column: {"$ne": None}} if group_column else None
+        if group_expr:
+            groups_pipeline = prefix_stages + [
+                {"$match": null_exclusion_match},
                 {"$group": {
-                    "_id": f"${group_column}",
+                    "_id": group_expr,
                     "requests": {"$sum": 1},
                     "total_tokens": {"$sum": {"$ifNull": ["$total_tokens", 0]}},
                     "cost_usd": {"$sum": {"$ifNull": ["$cost_usd", 0]}},

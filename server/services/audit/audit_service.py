@@ -45,7 +45,7 @@ class AuditService:
     configured in internal_services.backend.type (sqlite, mongodb, or postgres).
     """
 
-    def __init__(self, config: Dict[str, Any], database_service=None):
+    def __init__(self, config: Dict[str, Any], database_service=None, api_key_service=None):
         """
         Initialize the audit service.
 
@@ -53,9 +53,18 @@ class AuditService:
             config: Application configuration dictionary
             database_service: Optional pre-initialized DatabaseService instance.
                              Used for sqlite and mongodb backends.
+            api_key_service: Optional ApiKeyService instance. When provided,
+                             log_conversation looks up the requesting key's
+                             stable document id at write time (see
+                             docs/roadmap/costs-by-api-key.md Phase 4) so
+                             cost aggregation doesn't rely solely on a
+                             6-character masked suffix. Never required —
+                             audit logging degrades to masked-only when
+                             absent or when the lookup fails.
         """
         self.config = config
         self._database_service = database_service
+        self._api_key_service = api_key_service
         self._strategy: Optional[AuditStorageStrategy] = None
         self._admin_strategy: Optional[AdminAuditStorageStrategy] = None
         self._initialized = False
@@ -287,6 +296,27 @@ class AuditService:
 
         return any(phrase in response.lower() for phrase in blocked_phrases)
 
+    async def _resolve_api_key_id(self, api_key: str) -> Optional[str]:
+        """
+        Look up the raw API key's document id, for stable cost grouping.
+
+        Best-effort: returns None (never raises) when no api_key_service was
+        wired in, the key isn't found (e.g. it was deleted between the
+        request being authorized and this write), or the lookup itself
+        fails — audit logging must not break because of this.
+        """
+        if not self._api_key_service:
+            return None
+        try:
+            key_doc = await self._api_key_service.database.find_one(
+                self._api_key_service.collection_name, {"api_key": api_key}
+            )
+            if key_doc and key_doc.get("_id") is not None:
+                return str(key_doc["_id"])
+        except Exception as e:
+            logger.warning(f"Failed to resolve API key id for audit record: {e}")
+        return None
+
     async def log_conversation(
         self,
         query: str,
@@ -328,13 +358,20 @@ class AuditService:
             # Use provided provider or fall back to the configured inference provider.
             used_provider = provider or self._inference_provider
 
-            # Build API key metadata if provided (masked for security)
+            # Build API key metadata if provided (masked for security). The
+            # stable "id" is best-effort: an extra lookup by the raw key
+            # against the api_keys collection, so a rotated/renamed key or a
+            # masked-suffix collision doesn't merge two different clients'
+            # spend once this record is aggregated.
             api_key_data = None
             if api_key:
                 api_key_data = {
                     "key": mask_api_key(api_key, show_last=True, num_chars=6),
                     "timestamp": timestamp.isoformat()
                 }
+                key_id = await self._resolve_api_key_id(api_key)
+                if key_id:
+                    api_key_data["id"] = key_id
 
             usage = usage or {}
 

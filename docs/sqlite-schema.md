@@ -458,6 +458,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     ip_original_value TEXT,
     api_key_value TEXT,
     api_key_timestamp TEXT,
+    api_key_id TEXT,
     session_id TEXT,
     user_id TEXT,
     adapter_name TEXT,
@@ -490,8 +491,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `ip_is_local` (INTEGER): Whether the IP is local/private (1=true, 0=false)
 - `ip_source` (TEXT): IP source ("direct", "proxy", "unknown")
 - `ip_original_value` (TEXT): Original IP value before processing
-- `api_key_value` (TEXT): API key used for the request (if any), stored **masked** (`...` + last 6 characters, via `mask_api_key`). Display/audit only — never use it for authorization. Groupable as the logical `api_key` dimension on `GET /admin/observability/usage` (the Costs tab), which resolves this column; two keys sharing their last 6 characters would collapse into one group
+- `api_key_value` (TEXT): API key used for the request (if any), stored **masked** (`...` + last 6 characters, via `mask_api_key`). Display/audit only — never use it for authorization. Used as the logical `api_key` group-by/filter dimension on `GET /admin/observability/usage` (the Costs tab) only as a fallback for rows with no `api_key_id`; two keys sharing their last 6 characters would collapse into one group
 - `api_key_timestamp` (TEXT): ISO timestamp when API key was used
+- `api_key_id` (TEXT): The requesting key's stable, non-secret document id (`api_keys._id`/`id`), resolved by `AuditService.log_conversation` via a lookup against the raw key at write time. `NULL` for rows written before this column existed, or when the lookup found no matching key (e.g. it was deleted between authorization and this write). The logical `api_key` dimension on `GET /admin/observability/usage` groups/filters on `COALESCE(api_key_id, api_key_value)` — this column when present, the masked value otherwise — so a rotated or renamed key's spend stays under one stable identity going forward. See `docs/roadmap/costs-by-api-key.md` Phase 4
 - `session_id` (TEXT): Session identifier for the conversation
 - `user_id` (TEXT): User identifier (if authenticated)
 - `adapter_name` (TEXT): Adapter used to service the request
@@ -519,6 +521,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `idx_audit_logs_model` on `model`
 - `idx_audit_logs_call_type` on `call_type`
 - `idx_audit_logs_api_key_value` on `api_key_value`
+- `idx_audit_logs_api_key_id` on `api_key_id`
 
 **Configuration:**
 The audit storage backend is configured in `config/config.yaml`:
@@ -857,6 +860,11 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.14** (2026-08-21): Stable API key identity for cost aggregation
+  - Added `audit_logs.api_key_id` — the requesting key's stable, non-secret document id, resolved by `AuditService.log_conversation` via a lookup against the raw key at write time (best-effort; `NULL` on lookup failure or when no `api_key_service` is wired in, same as any row written before this column existed)
+  - Added index `idx_audit_logs_api_key_id` on it
+  - The `api_key` group-by/filter dimension on `GET /admin/observability/usage` now resolves to `COALESCE(api_key_id, api_key_value)` instead of `api_key_value` alone, so a key's spend stays under one identity across a rotation/rename, and two keys sharing a masked suffix (the v1.13 caveat) no longer collide once they've written at least one row with this column populated. Historical rows keep grouping on the masked value — they cannot be backfilled
+  - Created automatically on existing databases via the existing `_migrate_table_schema` ADD COLUMN mechanism and `CREATE INDEX IF NOT EXISTS` on startup; `install/orbit.db.default` updated in place. See `docs/roadmap/costs-by-api-key.md` Phase 4
 - **v1.13** (2026-08-21): Cost aggregation by API key
   - Added index `idx_audit_logs_api_key_value` on the existing `audit_logs.api_key_value` column, which now backs the `api_key` group-by dimension on `GET /admin/observability/usage` (admin panel Costs tab). Every other groupable dimension already had one
   - No column was added — the masked API key was already recorded on every audit row. See `docs/roadmap/costs-by-api-key.md` for the phased plan; a stable (non-masked) key identifier is deferred to a later phase

@@ -10,7 +10,7 @@ The first release will:
 - Support webhook notifications.
 - Manage rules through YAML.
 - Evaluate global or exact-match filtered budgets by provider, model, adapter,
-  or user.
+  user, or API key.
 - Support daily and monthly calendar budgets in a configured timezone.
 - Notify once per threshold, coalescing multiple newly crossed thresholds into
   the highest alert.
@@ -47,8 +47,11 @@ cost_alerts:
       transports: [operations]
 ```
 
-Rules may use exact-match `provider`, `model`, `adapter_name`, and `user_id`
-filters. Validate:
+Rules may use exact-match `provider`, `model`, `adapter_name`, `user_id`, and
+`api_key` filters — the last scopes a budget to one client, identified by the
+stable key id from `docs/roadmap/costs-by-api-key.md` Phase 4 (falling back to
+the masked value for a key that has never written an id-bearing audit row,
+same as the Costs tab). Validate:
 
 - Unique rule and transport IDs.
 - Positive budgets.
@@ -98,10 +101,14 @@ body.
 
 - Calculate calendar-day and calendar-month boundaries with `zoneinfo`.
 - Query the existing audit aggregate for each enabled rule.
-- **New backend work required**: `aggregate_usage()` currently accepts only
-  `provider`/`adapter_name`/`model` filters (see `admin_routes.py`'s
-  `get_observability_usage` and each strategy's signature) — `user_id` is not
-  a supported filter today. **Decision: support `user_id` filtering on all
+- **New backend work required, narrowed by `docs/roadmap/costs-by-api-key.md`:**
+  `aggregate_usage()` now accepts `provider`/`adapter_name`/`model`/
+  `call_type`/`api_key` filters on all four audit backends (see
+  `observability.py`'s `get_observability_usage` and each strategy's
+  `_FILTERABLE_DIMENSIONS`) — `api_key` already resolves the Phase 4 stable
+  id with a masked-value fallback, so alert rules can reuse it as-is, no
+  further backend work needed for that filter. `user_id` is still not a
+  supported filter. **Decision unchanged: support `user_id` filtering on all
   four audit backends in v1 — SQLite, Postgres, MongoDB, and Elasticsearch.**
   Since per-user/per-provider/per-adapter filtered budgets are a stated v1
   requirement, an ES-backed deployment silently losing that capability would
@@ -170,7 +177,9 @@ exponential backoff. Mark other HTTP 4xx responses permanently failed.
 - Daily and monthly boundaries.
 - Configured timezone and daylight-saving transitions.
 - Period resets.
-- Global and exact provider, model, adapter, and user filters.
+- Global and exact provider, model, adapter, user, and API key filters —
+  the last against both a Phase-4 stable id and, for a key that has never
+  written an id-bearing row, its masked value.
 - One event per threshold and period.
 - Multi-threshold jump coalescing.
 - Known-spend alerts containing unpriced or unreported requests.
@@ -195,6 +204,10 @@ exponential backoff. Mark other HTTP 4xx responses permanently failed.
   supported audit backends — SQLite, Postgres, MongoDB, and Elasticsearch.
   Elasticsearch has no outbox-state tests (it never stores that data — see
   "Durable delivery" above) but does need `user_id`-filter test coverage.
+  `api_key`-filter coverage already exists per-backend from
+  `docs/roadmap/costs-by-api-key.md` Phase 3/4 — no new aggregate-filter
+  tests needed for it here, only rule-evaluation tests exercising an
+  `api_key`-filtered rule end to end.
 - Schema creation and additive migrations for existing installations.
 - Existing cost tracking and observability behavior remains unchanged when
   alerts are disabled.

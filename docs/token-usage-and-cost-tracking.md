@@ -277,11 +277,13 @@ the matching/precedence rules above don't change, and it should preserve the
 - **Aggregated**: `GET /admin/observability/usage` (admin panel: the
   **Costs** tab) — token/cost totals, a time-bucketed series, and top-N
   groups by model/provider/adapter/user/call type/API key, over a
-  configurable window. Grouping by API key groups on the masked key stored on
-  each audit row (`...` + last 6 characters), never the key itself; each
-  group row also gets a `label` resolved from the matching active key's
-  `client_name` (falling back to the masked key if none matches, or marked
-  `ambiguous` if two active keys share a masked suffix — see
+  configurable window. Grouping by API key prefers the stable, non-secret key
+  id recorded on each audit row going forward, falling back to the masked
+  key (`...` + last 6 characters) for older rows — never the key itself
+  either way; each group row also gets a `label` resolved from the matching
+  active key's `client_name` (falling back to the group's own key if none
+  matches, or marked `ambiguous` if two active keys share a masked suffix and
+  the group wasn't matched by the exact stable id — see
   `docs/roadmap/costs-by-api-key.md`). Backed
   by `AuditStorageStrategy.aggregate_usage()`, implemented per storage
   backend (SQLite, Postgres, MongoDB, Elasticsearch) in

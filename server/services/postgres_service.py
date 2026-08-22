@@ -295,6 +295,7 @@ class PostgresService(DatabaseService):
                     ip_original_value TEXT,
                     api_key_value TEXT,
                     api_key_timestamp TEXT,
+                    api_key_id TEXT,
                     session_id TEXT,
                     user_id TEXT,
                     adapter_name TEXT,
@@ -416,6 +417,7 @@ class PostgresService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_model ON audit_logs(model)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_call_type ON audit_logs(call_type)',
                 'CREATE INDEX IF NOT EXISTS idx_audit_logs_api_key_value ON audit_logs(api_key_value)',
+                'CREATE INDEX IF NOT EXISTS idx_audit_logs_api_key_id ON audit_logs(api_key_id)',
             ],
             'feedback': [
                 'CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_message_session ON feedback(message_id, session_id)',
