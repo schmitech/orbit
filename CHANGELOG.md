@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.15.9] - 2026-08-22
 
 ### Core System Updates
 - **API-Key Cost Aggregation**: The Costs tab and `GET /admin/observability/usage` now support grouping usage and estimated cost by API key across SQLite, PostgreSQL, MongoDB, and Elasticsearch. Groups use the already stored masked key value; SQL audit tables now index that field for efficient aggregation.
