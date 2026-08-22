@@ -342,7 +342,12 @@ class AuditStorageStrategy(ABC):
             since: ISO timestamp, inclusive lower bound
             until: ISO timestamp, exclusive upper bound
             bucket: "hour" or "day" — time-series bucketing granularity
-            group_by: "model" | "provider" | "adapter_name" | "user_id" | "none"
+            group_by: logical dimension name — "model" | "provider" |
+                "adapter_name" | "user_id" | "call_type" | "api_key" | "none".
+                Each strategy maps it to its own backend field (see
+                _GROUP_BY_FIELDS); an unrecognized value yields no groups.
+                Grouping by "api_key" groups on the masked key stored on the
+                record, not the key itself.
             filters: Optional extra equality filters (e.g. {'provider': 'openai'})
             limit_groups: Max number of distinct groups to return, ranked by cost
 

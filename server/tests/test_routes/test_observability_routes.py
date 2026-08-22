@@ -133,6 +133,23 @@ def test_observability_usage_filters_and_groups_by_call_type():
     assert audit_service.last_call_kwargs["filters"] == {"call_type": "embedding"}
 
 
+def test_observability_usage_groups_by_api_key():
+    audit_service = FakeAuditService()
+    app = _build_app(["admin"], audit_service=audit_service)
+    with TestClient(app) as client:
+        resp = client.get("/admin/observability/usage?group_by=api_key")
+
+    assert resp.status_code == 200
+    assert audit_service.last_call_kwargs["group_by"] == "api_key"
+
+
+def test_observability_usage_rejects_invalid_group_by():
+    app = _build_app(["admin"], audit_service=FakeAuditService())
+    with TestClient(app) as client:
+        resp = client.get("/admin/observability/usage?group_by=api_key_value")
+    assert resp.status_code == 422
+
+
 def test_observability_usage_rejects_invalid_bucket():
     app = _build_app(["admin"], audit_service=FakeAuditService())
     with TestClient(app) as client:

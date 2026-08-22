@@ -156,7 +156,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
     const groupBySelect = createSelect({
       className: "select-input",
       ariaLabel: "Group by",
-      options: ["model", "provider", "adapter_name", "user_id", "call_type"].map((opt) => ({ value: opt, label: opt })),
+      options: ["model", "provider", "adapter_name", "user_id", "call_type", "api_key"].map((opt) => ({ value: opt, label: opt })),
       value: selectedGroupBy
     });
     groupBySelect.addEventListener("change", () => { selectedGroupBy = groupBySelect.value; load(); });

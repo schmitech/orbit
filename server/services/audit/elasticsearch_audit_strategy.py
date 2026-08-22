@@ -429,7 +429,17 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error clearing audit records from Elasticsearch: {e}")
             return False
 
-    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id", "call_type"}
+    # Logical group-by dimension -> the indexed field that actually holds it.
+    # Most are identity mappings; api_key is indexed as an object, so it
+    # resolves to the dotted path of the masked key's keyword subfield.
+    _GROUP_BY_FIELDS = {
+        "model": "model",
+        "provider": "provider",
+        "adapter_name": "adapter_name",
+        "user_id": "user_id",
+        "call_type": "call_type",
+        "api_key": "api_key.key",
+    }
 
     async def aggregate_usage(
         self,
@@ -464,7 +474,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             "total_tokens": {"sum": {"field": "total_tokens"}},
             "cost_usd": {"sum": {"field": "cost_usd"}},
         }
-        group_column = group_by if group_by in self._GROUP_BY_COLUMNS else None
+        group_column = self._GROUP_BY_FIELDS.get(group_by)
         aggs = {
             **sum_aggs,
             "unpriced_requests": {"filter": {"bool": {"must": [

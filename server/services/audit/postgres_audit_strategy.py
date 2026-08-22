@@ -150,7 +150,17 @@ class PostgresAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error querying audit records from Postgres: {e}")
             return []
 
-    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id", "call_type"}
+    # Logical group-by dimension -> the column that actually holds it. Most are
+    # identity mappings; api_key is stored flattened as api_key_value (the
+    # masked key), so the logical name and the column name diverge.
+    _GROUP_BY_FIELDS = {
+        "model": "model",
+        "provider": "provider",
+        "adapter_name": "adapter_name",
+        "user_id": "user_id",
+        "call_type": "call_type",
+        "api_key": "api_key_value",
+    }
 
     async def aggregate_usage(
         self,
@@ -174,7 +184,7 @@ class PostgresAuditStrategy(AuditStorageStrategy):
         # timestamp is stored as TEXT (ISO), so date_trunc needs an explicit cast.
         trunc_unit = "hour" if bucket == "hour" else "day"
         bucket_expr = f"date_trunc('{trunc_unit}', timestamp::timestamptz)"
-        group_column = group_by if group_by in self._GROUP_BY_COLUMNS else None
+        group_column = self._GROUP_BY_FIELDS.get(group_by)
 
         where_clauses = ["timestamp >= %s", "timestamp < %s"]
         params: List[Any] = [since, until]

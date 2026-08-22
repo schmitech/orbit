@@ -202,7 +202,17 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error querying audit records from SQLite: {e}")
             return []
 
-    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id", "call_type"}
+    # Logical group-by dimension -> the column that actually holds it. Most are
+    # identity mappings; api_key is stored flattened as api_key_value (the
+    # masked key), so the logical name and the column name diverge.
+    _GROUP_BY_FIELDS = {
+        "model": "model",
+        "provider": "provider",
+        "adapter_name": "adapter_name",
+        "user_id": "user_id",
+        "call_type": "call_type",
+        "api_key": "api_key_value",
+    }
 
     async def aggregate_usage(
         self,
@@ -227,7 +237,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         # by day, substr(timestamp,1,13) buckets by hour (both index-friendly
         # alongside the range predicate below).
         bucket_expr = "substr(timestamp,1,13)" if bucket == "hour" else "substr(timestamp,1,10)"
-        group_column = group_by if group_by in self._GROUP_BY_COLUMNS else None
+        group_column = self._GROUP_BY_FIELDS.get(group_by)
 
         where_clauses = ["timestamp >= ?", "timestamp < ?"]
         params: List[Any] = [since, until]

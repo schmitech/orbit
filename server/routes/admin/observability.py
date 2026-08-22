@@ -25,7 +25,7 @@ async def get_observability_usage(
     request: Request,
     days: int = Query(7, ge=1, le=365),
     bucket: str = Query("day", pattern="^(hour|day)$"),
-    group_by: str = Query("model", pattern="^(model|provider|adapter_name|user_id|call_type|none)$"),
+    group_by: str = Query("model", pattern="^(model|provider|adapter_name|user_id|call_type|api_key|none)$"),
     provider: Optional[str] = Query(None),
     adapter_name: Optional[str] = Query(None),
     call_type: Optional[str] = Query(None, pattern="^(inference|embedding|reranking|image|video|audio|document)$"),
@@ -35,6 +35,9 @@ async def get_observability_usage(
     Aggregate token usage and estimated cost over a time window, for the
     admin panel's Costs tab. Cost is an ESTIMATE from the local
     rate table in config/pricing.yaml, not a provider invoice.
+
+    Grouping by `api_key` groups on the masked key recorded on each audit
+    row (`...` + last 6 characters), never the key itself.
 
     Reuses the audit.read permission (the same dependency that gates
     /admin/audit/events) — it already grants reading full inference

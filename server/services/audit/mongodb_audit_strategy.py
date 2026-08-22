@@ -224,7 +224,17 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error querying audit records from MongoDB: {e}")
             return []
 
-    _GROUP_BY_COLUMNS = {"model", "provider", "adapter_name", "user_id", "call_type"}
+    # Logical group-by dimension -> the document field that actually holds it.
+    # Most are identity mappings; api_key is stored as a nested object, so it
+    # resolves to the dotted path of the masked key inside it.
+    _GROUP_BY_FIELDS = {
+        "model": "model",
+        "provider": "provider",
+        "adapter_name": "adapter_name",
+        "user_id": "user_id",
+        "call_type": "call_type",
+        "api_key": "api_key.key",
+    }
 
     async def aggregate_usage(
         self,
@@ -299,7 +309,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         ]
 
         groups: List[Dict[str, Any]] = []
-        group_column = group_by if group_by in self._GROUP_BY_COLUMNS else None
+        group_column = self._GROUP_BY_FIELDS.get(group_by)
         if group_column:
             groups_pipeline = [
                 {"$match": {**match, group_column: {"$ne": None}}},

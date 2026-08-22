@@ -276,7 +276,9 @@ the matching/precedence rules above don't change, and it should preserve the
   the admin panel's Audit tab.
 - **Aggregated**: `GET /admin/observability/usage` (admin panel: the
   **Costs** tab) — token/cost totals, a time-bucketed series, and top-N
-  groups by model/provider/adapter/user, over a configurable window. Backed
+  groups by model/provider/adapter/user/call type/API key, over a
+  configurable window. Grouping by API key groups on the masked key stored on
+  each audit row (`...` + last 6 characters), never the key itself. Backed
   by `AuditStorageStrategy.aggregate_usage()`, implemented per storage
   backend (SQLite, Postgres, MongoDB, Elasticsearch) in
   `server/services/audit/`. Both endpoints are gated by the existing

@@ -1383,6 +1383,45 @@ class TestUsageFieldsRoundTrip:
         SQLiteService.clear_cache()
 
 
+class TestGroupByFieldMapping:
+    """Every backend must accept the same logical group-by dimension names and
+    map each to its own storage field. Verified directly on the mapping table
+    so Postgres/MongoDB/Elasticsearch are covered without a live server."""
+
+    _SHARED = ("model", "provider", "adapter_name", "user_id", "call_type")
+
+    def _strategies(self):
+        from services.audit.sqlite_audit_strategy import SQLiteAuditStrategy
+        from services.audit.postgres_audit_strategy import PostgresAuditStrategy
+        from services.audit.mongodb_audit_strategy import MongoDBDAuditStrategy as MongoStrategy
+        from services.audit.elasticsearch_audit_strategy import ElasticsearchAuditStrategy
+        return {
+            "sqlite": (SQLiteAuditStrategy, "api_key_value"),
+            "postgres": (PostgresAuditStrategy, "api_key_value"),
+            "mongodb": (MongoStrategy, "api_key.key"),
+            "elasticsearch": (ElasticsearchAuditStrategy, "api_key.key"),
+        }
+
+    @pytest.mark.unit
+    def test_api_key_maps_to_backend_field(self):
+        for name, (strategy, expected_field) in self._strategies().items():
+            assert strategy._GROUP_BY_FIELDS["api_key"] == expected_field, name
+
+    @pytest.mark.unit
+    def test_shared_dimensions_are_identity_mappings(self):
+        for name, (strategy, _) in self._strategies().items():
+            for dimension in self._SHARED:
+                assert strategy._GROUP_BY_FIELDS[dimension] == dimension, f"{name}:{dimension}"
+
+    @pytest.mark.unit
+    def test_backend_field_names_are_not_accepted_as_dimensions(self):
+        """The mapping is one-way: a caller passing the raw storage field name
+        must not be able to reach it, so the API surface stays backend-agnostic."""
+        for name, (strategy, _) in self._strategies().items():
+            assert "api_key_value" not in strategy._GROUP_BY_FIELDS, name
+            assert "api_key.key" not in strategy._GROUP_BY_FIELDS, name
+
+
 class TestAggregateUsage:
     """SQLite aggregate_usage: bucketing, group-by, unpriced counting, window exclusion."""
 
@@ -1449,6 +1488,62 @@ class TestAggregateUsage:
         assert inference["totals"]["requests"] == 1
         assert embeddings["totals"]["requests"] == 1
         assert embeddings["groups"][0]["key"] == "embedding"
+
+    @pytest.mark.asyncio
+    async def test_aggregate_usage_groups_by_api_key(self, sqlite_service_with_audit):
+        """Grouping by the logical "api_key" dimension must resolve to the
+        flattened api_key_value column (the masked key). Rows with no API key
+        are excluded from `groups` but still counted in `totals`."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+        base = {"query": "q", "response": "r", "provider": "openai", "blocked": False, "ip": "127.0.0.1",
+                "timestamp": datetime(2026, 1, 1, 10, 0, 0), "model": "gpt-4o-mini",
+                "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        await self._seed(audit_service, [
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00"},
+             "cost_usd": 0.01},
+            {**base, "api_key": {"key": "...aaa111", "timestamp": "2026-01-01T10:00:00"},
+             "cost_usd": 0.02},
+            {**base, "api_key": {"key": "...bbb222", "timestamp": "2026-01-01T10:00:00"},
+             "cost_usd": 0.05},
+            # No API key (e.g. key enforcement disabled) — counted in totals only.
+            {**base, "api_key": None, "cost_usd": 0.10},
+        ])
+
+        result = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00",
+            bucket="day", group_by="api_key",
+        )
+
+        assert result['totals']['requests'] == 4
+        assert result['totals']['cost_usd'] == pytest.approx(0.18)
+
+        groups = {group['key']: group for group in result['groups']}
+        assert set(groups) == {"...aaa111", "...bbb222"}
+        assert groups["...aaa111"]['requests'] == 2
+        assert groups["...aaa111"]['cost_usd'] == pytest.approx(0.03)
+        assert groups["...bbb222"]['requests'] == 1
+        assert groups["...bbb222"]['cost_usd'] == pytest.approx(0.05)
+        # Ranked by cost — the more expensive key leads.
+        assert result['groups'][0]['key'] == "...bbb222"
+
+    @pytest.mark.asyncio
+    async def test_aggregate_usage_unknown_group_by_yields_no_groups(self, sqlite_service_with_audit):
+        """An unrecognized dimension must produce no groups rather than being
+        interpolated into the SQL as a column name."""
+        services = sqlite_service_with_audit
+        audit_service = services['audit']
+        await self._seed(audit_service, [{
+            "query": "q", "response": "r", "provider": "openai", "blocked": False, "ip": "127.0.0.1",
+            "timestamp": datetime(2026, 1, 1, 10, 0, 0), "model": "gpt-4o-mini", "cost_usd": 0.01,
+        }])
+
+        result = await audit_service.aggregate_usage(
+            since="2026-01-01T00:00:00", until="2026-01-02T00:00:00", group_by="api_key_value",
+        )
+
+        assert result['totals']['requests'] == 1
+        assert result['groups'] == []
 
     @pytest.mark.asyncio
     async def test_aggregate_usage_disabled_audit_returns_empty_skeleton(self, tmp_path):

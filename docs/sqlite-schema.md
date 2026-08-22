@@ -490,7 +490,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `ip_is_local` (INTEGER): Whether the IP is local/private (1=true, 0=false)
 - `ip_source` (TEXT): IP source ("direct", "proxy", "unknown")
 - `ip_original_value` (TEXT): Original IP value before processing
-- `api_key_value` (TEXT): API key used for the request (if any)
+- `api_key_value` (TEXT): API key used for the request (if any), stored **masked** (`...` + last 6 characters, via `mask_api_key`). Display/audit only — never use it for authorization. Groupable as the logical `api_key` dimension on `GET /admin/observability/usage` (the Costs tab), which resolves this column; two keys sharing their last 6 characters would collapse into one group
 - `api_key_timestamp` (TEXT): ISO timestamp when API key was used
 - `session_id` (TEXT): Session identifier for the conversation
 - `user_id` (TEXT): User identifier (if authenticated)
@@ -518,6 +518,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `idx_audit_logs_adapter_name` on `adapter_name`
 - `idx_audit_logs_model` on `model`
 - `idx_audit_logs_call_type` on `call_type`
+- `idx_audit_logs_api_key_value` on `api_key_value`
 
 **Configuration:**
 The audit storage backend is configured in `config/config.yaml`:
@@ -856,6 +857,11 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.13** (2026-08-21): Cost aggregation by API key
+  - Added index `idx_audit_logs_api_key_value` on the existing `audit_logs.api_key_value` column, which now backs the `api_key` group-by dimension on `GET /admin/observability/usage` (admin panel Costs tab). Every other groupable dimension already had one
+  - No column was added — the masked API key was already recorded on every audit row. See `docs/roadmap/costs-by-api-key.md` for the phased plan; a stable (non-masked) key identifier is deferred to a later phase
+  - Created automatically on existing databases via `CREATE INDEX IF NOT EXISTS` on startup; MongoDB and Elasticsearch group on the nested `api_key.key` field and need no migration
+  - `install/orbit.db.default` (the default database shipped with new installs) updated in place to include the index
 - **v1.12** (2026-08-13): Cached prompt token tracking
   - Added `audit_logs.cached_prompt_tokens` — the subset of `prompt_tokens` served from a provider-side prompt cache (Anthropic `cache_control`, DeepSeek/xAI automatic caching), already priced at a discount by `PricingService.estimate()` when configured; previously computed but silently dropped before reaching the audit ledger
   - Applied to existing databases via the additive-column migration on startup (`_migrate_table_schema`); MongoDB is schemaless and needs no migration; the Elasticsearch mapping gained an explicit `integer` type for the same reason `reasoning_tokens` has one
