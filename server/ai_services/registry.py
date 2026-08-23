@@ -133,6 +133,7 @@ def register_moderation_services() -> None:
         ("ollama", "OllamaModerationService", "Ollama"),
         ("shieldstral", "ShieldstralModerationService", "Shieldstral"),
         ("privacy_filter", "PrivacyFilterModerationService", "Privacy Filter (PII)"),
+        ("presidio", "PresidioModerationService", "Presidio (PII)"),
     ])
 
 

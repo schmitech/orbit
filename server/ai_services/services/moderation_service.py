@@ -9,6 +9,7 @@ Supported providers return various category taxonomies:
 - Llama Guard 3: MLCommons taxonomy (violent_crimes, non_violent_crimes, etc.)
 - Anthropic: Combined taxonomy matching Llama Guard 3 categories
 - Shieldstral: policy-adaptive binary decisions (reported as policy_violation)
+- Privacy Filter / Presidio: PII entity types (reported as pii.<entity>)
 """
 
 from abc import abstractmethod

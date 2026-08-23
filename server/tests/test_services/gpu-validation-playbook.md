@@ -40,7 +40,7 @@ git checkout pr-166
 ## 2. Install deps (huggingface profile = transformers + torch)
 
 ```bash
-./install/setup.sh --profile huggingface
+./install/setup.sh --profile torch
 # Verify torch sees the GPU:
 ./venv/bin/python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.__version__)"
 ```

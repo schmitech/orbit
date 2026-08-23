@@ -42,9 +42,9 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
     PII moderation service using the openai/privacy-filter model.
 
     Runs the model in-process via the transformers token-classification
-    pipeline. Requires the 'huggingface' dependency profile
+    pipeline. Requires the 'torch' dependency profile
     (transformers + torch), installed via:
-        ./install/setup.sh --profile huggingface
+        ./install/setup.sh --profile torch
 
     Configuration (config/moderators.yaml under moderations.privacy_filter):
         model: HuggingFace model id (default: openai/privacy-filter)
@@ -107,8 +107,8 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
 
         except ImportError:
             error_msg = (
-                "transformers package not installed. Install the 'huggingface' "
-                "dependency profile: ./install/setup.sh --profile huggingface"
+                "transformers package not installed. Install the 'torch' "
+                "dependency profile: ./install/setup.sh --profile torch"
             )
             logger.error(error_msg)
             raise ImportError(error_msg)

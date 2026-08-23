@@ -11,6 +11,7 @@
 - **Independent Admin-Audit Retention**: Added `internal_services.audit.admin_events.clear_on_startup` to clear privileged admin/auth event history independently of inference-request audit logs; it defaults to `false` in both runtime and installer configuration.
 
 ### Security
+- **Presidio PII Moderation**: Added an opt-in Presidio analyzer-backed moderation provider for detecting configured PII entity types over its REST API. Batch analysis has configurable concurrency and safely clamps invalid batch sizes to serial execution, preventing a misconfiguration from stalling the moderation safety layer.
 - **Admin API-Key Rename Request Handling**: The API-key rename endpoint now accepts the replacement key in a validated JSON body instead of a URL query parameter, preventing sensitive key material from appearing in request URLs; the admin panel and route logging coverage use the new request schema.
 - **Admin Login Redirect Validation**: Login and SSO redirects now reject protocol-relative and external `next` URLs, preventing open redirects outside the Orbit admin origin.
 

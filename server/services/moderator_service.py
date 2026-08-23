@@ -346,11 +346,41 @@ Query: """
                     # Get the primary flagged category to help users understand why
                     try:
                         flagged_categories = {k: v for k, v in result.categories.items() if v > 0.5}
+                        # A moderator may flag below 0.5 when configured with a
+                        # lower threshold (e.g. presidio score_threshold), so fall
+                        # back to all reported categories rather than losing the
+                        # explanation. Affects only the message, not the decision.
+                        if not flagged_categories:
+                            flagged_categories = dict(result.categories)
                         if flagged_categories:
                             # Get the highest scoring category
                             primary_category = max(flagged_categories, key=flagged_categories.get)
                             # Map internal category names to user-friendly descriptions
                             # Supports OpenAI, Llama Guard 3, and Anthropic category names
+                            # PII moderators (privacy_filter, presidio) report
+                            # pii.<entity> categories rather than fixed names
+                            pii_descriptions = {
+                                # openai/privacy-filter span categories
+                                'account_number': 'an account number',
+                                'private_address': 'a home address',
+                                'private_date': 'a personal date',
+                                'private_email': 'an email address',
+                                'private_person': 'a personal name',
+                                'private_phone': 'a phone number',
+                                'private_url': 'a personal URL',
+                                'secret': 'a credential or secret',
+                                # Presidio entity types
+                                'credit_card': 'a credit card number',
+                                'crypto': 'a crypto wallet address',
+                                'email_address': 'an email address',
+                                'iban_code': 'a bank account (IBAN)',
+                                'ip_address': 'an IP address',
+                                'mac_address': 'a MAC address',
+                                'medical_license': 'a medical license number',
+                                'phone_number': 'a phone number',
+                                'us_bank_number': 'a bank account number',
+                                'us_ssn': 'a social security number',
+                            }
                             category_descriptions = {
                                 # OpenAI moderation categories
                                 'harassment': 'harassment content',
@@ -382,8 +412,17 @@ Query: """
                                 'policy_violation': 'content policy violation',
                                 'interpreted_unsafe': 'potentially unsafe content',
                             }
-                            category_desc = category_descriptions.get(primary_category, 'content policy violation')
-                            refusal_message = f"I cannot assist with requests involving {category_desc}."
+                            if primary_category.startswith('pii.'):
+                                pii_desc = pii_descriptions.get(
+                                    primary_category[len('pii.'):], 'personal information'
+                                )
+                                refusal_message = (
+                                    f"I cannot process messages containing {pii_desc}. "
+                                    f"Please remove it and try again."
+                                )
+                            else:
+                                category_desc = category_descriptions.get(primary_category, 'content policy violation')
+                                refusal_message = f"I cannot assist with requests involving {category_desc}."
                         else:
                             refusal_message = "I cannot assist with that type of request."
                     except Exception:

@@ -30,3 +30,51 @@ moderations:
     # matching the existing Llama Guard category coverage.
     policy: null
     policy_path: null
+  # Local PII detection using OpenAI's privacy-filter token-classification
+  # model (Apache 2.0, runs on-premises, no API key required).
+  # Requires the 'torch' dependency profile (transformers + torch):
+  #   ./install/setup.sh --profile torch
+  # Enable by setting safety.moderator: "privacy_filter" in guardrails.yaml.
+  privacy_filter:
+    model: "openai/privacy-filter"
+    device: "auto"        # auto, cpu, cuda, or mps
+    threshold: 0.5        # Minimum span confidence to count a detection
+    # Categories that flag content when detected at or above the threshold.
+    # Detected categories are always reported as pii.<category> scores;
+    # remove entries here to report them without flagging.
+    flag_categories:
+      - "account_number"
+      - "private_address"
+      - "private_email"
+      - "private_person"
+      - "private_phone"
+      - "private_url"
+      - "private_date"
+      - "secret"
+  # PII detection via a Presidio analyzer HTTP service (no Python deps added -
+  # spaCy and the NER model stay inside the analyzer container). Run it with:
+  #   docker run -d -p 5002:3000 ghcr.io/data-privacy-stack/presidio-analyzer:latest
+  # Enable by setting safety.moderator: "presidio" in guardrails.yaml.
+  # Unlike privacy_filter, analyzer failures are surfaced to the safety layer,
+  # so safety.allow_on_timeout decides whether traffic is blocked or allowed.
+  presidio:
+    # PRESIDIO_ANALYZER_API_BASE overrides this when set
+    base_url: "http://localhost:5002"
+    language: "en"
+    score_threshold: 0.5   # Minimum entity score to count a detection
+    request_timeout: 10
+    batch_size: 8
+    # Entity types that flag content. Presidio supports ~100 types across many
+    # locales; this conservative default avoids the noisy ones (DATE_TIME,
+    # LOCATION, NRP, PERSON). See GET /supportedentities on the analyzer, or
+    # https://presidio.dataprivacystack.org/supported_entities/
+    entities:
+      - "CREDIT_CARD"
+      - "CRYPTO"
+      - "EMAIL_ADDRESS"
+      - "IBAN_CODE"
+      - "IP_ADDRESS"
+      - "MEDICAL_LICENSE"
+      - "PHONE_NUMBER"
+      - "US_BANK_NUMBER"
+      - "US_SSN"

@@ -7,6 +7,7 @@ Available providers:
     - OllamaModerationService: Ollama moderation
     - ShieldstralModerationService: Shieldstral via vLLM or llama.cpp
     - PrivacyFilterModerationService: Local PII detection (openai/privacy-filter)
+    - PresidioModerationService: PII detection via a Presidio analyzer service
 """
 
 import logging
@@ -21,6 +22,7 @@ _implementations = [
     ('ollama_moderation_service', 'OllamaModerationService'),
     ('shieldstral_moderation_service', 'ShieldstralModerationService'),
     ('privacy_filter_moderation_service', 'PrivacyFilterModerationService'),
+    ('presidio_moderation_service', 'PresidioModerationService'),
 ]
 
 for module_name, class_name in _implementations:

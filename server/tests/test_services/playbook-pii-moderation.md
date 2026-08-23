@@ -14,8 +14,8 @@ guardrail integration in the chat pipeline, and the operational config knobs
 
 Prerequisites:
 
-- The `huggingface` dependency profile is installed
-  (`./install/setup.sh --profile huggingface`). The first run downloads the
+- The `torch` dependency profile is installed
+  (`./install/setup.sh --profile torch`). The first run downloads the
   model (~1.5B params) from HuggingFace; allow a few minutes and disk space.
 - ORBIT runs at `http://localhost:3000` with an API key bound to any
   chat-capable adapter.
