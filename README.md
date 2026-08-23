@@ -209,6 +209,8 @@ Python and Node.js versions of this call using the official OpenAI SDK, includin
 
 For peer-agent orchestration using Google's A2A protocol, see the blocking and streaming Python/Node.js clients in [`examples/a2a-protocol/`](examples/a2a-protocol/).
 
+Using Claude with ORBIT? See [Using ORBIT from Claude](docs/claude-agent-integration.md) for both connection options — Claude calling ORBIT as an MCP tool, or a Claude agent addressing ORBIT as a peer via A2A.
+
 Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `admin123`, set via `auth.default_admin_password` in `config.yaml` — change this immediately after first login).
 
 For custom Docker deployments, follow [Docker guide](docker/README.md).
