@@ -14,200 +14,191 @@ This document describes ORBIT's capabilities as implemented in its configuration
 
 Each row in the comparison tables is intended to describe what each platform does, not to rank them. Where a claim about a comparison platform could not be verified against that platform's own documentation or pricing page, it has been noted as such or omitted.
 
----
+<div class="keep-together">
 
-## 1. Comparison Matrix
+## 1. Architecture
+
+<div style="text-align:center">
+<img src="orbit-architecture.svg" alt="ORBIT architecture diagram" style="max-height:460px" />
+</div>
+
+Clients connect through the ORBIT API over REST, an OpenAI-compatible interface, MCP, A2A, or async MQ transports. Requests pass through auth/quota checks, then an adapter router that dispatches to chat/voice, document, structured-data, API, tool-agent, or generation handlers, which in turn call local or cloud model providers.
+
+</div>
+
+## 2. Comparison Matrix
 
 | Dimension | **ORBIT** | **LiteLLM** | **Open WebUI** | **Commercial Managed Platforms** *(Bedrock/Azure/Vertex)* |
 | :--- | :--- | :--- | :--- | :--- |
 | **Primary function** | AI gateway + multi-source RAG + agent protocol host | LLM API proxy and router | Chat user interface for local/cloud LLMs | Managed cloud AI service |
-| **Inference backends** | 41 provider/runtime configurations (cloud APIs, local GGUF, vLLM, TensorRT-LLM, BitNet, AirLLM, TEE) — see note in §2.1 on default-disabled backends | Broad set of cloud/proxy API routes | Ollama-native; also reaches any OpenAI-compatible endpoint (OpenAI, or a self-hosted llama.cpp/vLLM/LM Studio server) | Vendor-operated model catalog |
-| **Data source integration** | SQL (9 dialects), vector DBs (6 integrated), NoSQL, REST/GraphQL, web search (provider-native for Gemini/OpenAI/xAI, plus 7 external search backends usable with any LLM) | No built-in data-source connectors; typically paired with an external RAG pipeline | Web search plugin and document-based vector RAG | Cloud-native connectors (S3/Blob/GCS) and managed vector search services |
-| **Document & media processing** | Three document-parsing engines (Docling, MarkItDown, LLM/vision OCR); image, video, STT/TTS generation | Not included | Text extraction from uploaded files (e.g., PyPDF) | Cloud OCR/vision services (e.g., Textract, Form Recognizer) |
-| **Agent protocols** | MCP (server and client host), Google A2A, RabbitMQ-based async messaging | Function/tool-call proxying | Tool-calling UI plugins | Vendor-specific agent frameworks |
-| **Conversational UX features** | Cross-adapter skill invocation with optional automatic intent routing, query autocomplete from adapter/skill examples, and per-model dynamic conversation-history budgeting (see §2.9) | Not in scope — LiteLLM proxies inference calls and does not manage conversation state or UX | Chat UI includes model-side features (e.g., prompt templates, RAG toggles) but does not implement adapter-swapping skills, intent-based auto-routing, or dynamic per-model history budgeting | Varies by vendor SDK/console; not a standard cross-platform feature |
-| **Security & identity** | 6-role RBAC (11 permissions), OIDC/SSO (Entra ID, Auth0), OS keyring integration, AES-256 file encryption — included in the open-source distribution | Key-based limits and proxy-level auth in the open-source tier; SSO/SCIM, OIDC/JWT auth, and audit logs are listed as part of the paid Enterprise tier per LiteLLM's published pricing (see §3.1) | User accounts, OAuth | Cloud IAM (AWS IAM, Azure RBAC, etc.) |
+| **Inference backends** | 41 provider/runtime configurations (cloud APIs, local GGUF, vLLM, TensorRT-LLM, BitNet, AirLLM, TEE) — see note in §3.1 on default-disabled backends | Broad set of cloud/proxy API routes | Ollama-native; also reaches any OpenAI-compatible endpoint (OpenAI, or a self-hosted llama.cpp/vLLM/LM Studio server) | Vendor-operated model catalog |
+| **Data source integration** | SQL (9 dialects), vector DBs (6 integrated), NoSQL, REST/GraphQL, web search (provider-native for Gemini/OpenAI/xAI, plus 7 external search backends usable with any LLM) | No built-in data-source connectors; typically paired with an external RAG pipeline | 13 supported vector databases, web search with source citations, and hybrid (BM25 + vector) search with cross-encoder reranking; no built-in SQL/NoSQL database connectors as retrieval sources | Cloud-native connectors (S3/Blob/GCS) and managed vector search services |
+| **Document & media processing** | Three document-parsing engines (Docling, MarkItDown, LLM/vision OCR); image, video, STT/TTS generation | Not included | 8 supported document-extraction engines (including Tika, Docling, Mistral OCR); image generation (GPT-Image, Gemini, ComfyUI) and voice/audio (speech-to-text, text-to-speech) | Cloud OCR/vision services (e.g., Textract, Form Recognizer) |
+| **Agent protocols** | MCP (server and client host), Google A2A, RabbitMQ-based async messaging | Function/tool-call proxying | MCP support, OpenAPI-server tools, and a Python tools/functions framework; no documented A2A support | Vendor-specific agent frameworks |
+| **Conversational UX features** | Cross-adapter skill invocation with optional automatic intent routing, query autocomplete from adapter/skill examples, and per-model dynamic conversation-history budgeting (see §3.9) | Not in scope — LiteLLM proxies inference calls and does not manage conversation state or UX | Model presets, cross-conversation memory of remembered facts, and Markdown-defined "Skills"; these are chat-UI/prompt-level features rather than ORBIT's server-side adapter-routing and dynamic per-model history budgeting | Varies by vendor SDK/console; not a standard cross-platform feature |
+| **Response feedback capture** | Built-in per-message thumbs up/down with optional comment, stored per adapter/user, with a dedicated admin-panel analytics view (satisfaction trend, per-adapter ranking, negative-feedback triage) — see §3.9 | Not in scope — LiteLLM does not track end-user response ratings | Open WebUI has a per-message rating feature; whether it includes adapter-level trend/satisfaction analytics comparable to §3.9 was not verified against its documentation for this comparison | Varies by vendor console; typically not exposed as a queryable per-response feedback dataset |
+| **Security & identity** | 6-role RBAC (11 permissions), OIDC/SSO (Entra ID, Auth0), OS keyring integration, AES-256 file encryption — included in the open-source distribution | Proxy-level auth in the open-source tier; SSO/SCIM, OIDC/JWT auth, and audit logs are listed as part of the paid Enterprise tier per LiteLLM's published pricing (see §4.1) | RBAC with roles, groups, and per-resource permissions; SSO/OIDC/LDAP and SCIM 2.0; API keys — per its documentation, listed as part of the open-source product | Cloud IAM (AWS IAM, Azure RBAC, etc.) |
+| **Per-key usage limits** | Each API key can be bound to one adapter and given its own daily/monthly quota and priority-based throttling, managed from the admin panel with live usage and reset controls (see §3.6) | Per-key rate/spend limits are also included in LiteLLM's open-source tier, using its own proxy-level design | Not a documented feature of the open-source product | Varies by vendor console; typically account- or project-level rather than per-key |
+| **Inference cost tracking** | A local, configurable pricing table estimates cost on every request (text, media, and realtime-voice), with per-record and aggregated views (by model/provider/adapter/user/API key) in the admin panel — see §3.8 | Also cost-tracked in the open-source tier, via LiteLLM's own maintained model-pricing map, with spend reporting by key/user/team | Included in the open-source product: an Analytics dashboard tracks token usage per message, model, and user. Per its own documentation, it does not calculate a dollar cost automatically — the admin multiplies the tracked token counts by their provider's price manually | Native, invoice-accurate billing through the vendor's own cloud billing console |
 | **Safety & moderation** | Configurable moderation backends (OpenAI, Anthropic, Llama-Guard3, Shieldstral), plus two PII detectors: a local model (`privacy-filter`) and a Presidio analyzer integration | Integrates with external moderation/PII services (e.g., Presidio) | Basic moderation options | Managed cloud guardrail services |
 | **Hardware acceleration** | CUDA, MPS, vLLM, TensorRT-LLM (FP8/INT8), SGLang, BitNet | Routes to external inference servers; does not run hardware-accelerated inference itself | Dependent on the Ollama backend it connects to | Managed cloud GPU infrastructure |
-| **Deployment model** | Docker, Kubernetes, bare-metal, air-gapped, async worker processes | Docker, Kubernetes, serverless | Docker, desktop, serverless | Managed cloud SaaS/PaaS |
-| **License** | Apache 2.0 (single tier, no gated features) | Open-source core under a permissive license, with a separate paid Enterprise tier for the features listed in §3.1 (per litellm.ai/pricing) | BSD-3-Clause through v0.6.5; v0.6.6+ adds a branding-protection clause (not OSI-approved as "open source"), with a separate enterprise license for white-labeling — see §4.2 | Proprietary cloud service |
+| **Deployment model** | Docker, Kubernetes, bare-metal, air-gapped, async worker processes | Docker, Kubernetes, serverless | Docker/Compose, Kubernetes/Helm, pip install, with Redis-backed horizontal scaling across multiple workers/nodes | Managed cloud SaaS/PaaS |
+| **License** | Apache 2.0 (single tier, no gated features) | Open-source core under a permissive license, with a separate paid Enterprise tier for the features listed in §4.1 (per litellm.ai/pricing) | BSD-3-Clause through v0.6.5; v0.6.6+ adds a branding-protection clause (not OSI-approved as "open source"), with a separate enterprise license for white-labeling — see §4.2 | Proprietary cloud service |
 
----
+## 3. Capability Detail
 
-## 2. Capability Detail
+### 3.1 LLM Gateway & Inference
 
-### 2.1 LLM Gateway & Inference
-
-ORBIT defines **41 inference provider/runtime configurations** in `config/inference.yaml`. Most are disabled by default and require an API credential or a locally running runtime (e.g., an Ollama daemon or a vLLM server) to be usable — the count reflects configured integrations, not backends active in a given deployment.
+ORBIT defines **41 inference provider/runtime configurations** in `config/inference.yaml`. Most are disabled by default and require an API credential or a locally running runtime to be usable — the count reflects configured integrations, not backends active in a given deployment.
 
 | Capability | Details | Source |
 | :--- | :--- | :--- |
-| Supported backends (41 entries) | Ollama, vLLM, SGLang, TensorRT-LLM, Shimmy, llama.cpp, Gemini, Groq, DeepSeek, Vertex AI, AWS Bedrock, Azure OpenAI, OpenAI, Mistral, Anthropic, Together AI, xAI Grok, Hugging Face Transformers, AirLLM, OpenRouter, Cohere, IBM watsonx, Perplexity, Fireworks AI, Replicate, NVIDIA AI Catalog, BitNet, ZAI, Cerebras, DeepInfra, LM Studio, Moonshot AI, MiniMax, NEAR AI Cloud (TEE), Nebius, Venice, Scaleway, Sakana Fugu | `config/inference.yaml` |
-| Local hardware acceleration | TensorRT-LLM (FP8, INT8, AWQ 4-bit), vLLM (tensor/pipeline parallelism), SGLang, AirLLM (disk-based layer streaming) | `config/inference.yaml` |
-| Quantized/low-bit runtimes | BitNet (`i2_s`, `tl1` kernels), llama.cpp GGUF | `config/inference.yaml`, `config/llama_cpp.yaml`, `docs/bitnet-setup.md` |
-| Confidential computing | NEAR AI Cloud TEE integration | `config/inference.yaml` |
-| Fault tolerance | Circuit breaker with exponential backoff, jitter, recovery timeout, and probe caps (`failure_threshold: 5`, `recovery_timeout: 30s`); model fallback chaining | `config/config.yaml` (`fault_tolerance`) |
-| Per-adapter provider overrides | Adapters can override `inference_provider`, `embedding_provider`, `reranker_provider`, and `model` | `config/adapters.yaml` |
+| Supported backends | Major cloud providers (OpenAI, Anthropic, Gemini, AWS Bedrock, Azure OpenAI, Vertex AI, Cohere, Mistral, IBM watsonx, and more), plus local/self-hosted runtimes (Ollama, vLLM, llama.cpp, and others) | `config/inference.yaml` |
+| Local hardware acceleration | Support for running models efficiently on local GPUs, including optimized runtimes for high-throughput and low-bit/quantized models | `config/inference.yaml` |
+| Confidential computing | Integration with a trusted-execution-environment (TEE) provider for confidential model inference | `config/inference.yaml` |
+| Fault tolerance | Automatic circuit-breaking on repeated provider failures, with configurable retry timing and fallback to an alternate model | `config/config.yaml` (`fault_tolerance`) |
+| Per-adapter provider overrides | Each adapter can be configured to use a different inference, embedding, or reranking provider and model than the system default | `config/adapters.yaml` |
 
----
-
-### 2.2 Data Sources & Retrieval
+### 3.2 Data Sources & Retrieval
 
 | Capability | Details | Source |
 | :--- | :--- | :--- |
-| SQL databases (9 dialects) | PostgreSQL, MySQL, MariaDB, SQLite, Supabase, Oracle, SQL Server, DuckDB, AWS Athena | `config/datasources.yaml` |
-| Vector databases (6 integrated as retrievers) | Chroma, Qdrant, Milvus, Pinecone, Elasticsearch, Redis Vector. Weaviate appears in `stores.yaml` for store-lifecycle management, not as an active retriever backend. | `config/datasources.yaml`, `config/stores.yaml` |
+| SQL databases | PostgreSQL, MySQL, MariaDB, SQLite, Supabase, Oracle, SQL Server, DuckDB, AWS Athena | `config/datasources.yaml` |
+| Vector databases | Chroma, Qdrant, Milvus, Pinecone, Elasticsearch, Redis Vector | `config/datasources.yaml`, `config/stores.yaml` |
 | NoSQL databases | MongoDB (Atlas or self-hosted), Cassandra | `config/datasources.yaml` |
-| Web/API sources | REST, GraphQL | — |
-| Web search — provider-native | Delegates search and synthesis to the LLM provider's own built-in tool in a single call. Supported with Gemini (`google_search` grounding), OpenAI (Responses API `web_search`), and xAI (`web_search`). Other providers are not supported for this mode. | `config/adapters/web-search.yaml`, `docs/adapters/web-search.md` |
-| Web search — external providers | A dedicated `WebSearchStep` calls an external search API (DuckDuckGo, SearXNG, Brave, Serper, Tavily, Google PSE, Perplexity), then any configured LLM synthesizes the answer from the results. Decouples the search backend from the synthesizing model (e.g., DuckDuckGo results summarized by a local Ollama model). | `config/adapters/web-search-providers.yaml`, `docs/adapters/web-search.md` |
-| Embedding providers (11) | Ollama, llama.cpp, Jina, OpenAI, Cohere, Mistral, Gemini, Voyage AI, OpenRouter, NVIDIA, SentenceTransformers | `config/embeddings.yaml` |
-| Rerankers (7) | Ollama (BGE-Reranker v2), Cohere, Jina, OpenAI, Anthropic, Voyage AI, OpenRouter | `config/rerankers.yaml` |
-| Hybrid retrieval scoring | Combines dense embedding similarity, lexical similarity (Jaro-Winkler, Levenshtein), and reranking | `config/config.yaml` (`composite_retrieval`) |
-| SQL query safety guard | Generated SQL is validated before execution to confirm it is a single, read-only, row-capped statement, rejecting non-query commands | `CHANGELOG.md` (v2.15.3) |
-| Intent template validation | Intent template libraries are validated against a formal schema at load time; templates can optionally require explicit approval before being served | `CHANGELOG.md` (v2.15.4) |
+| Web/API sources | Intent-based query generation against REST/JSON and GraphQL APIs (e.g. natural language mapped to calls against a REST endpoint or a GraphQL API), plus a web-scraping adapter (Firecrawl) with automatic content chunking for large pages | `config/adapters/intent.yaml` |
+| Web search — provider-native | For supported LLM providers (Gemini, OpenAI, xAI), search and answer synthesis happen in a single call using the provider's own built-in search tool | `config/adapters/web-search.yaml`, `docs/adapters/web-search.md` |
+| Web search — external providers | Any configured LLM can be paired with an external search engine (e.g., DuckDuckGo, Brave, Tavily, Google), so the search source and the answering model can be chosen independently | `config/adapters/web-search-providers.yaml`, `docs/adapters/web-search.md` |
+| Embedding providers | OpenAI, Cohere, Mistral, Gemini, Voyage AI, and other embedding providers, plus local/self-hosted options | `config/embeddings.yaml` |
+| Rerankers | Cohere, Jina, OpenAI, Anthropic, Voyage AI, and other reranking providers | `config/rerankers.yaml` |
+| Hybrid retrieval scoring | Combines semantic similarity, keyword matching, and reranking to improve result relevance | `config/config.yaml` (`composite_retrieval`) |
+| SQL query safety guard | Every generated SQL query is checked before it runs, to confirm it is a single, read-only, size-limited query — blocking any query that would modify data | `CHANGELOG.md` (v2.15.3) |
+| Intent template validation | Query templates are checked for correctness when loaded, and can optionally require administrator approval before being used | `CHANGELOG.md` (v2.15.4) |
 
-Retrieval is implemented via **intent-based query generation**: natural-language input is mapped to SQL/NoSQL/API queries through configured templates, rather than a general-purpose text-to-SQL model call on every request.
+Retrieval works through **intent-based query generation**: a natural-language question is matched to a pre-approved query template rather than having a general-purpose model generate a new database query on every request.
 
----
-
-### 2.3 Document Processing
+### 3.3 Document Processing
 
 | Capability | Details | Source |
 | :--- | :--- | :--- |
-| File formats | PDF, DOCX, PPTX, XLSX, XLS, CSV, JSON, XML, HTML, TXT, EPUB, ZIP, images, audio | `config/config.yaml` |
-| Processing engines (in priority order) | 1. Docling (layout-aware parsing) 2. MarkItDown (document-to-markdown) 3. LLM/vision-based OCR (Mistral, Gemini, or vision models from OpenAI/Anthropic/Cohere/Ollama/vLLM/llama.cpp) | `config/config.yaml` (`files.processing.processor_priority`), `config/ocr.yaml` |
-| Chunking strategies | Fixed-size, token-based, semantic (similarity-boundary detection), recursive, markdown-header | `config/config.yaml` (`files.default_chunking_strategy`) |
-| Document security | Magika MIME-type verification, AES-256-GCM encryption at rest | `config/config.yaml` (`files.processing.magika`, `files.encryption`) |
+| File formats | PDF, Word, PowerPoint, Excel, CSV, JSON, XML, HTML, plain text, EPUB, ZIP, images, and audio | `config/config.yaml` |
+| Processing engines (in priority order) | Layout-aware document parsing, then document-to-markdown conversion, then AI vision/OCR as a fallback for harder documents | `config/config.yaml` (`files.processing.processor_priority`), `config/ocr.yaml` |
+| Chunking strategies | Several methods for splitting documents into retrievable pieces (fixed-size, token-based, semantic, and structure-aware) | `config/config.yaml` (`files.default_chunking_strategy`) |
+| Document security | File-type verification on upload and encryption of stored documents | `config/config.yaml` (`files.processing.magika`, `files.encryption`) |
 | Storage backends | Local filesystem, AWS S3/MinIO, Azure Blob Storage, Google Cloud Storage | `config/config.yaml` (`files.storage_backend`) |
 
----
-
-### 2.4 Multimodal & Media Processing
+### 3.4 Multimodal & Media Processing
 
 | Domain | Details | Source |
 | :--- | :--- | :--- |
-| Speech-to-text (12 configured) | Local Whisper (tiny–large-v3, CPU/CUDA), OpenAI API, Google STT, Gemini, xAI Grok STT, Cohere Transcribe, OpenRouter, Ollama; 4 of the 12 entries are provider placeholders without a default model set | `config/stt.yaml` |
-| Text-to-speech (11 configured) | OpenAI TTS, Google TTS, Gemini TTS, ElevenLabs, Supertonic (local, 31 languages), Coqui TTS (local), vLLM Orpheus, Ollama (Piper/Kokoro), OpenRouter; 2 of the 11 entries are placeholders | `config/tts.yaml` |
-| Audio content sanitization | Strips non-speech content (code blocks, tables) before TTS synthesis, with an optional spoken placeholder | `config/tts.yaml` (`tts.sanitize_content`) |
-| Image generation (5 configured) | OpenAI (DALL-E 2/3, GPT Image), Gemini, xAI Grok Imagine, Ollama (Flux2/Z-Image Turbo), OpenRouter (Seedream) | `config/image.yaml` |
-| Video generation (3 configured) | Gemini (Veo), xAI (Grok Imagine Video), OpenRouter (Seedance) | `config/video.yaml` |
-| Vision/OCR analysis (8 configured) | OpenAI, Anthropic, Cohere, Ollama, vLLM, llama.cpp, Gemini, Mistral | `config/vision.yaml` |
-| Real-time speech-to-speech | Native, interruptible voice conversations (not a separate STT-then-TTS pipeline) via OpenAI Realtime (`gpt-realtime`) and Gemini Live (`gemini-3.1-flash-live-preview`), with barge-in support so a user can interrupt the assistant mid-answer. Can be grounded in a configured retriever adapter (SQL, vector, or other data source) via a `grounding_adapter` reference, so spoken answers stay factual rather than relying only on the model's own knowledge — usable for live virtual-assistant scenarios. | `config/adapters/qa.yaml` (`qa-realtime-voice`, `qa-gemini-realtime-voice`), `docs/adapters/grounded-realtime-voice.md` |
+| Speech-to-text | Local, on-device transcription, plus cloud providers including OpenAI, Google, and Gemini | `config/stt.yaml` |
+| Text-to-speech | Cloud providers (OpenAI, Google, Gemini, ElevenLabs) and local/self-hosted voice engines | `config/tts.yaml` |
+| Audio content sanitization | Non-speech content (like code blocks or tables) is stripped out before text is converted to speech, so spoken responses stay natural | `config/tts.yaml` (`tts.sanitize_content`) |
+| Image generation | OpenAI, Gemini, xAI, and other image-generation providers | `config/image.yaml` |
+| Video generation | Gemini, xAI, and other video-generation providers | `config/video.yaml` |
+| Vision/OCR analysis | OpenAI, Anthropic, Gemini, and other vision-capable providers, for reading text and content out of images | `config/vision.yaml` |
+| Real-time speech-to-speech | Live, interruptible voice conversations (the user can talk over the assistant), rather than a separate transcribe-then-speak pipeline. Can be connected to ORBIT's own data sources so spoken answers are grounded in real information rather than the model's general knowledge — useful for live virtual-assistant scenarios. | `config/adapters/qa.yaml`, `docs/adapters/grounded-realtime-voice.md` |
 
-Per-adapter allowlists (`allowed_image_models`, `allowed_video_models`, `allowed_audio_models`, `allowed_search_providers`) let a client select, at request time, from a configured set of provider/model combinations for image, video, audio, and web-search generation, rather than being fixed to one adapter-configured default. Because OpenRouter is itself an aggregator exposing many third-party models through a single provider entry, an OpenRouter-backed adapter can expose a correspondingly larger set of selectable image/video/audio models than a single-vendor provider would, subject to how many are added to that adapter's allowlist. (`CHANGELOG.md`, v2.15.6)
+An administrator can restrict, per adapter, which specific models a user is allowed to select for image, video, audio, and web-search generation, rather than every adapter being locked to one fixed default. (`CHANGELOG.md`, v2.15.6)
 
----
-
-### 2.5 Protocols
+### 3.5 Protocols
 
 | Protocol | Details | Source |
 | :--- | :--- | :--- |
-| REST / OpenAI-compatible | `/v1/chat`, `/v1/chat/completions` with SSE streaming | `server/routes/` |
-| Model Context Protocol (MCP) | Operates as both an MCP server (`/mcp`) and an MCP client host. Pre-wired example client configs: `filesystem`, a sample REST API, and `github`. Other MCP servers (e.g., Slack, Jira, Sentry, M365) are documented as configuration templates, not pre-wired connections. | `config/mcp_clients.yaml`, `docs/mcp_protocol.md` |
-| MCP agentic tool-calling | A bounded, multi-step tool-calling loop lets the model call one or more MCP tools, receive results, and continue reasoning across several rounds within a single request — implemented as ORBIT's own code path against each provider's native tool-calling API, with no external agent-orchestration library (e.g. LangChain, AutoGen, CrewAI) involved. Available either as an explicit skill the client opts into per request, or in an "opportunistic" mode where an ordinary conversational adapter decides per turn, with no client-side signal, whether a tool is needed. Supported with OpenAI, Anthropic, Gemini, xAI, Ollama, Ollama Cloud, llama.cpp (API mode), and vLLM (API mode). | `docs/adapters/mcp-agent.md` |
-| Google A2A | Agent discovery (`/.well-known/agent.json`) and task execution (`/a2a`, JSON-RPC 2.0, streaming) | `docs/a2a-protocol.md` |
-| Async messaging | RabbitMQ-based AMQP request/response surface for decoupled processing | `config/config.yaml` (`messaging`) |
-| WebSockets | Bi-directional streaming for audio and telemetry | `/ws`, `/ws/metrics` |
+| REST / OpenAI-compatible | A standard chat API compatible with the widely-used OpenAI format, with streaming responses | `server/routes/` |
+| Model Context Protocol (MCP) | Can act as an MCP server (exposing ORBIT's own capabilities to other tools) and as an MCP client (connecting to external MCP tools, such as a filesystem or GitHub) | `config/mcp_clients.yaml`, `docs/mcp_protocol.md` |
+| MCP agentic tool-calling | The model can call one or more external tools, review the results, and reason over multiple steps within a single request — built directly into ORBIT, without relying on a separate agent-orchestration framework. This can be an explicit request feature, or enabled so a normal conversation automatically decides when a tool is needed. Supported across most major LLM providers. | `docs/adapters/mcp-agent.md` |
+| Google A2A | Supports Google's Agent-to-Agent protocol for agent discovery and task execution between AI systems | `docs/a2a-protocol.md` |
+| Async messaging | Message-queue-based request/response support for decoupled, asynchronous processing | `config/config.yaml` (`messaging`) |
+| WebSockets | Real-time, two-way streaming for voice and live status updates | `/ws`, `/ws/metrics` |
+| AI coding-agent integration | Because MCP and A2A are open, provider-neutral protocols, ORBIT can be connected to external agentic tools that speak either one. This is documented in detail for Claude (Desktop, Code, and SDK-based agents), which can call ORBIT as an MCP tool or address it as a peer agent over A2A. Other MCP- or A2A-compliant agent tools and coding assistants can connect the same way, though the level of support for each has not been individually verified for this comparison. | `docs/claude-agent-integration.md` |
 
----
-
-### 2.6 Security, Governance & Identity
+### 3.6 Security, Governance & Identity
 
 | Capability | Details | Source |
 | :--- | :--- | :--- |
-| Authentication | PBKDF2-SHA256 password hashing (600,000 iterations), 256-bit opaque bearer tokens, OS keyring integration | `docs/authentication.md` |
-| SSO | OIDC/OAuth2 for Microsoft Entra ID and Auth0; admin panel SSO with PKCE | `config/config.yaml` (`auth.providers`) |
-| RBAC | 6 built-in roles (`admin`, `operator`, `auditor`, `analyst`, `user-manager`, `user`), 11 permissions | `docs/rbac-architecture.md` |
-| API key controls | Scoped keys, daily/monthly quotas, rate limits, user/email restrictions, adapter-level binding | `docs/api-keys.md` |
-| Identity blacklisting | Wildcard pattern blocking with session revocation | `config/config.yaml` (`auth.blacklist`) |
-| Audit logging | Request and admin-action logs, storable in SQLite, Postgres, MongoDB, or Elasticsearch | `config/config.yaml` (`internal_services.audit`) |
-| Secrets management | Resolves `${VAR}` references from AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager, falling back to `.env` | `config/config.yaml` (`secrets_management`) |
-| Strict auth mode | Optional setting requiring a valid user bearer token in addition to an API key | `config/config.yaml` (`auth.require_authenticated_user`) |
+| Authentication | Industry-standard password hashing, secure session tokens, and integration with the operating system's credential store | `docs/authentication.md` |
+| SSO | Single sign-on via Microsoft Entra ID and Auth0 | `config/config.yaml` (`auth.providers`) |
+| RBAC | Six built-in roles (e.g., admin, operator, auditor, analyst) covering eleven distinct permissions, so access can be scoped to what each role actually needs | `docs/rbac-architecture.md` |
+| API key controls | Keys can be scoped to specific adapters, given daily/monthly usage quotas and rate limits, and restricted to specific users or email addresses | `docs/api-keys.md` |
+| Per-key quotas & throttling | Each key's daily/monthly limit, remaining usage, and throttle priority can be viewed and edited from the admin panel, with one-click resets and a live usage report across all keys — no configuration-file editing required | `server/routes/admin/api_keys.py`, `server/services/api_key_service.py`, `server/admin/admin_panel/tabs/api-keys.js` |
+| Identity blacklisting | Administrators can block users or accounts by pattern, immediately revoking their active sessions | `config/config.yaml` (`auth.blacklist`) |
+| Audit logging | Records of user requests and administrative actions, stored in the organization's database of choice | `config/config.yaml` (`internal_services.audit`) |
+| Secrets management | Credentials can be pulled from AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager instead of being stored directly in configuration files | `config/config.yaml` (`secrets_management`) |
+| Strict auth mode | An optional setting that requires every request to carry a verified user identity, not just a valid API key | `config/config.yaml` (`auth.require_authenticated_user`) |
 
 All items in this table are included in ORBIT's open-source (Apache 2.0) distribution; there is no separate paid tier.
 
----
-
-### 2.7 Safety, Moderation & Privacy
+### 3.7 Safety, Moderation & Privacy
 
 | Capability | Details | Source |
 | :--- | :--- | :--- |
-| Moderation backends | OpenAI Omni-Moderation, Anthropic moderator, Ollama Llama-Guard3, Shieldstral (via vLLM/llama.cpp) | `config/moderators.yaml`, `config/guardrails.yaml` |
-| Local PII detection | Token-classification model (`openai/privacy-filter`, Apache 2.0) run on-premises; no outbound call required | `config/moderators.yaml` (`privacy_filter`) |
-| PII detection via Presidio | Presidio analyzer called over its REST API (no added Python dependencies); ~100 configurable entity types, per-entity score thresholds, self-hosted | `config/moderators.yaml` (`presidio`), `docs/security/pii-moderation.md` |
-| Network security controls | CORS, CSP, HSTS, X-Frame-Options, X-Content-Type-Options, rate limiting, progressive throttling | `config/config.yaml` (`security`) |
+| Moderation backends | Configurable content-moderation models from OpenAI, Anthropic, and open-source options, to screen requests and responses | `config/moderators.yaml`, `config/guardrails.yaml` |
+| Local PII detection | An on-premises model that detects personal information without sending any data outside the organization's network | `config/moderators.yaml` (`privacy_filter`) |
+| PII detection via Presidio | Integration with Presidio, a self-hosted PII-detection tool supporting roughly 100 configurable data types (names, emails, etc.) | `config/moderators.yaml` (`presidio`), `docs/security/pii-moderation.md` |
+| Network security controls | Standard web security protections (e.g., cross-origin restrictions, content-security policy) plus rate limiting and throttling to prevent abuse | `config/config.yaml` (`security`) |
 
----
-
-### 2.8 Reliability & Performance
+### 3.8 Reliability & Performance
 
 | Capability | Details | Source |
 | :--- | :--- | :--- |
-| Multi-worker scaling | Uvicorn process scaling with separate thread pools per workload type | `config/config.yaml` (`performance`) |
-| Caching | SQLite, Redis, or Memcached backends | `config/config.yaml` (`internal_services.cache`) |
-| Response optimization | GZip compression, ETag caching | `config/config.yaml` (`performance.compression`, `performance.etag_caching`) |
-| Cost/token tracking | Per-request token usage and estimated cost, by provider/model | `config/pricing.yaml`, `docs/token-usage-and-cost-tracking.md` |
-| Observability | WebSocket telemetry, Prometheus metrics endpoint, log rotation | `config/config.yaml` |
+| Multi-worker scaling | The server can run multiple worker processes to handle higher request volume | `config/config.yaml` (`performance`) |
+| Caching | Configurable caching (SQLite, Redis, or Memcached) to speed up repeated requests | `config/config.yaml` (`internal_services.cache`) |
+| Response optimization | Compressed responses and efficient re-validation to reduce bandwidth | `config/config.yaml` (`performance.compression`, `performance.etag_caching`) |
+| Cost/token tracking | Tracks token usage and estimated dollar cost for every request, broken down by provider and model. Also prices non-text usage (image, video, TTS, STT, OCR) by its own discrete unit (per image, per second, per character, etc.), not just tokens. | `config/pricing.yaml`, `docs/token-usage-and-cost-tracking.md` |
+| Pricing rate table & staleness tracking | Costs are estimated from a local, editable rate table covering every configured provider/model, rather than pulled from a provider billing API. The table records when it was last updated and flags itself as stale in the admin panel after a configurable number of days, so outdated rates don't silently look current. Distinguishes a model priced at genuinely $0 (e.g. a local model) from one with no rate configured at all. | `config/pricing.yaml`, `server/services/pricing_service.py` |
+| Cost dashboards | Per-request cost appears on individual audit records, and an aggregated Costs view breaks down total spend by model, provider, adapter, user, request type, and API key over a selectable time window | `docs/token-usage-and-cost-tracking.md` |
+| Observability | Live telemetry, a metrics endpoint compatible with standard monitoring tools (Prometheus), and log rotation | `config/config.yaml` |
 
----
-
-### 2.9 Conversational Behavior & Adapter Intelligence
+### 3.9 Conversational Behavior & Adapter Intelligence
 
 | Capability | Details | Source |
 | :--- | :--- | :--- |
-| Skills (cross-adapter capability invocation) | Any adapter can invoke another adapter's function mid-conversation via a `skill` request field (e.g., a retrieval adapter invoking image generation) without switching the client's active adapter. Invocable skills are explicitly allowlisted per adapter (`available_skills`); the calling adapter's LLM/retrieval pipeline is bypassed for that single turn and the skill's output is returned instead. | `docs/adapters/skills.md`, `server/services/chat_handlers/request_context_builder.py` |
-| Automatic skill/intent routing | Optional per-adapter setting that infers which skill to invoke from plain natural language (no explicit `skill` field required), using an embedding pre-filter over each skill's example phrases followed by a constrained LLM confirmation call. Falls back to a normal conversational turn on any detection error. Disabled by default; opt-in per adapter. | `docs/adapters/skills.md` (Automatic Intent Detection), `config/config.yaml` (`skill_routing`) |
-| Autocomplete / query suggestions | Real-time input suggestions drawn from intent-adapter `nl_examples` and skill `routing_examples`, ranked with fuzzy string matching (Levenshtein, Jaro-Winkler) and served from the same shared cache backend as the rest of the platform (SQLite/Redis/Memcached). | `docs/autocomplete-architecture.md`, `config/config.yaml` (`autocomplete`) |
-| Dynamic conversation-history token budgeting | Per-conversation history length is computed automatically from the active model's context window (read from provider-specific config, e.g. `num_ctx`/`n_ctx`/`context_window`) minus a reserved allowance for the system prompt and the model's own output-token setting, rather than a fixed message count. Adapters and per-request model selection can each apply their own budget. Old messages are automatically pruned once a session exceeds 120% of budget, with a warning surfaced to the client at 90%. | `docs/conversation_history.md` |
+| Skills (cross-adapter capability invocation) | One adapter can call on another adapter's capability mid-conversation — for example, a retrieval adapter triggering image generation — without the user switching adapters. Which skills an adapter can call is explicitly configured. | `docs/adapters/skills.md`, `server/services/chat_handlers/request_context_builder.py` |
+| Automatic skill/intent routing | An optional setting that lets ORBIT infer which skill to invoke directly from a user's plain-language request, rather than requiring the request to name the skill explicitly. Off by default; enabled per adapter. | `docs/adapters/skills.md` (Automatic Intent Detection), `config/config.yaml` (`skill_routing`) |
+| Autocomplete / query suggestions | Real-time input suggestions as a user types, drawn from example phrases configured for each adapter and skill | `docs/autocomplete-architecture.md`, `config/config.yaml` (`autocomplete`) |
+| Dynamic conversation-history token budgeting | How much conversation history is kept is calculated automatically based on the model's context size, rather than a fixed number of messages — so older messages are trimmed only when needed, and the user is warned before that happens. | `docs/conversation_history.md` |
+| Response feedback capture | Users can rate individual responses with a thumbs up/down and an optional comment. Ratings are tracked per adapter and per user, and shown in the admin panel as a satisfaction trend, a per-adapter ranking, and a list of recent negative feedback for follow-up — giving a direct signal for where responses need improvement. | `server/services/feedback_service.py`, `server/admin/admin_panel/tabs/feedback.js`, `docs/sqlite-schema.md` (`feedback` table) |
 
----
-
-### 2.10 Reference Client: OrbitChat
+### 3.10 Reference Client: OrbitChat
 
 ORBIT ships a standalone chat client, distributed separately as an npm package, that connects to any ORBIT deployment. It is not part of the ORBIT server itself.
 
 | Capability | Details | Source |
 | :--- | :--- | :--- |
-| Distribution | Installable via `npm install -g orbitchat`; runs as a CLI (`orbitchat`) or as a daemon (`orbitchat-daemon`) | `clients/orbitchat/README.md` |
-| Feature set | Streaming responses, file upload, conversation threading, voice input/output, autocomplete, feedback capture, optional Auth0-based login | `clients/orbitchat/README.md` |
-| Key-handling model | The browser never receives real API keys. Requests carry an `X-Adapter-Name` header; a bundled Express proxy resolves that name to the corresponding backend API key server-side before forwarding the request. | `clients/orbitchat/README.md` (Architecture, Security) |
-| API-only mode | The same proxy layer can run without serving the bundled UI (`--api-only`), exposing a documented REST contract (`GET /api/adapters`, adapter-scoped chat/file/autocomplete endpoints) for a custom frontend to build against | `clients/orbitchat/README.md` (API-Only Mode) |
-| Configuration | Per-deployment branding, adapter list, and feature toggles via a single `orbitchat.yaml`; adapter secrets supplied separately via environment variables | `clients/orbitchat/README.md` (Configuring Adapters) |
+| Distribution | Installable as a standard package, runnable as either a command-line tool or a background service | `clients/orbitchat/README.md` |
+| Feature set | Streaming responses, file upload, conversation threading, voice input/output, autocomplete, feedback capture, optional login via Auth0 | `clients/orbitchat/README.md` |
+| Key-handling model | The end user's browser never sees the real backend API key — the request identifies which adapter to use, and a server-side component resolves that to the correct key before forwarding it | `clients/orbitchat/README.md` (Architecture, Security) |
+| API-only mode | The same server-side component can run as a pure API layer without the bundled chat UI, for organizations building their own custom frontend | `clients/orbitchat/README.md` (API-Only Mode) |
+| Configuration | Branding, available adapters, and feature toggles are set in a single configuration file per deployment | `clients/orbitchat/README.md` (Configuring Adapters) |
 
 This positions OrbitChat as an optional, separately maintained reference client rather than a mandatory component — an organization can use ORBIT's API directly, build a custom frontend against the same proxy contract, or adopt OrbitChat as-is.
 
----
-
-### 2.11 Test Coverage & Performance Testing
+### 3.11 Test Coverage & Performance Testing
 
 | Capability | Details | Source |
 | :--- | :--- | :--- |
-| Automated test suite | 214 test files and approximately 3,867 test functions under `server/tests/`, organized by subsystem (adapters, admin, auth, cache, CLI, config, datasources, embeddings, fault tolerance, inference, messaging, middleware, pipeline steps, retrievers, routes, services, threads, vector stores, vision, image, document generation, chat handlers, secrets, sound). Counted directly from the repository (`grep -rE "^\s*(async )?def test_"`); excludes `__pycache__`. | `server/tests/` |
-| Load testing | Locust-based load testing (`locustfile.py`) with three user profiles (general, health-check, chat-focused), plus a shell-script runner (`run_performance_tests.sh`) covering basic, stress, health, chat, admin, and endurance scenarios | `server/tests/perf/README.md`, `server/tests/perf/locustfile.py` |
-| Custom load/scenario testing | `advanced_performance_test.py` supports mixed, burst, and ramp load patterns with CSV/HTML reporting; `multi_user_load_test.py` simulates concurrent multi-tenant traffic across different adapters/API keys with per-adapter latency (p50/p95/p99) and success-rate breakdown | `server/tests/perf/advanced_performance_test.py`, `server/tests/perf/multi_user_load_test.py` |
-| Rate-limit/throttle verification | `rate_limit_simulation.py` drives targeted traffic patterns (burst, sustained, random, throttle, quota-exhaustion) against the rate-limiting and throttling subsystem and reports observed behavior against configured limits | `server/tests/perf/rate_limit_simulation.py` |
-| Memory-leak profiling | `memray_leak_test.py` runs a load scenario against the server under memray instrumentation and produces flamegraph/table reports of allocations, including those still live at process exit | `server/tests/perf/memray_leak_test.py` |
+| Automated test suite | Roughly 3,900 automated tests across 214 test files, covering every major subsystem (adapters, authentication, data sources, inference, messaging, admin functions, and more) | `server/tests/` |
+| Load testing | Simulated traffic tools that model realistic usage patterns, from everyday load to stress and endurance scenarios | `server/tests/perf/README.md`, `server/tests/perf/locustfile.py` |
+| Custom load/scenario testing | Additional tooling for burst and ramping traffic patterns, and for simulating many concurrent tenants/API keys at once to measure latency and success rates per adapter | `server/tests/perf/advanced_performance_test.py`, `server/tests/perf/multi_user_load_test.py` |
+| Rate-limit/throttle verification | Dedicated tooling that verifies the rate-limiting and throttling systems behave correctly under a variety of traffic patterns | `server/tests/perf/rate_limit_simulation.py` |
+| Memory-leak profiling | A dedicated tool that runs load against the server while profiling memory allocations, to catch memory leaks before they reach production | `server/tests/perf/memray_leak_test.py` |
 
-The presence of dedicated fault-tolerance tests, load/stress tooling, rate-limit simulation, and memory-leak profiling indicates that performance and stability testing is treated as a first-class part of the test suite, not limited to functional unit tests.
+The presence of dedicated fault-tolerance, load, rate-limit, and memory-leak testing tools indicates that performance and stability testing is treated as a first-class part of the test suite, not limited to basic functional checks.
 
----
+### 3.12 Administration & Management UI/CLI
 
-### 2.12 Administration & Management UI/CLI
-
-ORBIT includes a web-based admin panel and a companion command-line tool (both part of the server distribution, not separate products) for day-to-day management, gated by the RBAC permissions described in §2.6.
+ORBIT includes a web-based admin panel and a companion command-line tool (both part of the server distribution, not separate products) for day-to-day management, gated by the RBAC permissions described in §3.6.
 
 | Capability | Details | Source |
 | :--- | :--- | :--- |
-| No-code adapter creation | Adapters can be created, edited, exported, and imported from the admin panel via a form-based flow, validated, and hot-reloaded without a server restart (including propagation across multi-worker deployments) | `CHANGELOG.md` (v2.14.0, v2.15.2, v2.15.7) |
-| MCP server management | External MCP servers can be added, edited, and removed from the admin panel, with live reachability/tool diagnostics and hot reload — no config-file editing or restart required | `CHANGELOG.md` (v2.14.0–v2.15.7), `docs/mcp_protocol.md` |
-| Admin CLI (`orbit`) | A command-line tool covering server lifecycle (start/stop/restart/status), authentication and user management, API key lifecycle (create/list/test/rename/deactivate/delete), system prompt management, CLI configuration, and admin operations (hot-reloading adapters or intent templates without a restart) — giving the same administrative surface as the web panel for scripting, automation, and CI/CD use | `bin/orbit.py`, `bin/orbit.sh` |
-| Adapter SDK CLI (`adapter-sdk`) | A separate CLI for generating adapter YAML from the same spec registry the admin panel's adapter-creation form uses, including a machine-readable spec listing (`--list --json`) for tooling integration | `bin/adapter-sdk.sh` |
-| Cost & audit dashboards | API key, adapter, provider, and call-type (chat/embedding/rerank/media) cost breakdowns with drill-down filtering, alongside the audit log viewer described in §2.6 | `CHANGELOG.md` (v2.15.8–v2.15.9), `docs/token-usage-and-cost-tracking.md` |
+| No-code adapter creation | New adapters can be created, edited, exported, and imported directly from the admin panel through a form — no manual configuration-file editing required — and changes apply immediately without restarting the server | `CHANGELOG.md` (v2.14.0, v2.15.2, v2.15.7) |
+| MCP server management | External tool connections (MCP servers) can be added, tested, and removed from the admin panel, with live status checks — no config-file editing or restart required | `CHANGELOG.md` (v2.14.0–v2.15.7), `docs/mcp_protocol.md` |
+| Admin CLI (`orbit`) | A command-line tool that covers the same administrative tasks as the web panel — starting/stopping the server, managing users and API keys, and reloading configuration — for scripting, automation, and CI/CD use | `bin/orbit.py`, `bin/orbit.sh` |
+| Adapter SDK CLI (`adapter-sdk`) | A companion command-line tool for generating adapter configuration files, useful for scripted or bulk adapter setup | `bin/adapter-sdk.sh` |
+| Cost & audit dashboards | Breakdowns of spending by API key, adapter, provider, and request type, alongside the audit log viewer described in §3.6 | `CHANGELOG.md` (v2.15.8–v2.15.9), `docs/token-usage-and-cost-tracking.md` |
 
----
-
-### 2.13 Onboarding & Documentation
+### 3.13 Onboarding & Documentation
 
 | Resource | Details | Source |
 | :--- | :--- | :--- |
@@ -215,21 +206,6 @@ ORBIT includes a web-based admin panel and a companion command-line tool (both p
 | Step-by-step tutorial series | A `docs/tutorial.md` entry point linking a sequenced set of guides — first chat, chat with files, SQL/MongoDB/DuckDB querying, MCP tool calling, auto skill routing, creating API keys, admin panel tour, and troubleshooting | `docs/tutorial.md`, `docs/tutorial/` |
 | Full documentation index | A categorized index (`docs/README.md`) covering architecture, adapters, data sources, security, and advanced/protocol topics, in addition to this capability matrix | `docs/README.md` |
 | Runnable examples | Client code samples for the OpenAI-compatible API (Python/Node.js, including streaming) and a sample MCP server for hands-on testing | `examples/` |
-
-
----
-
-<div class="keep-together">
-
-## 3. Architecture
-
-![ORBIT architecture diagram](orbit-architecture.svg)
-
-Clients connect through the ORBIT API over REST, an OpenAI-compatible interface, MCP, A2A, or async MQ transports. Requests pass through auth/quota checks, then an adapter router that dispatches to chat/voice, document, structured-data, API, tool-agent, or generation handlers, which in turn call local or cloud model providers.
-
-</div>
-
----
 
 ## 4. Platform-Specific Notes
 
@@ -243,11 +219,13 @@ ORBIT includes equivalents of the items listed above — OIDC/SSO, audit logging
 
 ### 4.2 Open WebUI
 
-Open WebUI is a chat frontend. It connects to Ollama natively and to any OpenAI-compatible endpoint (which can include self-hosted llama.cpp, vLLM, or LM Studio servers exposing that API). It does not include native connectors to SQL, vector, or NoSQL databases as retrieval sources; document RAG is limited to uploaded-file vector search.
+Open WebUI is a chat frontend. It connects to Ollama natively and to any OpenAI-compatible endpoint (which can include self-hosted llama.cpp, vLLM, or LM Studio servers exposing that API). Per its own documentation ([docs.openwebui.com/features](https://docs.openwebui.com/features/)), its retrieval layer is substantial for a chat frontend — 13 supported vector databases, hybrid (keyword + vector) search with cross-encoder reranking, and multiple document-extraction engines — though it does not include native connectors to SQL or NoSQL databases as retrieval sources the way ORBIT's intent-based retrieval does.
 
-For organizations evaluating a chat frontend specifically, ORBIT's comparable offering is OrbitChat (§2.10) — a separately distributed reference client rather than a component of the ORBIT server itself. OrbitChat and Open WebUI are both frontends that can be pointed at the same class of backend model APIs; the difference in this comparison is in what sits behind them — ORBIT's data-source and governance layer versus a backend the deploying organization assembles separately.
+For organizations evaluating a chat frontend specifically, ORBIT's comparable offering is OrbitChat (§3.10) — a separately distributed reference client rather than a component of the ORBIT server itself. OrbitChat and Open WebUI are both frontends that can be pointed at the same class of backend model APIs; the difference in this comparison is in what sits behind them — ORBIT's data-source and governance layer versus a backend the deploying organization assembles separately.
 
 ORBIT is a backend gateway rather than a chat frontend: it provides connection pooling for SQL databases, RabbitMQ-based async messaging, and multi-worker process scaling, none of which are part of Open WebUI's scope.
+
+Regarding cost visibility: per Open WebUI's own documentation ([docs.openwebui.com/features/administration/analytics](https://docs.openwebui.com/features/administration/analytics/)), its open-source Analytics dashboard tracks token usage per message, model, and user, but does not calculate a dollar cost automatically — it documents the formula for an administrator to multiply tracked token counts by their provider's price by hand. This differs from ORBIT's and LiteLLM's approach of resolving an estimated dollar cost automatically from a maintained pricing table.
 
 Regarding licensing: per Open WebUI's own documentation ([docs.openwebui.com/license](https://docs.openwebui.com/license/)), versions through 0.6.5 are BSD-3-Clause (fully permissive). From v0.6.6 onward, the license adds a branding-protection clause requiring "Open WebUI" branding to remain visible unless the deployment has 50 or fewer users in a 30-day period, the user is a substantive contributor with written permission, or the user holds an enterprise license granting branding rights. Open WebUI's own documentation states this version of the license is not OSI-approved as "open source" due to that clause; source code remains publicly available regardless. A separate commercial/enterprise license is offered for white-labeling. Evaluators should confirm the license version in use, since organizations forking from v0.6.5 or earlier are not subject to the branding clause.
 
