@@ -207,6 +207,8 @@ curl -X POST http://localhost:3000/v1/chat/completions \
 
 Python and Node.js versions of this call using the official OpenAI SDK, including streaming, are in [`examples/openai-compatible-api/`](examples/openai-compatible-api/).
 
+For peer-agent orchestration using Google's A2A protocol, see the blocking and streaming Python/Node.js clients in [`examples/a2a-protocol/`](examples/a2a-protocol/).
+
 Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `admin123`, set via `auth.default_admin_password` in `config.yaml` — change this immediately after first login).
 
 For custom Docker deployments, follow [Docker guide](docker/README.md).
