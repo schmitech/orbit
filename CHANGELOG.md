@@ -14,6 +14,12 @@
 - **Admin API-Key Rename Request Handling**: The API-key rename endpoint now accepts the replacement key in a validated JSON body instead of a URL query parameter, preventing sensitive key material from appearing in request URLs; the admin panel and route logging coverage use the new request schema.
 - **Admin Login Redirect Validation**: Login and SSO redirects now reject protocol-relative and external `next` URLs, preventing open redirects outside the Orbit admin origin.
 
+### Documentation & Configuration
+- **ORBIT Capability Matrix**: Added `docs/ORBIT_CAPABILITY_MATRIX.md` (and a rendered PDF), a sourced, feature-by-feature comparison of ORBIT against LiteLLM, Open WebUI, and commercial AI gateways for platform evaluation, linked from the README's Capabilities and documentation sections.
+
+### Tools & Utility Scripts
+- **Markdown-to-PDF Script**: Added `utils/scripts/markdown/markdown-to-pdf.sh`, a reusable pandoc + headless Chrome script (landscape, fixed-table-layout stylesheet) for converting any Markdown document to PDF.
+
 ## [2.15.9] - 2026-08-22
 
 ### Core System Updates

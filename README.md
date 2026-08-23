@@ -84,7 +84,7 @@ ORBIT is actively maintained. See the [release history](https://github.com/schmi
 | **Security** | API keys, RBAC, Entra ID and Auth0 SSO, rate limits, quotas, moderation, file encryption, and cloud secret managers. |
 | **Operations** | Admin UI, health checks, metrics, audit logs, per-request token and estimated-cost tracking, spend analytics, circuit breakers, datasource pooling, and hot adapter reloads. |
 
-[Browse all adapters](docs/adapters/adapters.md) · [See provider configuration](config/inference.yaml) · [Read the configuration reference](install/default-config/config.yaml)
+[Browse all adapters](docs/adapters/adapters.md) · [See provider configuration](config/inference.yaml) · [Read the configuration reference](install/default-config/config.yaml) · [Full capability matrix & platform comparison](docs/ORBIT_CAPABILITY_MATRIX.md)
 
 ⭐ **Finding ORBIT useful?** [Star the repository](https://github.com/schmitech/orbit) to help other developers discover it and support continued investment in new model, datasource, and agent integrations.
 
@@ -268,6 +268,7 @@ Continue with the [tutorial's fastest path](docs/tutorial.md#fastest-path): [ver
 | **Add voice** | [Real-time voice (speech-to-speech)](docs/adapters/grounded-realtime-voice.md) · [Audio services & STT/TTS adapters](docs/audio/audio-services-adapter-guide.md) |
 | **Run in production** | [Authentication](docs/authentication.md) · [Usage and cost tracking](docs/token-usage-and-cost-tracking.md) · [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
 | **Use a client** | [ORBIT Chat](clients/orbitchat/) · [Node.js SDK](clients/node-api/) · [API key and Python examples](docs/api-keys.md) |
+| **Evaluate ORBIT** | [Capability matrix & platform comparison](docs/ORBIT_CAPABILITY_MATRIX.md) — a sourced feature-by-feature comparison against LiteLLM, Open WebUI, and commercial AI gateways |
 
 See the [full documentation index](docs/README.md) for architecture deep-dives, vector store setup, security hardening, and every other guide under `docs/`.
 
