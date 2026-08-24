@@ -52,6 +52,16 @@ adapters:
       max_templates: 5
       return_results: 10
 
+      # Graceful degradation: ask a disambiguation/slot-fill question
+      # instead of guessing or failing outright. Off by default; requires a
+      # stable X-Session-ID per conversation for the follow-up turn to resume
+      # against the pinned template. See docs/adapters/playbook-intent-clarification.md.
+      clarification_enabled: true
+      clarification_high_threshold: 0.65
+      clarification_ambiguity_gap: 0.05
+      clarification_max_rounds: 2
+      clarification_ttl_seconds: 300
+
       reload_templates_on_start: false
       force_reload_templates: false
 

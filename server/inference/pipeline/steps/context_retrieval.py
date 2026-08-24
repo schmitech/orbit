@@ -256,6 +256,17 @@ class ContextRetrievalStep(PipelineStep):
             retriever_kwargs["usage_sink"] = embedding_usage
             retriever_kwargs["reranking_usage_sink"] = reranking_usage
 
+            # Intent clarification (Phase 5) needs session_id to resume a pending
+            # disambiguation/slot-fill question, independent of the adapter's
+            # `supports_session_tracking` capability (a different, opt-in concern —
+            # every shipped intent adapter config currently leaves it false).
+            if (
+                'session_id' not in retriever_kwargs
+                and context.session_id
+                and getattr(retriever, 'clarification_enabled', False)
+            ):
+                retriever_kwargs['session_id'] = context.session_id
+
             # Pass cancel_event so retrievers can check for cancellation
             if context.cancel_event:
                 retriever_kwargs['cancel_event'] = context.cancel_event

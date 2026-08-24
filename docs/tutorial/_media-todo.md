@@ -37,3 +37,5 @@ grep -rn "<!-- MEDIA:" docs/tutorial/
 | `customer-360-cross-adapter/cross-adapter-response` | screenshot | `customer-360-cross-adapter.md` | API response JSON showing a cross_adapter routing block with both Billing and Support SLA sources merged side_by_side | Needed |
 | `intent-observability/test-query-match` | screenshot | `intent-observability.md` | Test Query panel showing a matched template, similarity score, and rendered SQL for a customer-orders question | Needed |
 | `intent-observability/misses-panel` | screenshot | `intent-observability.md` | Misses panel showing a recorded miss with candidates and a "Test in diagnostics" button | Needed |
+| `intent-clarification/slot-fill-question` | screenshot | `intent-clarification.md` | OrbitChat showing the slot-fill clarifying question asking for a minimum salary amount | Needed |
+| `intent-clarification/slot-fill-resolved` | screenshot | `intent-clarification.md` | OrbitChat showing the resolved query result after answering the slot-fill question | Needed |

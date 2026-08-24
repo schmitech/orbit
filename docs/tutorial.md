@@ -70,6 +70,7 @@ Still not sure, or want to scan everything at once? Use the full table below.
 | L4 | Answer with live web results, or auto-route from plain language | [Web Search and Automatic Skill Routing](tutorial/auto-skill-routing.md) | Web-search-capable provider (Gemini/OpenAI/xAI) | Get a cited, current answer, with or without an explicit `skill` field. |
 | L5 | Process requests asynchronously over a message queue | [Message Queue (Async) Requests](tutorial/message-queue-async.md) | RabbitMQ (Docker) + `messaging` profile | Publish a request to a queue and receive a correlated response envelope back. |
 | L5 | Monitor an intent adapter in production — matches, misses, row-cap metrics | [Intent Adapter Observability](tutorial/intent-observability.md) | A running intent adapter (SQL, HTTP, Composite...) | Check Prometheus `orbit_intent_*` metrics and the admin panel's Misses panel after driving traffic. |
+| L5 | Have an intent adapter ask instead of guess when a query is ambiguous or incomplete | [Intent Clarification](tutorial/intent-clarification.md) | An intent-SQL/DuckDB adapter (e.g. `intent-sql-sqlite-hr`) | A vague or incomplete question gets a clarifying question, and answering it resumes the right template instead of re-matching. |
 
 ## Reference & Deep Dives
 

@@ -91,6 +91,6 @@ There's no submission UI for this yet — see [Template Diagnostics → `POST ..
 
 ---
 
-[Tutorial home](../tutorial.md) | [Previous: Example 13: Customer 360 — Cross-Adapter Composition](customer-360-cross-adapter.md) | [Next: Creating API Keys](creating-api-keys.md)
+[Tutorial home](../tutorial.md) | [Previous: Example 13: Customer 360 — Cross-Adapter Composition](customer-360-cross-adapter.md) | [Next: Example 15: Intent Clarification](intent-clarification.md)
 
 ---

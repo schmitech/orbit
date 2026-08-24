@@ -907,7 +907,13 @@ class PipelineChatService:
 
             result = await self.pipeline.process(context)
 
-            if result.has_error():
+            # IntentClarificationStep blocks the pipeline to short-circuit LLM inference,
+            # but a clarifying question is a legitimate chat response, not a failure —
+            # unlike streaming (which already special-cases is_blocked), the non-streaming
+            # path otherwise treats any blocked context as an error and returns HTTP 500.
+            is_clarification = result.is_blocked and bool((result.metadata or {}).get("intent_clarification"))
+
+            if result.has_error() and not is_clarification:
                 error_msg = result.error or "Pipeline processing failed"
                 logger.error(f"Pipeline error: {error_msg}")
                 await self._audit_usage_only_request(
@@ -1135,7 +1141,11 @@ class PipelineChatService:
                 yield f"data: {json.dumps({'error': str(stream_error), 'done': True})}\n\n"
                 return
 
-            if context.has_error():
+            # A blocked context (safety-filter refusal, FetchStep failure, or
+            # IntentClarificationStep's clarifying question) is handled below —
+            # it has a legitimate response to stream, not a failure. Only a
+            # genuine error (has_error() true but is_blocked false) short-circuits here.
+            if context.has_error() and not context.is_blocked:
                 await self._audit_usage_only_request(
                     context, message, client_ip, adapter_name, api_key, user_id
                 )

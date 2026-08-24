@@ -16,7 +16,7 @@ adapters:
     reranker_provider: "voyage"
     reranker_model: "rerank-2.5-lite"
 
-    # Capabilities: Standard intent retriever
+    # Capabilities: Standard intent retriever -
     # Note: Intent adapters use the same capabilities as QA adapters (always retrieve, standard formatting)
     allowed_models:
       # - name: "llama-cpp-gemma4"
@@ -87,6 +87,16 @@ adapters:
       max_templates: 5
       # Return top N results
       return_results: 100
+
+      # Graceful degradation: ask a disambiguation/slot-fill question
+      # instead of guessing or failing outright. Off by default; requires a
+      # stable X-Session-ID per conversation for the follow-up turn to resume
+      # against the pinned template. See docs/adapters/playbook-intent-clarification.md.
+      clarification_enabled: true
+      clarification_high_threshold: 0.65
+      clarification_ambiguity_gap: 0.05
+      clarification_max_rounds: 2
+      clarification_ttl_seconds: 300
 
       # Template loading settings
       reload_templates_on_start: false  # Whether to reload templates on startup

@@ -44,10 +44,14 @@ def record_intent_telemetry(retriever: Any, query: str, result: List[Dict[str, A
     adapter = getattr(retriever, "audit_adapter_name", None) or retriever.__class__.__name__
     confidence_threshold = getattr(retriever, "confidence_threshold", None)
 
+    intent_action = metadata.get("intent_action")
+
     if error:
         outcome = _ERROR_TO_OUTCOME.get(error, "error")
     elif template_id:
         outcome = "executed"
+    elif intent_action == "clarify":
+        outcome = f"clarify_{metadata.get('clarify_kind', 'unknown')}"
     else:
         return
 

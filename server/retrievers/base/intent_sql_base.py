@@ -17,6 +17,7 @@ from retrievers.implementations.intent.domain.response.table_renderer import Tab
 from retrievers.implementations.intent.template_processor import TemplateProcessor
 from utils.async_utils import close_client
 from services.metrics_service import get_metrics_service_instance
+from services.intent_clarification_state import store_pending, pop_pending
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,17 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         # or a write/DDL operation, and caps unbounded result sets. See query_guard.py.
         self.query_guard_enabled = self.intent_config.get('query_guard_enabled', True)
         self.query_guard_max_rows = self.intent_config.get('query_guard_max_rows', 1000)
+
+        # Graceful degradation (Phase 5): confidence-banded disambiguation/slot-filling
+        # instead of a flat threshold. Off by default — see docs/roadmap/intent-template-retrieval.md.
+        self.clarification_enabled = self.intent_config.get('clarification_enabled', False)
+        self.clarification_high_threshold = self.intent_config.get('clarification_high_threshold', 0.65)
+        self.clarification_ambiguity_gap = self.intent_config.get('clarification_ambiguity_gap', 0.05)
+        self.clarification_max_rounds = self.intent_config.get('clarification_max_rounds', 2)
+        self.clarification_ttl_seconds = self.intent_config.get('clarification_ttl_seconds', 300)
+        self.no_match_message = self.intent_config.get(
+            'no_match_message', "I couldn't find a matching query pattern for your request."
+        )
 
         # Debug configuration values
         logger.info(f"IntentSQLRetriever resolved confidence_threshold={self.confidence_threshold}")
@@ -715,6 +727,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                                  collection_name: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]:
         """Process a natural language query using intent-based SQL translation."""
         cancel_event = kwargs.pop('cancel_event', None)
+        session_id = kwargs.get('session_id')
 
         try:
             logger.debug(f"Processing intent query: {query}")
@@ -724,6 +737,14 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 logger.debug("Intent query cancelled before template search")
                 return []
 
+            # Resume a pending disambiguation/slot-fill question from a prior turn, if any.
+            if self.clarification_enabled and session_id:
+                pending = pop_pending(self._clarification_adapter_key(), session_id)
+                if pending:
+                    resumed = await self._resume_pending_clarification(query, pending, session_id)
+                    if resumed is not None:
+                        return resumed
+
             # Find best matching template
             templates = await self._find_best_templates(
                 query, usage_sink=kwargs.get("usage_sink")
@@ -732,7 +753,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             if not templates:
                 logger.warning("No matching templates found")
                 return [{
-                    "content": "I couldn't find a matching query pattern for your request.",
+                    "content": self.no_match_message,
                     "metadata": {"source": "intent", "error": "no_matching_template"},
                     "confidence": 0.0
                 }]
@@ -741,10 +762,29 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             if self.template_reranker:
                 templates = self.template_reranker.rerank_templates(templates, query)
 
+            # Graceful degradation (Phase 5): ask a disambiguation question up front when
+            # the top two candidates are close and both clear the low threshold.
+            if self.clarification_enabled and len(templates) > 1:
+                top_sim = templates[0]['similarity']
+                second_sim = templates[1]['similarity']
+                if (
+                    self.confidence_threshold <= top_sim < self.clarification_high_threshold
+                    and second_sim >= self.confidence_threshold
+                    and (top_sim - second_sim) < self.clarification_ambiguity_gap
+                ):
+                    return self._build_disambiguation_response(templates, session_id)
+
+            # A clear winner in the low/high band still executes, but is flagged so the
+            # prompt can hedge — only meaningful for the top-ranked candidate.
+            mark_low_confidence = (
+                self.clarification_enabled
+                and self.confidence_threshold <= templates[0]['similarity'] < self.clarification_high_threshold
+            )
+
             # Try templates in order of relevance
             datasource_unavailable = False
             any_above_threshold = False
-            for template_info in templates:
+            for idx, template_info in enumerate(templates):
                 # Check cancellation between template attempts
                 if cancel_event and cancel_event.is_set():
                     logger.debug("Intent query cancelled during template iteration")
@@ -759,23 +799,19 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
 
                 logger.debug(f"Trying template: {template.get('id')} (similarity: {similarity:.2%})")
 
-                # Extract parameters
-                if self.parameter_extractor:
-                    parameters = await self.parameter_extractor.extract_parameters(query, template)
-                    validation_errors = self.parameter_extractor.validate_parameters(parameters)
-                    if validation_errors:
-                        logger.debug(f"Parameter validation failed for template {template.get('id')}: {validation_errors}")
-                        continue
-                else:
-                    parameters = await self._extract_parameters(query, template)
+                parameters = await self._extract_parameters_for_template(query, template)
+                if parameters is None:
+                    # Validation failed against the extractor's own rules — try next candidate.
+                    continue
 
-                # Skip template if any required parameter is still missing after extraction
-                missing_required = [
-                    p['name'] for p in template.get('parameters', [])
-                    if p.get('required', False)
-                    and (p['name'] not in parameters or parameters[p['name']] is None)
-                ]
+                missing_required = self._missing_required_params(template, parameters)
                 if missing_required:
+                    # Highest-confidence candidate, clearly matched, just missing a slot:
+                    # ask for it instead of silently moving on to a worse-matching template.
+                    if self.clarification_enabled and idx == 0 and similarity >= self.clarification_high_threshold:
+                        return self._build_slot_fill_clarification(
+                            template, parameters, missing_required, similarity, session_id
+                        )
                     logger.debug(
                         "Template %s missing required params %s, trying next candidate",
                         template.get('id'), missing_required,
@@ -794,93 +830,12 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                         break
                     continue
 
-                # Track original count before any truncation
-                original_result_count = len(results) if results else 0
-                was_truncated = False
+                response = self._format_execution_response(template, parameters, results, similarity)
+                if response is not None:
+                    if idx == 0 and mark_low_confidence:
+                        response[0].setdefault("metadata", {})["low_confidence"] = True
+                    return response
 
-                if results:
-                    logger.debug(f"SQL query returned {original_result_count} rows from database")
-
-                # Apply truncation if needed
-                if results and self.return_results is not None and len(results) > self.return_results:
-                    logger.info(f"Truncating result set from {len(results)} to {self.return_results} results based on adapter config (return_results={self.return_results})")
-                    results = results[:self.return_results]
-                    was_truncated = True
-
-                # Format response using domain-aware generator
-                if self.response_generator:
-                    formatted_data = self.response_generator.format_response_data(results, template)
-
-                    # Create content string from formatted data
-                    content_parts = []
-                    if formatted_data.get("message"):
-                        content_parts.append(formatted_data["message"])
-
-                    # Add summary or table based on format
-                    if formatted_data.get("summary"):
-                        content_parts.append(formatted_data["summary"])
-                    elif formatted_data.get("table") and formatted_data["table"].get("rows"):
-                        # Format table using TableRenderer
-                        table_data = formatted_data["table"]
-                        columns = table_data["columns"]
-                        rows = table_data["rows"][:self.return_results] if self.return_results else table_data["rows"]
-
-                        table_text = TableRenderer.render(columns, rows, format=self.context_format)
-
-                        # Build query context line so the LLM knows what filters produced this data
-                        query_context = ""
-                        if parameters:
-                            param_parts = [f"{k}={v}" for k, v in parameters.items() if v is not None]
-                            if param_parts:
-                                query_context = f"Query filters: {', '.join(param_parts)}\n"
-
-                        # Show truncation status in message
-                        if was_truncated:
-                            result_message = f"{query_context}Showing {len(results)} of {original_result_count} total results (truncated):\n{table_text}"
-                        else:
-                            result_message = f"{query_context}Found {formatted_data['result_count']} results:\n{table_text}"
-
-                        content_parts.append(result_message)
-
-                    if not content_parts:
-                        # Fallback to simple result summary
-                        if was_truncated:
-                            content_parts.append(f"Query executed successfully. Showing {len(results)} of {original_result_count} total results.")
-                        else:
-                            content_parts.append(f"Query executed successfully. Found {len(results)} results.")
-
-                    content = "\n\n".join(content_parts)
-
-                    logger.debug(f"Generated content for LLM context (length: {len(content)}):\n{content}")
-                    if was_truncated:
-                        logger.debug(f"Note: LLM will only see {len(results)} of {original_result_count} records")
-
-                    return [{
-                        "content": content,
-                        "metadata": {
-                            "source": "intent",
-                            "template_id": template.get('id'),
-                            "query_intent": template.get('description', ''),
-                            "parameters_used": parameters,
-                            "formatted_data": formatted_data,
-                            "similarity": similarity,
-                            "result_count": len(results),  # Actual count passed to LLM
-                            "total_available": original_result_count,  # Total from SQL
-                            "truncated": was_truncated,  # Truncation flag
-                            "domain_aware": True
-                        },
-                        "confidence": similarity
-                    }]
-                else:
-                    # Pass original count and truncation info to fallback formatter
-                    formatted_results = self._format_sql_results(
-                        results, template, parameters, similarity,
-                        original_count=original_result_count,
-                        was_truncated=was_truncated
-                    )
-                    if formatted_results:
-                        return formatted_results
-            
             if datasource_unavailable:
                 return [{
                     "content": "The data source is temporarily unavailable. Please try again.",
@@ -889,7 +844,11 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 }]
 
             candidates = [
-                {"template_id": t['template'].get('id'), "similarity": t['similarity']}
+                {
+                    "template_id": t['template'].get('id'),
+                    "similarity": t['similarity'],
+                    "description": t['template'].get('description', ''),
+                }
                 for t in templates[:5]
             ]
 
@@ -913,7 +872,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 },
                 "confidence": 0.0
             }]
-            
+
         except Exception as e:
             logger.error(f"Error in intent-based retrieval: {e}")
             logger.error(traceback.format_exc())
@@ -922,6 +881,287 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 "metadata": {"source": "intent", "error": str(e)},
                 "confidence": 0.0
             }]
+
+    def _format_execution_response(
+        self, template: Dict[str, Any], parameters: Dict[str, Any],
+        results: List[Dict[str, Any]], similarity: float,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Format a successfully-executed template's results for the LLM context.
+        Returns None when there's nothing to show (caller should try the next candidate,
+        or in the clarification-resume path, fall back to a generic message)."""
+        # Track original count before any truncation
+        original_result_count = len(results) if results else 0
+        was_truncated = False
+
+        if results:
+            logger.debug(f"SQL query returned {original_result_count} rows from database")
+
+        # Apply truncation if needed
+        if results and self.return_results is not None and len(results) > self.return_results:
+            logger.info(f"Truncating result set from {len(results)} to {self.return_results} results based on adapter config (return_results={self.return_results})")
+            results = results[:self.return_results]
+            was_truncated = True
+
+        # Format response using domain-aware generator
+        if self.response_generator:
+            formatted_data = self.response_generator.format_response_data(results, template)
+
+            # Create content string from formatted data
+            content_parts = []
+            if formatted_data.get("message"):
+                content_parts.append(formatted_data["message"])
+
+            # Add summary or table based on format
+            if formatted_data.get("summary"):
+                content_parts.append(formatted_data["summary"])
+            elif formatted_data.get("table") and formatted_data["table"].get("rows"):
+                # Format table using TableRenderer
+                table_data = formatted_data["table"]
+                columns = table_data["columns"]
+                rows = table_data["rows"][:self.return_results] if self.return_results else table_data["rows"]
+
+                table_text = TableRenderer.render(columns, rows, format=self.context_format)
+
+                # Build query context line so the LLM knows what filters produced this data
+                query_context = ""
+                if parameters:
+                    param_parts = [f"{k}={v}" for k, v in parameters.items() if v is not None]
+                    if param_parts:
+                        query_context = f"Query filters: {', '.join(param_parts)}\n"
+
+                # Show truncation status in message
+                if was_truncated:
+                    result_message = f"{query_context}Showing {len(results)} of {original_result_count} total results (truncated):\n{table_text}"
+                else:
+                    result_message = f"{query_context}Found {formatted_data['result_count']} results:\n{table_text}"
+
+                content_parts.append(result_message)
+
+            if not content_parts:
+                # Fallback to simple result summary
+                if was_truncated:
+                    content_parts.append(f"Query executed successfully. Showing {len(results)} of {original_result_count} total results.")
+                else:
+                    content_parts.append(f"Query executed successfully. Found {len(results)} results.")
+
+            content = "\n\n".join(content_parts)
+
+            logger.debug(f"Generated content for LLM context (length: {len(content)}):\n{content}")
+            if was_truncated:
+                logger.debug(f"Note: LLM will only see {len(results)} of {original_result_count} records")
+
+            return [{
+                "content": content,
+                "metadata": {
+                    "source": "intent",
+                    "template_id": template.get('id'),
+                    "query_intent": template.get('description', ''),
+                    "parameters_used": parameters,
+                    "formatted_data": formatted_data,
+                    "similarity": similarity,
+                    "result_count": len(results),  # Actual count passed to LLM
+                    "total_available": original_result_count,  # Total from SQL
+                    "truncated": was_truncated,  # Truncation flag
+                    "domain_aware": True
+                },
+                "confidence": similarity
+            }]
+        else:
+            # Pass original count and truncation info to fallback formatter
+            return self._format_sql_results(
+                results, template, parameters, similarity,
+                original_count=original_result_count,
+                was_truncated=was_truncated
+            ) or None
+
+    # ------------------------------------------------------------------
+    # Phase 5: graceful degradation (disambiguation / slot-filling)
+    # ------------------------------------------------------------------
+
+    def _clarification_adapter_key(self) -> str:
+        return getattr(self, "audit_adapter_name", None) or self.__class__.__name__
+
+    async def _extract_parameters_for_template(self, query: str, template: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Extract parameters for one template. Returns None when the extractor's own
+        validation rejects the result (fresh-match loop treats that like a missing template)."""
+        if self.parameter_extractor:
+            parameters = await self.parameter_extractor.extract_parameters(query, template)
+            validation_errors = self.parameter_extractor.validate_parameters(parameters)
+            if validation_errors:
+                logger.debug(f"Parameter validation failed for template {template.get('id')}: {validation_errors}")
+                return None
+            return parameters
+        return await self._extract_parameters(query, template)
+
+    def _missing_required_params(self, template: Dict[str, Any], parameters: Dict[str, Any]) -> List[str]:
+        return [
+            p['name'] for p in template.get('parameters', [])
+            if p.get('required', False)
+            and (p['name'] not in parameters or parameters[p['name']] is None)
+        ]
+
+    def _build_disambiguation_response(
+        self, templates: List[Dict[str, Any]], session_id: Optional[str],
+    ) -> List[Dict[str, Any]]:
+        top_candidates = templates[:3]
+        candidates = [
+            {
+                "template_id": t['template'].get('id'),
+                "similarity": t['similarity'],
+                "description": t['template'].get('description', ''),
+            }
+            for t in top_candidates
+        ]
+        lines = [f"{i + 1}. {c['description'] or c['template_id']}" for i, c in enumerate(candidates)]
+        question = "I found a few things that might match — which did you mean?\n" + "\n".join(lines)
+
+        if session_id:
+            store_pending(
+                self._clarification_adapter_key(), session_id,
+                {"kind": "disambiguate", "candidates": [c["template_id"] for c in candidates], "round": 1},
+                ttl=self.clarification_ttl_seconds,
+            )
+
+        return [{
+            "content": question,
+            "metadata": {
+                "source": "intent",
+                "intent_action": "clarify",
+                "clarify_kind": "disambiguate",
+                "candidates": candidates,
+            },
+            "confidence": templates[0]['similarity'],
+        }]
+
+    def _build_slot_fill_clarification(
+        self, template: Dict[str, Any], parameters: Dict[str, Any],
+        missing_required: List[str], similarity: float, session_id: Optional[str],
+        round_num: int = 1,
+    ) -> List[Dict[str, Any]]:
+        missing_specs = [p for p in template.get('parameters', []) if p['name'] in missing_required]
+        prompts = [p.get('description') or p['name'] for p in missing_specs] or missing_required
+        question = "I can help with that — could you tell me: " + "; ".join(prompts) + "?"
+
+        template_id = template.get('id')
+        if session_id:
+            store_pending(
+                self._clarification_adapter_key(), session_id,
+                {
+                    "kind": "slot_fill",
+                    "template_id": template_id,
+                    "template_hash": template.get('_content_hash'),
+                    "extracted": parameters,
+                    "missing_params": missing_required,
+                    "round": round_num,
+                },
+                ttl=self.clarification_ttl_seconds,
+            )
+
+        return [{
+            "content": question,
+            "metadata": {
+                "source": "intent",
+                "intent_action": "clarify",
+                "clarify_kind": "slot_fill",
+                "missing_params": missing_required,
+                "pending": {
+                    "template_id": template_id,
+                    "template_hash": template.get('_content_hash'),
+                    "extracted": parameters,
+                },
+            },
+            "confidence": similarity,
+        }]
+
+    def _match_disambiguation_choice(self, query: str, candidate_ids: List[str]) -> Optional[str]:
+        """Best-effort match of a follow-up answer ("1", "the second one", or a
+        template id/keyword) to one of the offered candidates."""
+        text = (query or "").strip().lower()
+        # Checked in priority tiers so an unambiguous ordinal word ("second") wins over
+        # a generic number word ("one") that can appear as ordinary English ("the second one").
+        ordinal_tiers = (
+            {"first": 0, "second": 1, "third": 2},
+            {"1": 0, "2": 1, "3": 2},
+            {"one": 0, "two": 1, "three": 2},
+        )
+        for tier in ordinal_tiers:
+            for key, idx in tier.items():
+                if re.search(rf"\b{re.escape(key)}\b", text) and idx < len(candidate_ids):
+                    return candidate_ids[idx]
+        for candidate_id in candidate_ids:
+            if candidate_id and candidate_id.lower() in text:
+                return candidate_id
+        return None
+
+    async def _resume_pending_clarification(
+        self, query: str, pending: Dict[str, Any], session_id: str,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Resume a disambiguation/slot-fill question from a prior turn. Returns None to
+        fall through to fresh matching (e.g. the pinned template no longer exists)."""
+        kind = pending.get("kind")
+
+        if kind == "disambiguate":
+            chosen_id = self._match_disambiguation_choice(query, pending.get("candidates", []))
+            if not chosen_id:
+                return None
+            template = self.domain_adapter.get_template_by_id(chosen_id) if self.domain_adapter else None
+            if not template:
+                return None
+            parameters = await self._extract_parameters_for_template(query, template) or {}
+            missing_required = self._missing_required_params(template, parameters)
+            if missing_required:
+                return self._build_slot_fill_clarification(template, parameters, missing_required, 1.0, session_id)
+            results, error = await self._execute_template(template, parameters)
+            if error:
+                return [{
+                    "content": "An error occurred while processing your query. Please try again.",
+                    "metadata": {"source": "intent", "error": "datasource_unavailable"},
+                    "confidence": 0.0
+                }]
+            return self._format_execution_response(template, parameters, results, 1.0) or [{
+                "content": "Query executed successfully. Found 0 results.",
+                "metadata": {"source": "intent", "template_id": template.get('id'), "result_count": 0},
+                "confidence": 1.0,
+            }]
+
+        if kind == "slot_fill":
+            round_num = pending.get("round", 1)
+            template = self.domain_adapter.get_template_by_id(pending["template_id"]) if self.domain_adapter else None
+            if not template or template.get('_content_hash') != pending.get("template_hash"):
+                return None
+
+            new_params = await self._extract_parameters_for_template(query, template) or {}
+            merged = dict(pending.get("extracted") or {})
+            for key, value in new_params.items():
+                if value is not None:
+                    merged[key] = value
+
+            missing_required = self._missing_required_params(template, merged)
+            if missing_required:
+                if round_num >= self.clarification_max_rounds:
+                    return [{
+                        "content": "I still couldn't get all the information I need for that request.",
+                        "metadata": {"source": "intent", "error": "parameter_extraction_failed", "candidates": []},
+                        "confidence": 0.0
+                    }]
+                return self._build_slot_fill_clarification(
+                    template, merged, missing_required, 1.0, session_id, round_num=round_num + 1
+                )
+
+            results, error = await self._execute_template(template, merged)
+            if error:
+                return [{
+                    "content": "An error occurred while processing your query. Please try again.",
+                    "metadata": {"source": "intent", "error": "datasource_unavailable"},
+                    "confidence": 0.0
+                }]
+            return self._format_execution_response(template, merged, results, 1.0) or [{
+                "content": "Query executed successfully. Found 0 results.",
+                "metadata": {"source": "intent", "template_id": template.get('id'), "result_count": 0},
+                "confidence": 1.0,
+            }]
+
+        return None
     
     async def _find_best_templates(
         self, query: str, usage_sink=None

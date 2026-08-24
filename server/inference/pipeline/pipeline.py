@@ -13,7 +13,7 @@ from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, AudioGenerationStep, MCPAgentStep, FetchStep, WebSearchStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, IntentClarificationStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, AudioGenerationStep, MCPAgentStep, FetchStep, WebSearchStep
 
 logger = logging.getLogger(__name__)
 
@@ -390,6 +390,10 @@ class InferencePipelineBuilder:
 
         # Context retrieval (adapters will handle routing)
         steps.append(ContextRetrievalStep(container))
+
+        # Intent clarification — short-circuits the LLM when an intent adapter
+        # asks a disambiguation/slot-fill question instead of answering
+        steps.append(IntentClarificationStep(container))
 
         # Document reranking (if enabled and documents retrieved)
         steps.append(DocumentRerankingStep(container))
