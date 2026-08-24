@@ -1092,6 +1092,7 @@ export function createAdaptersTab({
       // Drives POST /admin/adapters/{name}/test-query, which runs template
       // matching/extraction/rendering (and optionally execution) without the
       // full LLM pipeline (server/utils/template_diagnostics.py).
+      var testQueryRunFromMiss = null; // set once buildTestQueryBody runs; lets the Misses panel prefill+run it
       if (testQueryBtn) {
         var testQuerySection = el("details", { className: "panel", style: "margin-top:var(--sp-3)" });
         var testQuerySummary = el("summary", { style: "cursor:pointer;font-weight:600" }, "Test Query");
@@ -1101,11 +1102,39 @@ export function createAdaptersTab({
           testQuerySection.open = !testQuerySection.open;
           if (testQuerySection.open && !testQueryBuilt) {
             testQueryBuilt = true;
-            buildTestQueryBody(testQuerySection, a);
+            testQueryRunFromMiss = buildTestQueryBody(testQuerySection, a);
           }
           if (testQuerySection.open) testQuerySection.scrollIntoView({ behavior: "smooth", block: "nearest" });
         });
         detailPanel.appendChild(testQuerySection);
+
+        // Misses panel — lists queries this adapter failed to match (or matched
+        // below threshold), backed by the in-memory store in
+        // server/services/template_misses.py. Each row can jump straight into
+        // Test Query for that exact query string.
+        var missesSection = el("details", { className: "panel", style: "margin-top:var(--sp-3)" });
+        var missesSummary = el("summary", { style: "cursor:pointer;font-weight:600" }, "Misses");
+        missesSection.appendChild(missesSummary);
+        var missesReload = null; // set once buildMissesBody constructs the DOM; called on every reopen
+        missesSection.addEventListener("toggle", function () {
+          if (!missesSection.open) return;
+          if (!missesReload) {
+            missesReload = buildMissesBody(missesSection, a, function (query) {
+              testQuerySection.open = true;
+              if (!testQueryBuilt) {
+                testQueryBuilt = true;
+                testQueryRunFromMiss = buildTestQueryBody(testQuerySection, a);
+              }
+              if (testQueryRunFromMiss) testQueryRunFromMiss(query);
+              testQuerySection.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            });
+          } else {
+            // DOM already built from a previous open — just refresh the data
+            // so misses recorded while this panel was closed show up now.
+            missesReload();
+          }
+        });
+        detailPanel.appendChild(missesSection);
       }
 
       // Tries to reopen this adapter in the spec-driven create form instead of raw
@@ -1388,6 +1417,66 @@ export function createAdaptersTab({
 
       runBtn.addEventListener("click", runTest);
       queryInput.addEventListener("keydown", function (e) { if (e.key === "Enter") runTest(); });
+
+      // Returned so the Misses panel can jump a stored miss straight into a re-test.
+      return function runWithQuery(query) {
+        queryInput.value = query;
+        runTest();
+      };
+    }
+
+    // Builds the Misses list inside an intent adapter's detail panel: queries
+    // that failed to match (or matched below threshold), most recent first.
+    // onTestInDiagnostics(query) is called when the user clicks "Test in
+    // diagnostics" on a row. Constructs the DOM once and loads data
+    // immediately; returns the load function so the caller can re-invoke it
+    // on every reopen without rebuilding the DOM, keeping the list fresh.
+    function buildMissesBody(section, a, onTestInDiagnostics) {
+      var resultsContainer = el("div", { style: "margin-top:var(--sp-2)" });
+      section.appendChild(el("p", { className: "muted", style: "margin:var(--sp-2) 0" },
+        "Queries that found no matching template, or couldn't extract required parameters, "
+        + "for this adapter. In-memory only — cleared on server restart."));
+      section.appendChild(resultsContainer);
+
+      async function load() {
+        clear(resultsContainer);
+        resultsContainer.appendChild(skeleton());
+        var data;
+        try {
+          data = await api("GET", endpoints.adapterCreate + "/" + encodeURIComponent(a.name) + "/misses");
+        } catch (err) {
+          clear(resultsContainer);
+          resultsContainer.appendChild(el("div", { className: "empty-state" },
+            el("p", null, "Failed to load misses: " + err.message)));
+          return;
+        }
+        clear(resultsContainer);
+        var misses = data.misses || [];
+        if (!misses.length) {
+          resultsContainer.appendChild(el("p", { className: "muted" }, "No misses recorded yet."));
+          return;
+        }
+        resultsContainer.appendChild(dataTable(
+          ["Query", "Reason", "Candidates", "When", ""],
+          misses.map(function (m) {
+            var candidates = (m.candidates || []).map(function (c) {
+              return c.template_id + (typeof c.similarity === "number" ? " (" + c.similarity.toFixed(3) + ")" : "");
+            }).join(", ");
+            var testBtn = el("button", { className: "secondary", type: "button" }, "Test in diagnostics");
+            testBtn.addEventListener("click", function () { onTestInDiagnostics(m.query); });
+            return [
+              el("td", null, m.query),
+              el("td", { className: "muted" }, m.reason),
+              el("td", { className: "muted" }, candidates || "—"),
+              el("td", { className: "muted" }, m.timestamp ? new Date(m.timestamp * 1000).toLocaleString() : ""),
+              el("td", null, testBtn),
+            ];
+          })
+        ));
+      }
+
+      load();
+      return load; // caller re-invokes this on every reopen to refresh the list
     }
 
     function renderTestQueryResults(container, data) {

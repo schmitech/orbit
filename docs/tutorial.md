@@ -69,6 +69,7 @@ Still not sure, or want to scan everything at once? Use the full table below.
 | L4 | Let the model call tools opportunistically, any turn | [Opportunistic MCP Tool Calling](tutorial/mcp-tool-calling.md) | MCP server + `mcp_tools` capability | Ask a business question with no `skill` field and get a tool-backed answer. |
 | L4 | Answer with live web results, or auto-route from plain language | [Web Search and Automatic Skill Routing](tutorial/auto-skill-routing.md) | Web-search-capable provider (Gemini/OpenAI/xAI) | Get a cited, current answer, with or without an explicit `skill` field. |
 | L5 | Process requests asynchronously over a message queue | [Message Queue (Async) Requests](tutorial/message-queue-async.md) | RabbitMQ (Docker) + `messaging` profile | Publish a request to a queue and receive a correlated response envelope back. |
+| L5 | Monitor an intent adapter in production — matches, misses, row-cap metrics | [Intent Adapter Observability](tutorial/intent-observability.md) | A running intent adapter (SQL, HTTP, Composite...) | Check Prometheus `orbit_intent_*` metrics and the admin panel's Misses panel after driving traffic. |
 
 ## Reference & Deep Dives
 
@@ -80,5 +81,6 @@ Still not sure, or want to scan everything at once? Use the full table below.
 | Understand adapter fields and capabilities | [Adapter Types Overview](tutorial/adapter-types.md) · [Adapter Configuration Reference](tutorial/adapter-configuration-reference.md) |
 | Understand inference providers, datasources, and embeddings | [Core AI Services & Data Sources](tutorial/core-services/overview.md) |
 | Understand adapters, skills, capability flags, and MCP tools | [Skills, MCP Tools, and Skill Routing](tutorial/skills-concepts.md) |
+| Test an intent template on demand, or check production metrics/misses | [Template Diagnostics](template-diagnostics.md) |
 | Fix common setup issues | [Troubleshooting](tutorial/troubleshooting.md) |
 | Decide what to read next | [Next Steps](tutorial/next-steps.md) |

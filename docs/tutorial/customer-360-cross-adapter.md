@@ -229,6 +229,6 @@ See [Composite Intent Retriever](../adapters/composite-intent-retriever.md) for 
 
 ---
 
-[Tutorial home](../tutorial.md) | [Previous: Example 12: Message Queue (Async) Requests](message-queue-async.md) | [Next: Creating API Keys](creating-api-keys.md)
+[Tutorial home](../tutorial.md) | [Previous: Example 12: Message Queue (Async) Requests](message-queue-async.md) | [Next: Example 14: Intent Adapter Observability](intent-observability.md)
 
 ---

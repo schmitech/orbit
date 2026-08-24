@@ -7,7 +7,8 @@
 4. [CLI Tool](#cli-tool)
 5. [Output Reference](#output-reference)
 6. [Examples](#examples)
-7. [Troubleshooting](#troubleshooting)
+7. [Production Observability: Metrics & Misses](#production-observability-metrics--misses)
+8. [Troubleshooting](#troubleshooting)
 
 ## Overview
 
@@ -519,6 +520,92 @@ show me the top earners
 who was hired last month?
 EOF
 ```
+
+## Production Observability: Metrics & Misses
+
+Template Diagnostics above is *on-demand*: you ask it about one query, right now. Production traffic needs the passive counterpart — metrics that accumulate from every real chat request, and a running record of the queries that failed to match, so you don't have to guess what to test next.
+
+### Prometheus metrics
+
+Every `get_relevant_context()` call on an intent adapter (SQL, HTTP, Composite, Firecrawl, or Agent) reports its outcome to the existing `/metrics` endpoint:
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `orbit_intent_template_matches_total` | Counter | `adapter`, `template_id`, `outcome` | One increment per request. `outcome` ∈ `executed`, `no_match`, `below_threshold`, `param_validation_failed`, `datasource_unavailable`, `error` |
+| `orbit_intent_confidence` | Histogram | `adapter` | Top-candidate similarity score for every request, matched or not |
+| `orbit_intent_rows_returned` | Histogram | `adapter`, `template_id` | Row count returned by successfully executed templates |
+| `orbit_intent_row_cap_applied_total` | Counter | `adapter` | Times the SQL query guard clamped or injected a row cap (literal `LIMIT` or a bound `LIMIT :param`) |
+| `orbit_intent_guard_rejections_total` | Counter | `adapter`, `reason` | Times the query guard rejected a rendered query outright (multi-statement, write operation, unbounded `TOP ... PERCENT`, etc.) |
+
+```bash
+curl -s http://localhost:3000/metrics | grep orbit_intent
+```
+
+`adapter` is the adapter's configured name (e.g. `intent-sql-postgres`), not the retriever class — it's what you'd filter/group by in Grafana or any PromQL query. A `CompositeIntentRetriever` records its own outcome under its own adapter name *in addition to* whatever the child adapter it routed to records under its name — the two answer different questions (composite-level vs. per-child-adapter).
+
+**What's not built yet:** there is no sampled request-trace persistence into the audit database — for that level of per-request detail, use Template Diagnostics above on demand. There is also no per-pipeline-stage timing histogram in the production path (only the on-demand diagnostics `timing` block has that).
+
+### Misses store and the admin panel's Misses panel
+
+Every `no_match`, `below_threshold`, and `param_validation_failed` outcome is also recorded to an in-memory, process-local store (`server/services/template_misses.py`) — process-local and **not persisted across a restart**, but enough to answer "what have people been asking that this adapter can't handle?" without digging through logs.
+
+#### `GET /admin/adapters/{adapter_name}/misses`
+
+Lists recorded misses for one adapter, most recent first.
+
+**Authentication:** same admin bearer token as `test-query`.
+
+**Query parameters:** `limit` (default 100).
+
+```bash
+curl -s "http://localhost:3000/admin/adapters/intent-sql-postgres/misses" \
+  -H "Authorization: Bearer <admin-token>" | jq
+```
+
+```json
+{
+  "adapter": "intent-sql-postgres",
+  "misses": [
+    {
+      "id": "42",
+      "adapter": "intent-sql-postgres",
+      "query": "what's the weather like in Paris?",
+      "reason": "below_threshold",
+      "candidates": [{"template_id": "orders_by_date_range", "similarity": 0.18}],
+      "threshold": 0.4,
+      "timestamp": 1755800000.12
+    }
+  ]
+}
+```
+
+The admin panel's Adapters tab has a matching **Misses** panel next to Test Query for every adapter that supports it (same `supports_test_query` capability flag). Each row has a **Test in diagnostics** button that jumps straight into the Test Query panel with that exact query prefilled and run — reopening the panel refreshes the list, so misses recorded while it was closed show up without a page reload.
+
+#### `POST /admin/adapters/{adapter_name}/feedback`
+
+Records a human verdict on a match or miss — the mechanism for growing the eval corpus (`server/tests/intent_eval/`) from real production queries instead of only hand-written test cases.
+
+```bash
+curl -X POST "http://localhost:3000/admin/adapters/intent-sql-postgres/feedback" \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "verdict": "incorrect",
+    "template_id": null,
+    "expected_template_id": "orders_by_date_range"
+  }'
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `verdict` | string | Free-form verdict, e.g. `correct`, `incorrect`, `no_match_expected` |
+| `request_id` | string, optional | Correlates to a specific request, if you have one |
+| `template_id` | string, optional | What the retriever actually matched (or `null` for a miss) |
+| `expected_template_id` | string, optional | What *should* have matched — this is what turns a reviewed miss into a new eval corpus entry |
+
+There's no submission UI yet — only the API — and nothing currently reads recorded feedback back into `server/tests/intent_eval/corpora/*.yaml` automatically; a human reviews `list_feedback()`'s output and hand-adds corpus entries today.
+
+---
 
 ## Troubleshooting
 

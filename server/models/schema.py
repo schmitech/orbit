@@ -220,6 +220,14 @@ class TemplateTestRequest(BaseModel):
     verbose: bool = Field(default=False, description="Include extended diagnostics (vector store, inventory, domain, semantic analysis)")
 
 
+class TemplateFeedbackRequest(BaseModel):
+    """Request model for recording human feedback on an intent template match/miss"""
+    verdict: str = Field(description="Feedback verdict, e.g. 'correct', 'incorrect', 'no_match_expected'")
+    request_id: Optional[str] = Field(default=None, description="Request id the feedback refers to, if known")
+    template_id: Optional[str] = Field(default=None, description="Template the retriever actually matched, if any")
+    expected_template_id: Optional[str] = Field(default=None, description="Template that should have matched, for growing the eval corpus")
+
+
 class MCPMessage(BaseModel):
     """MCP protocol message model"""
     id: str = Field(description="Unique identifier for the message")

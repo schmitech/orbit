@@ -23,6 +23,7 @@ import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
+from retrievers.base.intent_domain_components import record_intent_telemetry
 from retrievers.base.base_retriever import RetrieverFactory
 
 from .agent.tool_definitions import (
@@ -270,6 +271,25 @@ class IntentAgentRetriever(IntentHTTPRetriever):
         return [tool.to_openai_tool() for tool in self._function_tools]
 
     async def get_relevant_context(
+        self,
+        query: str,
+        api_key: Optional[str] = None,
+        collection_name: Optional[str] = None,
+        **kwargs
+    ) -> List[Dict[str, Any]]:
+        """Get relevant context, then record match-outcome metrics and misses.
+
+        This overrides IntentHTTPRetriever.get_relevant_context entirely (for
+        function-calling support), so it must call record_intent_telemetry
+        itself — the base class's wrapper never runs for this subclass.
+        """
+        result = await self._get_relevant_context_impl(
+            query, api_key=api_key, collection_name=collection_name, **kwargs
+        )
+        record_intent_telemetry(self, query, result)
+        return result
+
+    async def _get_relevant_context_impl(
         self,
         query: str,
         api_key: Optional[str] = None,
@@ -722,9 +742,14 @@ Response:"""
 
         if not matching_templates:
             logger.warning(f"No matching templates found for query: {query[:100]}...")
-            return []
+            return [{
+                "content": "I couldn't find a matching query pattern for your request.",
+                "metadata": {"source": "intent_agent", "error": "no_matching_template"},
+                "confidence": 0.0
+            }]
 
         # Try templates in order of similarity
+        any_above_threshold = False
         for template_info in matching_templates:
             template = template_info['template']
             similarity = template_info['similarity']
@@ -733,6 +758,7 @@ Response:"""
 
             if similarity < self.confidence_threshold:
                 continue
+            any_above_threshold = True
 
             logger.debug(f"Attempting template: {template_id} (similarity: {similarity:.2%}, type: {tool_type})")
 
@@ -772,7 +798,21 @@ Response:"""
                 return self._format_http_results(results, template, parameters, similarity)
 
         logger.warning(f"All templates failed for query: {query[:100]}...")
-        return []
+        candidates = [
+            {"template_id": t['template'].get('id'), "similarity": t['similarity']}
+            for t in matching_templates[:5]
+        ]
+        if not any_above_threshold:
+            return [{
+                "content": "I found potential matches but none met the confidence threshold.",
+                "metadata": {"source": "intent_agent", "error": "below_threshold", "candidates": candidates},
+                "confidence": 0.0
+            }]
+        return [{
+            "content": "I found potential matches but couldn't extract the required information.",
+            "metadata": {"source": "intent_agent", "error": "parameter_extraction_failed", "candidates": candidates},
+            "confidence": 0.0
+        }]
 
     async def _extract_function_parameters(
         self,

@@ -11,11 +11,12 @@ import json
 from typing import Dict, Any, List, Optional, Tuple
 
 from .base_sql_database import BaseSQLDatabaseRetriever
-from .intent_domain_components import IntentDomainComponentsMixin
+from .intent_domain_components import IntentDomainComponentsMixin, record_intent_telemetry
 from adapters.intent.adapter import IntentAdapter
 from retrievers.implementations.intent.domain.response.table_renderer import TableRenderer
 from retrievers.implementations.intent.template_processor import TemplateProcessor
 from utils.async_utils import close_client
+from services.metrics_service import get_metrics_service_instance
 
 logger = logging.getLogger(__name__)
 
@@ -702,6 +703,16 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
     
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
                                  collection_name: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]:
+        """Process a natural language query using intent-based SQL translation,
+        then record match-outcome metrics and misses for observability."""
+        result = await self._get_relevant_context_impl(
+            query, api_key=api_key, collection_name=collection_name, **kwargs
+        )
+        record_intent_telemetry(self, query, result)
+        return result
+
+    async def _get_relevant_context_impl(self, query: str, api_key: Optional[str] = None,
+                                 collection_name: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]:
         """Process a natural language query using intent-based SQL translation."""
         cancel_event = kwargs.pop('cancel_event', None)
 
@@ -732,6 +743,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
 
             # Try templates in order of relevance
             datasource_unavailable = False
+            any_above_threshold = False
             for template_info in templates:
                 # Check cancellation between template attempts
                 if cancel_event and cancel_event.is_set():
@@ -743,6 +755,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
 
                 if similarity < self.confidence_threshold:
                     continue
+                any_above_threshold = True
 
                 logger.debug(f"Trying template: {template.get('id')} (similarity: {similarity:.2%})")
 
@@ -875,9 +888,29 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     "confidence": 0.0
                 }]
 
+            candidates = [
+                {"template_id": t['template'].get('id'), "similarity": t['similarity']}
+                for t in templates[:5]
+            ]
+
+            if not any_above_threshold:
+                return [{
+                    "content": "I found potential matches but none met the confidence threshold.",
+                    "metadata": {
+                        "source": "intent",
+                        "error": "below_threshold",
+                        "candidates": candidates,
+                    },
+                    "confidence": 0.0
+                }]
+
             return [{
                 "content": "I found potential matches but couldn't extract the required information.",
-                "metadata": {"source": "intent", "error": "parameter_extraction_failed"},
+                "metadata": {
+                    "source": "intent",
+                    "error": "parameter_extraction_failed",
+                    "candidates": candidates,
+                },
                 "confidence": 0.0
             }]
             
@@ -1173,24 +1206,37 @@ JSON:"""
                     clamp_bound_limit_parameter, enforce_row_cap, resolve_dialect,
                 )
                 dialect = resolve_dialect(self._get_datasource_name())
+                adapter_label = self.audit_adapter_name or self.__class__.__name__
                 try:
                     assert_single_statement(sql_query, dialect=dialect)
                     assert_read_only(sql_query, dialect=dialect)
+                    sql_query_before_cap = sql_query
                     sql_query = enforce_row_cap(sql_query, self.query_guard_max_rows, dialect=dialect)
+                    if sql_query != sql_query_before_cap:
+                        metrics = get_metrics_service_instance()
+                        if metrics:
+                            metrics.record_intent_row_cap_applied(adapter_label)
                     # enforce_row_cap only clamps a *literal* LIMIT — when the
                     # LIMIT count is bound to a placeholder (e.g. the DuckDB
                     # analytics templates' `LIMIT :limit`), the value isn't in
                     # the SQL text at all, it's in formatted_parameters, which
                     # is resolved before the guard ever runs. Clamp it there.
-                    clamp_bound_limit_parameter(
+                    bound_limit_clamped = clamp_bound_limit_parameter(
                         sql_query, formatted_parameters, self.query_guard_max_rows,
                         dialect=dialect,
                         positional_param_names=[p.get('name') for p in template.get('parameters', [])],
                     )
+                    if bound_limit_clamped:
+                        metrics = get_metrics_service_instance()
+                        if metrics:
+                            metrics.record_intent_row_cap_applied(adapter_label)
                 except QueryGuardError as e:
                     logger.error(
                         f"Query guard rejected rendered SQL for template {template.get('id')}: {e}"
                     )
+                    metrics = get_metrics_service_instance()
+                    if metrics:
+                        metrics.record_intent_guard_rejection(adapter_label, reason=type(e).__name__)
                     return [], f"Query rejected by safety guard: {e}"
 
             logger.debug(f"Executing SQL: {sql_query}")

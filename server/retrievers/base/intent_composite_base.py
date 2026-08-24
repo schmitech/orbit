@@ -25,6 +25,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
 
 from .base_retriever import BaseRetriever
+from .intent_domain_components import record_intent_telemetry
 
 logger = logging.getLogger(__name__)
 
@@ -1378,6 +1379,27 @@ class CompositeIntentRetriever(BaseRetriever):
         return best_match
     
     async def get_relevant_context(
+        self,
+        query: str,
+        api_key: Optional[str] = None,
+        collection_name: Optional[str] = None,
+        **kwargs
+    ) -> List[Dict[str, Any]]:
+        """Route the query to the best matching child adapter, then record
+        composite-level match-outcome metrics and misses for observability.
+
+        Note this records telemetry under the composite adapter's own name,
+        separate from (and in addition to) whatever the routed-to child
+        adapter records under its own name via its own get_relevant_context —
+        the two give different aggregation granularity (composite vs. child).
+        """
+        result = await self._get_relevant_context_impl(
+            query, api_key=api_key, collection_name=collection_name, **kwargs
+        )
+        record_intent_telemetry(self, query, result)
+        return result
+
+    async def _get_relevant_context_impl(
         self,
         query: str,
         api_key: Optional[str] = None,

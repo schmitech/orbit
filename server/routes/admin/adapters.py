@@ -14,7 +14,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException, Query, Body
 
 from models.schema import (
     AdapterReloadResponse,
-    TemplateReloadResponse, TemplateTestRequest,
+    TemplateReloadResponse, TemplateTestRequest, TemplateFeedbackRequest,
 )
 from config.config_manager import reload_adapters_config
 from services.mcp_auth_policy import apply_mcp_auth_policy
@@ -1408,3 +1408,32 @@ async def test_adapter_query(
     except Exception as e:
         logger.error(f"Template test-query failed for '{adapter_name}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Test query failed")
+
+
+@router.get("/adapters/{adapter_name}/misses", dependencies=[adapters_auth])
+async def get_adapter_misses(adapter_name: str, limit: int = 100):
+    """
+    List queries that failed to match a template (or matched below threshold)
+    for this adapter, most recent first. Backed by an in-memory, process-local
+    store — see server/services/template_misses.py.
+    """
+    from services.template_misses import list_misses
+    return {"adapter": adapter_name, "misses": list_misses(adapter=adapter_name, limit=limit)}
+
+
+@router.post("/adapters/{adapter_name}/feedback", dependencies=[Depends(require_permission("adapters.manage"))])
+async def post_adapter_feedback(adapter_name: str, body: TemplateFeedbackRequest):
+    """
+    Record human feedback on an intent template match or miss. The
+    `expected_template_id` field is what lets a reviewed miss grow the
+    Phase 1A eval corpus.
+    """
+    from services.template_misses import record_feedback
+    record_feedback(
+        adapter=adapter_name,
+        verdict=body.verdict,
+        request_id=body.request_id,
+        template_id=body.template_id,
+        expected_template_id=body.expected_template_id,
+    )
+    return {"status": "recorded"}

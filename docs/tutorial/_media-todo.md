@@ -35,3 +35,5 @@ grep -rn "<!-- MEDIA:" docs/tutorial/
 | `mcp-tool-calling/mcp-tab` | screenshot | `mcp-tool-calling.md` | MCP tab showing `business-sample` configured | Needed |
 | `auto-skill-routing/inferred-skill-response` | screenshot | `auto-skill-routing.md` | Response auto-routed with no `skill` field | Needed |
 | `customer-360-cross-adapter/cross-adapter-response` | screenshot | `customer-360-cross-adapter.md` | API response JSON showing a cross_adapter routing block with both Billing and Support SLA sources merged side_by_side | Needed |
+| `intent-observability/test-query-match` | screenshot | `intent-observability.md` | Test Query panel showing a matched template, similarity score, and rendered SQL for a customer-orders question | Needed |
+| `intent-observability/misses-panel` | screenshot | `intent-observability.md` | Misses panel showing a recorded miss with candidates and a "Test in diagnostics" button | Needed |

@@ -643,10 +643,15 @@ def clamp_bound_limit_parameter(
     cap: int,
     dialect: Optional[str] = None,
     positional_param_names: Optional[list] = None,
-) -> None:
+) -> bool:
     """
     Mutate `parameters` in place, clamping the value bound to the outer
     query's LIMIT clause down to `cap` if it exceeds it.
+
+    Returns True if a value was actually clamped, False otherwise (no bound
+    LIMIT found, value already within cap, or the positional case that can't
+    be resolved to a name) — callers use this to distinguish a bound-LIMIT
+    clamp from `enforce_row_cap`'s literal-text clamp/injection for metrics.
 
     `enforce_row_cap` intentionally leaves a bound LIMIT's *text* unchanged —
     the actual value isn't in the SQL to compare against the cap, it's in
@@ -670,11 +675,12 @@ def clamp_bound_limit_parameter(
         if value is not None and value > cap:
             logger.info(f"Clamping bound LIMIT parameter '{name}' from {value} to row cap {cap}")
             parameters[name] = cap
-        return
+            return True
+        return False
 
     index = find_outer_limit_positional_index(sql, dialect)
     if index is None:
-        return
+        return False
 
     if not positional_param_names or index >= len(positional_param_names):
         logger.warning(
@@ -682,7 +688,7 @@ def clamp_bound_limit_parameter(
             "could not be resolved from the template's parameter list; row cap cannot "
             "be enforced on this value."
         )
-        return
+        return False
 
     param_name = positional_param_names[index]
     value = _coerce_row_count_value(parameters.get(param_name))
@@ -690,6 +696,8 @@ def clamp_bound_limit_parameter(
     if value is not None and value > cap:
         logger.info(f"Clamping bound LIMIT parameter '{param_name}' (positional) from {value} to row cap {cap}")
         parameters[param_name] = cap
+        return True
+    return False
 
 
 def _reject_if_negative_row_count(value: Optional[int], param_name: str) -> None:

@@ -589,12 +589,42 @@ class TestFindOuterLimitPositionalIndex:
 class TestClampBoundLimitParameter:
     def test_named_colon_form_clamped(self):
         params = {"revenue_threshold": 10000.0, "limit": 99999}
-        clamp_bound_limit_parameter(
+        clamped = clamp_bound_limit_parameter(
             "SELECT * FROM sales HAVING x < :revenue_threshold LIMIT :limit",
             params, cap=1000, dialect="duckdb",
             positional_param_names=["revenue_threshold", "limit"],
         )
         assert params == {"revenue_threshold": 10000.0, "limit": 1000}
+        assert clamped is True
+
+    def test_return_value_is_true_only_when_a_value_was_actually_clamped(self):
+        # Regression: the return value is what callers (e.g.
+        # intent_sql_base.py's row-cap metric) use to distinguish "a bound
+        # LIMIT was clamped" from every other case — it must be an honest
+        # bool, not None/truthy-by-accident.
+        clamped_params = {"limit": 99999}
+        assert clamp_bound_limit_parameter(
+            "SELECT * FROM sales LIMIT :limit", clamped_params, cap=1000, dialect="duckdb",
+            positional_param_names=["limit"],
+        ) is True
+
+        within_cap_params = {"limit": 10}
+        assert clamp_bound_limit_parameter(
+            "SELECT * FROM sales LIMIT :limit", within_cap_params, cap=1000, dialect="duckdb",
+            positional_param_names=["limit"],
+        ) is False
+
+        no_bound_limit_params = {"limit": 99999}
+        assert clamp_bound_limit_parameter(
+            "SELECT * FROM sales LIMIT 99999", no_bound_limit_params, cap=1000, dialect="sqlite",
+            positional_param_names=["limit"],
+        ) is False
+
+        unresolvable_positional_params = {"limit": 99999}
+        assert clamp_bound_limit_parameter(
+            "SELECT * FROM sales LIMIT ?", unresolvable_positional_params, cap=1000, dialect="sqlite",
+            positional_param_names=None,
+        ) is False
 
     def test_named_percent_form_clamped(self):
         params = {"limit": 50000}

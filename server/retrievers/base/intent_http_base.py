@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .base_retriever import BaseRetriever
-from .intent_domain_components import IntentDomainComponentsMixin
+from .intent_domain_components import IntentDomainComponentsMixin, record_intent_telemetry
 from retrievers.implementations.intent.domain.response.table_renderer import TableRenderer
 from retrievers.implementations.intent.template_processor import TemplateProcessor
 from utils.async_utils import close_client
@@ -768,6 +768,17 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
                                    collection_name: Optional[str] = None,
                                    **kwargs) -> List[Dict[str, Any]]:
+        """Process a natural language query using intent-based HTTP translation,
+        then record match-outcome metrics and misses for observability."""
+        result = await self._get_relevant_context_impl(
+            query, api_key=api_key, collection_name=collection_name, **kwargs
+        )
+        record_intent_telemetry(self, query, result)
+        return result
+
+    async def _get_relevant_context_impl(self, query: str, api_key: Optional[str] = None,
+                                   collection_name: Optional[str] = None,
+                                   **kwargs) -> List[Dict[str, Any]]:
         """Process a natural language query using intent-based HTTP translation."""
         cancel_event = kwargs.pop('cancel_event', None)
 
@@ -922,14 +933,33 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
             if failed_templates:
                 failed_summary = "; ".join([f"{tid}: {err[:100]}" for tid, err in failed_templates])
                 logger.warning(f"All {len(template_attempts)} template(s) failed. Attempted: {', '.join(template_attempts)}. Errors: {failed_summary}")
-            
+
+            # template_attempts only ever gains an entry once a candidate clears
+            # confidence_threshold (see the `continue` above, before the
+            # append) — an empty list here means every candidate scored below
+            # threshold, not that extraction was attempted and failed.
+            if not template_attempts:
+                return [{
+                    "content": "I found potential matches but none met the confidence threshold.",
+                    "metadata": {
+                        "source": "intent_http",
+                        "error": "below_threshold",
+                        "candidates": [
+                            {"template_id": t['template'].get('id'), "similarity": t['similarity']}
+                            for t in templates[:5]
+                        ],
+                    },
+                    "confidence": 0.0
+                }]
+
             return [{
                 "content": "I found potential matches but couldn't extract the required information.",
                 "metadata": {
-                    "source": "intent_http", 
+                    "source": "intent_http",
                     "error": "parameter_extraction_failed",
                     "attempted_templates": template_attempts,
-                    "failed_templates": [{"template_id": tid, "error": err} for tid, err in failed_templates] if failed_templates else None
+                    "failed_templates": [{"template_id": tid, "error": err} for tid, err in failed_templates] if failed_templates else None,
+                    "candidates": [{"template_id": tid} for tid in template_attempts],
                 },
                 "confidence": 0.0
             }]

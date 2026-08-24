@@ -18,6 +18,7 @@ import httpx
 from typing import Dict, Any, List, Optional, Tuple
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
+from retrievers.base.intent_domain_components import record_intent_telemetry
 from retrievers.base.base_retriever import RetrieverFactory
 from utils.content_chunker import ContentChunker
 from utils.chunk_manager import ChunkManager
@@ -153,6 +154,22 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
                                    collection_name: Optional[str] = None,
                                    **kwargs) -> List[Dict[str, Any]]:
+        """Process a query using intent-based Firecrawl scraping with chunking,
+        then record match-outcome metrics and misses for observability.
+
+        This overrides IntentHTTPRetriever.get_relevant_context entirely (for
+        chunking support), so it must call record_intent_telemetry itself —
+        the base class's wrapper never runs for this subclass.
+        """
+        result = await self._get_relevant_context_impl(
+            query, api_key=api_key, collection_name=collection_name, **kwargs
+        )
+        record_intent_telemetry(self, query, result)
+        return result
+
+    async def _get_relevant_context_impl(self, query: str, api_key: Optional[str] = None,
+                                   collection_name: Optional[str] = None,
+                                   **kwargs) -> List[Dict[str, Any]]:
         """
         Process a natural language query using intent-based Firecrawl scraping with chunking.
 
@@ -187,12 +204,14 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                 templates = self.template_reranker.rerank_templates(templates, query)
 
             # Try templates in order of relevance
+            any_above_threshold = False
             for template_info in templates:
                 template = template_info['template']
                 similarity = template_info['similarity']
 
                 if similarity < self.confidence_threshold:
                     continue
+                any_above_threshold = True
 
                 logger.debug(f"Trying template: {template.get('id')} (similarity: {similarity:.2%})")
 
@@ -228,10 +247,22 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                 return formatted_results
 
             # If no template succeeded
+            candidates = [
+                {"template_id": t['template'].get('id'), "similarity": t['similarity']}
+                for t in templates[:5]
+            ]
+            if not any_above_threshold:
+                logger.warning("No template matches met the confidence threshold")
+                return [{
+                    "content": "I found potential matches but none met the confidence threshold.",
+                    "metadata": {"source": "firecrawl", "error": "below_threshold", "candidates": candidates},
+                    "confidence": 0.0
+                }]
+
             logger.warning("All templates failed to execute")
             return [{
                 "content": "I couldn't scrape content with the available templates.",
-                "metadata": {"source": "firecrawl", "error": "all_templates_failed"},
+                "metadata": {"source": "firecrawl", "error": "all_templates_failed", "candidates": candidates},
                 "confidence": 0.0
             }]
 

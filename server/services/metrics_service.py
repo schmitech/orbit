@@ -8,7 +8,7 @@ import time
 import os
 import psutil
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 from collections import deque
 from prometheus_client import (
@@ -30,6 +30,22 @@ except Exception:  # pragma: no cover
 import logging
 
 logger = logging.getLogger(__name__)
+
+_instance: "MetricsService | None" = None
+
+
+def set_metrics_service_instance(instance: "MetricsService | None") -> None:
+    """Expose the app's MetricsService as a module-level singleton so retrievers
+    (which have no access to FastAPI's app.state) can record intent-template
+    metrics without threading the instance through the service-injection chain."""
+    global _instance
+    _instance = instance
+
+
+def get_metrics_service_instance() -> "MetricsService | None":
+    """Return the singleton set by set_metrics_service_instance, or None if
+    metrics haven't been initialized (or are disabled) yet."""
+    return _instance
 
 
 class MetricsService:
@@ -190,6 +206,43 @@ class MetricsService:
             'orbit_health_check_status',
             'Health check status (1=healthy, 0=unhealthy)',
             ['component'],
+            registry=self.registry
+        )
+
+        # Intent template retrieval metrics
+        self.intent_template_matches = Counter(
+            'orbit_intent_template_matches_total',
+            'Intent template match outcomes',
+            ['adapter', 'template_id', 'outcome'],
+            registry=self.registry
+        )
+
+        self.intent_confidence = Histogram(
+            'orbit_intent_confidence',
+            'Top-candidate confidence score for intent template matches',
+            ['adapter'],
+            buckets=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+            registry=self.registry
+        )
+
+        self.intent_rows_returned = Histogram(
+            'orbit_intent_rows_returned',
+            'Rows returned by an executed intent template',
+            ['adapter', 'template_id'],
+            registry=self.registry
+        )
+
+        self.intent_row_cap_applied = Counter(
+            'orbit_intent_row_cap_applied_total',
+            'Times the query guard clamped or injected a row cap',
+            ['adapter'],
+            registry=self.registry
+        )
+
+        self.intent_guard_rejections = Counter(
+            'orbit_intent_guard_rejections_total',
+            'Times the query guard rejected a rendered query',
+            ['adapter', 'reason'],
             registry=self.registry
         )
         
@@ -384,6 +437,36 @@ class MetricsService:
         self.adapter_requests.labels(adapter=adapter, status=status).inc()
         self.adapter_latency.labels(adapter=adapter).observe(duration)
     
+    def record_intent_outcome(self, adapter: str, template_id: Optional[str], outcome: str,
+                               confidence: Optional[float] = None):
+        """Record an intent template match outcome (executed/below_threshold/
+        param_validation_failed/no_match/datasource_unavailable/error)."""
+        if not self.enabled:
+            return
+        self.intent_template_matches.labels(
+            adapter=adapter, template_id=template_id or 'none', outcome=outcome
+        ).inc()
+        if confidence is not None:
+            self.intent_confidence.labels(adapter=adapter).observe(confidence)
+
+    def record_intent_rows_returned(self, adapter: str, template_id: str, rows: int):
+        """Record rows returned by a successfully executed intent template."""
+        if not self.enabled:
+            return
+        self.intent_rows_returned.labels(adapter=adapter, template_id=template_id).observe(rows)
+
+    def record_intent_row_cap_applied(self, adapter: str):
+        """Record that the query guard clamped or injected a row cap."""
+        if not self.enabled:
+            return
+        self.intent_row_cap_applied.labels(adapter=adapter).inc()
+
+    def record_intent_guard_rejection(self, adapter: str, reason: str):
+        """Record that the query guard rejected a rendered query."""
+        if not self.enabled:
+            return
+        self.intent_guard_rejections.labels(adapter=adapter, reason=reason).inc()
+
     def update_circuit_breaker_state(self, adapter: str, state: str):
         """Update circuit breaker state metric"""
         if not self.enabled:

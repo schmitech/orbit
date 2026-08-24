@@ -644,24 +644,32 @@ class ServiceFactory:
 
     async def _initialize_metrics_service(self, app: FastAPI) -> None:
         """Initialize Metrics Service for monitoring."""
+        from services.metrics_service import MetricsService, set_metrics_service_instance
         try:
             # Check if monitoring is enabled in configuration
             monitoring_config = self.config.get('monitoring', {})
             monitoring_enabled = monitoring_config.get('enabled', True)
-            
+
             if not monitoring_enabled:
                 app.state.metrics_service = None
+                # Retrievers read the metrics service via a module-level
+                # singleton (they have no access to app.state), so a stale
+                # instance from a previous app/test run must be cleared here
+                # too — otherwise it keeps getting written to even though
+                # this app considers metrics disabled.
+                set_metrics_service_instance(None)
                 logger.info("Metrics Service disabled by configuration")
                 return
-            
-            from services.metrics_service import MetricsService
+
             app.state.metrics_service = MetricsService(self.config)
             await app.state.metrics_service.start_collection()
+            set_metrics_service_instance(app.state.metrics_service)
             logger.info("Metrics Service initialized successfully")
         except Exception as e:
             logger.warning(f"Failed to initialize Metrics Service: {str(e)}")
             # Don't fail startup if metrics service fails
             app.state.metrics_service = None
+            set_metrics_service_instance(None)
     
     async def _initialize_clock_service(self, app: FastAPI) -> None:
         """Initialize the Clock Service."""

@@ -45,6 +45,6 @@ For a full visual tour of every tab (including MCP, Costs, Feedback, Ops, and Au
 
 ---
 
-[Tutorial home](../tutorial.md) | [Previous: Example 13: Customer 360 — Cross-Adapter Composition](customer-360-cross-adapter.md) | [Next: Connecting Your Own Data](connecting-your-own-data.md)
+[Tutorial home](../tutorial.md) | [Previous: Example 14: Intent Adapter Observability](intent-observability.md) | [Next: Connecting Your Own Data](connecting-your-own-data.md)
 
 ---
