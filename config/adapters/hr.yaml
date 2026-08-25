@@ -48,6 +48,17 @@ adapters:
       supports_session_tracking: false
       supports_threading: true
       requires_api_key_validation: true
+      # Auto-route these from plain natural language (e.g. "make a pdf of
+      # this") without requiring the client to send skill=<name> — matches
+      # the same list as available_skills below, so both the "/" picker and
+      # an autocomplete-suggested phrase reach the skill.
+      auto_routable_skills:
+        - "Image"
+        - "Video"
+        - "PDF"
+        - "Word"
+        - "Excel"
+        - "PowerPoint"
       available_skills:
         - "Image"
         - "Video"
@@ -55,6 +66,7 @@ adapters:
         - "Word"
         - "Excel"
         - "PowerPoint"
+      auto_skill_routing: true
       supports_autocomplete: true
       context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
       context_max_tokens: 8000
