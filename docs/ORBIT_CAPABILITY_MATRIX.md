@@ -196,7 +196,7 @@ ORBIT includes a web-based admin panel and a companion command-line tool (both p
 | MCP server management | External tool connections (MCP servers) can be added, tested, and removed from the admin panel, with live status checks — no config-file editing or restart required | `CHANGELOG.md` (v2.14.0–v2.15.7), `docs/mcp_protocol.md` |
 | Admin CLI (`orbit`) | A command-line tool that covers the same administrative tasks as the web panel — starting/stopping the server, managing users and API keys, and reloading configuration — for scripting, automation, and CI/CD use | `bin/orbit.py`, `bin/orbit.sh` |
 | Adapter SDK CLI (`adapter-sdk`) | A companion command-line tool for generating adapter configuration files, useful for scripted or bulk adapter setup | `bin/adapter-sdk.sh` |
-| Cost & audit dashboards | Breakdowns of spending by API key, adapter, provider, and request type, alongside the audit log viewer described in §3.6 | `CHANGELOG.md` (v2.15.8–v2.15.9), `docs/token-usage-and-cost-tracking.md` |
+| Cost & audit dashboards | Breakdowns of spending by API key, adapter, provider, and request type, alongside the audit log viewer described in §3.6 | `CHANGELOG.md` (v2.15.8–v2.16.0), `docs/token-usage-and-cost-tracking.md` |
 
 ### 3.13 Onboarding & Documentation
 

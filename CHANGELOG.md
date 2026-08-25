@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.16.0] - 2026-08-25
 
 ### Breaking Changes
 - **Audit Chat Call Type**: Renamed the default text-generation audit `call_type` from `inference` to `chat`. The Audit API now uses `source=chat` and emits chat-named audit fields; `GET /admin/observability/usage` accepts `call_type=chat`. Clients using the prior `inference` audit values must update.
