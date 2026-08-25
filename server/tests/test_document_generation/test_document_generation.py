@@ -901,6 +901,223 @@ class TestDocumentGenerationStepProcess:
         assert result.error is not None
         assert "rtf" in result.error.lower() or "unsupported" in result.error.lower()
 
+    @pytest.mark.asyncio
+    async def test_process_refuses_when_attached_file_never_retrieved(self):
+        """file_ids is forwarded to ProcessingContext for every adapter regardless of
+        supports_file_ids (see RequestContextBuilder.build_context), but document-generation
+        adapters have retrieval_behavior: none, so ContextRetrievalStep never runs and the
+        attached file's content never reaches formatted_context. Without a guard, the
+        spec-generation LLM is still called and invents filler content for a file it never
+        saw. Must refuse without calling the LLM provider at all."""
+        from inference.pipeline.base import ProcessingContext
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        container = _make_container(document_format="pdf", llm_provider=llm_provider)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator",
+            message="Summarize the CSV I just uploaded as a PDF",
+            file_ids=["file-123"],
+        )
+        result = await step.process(ctx)
+
+        assert result.error is not None
+        assert result.document is None
+        llm_provider.generate_tracked.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_generates_when_attached_file_content_was_retrieved(self):
+        """When formatted_context IS populated AND retrieved_docs' metadata actually
+        identifies it as belonging to the attached file_ids, generation proceeds normally —
+        the guard only fires on file_ids with no corresponding *matching* retrieved content."""
+        from inference.pipeline.base import ProcessingContext
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        container = _make_container(document_format="pdf", llm_provider=llm_provider)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator",
+            message="Summarize the CSV I just uploaded as a PDF",
+            file_ids=["file-123"],
+            formatted_context="col1,col2\n1,2\n3,4",
+            retrieved_docs=[{"content": "col1,col2\n1,2\n3,4", "metadata": {"file_id": "file-123"}}],
+        )
+        result = await step.process(ctx)
+
+        assert result.error is None
+        assert result.document is not None
+
+    @pytest.mark.asyncio
+    async def test_process_refuses_when_formatted_context_is_unrelated_to_referenced_file(self):
+        """Regression: formatted_context can be non-empty from an unrelated/stale retrieval
+        (e.g. the referenced file failed to index, but formatted_context still holds RAG
+        results for a different file_id). The guard must verify retrieved_docs actually
+        identifies content from the requested file_ids — not just that formatted_context is
+        non-empty — otherwise the document silently ignores the file the user asked about."""
+        from inference.pipeline.base import ProcessingContext
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        container = _make_container(document_format="pdf", llm_provider=llm_provider)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator",
+            message="Summarize the CSV I just uploaded as a PDF",
+            file_ids=["file-123"],
+            formatted_context="some unrelated content",
+            retrieved_docs=[{"content": "some unrelated content", "metadata": {"file_id": "file-999"}}],
+        )
+        result = await step.process(ctx)
+
+        assert result.error is not None
+        assert result.document is None
+        llm_provider.generate_tracked.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_refuses_when_message_references_upload_with_no_file_ids(self):
+        """Regression: a user can reference an 'uploaded' file in plain text without any
+        file_ids ever being attached (nothing was actually uploaded on this turn). This must
+        be caught too, not just the file_ids-present-but-unused case — otherwise it silently
+        produces a generic filler document."""
+        from inference.pipeline.base import ProcessingContext
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        container = _make_container(document_format="pdf", llm_provider=llm_provider)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator",
+            message="generate pdf document for the uploaded csv file",
+        )
+        result = await step.process(ctx)
+
+        assert result.error is not None
+        assert result.document is None
+        llm_provider.generate_tracked.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_refuses_when_history_is_unrelated_to_referenced_source(self):
+        """Regression: an unrelated prior turn (e.g. a greeting) in context_messages must not
+        count as evidence that a referenced upload's content is actually available. Only
+        history that itself discusses the source (or contains tabular data) should satisfy
+        the guard."""
+        from inference.pipeline.base import ProcessingContext
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        container = _make_container(document_format="pdf", llm_provider=llm_provider)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator",
+            message="generate pdf document for the uploaded csv file",
+            context_messages=[
+                {"role": "user", "content": "hello"},
+                {"role": "assistant", "content": "Hi there! How can I help you today?"},
+            ],
+        )
+        result = await step.process(ctx)
+
+        assert result.error is not None
+        assert result.document is None
+        llm_provider.generate_tracked.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_refuses_when_history_has_bare_pipe_prose_not_a_table(self):
+        """Regression: a lone '|' character in ordinary prose (e.g. 'A | B', or a shell
+        pipeline mentioned in chat) must not be mistaken for tabular source data — only an
+        actual markdown table (2+ rows) should satisfy the guard."""
+        from inference.pipeline.base import ProcessingContext
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        container = _make_container(document_format="pdf", llm_provider=llm_provider)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator",
+            message="generate pdf document for the uploaded csv file",
+            context_messages=[
+                {"role": "user", "content": "should I choose plan A | plan B?"},
+                {"role": "assistant", "content": "Either works, it depends on your budget."},
+            ],
+        )
+        result = await step.process(ctx)
+
+        assert result.error is not None
+        assert result.document is None
+        llm_provider.generate_tracked.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_generates_when_attached_file_content_in_conversation_history(self):
+        """A file's content/analysis can have been surfaced earlier in the conversation (via
+        another adapter/turn) even though formatted_context is empty for this request — the
+        guard must accept context_messages as valid reference material, not just
+        formatted_context."""
+        from inference.pipeline.base import ProcessingContext
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        container = _make_container(document_format="pdf", llm_provider=llm_provider)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator",
+            message="Now make that a PDF",
+            file_ids=["file-123"],
+            context_messages=[
+                {"role": "user", "content": "What's in the CSV I uploaded?"},
+                {"role": "assistant", "content": "The CSV has columns col1, col2 with rows 1,2 and 3,4."},
+            ],
+        )
+        result = await step.process(ctx)
+
+        assert result.error is None
+        assert result.document is not None
+
+    @pytest.mark.asyncio
+    async def test_process_generates_when_attached_file_and_generation_memory_present(self):
+        """A prior generated spec in generation memory (a refinement follow-up) is valid
+        reference material even when formatted_context/context_messages are both empty and
+        file_ids remain attached from an earlier turn."""
+        from inference.pipeline.base import ProcessingContext
+        from inference.pipeline.steps._utils import store_generation_memory
+
+        llm_provider = MagicMock()
+        llm_provider.generate = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        llm_provider.generate_tracked = AsyncMock(return_value=json.dumps(SAMPLE_SPEC))
+        memory_service = _make_memory_service()
+        container = _make_container(
+            document_format="pdf", llm_provider=llm_provider, thread_dataset_service=memory_service,
+        )
+
+        await store_generation_memory(container, "pdf-generator", "session-1", {"spec": SAMPLE_SPEC})
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="pdf-generator",
+            message="Make the title bigger",
+            file_ids=["file-123"],
+            session_id="session-1",
+        )
+        result = await step.process(ctx)
+
+        assert result.error is None
+        assert result.document is not None
+
 
 # ---------------------------------------------------------------------------
 # DocumentGenerationStep.process — generation memory (follow-up refinements)

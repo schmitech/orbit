@@ -29,6 +29,16 @@ from ._utils import (
 
 logger = logging.getLogger(__name__)
 
+# Matches phrasing that claims a file/data source was already provided (uploaded, attached,
+# "this/the CSV|file|data|spreadsheet|dataset|document") — used to catch requests that
+# reference a source with no file_ids on the request at all (nothing was ever uploaded),
+# a case _references_unavailable_file's file_ids check alone can't see.
+_REFERENCES_PROVIDED_SOURCE_RE = re.compile(
+    r"\b(uploaded|attach(?:ed|ment)?)\b"
+    r"|\b(?:this|the|that|my)\s+(?:csv|file|data|spreadsheet|dataset|document|excel|table)\b",
+    re.IGNORECASE,
+)
+
 
 def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
     """Return the adapter's 'type' field, or None if unavailable."""
@@ -67,7 +77,17 @@ class DocumentGenerationStep(PipelineStep):
         fmt = self._resolve_format(context)
         logger.debug("Document generation: format=%s, adapter=%s", fmt, context.adapter_name)
 
-        spec = await self._generate_spec(context, fmt)
+        memory = await get_generation_memory(self.container, context.adapter_name, context.session_id)
+        if self._references_unavailable_file(context, memory):
+            context.set_error(
+                "I don't have access to the file or data you're referring to — either it "
+                "wasn't uploaded, or its content isn't available to this document generator. "
+                "Please upload the file to the chat, discuss it there so its content is "
+                "loaded, then request the document from within that conversation."
+            )
+            return context
+
+        spec = await self._generate_spec(context, fmt, memory=memory)
         if spec is None:
             context.set_error("Document spec generation failed.")
             return context
@@ -223,7 +243,88 @@ class DocumentGenerationStep(PipelineStep):
     # Document spec generation via LLM
     # ------------------------------------------------------------------
 
-    async def _generate_spec(self, context: ProcessingContext, fmt: str) -> Optional[dict]:
+    def _references_unavailable_file(
+        self, context: ProcessingContext, memory: Optional[Dict[str, Any]],
+    ) -> bool:
+        """Whether the request depends on a file/data source that never actually reached
+        this adapter — either because file_ids were attached but ignored, or because the
+        user's message claims a source ("the uploaded CSV", "this file") that was never
+        attached in the first place (file_ids is empty — nothing was ever uploaded on this
+        turn).
+
+        Document-generation adapters (pdf-generator, word-generator, ...) have
+        `retrieval_behavior: none` and `supports_file_ids: false`, so `ContextRetrievalStep`
+        never runs for them and any `file_ids` sent alongside the request are silently
+        ignored. Without this check, the spec-generation LLM is still called with no actual
+        file content and invents a generic filler document either way.
+
+        We only refuse when a source was implicated (file_ids present, or the message
+        references an uploaded/attached file) AND none of the reference material
+        `_build_spec_prompt` actually uses is available: `formatted_context` (a thread-cached
+        dataset), `context_messages` (e.g. the file's content/analysis surfaced earlier in this
+        conversation), or generation memory (a prior spec — this is a refinement follow-up).
+        A self-contained request with no implicated source (e.g. "write a report about Q1
+        sales") is unaffected.
+        """
+        implicates_source = bool(context.file_ids) or bool(_REFERENCES_PROVIDED_SOURCE_RE.search(context.message or ""))
+        if not implicates_source:
+            return False
+        if self._formatted_context_covers_referenced_files(context):
+            return False
+        if self._has_relevant_history(context):
+            return False
+        if memory and memory.get('spec'):
+            return False
+        return True
+
+    def _formatted_context_covers_referenced_files(self, context: ProcessingContext) -> bool:
+        """Whether formatted_context is actually evidence for the file(s) attached to this
+        request — not merely non-empty. When file_ids is present, an indexing/retrieval
+        failure for the referenced file can leave formatted_context populated with unrelated
+        RAG results (e.g. stale docs from a prior, differently-scoped retrieval); a document
+        must not be silently generated from those instead of the file the user asked about.
+        We only accept formatted_context at face value when there's no specific file_id to
+        verify against (a request that references an upload in plain text with no file_ids
+        attached at all — handled by `_has_relevant_history`/memory instead) or when it came
+        from a thread-cached dataset (a distinct, independently-trusted mechanism keyed by
+        `thread_id`, not by file_ids). Otherwise, at least one retrieved doc's metadata must
+        actually identify it as belonging to one of the referenced files.
+        """
+        if not context.formatted_context or not context.formatted_context.strip():
+            return False
+        if not context.file_ids:
+            return True
+        if context.thread_id:
+            return True
+        return any(
+            (doc.get('metadata') or {}).get('file_id') in context.file_ids
+            for doc in (context.retrieved_docs or [])
+        )
+
+    def _has_relevant_history(self, context: ProcessingContext) -> bool:
+        """Whether context_messages actually discusses the referenced source — not just any
+        unrelated prior turn. An earlier "hello" in the same session must not count as
+        evidence that a referenced upload's content is available; a history turn only counts
+        when it itself references a file/data source (matches the same source-reference
+        pattern used to detect the request) or contains an actual markdown table (a common
+        way retrieved/discussed tabular data shows up in a transcript) — a bare '|' in prose
+        (e.g. "A | B") does not qualify."""
+        msgs = context.context_messages or []
+        if msgs and msgs[-1].get('role') == 'user' and msgs[-1].get('content', '').strip() == context.message.strip():
+            msgs = msgs[:-1]
+        for msg in msgs:
+            content = (msg.get('content') or '').strip()
+            if not content:
+                continue
+            if _REFERENCES_PROVIDED_SOURCE_RE.search(content):
+                return True
+            if self._extract_markdown_tables([msg]):
+                return True
+        return False
+
+    async def _generate_spec(
+        self, context: ProcessingContext, fmt: str, memory: Optional[Dict[str, Any]] = None,
+    ) -> Optional[dict]:
         """Call an LLM to produce a structured JSON document specification.
 
         Tries each candidate provider in priority order, falling through to the next when one
@@ -250,7 +351,6 @@ class DocumentGenerationStep(PipelineStep):
         temperature = llm_override.get('temperature', prompt_cfg.get('temperature', 0.3))
         history_limit = llm_override.get('history_limit', prompt_cfg.get('history_limit', 6))
 
-        memory = await get_generation_memory(self.container, context.adapter_name, context.session_id)
         prompt = self._build_spec_prompt(context, fmt, prompt_cfg, history_limit=history_limit, memory=memory)
         if prompt is None:
             logger.warning("Malformed 'document' rewrite config — using fallback document spec")

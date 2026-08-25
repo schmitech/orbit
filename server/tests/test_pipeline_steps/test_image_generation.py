@@ -254,6 +254,38 @@ class TestImageGenerationStepProcess:
         assert result.image_revised_prompt == "a fluffy golden retriever puppy running through a sunlit forest"
 
     @pytest.mark.asyncio
+    async def test_process_rewrites_using_formatted_context(self):
+        """Regression: when a CSV is uploaded and an image skill is requested in the same
+        turn, ContextRetrievalStep's skill-swap fallback (see context_retrieval.py) can
+        populate context.formatted_context from the original file-capable adapter even
+        though image-generator itself has retrieval_behavior: none. The rewrite prompt must
+        actually incorporate that retrieved content, not just conversation history/memory."""
+        from inference.pipeline.base import ProcessingContext
+
+        captured = {}
+
+        async def capture_generate(prompt, usage_sink=None, **kwargs):
+            captured["prompt"] = prompt
+            return "an infographic poster with bar charts summarizing 162 records by state"
+
+        llm_provider = MagicMock()
+        llm_provider.generate = capture_generate
+        llm_provider.generate_tracked = capture_generate
+        container = _make_container(llm_provider=llm_provider)
+
+        step = self.StepClass(container)
+        ctx = ProcessingContext(
+            adapter_name="image-generator",
+            message="image of an infographic from this csv data with high level stats",
+            file_ids=["file-123"],
+            formatted_context="162 records. Columns: state, age, email. 48 unique states.",
+        )
+        result = await step.process(ctx)
+
+        assert result.error is None
+        assert "162 records" in captured["prompt"] or "48 unique states" in captured["prompt"]
+
+    @pytest.mark.asyncio
     async def test_process_folds_previous_generation_memory_into_rewrite(self):
         """A follow-up like 'make the dog wear a space suit' should have the
         previous turn's effective prompt available to the rewrite LLM."""

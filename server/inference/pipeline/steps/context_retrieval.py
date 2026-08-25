@@ -152,15 +152,47 @@ class ContextRetrievalStep(PipelineStep):
         # Get adapter capabilities
         capabilities = self._get_capabilities(context.adapter_name)
 
+        if capabilities and capabilities.should_retrieve(context):
+            return True
+
         if not capabilities:
             logger.warning(
                 f"No capabilities found for adapter '{context.adapter_name}'. "
-                "Skipping context retrieval."
+                "Checking original adapter fallback before skipping context retrieval."
             )
-            return False
 
-        # Use capabilities to determine if retrieval should execute
-        return capabilities.should_retrieve(context)
+        # Skill routing swaps context.adapter_name to the skill adapter (e.g.
+        # pdf-generator) before this step runs. Skill adapters typically declare
+        # retrieval_behavior: none / supports_file_ids: false, or may have no registered
+        # capabilities at all, so a file uploaded under the original (file-capable) adapter
+        # in the same turn would otherwise never be retrieved for the skill. If the original
+        # adapter would retrieve given the same file_ids, still run so skills can see
+        # uploaded file content — this must be checked regardless of whether the current
+        # adapter has capabilities registered.
+        return self._original_adapter_would_retrieve(context)
+
+    def _original_adapter_would_retrieve(self, context: ProcessingContext) -> bool:
+        if not context.original_adapter_name or context.original_adapter_name == context.adapter_name:
+            return False
+        original_capabilities = self._get_capabilities(context.original_adapter_name)
+        return bool(original_capabilities and original_capabilities.should_retrieve(context))
+
+    def _resolve_retrieval_adapter(
+        self, context: ProcessingContext
+    ) -> "tuple[str, Optional[AdapterCapabilities]]":
+        """Pick which adapter's capabilities/retriever to use for this retrieval.
+
+        Prefers the current (possibly skill-swapped) adapter when it would retrieve;
+        falls back to the original pre-swap adapter when only it would (see
+        `_original_adapter_would_retrieve`), so uploaded file content reaches skills like
+        document/image/video generation.
+        """
+        capabilities = self._get_capabilities(context.adapter_name)
+        if capabilities and capabilities.should_retrieve(context):
+            return context.adapter_name, capabilities
+        if self._original_adapter_would_retrieve(context):
+            return context.original_adapter_name, self._get_capabilities(context.original_adapter_name)
+        return context.adapter_name, capabilities
 
     async def process(self, context: ProcessingContext) -> ProcessingContext:
         """
@@ -238,14 +270,21 @@ class ContextRetrievalStep(PipelineStep):
             except Exception as e:
                 logger.error(f"Error loading thread dataset: {e}, falling back to normal retrieval")
 
-        # Get adapter capabilities
-        capabilities = self._get_capabilities(context.adapter_name)
+        # Get adapter capabilities — may fall back to the original (pre-skill-swap)
+        # adapter when the current one wouldn't retrieve but the original would (see
+        # _resolve_retrieval_adapter), so uploaded file content reaches skill outputs.
+        retrieval_adapter_name, capabilities = self._resolve_retrieval_adapter(context)
+        if retrieval_adapter_name != context.adapter_name:
+            logger.debug(
+                f"Retrieving via original adapter '{retrieval_adapter_name}' "
+                f"for skill-swapped adapter '{context.adapter_name}'"
+            )
 
         embedding_usage: Dict[str, Any] = {}
         reranking_usage: Dict[str, Any] = {}
         try:
             # Get retriever instance
-            retriever = await self._get_retriever(context)
+            retriever = await self._get_retriever(context, retrieval_adapter_name)
 
             if not retriever:
                 context.set_error("Retriever not available")
@@ -327,27 +366,31 @@ class ContextRetrievalStep(PipelineStep):
 
         return context
 
-    async def _get_retriever(self, context: ProcessingContext) -> Any:
+    async def _get_retriever(self, context: ProcessingContext, adapter_name: Optional[str] = None) -> Any:
         """
         Get retriever instance for the adapter.
 
         Args:
             context: Processing context
+            adapter_name: Adapter to resolve the retriever for; defaults to
+                context.adapter_name (pass the resolved retrieval adapter from
+                _resolve_retrieval_adapter when it differs, e.g. skill routing).
 
         Returns:
             Retriever instance or None
         """
+        adapter_name = adapter_name or context.adapter_name
         # Try to get adapter from adapter manager first (dynamic loading)
         if self.container.has('adapter_manager'):
             adapter_manager = self.container.get('adapter_manager')
-            retriever = await adapter_manager.get_adapter(context.adapter_name)
-            logger.debug(f"Using dynamic adapter: {context.adapter_name}")
+            retriever = await adapter_manager.get_adapter(adapter_name)
+            logger.debug(f"Using dynamic adapter: {adapter_name}")
             return retriever
         else:
             # Fall back to static retriever
             retriever = self.container.get('retriever')
             logger.debug(
-                f"Using static retriever with adapter_name: {context.adapter_name}"
+                f"Using static retriever with adapter_name: {adapter_name}"
             )
             return retriever
 

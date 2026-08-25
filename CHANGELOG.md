@@ -23,6 +23,10 @@
 ### Tools & Utility Scripts
 - **Markdown-to-PDF Script**: Added `utils/scripts/markdown/markdown-to-pdf.sh`, a reusable pandoc + headless Chrome script (landscape, fixed-table-layout stylesheet) for converting any Markdown document to PDF.
 
+### Bug Fixes & Technical Improvements
+- **Ungrounded Document Generation**: The PDF/Word document-generation skill no longer invents filler content when it has nothing real to draw from — it now refuses with a clear message when a request implicates an unavailable file/data source (attached but unretrieved, or referenced in text with no upload) and no conversation history, thread-cached data, or prior generation memory backs it up. History and generation memory are still accepted as valid context for legitimate follow-ups, and the guard requires retrieved content to actually match the referenced file rather than accepting any unrelated context as proof.
+- **Skill-Routed File Retrieval**: Fixed uploaded file content never reaching skill adapters (PDF/Word/Image/Video generation, etc.) when a file is uploaded and a skill is requested in the same turn. Skill routing swaps the active adapter before context retrieval runs, and skill adapters typically have retrieval disabled; `ContextRetrievalStep` now falls back to the original file-capable adapter when it would have retrieved the same files, so uploaded data reaches document, image, and video generation as intended.
+
 ## [2.15.9] - 2026-08-22
 
 ### Core System Updates
