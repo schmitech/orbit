@@ -907,11 +907,15 @@ class PipelineChatService:
 
             result = await self.pipeline.process(context)
 
-            # IntentClarificationStep blocks the pipeline to short-circuit LLM inference,
-            # but a clarifying question is a legitimate chat response, not a failure —
-            # unlike streaming (which already special-cases is_blocked), the non-streaming
-            # path otherwise treats any blocked context as an error and returns HTTP 500.
-            is_clarification = result.is_blocked and bool((result.metadata or {}).get("intent_clarification"))
+            # IntentClarificationStep/IntentNoMatchStep block the pipeline to short-circuit
+            # LLM inference, but a clarifying question or "no match" message is a legitimate
+            # chat response, not a failure — unlike streaming (which already special-cases
+            # is_blocked), the non-streaming path otherwise treats any blocked context as an
+            # error and returns HTTP 500.
+            is_clarification = result.is_blocked and bool(
+                (result.metadata or {}).get("intent_clarification")
+                or (result.metadata or {}).get("intent_no_match")
+            )
 
             if result.has_error() and not is_clarification:
                 error_msg = result.error or "Pipeline processing failed"

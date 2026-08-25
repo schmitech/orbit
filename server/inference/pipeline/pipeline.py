@@ -13,7 +13,7 @@ from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, IntentClarificationStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, AudioGenerationStep, MCPAgentStep, FetchStep, WebSearchStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, IntentClarificationStep, IntentNoMatchStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, AudioGenerationStep, MCPAgentStep, FetchStep, WebSearchStep
 
 logger = logging.getLogger(__name__)
 
@@ -394,6 +394,11 @@ class InferencePipelineBuilder:
         # Intent clarification — short-circuits the LLM when an intent adapter
         # asks a disambiguation/slot-fill question instead of answering
         steps.append(IntentClarificationStep(container))
+
+        # Intent no-match — short-circuits the LLM when an intent adapter
+        # found no matching template, so the LLM can't answer from its own
+        # general knowledge instead of the retrieved data
+        steps.append(IntentNoMatchStep(container))
 
         # Document reranking (if enabled and documents retrieved)
         steps.append(DocumentRerankingStep(container))
