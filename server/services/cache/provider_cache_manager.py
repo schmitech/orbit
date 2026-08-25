@@ -163,6 +163,36 @@ class ProviderCacheManager(ServiceCacheManager):
             logger.debug(f"Loading Ollama with model override: {model_override}")
             return
 
+        if provider_name == 'azure':
+            # Azure AI Foundry deployments are bound one-to-one to their own
+            # endpoint/deployment/api_key, so a "model" override for azure must
+            # resolve to a full azure_presets entry (like ollama above) rather
+            # than just setting a 'model' key azure_base.py never reads.
+            azure_presets = config_for_provider.get('azure_presets', {})
+            if model_override in azure_presets:
+                preset = azure_presets[model_override]
+                inference_section = config_for_provider['inference'][provider_name]
+                enabled = inference_section.get('enabled', True)
+
+                # Replace rather than merge: a stale field from the previous
+                # deployment (e.g. deployment_name, which AzureBaseService
+                # prefers over deployment) would otherwise survive the switch
+                # and silently point requests at the wrong deployment.
+                config_for_provider['inference'][provider_name] = dict(preset)
+                inference_section = config_for_provider['inference'][provider_name]
+                inference_section['enabled'] = enabled
+
+                logger.debug(
+                    f"Loading Azure with preset '{model_override}' (deployment: {preset.get('deployment', 'unknown')})"
+                )
+                return
+
+            logger.warning(
+                f"Azure model override '{model_override}' is not a preset in azure_presets; "
+                "ignoring (Azure requires a full endpoint/deployment/api_key preset, not a bare model name)"
+            )
+            return
+
         config_for_provider['inference'][provider_name]['model'] = model_override
         logger.debug(f"Loading inference provider '{provider_name}' with model override: {model_override}")
 
