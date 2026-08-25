@@ -394,7 +394,8 @@ class AutocompleteService:
         self,
         query: str,
         adapter_name: str,
-        limit: int = 5
+        limit: int = 5,
+        include_skill_examples: bool = True
     ) -> List[AutocompleteSuggestion]:
         """
         Get autocomplete suggestions for a query prefix.
@@ -403,6 +404,11 @@ class AutocompleteService:
             query: The query prefix to match against
             adapter_name: Name of the adapter to get suggestions for
             limit: Maximum number of suggestions to return
+            include_skill_examples: Whether skill-routing example phrases (e.g.
+                "make a pdf") may appear in the results alongside the adapter's
+                own nl_examples. Callers that can't invoke skills from the
+                current composer (e.g. a threading adapter's main input, where
+                skills are thread-only) should pass False.
 
         Returns:
             List of AutocompleteSuggestion objects
@@ -433,6 +439,18 @@ class AutocompleteService:
             if not examples:
                 logger.debug(f"[Autocomplete] No examples found for adapter {adapter_name}")
                 return []
+
+            if not include_skill_examples:
+                skill_examples = await self._get_skill_routing_examples(adapter_name)
+                if skill_examples:
+                    skill_set = set(skill_examples)
+                    examples = [example for example in examples if example not in skill_set]
+                    if not examples:
+                        logger.debug(
+                            f"[Autocomplete] All examples for {adapter_name} were skill-routing "
+                            "phrases; returning empty with include_skill_examples=false"
+                        )
+                        return []
 
             logger.debug(
                 f"[Autocomplete] Found {len(examples)} nl_examples for {adapter_name}"

@@ -794,6 +794,12 @@ class RouteConfigurator:
             q: str = Query(..., min_length=3, description="Query prefix to match"),
             limit: int = Query(5, ge=1, le=10, description="Maximum number of suggestions"),
             skill: Optional[str] = Query(None, description="Active skill name to resolve autocomplete against"),
+            include_skill_examples: bool = Query(
+                True,
+                description="Include skill-routing example phrases (e.g. \"make a pdf\") alongside "
+                            "the adapter's own nl_examples. Set false for composers where skills are "
+                            "not invokable (e.g. a threading adapter's main composer)."
+            ),
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
             autocomplete_service = Depends(dependencies['get_autocomplete_service'])
         ) -> AutocompleteResponse:
@@ -809,6 +815,8 @@ class RouteConfigurator:
                 limit: Maximum number of suggestions to return (1-10, default 5)
                 skill: Optional active skill name; when provided, resolves to the
                        skill's backing adapter instead of the API key's adapter
+                include_skill_examples: Whether to include skill-routing example
+                       phrases alongside the adapter's own nl_examples (default true)
 
             Returns:
                 AutocompleteResponse with list of suggestions
@@ -834,7 +842,8 @@ class RouteConfigurator:
                 suggestions = await autocomplete_service.get_suggestions(
                     query=q,
                     adapter_name=adapter_name,
-                    limit=limit
+                    limit=limit,
+                    include_skill_examples=include_skill_examples
                 )
 
                 return AutocompleteResponse(
