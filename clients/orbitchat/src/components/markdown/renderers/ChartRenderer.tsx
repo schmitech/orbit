@@ -163,20 +163,60 @@ const parseFormatterValue = (value: string): ChartFormatterConfig | undefined =>
   return { format: trimmed as ChartFormatterConfig['format'] };
 };
 
-const parseYamlLikeListValue = <T,>(value: string): T[] | null => {
-  const items = value
+/** Groups YAML list-item lines (`- ...`) with their indented continuation lines into one entry per item. */
+const groupYamlListItemLines = (value: string): string[][] => {
+  const groups: string[][] = [];
+  value
     .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.replace(/^-\s*/, '').trim())
-    .filter(Boolean);
+    .filter((line) => line.trim())
+    .forEach((line) => {
+      if (/^\s*-\s*/.test(line)) {
+        groups.push([line.replace(/^\s*-\s*/, '').trim()]);
+      } else if (groups.length > 0) {
+        groups[groups.length - 1].push(line.trim());
+      }
+    });
+  return groups;
+};
 
-  if (!items.length) return null;
+/** Parses `key: value` lines belonging to one YAML list item into a plain object (numbers/lists coerced). */
+const parseYamlKeyValueLines = <T,>(lines: string[]): T | null => {
+  const obj: Record<string, unknown> = {};
+  lines.forEach((line) => {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) return;
+    const key = line.substring(0, colonIdx).trim();
+    const rawVal = line.substring(colonIdx + 1).trim();
+    if (!key || !rawVal.length) return;
 
-  const parsedItems = items.map((item) => {
-    const parsedJson = tryParseJSON<T>(item);
+    if (rawVal.startsWith('[') && rawVal.endsWith(']')) {
+      obj[key] = parseListValue(rawVal).map((v) => {
+        const num = Number(v);
+        return Number.isNaN(num) || v === '' ? v : num;
+      });
+    } else if (rawVal.toLowerCase() === 'true' || rawVal.toLowerCase() === 'false') {
+      obj[key] = rawVal.toLowerCase() === 'true';
+    } else {
+      const num = Number(rawVal);
+      obj[key] = rawVal !== '' && !Number.isNaN(num) ? num : stripQuotes(rawVal);
+    }
+  });
+  return Object.keys(obj).length ? (obj as unknown as T) : null;
+};
+
+const parseYamlLikeListValue = <T,>(value: string): T[] | null => {
+  const itemGroups = groupYamlListItemLines(value);
+  if (!itemGroups.length) return null;
+
+  const parsedItems = itemGroups.map((groupLines) => {
+    const combined = groupLines.join(' ').trim();
+    const parsedJson = tryParseJSON<T>(combined);
     if (parsedJson !== null) return parsedJson;
-    return tryParseObjectLiteral<T>(item);
+
+    const parsedObj = tryParseObjectLiteral<T>(combined);
+    if (parsedObj !== null) return parsedObj;
+
+    return parseYamlKeyValueLines<T>(groupLines);
   });
 
   return parsedItems.every((item) => item !== null) ? (parsedItems as T[]) : null;
@@ -608,6 +648,36 @@ const parseChartConfig = (code: string, language: string): ChartConfig | null =>
         }));
         config.xKey = 'name';
         config.dataKeys = ['value'];
+      } else if (
+        Array.isArray(config.data) &&
+        config.data.length > 0 &&
+        config.data.every(
+          (item) =>
+            item &&
+            typeof item === 'object' &&
+            'label' in item &&
+            Array.isArray((item as unknown as Record<string, unknown>).data)
+        )
+      ) {
+        // Handle series-shaped data: [{ label, data: [v1, v2, ...] }, ...] paired with
+        // top-level `labels` for the x-axis categories (seen from some LLMs, e.g. Nemotron).
+        const seriesItems = config.data as unknown as Array<{ label: string; data: unknown[] }>;
+        const categoryLabels =
+          config.labels ??
+          Array.from(
+            { length: Math.max(...seriesItems.map((s) => s.data.length)) },
+            (_, idx) => `Item ${idx + 1}`
+          );
+
+        config.data = categoryLabels.map((category, idx) => {
+          const row: ChartDataItem = { name: category };
+          seriesItems.forEach((series) => {
+            row[series.label] = series.data[idx] as ChartDataItem[string];
+          });
+          return row;
+        });
+        config.xKey = 'name';
+        config.dataKeys = seriesItems.map((series) => series.label);
       }
     }
 
