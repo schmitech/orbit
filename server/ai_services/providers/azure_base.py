@@ -74,8 +74,13 @@ class AzureBaseService(ProviderAIService):
                 "variable or provide in configuration."
             )
 
-        # Get deployment name (model name in Azure)
+        # Get deployment name (model name in Azure). Also expose it as self.model —
+        # UsageReportingMixin._report_usage() and PricingService.estimate() key off
+        # self.model/getattr(self, "model", None) for audit + cost-estimate lookups,
+        # same as every other provider; without this Azure usage is always reported
+        # with model=None and can never match a pricing.yaml rate.
         self.deployment = azure_config.get("deployment_name") or azure_config.get("deployment", "gpt-35-turbo")
+        self.model = self.deployment
 
         # Initialize Azure OpenAI async client via the OpenAI SDK, pointed at
         # Azure's unified v1 endpoint (e.g. https://<resource>.services.ai.azure.com/openai/v1).

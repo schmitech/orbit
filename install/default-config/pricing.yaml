@@ -33,6 +33,19 @@ pricing:
       # tier than text — see PricingService.estimate()'s audio_* args.
       "gpt-realtime*": { input_per_1m: 4.00, output_per_1m: 16.00, audio_input_per_1m: 32.00, audio_output_per_1m: 64.00 }
 
+    # Azure AI Foundry — pricing is looked up by deployment name (self.model
+    # mirrors self.deployment in azure_base.py), which is caller-chosen and
+    # need not match the underlying OpenAI model name. Rates below assume the
+    # common convention of naming a deployment after its base model; add an
+    # exact entry keyed by your own deployment name if it diverges, or a
+    # provider-level "*" default rate if you'd rather not track per-deployment.
+    azure:
+      "gpt-5.4-mini*": { input_per_1m: 0.25,  output_per_1m: 2.00 }
+      "gpt-5*":        { input_per_1m: 1.25,  output_per_1m: 10.00 }
+      "gpt-4o-mini*":  { input_per_1m: 0.15,  output_per_1m: 0.60 }
+      "gpt-4o*":       { input_per_1m: 2.50,  output_per_1m: 10.00 }
+      "gpt-35-turbo*": { input_per_1m: 0.50,  output_per_1m: 1.50 }
+
     anthropic:
       "claude-opus*":    { input_per_1m: 15.00, output_per_1m: 75.00, cached_input_per_1m: 1.50 }
       "claude-sonnet*":  { input_per_1m: 3.00,  output_per_1m: 15.00, cached_input_per_1m: 0.30 }
