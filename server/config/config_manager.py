@@ -92,6 +92,7 @@ def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[Dict[s
                 # Resolve preset references (must be after imports and env vars)
                 config = _resolve_ollama_presets(config)
                 config = _resolve_llama_cpp_presets(config)
+                config = _resolve_azure_presets(config)
                 return config
         except FileNotFoundError:
             logger.debug(f"Config file not found at {os.path.abspath(path)}")
@@ -525,4 +526,12 @@ def _resolve_llama_cpp_presets(config: Dict[str, Any]) -> Dict[str, Any]:
         return _resolve_inference_preset(config, 'llama_cpp', 'llama_cpp_presets')
     except Exception as e:
         logger.warning(f"Error resolving llama.cpp presets: {str(e)}")
+        return config
+
+
+def _resolve_azure_presets(config: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        return _resolve_inference_preset(config, 'azure', 'azure_presets')
+    except Exception as e:
+        logger.warning(f"Error resolving Azure presets: {str(e)}")
         return config

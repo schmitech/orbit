@@ -80,7 +80,7 @@ _required_packages = {
     'DeepSeekInferenceService': 'deepseek',
     'TogetherInferenceService': 'together',
     'AWSBedrockInferenceService': 'boto3',
-    'AzureOpenAIInferenceService': 'azure.ai.inference',
+    'AzureOpenAIInferenceService': 'openai',
     'VertexAIInferenceService': 'google.cloud.aiplatform',
     'GeminiInferenceService': 'google.genai',
     'ReplicateInferenceService': 'replicate',

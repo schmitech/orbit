@@ -1,0 +1,27 @@
+# Azure AI Foundry Presets Configuration
+# Each Azure AI Foundry deployment is bound one-to-one to an endpoint + deployment
+# name (and often its own API key), unlike other providers where a single
+# base_url/api_key serves many interchangeable "model" values. That means Azure
+# deployments can't be swapped via an adapter's allowed_models list the way
+# OpenAI/Anthropic/xAI models can — switching deployments means switching the
+# whole preset.
+#
+# Define named presets below, one per Azure AI Foundry deployment, and
+# reference one from inference.yaml using: use_preset: "preset-name"
+#
+# See docs/azure-openai-setup.md for a full walkthrough.
+
+azure_presets:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Example preset — update endpoint/deployment/api_key for your own resource
+  # ═══════════════════════════════════════════════════════════════════════════
+  your-deployment-name:
+    endpoint: "https://<your-resource-name>.services.ai.azure.com/openai/v1"
+    deployment: "your-deployment-name"
+    api_key: ${AZURE_ACCESS_KEY}
+    context_window: 128000  # Azure OpenAI GPT-4 Turbo supports 128K context
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    verbose: true

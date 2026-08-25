@@ -338,18 +338,16 @@ inference:
     content_type: "application/json"
     accept: "application/json"
     max_tokens: 1024
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Azure AI Foundry Configuration
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Uses presets defined in azure.yaml — each preset is a full deployment
+  # (endpoint + deployment name + api_key), since Azure deployments are bound
+  # one-to-one to an endpoint, unlike other providers. See docs/azure-openai-setup.md.
+  # ═══════════════════════════════════════════════════════════════════════════
   azure:
     enabled: false
-    endpoint: "https://<your-resource-name>.openai.azure.com/"
-    deployment: "your-deployment-name"
-    api_key: ${AZURE_ACCESS_KEY}
-    api_version: "2024-06-01"
-    context_window: 128000  # Azure OpenAI GPT-4 Turbo supports 128K context
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
-    verbose: true
+    use_preset: "your-deployment-name"  # Reference to preset in config/azure.yaml
   openai:
     enabled: false
     api_key: ${OPENAI_API_KEY}

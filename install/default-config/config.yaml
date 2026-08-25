@@ -4,6 +4,7 @@
 import:
   - "ollama.yaml"
   - "llama_cpp.yaml"
+  - "azure.yaml"
   - "adapters.yaml"
   - "inference.yaml"
   - "pricing.yaml"

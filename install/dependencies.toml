@@ -261,7 +261,6 @@ dependencies = [
 description = "Cloud platform services (AWS, Azure, GCP, IBM Watson) + cloud file storage (S3, Azure Blob)"
 dependencies = [
     "boto3>=1.42.24",
-    "azure-ai-inference>=1.0.0b9",
     "azure-storage-blob>=12.20.0",
     "azure-identity>=1.17.0",
     "google-cloud-aiplatform>=1.133.0",

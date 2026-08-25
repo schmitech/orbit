@@ -22,7 +22,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
 
     This implementation is simpler because:
     1. Azure credentials and endpoint handling managed by AzureBaseService
-    2. ChatCompletionsClient initialization handled by base class
+    2. AsyncOpenAI client initialization handled by base class
     3. Configuration parsing handled by base classes
     4. Connection verification handled by base classes
     5. Error handling via _handle_azure_error()
@@ -81,12 +81,12 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
                 full_messages.append({"role": "system", "content": system_prompt})
             full_messages.extend(conversation_messages)
 
-            response = await self.client.complete(
+            response = await self.client.chat.completions.create(
                 messages=full_messages,
                 model=self.deployment,
                 temperature=kwargs.pop('temperature', self.temperature),
                 top_p=kwargs.pop('top_p', self.top_p),
-                max_tokens=kwargs.pop('max_tokens', self.max_tokens),
+                max_completion_tokens=kwargs.pop('max_tokens', self.max_tokens),
                 **kwargs
             )
 
@@ -118,7 +118,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
         Yields:
             Response chunks as they are generated
         """
-        usage_sink = self._take_usage_sink(kwargs)  # noqa: F841 - streaming usage unreported (azure-ai-inference SDK support unconfirmed)
+        usage_sink = self._take_usage_sink(kwargs)  # noqa: F841 - streaming usage unreported (stream_options include_usage not requested)
         if not self.initialized:
             await self.initialize()
 
@@ -132,12 +132,12 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
                 full_messages.append({"role": "system", "content": system_prompt})
             full_messages.extend(conversation_messages)
 
-            response = await self.client.complete(
+            response = await self.client.chat.completions.create(
                 messages=full_messages,
                 model=self.deployment,
                 temperature=kwargs.pop('temperature', self.temperature),
                 top_p=kwargs.pop('top_p', self.top_p),
-                max_tokens=kwargs.pop('max_tokens', self.max_tokens),
+                max_completion_tokens=kwargs.pop('max_tokens', self.max_tokens),
                 stream=True,
                 **kwargs
             )
@@ -164,7 +164,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
         params: Dict[str, Any] = {
             "messages": messages,
             "model": self.deployment,
-            "max_tokens": kwargs.pop("max_tokens", self.max_tokens),
+            "max_completion_tokens": kwargs.pop("max_tokens", self.max_tokens),
             "temperature": kwargs.pop("temperature", self.temperature),
             "top_p": kwargs.pop("top_p", self.top_p),
         }
@@ -173,7 +173,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
             params["tool_choice"] = "auto"
 
         try:
-            response = await self.client.complete(**params)
+            response = await self.client.chat.completions.create(**params)
         except Exception as e:
             self._handle_azure_error(e, "tool-calling generation")
             raise

@@ -61,7 +61,7 @@ Every inference implementation lives under
 and defines its own `generate()`/`generate_stream()` — there is no shared
 "generate" method to hook once for all providers, because roughly half of
 them are on genuinely different SDKs (Anthropic's, Google's `genai`, Cohere,
-Ollama's raw HTTP API, `azure-ai-inference`, `ZaiClient`, the native
+Ollama's raw HTTP API, `ZaiClient`, the native
 `openrouter` client) even where they superficially look OpenAI-shaped. Wire
 each provider by hand:
 

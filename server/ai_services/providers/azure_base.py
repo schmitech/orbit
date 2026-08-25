@@ -77,28 +77,16 @@ class AzureBaseService(ProviderAIService):
         # Get deployment name (model name in Azure)
         self.deployment = azure_config.get("deployment_name") or azure_config.get("deployment", "gpt-35-turbo")
 
-        # Get API version
-        self.api_version = azure_config.get("api_version")
-        if not self.api_version:
-            raise ValueError(
-                "Azure api_version is required. Set it in configuration under azure.api_version"
-            )
+        # Initialize Azure OpenAI async client via the OpenAI SDK, pointed at
+        # Azure's unified v1 endpoint (e.g. https://<resource>.services.ai.azure.com/openai/v1).
+        # This endpoint is versionless, unlike the older ChatCompletionsClient
+        # (azure-ai-inference) which required a dated api_version.
+        from openai import AsyncOpenAI
 
-        # Initialize Azure AI async client
-        try:
-            from azure.ai.inference.aio import ChatCompletionsClient
-            from azure.core.credentials import AzureKeyCredential
-
-            self.client = ChatCompletionsClient(
-                endpoint=self.endpoint,
-                credential=AzureKeyCredential(self.api_key),
-                api_version=self.api_version
-            )
-        except ImportError:
-            raise ImportError(
-                "azure-ai-inference package not installed. "
-                "Please install with: pip install azure-ai-inference"
-            )
+        self.client = AsyncOpenAI(
+            api_key=self.api_key,
+            base_url=self.endpoint,
+        )
 
         # Setup retry handler
         retry_config = self._get_retry_config()
@@ -144,9 +132,13 @@ class AzureBaseService(ProviderAIService):
         """
         try:
             # Test with a minimal request
-            response = await self.client.complete(
+            # Reasoning models (e.g. gpt-5.x) spend part of max_completion_tokens on
+            # internal reasoning before emitting visible output, so a value of 1
+            # leaves nothing for the actual response and trips this same error.
+            response = await self.client.chat.completions.create(
+                model=self.deployment,
                 messages=[{"role": "user", "content": "test"}],
-                max_tokens=1,
+                max_completion_tokens=16,
                 temperature=0
             )
 
@@ -164,8 +156,9 @@ class AzureBaseService(ProviderAIService):
         """
         Close the Azure AI service and release resources.
 
-        Note: Azure AI client doesn't require explicit cleanup
         """
+        if self.client:
+            await self.client.close()
         self.client = None
         self.initialized = False
         logger.debug("Closed Azure AI service")

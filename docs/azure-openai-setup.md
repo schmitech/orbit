@@ -6,7 +6,7 @@ This guide walks through provisioning an Azure OpenAI resource, deploying a mode
 
 - An Azure subscription with access to Azure OpenAI Service. If your subscription hasn't been approved yet, request access at [aka.ms/oai/access](https://aka.ms/oai/access).
 - Your Azure account must have permission to **create Cognitive Services resources** and **create deployments**. The built-in roles that grant this are `Cognitive Services Contributor` (resource creation) and `Cognitive Services OpenAI Contributor` (deployments). See [Azure OpenAI RBAC](https://learn.microsoft.com/en-us/azure/foundry-classic/openai/how-to/role-based-access-control) for details.
-- ORBIT running with the `azure-ai-inference` Python package installed (included in the default install profile).
+- ORBIT running with the `openai` Python package installed (included in the default install profile).
 
 ---
 
@@ -74,7 +74,7 @@ Note the deployment name — you'll need it in step 4.
 1. Back in the Azure Portal, open your Azure OpenAI resource.
 2. Go to **Resource Management** → **Keys and Endpoint**.
 3. Copy:
-   - **Endpoint** — format: `https://<your-resource-name>.openai.azure.com/`
+   - **Endpoint** — use Azure's unified, versionless v1 API path: `https://<your-resource-name>.services.ai.azure.com/openai/v1`
    - **Key 1** (or Key 2) — this is your API key
 
 ---
@@ -89,19 +89,21 @@ Add to your `.env` file (or export in your shell):
 AZURE_ACCESS_KEY=<your-key-from-step-3>
 ```
 
-### Update `config/inference.yaml`
+### Add a preset in `config/azure.yaml`
 
-Find the `azure:` block and update it:
+Each Azure AI Foundry deployment is bound one-to-one to an `endpoint` + `deployment` name
+(and often its own API key) — unlike other providers, you can't just list alternate model
+names against one shared `base_url`/`api_key`. ORBIT models this as a **preset**, the same
+pattern used for `config/ollama.yaml` and `config/llama_cpp.yaml`.
+
+Add an entry under `azure_presets` in `config/azure.yaml`:
 
 ```yaml
-inference:
-  # ... other providers ...
-  azure:
-    enabled: true
-    endpoint: "https://<your-resource-name>.openai.azure.com/"
+azure_presets:
+  your-deployment-name:
+    endpoint: "https://<your-resource-name>.services.ai.azure.com/openai/v1"
     deployment: "your-deployment-name"       # the name you set in step 2
     api_key: ${AZURE_ACCESS_KEY}
-    api_version: "2024-06-01"               # default; change only if needed
     context_window: 128000
     temperature: 0.1
     top_p: 0.8
@@ -109,14 +111,25 @@ inference:
     stream: true
 ```
 
-Key fields:
+### Point `config/inference.yaml` at the preset
+
+Find the `azure:` block and set `use_preset` to the key you just added:
+
+```yaml
+inference:
+  # ... other providers ...
+  azure:
+    enabled: true
+    use_preset: "your-deployment-name"  # Reference to preset in config/azure.yaml
+```
+
+Key fields (in the preset):
 
 | Field | Description |
 |---|---|
-| `endpoint` | Full endpoint URL from Azure Portal, must end with `/` |
+| `endpoint` | Azure's unified v1 endpoint, must end with `/openai/v1` — this is versionless, no `api_version` needed |
 | `deployment` | The deployment name from Azure AI Foundry — **not** the base model name |
 | `api_key` | Reference to the env var; do not paste the key directly |
-| `api_version` | Azure OpenAI REST API version; `2024-06-01` is the stable default |
 
 ### Point an adapter at Azure
 
@@ -163,19 +176,20 @@ curl http://localhost:3000/v1/chat/completions \
 
 | Error | Cause | Fix |
 |---|---|---|
-| `Azure endpoint is required` | `endpoint` missing or blank in `inference.yaml` | Add the full endpoint URL |
+| `Azure endpoint is required` | `endpoint` missing or blank in the preset | Add the full endpoint URL |
 | `Azure API key is required` | `AZURE_ACCESS_KEY` not set or not loaded | Check `.env` and restart ORBIT |
 | `401 Unauthorized` | Wrong API key | Re-copy Key 1 from Azure Portal → Keys and Endpoint |
 | `DeploymentNotFound` | `deployment` name doesn't match Azure AI Foundry | Check exact deployment name (case-sensitive) |
-| `azure-ai-inference package not installed` | Missing Python dependency | Run `pip install azure-ai-inference` or re-run `./install/setup.sh` |
-| `404 Resource Not Found` | Wrong endpoint URL | Verify the endpoint ends with `.openai.azure.com/` |
+| `BadRequest: API version not supported` | Using an old dated `api_version` or the legacy `.openai.azure.com/` endpoint | Switch `endpoint` to the versionless `https://<resource>.services.ai.azure.com/openai/v1` form; no `api_version` field needed |
+| `Unsupported parameter: 'max_tokens' is not supported with this model` | Newer reasoning-family deployments (e.g. `gpt-5.x`) require `max_completion_tokens` | ORBIT already sends `max_completion_tokens` for Azure — update ORBIT if you see this on a current build |
+| `404 Resource Not Found` | Wrong endpoint URL | Verify the endpoint ends with `/openai/v1` |
 | `429 Too Many Requests` | TPM rate limit hit | Increase the rate limit under **Quotas** in Foundry portal, or use a Global-Standard deployment |
 
 ---
 
 ## Notes
 
-- ORBIT uses the `azure.ai.inference.aio` async client (`azure-ai-inference` SDK), not the older `openai` SDK with `azure_endpoint`.
-- The `api_version` defaults to `2024-06-01`. If a model you deploy requires a later API version, set `api_version` explicitly in `inference.yaml`.
-- For private networking, point `endpoint` at your private DNS hostname — no other ORBIT changes are needed.
+- ORBIT talks to Azure via the `openai` SDK's `AsyncOpenAI` client, pointed at Azure's unified `/openai/v1` endpoint. That endpoint is versionless — no `api_version` field.
+- Deployments are configured as named presets in `config/azure.yaml` (`azure_presets`), referenced from `config/inference.yaml` via `use_preset`. This mirrors how `config/ollama.yaml` and `config/llama_cpp.yaml` work, and exists because each Azure deployment is tied to its own endpoint/deployment/key — unlike other providers, it can't be swapped via an adapter's `allowed_models` list.
+- For private networking, point `endpoint` at your private DNS hostname (still ending in `/openai/v1`) — no other ORBIT changes are needed.
 - Deployment names can follow any naming convention, but they can't be renamed after creation. Using the model name (e.g. `gpt-4o`) is common for clarity.
