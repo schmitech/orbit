@@ -42,6 +42,13 @@ export interface UseAutocompleteOptions {
    *  against the skill's backing adapter rather than the parent adapter. */
   skill?: string | null;
   /**
+   * When false, tells the backend to omit skill-routing example phrases
+   * (e.g. "make a pdf") from the results. Used by composers where skills
+   * aren't invokable — e.g. a threading adapter's main input, where skills
+   * are thread-only. Defaults to true.
+   */
+  includeSkillExamples?: boolean;
+  /**
    * Optional ref to refocus after accepting a suggestion (helps on mobile/touch).
    */
   inputRef?: RefObject<HTMLInputElement | HTMLTextAreaElement | null> | null;
@@ -82,6 +89,7 @@ export function useAutocomplete(
     sessionId,
     adapterSupportsAutocomplete,
     skill,
+    includeSkillExamples = true,
     inputRef
   } = options;
 
@@ -213,6 +221,9 @@ export function useAutocomplete(
       if (skill) {
         params.set('skill', skill);
       }
+      if (!includeSkillExamples) {
+        params.set('include_skill_examples', 'false');
+      }
       // Keep browser requests on the OrbitChat proxy. The proxy uses
       // X-Adapter-Name to route to the adapter's configured apiUrl and injects
       // the backend API key; direct adapter-host calls fail CORS and leak policy.
@@ -298,6 +309,7 @@ export function useAutocomplete(
     sessionId,
     adapterSupportsAutocomplete,
     skill,
+    includeSkillExamples,
     getFallbackSuggestions,
     isAdapterTemporarilySuppressed
   ]);

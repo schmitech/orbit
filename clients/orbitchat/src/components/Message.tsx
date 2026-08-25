@@ -17,7 +17,9 @@ import { Message as MessageType } from '../types';
 import type { AllowedModel } from '../types';
 import { MarkdownRenderer } from './markdown';
 import { debugError } from '../utils/debug';
-import { getEnableFeedbackButtons, getEnableConversationThreads, getIsAuthConfigured } from '../utils/runtimeConfig';
+import { getEnableFeedbackButtons, getEnableConversationThreads, getEnableAutocomplete, getIsAuthConfigured } from '../utils/runtimeConfig';
+import { useAutocomplete } from '../hooks/useAutocomplete';
+import { resolveAutocompleteSupport } from '../utils/adapterAutocomplete';
 import { AudioPlayer } from './AudioPlayer';
 import { ImageDisplay } from './ImageDisplay';
 import { VideoDisplay } from './VideoDisplay';
@@ -345,6 +347,82 @@ export function Message({
     enabled: threadsEnabled && Boolean(message.threadInfo),
     selectionScopeKey: message.threadInfo?.thread_id || message.id,
   });
+  // NL-example autocomplete is only meaningful once a thread exists (retrieved
+  // data is already available there) — mirrors useSkills' own gating above,
+  // and the main composer's restriction in MessageInput.
+  const autocompleteEnabled = getEnableAutocomplete();
+  const currentAdapterSupportsAutocomplete = resolveAutocompleteSupport(currentConversation?.adapterInfo);
+  const {
+    suggestions: threadSuggestions,
+    selectedIndex: threadSuggestionIndex,
+    setSelectedIndex: setThreadSuggestionIndex,
+    selectNext: selectNextThreadSuggestion,
+    selectPrevious: selectPreviousThreadSuggestion,
+    clearSuggestions: clearThreadSuggestions,
+    focusInputAfterSelection: focusThreadInputAfterSelection,
+    suppressUntilQueryChange: suppressThreadUntilQueryChange
+  } = useAutocomplete(threadInput, {
+    enabled: autocompleteEnabled && threadsEnabled && Boolean(message.threadInfo),
+    adapterName: currentConversation?.adapterName || null,
+    sessionId: message.threadInfo?.thread_session_id || null,
+    adapterSupportsAutocomplete: currentAdapterSupportsAutocomplete,
+    skill: selectedSkill?.name || null,
+    inputRef: threadTextareaRef
+  });
+  const hasThreadSuggestions = threadSuggestions.length > 0;
+  const showThreadAutocompletePanel = hasThreadSuggestions && !showThreadSkillPicker;
+  const activeThreadSuggestionIndex = threadSuggestionIndex >= 0 ? threadSuggestionIndex : 0;
+  const activeThreadSuggestion = hasThreadSuggestions ? threadSuggestions[activeThreadSuggestionIndex] : null;
+  const threadInlineSuggestion = useMemo(() => {
+    if (!activeThreadSuggestion) {
+      return null;
+    }
+    const suggestionText = activeThreadSuggestion.text || '';
+    if (!threadInput) {
+      return suggestionText;
+    }
+    if (suggestionText.toLowerCase().startsWith(threadInput.toLowerCase()) && suggestionText.length > threadInput.length) {
+      return suggestionText.slice(threadInput.length);
+    }
+    return null;
+  }, [activeThreadSuggestion, threadInput]);
+  const renderThreadSuggestionText = useCallback((suggestionText: string) => {
+    if (!threadInput || !suggestionText.toLowerCase().startsWith(threadInput.toLowerCase())) {
+      return <span className="line-clamp-1 text-current">{suggestionText}</span>;
+    }
+    const typedPart = suggestionText.slice(0, threadInput.length);
+    const completionPart = suggestionText.slice(threadInput.length);
+    return (
+      <span className="line-clamp-1">
+        <span className="text-gray-500 dark:text-[#8e8ea0]">{typedPart}</span>
+        <span className="font-semibold text-[#353740] dark:text-[#ececf1]">{completionPart}</span>
+      </span>
+    );
+  }, [threadInput]);
+  const normalizeThreadSuggestionText = useCallback((text: string) => text.replace(/\s+/g, ' ').trim(), []);
+  const handleSelectThreadSuggestion = useCallback((text: string) => {
+    const normalized = normalizeThreadSuggestionText(text);
+    setThreadInput(normalized);
+    clearThreadSuggestions();
+    suppressThreadUntilQueryChange(normalized);
+    focusThreadInputAfterSelection(normalized);
+  }, [clearThreadSuggestions, focusThreadInputAfterSelection, normalizeThreadSuggestionText, suppressThreadUntilQueryChange]);
+  const acceptThreadSuggestionByIndex = useCallback((index: number) => {
+    if (index < 0) {
+      return;
+    }
+    const suggestion = threadSuggestions[index] || threadSuggestions[0];
+    if (suggestion) {
+      handleSelectThreadSuggestion(suggestion.text);
+    }
+  }, [threadSuggestions, handleSelectThreadSuggestion]);
+  const isThreadCaretAtInputEnd = useCallback(() => {
+    const textarea = threadTextareaRef.current;
+    if (!textarea) {
+      return false;
+    }
+    return textarea.selectionStart === textarea.selectionEnd && textarea.selectionStart === threadInput.length;
+  }, [threadInput]);
   // The thread composer selects skills via its own `useSkills` instance
   // (scoped per-thread), independent of the main composer's skill state that
   // ChatInterface uses to fetch `availableModels`. So the thread's model list
@@ -680,6 +758,7 @@ export function Message({
     setThreadInput('');
     setIsSendingThreadMessage(true);
     setShowThreadSkillPicker(false);
+    clearThreadSuggestions();
     if (activeSkillName) {
       clearSkill();
     }
@@ -784,6 +863,48 @@ export function Message({
         return;
       }
     }
+
+    if (hasThreadSuggestions) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        selectNextThreadSuggestion();
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        selectPreviousThreadSuggestion();
+        return;
+      }
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        const targetIndex = threadSuggestionIndex >= 0 ? threadSuggestionIndex : 0;
+        acceptThreadSuggestionByIndex(targetIndex);
+        return;
+      }
+      if (event.key === 'ArrowRight' && isThreadCaretAtInputEnd()) {
+        if (threadInlineSuggestion && activeThreadSuggestion) {
+          event.preventDefault();
+          handleSelectThreadSuggestion(activeThreadSuggestion.text);
+          return;
+        }
+        if (threadSuggestionIndex >= 0) {
+          event.preventDefault();
+          acceptThreadSuggestionByIndex(threadSuggestionIndex);
+          return;
+        }
+      }
+      if (event.key === 'Enter' && threadSuggestionIndex >= 0) {
+        event.preventDefault();
+        acceptThreadSuggestionByIndex(threadSuggestionIndex);
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        clearThreadSuggestions();
+        return;
+      }
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       handleThreadSubmit();
@@ -1345,13 +1466,13 @@ export function Message({
                       <label htmlFor={threadInputId} className="sr-only">
                         {t('message.thread.placeholder')}
                       </label>
-                      {threadSkillInlineSuggestion && (
+                      {(threadSkillInlineSuggestion || threadInlineSuggestion) && (
                         <div
                           className="pointer-events-none absolute inset-0 whitespace-pre-wrap px-0 py-0 text-base leading-8 text-gray-400 dark:text-[#8e8ea0] sm:text-sm sm:leading-8"
                           aria-hidden="true"
                         >
                           <span className="invisible">{threadInput}</span>
-                          <span>{threadSkillInlineSuggestion}</span>
+                          <span>{threadSkillInlineSuggestion ?? threadInlineSuggestion}</span>
                         </div>
                       )}
                       {/* The native placeholder goes transparent so this overlay
@@ -1386,6 +1507,7 @@ export function Message({
                             setThreadInput(value);
                             setActiveThreadSkillIndex(0);
                             setShowThreadSkillPicker(true);
+                            clearThreadSuggestions();
                             return;
                           }
                           if (value.length === 0 && threadStashedDraftRef.current !== null) {
@@ -1460,6 +1582,30 @@ export function Message({
                         onSelect={selectThreadSkillAndClose}
                         onClose={closeThreadSkillPicker}
                       />
+                    </div>
+                  )}
+                  {showThreadAutocompletePanel && (
+                    <div role="listbox" aria-label={t('messageInput.autocompletePanel.ariaLabel')} className="w-full pt-1">
+                      {threadSuggestions.map((suggestion, index) => {
+                        const isSelected = index === threadSuggestionIndex;
+                        return (
+                          <button
+                            key={index}
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            className={`flex w-full items-center gap-3 px-3 py-3 md:py-2.5 text-left text-[15px] md:text-sm transition-colors ${
+                              isSelected
+                                ? 'bg-gray-100 dark:bg-[#2d2f39]'
+                                : 'hover:bg-gray-50 dark:hover:bg-[#2d2f39]/60'
+                            }`}
+                            onClick={() => handleSelectThreadSuggestion(suggestion.text)}
+                            onMouseEnter={() => setThreadSuggestionIndex(index)}
+                          >
+                            {renderThreadSuggestionText(suggestion.text)}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

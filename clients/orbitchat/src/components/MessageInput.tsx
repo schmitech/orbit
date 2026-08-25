@@ -26,6 +26,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import { ModelPickerButton } from './ModelPickerButton';
 import { FileChip } from './FileChip';
 import { setFileThumbnail } from '../utils/fileTypeVisuals';
+import { resolveAutocompleteSupport } from '../utils/adapterAutocomplete';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[], threadId?: string, skill?: string) => void;
@@ -88,44 +89,6 @@ const VERTICAL_ALIGNMENT_OFFSET = 3;
 const PLACEHOLDER_VERTICAL_OFFSET = 0;
 const INLINE_SUGGESTION_VERTICAL_OFFSET = 0;
 const TEXTAREA_HORIZONTAL_PADDING = 2;
-
-function resolveAutocompleteSupport(adapterInfo: unknown): boolean | null {
-  if (!adapterInfo || typeof adapterInfo !== 'object') {
-    return null;
-  }
-
-  const info = adapterInfo as Record<string, unknown>;
-  const directCapabilityKeys = [
-    'supportsAutocomplete',
-    'isAutocompleteSupported',
-    'autocompleteSupported'
-  ];
-
-  for (const key of directCapabilityKeys) {
-    if (typeof info[key] === 'boolean') {
-      return info[key] as boolean;
-    }
-  }
-
-  const nestedCapabilityParents = ['capabilities', 'features'];
-  const nestedCapabilityKeys = ['autocomplete', 'supportsAutocomplete', 'autocomplete_supported'];
-
-  for (const parent of nestedCapabilityParents) {
-    const nested = info[parent];
-    if (!nested || typeof nested !== 'object') {
-      continue;
-    }
-
-    const nestedInfo = nested as Record<string, unknown>;
-    for (const key of nestedCapabilityKeys) {
-      if (typeof nestedInfo[key] === 'boolean') {
-        return nestedInfo[key] as boolean;
-      }
-    }
-  }
-
-  return null;
-}
 
 function getExtensionFromMimeType(mimeType: string | undefined): string {
   if (!mimeType) {
@@ -307,6 +270,10 @@ export function MessageInput({
   const uploadFeatureEnabled = getEnableUploadButton();
   const autocompleteEnabled = getEnableAutocomplete();
   const currentAdapterSupportsAutocomplete = resolveAutocompleteSupport(currentConversation?.adapterInfo);
+  // Threading adapters only allow skills inside a thread reply (see useSkills'
+  // own supportsThreading gating), so the main composer's intent-query
+  // suggestions should never surface skill-routing phrases (e.g. "make a pdf").
+  const currentAdapterSupportsThreading = currentConversation?.adapterInfo?.supportsThreading === true;
 
   // Skill state is owned by the parent (ChatInterface) and shared across both
   // the empty-state and docked MessageInput instances, so a selected skill is
@@ -331,6 +298,7 @@ export function MessageInput({
     sessionId: currentConversation?.sessionId,
     adapterSupportsAutocomplete: currentAdapterSupportsAutocomplete,
     skill: selectedSkill?.name || null,
+    includeSkillExamples: !currentAdapterSupportsThreading,
     inputRef: textareaRef
   });
   const hasSuggestions = suggestions.length > 0;
