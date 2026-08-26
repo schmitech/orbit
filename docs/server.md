@@ -745,6 +745,96 @@ Priority: 100 | Port: 3443 | Protocol: TCP | Action: Allow  (HTTPS)
 Priority: 110 | Port: 80   | Protocol: TCP | Action: Allow  (HTTP — only needed during cert issuance)
 ```
 
+### nginx Deployment: ORBIT + orbitchat on an Azure VM
+
+This topology puts nginx in front of both the ORBIT server (port 3000) and the orbitchat web client (port 5173) on a single Azure VM, terminating TLS at nginx with certificates already issued by certbot. ORBIT itself runs in plain HTTP mode (`general.https.enabled: false`) and is only reachable on `127.0.0.1:3000`; nginx handles TLS and routes traffic by path.
+
+1. Open the required ports in the Azure Network Security Group (NSG) — only 80 and 443 need to be reachable from the internet; 3000 and 5173 stay internal:
+
+```
+Priority: 100 | Port: 443 | Protocol: TCP | Action: Allow  (HTTPS)
+Priority: 110 | Port: 80  | Protocol: TCP | Action: Allow  (HTTP — redirect + cert renewal)
+```
+
+2. Start ORBIT bound to localhost only, on plain HTTP:
+
+```bash
+./bin/orbit.sh start --host 127.0.0.1 --port 3000
+```
+
+3. Start orbitchat (or your process manager of choice) bound to localhost on port 5173, e.g. `npm run preview -- --host 127.0.0.1 --port 5173` or via `pm2`/systemd depending on how it's built.
+
+4. Configure nginx (`/etc/nginx/sites-available/orbit`) to terminate TLS and route `/` to orbitchat and `/api`, `/admin`, `/v1`, `/mcp`, `/ws` etc. to ORBIT. Adjust the ORBIT path prefixes to match what your orbitchat build actually calls — the example below assumes orbitchat calls ORBIT under `/api/`:
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name your-domain.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/your-domain.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.example.com/privkey.pem;
+
+    # ORBIT API / admin panel / chat endpoints
+    location /api/ {
+        proxy_pass http://127.0.0.1:3000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /admin/ {
+        proxy_pass http://127.0.0.1:3000/admin/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket / streaming support for ORBIT chat
+    location /ws {
+        proxy_pass http://127.0.0.1:3000/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600s;
+    }
+
+    # orbitchat web client — everything else
+    location / {
+        proxy_pass http://127.0.0.1:5173;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+5. Enable the site and reload nginx:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/orbit /etc/nginx/sites-enabled/orbit
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+6. Verify both surfaces through the proxy:
+
+```bash
+curl -I https://your-domain.example.com/api/health
+curl -I https://your-domain.example.com/
+```
+
+Certificate renewal via `certbot renew` (or the systemd timer, if already scheduled) reloads nginx automatically on most distros; if not, add `--deploy-hook "systemctl reload nginx"` to the renewal command.
+
 ---
 
 ## System Prompt Storage
