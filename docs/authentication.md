@@ -1580,13 +1580,16 @@ Located in `bin/orbit.py`
 
 ### Recommended Additional Security
 
-🔸 **Rate Limiting**: Implement login attempt throttling  
-🔸 **Account Lockout**: Temporary lockout after failed attempts  
-🔸 **Password Complexity**: Enforce minimum password requirements  
-🔸 **Session Monitoring**: Track active sessions per user  
-🔸 **IP Whitelisting**: Restrict admin access by IP  
-🔸 **2FA Support**: Two-factor authentication for admin accounts  
-🔸 **Audit Trail**: Detailed logging of all user actions  
+Phased implementation plans for each item below are tracked under
+[`docs/roadmap/authentication/`](roadmap/authentication/), ordered by dependency and effort (Phase 1 → 7).
+
+🔸 **Rate Limiting**: Implement login attempt throttling — [roadmap](roadmap/authentication/phase-1-auth-login-rate-limiting.md) (Phase 1)  
+🔸 **Password Complexity**: Enforce minimum password requirements — [roadmap](roadmap/authentication/phase-2-auth-password-complexity.md) (Phase 2)  
+🔸 **Account Lockout**: Temporary lockout after failed attempts — [roadmap](roadmap/authentication/phase-3-auth-account-lockout.md) (Phase 3)  
+🔸 **Audit Trail**: Detailed logging of all user actions — [roadmap](roadmap/authentication/phase-4-auth-audit-trail-coverage.md) (Phase 4)  
+🔸 **Session Monitoring**: Track active sessions per user — [roadmap](roadmap/authentication/phase-5-auth-session-monitoring.md) (Phase 5)  
+🔸 **IP Whitelisting**: Restrict admin access by IP — [roadmap](roadmap/authentication/phase-6-auth-admin-ip-allowlist.md) (Phase 6)  
+🔸 **2FA Support**: Two-factor authentication for admin accounts — [roadmap](roadmap/authentication/phase-7-auth-2fa.md) (Phase 7)  
 
 ## Error Handling
 
