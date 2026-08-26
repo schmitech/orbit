@@ -764,7 +764,7 @@ Priority: 110 | Port: 80  | Protocol: TCP | Action: Allow  (HTTP — redirect + 
 
 3. Start orbitchat (or your process manager of choice) bound to localhost on port 5173, e.g. `npm run preview -- --host 127.0.0.1 --port 5173` or via `pm2`/systemd depending on how it's built.
 
-4. Configure nginx (`/etc/nginx/sites-available/orbit`) to terminate TLS and route `/` to orbitchat and `/api`, `/admin`, `/v1`, `/mcp`, `/ws` etc. to ORBIT. Adjust the ORBIT path prefixes to match what your orbitchat build actually calls — the example below assumes orbitchat calls ORBIT under `/api/`:
+4. Configure nginx (`/etc/nginx/sites-available/orbit`) to terminate TLS and route ORBIT's actual endpoints — `/health`, `/chat`, `/v1/`, `/admin/`, `/mcp`, `/ws` (see [API Endpoints](#api-endpoints); there is no `/api` prefix) — to port 3000, with orbitchat as the catch-all on `/`:
 
 ```nginx
 server {
@@ -780,17 +780,9 @@ server {
     ssl_certificate     /etc/letsencrypt/live/your-domain.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/your-domain.example.com/privkey.pem;
 
-    # ORBIT API / admin panel / chat endpoints
-    location /api/ {
-        proxy_pass http://127.0.0.1:3000/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /admin/ {
-        proxy_pass http://127.0.0.1:3000/admin/;
+    # ORBIT: health, chat, admin API, MCP
+    location ~ ^/(health|chat|v1|admin|mcp) {
+        proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -818,6 +810,8 @@ server {
 }
 ```
 
+Adjust the `location ~ ^/(health|chat|v1|admin|mcp)` regex if your orbitchat build calls ORBIT under a different prefix — check its API base URL config (e.g. `clients/orbitchat/orbitchat-remote.yaml`) to confirm.
+
 5. Enable the site and reload nginx:
 
 ```bash
@@ -829,9 +823,13 @@ sudo systemctl reload nginx
 6. Verify both surfaces through the proxy:
 
 ```bash
-curl -I https://your-domain.example.com/api/health
+curl https://your-domain.example.com/health
 curl -I https://your-domain.example.com/
 ```
+
+Note: `/health` only supports `GET`, so `curl -I` (which sends `HEAD`) returns 404 there even when the endpoint is working — use a plain `curl` or `curl -sD - -o /dev/null` instead. `-I` is fine for `/` since orbitchat serves static assets that respond to `HEAD`.
+
+If `/health` returns something other than `{"status":"ok",...}` after this, check locally on the VM first: `curl http://127.0.0.1:3000/health` (confirms ORBIT is actually up on 3000) and `sudo nginx -T` (confirms this server block is enabled and `server_name` matches the domain you're curling).
 
 Certificate renewal via `certbot renew` (or the systemd timer, if already scheduled) reloads nginx automatically on most distros; if not, add `--deploy-hook "systemctl reload nginx"` to the renewal command.
 
