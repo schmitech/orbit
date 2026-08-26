@@ -780,13 +780,10 @@ server {
     ssl_certificate     /etc/letsencrypt/live/your-domain.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/your-domain.example.com/privkey.pem;
 
-    # ORBIT: health, chat, admin API, MCP
-    location ~ ^/(health|chat|v1|admin|mcp) {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+    # ORBIT admin panel only answers on the exact path (no trailing slash) —
+    # normalize /admin/ to /admin before it ever reaches ORBIT.
+    location = /admin/ {
+        return 301 /admin;
     }
 
     # WebSocket / streaming support for ORBIT chat
@@ -799,8 +796,25 @@ server {
         proxy_read_timeout 3600s;
     }
 
-    # orbitchat web client — everything else
+    # Try ORBIT first for everything, fall back to orbitchat on 404.
+    # ORBIT owns many top-level paths beyond /health and /admin — /auth,
+    # /v1, /mcp, /static, plus optional /a2a, /metrics, /files, /voice
+    # routers — enumerating them in a whitelist regex is fragile and breaks
+    # silently (JSON/JS requests fall through to orbitchat's SPA and come
+    # back as HTML) whenever a new route is added. Routing by "does ORBIT
+    # have this path" instead of a path-prefix guess avoids that class of bug.
     location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_intercept_errors on;
+        error_page 404 = @orbitchat;
+    }
+
+    # orbitchat web client — served only when ORBIT doesn't own the path
+    location @orbitchat {
         proxy_pass http://127.0.0.1:5173;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -810,7 +824,7 @@ server {
 }
 ```
 
-Adjust the `location ~ ^/(health|chat|v1|admin|mcp)` regex if your orbitchat build calls ORBIT under a different prefix — check its API base URL config (e.g. `clients/orbitchat/orbitchat-remote.yaml`) to confirm.
+This means every request pays one extra internal round-trip to ORBIT before falling back to orbitchat for paths ORBIT doesn't own (e.g. orbitchat's own static assets) — negligible on localhost, but worth knowing about. If that trade-off doesn't fit your setup, an explicit path-prefix whitelist (as in earlier revisions of this doc) is faster per-request but must be kept in sync with every ORBIT route the admin panel or orbitchat actually calls — check `clients/orbitchat/orbitchat-remote.yaml` for its API base URL and cross-reference `server/routes/*.py` for ORBIT's router prefixes if you go that route instead.
 
 5. Enable the site and reload nginx:
 
