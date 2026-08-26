@@ -11,6 +11,7 @@ The database contains the following tables:
 - `users` - User accounts and authentication
 - `sessions` - Active user sessions
 - `user_blacklist` - Pattern-based identity denial rules
+- `user_allowlist` - Pattern-based pre-clearing of external identities
 - `api_keys` - API keys for authentication
 - `system_prompts` - System prompts for chat
 - `chat_history` - Chat message history
@@ -106,6 +107,27 @@ CREATE TABLE IF NOT EXISTS user_blacklist (
 ```
 
 **Indexes:** `idx_user_blacklist_entry_type_pattern` unique on `(entry_type, pattern)` — see [`docs/sqlite-schema.md#user_blacklist`](sqlite-schema.md#user_blacklist) for full details.
+
+---
+
+### user_allowlist
+
+Stores pattern-based rules that pre-clear external (Entra ID / Auth0) identities
+before ORBIT will provision them an account — the mirror image of
+`user_blacklist`, with identical columns and inverted semantics.
+
+```sql
+CREATE TABLE IF NOT EXISTS user_allowlist (
+    id TEXT PRIMARY KEY,
+    pattern TEXT NOT NULL,
+    entry_type TEXT NOT NULL,
+    reason TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL
+)
+```
+
+**Indexes:** `idx_user_allowlist_entry_type_pattern` unique on `(entry_type, pattern)` — see [`docs/sqlite-schema.md#user_allowlist`](sqlite-schema.md#user_allowlist) for field descriptions, the deny-vs-allow semantics table, and the `auth.providers.access_control` gating.
 
 ---
 
@@ -497,6 +519,10 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are 
 
 ## Version History
 
+- **v1.6** (2026-08-26): External-identity pre-clearing (allowlist) (matches SQLite v1.16)
+  - Added the `user_allowlist` table and its unique index `idx_user_allowlist_entry_type_pattern` on `(entry_type, pattern)` — pattern-based approval of external (Entra/Auth0) identities. Columns are identical to `user_blacklist`; the semantics are inverted (empty = deny, deletion withdraws access). See `docs/authentication.md`
+  - Created automatically on existing databases via `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` on startup — no manual migration needed
+  - **Behavior change on upgrade**: `auth.providers.access_control` defaults to `allowlist`, which denies existing external users that no rule covers. See the SQLite v1.16 entry for the rollout path
 - **v1.5** (2026-08-21): Stable API key identity for cost aggregation (matches SQLite v1.14)
   - Added `audit_logs.api_key_id` and index `idx_audit_logs_api_key_id`. The `api_key` group-by/filter dimension now resolves to `COALESCE(api_key_id, api_key_value)`
   - Created automatically on existing databases via `ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` on startup

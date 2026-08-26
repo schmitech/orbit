@@ -75,15 +75,48 @@ def matches(pattern: str, value: Optional[str]) -> bool:
 
 
 class UserBlacklistService:
-    """Loads, caches, and evaluates user blacklist rules."""
+    """Loads, caches, and evaluates user blacklist rules.
+
+    The storage, caching, matching, and CRUD mechanics here are identical for a
+    deny-list and an allow-list - only the collection, the config sub-key, and
+    the wording differ. Subclasses override the three class attributes below;
+    see ``user_allowlist_service.UserAllowlistService``.
+    """
+
+    #: Database collection holding this rule set.
+    COLLECTION = "user_blacklist"
+    #: Sub-key under ``auth:`` supplying ``cache_ttl``.
+    CONFIG_KEY = "blacklist"
+    #: Human-readable rule-set name used in errors and log lines.
+    LABEL = "blacklist"
 
     def __init__(self, config: Dict[str, Any], database_service: DatabaseService):
         self.config = config
         self.database = database_service
-        self.collection_name = "user_blacklist"
+        self.collection_name = self.COLLECTION
 
-        blacklist_config = config.get("auth", {}).get("blacklist", {}) or {}
-        self.cache_ttl = blacklist_config.get("cache_ttl", DEFAULT_CACHE_TTL_SECONDS)
+        rules_config = config.get("auth", {}).get(self.CONFIG_KEY, {}) or {}
+        self.cache_ttl = rules_config.get("cache_ttl", DEFAULT_CACHE_TTL_SECONDS)
+
+        # Resolve the users/sessions collection names the same way AuthService
+        # does. Hardcoding "users"/"sessions" silently breaks session revocation
+        # on a MongoDB deployment that configures its own collection names: the
+        # scan finds no identities, so a write reports success having revoked
+        # nothing - the blacklist would fail to cut off an in-flight abuser, and
+        # allowlist removal would fail to withdraw access.
+        backend_type = (
+            config.get("internal_services", {}).get("backend", {}).get("type", "mongodb")
+        )
+        if backend_type == "mongodb":
+            mongodb_config = config.get("internal_services", {}).get("mongodb", {}) or {}
+            self.users_collection_name = mongodb_config.get("users_collection", "users")
+            self.sessions_collection_name = mongodb_config.get(
+                "sessions_collection", "sessions"
+            )
+        else:
+            # SQL backends use fixed table names.
+            self.users_collection_name = "users"
+            self.sessions_collection_name = "sessions"
 
         self._rules: List[Dict[str, Any]] = []
         self._loaded_at: Optional[datetime] = None
@@ -117,11 +150,11 @@ class UserBlacklistService:
             # Fail closed on the cached set rather than the empty set: a database
             # blip must not silently un-block everyone. If nothing was ever
             # loaded the list is empty, matching today's unrestricted behavior.
-            logger.error(f"Failed to load user blacklist, using last known rules: {str(e)}")
+            logger.error(f"Failed to load user {self.LABEL}, using last known rules: {str(e)}")
             with self._lock:
                 return self._rules
         except Exception as e:
-            logger.error(f"Unexpected error loading user blacklist: {str(e)}")
+            logger.error(f"Unexpected error loading user {self.LABEL}: {str(e)}")
             with self._lock:
                 return self._rules
 
@@ -141,10 +174,23 @@ class UserBlacklistService:
         username: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Return the first rule blocking this identity, or None if allowed."""
-        rules = await self._get_rules()
-        if not rules:
-            return None
+        return self.match_in(
+            await self._get_rules(), user_id=user_id, email=email, username=username
+        )
 
+    def match_in(
+        self,
+        rules: List[Dict[str, Any]],
+        user_id: Optional[str] = None,
+        email: Optional[str] = None,
+        username: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Return the first of ``rules`` matching this identity, or None.
+
+        Split out from :meth:`match_identity` so a caller can evaluate a
+        hypothetical rule set - e.g. asking whether an allowlist rule's removal
+        would revoke the requesting administrator's own clearance.
+        """
         values = {"user_id": user_id, "email": email, "username": username}
         for rule in rules:
             entry_type = rule.get("entry_type")
@@ -193,7 +239,7 @@ class UserBlacklistService:
         try:
             rule_id_converted = await self.database.ensure_id_is_object_id(rule_id)
         except ValueError:
-            logger.warning(f"Invalid blacklist rule id format: {rule_id}")
+            logger.warning(f"Invalid {self.LABEL} rule id format: {rule_id}")
             return None
         return await self.database.find_one(
             self.collection_name, {"_id": rule_id_converted}
@@ -210,7 +256,9 @@ class UserBlacklistService:
         Used both to revoke sessions when a rule is added and to warn an
         operator before they lock themselves out.
         """
-        users = await self.database.find_many("users", {}, limit=10000)
+        users = await self.database.find_many(
+            self.users_collection_name, {}, limit=10000
+        )
         matched = []
         for user in users:
             value = {
@@ -228,7 +276,7 @@ class UserBlacklistService:
         for user in users:
             try:
                 revoked += await self.database.delete_many(
-                    "sessions", {"user_id": user["_id"]}
+                    self.sessions_collection_name, {"user_id": user["_id"]}
                 )
             except Exception as e:
                 logger.error(
@@ -253,7 +301,7 @@ class UserBlacklistService:
             self.collection_name, {"pattern": normalized, "entry_type": entry_type}
         )
         if existing:
-            raise BlacklistRuleError("An identical blacklist rule already exists")
+            raise BlacklistRuleError(f"An identical {self.LABEL} rule already exists")
 
         rule_doc = {
             "pattern": normalized,
@@ -268,7 +316,7 @@ class UserBlacklistService:
             # The find_one above is advisory only - two concurrent creates can
             # both pass it. The compound unique index is what actually decides,
             # so report the loser as a duplicate rather than a server error.
-            raise BlacklistRuleError("An identical blacklist rule already exists")
+            raise BlacklistRuleError(f"An identical {self.LABEL} rule already exists")
         rule_doc["_id"] = rule_id
         self.invalidate_cache()
 
@@ -277,7 +325,7 @@ class UserBlacklistService:
         rule_doc["matched_users"] = len(matched_users)
 
         logger.info(
-            f"Blacklist rule added: {entry_type}={normalized} "
+            f"{self.LABEL.capitalize()} rule added: {entry_type}={normalized} "
             f"(matched {len(matched_users)} existing users) by {created_by}"
         )
         return rule_doc
@@ -319,7 +367,7 @@ class UserBlacklistService:
             self.collection_name, {"pattern": normalized, "entry_type": entry_type}
         )
         if clash and str(clash.get("_id")) != str(current.get("_id")):
-            raise BlacklistRuleError("An identical blacklist rule already exists")
+            raise BlacklistRuleError(f"An identical {self.LABEL} rule already exists")
 
         # No backend raises DatabaseDuplicateKeyError from update_one the way
         # insert_one does - SQLite, Postgres, and MongoDB each catch every
@@ -346,10 +394,10 @@ class UserBlacklistService:
             )
             if raced and str(raced.get("_id")) != str(current.get("_id")):
                 raise BlacklistRuleError(
-                    "An identical blacklist rule already exists"
+                    f"An identical {self.LABEL} rule already exists"
                 )
             raise DatabaseOperationError(
-                f"Failed to update blacklist rule {rule_id}"
+                f"Failed to update {self.LABEL} rule {rule_id}"
             )
 
         self.invalidate_cache()
@@ -365,7 +413,7 @@ class UserBlacklistService:
         updated["matched_users"] = len(matched_users)
 
         logger.info(
-            f"Blacklist rule {rule_id} updated: {entry_type}={normalized} "
+            f"{self.LABEL.capitalize()} rule {rule_id} updated: {entry_type}={normalized} "
             f"(matched {len(matched_users)} existing users)"
         )
         return updated
@@ -377,12 +425,12 @@ class UserBlacklistService:
         try:
             rule_id_converted = await self.database.ensure_id_is_object_id(rule_id)
         except ValueError:
-            logger.warning(f"Invalid blacklist rule id format: {rule_id}")
+            logger.warning(f"Invalid {self.LABEL} rule id format: {rule_id}")
             return False
         deleted = await self.database.delete_one(
             self.collection_name, {"_id": rule_id_converted}
         )
         if deleted:
             self.invalidate_cache()
-            logger.info(f"Blacklist rule removed: {rule_id}")
+            logger.info(f"{self.LABEL.capitalize()} rule removed: {rule_id}")
         return bool(deleted)

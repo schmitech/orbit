@@ -180,6 +180,16 @@ class PostgresService(DatabaseService):
                     created_at TEXT NOT NULL
                 )
             ''',
+            'user_allowlist': '''
+                CREATE TABLE IF NOT EXISTS user_allowlist (
+                    id TEXT PRIMARY KEY,
+                    pattern TEXT NOT NULL,
+                    entry_type TEXT NOT NULL,
+                    reason TEXT,
+                    created_by TEXT,
+                    created_at TEXT NOT NULL
+                )
+            ''',
             'api_keys': '''
                 CREATE TABLE IF NOT EXISTS api_keys (
                     id TEXT PRIMARY KEY,

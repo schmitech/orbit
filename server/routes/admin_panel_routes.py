@@ -25,6 +25,11 @@ _SSO_ERROR_MESSAGES = {
     "sso_unavailable": "SSO sign-in is not available.",
     "sso_failed": "SSO sign-in failed. Please try again.",
     "not_authorized": "Your account is not authorized for admin access.",
+    # Distinct from not_authorized on purpose: "nobody has pre-cleared this
+    # identity" and "this identity is cleared but holds no admin-panel role" are
+    # different problems with different fixes, and an operator reading a support
+    # request needs to know which one they're looking at.
+    "not_cleared": "This identity has not been granted access to this ORBIT instance.",
 }
 
 logger = logging.getLogger(__name__)
@@ -309,11 +314,26 @@ def create_admin_panel_router() -> APIRouter:
 
         subject = claims["sub"]
         email = claims.get("email") or claims.get("preferred_username")
-        is_admin_allowlisted = sso.is_admin(email, provider, subject)
+        is_admin_allowlisted = sso.is_admin(
+            email, provider, subject, email_verified=claims.get("email_verified")
+        )
 
         auth_service = getattr(request.app.state, "auth_service", None)
         if not auth_service:
             raise HTTPException(status_code=503, detail="Authentication service not available")
+
+        # Pre-clearing is enforced inside provision_sso_user (which returns None
+        # for an identity that isn't allowed), but checking it here first lets the
+        # login page say *why* rather than lumping it in with "no role assigned".
+        allowlist = getattr(auth_service, "allowlist", None)
+        if allowlist is not None and not await allowlist.is_cleared(
+            email=email, username=f"{provider}:{subject}"
+        ):
+            logger.warning(
+                "Admin SSO denied for %s: email=%r subject=%r is not on the identity allowlist",
+                provider, email, subject,
+            )
+            return _login_redirect("not_cleared")
 
         # Allowlisted identities are always granted (or kept as) admin. Everyone
         # else is provisioned/looked up as-is, so an operator/auditor/analyst

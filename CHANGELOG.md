@@ -1,5 +1,19 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Breaking Changes
+- **External Identity Allowlist**: External Entra ID and Auth0 identities are now deny-by-default when `auth.providers.enabled` is on: `auth.providers.access_control` defaults to `allowlist`. Pre-clear each identity or pattern with an allowlist rule (or `admin_users`), grandfather reviewed existing identities with `orbit user allowlist seed-from-existing`, or explicitly set `access_control: open` to retain the prior IdP-only admission model.
+
+### Security
+- **External Identity Pre-Clearing**: Added pattern-based identity allowlisting for external logins, managed through the Admin Panel, `orbit user allowlist`, and `/auth/allowlist`. Rules support email, user-ID, and provider-subject matching; blacklist rules continue to take precedence. Uncleared identities are refused before JIT provisioning, and removing or narrowing a rule revokes affected sessions.
+- **SSO Session Withdrawal Enforcement**: Allowlist clearance is rechecked for both provider JWTs and database-backed opaque dashboard sessions, so a session created by an in-flight SSO callback after a rule is removed cannot remain usable after the worker's rule-cache TTL.
+- **Admin SSO Identity Hardening**: `admin_users` email entries now require a provider-verified email when configured (default on for Auth0); provider-subject entries retain exact, case-sensitive OIDC subject matching while normalizing only the provider prefix.
+- **Configured MongoDB Revocation Collections**: Blacklist and allowlist revocation scans and session deletion now honor configured MongoDB `users_collection` and `sessions_collection` names. Previously, custom collection deployments could silently report successful revocation without finding users or deleting sessions.
+
+### Documentation & Configuration
+- **Allowlist Migration and Verification Guidance**: Documented allowlist modes, migration/seed workflow, rule semantics, opaque-session withdrawal behavior, admin SSO email verification, and a manual integration playbook covering provider round-trips, multi-worker cache propagation, and custom MongoDB collection revocation.
+
 ## [2.16.0] - 2026-08-25
 
 ### Breaking Changes

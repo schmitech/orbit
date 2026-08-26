@@ -961,3 +961,213 @@ async def delete_blacklist_rule(rule_id: str, auth_service=Depends(get_auth_serv
     except Exception as e:
         logger.error(f"Error deleting blacklist rule: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# Allowlist Endpoints
+#
+# The mirror of the blacklist above: these rules pre-clear external (Entra /
+# Auth0) identities under `auth.providers.access_control: allowlist`, where an
+# unmatched subject is never provisioned an ORBIT account at all. The request
+# and response shapes are identical, so the models and serializer are shared.
+#
+# The self-lockout guard is inverted. Creating a deny rule can lock you out, so
+# POST /blacklist guards against it; creating an *allow* rule only ever grants,
+# so POST here needs no guard. It is DELETE and a narrowing PUT that revoke
+# access, so the guard lives on those instead.
+
+
+def _require_allowlist(auth_service):
+    """Return the allowlist service, or 503 if auth hasn't initialized it yet."""
+    allowlist = getattr(auth_service, "allowlist", None)
+    if allowlist is None:
+        raise HTTPException(
+            status_code=503, detail="User allowlist service is not available"
+        )
+    return allowlist
+
+
+def _validate_allowlist_rule_or_400(request: "BlacklistRuleRequest") -> str:
+    """Validate a submitted allowlist rule and return its normalized pattern."""
+    if request.entry_type not in ENTRY_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"entry_type must be one of: {', '.join(ENTRY_TYPES)}",
+        )
+    try:
+        # A wildcard-only pattern is rejected here as it is for the blacklist.
+        # "Clear everyone" is a mode, not a rule: set access_control to 'open'.
+        return normalize_pattern(request.pattern)
+    except BlacklistRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+async def _guard_own_clearance(
+    allowlist, current_user: Dict[str, Any], rules: List[Dict[str, Any]]
+) -> None:
+    """Refuse a mutation that would revoke the caller's own clearance.
+
+    Only bites when the caller is themselves an external identity: a local
+    password administrator is never gated by the allowlist, so no rule change
+    can lock them out. Without this, an external admin could delete the rule
+    that admits them and lose the panel they'd need to re-add it.
+    """
+    if await allowlist.clears_under(rules, current_user):
+        return
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "This change would revoke your own access. Add a rule covering your "
+            "identity first, or make the change from a local admin account."
+        ),
+    )
+
+
+async def _revoke_uncleared(allowlist, rules: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Revoke sessions of external users the given rule set no longer clears."""
+    uncleared = await allowlist.find_uncleared_users(rules)
+    return {
+        "matched_users": len(uncleared),
+        "revoked_sessions": await allowlist.revoke_sessions_for(uncleared),
+    }
+
+
+@auth_router.get(
+    "/allowlist",
+    response_model=List[BlacklistRuleResponse],
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def list_allowlist_rules(auth_service=Depends(get_auth_service)):
+    """List every allowlist rule, newest first (users.manage permission required)."""
+    allowlist = _require_allowlist(auth_service)
+    try:
+        return [_serialize_rule(rule) for rule in await allowlist.list_rules()]
+    except Exception as e:
+        logger.error(f"Error listing allowlist rules: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.post(
+    "/allowlist",
+    response_model=BlacklistRuleResponse,
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def create_allowlist_rule(
+    request: BlacklistRuleRequest,
+    http_request: Request,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Pre-clear an identity pattern for external login.
+
+    Adding a rule only ever grants access, so nothing is revoked and no
+    self-lockout guard applies. Matching identities are provisioned on their
+    next login; existing users become able to authenticate again within the
+    rule cache's TTL.
+    """
+    allowlist = _require_allowlist(auth_service)
+    normalized = _validate_allowlist_rule_or_400(request)
+
+    try:
+        rule = await allowlist.add_rule(
+            pattern=normalized,
+            entry_type=request.entry_type,
+            reason=request.reason,
+            created_by=current_user.get("username"),
+        )
+        # add_rule reports who the pattern matches, which for a deny rule means
+        # who was cut off. Here it means who was granted, and nothing is
+        # revoked - drop the counts rather than report a misleading zero/one.
+        rule.pop("revoked_sessions", None)
+        rule.pop("matched_users", None)
+        _publish_rule_audit_context(http_request, rule)
+        return _serialize_rule(rule)
+    except BlacklistRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating allowlist rule: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.put(
+    "/allowlist/{rule_id}",
+    response_model=BlacklistRuleResponse,
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def update_allowlist_rule(
+    rule_id: str,
+    request: BlacklistRuleRequest,
+    http_request: Request,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Edit an allowlist rule, revoking sessions it no longer covers.
+
+    Narrowing a rule denies whoever it stops matching, so this is guarded
+    against revoking the caller's own clearance and reports the sessions it cut.
+    """
+    allowlist = _require_allowlist(auth_service)
+    normalized = _validate_allowlist_rule_or_400(request)
+
+    try:
+        current = await allowlist.get_rule(rule_id)
+        if current is None:
+            raise HTTPException(status_code=404, detail="Allowlist rule not found")
+
+        # Evaluate the post-edit rule set before writing it.
+        prospective = await allowlist.rules_excluding(rule_id)
+        prospective.append(
+            {**current, "pattern": normalized, "entry_type": request.entry_type}
+        )
+        await _guard_own_clearance(allowlist, current_user, prospective)
+
+        rule = await allowlist.update_rule(
+            rule_id=rule_id,
+            pattern=normalized,
+            entry_type=request.entry_type,
+            reason=request.reason,
+        )
+        if rule is None:
+            raise HTTPException(status_code=404, detail="Allowlist rule not found")
+
+        rule.update(await _revoke_uncleared(allowlist, await allowlist.list_rules()))
+        _publish_rule_audit_context(http_request, rule)
+        return _serialize_rule(rule)
+    except BlacklistRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating allowlist rule: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.delete(
+    "/allowlist/{rule_id}",
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def delete_allowlist_rule(
+    rule_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Remove an allowlist rule and revoke the sessions it was clearing.
+
+    Unlike deleting a blacklist rule (which restores access), this *withdraws*
+    access, so it revokes live sessions the same way adding a blacklist rule
+    does - otherwise a de-approved user keeps working until token expiry.
+    """
+    allowlist = _require_allowlist(auth_service)
+    try:
+        prospective = await allowlist.rules_excluding(rule_id)
+        await _guard_own_clearance(allowlist, current_user, prospective)
+
+        if not await allowlist.delete_rule(rule_id):
+            raise HTTPException(status_code=404, detail="Allowlist rule not found")
+
+        revocation = await _revoke_uncleared(allowlist, prospective)
+        return {"status": "deleted", "id": rule_id, **revocation}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting allowlist rule: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")

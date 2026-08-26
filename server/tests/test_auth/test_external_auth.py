@@ -68,6 +68,8 @@ TEST_CONFIG = {
         'providers': {
             'enabled': True,
             'default_role': 'user',
+            # These tests exercise token validation, not access control.
+            'access_control': 'open',
             'entra': {'enabled': True, 'tenant_id': ENTRA_TENANT, 'client_id': ENTRA_CLIENT},
             'auth0': {'enabled': True, 'domain': AUTH0_DOMAIN, 'audience': AUTH0_AUD},
         },

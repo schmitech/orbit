@@ -45,6 +45,12 @@ from bin.orbit.commands.users import (
     UserDeactivateCommand, UserActivateCommand, UserChangePasswordCommand,
     UserRolesCommand, UserSetRolesCommand
 )
+from bin.orbit.commands.allowlist import (
+    AllowlistAddCommand,
+    AllowlistListCommand,
+    AllowlistRemoveCommand,
+    AllowlistSeedCommand,
+)
 from bin.orbit.commands.config import (
     ConfigShowCommand, ConfigEffectiveCommand, ConfigSetCommand, ConfigResetCommand
 )
@@ -472,6 +478,26 @@ Report issues at: https://github.com/schmitech/orbit/issues
         set_roles_cmd = UserSetRolesCommand(self._get_api_service(), self.formatter)
         set_roles_cmd.add_arguments(set_roles_parser)
         set_roles_parser.set_defaults(func=lambda args, cmd=set_roles_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
+        # Identity allowlist commands (pre-clearing external Entra/Auth0 logins)
+        allowlist_parser = user_subparsers.add_parser(
+            'allowlist', help='Manage the external-identity allowlist')
+        allowlist_subparsers = allowlist_parser.add_subparsers(
+            dest='allowlist_command', help='Allowlist operations', required=True)
+
+        for sub_name, sub_help, sub_cls in (
+            ('list', 'List identity allowlist rules', AllowlistListCommand),
+            ('add', 'Pre-clear an identity pattern', AllowlistAddCommand),
+            ('remove', 'Remove an allowlist rule', AllowlistRemoveCommand),
+            ('seed-from-existing',
+             'Add a rule for each existing external user', AllowlistSeedCommand),
+        ):
+            sub_parser = allowlist_subparsers.add_parser(sub_name, help=sub_help)
+            sub_cmd = sub_cls(self._get_api_service(), self.formatter)
+            sub_cmd.add_arguments(sub_parser)
+            sub_parser.set_defaults(
+                func=lambda args, cmd=sub_cmd, cli=self:
+                    cli._update_command_services(cmd, args) or cmd.execute(args))
 
     def _add_config_commands(self, subparsers):
         """Add configuration commands."""

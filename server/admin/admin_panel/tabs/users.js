@@ -14,6 +14,7 @@ export function createUsersTab({
     var detailPanel = el("div", { className: "panel", style: "display:none" });
     var accountPanel = el("div", { className: "panel account-panel" });
     var createPanel = el("div", { className: "panel", style: "display:none" });
+    var allowlistPanel = el("div", { className: "panel" });
     var blacklistPanel = el("div", { className: "panel" });
     var userSearchFilter = "";
     var userSearchInteracted = false;
@@ -55,7 +56,10 @@ export function createUsersTab({
     layout.appendChild(detailPanel);
     layout.appendChild(createPanel);
     // Operator-facing user management sits above "My Account", which is
-    // personal and reads as the tab's footer.
+    // personal and reads as the tab's footer. Allowed comes before Blocked:
+    // clearance is what decides whether an account exists at all, so it reads
+    // as the broader control, with the deny-list as the exception to it.
+    layout.appendChild(allowlistPanel);
     layout.appendChild(blacklistPanel);
     layout.appendChild(accountPanel);
     container.appendChild(layout);
@@ -200,7 +204,8 @@ export function createUsersTab({
 
     renderSelectedUserPlaceholder(detailPanel);
     renderAccountSecurityPanel(accountPanel);
-    renderBlacklistPanel(blacklistPanel);
+    renderIdentityRulesPanel(allowlistPanel, RULE_PANELS.allowlist);
+    renderIdentityRulesPanel(blacklistPanel, RULE_PANELS.blacklist);
 
     createBtn.addEventListener("click", function () {
       var u = usernameInput.value.trim();
@@ -340,31 +345,148 @@ export function createUsersTab({
     loadUsers();
   }
 
-  var BLACKLIST_ENTRY_TYPES = [
-    { value: "email", label: "Email", placeholder: "abuser@example.com or *@spam-domain.com" },
-    { value: "username", label: "Username", placeholder: "baduser or entra:abc*" },
-    { value: "user_id", label: "User ID", placeholder: "The ORBIT user id, wildcards allowed" }
-  ];
+  // The blocked- and allowed-identity panels are the same machinery pointed at
+  // opposite rule sets, so one builder drives both. Everything that differs is
+  // wording plus which direction revokes access: adding a *deny* rule cuts
+  // people off, while it is *removing* an allow rule that does.
+  var RULE_PANELS = {
+    blacklist: {
+      endpointKey: "blacklist",
+      heading: "Blocked Identities",
+      refreshLabel: "Refresh the blacklist",
+      description:
+        "Deny authentication by pattern, across every surface \u2014 chat, admin panel, file upload, and A2A. " +
+        "Use * and ? as wildcards (for example, *@spam-domain.com). Unlike deactivating a user, " +
+        "a rule also blocks external users who have never signed in, so it prevents their account from being created at all.",
+      entryTypes: [
+        { value: "email", label: "Email", placeholder: "abuser@example.com or *@spam-domain.com" },
+        { value: "username", label: "Username", placeholder: "baduser or entra:abc*" },
+        { value: "user_id", label: "User ID", placeholder: "The ORBIT user id, wildcards allowed" }
+      ],
+      selectLabel: "Blacklist entry type",
+      addToggleLabel: "Add blacklist rule",
+      addSubmitLabel: "Block Identity",
+      reasonPlaceholder: "Optional. Why this identity is blocked.",
+      emptyPatternError: "Enter a pattern to block.",
+      addConfirm: function (pattern) {
+        return {
+          title: "Block Identity",
+          message: 'Block "' + pattern + '"? Matching users are signed out immediately and cannot authenticate again until the rule is removed.',
+          confirmLabel: "Block",
+          isDanger: true,
+          loadingLabel: "Blocking..."
+        };
+      },
+      addStatus: function (rule) {
+        return "Identity blocked" + revocationSuffix(rule);
+      },
+      removeConfirm: function (pattern) {
+        return {
+          title: "Remove Blacklist Rule",
+          message: 'Stop blocking "' + pattern + '"? Previously revoked sessions are not restored.',
+          confirmLabel: "Remove"
+        };
+      },
+      removeStatus: function () { return "Blacklist rule removed"; },
+      updateConfirm: function (pattern) {
+        return {
+          title: "Update Blacklist Rule",
+          message: 'Change this rule to block "' + pattern + '"? Matching users are signed out immediately.',
+          confirmLabel: "Update",
+          isDanger: true,
+          loadingLabel: "Updating..."
+        };
+      },
+      emptyIcon: "\u{1F6AB}",
+      emptyText: "No blocked identities",
+      loadError: "Failed to load blocked identities"
+    },
+    allowlist: {
+      endpointKey: "allowlist",
+      heading: "Allowed Identities",
+      refreshLabel: "Refresh the allowlist",
+      description:
+        "Pre-clear external (Microsoft / Auth0) identities. When auth.providers.access_control is 'allowlist', " +
+        "an identity that matches no rule here is never given an ORBIT account at all \u2014 so an empty list admits nobody. " +
+        "Local password accounts are never affected, and admin_users entries are always cleared. " +
+        "Removing a rule withdraws access and signs those users out.",
+      entryTypes: [
+        { value: "email", label: "Email", placeholder: "alice@corp.example.com or *@corp.example.com" },
+        { value: "username", label: "Username", placeholder: "entra:00000000-... or auth0:abc*" },
+        { value: "user_id", label: "User ID", placeholder: "The ORBIT user id, wildcards allowed" }
+      ],
+      selectLabel: "Allowlist entry type",
+      addToggleLabel: "Add allowlist rule",
+      addSubmitLabel: "Allow Identity",
+      reasonPlaceholder: "Optional. Why this identity is approved.",
+      emptyPatternError: "Enter a pattern to allow.",
+      addConfirm: function (pattern) {
+        return {
+          title: "Allow Identity",
+          message: 'Pre-clear "' + pattern + '"? Matching identities will be able to sign in and have an ORBIT account created on first login.',
+          confirmLabel: "Allow",
+          loadingLabel: "Allowing..."
+        };
+      },
+      // Adding an allow rule grants and revokes nothing, so there is no count.
+      addStatus: function () { return "Identity allowed"; },
+      removeConfirm: function (pattern) {
+        return {
+          title: "Remove Allowlist Rule",
+          message: 'Stop allowing "' + pattern + '"? Users cleared only by this rule are signed out immediately and cannot sign in again.',
+          confirmLabel: "Remove",
+          isDanger: true,
+          loadingLabel: "Removing..."
+        };
+      },
+      removeStatus: function (result) {
+        return "Allowlist rule removed" + revocationSuffix(result);
+      },
+      updateConfirm: function (pattern) {
+        return {
+          title: "Update Allowlist Rule",
+          message: 'Change this rule to allow "' + pattern + '"? Anyone it stops covering is signed out immediately.',
+          confirmLabel: "Update",
+          isDanger: true,
+          loadingLabel: "Updating..."
+        };
+      },
+      emptyIcon: "\u{1F511}",
+      emptyText: "No allowed identities",
+      loadError: "Failed to load allowed identities"
+    }
+  };
 
-  function renderBlacklistPanel(panel) {
+  // "3 users matched, 5 sessions revoked", or "" when nothing was cut off.
+  function revocationSuffix(result) {
+    if (!result || !result.matched_users) return "";
+    var users = result.matched_users;
+    var sessions = result.revoked_sessions || 0;
+    return " \u2014 " + users + " user" + (users === 1 ? "" : "s") + " matched, " +
+      sessions + " session" + (sessions === 1 ? "" : "s") + " revoked";
+  }
+
+  function renderIdentityRulesPanel(panel, spec) {
     clear(panel);
+    var endpoint = endpoints[spec.endpointKey];
+    var ENTRY_TYPES = spec.entryTypes;
     var tableWrap = el("div", { className: "blacklist-rules-wrap" }, skeleton());
     var formWrap = el("div", { className: "collapsible-panel-body", style: "display:none" });
     var addToggle = el("button", {
       className: "secondary create-launch-btn",
       type: "button",
-      "aria-label": "Add blacklist rule"
+      "aria-label": spec.addToggleLabel
     }, svgIcon(iconPlus), el("span", null, "Add Rule"));
 
     var typeSelect = createSelect({
-      ariaLabel: "Blacklist entry type",
-      options: BLACKLIST_ENTRY_TYPES.map(function (entry) { return { value: entry.value, label: entry.label }; }),
-      value: BLACKLIST_ENTRY_TYPES[0].value
+      ariaLabel: spec.selectLabel,
+      options: ENTRY_TYPES.map(function (entry) { return { value: entry.value, label: entry.label }; }),
+      value: ENTRY_TYPES[0].value
     });
     var patternInput = el("input", {
       type: "text",
       maxlength: "320",
-      placeholder: BLACKLIST_ENTRY_TYPES[0].placeholder,
+      placeholder: ENTRY_TYPES[0].placeholder,
       autocomplete: "off",
       autocapitalize: "none",
       autocorrect: "off",
@@ -373,14 +495,14 @@ export function createUsersTab({
     var reasonInput = el("input", {
       type: "text",
       maxlength: "500",
-      placeholder: "Optional. Why this identity is blocked.",
+      placeholder: spec.reasonPlaceholder,
       autocomplete: "off"
     });
-    var addBtn = el("button", { type: "button" }, "Block Identity");
+    var addBtn = el("button", { type: "button" }, spec.addSubmitLabel);
     var cancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
 
     typeSelect.addEventListener("change", function () {
-      var entry = BLACKLIST_ENTRY_TYPES.find(function (item) { return item.value === typeSelect.value; });
+      var entry = ENTRY_TYPES.find(function (item) { return item.value === typeSelect.value; });
       patternInput.placeholder = entry ? entry.placeholder : "";
     });
 
@@ -398,45 +520,30 @@ export function createUsersTab({
 
     addBtn.addEventListener("click", function () {
       var pattern = patternInput.value.trim();
-      if (!pattern) { showError("Enter a pattern to block."); return; }
+      if (!pattern) { showError(spec.emptyPatternError); return; }
       if (pattern.replace(/[*?]/g, "") === "") {
         showError("Pattern must contain at least one literal character.");
         return;
       }
-      confirmAction({
-        title: "Block Identity",
-        message: 'Block "' + pattern + '"? Matching users are signed out immediately and cannot authenticate again until the rule is removed.',
-        confirmLabel: "Block",
-        isDanger: true,
-        loadingLabel: "Blocking...",
+      confirmAction(Object.assign(spec.addConfirm(pattern), {
         onConfirm: async function () {
-          var rule = await api("POST", endpoints.blacklist, {
+          var rule = await api("POST", endpoint, {
             pattern: pattern,
             entry_type: typeSelect.value,
             reason: reasonInput.value.trim() || null
           });
           closeForm();
-          showStatus(
-            "Identity blocked" +
-            (rule.matched_users ? " — " + rule.matched_users + " existing user" +
-              (rule.matched_users === 1 ? "" : "s") + " matched, " +
-              (rule.revoked_sessions || 0) + " session" +
-              (rule.revoked_sessions === 1 ? "" : "s") + " revoked" : "")
-          );
+          showStatus(spec.addStatus(rule));
           await loadRules();
         }
-      });
+      }));
     });
 
     panel.appendChild(el("div", { className: "panel-header-row" },
-      el("h2", null, "Blocked Identities"),
-      refreshButton("Refresh the blacklist", function () { loadRules(); })
+      el("h2", null, spec.heading),
+      refreshButton(spec.refreshLabel, function () { loadRules(); })
     ));
-    panel.appendChild(el("p", { className: "muted" },
-      "Deny authentication by pattern, across every surface — chat, admin panel, file upload, and A2A. " +
-      "Use " + "*" + " and ? as wildcards (for example, *@spam-domain.com). Unlike deactivating a user, " +
-      "a rule also blocks external users who have never signed in, so it prevents their account from being created at all."
-    ));
+    panel.appendChild(el("p", { className: "muted" }, spec.description));
     panel.appendChild(el("div", { className: "bulk-action-row" }, addToggle));
     formWrap.appendChild(el("div", { className: "admin-create-form" },
       el("div", { className: "admin-create-form-grid" },
@@ -451,7 +558,7 @@ export function createUsersTab({
     bindValidationClear(patternInput, reasonInput);
 
     function entryLabel(entryType) {
-      var entry = BLACKLIST_ENTRY_TYPES.find(function (item) { return item.value === entryType; });
+      var entry = ENTRY_TYPES.find(function (item) { return item.value === entryType; });
       return entry ? entry.label : entryType;
     }
 
@@ -486,16 +593,13 @@ export function createUsersTab({
           replaceRow(editRow());
         });
         removeBtn.addEventListener("click", function () {
-          confirmAction({
-            title: "Remove Blacklist Rule",
-            message: 'Stop blocking "' + rule.pattern + '"? Previously revoked sessions are not restored.',
-            confirmLabel: "Remove",
+          confirmAction(Object.assign(spec.removeConfirm(rule.pattern), {
             onConfirm: async function () {
-              await api("DELETE", endpoints.blacklist + "/" + encodeURIComponent(rule.id));
-              showStatus("Blacklist rule removed");
+              var result = await api("DELETE", endpoint + "/" + encodeURIComponent(rule.id));
+              showStatus(spec.removeStatus(result));
               await loadRules();
             }
-          });
+          }));
         });
 
         return el("tr", null,
@@ -509,8 +613,8 @@ export function createUsersTab({
 
       function editRow() {
         var typeSel = createSelect({
-          ariaLabel: "Blacklist entry type",
-          options: BLACKLIST_ENTRY_TYPES.map(function (entry) { return { value: entry.value, label: entry.label }; }),
+          ariaLabel: spec.selectLabel,
+          options: ENTRY_TYPES.map(function (entry) { return { value: entry.value, label: entry.label }; }),
           value: rule.entry_type
         });
         var patternIn = el("input", {
@@ -551,44 +655,31 @@ export function createUsersTab({
 
         saveBtn.addEventListener("click", function () {
           var pattern = patternIn.value.trim();
-          if (!pattern) { showError("Enter a pattern to block."); return; }
+          if (!pattern) { showError(spec.emptyPatternError); return; }
           if (pattern.replace(/[*?]/g, "") === "") {
             showError("Pattern must contain at least one literal character.");
             return;
           }
           async function submit() {
-            var updated = await api("PUT", endpoints.blacklist + "/" + encodeURIComponent(rule.id), {
+            var updated = await api("PUT", endpoint + "/" + encodeURIComponent(rule.id), {
               pattern: pattern,
               entry_type: typeSel.value,
               reason: reasonIn.value.trim() || null
             });
             editing = false;
-            showStatus(
-              "Rule updated" +
-              (updated.matched_users ? " — " + updated.matched_users + " user" +
-                (updated.matched_users === 1 ? "" : "s") + " matched, " +
-                (updated.revoked_sessions || 0) + " session" +
-                (updated.revoked_sessions === 1 ? "" : "s") + " revoked" : "")
-            );
+            showStatus("Rule updated" + revocationSuffix(updated));
             await loadRules();
           }
 
-          // Only confirm when the edit alters who is blocked; a reason-only
-          // change has no effect on access, so it saves straight away.
-          var changesWhoIsBlocked = pattern.toLowerCase() !== rule.pattern
+          // Only confirm when the edit alters who the rule covers; a
+          // reason-only change has no effect on access, so it saves straight away.
+          var changesWhoIsCovered = pattern.toLowerCase() !== rule.pattern
             || typeSel.value !== rule.entry_type;
-          if (!changesWhoIsBlocked) {
+          if (!changesWhoIsCovered) {
             withButton(saveBtn, submit);
             return;
           }
-          confirmAction({
-            title: "Update Blacklist Rule",
-            message: 'Change this rule to block "' + pattern + '"? Matching users are signed out immediately.',
-            confirmLabel: "Update",
-            isDanger: true,
-            loadingLabel: "Updating...",
-            onConfirm: submit
-          });
+          confirmAction(Object.assign(spec.updateConfirm(pattern), { onConfirm: submit }));
         });
 
         bindValidationClear(patternIn, reasonIn);
@@ -609,8 +700,8 @@ export function createUsersTab({
       clear(tableWrap);
       if (!rules || rules.length === 0) {
         tableWrap.appendChild(el("div", { className: "empty-state" },
-          el("div", { className: "empty-state-icon" }, "\u{1F6AB}"),
-          el("p", null, "No blocked identities")
+          el("div", { className: "empty-state-icon" }, spec.emptyIcon),
+          el("p", null, spec.emptyText)
         ));
         return;
       }
@@ -632,9 +723,9 @@ export function createUsersTab({
 
     async function loadRules() {
       try {
-        renderRules(await api("GET", endpoints.blacklist));
+        renderRules(await api("GET", endpoint));
       } catch (err) {
-        showTableLoadError(tableWrap, "Failed to load blocked identities");
+        showTableLoadError(tableWrap, spec.loadError);
       }
     }
 

@@ -93,8 +93,17 @@ def make_id_token(iss, aud, sub, *, nonce="n0", exp_delta=3600, email=None, key=
     return jwt.encode(payload, key or _PRIVATE_KEY, algorithm="RS256", headers={"kid": "test"})
 
 
-def make_sso_service():
-    svc = AdminSSOService(PROVIDERS_CONFIG)
+def make_sso_service(*, admin_users=None, entra=None, auth0=None):
+    """Build a service over PROVIDERS_CONFIG, optionally overriding provider blocks."""
+    config = {
+        "admin_sso": dict(
+            PROVIDERS_CONFIG["admin_sso"],
+            **({"admin_users": admin_users} if admin_users is not None else {}),
+        ),
+        "entra": entra if entra is not None else PROVIDERS_CONFIG["entra"],
+        "auth0": auth0 if auth0 is not None else PROVIDERS_CONFIG["auth0"],
+    }
+    svc = AdminSSOService(config)
     for entry in svc._providers.values():
         entry["jwks_client"] = _FakeJWKS(_PUBLIC_KEY)
     return svc
@@ -177,8 +186,62 @@ async def test_validate_id_token_expired():
 
 def test_is_admin_email_case_insensitive():
     svc = make_sso_service()
-    assert svc.is_admin("admin@example.com", "auth0", "whatever")
-    assert svc.is_admin("ADMIN@EXAMPLE.COM", "auth0", "whatever")
+    assert svc.is_admin("admin@example.com", "auth0", "whatever", email_verified=True)
+    assert svc.is_admin("ADMIN@EXAMPLE.COM", "auth0", "whatever", email_verified=True)
+
+
+def test_is_admin_rejects_unverified_email_on_auth0():
+    """An allowlisted *email* must not grant admin when the IdP hasn't verified it.
+
+    Auth0 connections let a user self-assert an address, so matching an
+    unverified claim would promote anyone who can register an allowlisted
+    email at the IdP to full admin.
+    """
+    svc = make_sso_service()
+    assert not svc.is_admin("admin@example.com", "auth0", "attacker-sub", email_verified=False)
+    # A missing claim is not an assertion of verification either.
+    assert not svc.is_admin("admin@example.com", "auth0", "attacker-sub", email_verified=None)
+    assert not svc.is_admin("admin@example.com", "auth0", "attacker-sub")
+
+
+def test_is_admin_subject_entry_ignores_email_verification():
+    """`provider:subject` is IdP-assigned and unspoofable, so it always matches."""
+    svc = make_sso_service()
+    assert svc.is_admin(None, "entra", "allowlisted-sub", email_verified=False)
+    assert svc.is_admin("unverified@example.com", "entra", "allowlisted-sub", email_verified=False)
+
+
+def test_is_admin_entra_email_does_not_require_verification():
+    """Entra emits no `email_verified`; its addresses come from the directory."""
+    svc = make_sso_service(
+        admin_users=["Admin@Example.com"],
+        entra={"enabled": True, "tenant_id": ENTRA_TENANT, "client_id": ENTRA_CLIENT},
+    )
+    assert svc.is_admin("admin@example.com", "entra", "some-sub")
+
+
+def test_require_verified_email_is_configurable_per_provider():
+    svc = make_sso_service(
+        admin_users=["Admin@Example.com"],
+        entra={
+            "enabled": True, "tenant_id": ENTRA_TENANT, "client_id": ENTRA_CLIENT,
+            "require_verified_email": True,
+        },
+        auth0={
+            "enabled": True, "domain": AUTH0_DOMAIN, "audience": "https://api.orbit.test",
+            "client_id": AUTH0_CLIENT, "require_verified_email": False,
+        },
+    )
+    assert svc.requires_verified_email("entra")
+    assert not svc.requires_verified_email("auth0")
+    assert not svc.is_admin("admin@example.com", "entra", "s")
+    assert svc.is_admin("admin@example.com", "auth0", "s")
+
+
+def test_requires_verified_email_unknown_provider_fails_closed():
+    svc = make_sso_service()
+    assert svc.requires_verified_email("okta")
+    assert not svc.is_admin("admin@example.com", "okta", "s")
 
 
 def test_is_admin_by_provider_subject():

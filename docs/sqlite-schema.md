@@ -8,6 +8,8 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 
 - `users` - User accounts and authentication
 - `sessions` - Active user sessions
+- `user_blacklist` - Pattern-based identity denial rules
+- `user_allowlist` - Pattern-based pre-clearing of external identities
 - `api_keys` - API keys for authentication
 - `system_prompts` - System prompts for chat
 - `chat_history` - Chat message history
@@ -131,6 +133,59 @@ CREATE TABLE IF NOT EXISTS user_blacklist (
 - `idx_user_blacklist_entry_type_pattern` unique on `(entry_type, pattern)` — created by
   `AuthService.initialize()` via `create_index` rather than declared in the backend's
   `_indexes` map, so MongoDB gets the same constraint (it never reads those SQL definitions)
+
+---
+
+### user_allowlist
+
+Stores pattern-based rules that **pre-clear external identities** (Entra ID /
+Auth0) before ORBIT will provision them an account. The mirror image of
+`user_blacklist`: identical columns and matching semantics, opposite meaning.
+
+`UserAllowlistService` subclasses `UserBlacklistService`, overriding only the
+collection name, config key, and label — which is why the two tables are
+column-for-column identical.
+
+```sql
+CREATE TABLE IF NOT EXISTS user_allowlist (
+    id TEXT PRIMARY KEY,
+    pattern TEXT NOT NULL,
+    entry_type TEXT NOT NULL,
+    reason TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique rule ID (UUID)
+- `pattern` (TEXT): Lowercased match pattern; `*` and `?` are wildcards (e.g. `*@corp.example.com`)
+- `entry_type` (TEXT): Identity field the pattern matches — `email`, `user_id`, or `username`. For external users the stored username is `"{provider}:{external_id}"`, so `username` with `auth0:abc*` clears by provider subject
+- `reason` (TEXT, nullable): Free-text operator note (why this identity is approved)
+- `created_by` (TEXT, nullable): Username of the administrator who added the rule
+- `created_at` (TEXT): ISO format timestamp of rule creation
+
+**Indexes:**
+- `idx_user_allowlist_entry_type_pattern` unique on `(entry_type, pattern)` — created by
+  `AuthService.initialize()` via `create_index`, same rationale as the blacklist index.
+  The constraint is *per table*, so the same pattern may exist in both rule sets
+
+**Semantics that differ from `user_blacklist`** (see `docs/authentication.md`):
+
+| | `user_blacklist` | `user_allowlist` |
+|---|---|---|
+| No rows | blocks nobody | admits nobody, when enforcing |
+| Applies to | every identity, local and external | rows with `users.provider` set only |
+| Adding a row | denies; revokes matching sessions | grants; revokes nothing |
+| Deleting a row | restores access; no revocation | **withdraws** access; revokes sessions |
+
+Enforcement is gated on `auth.providers.access_control` (`allowlist`, the
+default, or `open`) **and** on `auth.providers.enabled` — with no external
+provider configured there are no external identities to gate, so the table is
+inert. An empty table under `allowlist` mode denies every external login, which
+is what makes the control fail closed. Identities listed in
+`auth.providers.admin_sso.admin_users` are cleared implicitly and need no row
+here. Deny is evaluated first, so a `user_blacklist` row always wins.
 
 ---
 
@@ -860,6 +915,11 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.16** (2026-08-26): External-identity pre-clearing (allowlist)
+  - Added the `user_allowlist` table and its unique index `idx_user_allowlist_entry_type_pattern` on `(entry_type, pattern)` — pattern-based approval of external (Entra/Auth0) identities, so that under `auth.providers.access_control: allowlist` (the new default) a subject no rule covers is never provisioned a `users` row on any surface. Columns are identical to `user_blacklist`; the semantics are inverted (empty = deny, deletion withdraws access). See `docs/authentication.md`
+  - Created automatically on existing databases via `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` on startup — no manual migration needed. `install/orbit.db.default` updated in place
+  - **Behavior change on upgrade, not just schema.** The new default denies every existing external user that no rule covers. The server logs the count at startup; `orbit user allowlist seed-from-existing` grandfathers the current population, or set `access_control: open` to keep the previous behavior
+  - No change to `users` — clearance is evaluated from `users.provider`/`email`/`username`, all of which already existed (v1.2)
 - **v1.15** (2026-08-22): Chat audit call-type terminology
   - Renamed the default text-generation audit `call_type` from `inference` to `chat`, and renamed the audit-ledger stream contract accordingly.
   - Existing audit data must be cleared before using the new contract; clients must use the new `chat` API values.

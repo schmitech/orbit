@@ -75,19 +75,36 @@ class AdminSSOService:
         entra = providers_config.get('entra', {})
         if entra.get('enabled') and entra.get('tenant_id') and entra.get('client_id'):
             ep = entra_endpoints(entra['tenant_id'])
-            self._providers['entra'] = self._build(entra, ep, label="Microsoft")
+            # Entra id_tokens don't carry `email_verified`, and the address comes
+            # from the directory rather than user self-assertion, so requiring the
+            # claim here would break a path that isn't attacker-controlled.
+            self._providers['entra'] = self._build(
+                entra, ep, label="Microsoft", verified_email_default=False
+            )
 
         auth0 = providers_config.get('auth0', {})
         if auth0.get('enabled') and auth0.get('domain') and auth0.get('client_id'):
             ep = auth0_endpoints(auth0['domain'])
-            self._providers['auth0'] = self._build(auth0, ep, label="Auth0")
+            self._providers['auth0'] = self._build(
+                auth0, ep, label="Auth0", verified_email_default=True
+            )
 
         if self._providers:
             logger.info("Admin SSO enabled for providers: %s", ", ".join(sorted(self._providers)))
 
-    def _build(self, cfg: Dict[str, Any], ep: Dict[str, str], label: str) -> Dict[str, Any]:
+    def _build(
+        self,
+        cfg: Dict[str, Any],
+        ep: Dict[str, str],
+        label: str,
+        verified_email_default: bool,
+    ) -> Dict[str, Any]:
+        require_verified = cfg.get('require_verified_email')
+        if require_verified is None:
+            require_verified = verified_email_default
         return {
             "label": label,
+            "require_verified_email": bool(require_verified),
             "client_id": cfg['client_id'],
             "client_secret": cfg.get('client_secret') or None,
             "scopes": cfg.get('scopes') or DEFAULT_SCOPES,
@@ -195,12 +212,42 @@ class AdminSSOService:
             options={"require": ["exp", "iss", "aud", "sub"]},
         )
 
-    def is_admin(self, email: Optional[str], provider: str, subject: str) -> bool:
+    def requires_verified_email(self, provider: str) -> bool:
+        """Whether an ``email``-type allowlist match needs a verified address.
+
+        Unknown providers fail closed (verification required), so a caller that
+        somehow reaches here off the enabled-provider path can't match by email.
+        """
+        entry = self._providers.get(provider)
+        return True if entry is None else entry["require_verified_email"]
+
+    def is_admin(
+        self,
+        email: Optional[str],
+        provider: str,
+        subject: str,
+        email_verified: Optional[bool] = None,
+    ) -> bool:
         """True when the identity is on the admin allowlist.
 
-        Email is matched case-insensitively; the provider subject is matched
-        exactly (case-sensitive), since OIDC `sub` values are case-sensitive.
+        Email is matched case-insensitively, but only when the provider's
+        id_token actually vouches for the address: where the provider lets a
+        user self-assert an email (``require_verified_email``), an unverified
+        claim must not match, or anyone able to register an allowlisted address
+        at the IdP would be promoted to ``admin``.
+
+        The provider subject is matched exactly (case-sensitive), since OIDC
+        `sub` values are case-sensitive. It is IdP-assigned and unspoofable, so
+        it is never gated on email verification and is the stronger form to use
+        in ``admin_users``.
         """
         if email and email.strip().lower() in self._admin_emails:
-            return True
+            if not self.requires_verified_email(provider) or email_verified is True:
+                return True
+            logger.warning(
+                "Admin allowlist email match for %s rejected: %s is not a verified "
+                "address on this id_token (email_verified=%r). Use \"%s:%s\" in "
+                "admin_users to allowlist this identity by subject instead.",
+                provider, email, email_verified, provider, subject,
+            )
         return f"{provider}:{subject}" in self._admin_subjects

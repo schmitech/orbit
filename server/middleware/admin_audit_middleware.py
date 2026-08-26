@@ -112,6 +112,17 @@ _ROUTE_MAP: List[Tuple[str, str, str, str, str, Optional[str], Any]] = [
     ("PUT",    "/auth/blacklist/{rule_id}",           "auth.blacklist.update",   "UPDATE", "blacklist_rule", "path:rule_id",  ("pattern", "entry_type", "reason")),
     ("DELETE", "/auth/blacklist/{rule_id}",           "auth.blacklist.delete",   "DELETE", "blacklist_rule", "path:rule_id",  ()),
 
+    # ---- Identity allowlist (pre-clearing external logins) ----
+    # Same reasoning as the blacklist: the pattern *is* the event, since it says
+    # who was granted access rather than merely that a rule moved. Recording it
+    # is what lets an auditor answer "who approved this identity, and when".
+    #
+    # A deletion here is the security-relevant direction (it withdraws access),
+    # which is the reverse of the blacklist, so it is audited identically.
+    ("POST",   "/auth/allowlist",                     "auth.allowlist.create",   "CREATE", "allowlist_rule", "context",       ("pattern", "entry_type", "reason")),
+    ("PUT",    "/auth/allowlist/{rule_id}",           "auth.allowlist.update",   "UPDATE", "allowlist_rule", "path:rule_id",  ("pattern", "entry_type", "reason")),
+    ("DELETE", "/auth/allowlist/{rule_id}",           "auth.allowlist.delete",   "DELETE", "allowlist_rule", "path:rule_id",  ()),
+
     # ---- API keys ----
     ("POST",   "/admin/api-keys",                                   "admin.api_key.create",     "CREATE", "api_key", None,                  ("client_name", "adapter_name", "system_prompt_id", "notes")),
     ("PUT",    "/admin/api-keys/{api_key_id}",                      "admin.api_key.update",     "UPDATE", "api_key", "path:api_key_id",     ("client_name", "adapter_name", "notes")),

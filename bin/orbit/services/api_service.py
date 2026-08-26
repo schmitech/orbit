@@ -123,6 +123,45 @@ class ApiService:
         response.raise_for_status()
         return response.json()
     
+    # Identity allowlist (pre-clearing external Entra/Auth0 logins)
+    @handle_api_errors(operation_name="List allowlist rules", custom_errors={
+        403: "users.manage permission required to manage the identity allowlist"
+    })
+    def list_allowlist_rules(self) -> List[Dict[str, Any]]:
+        """List every identity allowlist rule, newest first."""
+        headers = self._get_auth_headers()
+        response = self.api_client.get("/auth/allowlist", headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    @handle_api_errors(operation_name="Add allowlist rule", custom_errors={
+        403: "users.manage permission required to manage the identity allowlist",
+        400: "Invalid or duplicate allowlist rule"
+    })
+    def add_allowlist_rule(self, pattern: str, entry_type: str,
+                           reason: Optional[str] = None) -> Dict[str, Any]:
+        """Pre-clear an identity pattern for external login."""
+        headers = self._get_auth_headers()
+        headers["Content-Type"] = "application/json"
+        response = self.api_client.post(
+            "/auth/allowlist", headers=headers,
+            json_data={"pattern": pattern, "entry_type": entry_type, "reason": reason},
+        )
+        response.raise_for_status()
+        return response.json()
+
+    @handle_api_errors(operation_name="Remove allowlist rule", custom_errors={
+        403: "users.manage permission required to manage the identity allowlist",
+        404: "Allowlist rule not found",
+        400: "This change would revoke your own access"
+    })
+    def delete_allowlist_rule(self, rule_id: str) -> Dict[str, Any]:
+        """Remove an allowlist rule, revoking the sessions it was clearing."""
+        headers = self._get_auth_headers()
+        response = self.api_client.delete(f"/auth/allowlist/{rule_id}", headers=headers)
+        response.raise_for_status()
+        return response.json()
+
     # User management
     @handle_api_errors(operation_name="List users", custom_errors={
         403: "Admin privileges required to list users"

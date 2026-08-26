@@ -74,6 +74,9 @@ class AuthService:
         # User blacklist service - built in initialize()
         self.blacklist = None
 
+        # External-identity allowlist (pre-clearing) - built in initialize()
+        self.allowlist = None
+
         # Initialize state
         self._initialized = False
         self.users_collection = None
@@ -116,6 +119,16 @@ class AuthService:
             unique=True,
         )
 
+        # Pre-clearing of external identities. Same index rationale as above.
+        from services.user_allowlist_service import UserAllowlistService
+        self.allowlist = UserAllowlistService(self.config, self.database)
+        await self.database.create_index(
+            self.allowlist.collection_name,
+            [("entry_type", 1), ("pattern", 1)],
+            unique=True,
+        )
+        await self._report_allowlist_posture()
+
         # Set initialized flag
         self._initialized = True
 
@@ -140,6 +153,67 @@ class AuthService:
         self._oidc = validator
         self._oidc_enabled = True
         self._oidc_default_role = providers_config.get('default_role', 'user')
+
+        # A default_role with any permission at all hands every external identity
+        # admin-panel access at first login, which is rarely what's intended and
+        # is a one-word change away from a wide-open panel. It can be deliberate,
+        # so warn rather than refuse.
+        from auth.rbac import permissions_for_roles
+        if permissions_for_roles([self._oidc_default_role]):
+            logger.warning(
+                "auth.providers.default_role is %r, which carries admin-panel "
+                "permissions: EVERY externally authenticated user will be granted "
+                "them at first login. Use a role with no permissions (e.g. 'user') "
+                "unless this is intended.",
+                self._oidc_default_role,
+            )
+
+    async def _report_allowlist_posture(self) -> None:
+        """Log what the allowlist mode means for the users already in the database.
+
+        Enabling deny-by-default on a running deployment cuts off every external
+        user no rule covers. An operator should learn that from a startup line
+        naming the count, not from support tickets.
+        """
+        if not self._oidc_enabled or not self.allowlist:
+            return
+
+        if not self.allowlist.enforcing:
+            logger.warning(
+                "auth.providers.access_control is 'open': any identity an enabled "
+                "provider authenticates is provisioned an ORBIT account. Set it to "
+                "'allowlist' to require pre-clearing."
+            )
+            return
+
+        try:
+            external = [
+                u for u in await self.database.find_many(
+                    self.users_collection_name, {}, limit=10000
+                )
+                if u.get("provider")
+            ]
+            denied = [
+                u for u in external
+                if not await self.allowlist.is_user_cleared(u)
+            ]
+        except Exception as e:
+            logger.warning(f"Could not evaluate allowlist coverage at startup: {str(e)}")
+            return
+
+        if denied:
+            logger.warning(
+                "Identity allowlist is enforcing: %d of %d existing external users "
+                "match no rule and can no longer sign in. Run 'orbit user allowlist "
+                "seed-from-existing' to grandfather them, or add rules for the ones "
+                "that should keep access.",
+                len(denied), len(external),
+            )
+        else:
+            logger.info(
+                "Identity allowlist is enforcing (%d existing external users, all cleared)",
+                len(external),
+            )
 
     def _hash_password(self, password: str, salt: Optional[bytes] = None) -> Tuple[bytes, bytes]:
         """
@@ -344,6 +418,23 @@ class AuthService:
             return True
         return False
 
+    async def _is_cleared(self, user: Dict[str, Any]) -> bool:
+        """Return whether an external user is pre-cleared by the identity allowlist.
+
+        Local password users carry no ``provider`` and are never gated, so the
+        bootstrap admin can always sign in no matter what rules exist. Returns
+        True when the allowlist isn't initialized yet, matching the blacklist
+        wrapper's handling of that case.
+        """
+        if not self.allowlist or not user:
+            return True
+        if await self.allowlist.is_user_cleared(user):
+            return True
+        logger.warning(
+            f"Denied external user {user.get('username')}: not on the identity allowlist"
+        )
+        return False
+
     async def verify_credentials(self, username: str, password: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """
         Verify username/password without creating a session token.
@@ -520,6 +611,11 @@ class AuthService:
                 return False, None
             if await self._is_blacklisted(user):
                 return False, None
+            # Re-checked per request, not just at provisioning: removing an
+            # allowlist rule must deny an already-provisioned user, and does so
+            # within the rule cache's TTL.
+            if not await self._is_cleared(user):
+                return False, None
             return True, self._user_info(user)
 
         try:
@@ -554,6 +650,14 @@ class AuthService:
                 return False, None
 
             if await self._is_blacklisted(user):
+                return False, None
+
+            # Also enforced on this branch, not just the JWT one. An admin-SSO
+            # login mints an *opaque* session, so a callback still in flight when
+            # a rule is removed - or one served by a worker whose rule cache is
+            # stale - can create a session after _revoke_uncleared has run. Only
+            # a per-request check makes rule removal reliable for those.
+            if not await self._is_cleared(user):
                 return False, None
 
             return True, self._user_info(user)
@@ -781,6 +885,19 @@ class AuthService:
             ):
                 logger.warning(
                     f"Refused to provision blacklisted external user: {username}"
+                )
+                return None
+
+            # Pre-clearing: under `access_control: allowlist` an unknown subject
+            # gets no row at all, so an identity the operator never approved
+            # never becomes an ORBIT user on any surface. Evaluated after the
+            # blacklist so a deny rule always wins.
+            if self.allowlist and not await self.allowlist.is_cleared(
+                email=email, username=username
+            ):
+                logger.warning(
+                    f"Refused to provision external user not on the identity "
+                    f"allowlist: {username} (email={email!r})"
                 )
                 return None
 

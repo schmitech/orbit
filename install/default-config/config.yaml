@@ -190,6 +190,15 @@ auth:
   blacklist:
     cache_ttl: 30                   # Seconds a worker caches blacklist rules (0 = always re-read)
 
+  # Identity allowlist — pre-clears external (Entra/Auth0) identities before
+  # ORBIT will provision them an account. Like the blacklist, rules live in the
+  # database and are managed from the admin panel's Users tab ("Allowed
+  # Identities"), GET/POST/PUT/DELETE /auth/allowlist, or `orbit user allowlist`.
+  # This setting only bounds the per-worker cache. See
+  # auth.providers.access_control below for what enforcement actually means.
+  allowlist:
+    cache_ttl: 30                   # Seconds a worker caches allowlist rules (0 = always re-read)
+
   # External identity providers (OIDC / OAuth2). Optional — the built-in
   # username/password auth above always works. When enabled, ORBIT validates
   # access-token JWTs presented as `Authorization: Bearer <jwt>` by clients
@@ -198,12 +207,34 @@ auth:
   providers:
     enabled: false                 # Master switch for external-provider bearer-token validation
     default_role: "user"           # Role assigned to users provisioned on first login
+    # How external identities gain access once a provider is enabled:
+    #   allowlist (default) - deny by default. An identity must match an
+    #     allowlist rule (or an admin_sso.admin_users entry) before ORBIT will
+    #     provision it an account, on any surface. An empty rule set admits
+    #     nobody, which is what makes this fail closed.
+    #   open - any identity an enabled provider authenticates is provisioned.
+    #     Appropriate only when the IdP itself is the access control (e.g. a
+    #     single-tenant directory with no guest accounts); unsafe against a
+    #     tenant with open signup or social connections.
+    # Inert while `enabled` is false — with no provider there are no external
+    # identities to gate. Enabling this on a deployment that already has
+    # external users denies every one no rule covers; the server logs the count
+    # at startup, and `orbit user allowlist seed-from-existing` grandfathers the
+    # current population. Keep default_role a role with no permissions ('user'):
+    # anything else grants every external identity admin-panel access at first
+    # login, and the server warns at startup if it does.
+    access_control: allowlist
     # Microsoft Entra ID (Azure AD)
     entra:
       enabled: false
       tenant_id: ${ORBIT_AUTH_ENTRA_TENANT_ID:-}
       client_id: ${ORBIT_AUTH_ENTRA_CLIENT_ID:-}       # Expected token audience (this app's client id)
       client_secret: ${ORBIT_AUTH_ENTRA_CLIENT_SECRET:-}  # Optional; only for admin-panel SSO confidential clients
+      # Require a provider-verified email before an admin_sso.admin_users *email*
+      # entry may match this provider. False for Entra: its id_tokens carry no
+      # `email_verified` claim and the address comes from the directory rather
+      # than user self-assertion. "provider:subject" entries are never affected.
+      require_verified_email: false
       # Optional: Entra access tokens include `preferred_username` by default, so
       # this is rarely needed. Set only if a tenant's token shape omits it and you
       # add a custom claim via an Entra optional claim / App Manifest change.
@@ -215,6 +246,12 @@ auth:
       audience: ${ORBIT_AUTH_AUTH0_AUDIENCE:-}         # API identifier = expected token audience
       client_id: ${ORBIT_AUTH_AUTH0_CLIENT_ID:-}       # Required for admin-panel SSO (id_token audience)
       client_secret: ${ORBIT_AUTH_AUTH0_CLIENT_SECRET:-}  # Optional; only for admin-panel SSO confidential clients
+      # Require a provider-verified email before an admin_sso.admin_users *email*
+      # entry may match. Keep true: Auth0 connections (database signup, some
+      # social providers) let a user self-assert an address, so without this
+      # anyone able to register an allowlisted email at the IdP would be granted
+      # admin at login. "provider:subject" entries are never affected.
+      require_verified_email: true
       # Optional: Auth0 access tokens issued against a custom API audience carry
       # no email claim by default (unlike Entra). To populate user email on JIT
       # provisioning, add an Auth0 Action (Actions > Flows > Login) that injects

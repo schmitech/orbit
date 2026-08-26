@@ -2,11 +2,11 @@
 
 ## Overview
 
-ORBIT's authentication leverages PBKDF2-SHA256 (600k iterations) for password security and cryptographically secure bearer tokens for session management. The modular architecture integrates MongoDB for persistent session storage, implements permission-based role-based access control (RBAC), and provides both programmatic and CLI interfaces for comprehensive user lifecycle management.
+ORBIT's authentication leverages PBKDF2-SHA256 (600k iterations) for password security and cryptographically secure bearer tokens for session management. The modular architecture persists sessions to the configured internal backend (SQLite, PostgreSQL, or MongoDB), implements permission-based role-based access control (RBAC), and provides both programmatic and CLI interfaces for comprehensive user lifecycle management.
 
 RBAC itself — the role/permission registry, built-in roles (`admin`, `operator`, `auditor`, `analyst`, `user-manager`, `user`), and how permissions gate individual admin routes — is documented in detail in [rbac-architecture.md](rbac-architecture.md). This document covers authentication mechanics (password hashing, tokens, sessions, credential storage, OIDC/SSO); the schema and endpoints below show the role/roles fields authentication produces, but defer to rbac-architecture.md for what each role/permission actually grants.
 
-In addition to this built-in username/password system, ORBIT can **validate access tokens issued by external identity providers** — Microsoft Entra ID (Azure AD) and Auth0 — presented as bearer tokens. This lets browser clients such as `orbitchat` sign users in via OAuth 2.0 / OIDC and call the ORBIT API with the resulting JWT, while the built-in admin/CLI login continues to work unchanged. See [External Identity Providers](#external-identity-providers-oidc).
+In addition to this built-in username/password system, ORBIT can **validate access tokens issued by external identity providers** — Microsoft Entra ID (Azure AD) and Auth0 — presented as bearer tokens. Which external identities are allowed in at all is governed separately by the [identity allowlist](#pre-clearing-external-identities-allowlist), which denies by default. This lets browser clients such as `orbitchat` sign users in via OAuth 2.0 / OIDC and call the ORBIT API with the resulting JWT, while the built-in admin/CLI login continues to work unchanged. See [External Identity Providers](#external-identity-providers-oidc).
 
 ## Architecture
 
@@ -23,19 +23,39 @@ In addition to this built-in username/password system, ORBIT can **validate acce
          │                       │                       │
          v                       v                       v
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│                 │    │                 │    │                 │
-│ Token Storage   │    │  FastAPI        │    │   MongoDB       │
-│ (~/.orbit/.env) │    │  Middleware     │    │  Collections    │
+│                 │    │                 │    │  Database       │
+│ Token Storage   │    │  FastAPI        │    │  Service        │
+│ (keyring / file)│    │  Middleware     │    │  (abstraction)  │
 │                 │    │                 │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
+                                                       │
+                                                       v
+                                    ┌──────────────────────────────────┐
+                                    │  internal_services.backend.type  │
+                                    ├──────────┬───────────┬───────────┤
+                                    │  sqlite  │ postgres  │  mongodb  │
+                                    └──────────┴───────────┴───────────┘
+                                       users · sessions · user_blacklist
+                                             · user_allowlist
 ```
+
+`AuthService` never talks to a specific database. It holds a `DatabaseService`
+built by `create_database_service()` (`server/services/database_service.py`) and
+issues backend-agnostic operations against *collection names* — so the same
+authentication code runs unchanged on SQLite, PostgreSQL, or MongoDB, selected
+by `internal_services.backend.type`. Read "collection" throughout this document
+as "collection or table" depending on that setting.
+
+Per-backend physical schemas: [`docs/sqlite-schema.md`](sqlite-schema.md),
+[`docs/postgres-schema.md`](postgres-schema.md). MongoDB is schemaless, so the
+documents below *are* its schema.
 
 ### Data Flow
 
 1. **Authentication Request**: Client sends credentials to API
-2. **Credential Verification**: Service validates against MongoDB
+2. **Credential Verification**: Service validates against the configured backend
 3. **Token Generation**: Cryptographically secure token created
-4. **Session Storage**: Token and user info stored in MongoDB
+4. **Session Storage**: Token and user info persisted to the configured backend
 5. **Token Response**: Bearer token returned to client
 6. **Token Persistence**: CLI stores token in secure storage (keyring/file) and loads into session variable
 7. **Request Authorization**: Subsequent requests include bearer token from session variable
@@ -86,12 +106,29 @@ A user may hold multiple roles (e.g. `["operator", "auditor"]`); effective permi
 }
 ```
 
+### User Allowlist Collection
+
+Same shape as the blacklist, in its own collection so a pattern can appear in
+both rule sets (deny still wins).
+
+```javascript
+{
+  "_id": ObjectId("..."),
+  "pattern": "*@corp.example.com",  // Lowercased; * and ? are wildcards
+  "entry_type": "email",            // email | user_id | username
+  "reason": "Employees",
+  "created_by": "admin",
+  "created_at": ISODate("2026-08-26T12:00:00Z")
+}
+```
+
 ### Indexes
 
 - **users.username**: Unique index for fast user lookup
 - **sessions.token**: Unique index for token validation
 - **sessions.expires**: TTL index for automatic session cleanup
 - **user_blacklist.(entry_type, pattern)**: Unique index preventing duplicate rules
+- **user_allowlist.(entry_type, pattern)**: Unique index preventing duplicate rules
 
 ## Security Features
 
@@ -118,7 +155,7 @@ encoded_password = base64.b64encode(salt + dk).decode('utf-8')
 - **Token Length**: 64 hexadecimal characters (256 bits of entropy)
 - **Token Type**: Opaque bearer tokens (not JWT)
 - **Entropy Source**: Python's `secrets` module (cryptographically secure)
-- **Session Storage**: Server-side in MongoDB with indexed lookups
+- **Session Storage**: Server-side in the configured backend, with an indexed unique lookup on `token`
 - **No Token Refresh**: New login required after expiration
 
 ### Blacklisting Users
@@ -200,6 +237,125 @@ pick up a new rule within the TTL. Set `cache_ttl: 0` to re-read on every
 authentication. Session revocation is not subject to this delay, so the urgent
 case is handled immediately regardless. If the database is unreachable, the
 last known rule set is retained rather than failing open to an empty one.
+
+### Pre-clearing external identities (allowlist)
+
+The blacklist above is a *deny*-list, and on its own it leaves external logins in
+an untenable posture. ORBIT just-in-time provisions a local user for any subject
+an enabled provider will authenticate, so the effective rule is "everyone the
+IdP will authenticate is an ORBIT user, minus whoever we explicitly blocked". On
+an Auth0 tenant with open signup or social connections that set is effectively
+the internet, and blocking abusers one subject at a time is whack-a-mole when
+the IdP mints new ones freely.
+
+The **identity allowlist** inverts it. Under
+`auth.providers.access_control: allowlist` (the default), an external subject
+gains no ORBIT identity at all — no `users` row, no session, on any surface —
+unless it matches an allowlist rule.
+
+```yaml
+auth:
+  providers:
+    access_control: allowlist   # allowlist (default) | open
+```
+
+- **`allowlist`** — the identity must be pre-cleared. **An empty rule set admits
+  nobody**, which is what makes the control fail closed.
+- **`open`** — the previous behavior: any identity an enabled provider
+  authenticates is provisioned. Appropriate only when the IdP *is* the access
+  control (e.g. a single-tenant Entra directory with no guest accounts).
+
+Rules use the same storage, wildcard matching, `entry_type` values, caching, and
+management surfaces as blacklist rules — see [Blacklisting Users](#blacklisting-users)
+for the pattern semantics, which are identical. What differs:
+
+| | Blacklist | Allowlist |
+|---|---|---|
+| Empty rule set | blocks nobody | admits nobody (when enforcing) |
+| Applies to | every identity, local and external | external identities only |
+| Adding a rule | denies; revokes matching sessions | grants; revokes nothing |
+| Removing a rule | restores access; no revocation | **withdraws** access; revokes sessions |
+| Self-lockout guard | on create and edit | on delete and a narrowing edit |
+
+**Local users are never gated.** Only identities carrying a `provider` are
+checked, so the bootstrap `admin` and every password account keep working no
+matter what is (or isn't) in the allowlist. Turning enforcement on cannot lock
+you out of the panel via a local account.
+
+**`admin_users` entries are implicitly cleared.** An identity listed in
+`auth.providers.admin_sso.admin_users` (by email or `provider:subject`) does not
+also need an allowlist rule — that listing is already an approval decision, and
+requiring it to be restated in two places is how operators lock themselves out.
+
+**Deny wins.** The blacklist is evaluated first, so a deny rule always beats an
+allow rule covering the same identity. This is what lets you clear a whole
+domain (`*@corp.example.com`) and still block one person in it.
+
+**Enforcement points.** Clearance is checked where an identity is created *and*
+on every request:
+
+- `_find_or_create_external_user` — the primary control. A non-cleared subject
+  never gets a `users` row, so it never becomes an ORBIT identity on inference,
+  files, voice, A2A, or the admin panel.
+- `validate_token` — re-checked per request on **both** token paths, so
+  *removing* a rule denies an already-provisioned user within
+  `auth.allowlist.cache_ttl` seconds. The opaque-session path matters as much as
+  the JWT one: admin-panel SSO mints an opaque `dashboard_token`, so a callback
+  still in flight when a rule is removed (or one served by a worker whose rule
+  cache is stale) can create a session *after* revocation has run. Only the
+  per-request check makes removal reliable for those.
+- The admin SSO callback reports a distinct `not_cleared` error, so "nobody
+  pre-cleared this identity" is distinguishable from "this identity is cleared
+  but holds no admin-panel role" — different problems with different fixes.
+
+**Wildcard-only patterns are rejected**, as they are for the blacklist. "Clear
+everyone" is a mode, not a rule: set `access_control: open`.
+
+#### Migrating an existing deployment
+
+Enabling enforcement denies every existing external user that no rule covers.
+The server names the count at startup rather than leaving you to find out from
+support requests:
+
+```
+Identity allowlist is enforcing: 47 of 51 existing external users match no rule
+and can no longer sign in. Run 'orbit user allowlist seed-from-existing' ...
+```
+
+To grandfather the current population in one step:
+
+```bash
+orbit user allowlist seed-from-existing --dry-run   # review first
+orbit user allowlist seed-from-existing
+```
+
+It creates one `username`-type rule per existing external user, printing every
+identity and asking for confirmation — signing in once is not an approval
+decision, so this stays an explicit, reviewed action rather than anything
+automatic at startup.
+
+#### Managing rules
+
+Admin panel: Users tab → **Allowed Identities**, beside Blocked Identities.
+
+```bash
+orbit user allowlist list
+orbit user allowlist add --pattern '*@corp.example.com' --entry-type email \
+  --reason 'Employees'
+orbit user allowlist add --pattern 'entra:00000000-...' --entry-type username
+orbit user allowlist remove --rule-id 507f1f77bcf86cd799439011
+```
+
+For external users the stored username is `{provider}:{subject}`, so
+`entry_type: username` with `auth0:abc*` clears by provider subject while
+`entry_type: email` with `*@corp.example.com` clears by email domain.
+
+**Audit trail.** Mutations are recorded as `auth.allowlist.create`,
+`auth.allowlist.update`, and `auth.allowlist.delete` against resource type
+`allowlist_rule`, with the same pattern-recording rationale as the blacklist —
+the ledger answers *who was granted access, and by whom*. A deletion is the
+security-relevant direction here (it withdraws access), the reverse of the
+blacklist.
 
 ### Requiring an authenticated user
 
@@ -288,7 +444,7 @@ deliberately, after confirming your clients send a bearer token.
 1. **Entropy Collection**: 32 bytes from system CSPRNG
 2. **Encoding**: Hexadecimal encoding for URL-safe tokens
 3. **Uniqueness**: Verified against existing sessions
-4. **Storage**: Indexed in MongoDB for O(1) lookups
+4. **Storage**: Indexed in the configured backend for O(1) lookups
 
 ### Security Considerations
 
@@ -299,8 +455,12 @@ deliberately, after confirming your clients send a bearer token.
 
 ### Additional Security Measures
 
-- **MongoDB Connection Security**: Supports TLS/SSL encrypted connections
-- **Exception Handling**: Specific handling for MongoDB errors to prevent info leakage
+- **Database Connection Security**: TLS/SSL supported on every backend that
+  has a network connection (MongoDB `tls`, PostgreSQL `sslmode`); SQLite is a
+  local file, so secure it with filesystem permissions instead
+- **Exception Handling**: Backend errors are caught as the abstraction's own
+  `DatabaseConnectionError`/`DatabaseTimeoutError`/`DatabaseOperationError`
+  types rather than surfaced raw, so driver internals never leak into a response
 - **Token Isolation**: Each token is unique and cannot be derived from user info
 - **No Password History**: Previous passwords are not stored
 - **Secure Defaults**: Default admin password must be changed on first use
@@ -308,7 +468,7 @@ deliberately, after confirming your clients send a bearer token.
 ### Session Management
 
 - **Bearer token authentication**: Standard HTTP authorization
-- **Stateful sessions**: Server-side session storage in MongoDB
+- **Stateful sessions**: Server-side session storage in the configured backend
 - **Session isolation**: Each login creates a new session
 - **Forced logout**: Password changes invalidate all sessions
 - **Graceful expiration**: Expired tokens automatically cleaned up
@@ -501,6 +661,42 @@ if the new `(entry_type, pattern)` collides with a *different* existing rule
 #### DELETE /auth/blacklist/{rule_id}
 Remove a rule (requires `users.manage`). Restores the ability to authenticate;
 does not restore sessions that were revoked when the rule was added.
+
+### Allowlist Endpoints
+
+Pattern-based pre-clearing of external identities. See
+[Pre-clearing external identities](#pre-clearing-external-identities-allowlist)
+for the semantics. Request and response bodies match the blacklist endpoints.
+
+#### GET /auth/allowlist
+List every rule, newest first (requires `users.manage`).
+
+#### POST /auth/allowlist
+Pre-clear an identity pattern (requires `users.manage`).
+
+**Request:**
+```json
+{"pattern": "*@corp.example.com", "entry_type": "email", "reason": "Employees"}
+```
+
+Adding a rule only ever grants access, so nothing is revoked and no
+`matched_users`/`revoked_sessions` counts are reported. Returns 400 on the same
+validation failures as the blacklist (empty, wildcard-only, over 320 characters,
+or a duplicate).
+
+#### PUT /auth/allowlist/{rule_id}
+Edit a rule in place (requires `users.manage`). Narrowing a rule *withdraws*
+access, so this revokes sessions for external users the new rule set no longer
+clears and reports `matched_users` / `revoked_sessions` accordingly. Returns 404
+for an unknown rule id, and 400 if the change would revoke the requesting
+administrator's own clearance.
+
+#### DELETE /auth/allowlist/{rule_id}
+Remove a rule (requires `users.manage`). Unlike deleting a blacklist rule, this
+**withdraws** access: users cleared only by this rule are signed out at once
+rather than at token expiry, and the response reports the counts. Returns 400 if
+it would revoke the caller's own clearance — a local password administrator is
+never gated, so that guard only bites an external admin.
 
 ### Password Management Endpoints
 
@@ -970,6 +1166,17 @@ orbit user set-roles --user-id 507f1f77bcf86cd799439011 --roles operator,auditor
 orbit user delete --user-id 507f1f77bcf86cd799439011
 ```
 
+#### Manage the Identity Allowlist
+```bash
+orbit user allowlist list
+orbit user allowlist add --pattern '*@corp.example.com' --entry-type email
+orbit user allowlist remove --rule-id 507f1f77bcf86cd799439011
+
+# Grandfather existing external users when enabling enforcement
+orbit user allowlist seed-from-existing --dry-run
+orbit user allowlist seed-from-existing
+```
+
 #### Reset User Password
 ```bash
 orbit user reset-password --user-id 507f1f77bcf86cd799439011 --password newpass123
@@ -1000,19 +1207,43 @@ auth:
   credential_storage: keyring
 ```
 
-### MongoDB Settings
+### Backend Settings
+
+Authentication reads and writes through whichever backend
+`internal_services.backend.type` selects:
+
+```yaml
+internal_services:
+  backend:
+    type: "sqlite"                     # sqlite | postgres | mongodb
+    sqlite:
+      database_path: "orbit.db"
+```
+
+On the SQL backends every table name is fixed (`users`, `sessions`,
+`user_blacklist`, `user_allowlist`). On MongoDB, only the `users` and
+`sessions` collections are renameable — the two rule collections are
+constants (`UserBlacklistService.COLLECTION` / `UserAllowlistService.COLLECTION`)
+and are not configurable on any backend.
+
+#### MongoDB Settings
 
 ```yaml
 internal_services:
   mongodb:
-    # Collection names
+    host: ${INTERNAL_SERVICES_MONGODB_HOST}
+    port: ${INTERNAL_SERVICES_MONGODB_PORT}
+    database: ${INTERNAL_SERVICES_MONGODB_DB}
+    username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
+    password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
+    # Collection names (MongoDB only)
     users_collection: "users"
     sessions_collection: "sessions"
-    
-    # Connection settings
-    connection_string: "mongodb://localhost:27017"
-    database_name: "orbit"
 ```
+
+> If you rename these, note that session revocation reads the *configured*
+> names — a rule write reporting `revoked_sessions: 0` on a renamed deployment
+> was a bug, fixed by resolving the names the same way `AuthService` does.
 
 ## External Identity Providers (OIDC)
 
@@ -1029,13 +1260,14 @@ For a JWT, ORBIT:
 
 1. Reads the unverified `iss` claim only to select the matching provider (routing).
 2. Fetches the provider's signing key from its JWKS endpoint (cached in memory) and fully verifies the token: **RS256** signature, `iss`, `aud`, and `exp` (60s leeway). `sub` is required.
-3. **Just-in-time provisions** a local user on first login, keyed by subject. The stored username is `"{provider}:{sub}"` (e.g. `entra:00000000-...` or `auth0|abc123`), with the email captured for display. On later logins the existing user is reused.
+3. **Just-in-time provisions** a local user on first login, keyed by subject — but only if the identity is cleared by the [identity allowlist](#pre-clearing-external-identities-allowlist), which by default requires an explicit rule. An uncleared subject is rejected and no account is created. The stored username is `"{provider}:{sub}"` (e.g. `entra:00000000-...` or `auth0|abc123`), with the email captured for display. On later logins the existing user is reused.
 4. Returns the same user context (`id`, `username`, `role`, `roles`, `permissions`, `active`) as a normal login, so RBAC, admin routes, and audit logging all work identically.
 
 Any invalid, expired, mis-issued, or wrong-audience token is rejected (401) — the validator fails closed and never raises.
 
 Notes:
-- **Role assignment**: a JIT-provisioned user receives `roles: [auth.providers.default_role]` **at creation only**. Roles are managed in ORBIT thereafter (e.g. `orbit user set-roles`) and are **not** overwritten on subsequent logins.
+- **Pre-clearing**: by default (`access_control: allowlist`) an external identity must match an allowlist rule before any of this happens. See [Pre-clearing external identities](#pre-clearing-external-identities-allowlist).
+- **Role assignment**: a JIT-provisioned user receives `roles: [auth.providers.default_role]` **at creation only**. Keep this a role with no permissions (`user`); anything else grants every external identity admin-panel access at first login, and the server logs a warning at startup if it does. Roles are managed in ORBIT thereafter (e.g. `orbit user set-roles`) and are **not** overwritten on subsequent logins.
 - **External users cannot password-login**: they have no usable local password. `orbit login` and `change-password` reject them.
 - **Deactivation is honored**: deactivating a JIT-provisioned user blocks re-login; it is not silently reactivated.
 
@@ -1058,6 +1290,7 @@ auth:
   # ... existing username/password settings ...
   providers:
     enabled: false                 # Master switch for external-provider validation
+    access_control: allowlist      # allowlist (deny-by-default) | open
     default_role: "user"           # Role assigned to users provisioned on first login
     entra:
       enabled: false
@@ -1112,7 +1345,7 @@ The bearer-token validation above is for API clients that already hold a provide
 1. The login page shows a button per enabled provider linking to `GET /admin/auth/{provider}/login`.
 2. That route generates `state`, a PKCE `code_verifier`/`code_challenge`, and a `nonce`, stashes them in a short-lived httponly cookie (`admin_sso_flow`, ~5 min, `SameSite=Lax`), and redirects to the provider's authorize endpoint.
 3. The provider redirects back to `GET /admin/auth/{provider}/callback`. ORBIT verifies `state`, exchanges the `code` at the token endpoint, and validates the returned **id_token** (RS256 via JWKS, `aud == client_id`, `iss`, `exp`, and matching `nonce`).
-4. The user's email/subject is checked against the **admin allowlist** (`admin_users`). If they match, they are JIT-provisioned (or re-promoted) as `admin`. If they don't match, ORBIT still JIT-provisions/looks up the account and grants a session if it already holds *any* admin-panel role (assigned manually via the Users tab or `orbit user set-roles`) — otherwise the login page shows an error. See "Admin Panel SSO" below for the full allowlist-vs-manual-role interaction, including why a role assigned to an allowlisted identity won't stick.
+4. The user's email/subject is checked against the **admin allowlist** (`admin_users`); an email entry matches only if the provider verified the address (see [Email verification and the shape of `admin_users` entries](#email-verification-and-the-shape-of-admin_users-entries)). If they match, they are JIT-provisioned (or re-promoted) as `admin`. If they don't match, the identity must be cleared by the [identity allowlist](#pre-clearing-external-identities-allowlist) — an uncleared identity is refused outright, with no account created. A cleared identity is JIT-provisioned/looked up and granted a session if it already holds *any* admin-panel role (assigned manually via the Users tab or `orbit user set-roles`); otherwise the login page shows an error. See "Admin Panel SSO" below for the full allowlist-vs-manual-role interaction, including why a role assigned to an allowlisted identity won't stick.
 
 **Configuration**
 
@@ -1138,11 +1371,46 @@ auth:
         - "entra:00000000-0000-0000-0000-000000000000"
 ```
 
+#### Email verification and the shape of `admin_users` entries
+
+An `admin_users` entry is either an **email** or a **`provider:subject`** pair, and
+the two are not equally strong.
+
+A `provider:subject` entry is matched against the id_token's `sub` claim, which the
+IdP assigns and a user cannot choose. **Prefer this form.**
+
+An email entry is matched against the token's email claim, and on some providers a
+user can *self-assert* that address — an Auth0 database-signup connection, or a
+social connection that doesn't verify. Left unchecked, anyone who could register an
+allowlisted address at the IdP would be promoted to `admin` at first login. ORBIT
+therefore matches an email entry only when the id_token vouches for the address:
+
+```yaml
+auth:
+  providers:
+    auth0:
+      require_verified_email: true    # default for Auth0
+    entra:
+      require_verified_email: false   # default for Entra
+```
+
+With the flag on, an email entry matches only if the id_token carries
+`email_verified: true`; a `false` **or absent** claim does not match, and the denial
+is logged with the `provider:subject` you could allowlist instead. The flag never
+affects `provider:subject` entries.
+
+The defaults differ because the providers differ. Auth0 emits `email_verified` and
+its connections may allow self-asserted addresses, so it defaults to `true`. Entra
+id_tokens carry no `email_verified` claim at all, and the address comes from the
+directory rather than from the user, so requiring it there would break a path that
+is not attacker-controlled; it defaults to `false`. Set it explicitly if your tenant
+differs — e.g. `true` on Entra only if you inject a verified-email optional claim.
+
 Additional environment variables: `ORBIT_AUTH_AUTH0_CLIENT_ID`, `ORBIT_AUTH_ENTRA_CLIENT_SECRET`, `ORBIT_AUTH_AUTH0_CLIENT_SECRET`, `ORBIT_ADMIN_BASE_URL`.
 
 - **`client_secret` is optional.** With PKCE alone the flow works as a public client (you can reuse an SPA app registration). Supplying a secret upgrades the code exchange to a confidential client.
 - **Full admin access is granted only by `admin_users`.** A matching identity is created/promoted to `admin` at every login (this overrides any role assigned locally). There's no need for a bootstrap password admin.
-- **Non-matching identities aren't automatically rejected.** A user not on `admin_users` can still sign into the Admin Panel via SSO if an admin has assigned them a scoped role (`operator`, `auditor`, `analyst`, `user-manager`) via the Users tab or `orbit user set-roles` — that role is preserved across logins. Only an identity with no admin-panel role at all (the default `user` role for a first-time SSO login) is rejected.
+- **Non-matching identities aren't automatically rejected — but they must still be pre-cleared.** A user not on `admin_users` can sign into the Admin Panel via SSO only if *both* hold: their identity is cleared by the [identity allowlist](#pre-clearing-external-identities-allowlist), and an admin has assigned them a scoped role (`operator`, `auditor`, `analyst`, `user-manager`) via the Users tab or `orbit user set-roles` — that role is preserved across logins. The two failures are reported distinctly: an identity no allowlist rule covers gets `not_cleared` (and no account is created for it at all), while a cleared identity with no admin-panel role gets `not_authorized`.
 
 > **Troubleshooting: "I changed this SSO user's role but it keeps reverting to admin."** This happens when the identity (by email or `provider:subject`) is still listed in `admin_users` — the allowlist is authoritative and re-promotes to `admin` on *every* login, overriding anything set in the Users tab. To make a demotion stick, remove the identity from `admin_users` in `config/config.yaml` and reload/restart the server; the role you assigned locally (e.g. `analyst`) will then take effect on their next SSO login. Make sure at least one other path to full admin remains available (another allowlisted identity, or the local bootstrap `admin` account) before removing the only allowlisted identity.
 
@@ -1158,6 +1426,7 @@ For Auth0, add these to the application's **Allowed Callback URLs**; for Entra, 
 **Security notes**
 
 - `state` (CSRF), PKCE `code_challenge` (S256), and `nonce` (replay) are all enforced; the flow secrets live only in a short-lived httponly cookie.
+- An `admin_users` **email** entry matches only a provider-verified address, so a self-asserted email cannot be used to claim an allowlisted admin identity. `provider:subject` entries are unspoofable and always match.
 - The id_token is validated against `client_id` as audience (distinct from the API-audience used for bearer access tokens), plus issuer, expiry, and nonce; validation fails closed.
 - Buttons are plain links — no client-side JS SDK is loaded, so the admin panel's Content-Security-Policy is unaffected.
 
@@ -1418,7 +1687,12 @@ orbit logout
 
 ### Session Monitoring
 
-Monitor active sessions in MongoDB:
+The queries below are MongoDB shell syntax. On SQLite/PostgreSQL the same
+data lives in the `sessions` and `users` tables — see
+[`docs/sqlite-schema.md`](sqlite-schema.md) — so translate to
+`SELECT count(*) FROM sessions WHERE expires > CURRENT_TIMESTAMP`, and so on.
+
+Monitor active sessions:
 
 ```javascript
 // Count active sessions
