@@ -796,7 +796,32 @@ server {
         proxy_read_timeout 3600s;
     }
 
-    # Try ORBIT first for everything, fall back to orbitchat on 404.
+    # orbitchat's own API surface — /api/*. This MUST go to orbitchat (5173),
+    # never to ORBIT directly. orbitchat's Express proxy (bin/orbitchat.js) is
+    # what injects the real X-API-Key server-side before forwarding to ORBIT;
+    # the browser never has that key. If /api/* reaches ORBIT directly, its
+    # auth middleware rejects the request with 401 *before* route matching —
+    # so the ORBIT-first/404-fallback trick below never gets a chance to
+    # fall back to orbitchat, and every /api/* call (feedback, file upload,
+    # chat, threads) fails with an authentication error instead of 404.
+    location /api/ws/ {
+        proxy_pass http://127.0.0.1:5173;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600s;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:5173;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Try ORBIT first for everything else, fall back to orbitchat on 404.
     # ORBIT owns many top-level paths beyond /health and /admin — /auth,
     # /v1, /mcp, /static, plus optional /a2a, /metrics, /files, /voice
     # routers — enumerating them in a whitelist regex is fragile and breaks
