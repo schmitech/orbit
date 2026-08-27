@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.0] - 2026-08-27
 
 ### Breaking Changes
 - **External Identity Allowlist**: External Entra ID and Auth0 identities are now deny-by-default when `auth.providers.enabled` is on: `auth.providers.access_control` defaults to `allowlist`. Pre-clear each identity or pattern with an allowlist rule (or `admin_users`), grandfather reviewed existing identities with `orbit user allowlist seed-from-existing`, or explicitly set `access_control: open` to retain the prior IdP-only admission model.
