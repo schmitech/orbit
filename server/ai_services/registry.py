@@ -169,6 +169,7 @@ def register_ocr_services(config: Dict[str, Any] = None) -> None:
     # Default to False — if ocr.yaml is not imported, no OCR services should register
     _register_services(ServiceType.OCR, 'ai_services.implementations.ocr', [
         ("mistral", "MistralOcrService", "Mistral OCR"),
+        ("azure_mistral", "AzureMistralOcrService", "Azure Mistral OCR"),
         ("openai", "OpenAIOcrService", "OpenAI"),
         ("gemini", "GeminiOcrService", "Gemini"),
         ("anthropic", "AnthropicOcrService", "Anthropic"),

@@ -5,12 +5,18 @@
 # OCR for PDFs and images to an LLM inference service.
 #
 # Two kinds of backends:
-#   - mistral / gemini: native OCR (single call) — ingests a PDF/image directly
-#     and returns extracted text. No rasterization.
-#   - openai / anthropic / ...: "vision-backed" — PDF pages are rasterized to
-#     images and sent through the provider's vision model. These reuse the
-#     per-provider settings from vision.yaml (visions:), so the entries below
-#     only need an `enabled` flag to gate registration.
+#   - mistral / azure_mistral / gemini: native OCR (single call) — ingests a
+#     PDF/image directly and returns extracted text. No rasterization.
+#   - openai / anthropic / azure / ...: "vision-backed" — PDF pages are
+#     rasterized to images and sent through the provider's vision model.
+#     These reuse the per-provider settings from vision.yaml (visions:), so
+#     the entries below only need an `enabled` flag to gate registration.
+#
+# NOTE: a Mistral Document AI / OCR model deployed on Azure AI Foundry is NOT
+# reachable via the "azure" vision-backed entry — it doesn't implement the
+# chat.completions API at all (404 api_not_supported). Use "azure_mistral"
+# below instead, which speaks Mistral's native OCR protocol against Azure's
+# dedicated OCR endpoint.
 #
 # The active provider is selected by files.processing.ai_document.provider.
 # NOTE: that provider must also be `enabled: true` here to be registered.
@@ -34,6 +40,18 @@ ocr:
       initial_wait_ms: 1000
       max_wait_ms: 30000
       exponential_base: 2
+
+  # Mistral Document AI / OCR deployed on Azure AI Foundry (native OCR
+  # protocol via the mistralai.azure client — NOT the OpenAI-compatible
+  # chat.completions surface used by the "azure" vision-backed entry below).
+  azure_mistral:
+    enabled: false
+    endpoint: ${AZURE_OCR_ENDPOINT}   # Copy the exact Target URI from the deployment's
+                                       # Azure AI Foundry page, e.g.
+                                       # https://<resource>.services.ai.azure.com/providers/mistral/azure/ocr
+    api_key: ${AZURE_OCR_API_KEY}
+    deployment_name: "mistral-document-ai-2505"   # Your Azure deployment/model name
+    api_version: "2024-05-01-preview"
 
   # Gemini native document processing (single call, no rasterization)
   gemini:

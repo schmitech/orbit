@@ -19,6 +19,9 @@
 ### Documentation & Configuration
 - **Allowlist Migration and Verification Guidance**: Documented allowlist modes, migration/seed workflow, rule semantics, opaque-session withdrawal behavior, admin SSO email verification, and a manual integration playbook covering provider round-trips, multi-worker cache propagation, and custom MongoDB collection revocation.
 
+### Bug Fixes & Technical Improvements
+- **Azure Mistral OCR Endpoint Handling**: Fixed Azure Mistral OCR requests for full Target URIs by removing the SDK-appended route suffix, and resolved the documented `AZURE_OCR_API_KEY` environment variable with backward-compatible fallback support.
+
 ## [2.16.0] - 2026-08-25
 
 ### Breaking Changes
