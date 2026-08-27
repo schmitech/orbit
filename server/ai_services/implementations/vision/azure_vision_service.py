@@ -83,6 +83,53 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
 
         return self.max_tokens
 
+    def _supports_temperature(self) -> bool:
+        """
+        Return whether the active deployment accepts a non-default
+        temperature. Newer reasoning-style models (GPT-5/o-series, and
+        third-party Foundry Catalog deployments like GPT-5.6 Luna) reject
+        any temperature other than their default (1.0) with an
+        unsupported_value error — mirrors the token-parameter sniffing
+        above: explicit config wins, deployment-name prefix is a
+        best-effort fallback since Azure deployment names are user-defined.
+        """
+        provider_config = self._extract_provider_config()
+
+        configured = provider_config.get("supports_temperature")
+        if isinstance(configured, bool):
+            return configured
+
+        deployment_name = (self.deployment or "").lower()
+        unsupported_prefixes = ("gpt-5", "o1", "o2", "o3")
+        return not deployment_name.startswith(unsupported_prefixes)
+
+    async def verify_connection(self) -> bool:
+        """
+        Verify Azure connection with a minimal chat completion — overrides
+        AzureBaseService.verify_connection(), which unconditionally sends
+        temperature=0 and max_completion_tokens. Both are guarded here the
+        same way analyze_image/multimodal_inference are, or a temperature-
+        restricted deployment (e.g. gpt-5.6-luna) rejects this health check
+        before initialize() ever gets a chance to call the guarded methods.
+        """
+        try:
+            token_param = self._get_token_parameter_name()
+            params = {
+                "model": self.deployment,
+                "messages": [{"role": "user", "content": "test"}],
+                token_param: 16,
+            }
+            if self._supports_temperature():
+                params["temperature"] = 0
+
+            response = await self.client.chat.completions.create(**params)
+
+            if not response.choices:
+                return False
+            return True
+        except Exception:
+            return False
+
     async def analyze_image(
         self,
         image: Union[str, bytes, Image.Image],
@@ -112,12 +159,15 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
             token_param = self._get_token_parameter_name()
             token_value = self._resolve_token_value(token_param, {})
 
-            response = await self.client.chat.completions.create(
-                model=self.deployment,
-                messages=messages,
-                temperature=self.temperature,
-                **{token_param: token_value},
-            )
+            params = {
+                "model": self.deployment,
+                "messages": messages,
+                token_param: token_value,
+            }
+            if self._supports_temperature():
+                params["temperature"] = self.temperature
+
+            response = await self.client.chat.completions.create(**params)
 
             usage = getattr(response, "usage", None)
             if usage is not None:
@@ -215,10 +265,12 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
             params = {
                 "model": self.deployment,
                 "messages": messages,
-                "temperature": kwargs.pop('temperature', self.temperature),
                 token_param: token_value,
-                **kwargs,
             }
+            temperature_override = kwargs.pop('temperature', None)
+            if self._supports_temperature():
+                params["temperature"] = temperature_override if temperature_override is not None else self.temperature
+            params.update(kwargs)
 
             response = await self.client.chat.completions.create(**params)
 
