@@ -143,9 +143,12 @@ Now the part that actually matters — confirm **no account was created**:
 orbit user list | grep -iE "entra:|auth0:"
 ```
 
-The stranger's `{provider}:{subject}` must **not** appear. A 401 with a row
-created would mean the gate is only cosmetic; the whole point of hooking
-provisioning is that an unapproved identity leaves no trace.
+Expect **no output**. `grep` exits with status 1 when it finds no matching
+line; that is the expected result here, not an error, and this read-only CLI
+command produces no server log entry. The stranger's `{provider}:{subject}`
+must **not** appear. A 401 with a row created would mean the gate is only
+cosmetic; the whole point of hooking provisioning is that an unapproved
+identity leaves no trace.
 
 Check the server log for:
 
@@ -156,22 +159,34 @@ WARN  Refused to provision external user not on the identity allowlist:
 
 ## 3. Clearing by email domain
 
+Replace `yourdomain.com` below with the domain in the **email claim of the
+stranger's access token** — do not enter the placeholder literally. For a
+single-account test, an exact email rule is less ambiguous:
+
 ```bash
 orbit user allowlist add \
-  --pattern '*@yourdomain.com' --entry-type email \
+  --pattern '*@example.com' --entry-type email \
   --reason 'Employees'
 
 orbit user allowlist list
 ```
 
-Retry §2's curl with the same stranger token — but only if that account's email
-is on `yourdomain.com`. Expect **200** now, and:
+`matched 0 existing users` is expected at this point: the stranger was denied
+in §2 and therefore has no user row yet. It does not say whether a future token
+will match the rule.
+
+Retry §2's curl with the same stranger token — but only if the token's email
+claim ends in `@example.com`. Expect **200** now, and:
 
 ```bash
 orbit user list | grep -iE "entra:|auth0:"
 ```
 
-The account now exists, with `roles: ["user"]`.
+The account now exists, with `roles: ["user"]`. If the retry remains 401,
+check the refusal log's `email=...` value: the actual token claim, not the
+email shown in the provider UI, is what email rules evaluate. Auth0 API access
+tokens commonly omit email unless an Action adds it and `auth0.email_claim`
+names that claim; use the provider-subject check in §4 when email is absent.
 
 > If your stranger account is on a different domain (e.g. a personal Gmail),
 > that's a *better* test — it should still be 401. Add a rule matching it

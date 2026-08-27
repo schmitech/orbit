@@ -191,6 +191,18 @@ async def get_current_user_info(
     Returns:
         Current user information with full details
     """
+    # ``get_current_user`` deliberately returns None when a request has no
+    # bearer credential, because several routes use authentication as an
+    # optional input.  /auth/me is not one of them: without this guard the
+    # lookup below dereferences None and turns an authentication failure into
+    # a misleading 500 response.
+    if not current_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     try:
         # Get complete user data from database
         user = await auth_service.get_user_by_id(current_user["id"])
