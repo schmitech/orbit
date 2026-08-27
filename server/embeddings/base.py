@@ -177,7 +177,8 @@ class EmbeddingServiceFactory:
             'openrouter': 'OpenRouterEmbeddingService',
             'gemini': 'GeminiEmbeddingService',
             'voyage': 'VoyageEmbeddingService',
-            'nvidia': 'NvidiaEmbeddingService'
+            'nvidia': 'NvidiaEmbeddingService',
+            'azure': 'AzureEmbeddingService'
         }
 
         if provider_name not in class_name_map:
