@@ -50,6 +50,9 @@ pricing:
       "gpt-4o-mini*":  { input_per_1m: 0.15,  output_per_1m: 0.60 }
       "gpt-4o*":       { input_per_1m: 2.50,  output_per_1m: 10.00 }
       "gpt-35-turbo*": { input_per_1m: 0.50,  output_per_1m: 1.50 }
+      # gpt-image deployments bill per input/output image token, same rate
+      # as OpenAI's own gpt-image-1 — see AzureImageService's usage_dict.
+      "gpt-image*":    { input_per_1m: 5.00,  output_per_1m: 40.00 }
 
     anthropic:
       "claude-opus*":    { input_per_1m: 15.00, output_per_1m: 75.00, cached_input_per_1m: 1.50 }
@@ -175,6 +178,14 @@ pricing:
     xai:
       "grok-*-image*": { unit: "images", per_unit: 0.07 }
       "grok-*-video*": { unit: "seconds", per_unit: 0.35 }
+
+    # Azure image deployments are billed by deployment name (see azure.yaml
+    # note in the `providers` table above); dall-e-3/dall-e-2 bill per image
+    # the same as OpenAI's own DALL-E, gpt-image deployments bill per token
+    # via the `providers.azure` table instead and report no media usage.
+    azure:
+      "dall-e-3*": { unit: "images", per_unit: 0.04 }
+      "dall-e-2*": { unit: "images", per_unit: 0.02 }
 
     mistral:
       # Mistral's document OCR endpoint bills per page (~$1/1000 pages).

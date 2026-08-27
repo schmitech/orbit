@@ -7,6 +7,7 @@ Available providers:
     - OllamaImageService: Ollama experimental image generation
     - XAIImageService: xAI (Grok) image generation
     - OpenRouterImageService: OpenRouter image generation
+    - AzureImageService: Azure OpenAI Foundry image generation
 """
 
 import logging
@@ -21,6 +22,7 @@ _implementations = [
     ('ollama_image_service', 'OllamaImageService'),
     ('xai_image_service', 'XAIImageService'),
     ('openrouter_image_service', 'OpenRouterImageService'),
+    ('azure_image_service', 'AzureImageService'),
 ]
 
 for module_name, class_name in _implementations:

@@ -1,6 +1,6 @@
 # Global image generation configuration
 image:
-  provider: "gemini"  # Default image generation provider: openai, gemini, ollama, xai, openrouter
+  provider: "gemini"  # Default image generation provider: openai, gemini, ollama, xai, openrouter, azure
   enabled: true        # Whether image generation is enabled globally
 
 # Provider-specific configurations
@@ -82,6 +82,34 @@ image_generation:
     timeout:
       connect: 15000
       total: 120000
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 2
+      initial_wait_ms: 2000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  azure:
+    enabled: true
+    endpoint: ${AZURE_IMAGE_ENDPOINT}   # e.g. https://<resource>.services.ai.azure.com/openai/v1
+    api_key: ${AZURE_IMAGE_API_KEY}
+    deployment_name: "gpt-image-1"      # Your Azure deployment name for the image model
+    # Deployment names are user-chosen and can't be reliably inferred, so the
+    # underlying model family must be set explicitly.
+    model_family: "gpt-image"    # "gpt-image" or "dall-e" — required, must match the deployment's base model
+    dalle_version: "dall-e-3"    # Only used when model_family is "dall-e": "dall-e-3" or "dall-e-2"
+    size: "1024x1024"
+    quality: "auto"              # gpt-image: auto, low, medium, high; dall-e-3: standard, hd
+    output_format: "png"         # gpt-image only: png, jpeg, webp
+    output_compression: null     # gpt-image jpeg/webp only: 0-100
+    background: null             # gpt-image only: opaque, auto
+    moderation: null             # gpt-image only: auto, low
+    style: "vivid"               # dall-e-3 only: vivid, natural
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 120000    # 2 minutes (image generation can be slow)
     # Retry configuration
     retry:
       enabled: true

@@ -233,6 +233,7 @@ def register_image_generation_services(config: Dict[str, Any] = None) -> None:
         ("ollama", "OllamaImageService", "Ollama"),
         ("xai", "XAIImageService", "xAI (Grok)"),
         ("openrouter", "OpenRouterImageService", "OpenRouter"),
+        ("azure", "AzureImageService", "Azure OpenAI"),
     ], config=config, config_section='image_generation', default_enabled=False)
 
 

@@ -5,6 +5,9 @@
 ### Breaking Changes
 - **External Identity Allowlist**: External Entra ID and Auth0 identities are now deny-by-default when `auth.providers.enabled` is on: `auth.providers.access_control` defaults to `allowlist`. Pre-clear each identity or pattern with an allowlist rule (or `admin_users`), grandfather reviewed existing identities with `orbit user allowlist seed-from-existing`, or explicitly set `access_control: open` to retain the prior IdP-only admission model.
 
+### Core System Updates
+- **Azure Image Generation**: Added Azure OpenAI image-generation support for GPT-Image and DALL-E deployments, with explicit model-family/version configuration, image-safe initialization, runtime options, retries, and usage reporting.
+
 ### Security
 - **External Identity Pre-Clearing**: Added pattern-based identity allowlisting for external logins, managed through the Admin Panel, `orbit user allowlist`, and `/auth/allowlist`. Rules support email, user-ID, and provider-subject matching; blacklist rules continue to take precedence. Uncleared identities are refused before JIT provisioning, and removing or narrowing a rule revokes affected sessions.
 - **SSO Session Withdrawal Enforcement**: Allowlist clearance is rechecked for both provider JWTs and database-backed opaque dashboard sessions, so a session created by an in-flight SSO callback after a rule is removed cannot remain usable after the worker's rule-cache TTL.
