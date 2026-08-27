@@ -49,9 +49,16 @@ class VisionBackedOcrService(OcrService):
         visions_config = self.config.get("visions", {})
         if self.model_override:
             # Apply the OCR model override to this provider's vision config.
+            # Azure reads the deployment field (deployment_name/deployment),
+            # not `model` — AzureBaseService._setup_azure_config() never
+            # looks at `model`, so setting only that would silently keep
+            # using the configured deployment instead of the override.
             visions_config = dict(visions_config)
             provider_cfg = dict(visions_config.get(self.provider_name, {}))
-            provider_cfg["model"] = self.model_override
+            if self.provider_name == "azure":
+                provider_cfg["deployment_name"] = self.model_override
+            else:
+                provider_cfg["model"] = self.model_override
             visions_config[self.provider_name] = provider_cfg
 
         # Bypass the factory cache when overriding the model so we don't read a
@@ -201,3 +208,10 @@ class LlamaCppOcrService(VisionBackedOcrService):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config, "llama_cpp")
+
+
+class AzureOcrService(VisionBackedOcrService):
+    VISION_PROVIDER = "azure"
+
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config, "azure")

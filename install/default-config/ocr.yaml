@@ -55,3 +55,5 @@ ocr:
     enabled: false
   llama_cpp:
     enabled: false
+  azure:
+    enabled: false

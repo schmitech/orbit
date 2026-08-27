@@ -10,6 +10,7 @@ Available providers:
     - VLLMVisionService: vLLM vision (LLaVA, local multimodal)
     - LlamaCppVisionService: Llama.cpp vision (LLaVA GGUF, local multimodal)
     - CohereVisionService: Cohere vision (command-r-plus, multimodal)
+    - AzureVisionService: Azure OpenAI Foundry vision (GPT-4o/GPT-5, or third-party deployments like Mistral OCR)
 """
 
 import logging
@@ -27,6 +28,7 @@ _implementations = [
     ('vllm_vision_service', 'VLLMVisionService'),
     ('llama_cpp_vision_service', 'LlamaCppVisionService'),
     ('cohere_vision_service', 'CohereVisionService'),
+    ('azure_vision_service', 'AzureVisionService'),
 ]
 
 for module_name, class_name in _implementations:

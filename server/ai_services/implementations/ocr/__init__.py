@@ -22,6 +22,7 @@ _implementations = [
     ('vision_ocr_service', 'OllamaOcrService'),
     ('vision_ocr_service', 'VLLMOcrService'),
     ('vision_ocr_service', 'LlamaCppOcrService'),
+    ('vision_ocr_service', 'AzureOcrService'),
 ]
 
 for module_name, class_name in _implementations:

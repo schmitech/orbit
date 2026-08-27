@@ -1,6 +1,6 @@
 # Global vision configuration
 vision:
-  provider: "ollama"  # Default vision provider: openai, gemini, anthropic, ollama, ollama_cloud
+  provider: "ollama"  # Default vision provider: openai, gemini, anthropic, ollama, ollama_cloud, azure
   enabled: false        # Whether vision processing is enabled globally
 
 # Provider-specific configurations
@@ -162,6 +162,27 @@ visions:
     timeout:
       connect: 15000   # 15 seconds
       total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  azure:
+    enabled: false
+    endpoint: ${AZURE_VISION_ENDPOINT}   # e.g. https://<resource>.services.ai.azure.com/openai/v1
+    api_key: ${AZURE_VISION_API_KEY}
+    deployment_name: "gpt-4o"            # Your Azure deployment name, e.g. a GPT-4o/GPT-5 vision
+                                          # deployment, or a third-party vision/OCR model from the
+                                          # Foundry Model Catalog such as "mistral-ocr-4-0"
+    temperature: 0.0
+    max_tokens: 1000
+    # Timeout configuration
+    timeout:
+      connect: 15000
+      total: 90000
     # Retry configuration
     retry:
       enabled: true

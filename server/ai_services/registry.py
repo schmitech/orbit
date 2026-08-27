@@ -161,6 +161,7 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
         ("vllm", "VLLMVisionService", "vLLM"),
         ("llama_cpp", "LlamaCppVisionService", "Llama.cpp"),
         ("cohere", "CohereVisionService", "Cohere"),
+        ("azure", "AzureVisionService", "Azure OpenAI"),
     ], config=config, config_section='visions', default_enabled=False)
 
 
@@ -175,6 +176,7 @@ def register_ocr_services(config: Dict[str, Any] = None) -> None:
         ("ollama", "OllamaOcrService", "Ollama"),
         ("vllm", "VLLMOcrService", "vLLM"),
         ("llama_cpp", "LlamaCppOcrService", "Llama.cpp"),
+        ("azure", "AzureOcrService", "Azure OpenAI"),
     ], config=config, config_section='ocr', default_enabled=False)
 
 
