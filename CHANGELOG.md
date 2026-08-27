@@ -7,6 +7,7 @@
 
 ### Core System Updates
 - **Azure Image Generation**: Added Azure OpenAI image-generation support for GPT-Image and DALL-E deployments, with explicit model-family/version configuration, image-safe initialization, runtime options, retries, and usage reporting.
+- **Azure Embeddings**: Added Azure OpenAI embedding support with embedding-safe initialization and explicit model-family configuration so custom deployment names correctly honor supported dimensions.
 
 ### Security
 - **External Identity Pre-Clearing**: Added pattern-based identity allowlisting for external logins, managed through the Admin Panel, `orbit user allowlist`, and `/auth/allowlist`. Rules support email, user-ID, and provider-subject matching; blacklist rules continue to take precedence. Uncleared identities are refused before JIT provisioning, and removing or narrowing a rule revokes affected sessions.

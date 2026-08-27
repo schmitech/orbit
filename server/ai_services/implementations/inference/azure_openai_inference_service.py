@@ -46,10 +46,18 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
             config: Configuration dictionary
 
         Note: All Azure setup (endpoint, credentials, client, etc.) handled by AzureBaseService!
+
+        Only AzureBaseService.__init__ is called (not InferenceService's) —
+        AzureBaseService's cooperative super().__init__() already reaches
+        ProviderAIService.__init__ with ServiceType.INFERENCE, and
+        InferenceService.__init__ sets nothing besides that call plus
+        temperature/max_tokens, which are set explicitly below anyway.
+        Calling both would run AzureBaseService._setup_azure_config() a
+        second time (InferenceService.__init__'s super().__init__() call
+        resolves to AzureBaseService.__init__ in this MRO), constructing and
+        leaking a second AsyncOpenAI client.
         """
-        # Initialize base classes
-        AzureBaseService.__init__(self, config, ServiceType.INFERENCE)
-        InferenceService.__init__(self, config, "azure")
+        AzureBaseService.__init__(self, config, ServiceType.INFERENCE, "azure")
 
         # Get inference-specific configuration
         self.temperature = self._get_temperature(default=0.7)

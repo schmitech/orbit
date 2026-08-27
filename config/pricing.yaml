@@ -53,6 +53,9 @@ pricing:
       # gpt-image deployments bill per input/output image token, same rate
       # as OpenAI's own gpt-image-1 — see AzureImageService's usage_dict.
       "gpt-image*":    { input_per_1m: 5.00,  output_per_1m: 40.00 }
+      # Embedding deployments are input-only, same rate as OpenAI's own models.
+      "text-embedding-3-small*": { input_per_1m: 0.02, output_per_1m: 0.0 }
+      "text-embedding-3-large*": { input_per_1m: 0.13, output_per_1m: 0.0 }
 
     anthropic:
       "claude-opus*":    { input_per_1m: 15.00, output_per_1m: 75.00, cached_input_per_1m: 1.50 }

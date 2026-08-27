@@ -13,6 +13,7 @@ Available providers:
     - GeminiEmbeddingService: Gemini embeddings
     - VoyageEmbeddingService: Voyage AI embeddings
     - NvidiaEmbeddingService: NVIDIA NIM embeddings
+    - AzureEmbeddingService: Azure OpenAI Foundry embeddings
 """
 
 import logging
@@ -33,6 +34,7 @@ _implementations = [
     ('gemini_embedding_service', 'GeminiEmbeddingService'),
     ('voyage_embedding_service', 'VoyageEmbeddingService'),
     ('nvidia_embedding_service', 'NvidiaEmbeddingService'),
+    ('azure_embedding_service', 'AzureEmbeddingService'),
 ]
 
 for module_name, class_name in _implementations:

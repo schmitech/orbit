@@ -1,6 +1,6 @@
 # Global embedding configuration
 embedding:
-  provider: "openai"  # Default embedding provider: ollama, openai, cohere, mistral, jina, llama_cpp
+  provider: "openai"  # Default embedding provider: ollama, openai, cohere, mistral, jina, llama_cpp, azure
   enabled: true       # Whether embeddings are enabled globally
 
 # Provider-specific configurations
@@ -77,6 +77,17 @@ embeddings:
     # - mistralai/mistral-embed-2312 (1024 dims, optimized for RAG)
     # - qwen/qwen3-embedding-8b (multilingual, long-text)
     model: "openai/text-embedding-3-small"
+    dimensions: 1536
+    batch_size: 10
+  azure:
+    endpoint: ${AZURE_EMBEDDING_ENDPOINT}   # e.g. https://<resource>.services.ai.azure.com/openai/v1
+    api_key: ${AZURE_EMBEDDING_API_KEY}
+    deployment_name: "text-embedding-3-small"   # Your Azure deployment name for the embedding model
+    # Deployment names are user-chosen and can't be reliably inferred. Set
+    # this explicitly if your deployment name doesn't contain
+    # "text-embedding-3" — only that model family accepts the `dimensions`
+    # request parameter (e.g. ada-002 deployments must omit it).
+    model_family: "text-embedding-3"
     dimensions: 1536
     batch_size: 10
   nvidia:

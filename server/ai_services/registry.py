@@ -76,6 +76,7 @@ def register_embedding_services() -> None:
         ("openrouter", "OpenRouterEmbeddingService", "OpenRouter"),
         ("gemini", "GeminiEmbeddingService", "Gemini"),
         ("voyage", "VoyageEmbeddingService", "Voyage AI"),
+        ("azure", "AzureEmbeddingService", "Azure OpenAI"),
     ])
 
 
