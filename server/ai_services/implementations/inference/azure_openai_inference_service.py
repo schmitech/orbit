@@ -118,7 +118,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
         Yields:
             Response chunks as they are generated
         """
-        usage_sink = self._take_usage_sink(kwargs)  # noqa: F841 - streaming usage unreported (stream_options include_usage not requested)
+        usage_sink = self._take_usage_sink(kwargs)
         if not self.initialized:
             await self.initialize()
 
@@ -139,12 +139,21 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
                 top_p=kwargs.pop('top_p', self.top_p),
                 max_completion_tokens=kwargs.pop('max_tokens', self.max_tokens),
                 stream=True,
+                stream_options={"include_usage": True},
                 **kwargs
             )
 
             async for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
+                elif getattr(chunk, "usage", None):
+                    # Final usage-only chunk (choices == []), enabled by stream_options.include_usage above.
+                    self._report_usage(
+                        usage_sink,
+                        getattr(chunk.usage, "prompt_tokens", None),
+                        getattr(chunk.usage, "completion_tokens", None),
+                        reasoning_tokens=self._extract_reasoning_tokens(chunk.usage),
+                    )
 
         except Exception as e:
             self._handle_azure_error(e, "streaming generation")
