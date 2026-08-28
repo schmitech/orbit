@@ -1,9 +1,12 @@
 # Changelog
 
-## [2.17.1] - 2026-08-28
+## [UNRELEASED]
 
 ### Core System Updates
 - **MCP Tool Skills (Phase 1)**: Added file-authored `SKILL.md` procedural playbooks that bind to MCP tools and are progressively disclosed to `mcp-agent` adapters. Each turn receives a compact, capped catalog and can call an enum-scoped `orbit__load_tool_skill` loader to attach one trusted playbook to the matching tool-result message. Loading is authorized against the turn's surfaced set and idempotent, while tool output remains untrusted and provenance records playbook loads separately from MCP calls.
+- **MCP Tool Skills (Phase 2)**: Added just-in-time playbook injection after a bound MCP tool's first call and extended the catalog, loader, and injection behavior to opportunistic MCP tool calling. Adapters can now restrict playbooks through `capabilities.tool_skills`; a shared per-turn budget caps trusted context while precomputing priority-based admission so a higher-priority skill can no longer be crowded out by lower-priority skills invoked first.
+
+## [2.17.1] - 2026-08-28
 
 ### Security
 - **External JWT Role Capping**: Provider JWT authentication now always returns baseline `user` permissions for chat and API clients, including identities with an elevated stored role. Admin-panel opaque sessions retain their stored roles and permissions.

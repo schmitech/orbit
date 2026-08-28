@@ -90,6 +90,17 @@ class AdapterCapabilities:
     # skill adapter. None/absent = all enabled servers.
     mcp_servers: Optional[List[str]] = None
 
+    # Allowlist of tool-skill names (SKILL.md documents, see
+    # services/tool_skill_service.py) this adapter may surface/load. None/absent
+    # = every skill matching a tool this adapter can already reach (same
+    # default convention as mcp_servers). SECURITY-SENSITIVE default: a newly
+    # authored skill becomes visible to every adapter that can reach its bound
+    # tools the moment it's saved, with no adapter-side opt-in required — the
+    # right default for a trusted single-tenant deployment, a wider blast
+    # radius in a multi-tenant one where the skill author and adapter owner
+    # may not share a trust boundary (docs/roadmap/mcp-tool-skills.md §2.7).
+    tool_skills: Optional[List[str]] = None
+
     # Skill exposure: when True, this adapter is published as an invokable skill
     expose_as_skill: bool = False
     skill_name: Optional[str] = None  # Public skill name (defaults to adapter name when unset)
@@ -155,6 +166,7 @@ class AdapterCapabilities:
             web_search=capabilities_config.get('web_search', False),
             mcp_tools=capabilities_config.get('mcp_tools', False),
             mcp_servers=capabilities_config.get('mcp_servers'),
+            tool_skills=capabilities_config.get('tool_skills'),
             # Skill exposure lives under capabilities.
             expose_as_skill=capabilities_config.get('expose_as_skill', False),
             skill_name=capabilities_config.get('skill_name'),

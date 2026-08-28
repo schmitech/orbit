@@ -361,11 +361,20 @@ class TestMCPAgentCancellation:
 class _FakeSkill:
     """Minimal stand-in for services.tool_skill_service.ToolSkill."""
 
-    def __init__(self, name, description, body="Some procedural guidance.", version="1.0"):
+    def __init__(self, name, description, body="Some procedural guidance.", version="1.0",
+                 mcp_tools=None):
         self.name = name
         self.description = description
         self.body = body
         self.version = version
+        # Only consulted by Level 3 JIT (build_dispatch), never by the fake
+        # registry's matched_for above — defaults to "binds nothing" so
+        # existing Phase 1 tests (which never call a real bound tool) are
+        # unaffected by this field's addition.
+        self._mcp_tools = mcp_tools or []
+
+    def matches(self, tool_name):
+        return tool_name in self._mcp_tools
 
 
 class _FakeToolSkillRegistry:
@@ -610,6 +619,268 @@ class TestMCPAgentToolSkills:
         # servers_in_tools(tools) is derived only from filesystem__read_file,
         # never from orbit__load_tool_skill (which would parse as server "orbit").
         assert manager.iteration_query_tools == {"filesystem"}
+
+
+class _FakeAdapterManagerContainer:
+    """Container with an adapter_manager exposing a fixed capabilities dict —
+    used to exercise the capabilities.tool_skills allowlist (§2.7)."""
+
+    def __init__(self, capabilities: dict):
+        self._capabilities = capabilities
+
+    def has(self, name):
+        return name == "adapter_manager"
+
+    def get(self, name):
+        if name == "adapter_manager":
+            return self
+        return None
+
+    def get_or_none(self, name):
+        return None
+
+    def get_adapter_config(self, adapter_name):
+        return {"capabilities": self._capabilities}
+
+
+def _make_step_with_registry_and_container(provider, manager, registry, container):
+    class _Step(MCPAgentStep):
+        async def _resolve_provider(self, context):
+            return provider
+
+        def _get_mcp_manager(self):
+            return manager
+
+        def _get_tool_skill_registry(self):
+            return registry
+
+    return _Step(container)
+
+
+class TestMCPAgentPhase2JustInTimeInjection:
+    """
+    Phase 2 of docs/roadmap/mcp-tool-skills.md: Level 3 auto-injection after
+    the first invocation of a bound tool, the shared Level 2/3 per-turn
+    budget, and the capabilities.tool_skills allowlist.
+    """
+
+    async def test_jit_injects_after_first_call_to_a_bound_tool(self):
+        """A skill bound to filesystem__read_file is delivered as trusted
+        context on that call's own result — without the model ever calling
+        orbit__load_tool_skill."""
+        skill = _FakeSkill(name="fs-playbook", description="d", mcp_tools=["filesystem__read_file"])
+        registry = _FakeToolSkillRegistry([skill])
+        provider = _FakeProvider([
+            _tool_call_result(name="filesystem__read_file"),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS, tool_output="file-contents")
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        assert text == "final"
+        assert {"type": "mcp_tool_call", "tool": "filesystem__read_file",
+                "arguments": {"path": "/tmp/x"}, "result_preview": "file-contents"} in sources
+        assert {"type": "tool_skill_load", "skill": "fs-playbook", "version": "1.0"} in sources
+
+    async def test_jit_fires_once_per_skill_per_turn(self):
+        skill = _FakeSkill(name="fs-playbook", description="d", mcp_tools=["filesystem__read_file"])
+        registry = _FakeToolSkillRegistry([skill])
+        provider = _FakeProvider([
+            _tool_call_result(name="filesystem__read_file"),
+            _tool_call_result(name="filesystem__read_file"),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS, max_iterations=5)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        skill_loads = [s for s in sources if s["type"] == "tool_skill_load"]
+        assert len(skill_loads) == 1
+
+    async def test_level2_and_level3_share_one_idempotence_state(self):
+        """A skill loaded via Level 2 (explicit orbit__load_tool_skill call)
+        must not also be JIT-injected on a later call to its bound tool in
+        the same turn — one shared per-turn budget/idempotence state."""
+        skill = _FakeSkill(name="fs-playbook", description="d", mcp_tools=["filesystem__read_file"])
+        registry = _FakeToolSkillRegistry([skill])
+        provider = _FakeProvider([
+            _tool_call_result(name="orbit__load_tool_skill", args={"name": "fs-playbook"}),
+            _tool_call_result(name="filesystem__read_file"),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS, max_iterations=5)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        skill_loads = [s for s in sources if s["type"] == "tool_skill_load"]
+        assert len(skill_loads) == 1
+
+    async def test_sibling_tool_call_in_same_turn_unaffected(self):
+        """Two tool calls requested in one assistant turn: only the one bound
+        to the skill gets the trusted context attached; the unrelated
+        sibling call's own result carries none."""
+        skill = _FakeSkill(name="fs-playbook", description="d", mcp_tools=["filesystem__read_file"])
+        registry = _FakeToolSkillRegistry([skill])
+        sibling_result = ToolCallingResult(
+            text=None,
+            tool_calls=[
+                {"id": "c1", "name": "filesystem__read_file", "arguments": {"path": "/tmp/x"}},
+                {"id": "c2", "name": "web__search", "arguments": {"q": "x"}},
+            ],
+            assistant_message={"role": "assistant", "content": None, "tool_calls": []},
+            finish_reason="tool_calls",
+        )
+        provider = _FakeProvider([
+            sibling_result,
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        tools = _TOOLS + [{"type": "function", "function": {"name": "web__search", "parameters": {}}}]
+        manager = _FakeMCPManager(tools)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        skill_loads = [s for s in sources if s["type"] == "tool_skill_load"]
+        assert len(skill_loads) == 1
+        assert skill_loads[0]["skill"] == "fs-playbook"
+
+    async def test_turn_with_no_bound_tool_call_injects_nothing(self):
+        skill = _FakeSkill(name="other-playbook", description="d", mcp_tools=["other__tool"])
+        registry = _FakeToolSkillRegistry([skill])
+        provider = _FakeProvider([
+            _tool_call_result(name="filesystem__read_file"),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        assert [s for s in sources if s["type"] == "tool_skill_load"] == []
+
+    async def test_budget_drops_lowest_priority_skill_and_logs_it(self, caplog):
+        """Four skills all bound to the same tool exceeds the 3-skill budget;
+        the registry already returns them sorted (priority desc, name), so the
+        4th (lowest-priority) one is dropped and logged, not silently lost."""
+        skills = [
+            _FakeSkill(name=f"playbook-{i}", description="d", mcp_tools=["filesystem__read_file"])
+            for i in range(4)
+        ]
+        registry = _FakeToolSkillRegistry(skills)
+        provider = _FakeProvider([
+            _tool_call_result(name="filesystem__read_file"),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        with caplog.at_level("INFO"):
+            text, sources = await step._run_agent_loop(ctx)
+
+        skill_loads = {s["skill"] for s in sources if s["type"] == "tool_skill_load"}
+        assert skill_loads == {"playbook-0", "playbook-1", "playbook-2"}
+        assert any("playbook-3" in record.message and "budget" in record.message for record in caplog.records)
+
+    async def test_budget_preserves_priority_regardless_of_call_order(self):
+        """
+        Regression (P2 review): a model calling three low-priority bound
+        tools before a high-priority one must still get the high-priority
+        skill delivered — admission is decided from the whole turn's
+        candidate set up front, not first-come-first-served per call.
+        _FakeToolSkillRegistry.matched_for returns skills in the order
+        given here, mirroring the real registry's priority-desc/name sort,
+        so "high-priority" is first even though its bound tool is called last.
+        """
+        high = _FakeSkill(name="high-priority", description="d", mcp_tools=["tool-h"])
+        low0 = _FakeSkill(name="low-0", description="d", mcp_tools=["tool-l0"])
+        low1 = _FakeSkill(name="low-1", description="d", mcp_tools=["tool-l1"])
+        low2 = _FakeSkill(name="low-2", description="d", mcp_tools=["tool-l2"])
+        registry = _FakeToolSkillRegistry([high, low0, low1, low2])
+        provider = _FakeProvider([
+            _tool_call_result(name="tool-l0"),
+            _tool_call_result(name="tool-l1"),
+            _tool_call_result(name="tool-l2"),
+            _tool_call_result(name="tool-h"),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        tools = [
+            {"type": "function", "function": {"name": n, "parameters": {}}}
+            for n in ("tool-l0", "tool-l1", "tool-l2", "tool-h")
+        ]
+        manager = _FakeMCPManager(tools, max_iterations=6)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        skill_loads = {s["skill"] for s in sources if s["type"] == "tool_skill_load"}
+        # The 3-skill budget admits the 3 highest-priority candidates
+        # (high-priority, low-0, low-1) regardless of call order — low-2 is
+        # the one dropped, not high-priority.
+        assert skill_loads == {"high-priority", "low-0", "low-1"}
+
+    async def test_tool_skills_allowlist_excludes_a_matched_skill(self):
+        """capabilities.tool_skills, when set, restricts both the surfaced
+        set and Level 3's full matched set — an omitted skill never
+        surfaces and is never JIT-injected either (§2.7)."""
+        allowed_skill = _FakeSkill(name="allowed", description="d", mcp_tools=["filesystem__read_file"])
+        excluded_skill = _FakeSkill(name="excluded", description="d", mcp_tools=["filesystem__read_file"])
+        registry = _FakeToolSkillRegistry([allowed_skill, excluded_skill])
+        provider = _FakeProvider([
+            _tool_call_result(name="filesystem__read_file"),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS)
+        container = _FakeAdapterManagerContainer({"tool_skills": ["allowed"]})
+        step = _make_step_with_registry_and_container(provider, manager, registry, container)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        skill_loads = {s["skill"] for s in sources if s["type"] == "tool_skill_load"}
+        assert skill_loads == {"allowed"}
 
 
 class TestMCPAgentBuildInitialMessagesWithSkills:

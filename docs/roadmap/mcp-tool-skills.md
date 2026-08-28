@@ -1,6 +1,6 @@
 # MCP Tool Skills — Procedural Skills Attached to MCP Tools
 
-**Status:** Phase 0 complete (§8) · Phase 1 complete (§4) — runtime core shipped, file-based, no UI · Phase 2 not started
+**Status:** Phase 0 complete (§8) · Phase 1 complete (§4) — runtime core shipped, file-based, no UI · Phase 2 complete (§4) — JIT injection + opportunistic parity shipped · Phase 3 not started
 **Owner:** TBD
 **Related:** [`docs/adapters/mcp-agent.md`](../adapters/mcp-agent.md), [`docs/tutorial/mcp-tool-calling.md`](../tutorial/mcp-tool-calling.md)
 
@@ -639,7 +639,7 @@ existing tool-result message — never a new message, never inside
 `<tool_result>`. `cache_prefix_len` is provably unaffected by catalog
 injection. No UI (as scoped).
 
-### Phase 2 — Just-in-time injection + opportunistic parity (≈2–3 days)
+### Phase 2 — Just-in-time injection + opportunistic parity ✅ complete
 
 - Level 3 auto-injection **after** the first bound-tool invocation, once per
   skill per turn — explicitly documented as unable to shape that first call's
@@ -648,14 +648,58 @@ injection. No UI (as scoped).
   mode gets skills too.
 - `capabilities.tool_skills` allowlist (§2.7), including the security-sensitive
   default called out there.
-- Injection budget caps (§3), dropping lowest-`priority` skills first (§2.1)
+- Injection budget caps (§3): a shared per-turn `InjectionBudget` (3 skills /
+  24 KB) across Level 2 and Level 3, dropping lowest-priority skills first
   with a log line naming what was dropped.
 
-**Tests:** JIT fires once and only once per turn, and only after (never before) the bound tool's own call; a test asserting the first call to a bound tool is *not* preceded by its skill body, to lock in the documented limitation rather than silently regress it either direction; a test with two sibling tool calls in one assistant turn (one bound, one not) asserting the sibling call's arguments are unaffected; the injection is appended to the existing `role: "tool"` message for that call, not a new message, and a malformed-history check (no unmatched `tool_call_id`, no mid-thread `role: "system"`) runs against at least one provider's real message-validation path; a Level 2 call and a Level 3 injection for the same skill in the same turn count against one shared budget and one shared "already loaded" state; budget cap drops the lowest-priority skill and logs it; opportunistic path reaches parity with the explicit path; adapter allowlist honored; a turn calling no bound tool injects nothing.
+**Post-review fix — priority must survive call order.** The first cut of
+`InjectionBudget` admitted skills first-come-first-served at each dispatch
+call, reasoning that the registry's matched-set order (priority desc, name)
+would carry through. It doesn't: Level 3 skills are only discovered as the
+model happens to invoke their bound tools, in whatever order the model
+chooses — three low-priority bound-tool calls made before a high-priority one
+would exhaust the budget and permanently lock the high-priority skill out,
+inverting the documented rule. Fixed by deciding eligibility **once, up
+front**, from the turn's full matched-skill set (already sorted priority
+desc/name) via a greedy admit-until-budget-exhausted pass — `try_reserve`
+now only checks membership in that precomputed eligible set plus
+idempotence, so the outcome depends solely on priority/name, never on which
+order the model's tool calls happen to arrive in. Regression tests:
+`test_tool_skills_support.py::test_priority_admission_is_independent_of_reservation_order`
+and `test_mcp_agent_step.py::test_budget_preserves_priority_regardless_of_call_order`.
 
-**Exit:** a 4B local Ollama model benefits from a skill on its second and later
-calls to a bound tool, without ever calling `orbit__load_tool_skill` — and the
-mcp-agent docs state plainly that the first call isn't covered by this path.
+**Shipped:** `server/inference/pipeline/tool_skills_support.py` (new) —
+extracted the Level 1/2/3 mechanism out of `MCPAgentStep` into one module
+shared by both call sites: `resolve_surfaced_skills()` (matched/surfaced set
+resolution, allowlist filtering, the namespace-collision guard), `InjectionBudget`
+(the shared per-turn skill-count/byte budget and idempotence tracker), and
+`build_dispatch()` (Level 2 loader + Level 3 JIT in one dispatcher, keyed off
+one `InjectionBudget` instance per turn). `MCPAgentStep._run_agent_loop` now
+calls into this module instead of its own private helpers. `LLMInferenceStep._run_inline_mcp_tools`
+wires the identical catalog/loader/dispatch sequence into the opportunistic
+path, appending the Level 1 catalog to `context.messages[0]` strictly after
+`context.cacheable_prefix_len` (§2.4), the same rule `MCPAgentStep` follows.
+`AdapterCapabilities.tool_skills: Optional[List[str]]` (new field,
+`server/adapters/capabilities.py`), parsed from `capabilities.tool_skills` in
+`from_config`, `None` meaning "every skill matching a visible tool" per §2.7's
+documented default — read via a small per-step allowlist helper mirroring the
+existing `mcp_servers` one. 17 new tests (`test_inference/test_mcp_agent_step.py`'s
+`TestMCPAgentPhase2JustInTimeInjection`, `test_inference/test_llm_inference_mcp_tools.py`'s
+`TestOpportunisticToolSkillsParity`, and the standalone
+`test_inference/test_tool_skills_support.py`), all previously-passing tests in
+both step test files (61 total across the MCP test modules, 12 in the
+opportunistic-path module) still passing unchanged.
+
+**Tests:** JIT fires once and only once per turn, and only after (never before) the bound tool's own call; a test with two sibling tool calls in one assistant turn (one bound, one not) asserting the sibling call's arguments/result are unaffected; a Level 2 call and a Level 3 injection for the same skill in the same turn count against one shared budget and one shared "already loaded" state; budget cap drops the lowest-priority skill and logs it; opportunistic path reaches parity with the explicit path (JIT injection, catalog placed after `cacheable_prefix_len`); adapter `tool_skills` allowlist excludes a matched skill from both the surfaced set and Level 3 injection; a turn calling no bound tool injects nothing.
+
+**Exit:** ✅ verified. A model that never calls `orbit__load_tool_skill` still
+receives a bound skill's body as trusted context on its first call to that
+tool's own result message — attached to the real `mcp_tool_call`, recorded as
+a separate `tool_skill_load` source, never duplicated on a repeat call, and
+capped by the shared per-turn budget. `LLMInferenceStep`'s opportunistic path
+now runs the identical mechanism. The documented limitation stands: Level 3
+cannot shape the arguments of the *first* call to a bound tool (§2.2) — that
+remains Level 2's job for models that ask first.
 
 ### Phase 3 — Admin API + panel (≈4–5 days)
 
@@ -690,7 +734,7 @@ mcp-agent docs state plainly that the first call isn't covered by this path.
 |---|---|---|
 | 0 | 0.5 d | decisions |
 | 1 | 3–4 d ✅ shipped | yes — YAML-authored skills work end to end |
-| 2 | 2–3 d | yes — small models benefit |
+| 2 | 2–3 d ✅ shipped | yes — small models benefit |
 | 3 | 4–5 d | yes — non-engineers can author |
 | 4 | open | optional |
 
@@ -747,6 +791,7 @@ mcp-agent docs state plainly that the first call isn't covered by this path.
 > before or during its tool-calling loop, without modifying the MCP servers
 > themselves. This is distinct from having an MCP tool launch another ORBIT
 > adapter or agent — confirmed (§8, Q1) as the intended scope; the
-> launch-another-adapter variant is a separate, deferred idea. Phase 0 and
-> Phase 1 (runtime core, file-based, no UI) are complete and tested; Phase 2
-> (just-in-time injection, opportunistic-mode parity) is next.
+> launch-another-adapter variant is a separate, deferred idea. Phase 0, Phase 1
+> (runtime core, file-based, no UI), and Phase 2 (just-in-time injection,
+> opportunistic-mode parity, per-adapter allowlist) are complete and tested;
+> Phase 3 (admin API + panel) is next.

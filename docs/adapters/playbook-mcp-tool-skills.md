@@ -1,13 +1,14 @@
-# Manual/Integration Check: MCP Tool Skills (Phase 0 + Phase 1)
+# Manual/Integration Check: MCP Tool Skills (Phase 0 + Phase 1 + Phase 2)
 
-Steps to verify Phase 1 of [`docs/roadmap/mcp-tool-skills.md`](../roadmap/mcp-tool-skills.md)
-before starting Phase 2 (just-in-time injection, opportunistic-mode parity).
+Steps to verify Phase 0–2 of [`docs/roadmap/mcp-tool-skills.md`](../roadmap/mcp-tool-skills.md)
+before starting Phase 3 (admin API + panel).
 
 This is the **tool skill** mechanism — an admin-authored `SKILL.md` procedural
-playbook the model can load while calling MCP tools — not the ORBIT
-skill/adapter-swap routing mechanism (`capabilities.expose_as_skill`). See
-`docs/roadmap/mcp-tool-skills.md` §1 for the terminology split; nothing here
-touches `available_skills` or `skill: "..."` routing.
+playbook the model can load (or has auto-attached) while calling MCP tools —
+not the ORBIT skill/adapter-swap routing mechanism
+(`capabilities.expose_as_skill`). See `docs/roadmap/mcp-tool-skills.md` §1 for
+the terminology split; nothing here touches `available_skills` or
+`skill: "..."` routing.
 
 What Phase 1 shipped, concretely:
 
@@ -22,12 +23,31 @@ What Phase 1 shipped, concretely:
   reaches the model via a `<trusted_skill>`-tagged segment on the tool-result
   message, never a new message, never inside `<tool_result>`.
 - A `tool_skill_load`-typed `sources` entry, distinct from `mcp_tool_call`.
-- Only the explicit `mcp-agent` skill path (`MCPAgentStep`) has this wired up.
-  **Opportunistic mode (`capabilities.mcp_tools: true`) does not have tool
-  skills yet — that's Phase 2.**
+- This was Level 2 only (explicit, model-initiated load), and only on the
+  explicit `mcp-agent` skill path (`MCPAgentStep`).
 
-Everything below only requires `skill: "mcp-agent"` in the request body; there
-is no admin panel yet (Phase 3).
+What Phase 2 added on top, concretely (`server/inference/pipeline/tool_skills_support.py`
+is the new shared module both call sites use):
+
+- **Level 3 — just-in-time auto-injection.** The first time a bound tool is
+  actually invoked in a turn, its skill body rides along as trusted context on
+  that same tool call's own result — no `orbit__load_tool_skill` call needed.
+  Still can't shape the arguments of that *first* call (§2.2's documented
+  limitation); it corrects the model on the next call, or on formatting.
+- **Opportunistic-mode parity.** `LLMInferenceStep._run_inline_mcp_tools`
+  (`capabilities.mcp_tools: true`) now gets the identical catalog/loader/Level-3
+  mechanism — no longer explicit-`mcp-agent`-only.
+- **`capabilities.tool_skills` allowlist** — restricts which skills an
+  adapter may surface or load, independent of `mcp_servers`. Omitted = every
+  skill matching a visible tool (§2.7).
+- **A shared per-turn injection budget** (3 skills / 24 KB) across Level 2 and
+  Level 3, admitting the highest-priority candidates first — decided once, up
+  front, from the turn's full matched-skill set, so which skills get dropped
+  never depends on which order the model happens to call tools in.
+
+Everything below only requires `skill: "mcp-agent"` (explicit path) or
+`capabilities.mcp_tools: true` (opportunistic path) — there is no admin panel
+yet (Phase 3).
 
 ## 1. Start the sample MCP server
 
@@ -132,10 +152,10 @@ Confirm:
 Many models will call the loader on their own even without being told to —
 try the same prompt without "Read the CRM tool playbook" first and see
 whether the model volunteers the call. If it never does across several
-tries, that's expected for smaller/less capable models (see the "Level 3
-cannot guide the first call" limitation in the roadmap §2.2) and is exactly
-the gap Phase 2's just-in-time injection is meant to close — not a Phase 1
-bug.
+tries, that's expected for smaller/less capable models — and with Phase 2
+shipped, it's no longer the end of the story: step 12 below confirms Level 3
+picks up the slack automatically, once the model has called a bound tool at
+least once.
 
 ## 6. Confirm the playbook actually changes behavior
 
@@ -258,7 +278,111 @@ All tests should pass, including the pre-existing MCP suites — Phase 1 was
 built to leave `MCPToolSelector` and `LLMInferenceStep`'s opportunistic path
 completely unmodified, and every pre-existing test in `test_mcp_tool_loop.py`
 and `test_mcp_agent_step.py` should still pass unchanged alongside the new
-ones.
+ones. Phase 2 adds `test_inference/test_tool_skills_support.py` and new test
+classes in both `test_mcp_agent_step.py` and `test_llm_inference_mcp_tools.py`
+to that same sweep.
+
+## 12. Confirm Level 3 just-in-time injection
+
+This is the headline Phase 2 behavior: a skill body reaching the model
+**without it ever calling `orbit__load_tool_skill`**. Ask a question that
+should drive the model straight to a bound tool, with no mention of a
+playbook at all:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <key for an adapter with mcp-agent in available_skills>" \
+  -H "X-Session-ID: skill-test-jit-1" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Find the top 100 open opportunities."}
+    ],
+    "skill": "mcp-agent"
+  }'
+```
+
+Confirm:
+
+- `sources` contains **both** an `mcp_tool_call` entry for
+  `business-sample__search_opportunities` **and** a `tool_skill_load` entry
+  for `crm-pipeline-playbook` — with no `orbit__load_tool_skill` call ever
+  appearing in the tool-call history, unlike step 5.
+- Because Level 3 cannot shape the *first* call's arguments (§2.2's
+  documented limitation), the first `search_opportunities` call may still be
+  made with `limit: 100` and get the tool's own validation error back — the
+  skill body arrives *attached to that same error result*, and it's the
+  **next** call (or the final answer's formatting) that should reflect the
+  guidance. If the model never needed a second call at all (e.g. it happened
+  to pass a safe `limit` the first time), that's fine too — the injection
+  still occurred, there was just nothing left to correct.
+
+## 13. Confirm opportunistic-mode parity
+
+Repeat the same idea against an adapter using `capabilities.mcp_tools: true`
+instead of `skill: "mcp-agent"` — e.g. `simple-chat-with-files` from
+`docs/adapters/playbook-mcp-tool-loop.md`, with `business-sample` reachable
+from its `mcp_servers` allowlist:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <key for an mcp_tools:true adapter>" \
+  -H "X-Session-ID: skill-test-opportunistic-1" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Find the top 100 open opportunities."}
+    ]
+  }'
+```
+
+No `"skill"` field at all — this is the plain conversational path. Confirm
+the same thing step 12 confirmed on the explicit path: a `tool_skill_load`
+source appears alongside the real `mcp_tool_call`, without the model ever
+having to call the loader. This is the concrete difference Phase 2 made:
+before it, this exact request would have produced zero tool-skill-related
+`sources` entries, ever (see the "What NOT to expect yet" note this playbook
+used to carry — now folded into Phase 3's list below).
+
+## 14. Confirm the `capabilities.tool_skills` allowlist
+
+Add a restrictive allowlist to `mcp-agent-chat` in
+`config/adapters/mcp-agent.yaml`:
+
+```yaml
+capabilities:
+  mcp_servers: ["business-sample"]
+  tool_skills: []   # deny every tool skill for this adapter
+```
+
+Restart, repeat step 5's request. Confirm no `orbit__load_tool_skill` tool
+ever appears in the tool list and no `tool_skill_load` source shows up, even
+though `business-sample__*` tools are still fully reachable and callable —
+the allowlist blocks skill surfacing/loading specifically, not tool access
+(`docs/roadmap/mcp-tool-skills.md` §2.7). Restore
+`tool_skills: ["crm-pipeline-playbook"]` (or remove the key entirely, which
+defaults to "every skill matching a visible tool") afterward.
+
+## 15. Confirm the shared budget preserves priority regardless of call order
+
+This one is easiest to confirm at the unit level — it requires more than one
+skill bound to more than one tool to observe live, which the bundled example
+doesn't set up on its own:
+
+```bash
+/path/to/venv/bin/python -m pytest server/tests/test_inference/test_tool_skills_support.py -k "priority_admission" -v
+/path/to/venv/bin/python -m pytest server/tests/test_inference/test_mcp_agent_step.py -k "budget_preserves_priority" -v
+```
+
+Both assert the same thing from different angles: when more matched skills
+exist than the 3-skill/24KB budget allows, the skills actually admitted are
+the highest-priority candidates — decided once from the full matched set —
+never whichever skills happened to have their bound tool called first. If you
+want to see this live, author two more example skills under `config/skills/`
+bound to two different `business-sample` tools with different `priority`
+values, ask the model to use the lower-priority tool a few times before the
+higher-priority one, and confirm the higher-priority skill's `tool_skill_load`
+source still appears.
 
 ---
 
@@ -366,42 +490,89 @@ hardcodes `"business-sample"` as a special case anywhere in the mechanism —
 it's just the server whose tools happen to match this skill's glob this
 turn.
 
+### 5. Level 3 and opportunistic parity — `server/inference/pipeline/tool_skills_support.py`
+
+Everything above (steps 1–4) is Level 2 and lived, in Phase 1, entirely
+inside `MCPAgentStep`. Phase 2 pulled the matched/surfaced-set resolution,
+the catalog/loader builders, and dispatch into
+`server/inference/pipeline/tool_skills_support.py` so both call sites share
+one implementation — `MCPAgentStep._run_agent_loop` and
+`LLMInferenceStep._run_inline_mcp_tools` now call the exact same
+`resolve_surfaced_skills()` / `build_dispatch()` functions, which is what
+makes step 13's opportunistic-mode result identical to step 12's explicit one.
+
+`build_dispatch()`'s returned closure does two things on every dispatched
+call, not just loader calls:
+
+```python
+content = await mcp_manager.call_tool(tool_name, arguments)
+result = ToolDispatchResult(content=content, source_type="mcp_tool_call")
+
+for skill in matched_skills:              # full matched set, NOT the surfaced set
+    if budget.already_loaded(skill.name):
+        continue
+    if not skill.matches(tool_name):      # is this call's tool one this skill binds?
+        continue
+    if not budget.try_reserve(skill):
+        continue                          # budget-exhausted — logged, not silently lost
+    result.trusted_context.append(TrustedContext(name=skill.name, body=skill.body, ...))
+```
+
+This is why Level 3 fires *after* the real tool call — it's the same
+dispatch, and the model has already committed to the arguments by the time
+this code runs (the documented "can't shape the first call" limitation,
+step 12). It's also why sibling tool calls in one assistant turn are
+unaffected by each other: each call gets its own `dispatch(tool_name, ...)`
+invocation, and only skills whose `mcp_tools` glob matches *that specific*
+`tool_name` are ever considered for it.
+
+`InjectionBudget` is what makes step 15 true: it's constructed once per turn
+from the *full* matched-skill set (already sorted priority-desc/name by the
+registry), and it precomputes which skill names are eligible **before** any
+dispatch call happens — `try_reserve()` at call time only checks membership
+in that fixed set plus idempotence. That's a deliberate fix over a naive
+first-come-first-served budget, which would let three low-priority tool
+calls exhaust the budget before a higher-priority tool is ever invoked later
+in the same turn.
+
 ---
 
-## What NOT to expect yet (Phase 2+ territory)
+## What NOT to expect yet (Phase 3 territory)
 
-- **Opportunistic mode does not see tool skills.** Setting
-  `capabilities.mcp_tools: true` on `simple-chat` (as in
-  `playbook-mcp-tool-loop.md`) will NOT surface the catalog or loader tool —
-  only the explicit `skill: "mcp-agent"` path has this wired up in Phase 1.
-  Confirm this directly: repeat step 5 with `mcp_tools: true` on
-  `simple-chat` instead of `skill: "mcp-agent"` in the request, and confirm no
-  catalog/loader ever appears. This is expected, not a bug — it's exactly
-  what Phase 2 adds ("opportunistic parity").
-- **No just-in-time (Level 3) injection.** A skill body only reaches the
-  model if the model explicitly calls `orbit__load_tool_skill` — there is no
-  automatic injection after a bound tool's first call yet. If a smaller model
-  never calls the loader (step 5's note), the playbook simply never reaches
-  it this turn. That's the gap Phase 2 closes.
 - **No admin UI.** Skills are file-based only (`config/skills/*/SKILL.md`,
   git-edited, requiring a restart to pick up changes) — there's no `/admin`
   panel tab yet (Phase 3).
+- **No hot reload.** A new or edited `SKILL.md` isn't picked up until ORBIT
+  restarts (or `reload_tool_skill_registry` is called some other way) — the
+  multi-worker hot-reload path (mirroring the MCP tab's) is Phase 3 scope.
+- **No database-backed skills.** Everything is file-based; Phase 3 adds a
+  `tool_skills` collection with database-wins-over-file precedence (§2.6).
 
-If everything above checks out, Phase 0 and Phase 1 are confirmed working
-end-to-end and it's reasonable to move on to Phase 2.
+If everything above checks out, Phase 0, Phase 1, and Phase 2 are confirmed
+working end-to-end and it's reasonable to move on to Phase 3.
 
 ## Troubleshooting
 
 - **No `orbit__load_tool_skill` ever appears, and no `tool_skill_load`
-  source shows up**: confirm `business-sample` is in `mcp-agent-chat`'s
-  `capabilities.mcp_servers` (or that allowlist is omitted entirely), confirm
+  source shows up (Level 2/loader path)**: confirm `business-sample` is in
+  the adapter's `capabilities.mcp_servers` (or that allowlist is omitted
+  entirely), confirm `capabilities.tool_skills` isn't set to an allowlist
+  that excludes `crm-pipeline-playbook` (step 14), confirm
   `config/skills/crm-pipeline-playbook/SKILL.md` exists and its `enabled`
-  field isn't `false`, and confirm the request actually used
-  `"skill": "mcp-agent"` — opportunistic mode doesn't have this yet (see
-  above). A registry parsing failure logs a warning at startup (missing/
-  invalid `name`, `description`, or `mcp_tools`, an oversize body, etc.) —
-  check server startup logs for `"Skill file ... skipped"` if the skill
-  still isn't showing up with everything else configured correctly.
+  field isn't `false`, and confirm the request used either
+  `"skill": "mcp-agent"` or an adapter with `capabilities.mcp_tools: true` —
+  a plain adapter with neither never reaches the MCP tool loop at all. A
+  registry parsing failure logs a warning at startup (missing/invalid
+  `name`, `description`, or `mcp_tools`, an oversize body, etc.) — check
+  server startup logs for `"Skill file ... skipped"` if the skill still
+  isn't showing up with everything else configured correctly.
+- **A `tool_skill_load` source appears but no `orbit__load_tool_skill` call
+  is in the trace (Level 3/JIT path)**: this is expected, not a bug — see
+  step 12. Confirm it's paired with an `mcp_tool_call` entry for a tool the
+  skill's `mcp_tools` glob actually matches; if it's paired with a
+  *different* tool, or with no `mcp_tool_call` at all, that would indicate a
+  real problem (a skill matching the wrong tool, or an unattached
+  `TrustedContext`) worth filing.
 - **The model calls the loader but the answer doesn't reflect the
   guidance**: this is a model-capability issue, not a wiring issue — see step
   5/6's notes. Try a stronger model (`gpt-4.1`, `claude-sonnet-4-6`) before

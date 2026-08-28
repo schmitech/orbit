@@ -21,14 +21,19 @@ from typing import AsyncGenerator, List, Dict, Any, Optional, Sequence
 
 from ..base import PipelineStep, ProcessingContext
 from ..prompt_builder import PromptInstructionBuilder
-from ..mcp_tool_loop import run_tool_calling_loop, ToolDispatchResult, TrustedContext
+from ..mcp_tool_loop import run_tool_calling_loop
+from ..tool_skills_support import (
+    TOOL_SKILL_LOADER_NAME as _TOOL_SKILL_LOADER_NAME,
+    InjectionBudget,
+    build_dispatch,
+    resolve_surfaced_skills,
+    tool_names as _tool_names,
+    tool_skill_catalog_text as _tool_skill_catalog_text,
+    tool_skill_loader_schema as _tool_skill_loader_schema,
+)
 from ._utils import record_usage
 
 logger = logging.getLogger(__name__)
-
-# Reserved namespace for the synthetic tool-skill loader — see
-# services/tool_skill_service.py and docs/roadmap/mcp-tool-skills.md §2.2.
-_TOOL_SKILL_LOADER_NAME = "orbit__load_tool_skill"
 
 
 def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
@@ -56,46 +61,19 @@ def _get_mcp_servers_allowlist(container, adapter_name: str) -> Optional[List[st
     return None
 
 
-def _tool_names(tools: Sequence[Dict[str, Any]]) -> List[str]:
-    return [t.get("function", {}).get("name", "") for t in tools]
-
-
-def _tool_skill_loader_schema(surfaced_skills: Sequence) -> Dict[str, Any]:
-    """
-    The synthetic ``orbit__load_tool_skill`` tool. Its ``name`` enum is built
-    from exactly the turn's *surfaced set* (docs/roadmap/mcp-tool-skills.md
-    §2.2) — never the full matched set, and never the whole registry. The
-    enum is a UX aid only; the dispatcher independently re-checks the
-    requested name against this same surfaced set server-side (§2.2).
-    """
-    return {
-        "type": "function",
-        "function": {
-            "name": _TOOL_SKILL_LOADER_NAME,
-            "description": "Read the full procedural playbook for using a set of tools.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "enum": [skill.name for skill in surfaced_skills],
-                        "description": "The skill name to load, from the tool playbook catalog.",
-                    },
-                },
-                "required": ["name"],
-            },
-        },
-    }
-
-
-def _tool_skill_catalog_text(surfaced_skills: Sequence) -> str:
-    """Level 1 catalog block appended to the system message (§2.2) — one
-    line per surfaced skill, cheap enough to send on every turn."""
-    lines = "\n".join(f"- {skill.name}: {skill.description}" for skill in surfaced_skills)
-    return (
-        "Available tool playbooks (call "
-        f"{_TOOL_SKILL_LOADER_NAME} to read one in full):\n{lines}"
-    )
+def _get_tool_skills_allowlist(container, adapter_name: str) -> Optional[List[str]]:
+    """Return the capabilities.tool_skills allowlist, or None (= every skill
+    matching a visible tool — docs/roadmap/mcp-tool-skills.md §2.7)."""
+    if not adapter_name or not container.has("adapter_manager"):
+        return None
+    try:
+        mgr = container.get("adapter_manager")
+        cfg = mgr.get_adapter_config(adapter_name)
+        if cfg:
+            return cfg.get("capabilities", {}).get("tool_skills")
+    except Exception:
+        pass
+    return None
 
 
 class MCPAgentStep(PipelineStep):
@@ -192,37 +170,24 @@ class MCPAgentStep(PipelineStep):
         )
 
         # Resolve the matched/surfaced skill sets against the *filtered* tool
-        # list, before building the system message, so the Level 1 catalog
-        # can be appended to it in the same step — after cache_prefix_len,
-        # never inside it (docs/roadmap/mcp-tool-skills.md §2.4/§2.5).
-        #
-        # Guard against a namespace collision: an MCP server literally named
-        # "orbit" exposing a "load_tool_skill" tool namespaces to exactly
-        # _TOOL_SKILL_LOADER_NAME. Appending the synthetic schema on top would
-        # duplicate that function name in the tool list, and unconditionally
-        # intercepting it in the dispatcher would make the REAL tool
-        # permanently unreachable — even on turns where no skill ever
-        # matched. Tool skills are disabled entirely for this turn instead;
-        # the real MCP tool always wins the name.
-        real_tool_names = set(_tool_names(tools))
-        loader_name_collides = _TOOL_SKILL_LOADER_NAME in real_tool_names
-        if loader_name_collides:
-            logger.warning(
-                "An MCP tool named '%s' is already exposed this turn; tool skills "
-                "are disabled for it so the real tool stays reachable.",
-                _TOOL_SKILL_LOADER_NAME,
-            )
-            surfaced_skills = []
-        else:
-            registry = self._get_tool_skill_registry()
-            surfaced_skills = registry.matched_for(_tool_names(tools))[:self._surfaced_set_cap()]
+        # list and this adapter's tool_skills allowlist (§2.7), before
+        # building the system message, so the Level 1 catalog can be
+        # appended to it in the same step — after cache_prefix_len, never
+        # inside it (docs/roadmap/mcp-tool-skills.md §2.4/§2.5). Also
+        # detects the orbit__load_tool_skill namespace collision and
+        # disables tool skills for the turn when it fires (§4 Phase 1
+        # post-review fix) — see resolve_surfaced_skills' docstring.
+        registry = self._get_tool_skill_registry()
+        allowlist = _get_tool_skills_allowlist(self.container, context.adapter_name)
+        surfaced_skills, matched_skills, _collided = resolve_surfaced_skills(tools, registry, allowlist)
 
         messages, cache_prefix_len = await self._build_initial_messages(context, surfaced_skills)
 
         if surfaced_skills:
             tools = list(tools) + [_tool_skill_loader_schema(surfaced_skills)]
 
-        dispatch = self._build_dispatch(mcp_manager, surfaced_skills)
+        budget = InjectionBudget(matched_skills)
+        dispatch = build_dispatch(mcp_manager, surfaced_skills, matched_skills, budget)
 
         final_text, sources, _ = await run_tool_calling_loop(
             provider=provider,
@@ -346,64 +311,3 @@ class MCPAgentStep(PipelineStep):
         config = self.container.get_or_none("config") or {}
         from services.tool_skill_service import get_tool_skill_registry
         return get_tool_skill_registry(config)
-
-    def _surfaced_set_cap(self) -> int:
-        from services.tool_skill_service import SURFACED_SET_CAP
-        return SURFACED_SET_CAP
-
-    def _build_dispatch(self, mcp_manager, surfaced_skills: Sequence):
-        """
-        Build this turn's dispatcher: ``orbit__load_tool_skill`` routes to a
-        local skill load (Level 2, docs/roadmap/mcp-tool-skills.md §2.2),
-        everything else reaches the real MCP server unchanged.
-
-        Authorization and idempotence both live in this closure, scoped to
-        one turn:
-          - only a name in ``surfaced_skills`` (the turn's capped surfaced
-            set, matching the loader's enum) can be loaded — a guessed,
-            hallucinated, or matched-but-capped-out name is rejected exactly
-            like an unknown tool name, never resolved against the wider
-            matched set or the registry as a whole (§2.2).
-          - a skill already loaded once this turn returns a short fixed
-            result instead of its body again, so a repeated call cannot
-            re-inflate context (§2.2).
-
-        Interception of the loader name is itself gated on ``surfaced_skills``
-        being non-empty — defense in depth alongside the collision guard in
-        ``_run_agent_loop``. If a turn has no surfaced skills at all (either
-        because nothing matched, or because a real MCP tool happens to be
-        namespaced exactly ``orbit__load_tool_skill``), this dispatcher must
-        never swallow that name; it falls straight through to the real
-        ``mcp_manager.call_tool`` instead, so a genuine MCP tool by that name
-        stays reachable.
-        """
-        surfaced_by_name = {skill.name: skill for skill in surfaced_skills}
-        loaded: set = set()
-
-        async def dispatch(tool_name: str, arguments: Dict[str, Any]) -> ToolDispatchResult:
-            if tool_name == _TOOL_SKILL_LOADER_NAME and surfaced_by_name:
-                requested = arguments.get("name") if isinstance(arguments, dict) else None
-                skill = surfaced_by_name.get(requested)
-                if skill is None:
-                    return ToolDispatchResult(
-                        content=f"Unknown or unavailable tool skill '{requested}'.",
-                        source_type="tool_skill_load",
-                    )
-                if requested in loaded:
-                    return ToolDispatchResult(
-                        content=f"'{requested}' already loaded this turn.",
-                        source_type="tool_skill_load",
-                    )
-                loaded.add(requested)
-                return ToolDispatchResult(
-                    content="",
-                    source_type="tool_skill_load",
-                    trusted_context=[
-                        TrustedContext(name=skill.name, body=skill.body, version=skill.version)
-                    ],
-                )
-
-            content = await mcp_manager.call_tool(tool_name, arguments)
-            return ToolDispatchResult(content=content, source_type="mcp_tool_call")
-
-        return dispatch

@@ -12,6 +12,13 @@ from ai_services.errors import sanitize_provider_error
 from ..base import PipelineStep, ProcessingContext
 from ..prompt_builder import PromptInstructionBuilder
 from ..mcp_tool_loop import run_tool_calling_loop
+from ..tool_skills_support import (
+    InjectionBudget,
+    build_dispatch,
+    resolve_surfaced_skills,
+    tool_skill_catalog_text,
+    tool_skill_loader_schema,
+)
 from ._utils import NO_LLM_ADAPTER_TYPES, record_usage
 
 logger = logging.getLogger(__name__)
@@ -271,6 +278,27 @@ class LLMInferenceStep(PipelineStep):
         from services.mcp_client_service import get_mcp_client_manager
         return get_mcp_client_manager(config)
 
+    def _get_tool_skill_registry(self):
+        """Get (or lazily initialize) the ToolSkillRegistry from config."""
+        config = self.container.get_or_none('config') or {}
+        from services.tool_skill_service import get_tool_skill_registry
+        return get_tool_skill_registry(config)
+
+    def _get_tool_skills_allowlist(self, context: ProcessingContext):
+        """Return capabilities.tool_skills for this adapter, or None (= every
+        skill matching a visible tool — docs/roadmap/mcp-tool-skills.md §2.7)."""
+        adapter_name = getattr(context, 'adapter_name', None)
+        if not adapter_name or not self.container.has('adapter_manager'):
+            return None
+        try:
+            mgr = self.container.get('adapter_manager')
+            cfg = mgr.get_adapter_config(adapter_name)
+            if cfg:
+                return cfg.get('capabilities', {}).get('tool_skills')
+        except Exception:
+            pass
+        return None
+
     async def _select_relevant_tools(self, context: ProcessingContext, tools: list, usage_sink: dict) -> list:
         """
         Relevance-filter the full MCP tool list down to what this turn
@@ -329,23 +357,45 @@ class LLMInferenceStep(PipelineStep):
 
         # Build the same message format used for native-chat-format providers,
         # so RAG/file context (formatted_context) is included exactly as it
-        # is for the plain generate() path today.
+        # is for the plain generate() path today. This also sets
+        # context.cacheable_prefix_len, which the tool-skill catalog below
+        # must land strictly after (docs/roadmap/mcp-tool-skills.md §2.4).
         await self._build_message_format(context)
 
         usage_sink: dict = {}
         tools = await self._select_relevant_tools(context, tools, usage_sink)
+
+        # Computed from the real MCP tool list BEFORE the synthetic
+        # orbit__load_tool_skill entry (if any) is appended below — same
+        # reasoning as MCPAgentStep (docs/roadmap/mcp-tool-skills.md §2.5).
+        max_iterations = mcp_manager.max_tool_iterations_for(
+            mcp_manager.servers_in_tools(tools)
+        )
+
+        registry = self._get_tool_skill_registry()
+        allowlist = self._get_tool_skills_allowlist(context)
+        surfaced_skills, matched_skills, _collided = resolve_surfaced_skills(tools, registry, allowlist)
+
+        if surfaced_skills:
+            tools = list(tools) + [tool_skill_loader_schema(surfaced_skills)]
+            context.messages[0]["content"] = (
+                context.messages[0]["content"] + "\n\n" + tool_skill_catalog_text(surfaced_skills)
+            )
+
+        budget = InjectionBudget(matched_skills)
+        dispatch = build_dispatch(mcp_manager, surfaced_skills, matched_skills, budget)
+
         final_text, sources, _ = await run_tool_calling_loop(
             provider=llm_provider,
             mcp_manager=mcp_manager,
             messages=context.messages,
             tools=tools,
-            max_iterations=mcp_manager.max_tool_iterations_for(
-                mcp_manager.servers_in_tools(tools)
-            ),
+            max_iterations=max_iterations,
             cancel_event=context.cancel_event,
             is_cancelled=context.is_cancelled,
             usage_sink=usage_sink,
             cache_prefix_len=context.cacheable_prefix_len,
+            dispatch=dispatch,
         )
         context.response = final_text or ""
         context.sources = (context.sources or []) + sources

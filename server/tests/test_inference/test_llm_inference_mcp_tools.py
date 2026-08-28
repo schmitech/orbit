@@ -270,6 +270,100 @@ class TestOpportunisticMCPToolsFallback:
         assert step._should_run_mcp_tools(ctx) is False
 
 
+class _FakeSkill:
+    """Minimal stand-in for services.tool_skill_service.ToolSkill."""
+
+    def __init__(self, name, description, body="Some procedural guidance.", version="1.0", mcp_tools=None):
+        self.name = name
+        self.description = description
+        self.body = body
+        self.version = version
+        self._mcp_tools = mcp_tools or []
+
+    def matches(self, tool_name):
+        return tool_name in self._mcp_tools
+
+
+class _FakeToolSkillRegistry:
+    def __init__(self, skills):
+        self._skills = list(skills)
+
+    def matched_for(self, tool_names):
+        return list(self._skills)
+
+
+def _make_step_with_registry(provider, mcp_manager, registry):
+    class _Step(LLMInferenceStep):
+        def _get_mcp_manager(self):
+            return mcp_manager
+
+        def _get_tool_skill_registry(self):
+            return registry
+
+    return _Step(_FakeContainer(provider))
+
+
+class TestOpportunisticToolSkillsParity:
+    """
+    Phase 2 of docs/roadmap/mcp-tool-skills.md: the opportunistic path
+    (LLMInferenceStep._run_inline_mcp_tools) gets the same Level 1/2/3
+    tool-skill mechanism as MCPAgentStep.
+    """
+
+    async def test_jit_injects_after_first_call_to_a_bound_tool(self):
+        skill = _FakeSkill(name="fs-playbook", description="d", mcp_tools=["filesystem__read_file"])
+        registry = _FakeToolSkillRegistry([skill])
+
+        class _ToolCallThenFinalProvider(_FakeProvider):
+            def __init__(self):
+                super().__init__()
+                self._queue = [
+                    ToolCallingResult(
+                        text=None,
+                        tool_calls=[{"id": "c1", "name": "filesystem__read_file", "arguments": {"path": "/tmp/x"}}],
+                        assistant_message={"role": "assistant", "content": None, "tool_calls": []},
+                        finish_reason="tool_calls",
+                    ),
+                    _final_result("tool-derived answer"),
+                ]
+
+            async def generate_with_tools(self, messages, tools, **kwargs):
+                self.generate_with_tools_calls += 1
+                return self._queue.pop(0)
+
+        provider = _ToolCallThenFinalProvider()
+        manager = _FakeMCPManager(_TOOLS, tool_output="file-contents")
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(
+            message="what's in the docs?", adapter_name="simple-chat-with-files",
+            mcp_tools=True, mcp_servers_allowlist=["filesystem"],
+        )
+
+        result_ctx = await step.process(ctx)
+
+        assert result_ctx.response == "tool-derived answer"
+        skill_sources = [s for s in result_ctx.sources if s["type"] == "tool_skill_load"]
+        assert skill_sources == [{"type": "tool_skill_load", "skill": "fs-playbook", "version": "1.0"}]
+
+    async def test_catalog_appended_after_cacheable_prefix_len(self):
+        skill = _FakeSkill(name="fs-playbook", description="Playbook for the filesystem tool.",
+                            mcp_tools=["filesystem__read_file"])
+        registry = _FakeToolSkillRegistry([skill])
+        provider = _FakeProvider(generate_with_tools_result=_final_result())
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(
+            message="hi", adapter_name="simple-chat-with-files", mcp_tools=True,
+        )
+
+        await step.process(ctx)
+
+        system_message = ctx.messages[0]["content"]
+        assert "fs-playbook" in system_message
+        prefix = system_message[: ctx.cacheable_prefix_len]
+        assert "fs-playbook" not in prefix
+
+
 class TestRagContextAndMcpToolsCoexist:
     async def test_formatted_context_included_in_tool_loop_system_message(self):
         provider = _FakeProvider(generate_with_tools_result=_final_result())
