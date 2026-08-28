@@ -105,6 +105,14 @@ class _FakeMCPManager:
         return self._tool_output
 
 
+class _FakeEmptyToolSkillRegistry:
+    """No skills configured — matches production behavior with an empty/
+    missing config/skills directory, without touching the real filesystem."""
+
+    def matched_for(self, tool_names):
+        return []
+
+
 def _make_step(provider, manager):
     class _Step(MCPAgentStep):
         async def _resolve_provider(self, context):
@@ -113,7 +121,10 @@ def _make_step(provider, manager):
         def _get_mcp_manager(self):
             return manager
 
-        async def _build_initial_messages(self, context):
+        def _get_tool_skill_registry(self):
+            return _FakeEmptyToolSkillRegistry()
+
+        async def _build_initial_messages(self, context, surfaced_skills=None):
             return [
                 {"role": "system", "content": "sys"},
                 {"role": "user", "content": context.message},
@@ -130,7 +141,10 @@ def _make_step_with_cache_prefix_len(provider, manager, cache_prefix_len):
         def _get_mcp_manager(self):
             return manager
 
-        async def _build_initial_messages(self, context):
+        def _get_tool_skill_registry(self):
+            return _FakeEmptyToolSkillRegistry()
+
+        async def _build_initial_messages(self, context, surfaced_skills=None):
             return [
                 {"role": "system", "content": "sys"},
                 {"role": "user", "content": context.message},
@@ -342,3 +356,287 @@ class TestMCPAgentCancellation:
         text, sources = loop_task.result()
         assert len(provider.calls) == 1
         assert sources == []  # the interrupted tool call was not recorded
+
+
+class _FakeSkill:
+    """Minimal stand-in for services.tool_skill_service.ToolSkill."""
+
+    def __init__(self, name, description, body="Some procedural guidance.", version="1.0"):
+        self.name = name
+        self.description = description
+        self.body = body
+        self.version = version
+
+
+class _FakeToolSkillRegistry:
+    """Records the tool names it was asked to match against, and always
+    returns the (pre-sorted) skills it was constructed with — the surfaced
+    set truncation is MCPAgentStep's job, not the registry's, so a fake here
+    only needs to stand in for `matched_for`."""
+
+    def __init__(self, skills):
+        self._skills = list(skills)
+        self.received_tool_names = None
+
+    def matched_for(self, tool_names):
+        self.received_tool_names = list(tool_names)
+        return list(self._skills)
+
+
+class _FakeToolsCapturingProvider:
+    """Like _FakeProvider, but also records the raw `tools` list passed on
+    every call, so a test can inspect the synthetic loader tool's schema."""
+
+    def __init__(self, results):
+        self._results = list(results)
+        self.tools_seen = []
+
+    async def generate_with_tools(self, messages, tools, **kwargs):
+        self.tools_seen.append(tools)
+        if self._results:
+            return self._results.pop(0)
+        return ToolCallingResult(
+            text="default-final", tool_calls=None,
+            assistant_message={"role": "assistant", "content": "default-final"},
+            finish_reason="stop",
+        )
+
+
+def _make_step_with_registry(provider, manager, registry):
+    """Uses the REAL _build_initial_messages (unlike _make_step) so catalog
+    injection and cache_prefix_len interaction are exercised end to end."""
+    class _Step(MCPAgentStep):
+        async def _resolve_provider(self, context):
+            return provider
+
+        def _get_mcp_manager(self):
+            return manager
+
+        def _get_tool_skill_registry(self):
+            return registry
+
+    return _Step(_FakeContainer())
+
+
+class TestMCPAgentToolSkills:
+    """
+    Phase 1 of docs/roadmap/mcp-tool-skills.md: the synthetic
+    orbit__load_tool_skill loader, the Level 1 catalog, and dispatcher
+    authorization/idempotence, exercised through MCPAgentStep end to end.
+    """
+
+    async def test_catalog_and_loader_tool_appended_when_a_skill_matches(self):
+        skill = _FakeSkill(name="crm-pipeline-playbook", description="How to use the CRM tools.")
+        registry = _FakeToolSkillRegistry([skill])
+        provider = _FakeToolsCapturingProvider([
+            _tool_call_result(name="orbit__load_tool_skill", args={"name": "crm-pipeline-playbook"}),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        assert text == "final"
+        # The matched-set query is built from the (post-selector) MCP tool list.
+        assert registry.received_tool_names == ["filesystem__read_file"]
+
+        first_call_tools = provider.tools_seen[0]
+        assert len(first_call_tools) == 2  # the real tool + the synthetic loader
+        loader = next(t for t in first_call_tools if t["function"]["name"] == "orbit__load_tool_skill")
+        assert loader["function"]["parameters"]["properties"]["name"]["enum"] == ["crm-pipeline-playbook"]
+
+        assert sources == [{
+            "type": "tool_skill_load",
+            "skill": "crm-pipeline-playbook",
+            "version": "1.0",
+        }]
+
+    async def test_no_synthetic_tool_when_nothing_matches(self):
+        registry = _FakeToolSkillRegistry([])
+        provider = _FakeToolsCapturingProvider([
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        await step._run_agent_loop(ctx)
+
+        assert len(provider.tools_seen[0]) == 1  # just the real tool, no loader
+
+    async def test_real_mcp_tool_named_like_the_loader_is_never_shadowed(self):
+        """A real MCP tool namespaced exactly 'orbit__load_tool_skill' (e.g. an
+        MCP server literally named 'orbit') must stay reachable and unique in
+        the tool list — tool skills are disabled for the whole turn rather
+        than risk a duplicate schema or hijacking the real tool's calls."""
+        colliding_tools = [
+            {"type": "function", "function": {"name": "orbit__load_tool_skill", "parameters": {}}}
+        ]
+        skill = _FakeSkill(name="crm-pipeline-playbook", description="d")
+        registry = _FakeToolSkillRegistry([skill])  # would otherwise "match" every turn
+        provider = _FakeToolsCapturingProvider([
+            _tool_call_result(name="orbit__load_tool_skill", args={"path": "/tmp/x"}),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(colliding_tools, tool_output="real-tool-output")
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        assert text == "final"
+        # Exactly one schema for the name — no duplicate synthetic entry appended.
+        assert len(provider.tools_seen[0]) == 1
+        assert provider.tools_seen[0][0]["function"]["name"] == "orbit__load_tool_skill"
+        # The call reached the REAL MCP tool, not the local skill loader.
+        assert manager.called_with == [("orbit__load_tool_skill", {"path": "/tmp/x"})]
+        assert sources == [{
+            "type": "mcp_tool_call",
+            "tool": "orbit__load_tool_skill",
+            "arguments": {"path": "/tmp/x"},
+            "result_preview": "real-tool-output",
+        }]
+
+    async def test_repeated_load_is_idempotent_and_sources_only_once(self):
+        skill = _FakeSkill(name="crm-pipeline-playbook", description="d")
+        registry = _FakeToolSkillRegistry([skill])
+        provider = _FakeProvider([
+            _tool_call_result(name="orbit__load_tool_skill", args={"name": "crm-pipeline-playbook"}),
+            _tool_call_result(name="orbit__load_tool_skill", args={"name": "crm-pipeline-playbook"}),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS, max_iterations=5)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        assert text == "final"
+        skill_sources = [s for s in sources if s["type"] == "tool_skill_load"]
+        assert len(skill_sources) == 1
+
+    async def test_dispatcher_rejects_a_name_outside_the_surfaced_set(self):
+        """A guessed/hallucinated skill name (or one truncated out of the
+        surfaced set) must be rejected server-side, not resolved against a
+        wider set — docs/roadmap/mcp-tool-skills.md §2.2."""
+        skill = _FakeSkill(name="crm-pipeline-playbook", description="d")
+        registry = _FakeToolSkillRegistry([skill])
+        provider = _FakeProvider([
+            _tool_call_result(name="orbit__load_tool_skill", args={"name": "totally-made-up"}),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        text, sources = await step._run_agent_loop(ctx)
+
+        assert text == "final"
+        assert sources == []  # no tool_skill_load entry for a rejected/unknown name
+
+    async def test_surfaced_set_cap_truncates_the_loader_enum_and_catalog(self):
+        many_skills = [
+            _FakeSkill(name=f"skill-{i:02d}", description=f"skill number {i}")
+            for i in range(15)
+        ]
+        registry = _FakeToolSkillRegistry(many_skills)
+        provider = _FakeToolsCapturingProvider([
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        await step._run_agent_loop(ctx)
+
+        loader = next(t for t in provider.tools_seen[0] if t["function"]["name"] == "orbit__load_tool_skill")
+        assert len(loader["function"]["parameters"]["properties"]["name"]["enum"]) == 10
+
+    async def test_max_iterations_computed_before_synthetic_tool_is_appended(self):
+        """servers_in_tools()/max_tool_iterations_for() must see only the real
+        MCP tool list — a synthetic orbit__* entry has no server-level
+        max_tool_iterations override to resolve against."""
+        skill = _FakeSkill(name="crm-pipeline-playbook", description="d")
+        registry = _FakeToolSkillRegistry([skill])
+
+        class _RecordingManager(_FakeMCPManager):
+            def __init__(self, *a, **kw):
+                super().__init__(*a, **kw)
+                self.iteration_query_tools = None
+
+            def max_tool_iterations_for(self, server_names):
+                self.iteration_query_tools = server_names
+                return self._max
+
+        provider = _FakeProvider([
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _RecordingManager(_TOOLS)
+        step = _make_step_with_registry(provider, manager, registry)
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        await step._run_agent_loop(ctx)
+
+        # servers_in_tools(tools) is derived only from filesystem__read_file,
+        # never from orbit__load_tool_skill (which would parse as server "orbit").
+        assert manager.iteration_query_tools == {"filesystem"}
+
+
+class TestMCPAgentBuildInitialMessagesWithSkills:
+    """Direct coverage of the catalog-injection contract in
+    _build_initial_messages, independent of the rest of the loop."""
+
+    async def test_catalog_is_appended_after_cache_prefix_len(self):
+        step = MCPAgentStep(_FakeContainer())
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+        skill = _FakeSkill(name="crm-pipeline-playbook", description="How to use the CRM tools.")
+
+        messages, cache_prefix_len = await step._build_initial_messages(ctx, [skill])
+
+        system_content = messages[0]["content"]
+        assert cache_prefix_len is not None
+        prefix = system_content[:cache_prefix_len]
+        assert "crm-pipeline-playbook" not in prefix
+        assert "crm-pipeline-playbook" in system_content
+        assert "orbit__load_tool_skill" in system_content
+
+    async def test_no_skills_leaves_system_message_unchanged(self):
+        step = MCPAgentStep(_FakeContainer())
+        ctx = ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+
+        messages_without_arg, prefix_without = await step._build_initial_messages(ctx)
+        messages_empty_list, prefix_empty = await step._build_initial_messages(ctx, [])
+
+        assert messages_without_arg[0]["content"] == messages_empty_list[0]["content"]
+        assert prefix_without == prefix_empty
+        assert "orbit__load_tool_skill" not in messages_without_arg[0]["content"]

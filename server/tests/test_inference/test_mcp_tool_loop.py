@@ -18,7 +18,11 @@ server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 sys.path.insert(0, server_dir)
 
 from ai_services.services import ToolCallingResult
-from inference.pipeline.mcp_tool_loop import run_tool_calling_loop
+from inference.pipeline.mcp_tool_loop import (
+    ToolDispatchResult,
+    TrustedContext,
+    run_tool_calling_loop,
+)
 
 
 class _FakeProvider:
@@ -453,3 +457,221 @@ class TestRunToolCallingLoopUsageTracking:
 
         assert usage_sink == {}
         assert len(provider.calls) == 1
+
+
+class TestRunToolCallingLoopDispatch:
+    """
+    Coverage for the injected `dispatch` callable (Phase 1 of
+    docs/roadmap/mcp-tool-skills.md, §2.3/§2.8) — the default dispatcher must
+    reproduce today's behavior exactly, and a caller-supplied dispatcher's
+    ToolDispatchResult must drive `sources`/message content per the documented
+    provenance rules (mcp_tool_call vs tool_skill_load, trusted vs untrusted).
+    """
+
+    async def test_default_dispatch_matches_pre_phase1_behavior(self):
+        """No dispatch passed => behaves exactly like calling mcp_manager.call_tool
+        directly, both in message wrapping and in the `sources` shape."""
+        provider = _FakeProvider([
+            _tool_call_result(),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager(tool_output="file-contents")
+
+        text, sources, messages = await run_tool_calling_loop(
+            provider, manager, _initial_messages("read it"), _TOOLS, max_iterations=3,
+        )
+
+        assert text == "final"
+        assert manager.called_with == [("filesystem__read_file", {"path": "/tmp/x"})]
+        assert sources == [{
+            "type": "mcp_tool_call",
+            "tool": "filesystem__read_file",
+            "arguments": {"path": "/tmp/x"},
+            "result_preview": "file-contents",
+        }]
+        tool_message = next(m for m in messages if m.get("role") == "tool")
+        assert tool_message["content"] == "<tool_result>\nfile-contents\n</tool_result>"
+
+    async def test_custom_dispatch_is_used_instead_of_mcp_manager(self):
+        provider = _FakeProvider([
+            _tool_call_result(),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager()
+        calls = []
+
+        async def custom_dispatch(tool_name, arguments):
+            calls.append((tool_name, arguments))
+            return ToolDispatchResult(content="custom-output", source_type="mcp_tool_call")
+
+        text, sources, _ = await run_tool_calling_loop(
+            provider, manager, _initial_messages("x"), _TOOLS, max_iterations=3,
+            dispatch=custom_dispatch,
+        )
+
+        assert calls == [("filesystem__read_file", {"path": "/tmp/x"})]
+        assert manager.called_with == []  # mcp_manager.call_tool never invoked
+        assert sources[0]["result_preview"] == "custom-output"
+
+    async def test_dispatch_error_falls_back_to_error_result(self):
+        provider = _FakeProvider([
+            _tool_call_result(),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager()
+
+        async def failing_dispatch(tool_name, arguments):
+            raise RuntimeError("boom")
+
+        text, sources, _ = await run_tool_calling_loop(
+            provider, manager, _initial_messages("x"), _TOOLS, max_iterations=3,
+            dispatch=failing_dispatch,
+        )
+
+        assert text == "final"
+        assert "Error calling tool" in sources[0]["result_preview"]
+        assert sources[0]["type"] == "mcp_tool_call"
+
+    async def test_tool_skill_load_gets_its_own_source_type_never_mcp_tool_call(self):
+        """A Level-2-shaped dispatch (empty content, tool_skill_load) must not
+        appear in `sources` as an mcp_tool_call — see docs/roadmap/mcp-tool-skills.md §2.8."""
+        provider = _FakeProvider([
+            _tool_call_result(name="orbit__load_tool_skill", args={"name": "crm-pipeline-playbook"}),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager()
+
+        async def skill_dispatch(tool_name, arguments):
+            return ToolDispatchResult(
+                content="",
+                source_type="tool_skill_load",
+                trusted_context=[
+                    TrustedContext(name="crm-pipeline-playbook", body="Always page results.", version="1.0")
+                ],
+            )
+
+        text, sources, messages = await run_tool_calling_loop(
+            provider, manager, _initial_messages("x"), _TOOLS, max_iterations=3,
+            dispatch=skill_dispatch,
+        )
+
+        assert sources == [{
+            "type": "tool_skill_load",
+            "skill": "crm-pipeline-playbook",
+            "version": "1.0",
+        }]
+        assert not any(s["type"] == "mcp_tool_call" for s in sources)
+
+        tool_message = next(m for m in messages if m.get("role") == "tool")
+        assert "<tool_result>\n\n</tool_result>" in tool_message["content"]
+        assert '<trusted_skill name="crm-pipeline-playbook">' in tool_message["content"]
+        assert "Always page results." in tool_message["content"]
+        assert "</trusted_skill>" in tool_message["content"]
+
+    async def test_level3_mixed_trust_result_carries_both_source_kinds(self):
+        """A Level-3-shaped dispatch (real MCP content + an attached trusted
+        skill) must produce BOTH an mcp_tool_call source entry AND a
+        tool_skill_load entry from the same single dispatch."""
+        provider = _FakeProvider([
+            _tool_call_result(),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager()
+
+        async def mixed_dispatch(tool_name, arguments):
+            return ToolDispatchResult(
+                content="real-mcp-output",
+                source_type="mcp_tool_call",
+                trusted_context=[
+                    TrustedContext(name="crm-pipeline-playbook", body="Never pass limit above 25.", version="1.0")
+                ],
+            )
+
+        text, sources, messages = await run_tool_calling_loop(
+            provider, manager, _initial_messages("x"), _TOOLS, max_iterations=3,
+            dispatch=mixed_dispatch,
+        )
+
+        assert len(sources) == 2
+        assert sources[0]["type"] == "mcp_tool_call"
+        assert sources[0]["result_preview"] == "real-mcp-output"
+        assert sources[1] == {
+            "type": "tool_skill_load",
+            "skill": "crm-pipeline-playbook",
+            "version": "1.0",
+        }
+
+        tool_message = next(m for m in messages if m.get("role") == "tool")
+        assert "<tool_result>\nreal-mcp-output\n</tool_result>" in tool_message["content"]
+        assert '<trusted_skill name="crm-pipeline-playbook">' in tool_message["content"]
+        # The untrusted content must never end up inside the trusted tag, or vice versa.
+        assert tool_message["content"].index("<tool_result>") < tool_message["content"].index("<trusted_skill")
+
+    async def test_multiple_trusted_context_items_each_get_a_source_entry(self):
+        provider = _FakeProvider([
+            _tool_call_result(),
+            ToolCallingResult(
+                text="final", tool_calls=None,
+                assistant_message={"role": "assistant", "content": "final"},
+                finish_reason="stop",
+            ),
+        ])
+        manager = _FakeMCPManager()
+
+        async def two_skill_dispatch(tool_name, arguments):
+            return ToolDispatchResult(
+                content="mcp-output",
+                source_type="mcp_tool_call",
+                trusted_context=[
+                    TrustedContext(name="skill-a", body="body a", version="2"),
+                    TrustedContext(name="skill-b", body="body b", version="1"),
+                ],
+            )
+
+        text, sources, _ = await run_tool_calling_loop(
+            provider, manager, _initial_messages("x"), _TOOLS, max_iterations=3,
+            dispatch=two_skill_dispatch,
+        )
+
+        skill_sources = [s for s in sources if s["type"] == "tool_skill_load"]
+        assert {s["skill"]: s["version"] for s in skill_sources} == {"skill-a": "2", "skill-b": "1"}
+
+    async def test_cancellation_during_dispatch_is_honored(self):
+        ev = asyncio.Event()
+
+        async def cancel_on_dispatch(tool_name, arguments):
+            ev.set()
+            await asyncio.sleep(30)
+            return ToolDispatchResult(content="never reached")
+
+        provider = _FakeProvider([_tool_call_result()])
+        manager = _FakeMCPManager()
+
+        loop_task = asyncio.ensure_future(
+            run_tool_calling_loop(
+                provider, manager, _initial_messages("x"), _TOOLS, max_iterations=5,
+                cancel_event=ev, is_cancelled=ev.is_set, dispatch=cancel_on_dispatch,
+            )
+        )
+        text, sources, _ = await asyncio.wait_for(loop_task, timeout=5)
+        assert sources == []

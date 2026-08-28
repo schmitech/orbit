@@ -1,6 +1,6 @@
 # MCP Tool Skills — Procedural Skills Attached to MCP Tools
 
-**Status:** Phase 0 complete — decisions locked (§8) · Phase 1 not started
+**Status:** Phase 0 complete (§8) · Phase 1 complete (§4) — runtime core shipped, file-based, no UI · Phase 2 not started
 **Owner:** TBD
 **Related:** [`docs/adapters/mcp-agent.md`](../adapters/mcp-agent.md), [`docs/tutorial/mcp-tool-calling.md`](../tutorial/mcp-tool-calling.md)
 
@@ -564,7 +564,7 @@ All six decisions in §8 are locked. Summary (details and rationale in §8):
 
 **Exit:** this document updated with all six answers recorded; Phase 1 unblocked.
 
-### Phase 1 — Runtime core, file-based (≈3–4 days)
+### Phase 1 — Runtime core, file-based ✅ complete
 
 | Change | File |
 |---|---|
@@ -587,11 +587,57 @@ All six decisions in §8 are locked. Summary (details and rationale in §8):
 - **Surfaced-set consistency:** with a matched set larger than the cap, the catalog, the loader's `name` enum, and what the dispatcher will authorize are all built from the identical truncated surfaced set — a skill outside it is absent from all three, not just the catalog listing.
 - **Enum authorization:** a request for a name outside the surfaced set (simulated directly against the dispatcher, bypassing the enum as a hostile/buggy client would) is rejected server-side rather than resolved against the matched set or the global registry — including a name that *is* in the matched set but was truncated out of the surfaced set.
 - **Idempotence:** a second `orbit__load_tool_skill` call for the same skill in the same turn returns the fixed "already loaded" result, not the body again; verified this holds regardless of whether the first load was Level 2 or (once Phase 2 lands) Level 3.
-- **Cap-vs-warning boundary:** the matched-set-exceeds-cap warning is asserted to fire only from tool-discovery-refresh/registry-reload paths against an adapter's statically reachable tool set (§2.5), never from a per-request code path — a test driving many differently-shaped requests against an oversized matched set must produce zero additional log lines beyond what discovery/reload already emitted.
+- **Deferred to Phase 3:** the "matched set exceeds cap" startup/reload
+  diagnostic (§2.5) — logging it correctly requires cross-referencing each
+  adapter's `mcp_servers` allowlist against `MCPClientManager`'s cached tool
+  set, which is naturally part of Phase 3's admin/reload wiring (the same
+  place that already reasons about per-adapter server reachability) rather
+  than the core runtime mechanism. Its absence has no functional effect in
+  Phase 1 — the surfaced-set truncation itself (tested above) is what
+  actually bounds cost; the deferred piece is only the operator-facing
+  early-warning log line.
 
-**Exit:** with `skill: "mcp-agent"` and one `SKILL.md` on disk, a live request
-shows an `orbit__load_tool_skill` call in `sources` followed by a tool-informed
-answer. No UI.
+**Shipped:** `server/services/tool_skill_service.py` (`ToolSkillRegistry`,
+`ToolSkill`, frontmatter parsing/validation, `matched_for`, the
+`get_tool_skill_registry`/`reload_tool_skill_registry` singleton, 24 unit
+tests in `test_services/test_tool_skill_service.py`); `ToolDispatchResult`/
+`TrustedContext` + the `dispatch` shim in `mcp_tool_loop.py` (7 new tests in
+`test_inference/test_mcp_tool_loop.py`, all 13 pre-existing ones passing
+unchanged); the reordered `MCPAgentStep._run_agent_loop` — discovery → filter
+→ resolve matched/surfaced sets → build system message + catalog → append
+loader tool → build per-turn dispatch → run loop — plus catalog injection in
+`_build_initial_messages` (9 new tests in `test_inference/test_mcp_agent_step.py`,
+all 8 pre-existing ones passing unchanged); the example
+`config/skills/crm-pipeline-playbook/SKILL.md`. `MCPToolSelector` and
+`LLMInferenceStep`'s opportunistic path are untouched, as designed.
+
+**Namespace-collision guard (post-review fix).** An MCP server literally
+named `orbit` exposing a `load_tool_skill` tool namespaces to exactly
+`orbit__load_tool_skill` — the synthetic loader's own reserved name (§2.1
+already reserves this prefix for *skill* names and *bindings*, but not for
+the loader's own tool name colliding with a real one). Left unguarded, this
+would append a duplicate function schema whenever any skill surfaced, and the
+dispatcher would unconditionally intercept that name — making the real MCP
+tool permanently unreachable, even on turns where no skill ever matched.
+Fixed by detecting the collision against the *filtered* tool list before
+resolving matched/surfaced skills at all (§ real_tool_names check in
+`_run_agent_loop`): on a collision, tool skills are disabled entirely for
+that turn (no catalog, no synthetic tool, no interception) and the real tool
+always wins the name — with a second, defense-in-depth gate in
+`_build_dispatch` itself (`surfaced_by_name` must be non-empty before the
+loader name is ever intercepted), so an empty surfaced set can never
+accidentally swallow a same-named real tool call regardless of how it became
+empty. Regression test:
+`test_real_mcp_tool_named_like_the_loader_is_never_shadowed`.
+
+**Exit:** ✅ verified. With `skill: "mcp-agent"` and one `SKILL.md` on disk,
+the loop's first provider call includes the synthetic `orbit__load_tool_skill`
+tool (enum-scoped to the matched skill), and a model call to it produces a
+`tool_skill_load`-typed `sources` entry, distinct from `mcp_tool_call` entries,
+with the skill body delivered via a `<trusted_skill>`-tagged segment on the
+existing tool-result message — never a new message, never inside
+`<tool_result>`. `cache_prefix_len` is provably unaffected by catalog
+injection. No UI (as scoped).
 
 ### Phase 2 — Just-in-time injection + opportunistic parity (≈2–3 days)
 
@@ -643,7 +689,7 @@ mcp-agent docs state plainly that the first call isn't covered by this path.
 | Phase | Estimate | Ships value alone |
 |---|---|---|
 | 0 | 0.5 d | decisions |
-| 1 | 3–4 d | yes — YAML-authored skills work end to end |
+| 1 | 3–4 d ✅ shipped | yes — YAML-authored skills work end to end |
 | 2 | 2–3 d | yes — small models benefit |
 | 3 | 4–5 d | yes — non-engineers can author |
 | 4 | open | optional |
@@ -701,5 +747,6 @@ mcp-agent docs state plainly that the first call isn't covered by this path.
 > before or during its tool-calling loop, without modifying the MCP servers
 > themselves. This is distinct from having an MCP tool launch another ORBIT
 > adapter or agent — confirmed (§8, Q1) as the intended scope; the
-> launch-another-adapter variant is a separate, deferred idea. Phase 0 is
-> complete; Phase 1 (runtime core, file-based, no UI) is ready to start.
+> launch-another-adapter variant is a separate, deferred idea. Phase 0 and
+> Phase 1 (runtime core, file-based, no UI) are complete and tested; Phase 2
+> (just-in-time injection, opportunistic-mode parity) is next.

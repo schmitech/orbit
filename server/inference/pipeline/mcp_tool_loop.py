@@ -9,6 +9,7 @@ loop/cancellation/executor logic is implemented once.
 
 import asyncio
 import logging
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ai_services.providers.usage_reporting import accumulate_usage_sink
@@ -19,6 +20,47 @@ _RESULT_TRUNCATION_CHARS = 2000
 
 # Sentinel returned by await_or_cancel when the client cancelled mid-call.
 _CANCELLED = object()
+
+
+@dataclass
+class TrustedContext:
+    """
+    A trusted, admin-authored attachment riding alongside a tool call's own
+    (untrusted) result — e.g. a tool skill body (see
+    docs/roadmap/mcp-tool-skills.md §2.8). ``version`` lives per-item, not on
+    ``ToolDispatchResult``, because one dispatch's ``trusted_context`` is a
+    list and can in principle carry more than one matched skill.
+    """
+
+    name: str
+    body: str
+    kind: str = "tool_skill"
+    version: Optional[str] = None
+
+
+@dataclass
+class ToolDispatchResult:
+    """
+    The result of dispatching one tool call, returned by the ``dispatch``
+    callable passed to :func:`run_tool_calling_loop` (see
+    docs/roadmap/mcp-tool-skills.md §2.8).
+
+    ``content`` is always untrusted text — the tool's own output — and is
+    wrapped in ``<tool_result>`` exactly as a bare string result was before
+    this type existed. ``trusted_context`` holds zero or more *additional*,
+    admin-authored segments (e.g. a tool skill body) that ride alongside
+    ``content`` in the same ``role: "tool"`` message, each delimited
+    separately and never treated as if it came from the tool/MCP server.
+
+    A single ``trusted: bool`` cannot represent Level 3's mixed-trust case
+    (untrusted tool output + a trusted skill body attached to the same call),
+    which is why this is a list of segments rather than one flag.
+    """
+
+    content: str
+    source_type: str = "mcp_tool_call"  # "mcp_tool_call" | "tool_skill_load" | future local kinds
+    trusted_context: List[TrustedContext] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 async def await_or_cancel(coro, cancel_event: Optional[asyncio.Event]):
@@ -84,6 +126,7 @@ async def run_tool_calling_loop(
     is_cancelled: Optional[Callable[[], bool]] = None,
     usage_sink: Optional[Dict[str, Any]] = None,
     cache_prefix_len: Optional[int] = None,
+    dispatch: Optional[Callable[[str, Dict[str, Any]], Any]] = None,
 ) -> Tuple[Optional[str], List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Execute the bounded tool-calling loop.
@@ -91,12 +134,22 @@ async def run_tool_calling_loop(
     Args:
         provider: Inference provider exposing generate_with_tools(messages, tools).
         mcp_manager: MCPClientManager-like object exposing call_tool(name, args).
+            Used as the default dispatch target when ``dispatch`` is not given.
         messages: Initial OpenAI-format messages list (mutated in place).
         tools: OpenAI-format tool schemas to expose to the model.
         max_iterations: Maximum tool-calling rounds before forcing a final answer.
         cancel_event: Optional asyncio.Event; when set, in-flight calls are torn down.
         is_cancelled: Optional callable checked between iterations for a cheap
             fast-path cancellation check.
+        dispatch: Optional async callable ``(tool_name, arguments) -> ToolDispatchResult``
+            (or a bare string, for backward compatibility with callers that
+            haven't adopted the structured contract). Defaults to a thin
+            wrapper around ``mcp_manager.call_tool`` that reproduces today's
+            behavior exactly (a plain MCP call, ``source_type="mcp_tool_call"``,
+            no trusted context) — see docs/roadmap/mcp-tool-skills.md §2.3/§2.8.
+            Callers that want tool skills (or any other local/synthetic tool)
+            pass their own dispatcher; everything else about the loop is
+            unchanged by that choice.
         usage_sink: Optional caller-owned dict that accumulates token usage
             summed across every provider call this loop makes. A fresh sink is
             used per call (see accumulate_usage_sink) since _report_usage()
@@ -117,6 +170,11 @@ async def run_tool_calling_loop(
     sources: List[Dict[str, Any]] = []
     # Best answer text seen so far, returned if the caller cancels mid-loop.
     last_text: Optional[str] = None
+
+    if dispatch is None:
+        async def dispatch(tool_name: str, arguments: Dict[str, Any]) -> ToolDispatchResult:
+            content = await mcp_manager.call_tool(tool_name, arguments)
+            return ToolDispatchResult(content=content, source_type="mcp_tool_call")
 
     def _cancelled() -> bool:
         return bool(is_cancelled and is_cancelled())
@@ -165,21 +223,37 @@ async def run_tool_calling_loop(
             logger.debug("MCP tool call: %s(%s)", tool_name, arguments)
 
             try:
-                tool_result_text = await await_or_cancel(
-                    mcp_manager.call_tool(tool_name, arguments), cancel_event
+                dispatch_result = await await_or_cancel(
+                    dispatch(tool_name, arguments), cancel_event
                 )
             except Exception as exc:
-                tool_result_text = f"Error calling tool '{tool_name}': {exc}"
+                dispatch_result = ToolDispatchResult(
+                    content=f"Error calling tool '{tool_name}': {exc}",
+                    source_type="mcp_tool_call",
+                )
                 logger.warning("MCP tool error [%s]: %s", tool_name, exc)
 
-            if tool_result_text is _CANCELLED:
+            if dispatch_result is _CANCELLED:
                 logger.info("MCP tool loop cancelled during tool call '%s'", tool_name)
                 return last_text or "", sources, messages
 
-            # Wrap result in delimiters to reduce prompt-injection risk.
-            # Content from MCP servers is untrusted; the tags make it harder
-            # for a malicious result to impersonate system instructions.
-            wrapped = f"<tool_result>\n{tool_result_text}\n</tool_result>"
+            # A dispatcher predating the ToolDispatchResult contract (or a
+            # third-party one) may still return a bare string — treat it
+            # exactly like the pre-Phase-1 default behavior.
+            if not isinstance(dispatch_result, ToolDispatchResult):
+                dispatch_result = ToolDispatchResult(content=str(dispatch_result), source_type="mcp_tool_call")
+
+            # Wrap the untrusted tool output in delimiters to reduce
+            # prompt-injection risk (content from MCP servers is untrusted;
+            # the tags make it harder for a malicious result to impersonate
+            # system instructions), then append each trusted segment (e.g. a
+            # tool skill body) in its own, separately-delimited tag — never
+            # inside <tool_result>, and never as a new message/role (see
+            # docs/roadmap/mcp-tool-skills.md §2.2/§2.8).
+            wrapped = f"<tool_result>\n{dispatch_result.content}\n</tool_result>"
+            for trusted in dispatch_result.trusted_context:
+                wrapped += f'\n<trusted_skill name="{trusted.name}">\n{trusted.body}\n</trusted_skill>'
+
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call_id,
@@ -187,13 +261,25 @@ async def run_tool_calling_loop(
                 "content": wrapped,
             })
 
-            # Record for transparency
-            sources.append({
-                "type": "mcp_tool_call",
-                "tool": tool_name,
-                "arguments": arguments,
-                "result_preview": tool_result_text[:_RESULT_TRUNCATION_CHARS],
-            })
+            # Record for transparency. A local dispatch (source_type !=
+            # "mcp_tool_call", e.g. a tool skill load) never gets an
+            # mcp_tool_call-shaped entry — it never called an external MCP
+            # server, and must not be mistaken for one downstream (analytics,
+            # mcp_tools_used aggregates, etc). Each trusted_context item gets
+            # its own entry instead, with no body preview.
+            if dispatch_result.source_type == "mcp_tool_call":
+                sources.append({
+                    "type": "mcp_tool_call",
+                    "tool": tool_name,
+                    "arguments": arguments,
+                    "result_preview": dispatch_result.content[:_RESULT_TRUNCATION_CHARS],
+                })
+            for trusted in dispatch_result.trusted_context:
+                sources.append({
+                    "type": "tool_skill_load",
+                    "skill": trusted.name,
+                    "version": trusted.version,
+                })
 
     # If we exhaust iterations without a final answer, synthesize from last response
     logger.warning(
