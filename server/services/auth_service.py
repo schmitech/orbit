@@ -604,8 +604,13 @@ class AuthService:
             ok, claims = await self._oidc.validate(token)
             if not ok:
                 return False, None
+            # Hardcoded, not auth.providers.default_role: this is the inference-surface
+            # JIT-provisioning path (chat/files/voice/A2A clients like orbitchat), which
+            # must never grant more than baseline access no matter how default_role is
+            # configured. Admin-panel access is a separate path (provision_sso_user)
+            # gated by the admin_users allowlist.
             user = await self._find_or_create_external_user(
-                claims["provider"], claims["external_id"], claims.get("email")
+                claims["provider"], claims["external_id"], claims.get("email"), role="user"
             )
             if not user or not user.get("active", True):
                 return False, None
@@ -616,7 +621,13 @@ class AuthService:
             # within the rule cache's TTL.
             if not await self._is_cleared(user):
                 return False, None
-            return True, self._user_info(user)
+            # Cap the *effective* role for this surface too, not just at creation:
+            # an identity that already holds an elevated role (e.g. an admin
+            # provisioned via provision_sso_user, or provisioned before this
+            # guardrail existed under a misconfigured default_role) must still
+            # only get baseline access when authenticating as a chat/API client.
+            # Their stored role is untouched - admin-panel logins are unaffected.
+            return True, self._user_info({**user, "role": "user", "roles": ["user"]})
 
         try:
             # Find session
