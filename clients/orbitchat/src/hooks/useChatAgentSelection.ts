@@ -5,6 +5,7 @@ import { useChatStore, debouncedSaveToLocalStorage } from '../stores/chatStore';
 import type { Conversation } from '../types';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApiUrl, getConfiguredSingleAdapterId, getIsSingleAdapterMode } from '../utils/runtimeConfig';
+import { fetchAdapterInfoOnce } from '../utils/adapterInfoRequestCache';
 import {
   getAgentSlugFromPath,
   replaceAgentSlug,
@@ -171,7 +172,10 @@ export function useChatAgentSelection({
         return { ok: false };
       }
 
-      const adapterInfo = await adapterClient.getAdapterInfo();
+      const adapterInfo = await fetchAdapterInfoOnce(
+        `${conversation.id}:${conversation.adapterName}`,
+        () => adapterClient.getAdapterInfo()
+      );
       useChatStore.setState(state => ({
         conversations: state.conversations.map(conv =>
           conv.id === conversation.id

@@ -9,7 +9,8 @@ import { getApiUrl, resolveApiUrl, DEFAULT_API_URL, getIsAuthConfigured } from '
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { audioStreamManager } from '../utils/audioStreamManager';
 import { revokeFileThumbnail } from '../utils/fileTypeVisuals';
-import { getIsAuthenticated } from '../auth/authState';
+import { getIsAuthenticated, subscribeAuthState } from '../auth/authState';
+import { fetchAdapterInfoOnce } from '../utils/adapterInfoRequestCache';
 import { useLoginPromptStore } from './loginPromptStore';
 import {
   DEFAULT_ADAPTER,
@@ -575,7 +576,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           adapterName,
         });
         if (typeof validationClient.getAdapterInfo === 'function') {
-          adapterInfo = await validationClient.getAdapterInfo();
+          adapterInfo = await fetchAdapterInfoOnce(
+            currentConversation ? `${currentConversation.id}:${adapterName}` : `pending:${apiUrl}:${adapterName}`,
+            () => validationClient.getAdapterInfo()
+          );
           debugLog('Adapter info loaded:', adapterInfo);
         }
       } catch (error) {
@@ -714,7 +718,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               adapterName: conversationAdapterName,
             });
             if (typeof adapterClient.getAdapterInfo === 'function') {
-              const adapterInfo = await adapterClient.getAdapterInfo();
+              const adapterInfo = await fetchAdapterInfoOnce(
+                `${id}:${conversationAdapterName}`,
+                () => adapterClient.getAdapterInfo()
+              );
               debugLog('Adapter info loaded for conversation:', adapterInfo);
               set(state => ({
                 conversations: state.conversations.map(conv =>
@@ -1846,6 +1853,10 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       const state = get();
       if (state.conversations.length === 0) return;
 
+      // No point issuing authenticated history requests for a guest that
+      // hasn't signed in yet - they'll all be refused server-side anyway.
+      if (getIsAuthConfigured() && !getIsAuthenticated()) return;
+
       const api = await getApi();
       const limit =
         AppConfig.maxMessagesPerConversation !== null
@@ -2308,7 +2319,10 @@ const initializeStore = async () => {
             adapterName: existingAdapterName,
           });
           if (typeof validationClient.getAdapterInfo === 'function') {
-            const adapterInfo = await validationClient.getAdapterInfo();
+            const adapterInfo = await fetchAdapterInfoOnce(
+              `${currentConversation.id}:${existingAdapterName}`,
+              () => validationClient.getAdapterInfo()
+            );
             debugLog('Adapter info loaded for existing adapter:', adapterInfo);
 
             const stateAfterLoad = useChatStore.getState();
@@ -2350,4 +2364,18 @@ const initializeStore = async () => {
 
 if (typeof window !== 'undefined') {
   initializeStore();
+
+  // initializeStore() runs at module load, before the Auth0/Entra gate has
+  // resolved - so a signed-in user's history sync is skipped by the guest
+  // guard above because auth state hasn't settled yet. Retry once it does.
+  let wasAuthenticated = getIsAuthenticated();
+  subscribeAuthState(() => {
+    const isAuthenticatedNow = getIsAuthenticated();
+    if (isAuthenticatedNow && !wasAuthenticated) {
+      useChatStore.getState().syncConversationsWithBackend().catch(error => {
+        debugWarn('Conversation history sync skipped:', error);
+      });
+    }
+    wasAuthenticated = isAuthenticatedNow;
+  });
 }
