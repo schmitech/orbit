@@ -6,9 +6,10 @@ We actively support the following versions of ORBIT with security updates:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.1.x   | :white_check_mark: |
-| 2.0.x   | :white_check_mark: |
-| 1.x.x   | :x:                |
+| 2.17.x  | :white_check_mark: |
+| 2.16.x  | :white_check_mark: |
+| 2.15.x  | :white_check_mark: |
+| < 2.15.x| :x:                |
 
 ## Reporting a Vulnerability
 
