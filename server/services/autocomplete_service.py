@@ -785,10 +785,14 @@ class AutocompleteService:
         """Return (is_match, score) using the configured fuzzy algorithm."""
         if self.fuzzy_algorithm == 'levenshtein':
             sim_fn = FuzzyMatcher.levenshtein_similarity
-            word_arg = lambda w: w[:len(query_lower)]
+
+            def word_arg(word: str) -> str:
+                return word[:len(query_lower)]
         else:  # jaro_winkler
             sim_fn = FuzzyMatcher.jaro_winkler_similarity
-            word_arg = lambda w: w
+
+            def word_arg(word: str) -> str:
+                return word
 
         similarity = sim_fn(query_lower, example_lower)
         for word in example_lower.split():

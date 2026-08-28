@@ -409,7 +409,7 @@ class LLMInferenceStep(PipelineStep):
                 if role and content:
                     history.append(f"{role.title()}: {content}")
             if history:
-                parts.append(f"\nConversation History:\n" + "\n".join(history))
+                parts.append("\nConversation History:\n" + "\n".join(history))
 
         parts.append(f"\nUser: {context.message}")
         parts.append("Assistant:")

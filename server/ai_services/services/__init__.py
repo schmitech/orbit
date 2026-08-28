@@ -67,6 +67,7 @@ __all__ = [
     # Inference
     'InferenceService',
     'InferenceResult',
+    'ToolCallingResult',
     'create_inference_service',
 
     # Moderation

@@ -57,7 +57,7 @@ def dump_model_labels(service):
         labels = sorted(set(id2label.values()))
         print("\n=== model id2label (ground truth) ===")
         print(labels)
-        leaks = [l for l in labels if l not in ("O",) and l not in PRIVACY_FILTER_CATEGORIES]
+        leaks = [label for label in labels if label not in ("O",) and label not in PRIVACY_FILTER_CATEGORIES]
         if leaks:
             print(
                 "\n[!] These raw labels are NOT bare categories. If the pipeline "

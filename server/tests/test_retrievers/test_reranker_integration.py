@@ -36,7 +36,6 @@ if 'inference' not in sys.modules or not hasattr(sys.modules.get('inference'), '
     sys.path = [p for p in sys.path if os.path.normpath(p) != os.path.normpath(_tests_dir)]
     sys.path.insert(0, SERVER_DIR)
     importlib.invalidate_caches()
-    import inference  # noqa: F811
     sys.path = _saved
 
 from services.reranker_service_manager import RerankingServiceManager

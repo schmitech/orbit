@@ -5,7 +5,7 @@ Magika-backed upload inspection helpers.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 
 GENERIC_TEXT_LABEL = "txt"

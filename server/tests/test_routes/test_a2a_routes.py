@@ -2,11 +2,11 @@
 
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from routes.a2a_routes import create_a2a_router, _tasks, _extract_text, _build_skills
+from routes.a2a_routes import create_a2a_router, _tasks, _extract_text
 
 
 # ---------------------------------------------------------------------------

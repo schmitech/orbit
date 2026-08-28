@@ -1,4 +1,3 @@
-import io
 from typing import Dict, Any, List
 
 from .base import BaseRenderer

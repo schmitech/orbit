@@ -141,7 +141,7 @@ def print_pretty(data: dict) -> None:
             print(f"    {C.DIM}  {ent} synonyms:{C.RESET} {', '.join(syns)}")
         field_syns = domain.get("field_synonyms", {})
         if field_syns:
-            print(f"    Field synonyms:")
+            print("    Field synonyms:")
             for fname, syns in field_syns.items():
                 print(f"      {fname}: {', '.join(syns)}")
         searchable = domain.get("searchable_fields", [])
@@ -527,7 +527,7 @@ Examples:
             resp = client.post(url, json=payload, headers=headers)
     except httpx.ConnectError:
         print(f"{C.RED}Error: Could not connect to {args.server_url}{C.RESET}", file=sys.stderr)
-        print(f"Make sure the ORBIT server is running.", file=sys.stderr)
+        print("Make sure the ORBIT server is running.", file=sys.stderr)
         sys.exit(1)
     except httpx.TimeoutException:
         print(f"{C.RED}Error: Request timed out after {args.timeout}s{C.RESET}", file=sys.stderr)

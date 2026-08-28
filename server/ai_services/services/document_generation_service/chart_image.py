@@ -221,7 +221,6 @@ def _render_bar(ax, labels: List[str], datasets: List[Dict[str, Any]]) -> None:
 
 def _render_composed(ax, fig, labels: List[str], datasets: List[Dict[str, Any]]) -> None:
     """Render a composed chart: mixed bar/line series with optional dual y-axes."""
-    import matplotlib.pyplot as plt
 
     right_ds = [ds for ds in datasets if ds.get("yAxisId") == "right"]
     ax2 = ax.twinx() if right_ds else None

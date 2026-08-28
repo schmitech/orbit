@@ -27,7 +27,6 @@ if 'inference' not in sys.modules or not hasattr(sys.modules.get('inference'), '
     sys.path = [p for p in sys.path if os.path.normpath(p) != os.path.normpath(_tests_dir)]
     sys.path.insert(0, _server_dir)
     importlib.invalidate_caches()
-    import inference  # noqa: F811 — force correct resolution
     sys.path = _saved
 
 from services.reload.dependency_cache_cleaner import DependencyCacheCleaner

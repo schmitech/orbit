@@ -19,7 +19,7 @@ See docs/roadmap/mcp-tool-skills.md for the full design (§2.1, §2.2, §2.5).
 import fnmatch
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 

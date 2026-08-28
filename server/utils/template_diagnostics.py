@@ -605,9 +605,7 @@ async def _diagnose_intent(
 
     # --- Step 2.5: Try all templates (records outcomes) ---
     try:
-        t0 = time.monotonic()
         templates_tried = await _try_all_templates(retriever, eligible, query, execute)
-        tried_ms = round((time.monotonic() - t0) * 1000, 1)
         result["templates_tried"] = templates_tried
     except Exception as e:
         logger.error(f"Templates tried loop failed: {e}\n{traceback.format_exc()}")

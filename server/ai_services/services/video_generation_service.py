@@ -6,7 +6,7 @@ providing a unified API regardless of the underlying provider (Gemini, etc.).
 """
 
 from abc import abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from ..base import ProviderAIService, ServiceType
 

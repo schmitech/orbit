@@ -9,7 +9,6 @@ enabled in front of the database, which is the case for MongoDB-backed
 deployments but not the local SQLite default.
 """
 
-import asyncio
 import sys
 import os
 from datetime import datetime, UTC

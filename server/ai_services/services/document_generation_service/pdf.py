@@ -73,8 +73,7 @@ class PDFRenderer(BaseRenderer):
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import cm
         from reportlab.platypus import Image as RLImage
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 
         top_margin    = self._get('pdf', 'margins', 'top',    default=2) * cm
         bottom_margin = self._get('pdf', 'margins', 'bottom', default=2) * cm

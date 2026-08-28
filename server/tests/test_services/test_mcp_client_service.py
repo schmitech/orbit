@@ -350,6 +350,13 @@ class TestPerServerSettings:
         assert mgr.setting("fast", "tool_timeout") == 30
         assert mgr.setting("slow", "tool_timeout") == 90
 
+    def test_null_servers_key_does_not_crash(self):
+        # YAML parses a `servers:` key with every entry underneath it
+        # commented out as `servers: null`, not `servers: []` — the shape
+        # config/mcp_clients.yaml ships with before any server is added.
+        mgr = MCPClientManager({"enabled": True, "servers": None})
+        assert mgr._server_configs == {}
+
     def test_falls_back_to_hardcoded_default_when_unset_everywhere(self):
         mgr = MCPClientManager({"servers": [{"name": "s", "command": "noop"}]})
         assert mgr.setting("s", "discovery_timeout") == 5

@@ -158,7 +158,7 @@ def test_api_key_bypasses_permission_or_api_key_routes_but_not_conversations():
         return None
 
     class FakeApiKeyService:
-        async def validate_api_key(self, key, adapter_manager, current_user_id=None):
+        async def validate_api_key(self, key, adapter_manager, current_user_id=None, current_user_email=None):
             return (key == "valid-key", "some-adapter", None)
 
     app.dependency_overrides[auth_dependencies.get_optional_user] = no_user

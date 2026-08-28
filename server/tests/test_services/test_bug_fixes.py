@@ -21,9 +21,9 @@ import sys
 import tempfile
 import shutil
 import logging
-from datetime import datetime, timezone
+from datetime import timezone
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_asyncio import fixture
@@ -213,13 +213,6 @@ async def test_session_locks_bounded_cleanup():
     """_get_session_lock should prune unlocked entries when dict is too large."""
     from services.chat_history_service import ChatHistoryService
 
-    config = {
-        'chat_history': {
-            'enabled': True,
-            'max_tracked_sessions': 5,
-        },
-        'internal_services': {'backend': {'type': 'sqlite'}},
-    }
     service = ChatHistoryService.__new__(ChatHistoryService)
     service._session_locks = {}
     service._locks_lock = asyncio.Lock()
@@ -246,7 +239,6 @@ async def test_session_locks_bounded_cleanup():
 async def test_health_service_no_event_loop_dependency():
     """HealthService.get_health_status should work without asyncio.get_event_loop()."""
     from services.health_service import HealthService
-    import time
 
     config = {'general': {}}
     svc = HealthService(config)

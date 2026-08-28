@@ -19,12 +19,10 @@ from inference.pipeline.base import ProcessingContext
 from inference.pipeline.steps.language_detection import (
     DetectionResult,
     ENGLISH_MARKERS_PATTERN,
-    LATIN_WORD_PATTERNS,
     LANGDETECT_AVAILABLE,
     LANGID_AVAILABLE,
     LanguageDetectionStep,
     PYCLD2_AVAILABLE,
-    SCRIPT_PATTERNS,
     SPANISH_MARKERS_PATTERN,
     normalize_language_code,
 )

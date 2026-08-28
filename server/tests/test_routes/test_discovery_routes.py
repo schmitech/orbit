@@ -6,7 +6,6 @@ name for the skill's own (LLM-less) adapter — matching how build_context()
 resolves the model override for such skills at request time.
 """
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

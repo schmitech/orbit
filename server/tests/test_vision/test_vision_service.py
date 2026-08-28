@@ -452,7 +452,7 @@ class TestGeminiVisionService:
             mock_client.models.generate_content.return_value = mock_response
             service._genai_client = mock_client
 
-            with patch('asyncio.to_thread', return_value=mock_response) as mock_to_thread:
+            with patch('asyncio.to_thread', return_value=mock_response):
                 result = await service.analyze_image(sample_image_bytes)
 
                 assert isinstance(result, str)

@@ -10,14 +10,12 @@ Validates fixes for:
 - #9: Document reranking defaults top_n when config returns None
 """
 
-import asyncio
-import importlib
 import inspect
 import os
 import sys
 import types
 from collections import deque
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 # Add server directory to path
 _server_dir = os.path.join(os.path.dirname(__file__), '..', '..')

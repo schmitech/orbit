@@ -21,7 +21,6 @@ class MySQLDatasource(BaseDatasource):
         mysql_config = self.config.get('datasources', {}).get('mysql', {})
 
         try:
-            import mysql.connector
             from mysql.connector import pooling, Error
         except ImportError as e:
             self._client = None

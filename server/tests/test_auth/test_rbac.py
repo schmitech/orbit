@@ -1,6 +1,5 @@
 """Unit tests for the role/permission registry (auth/rbac.py)."""
 
-import pytest
 
 from auth.rbac import (
     ALL_PERMISSIONS,

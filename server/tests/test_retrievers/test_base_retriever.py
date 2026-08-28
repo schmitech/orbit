@@ -3,7 +3,6 @@ Tests for the BaseRetriever class and factory
 """
 
 import pytest
-import asyncio
 import sys
 import os
 from typing import Dict, Any, List, Optional

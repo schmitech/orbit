@@ -134,7 +134,7 @@ class MCPClientManager:
     }
 
     def __init__(self, mcp_config: Dict[str, Any]):
-        servers_list = mcp_config.get("servers", [])
+        servers_list = mcp_config.get("servers") or []
         self._server_configs: Dict[str, Dict[str, Any]] = {
             s["name"]: s for s in servers_list if s.get("enabled", True)
         }
@@ -492,13 +492,13 @@ class MCPClientManager:
                 # rather than forwarding the full process env, which would
                 # expose all API keys and credentials to the subprocess.
                 env = {k: v for k, v in os.environ.items() if k in _SAFE_ENV_KEYS}
-                for key, val in server_config.get("env", {}).items():
+                for key, val in (server_config.get("env") or {}).items():
                     # Expand ${VAR} references for explicitly configured keys only.
                     env[key] = os.path.expandvars(str(val)) if isinstance(val, str) else str(val)
 
                 params = StdioServerParameters(
                     command=server_config["command"],
-                    args=server_config.get("args", []),
+                    args=server_config.get("args") or [],
                     env=env,
                 )
                 read, write = await stack.enter_async_context(stdio_client(params))
@@ -590,7 +590,7 @@ class MCPClientManager:
         Authentication is configured as a normal ``Authorization`` header.
         """
         result: Dict[str, str] = {}
-        for k, v in server_config.get("headers", {}).items():
+        for k, v in (server_config.get("headers") or {}).items():
             result[k] = os.path.expandvars(str(v)) if isinstance(v, str) else str(v)
         return result
 

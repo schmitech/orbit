@@ -560,8 +560,10 @@ class TestConcurrentSafety:
 
         t1 = threading.Thread(target=do_cleanup)
         t2 = threading.Thread(target=do_reset)
-        t1.start(); t2.start()
-        t1.join(); t2.join()
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
 
         assert not errors, f"Thread errors: {errors}"
         # After all resets the breaker must be in a coherent closed state
@@ -646,7 +648,9 @@ class TestHalfOpenProbeGating:
 
         # Re-open then let recovery expire
         cb._open_circuit()
-        import time; time.sleep(0.05)
+        import time
+
+        time.sleep(0.05)
         cb.is_open()  # triggers OPEN → HALF_OPEN transition
 
         assert cb.state == CircuitState.HALF_OPEN

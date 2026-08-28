@@ -145,7 +145,7 @@ def test_build_chart_instruction_rules_updated():
 
 
 def test_build_chart_instruction_empty_when_adapter_lacks_capability():
-    from adapters.capabilities import get_capability_registry, AdapterCapabilities
+    from adapters.capabilities import get_capability_registry
 
     get_capability_registry().unregister("no-charts-adapter")
     builder = PromptInstructionBuilder(config={})

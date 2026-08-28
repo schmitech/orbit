@@ -6,7 +6,9 @@
 - **MCP Tool Skills (Phase 1)**: Added file-authored `SKILL.md` procedural playbooks that bind to MCP tools and are progressively disclosed to `mcp-agent` adapters. Each turn receives a compact, capped catalog and can call an enum-scoped `orbit__load_tool_skill` loader to attach one trusted playbook to the matching tool-result message. Loading is authorized against the turn's surfaced set and idempotent, while tool output remains untrusted and provenance records playbook loads separately from MCP calls.
 
 ### Bug Fixes & Technical Improvements
+- **Server Ruff Compliance**: Removed unused imports and locals, clarified the public inference-service export, and normalized minor style issues across server code and tests so `ruff check server` passes cleanly.
 - **MCP Tool-Skill Loader Namespace Collision**: Prevented the synthetic `orbit__load_tool_skill` loader from shadowing a real MCP tool with the same namespaced name. Tool skills are suppressed for colliding turns and dispatch falls through to the real MCP server when no surfaced skills are available.
+- **MCP Reload Crash on Empty `servers:` List**: Fixed `MCPClientManager` construction raising `'NoneType' object is not iterable` when `mcp_clients.yaml` has a `servers:` key with every entry commented out (YAML parses that as `null`, not `[]`) — a shape that ships in the default install config. Applied the same `or []`/`or {}` guard to per-server `env`, `args`, and `headers` reads for the same class of issue.
 
 ## [2.17.0] - 2026-08-27
 

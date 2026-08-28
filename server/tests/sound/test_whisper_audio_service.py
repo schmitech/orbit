@@ -13,7 +13,6 @@ This module tests the local Whisper audio service specifically:
 import pytest
 import sys
 import os
-from unittest.mock import patch, MagicMock
 
 # Get the absolute path to the server directory
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
