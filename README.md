@@ -65,9 +65,9 @@
 
 | | What ORBIT gives you |
 | :---: | :--- |
-| **Connect anything** | Query files, SQL, NoSQL, vector stores, Elasticsearch, REST/GraphQL APIs, and MCP tools in natural language across multiple languages. |
-| **Use any model** | Route one API contract across local models such as Ollama, llama.cpp, and vLLM or cloud providers such as OpenAI, Anthropic, Gemini, Bedrock, and Azure. |
-| **Operate it safely** | Ship with API keys, RBAC, SSO, quotas, moderation, fallbacks, metrics, audit logs, and an admin panel instead of assembling them yourself. |
+| **Connect anything** | Query files, SQL, NoSQL, vector stores, Elasticsearch, REST/GraphQL APIs, and MCP tools with procedural playbooks (`SKILL.md`) in natural language across multiple languages. |
+| **Use any model** | Route one API contract across local models such as Ollama, llama.cpp, and vLLM or cloud providers such as OpenAI, Anthropic, Gemini, Bedrock, MS Foundry, and OpenRouter. |
+| **Operate it safely** | Ship with API keys, RBAC, SSO, deny-by-default identity allowlists, Presidio PII moderation, quotas, fallbacks, metrics, audit logs, and an admin panel instead of assembling them yourself. |
 
 ORBIT sits between your applications and the models, data, and tools they need. Define adapters in YAML, expose them through one OpenAI-compatible endpoint, and move from a local prototype to a governed deployment without replacing the architecture.
 
@@ -77,12 +77,12 @@ ORBIT is actively maintained. See the [release history](https://github.com/schmi
 
 | Capability | Included |
 | :--- | :--- |
-| **Model gateway** | 41 configured inference backends and providers, OpenAI-compatible APIs, per-key routing, model switching, retries, and fallbacks. |
-| **Retrieval** | Vector RAG, file and multimodal RAG, SQL, MongoDB, Elasticsearch, REST, GraphQL, web search, and multi-source answers. |
-| **Agents and protocols** | MCP tool calling, bounded multi-step loops, natural-language skill routing, A2A, and asynchronous RabbitMQ requests. |
-| **Media** | Image, video, speech, PDF, Word, Excel, PowerPoint, CSV, and markdown generation. |
-| **Security** | API keys, RBAC, Entra ID and Auth0 SSO, rate limits, quotas, moderation, file encryption, and cloud secret managers. |
-| **Operations** | Admin UI, health checks, metrics, audit logs, per-request token and estimated-cost tracking, spend analytics, circuit breakers, datasource pooling, and hot adapter reloads. |
+| **Model gateway** | 41 configured inference backends and providers, OpenAI-compatible APIs, Azure OpenAI presets (`config/azure.yaml`), per-key routing, model switching, retries, and fallbacks. |
+| **Retrieval** | Vector RAG, file/multimodal RAG, SQL, MongoDB, Elasticsearch, REST, GraphQL, web search. |
+| **Agents and protocols** | MCP tool calling, file- & DB-authored procedural tool skills (`SKILL.md`), progressive disclosure, priority token budgeting, bounded multi-step loops, natural-language skill routing, and A2A. |
+| **Media** | Image (OpenAI, Gemini, xAI, Azure OpenAI, OpenRouter), video, speech, PDF, Word, Excel, PowerPoint, CSV, and markdown generation. |
+| **Security** | API keys, RBAC, Entra ID and Auth0 SSO, deny-by-default identity allowlists, session withdrawal, external JWT role capping, rate limits, quotas, moderation, file encryption, and cloud secret managers. |
+| **Operations** | Admin UI, MCP Tool Skills tab, retrieval misses triage view, health checks, metrics, audit logs, per-request token and estimated-cost tracking, spend analytics, circuit breakers, datasource pooling, and hot adapter reloads. |
 
 [Browse all adapters](docs/adapters/adapters.md) · [See provider configuration](config/inference.yaml) · [Read the configuration reference](install/default-config/config.yaml) · [Full capability matrix & platform comparison](docs/ORBIT_CAPABILITY_MATRIX.md)
 
@@ -225,10 +225,10 @@ Continue with the [tutorial's fastest path](docs/tutorial.md#fastest-path): [ver
 
 | Goal | ORBIT handles |
 | :--- | :--- |
-| **Chat with private documents** | Upload PDFs, office documents, spreadsheets, images, and audio; retrieve relevant context across a conversation. [Try the tutorial →](docs/tutorial/chat-with-files.md) |
-| **Query databases in multiple languages** | Generate and execute safe queries across SQL, MongoDB, Elasticsearch, and composite datasources. [Try the SQL demo →](docs/tutorial/sql-database-sqlite.md) |
-| **Build tool-using agents** | Give models scoped access to MCP servers with bounded, multi-step server-side tool loops. [Read the MCP guide →](docs/adapters/mcp-agent.md) |
-| **Offer one governed AI endpoint** | Route local and cloud models with per-key access, quotas, fallbacks, moderation, metrics, and auditability. [Create your first key →](docs/tutorial/creating-api-keys.md) |
+| **Chat with private documents** | Upload PDFs, office documents, spreadsheets, images, and audio; retrieve relevant context across a conversation with fallback file-retrieval routing. [Try the tutorial →](docs/tutorial/chat-with-files.md) |
+| **Query databases in multiple languages** | Generate and execute safe queries across SQL, MongoDB, Elasticsearch, and composite datasources with retrieval telemetry. [Try the SQL demo →](docs/tutorial/sql-database-sqlite.md) |
+| **Build tool-using agents** | Give models scoped access to MCP servers with custom skills, priority token budgets, and bounded tool loops. [Read the MCP guide →](docs/adapters/mcp-agent.md) |
+| **Offer one governed AI endpoint** | Route local and cloud models with per-key access, quotas, identity allow/deny lists, moderation, fallbacks, metrics, and auditability. [Create your first key →](docs/tutorial/creating-api-keys.md) |
 
 <details>
 <summary><strong>Talk to a real-time voice assistant grounded in your data</strong></summary>
