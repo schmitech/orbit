@@ -149,6 +149,7 @@ Secure your ORBIT deployment.
 | [API Keys](api-keys.md) | Create and manage API keys |
 | [Role-Based Access Control](authentication.md#rbac) | Configure user roles and permissions |
 | [orbitchat Entra/Auth0 Setup](orbitchat-external-auth-setup.md) | Step-by-step Auth0/Entra dashboard configuration for orbitchat login and per-user API key restriction |
+| [NIST Compliance & AI Security Guardrails](security/nist-sp800-53-and-ai-security.md) | NIST SP 800-53 Rev. 5 control mapping, NIST AI RMF 1.0 alignment, and OWASP LLM Top 10 mitigations |
 
 ---
 

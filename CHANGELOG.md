@@ -11,6 +11,7 @@
 ### Documentation & Configuration
 - **MCP Tool Skills Example Library**: Split the bundled example CRM playbook into four scoped tool skills (pipeline, support tickets, churn risk, sales performance) to exercise multiple simultaneous playbooks and priority ordering live, fixing an overly broad binding that had caused the model to wrongly decline valid ticket-creation requests.
 - **MCP Tool Skills Phase 3 Playbook and SQL Schemas**: Documented the database CRUD, precedence, hot-reload, and admin-panel checks, and added the `tool_skills` schema to the SQLite and PostgreSQL references.
+- **NIST Compliance & AI Security Guardrails**: Documented ORBIT's alignment with NIST SP 800-53 Rev. 5 controls (AC, AU, IA, SC, SI), NIST AI Risk Management Framework (AI RMF 1.0), and OWASP Top 10 for LLMs mitigations in `docs/security/nist-sp800-53-and-ai-security.md`.
 - **MCP Tool Skills Operations Reference**: Expanded the MCP agent, adapter configuration, admin tour, multi-worker, roadmap, and integration documentation with authoring, disclosure limits, scoping, collision precedence, CRUD/audit behavior, and database upgrade guidance.
 
 ### Bug Fixes & Technical Improvements

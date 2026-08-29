@@ -86,6 +86,8 @@ ORBIT is actively maintained. See the [release history](https://github.com/schmi
 
 [Browse all adapters](docs/adapters/adapters.md) · [See provider configuration](config/inference.yaml) · [Read the configuration reference](install/default-config/config.yaml) · [Full capability matrix & platform comparison](docs/ORBIT_CAPABILITY_MATRIX.md)
 
+For organizations evaluating an AI gateway for adoption, the [capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md) provides a sourced platform comparison, while the detailed [NIST SP 800-53 and AI security mapping](docs/security/nist-sp800-53-and-ai-security.md) covers ORBIT's documented relationships to NIST SP 800-53 Rev. 5, the NIST AI Risk Management Framework (AI RMF 1.0), and OWASP LLM risk mitigations. These documents help structure technical due diligence and deployment planning; they are not a certification, compliance determination, or substitute for a deployment-specific assessment.
+
 ⭐ **Finding ORBIT useful?** [Star the repository](https://github.com/schmitech/orbit) to help other developers discover it and support continued investment in new model, datasource, and agent integrations.
 
 ## 🚀 Quick Start

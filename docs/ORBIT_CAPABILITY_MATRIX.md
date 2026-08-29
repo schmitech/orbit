@@ -124,15 +124,16 @@ An administrator can restrict, per adapter, which specific models a user is allo
 | Authentication | Industry-standard password hashing, secure session tokens, and integration with the operating system's credential store | `docs/authentication.md` |
 | SSO | Single sign-on via Microsoft Entra ID and Auth0 | `config/config.yaml` (`auth.providers`) |
 | Deny-by-default identity allowlisting | Configurable rule-based access control (`access_control: allowlist`) requiring explicit pre-clearing of emails, user IDs, or OIDC provider-subjects before external identity provisioning | `docs/authentication.md`, `CHANGELOG.md` (v2.17.0) |
-| Session & token withdrawal enforcement | Modifying or removing identity allowlist rules automatically invalidates active opaque dashboard sessions and provider JWT tokens across all workers within the cache TTL | `docs/authentication.md`, `CHANGELOG.md` (v2.17.0) |
-| External JWT role capping | Provider JWT authentication caps external API and chat clients to baseline `user` permissions, reserving administrative permissions exclusively for interactive dashboard sessions | `docs/authentication.md`, `CHANGELOG.md` (v2.17.1) |
-| RBAC | Six built-in roles (e.g., admin, operator, auditor, analyst) covering eleven distinct permissions, so access can be scoped to what each role actually needs | `docs/rbac-architecture.md` |
+| Session & allowlist access withdrawal | Removing or narrowing identity allowlist rules revokes access, enforced upon subsequent request validation across workers within the cache TTL | `docs/authentication.md`, `CHANGELOG.md` (v2.17.0) |
+| OIDC default role assignment | Provider authentication maps external Entra ID and Auth0 identities to local user records with initial role assignment controlled by `auth.providers.default_role` (default `user`) | `docs/authentication.md`, `CHANGELOG.md` (v2.17.1) |
+| RBAC | Six built-in roles (`admin`, `operator`, `auditor`, `analyst`, `user-manager`, `user`) covering eleven distinct permissions, so access can be scoped to what each role actually needs | `docs/rbac-architecture.md` |
 | API key controls | Keys can be scoped to specific adapters, given daily/monthly usage quotas and rate limits, and restricted to specific users or email addresses | `docs/api-keys.md` |
 | Per-key quotas & throttling | Each key's daily/monthly limit, remaining usage, and throttle priority can be viewed and edited from the admin panel, with one-click resets and a live usage report across all keys — no configuration-file editing required | `server/routes/admin/api_keys.py`, `server/services/api_key_service.py`, `server/admin/admin_panel/tabs/api-keys.js` |
 | Identity blacklisting | Administrators can block users or accounts by pattern, immediately revoking their active sessions | `config/config.yaml` (`auth.blacklist`) |
 | Audit logging | Records of user requests and administrative actions, stored in the organization's database of choice | `config/config.yaml` (`internal_services.audit`) |
 | Secrets management | Credentials can be pulled from AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager instead of being stored directly in configuration files | `config/config.yaml` (`secrets_management`) |
 | Strict auth mode | An optional setting that requires every request to carry a verified user identity, not just a valid API key | `config/config.yaml` (`auth.require_authenticated_user`) |
+| NIST SP 800-53 & AI RMF compliance | Mapping against NIST SP 800-53 Rev. 5 control families, NIST AI Risk Management Framework (AI RMF 1.0), and OWASP Top 10 for LLMs | `docs/security/nist-sp800-53-and-ai-security.md` |
 
 All items in this table are included in ORBIT's open-source (Apache 2.0) distribution; there is no separate paid tier.
 
