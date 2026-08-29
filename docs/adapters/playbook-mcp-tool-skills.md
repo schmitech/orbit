@@ -830,9 +830,10 @@ group of the nav (next to **MCP**).
   behavior returns.
 - **Cross-reference from MCP**: open the **MCP** tab, select the
   `business-sample` server, ping it if you haven't already this session, and
-  confirm its detail view's new "Playbooks" section lists every tool skill
-  currently bound to one of its tools (by glob match against the live
-  discovered tool list). Create or delete a skill bound to
+  confirm its detail view's new "Playbooks" section lists every
+  database-authored tool skill currently bound to one of its tools (by glob
+  match against the live discovered, already-namespaced tool list). Create or
+  delete a skill bound to
   `business-sample` from the Tool Skills tab, then return to the MCP tab's
   server detail without a full page reload — confirm the Playbooks section
   reflects the change (this is the P2 stale-cache fix: `skills.js` calls

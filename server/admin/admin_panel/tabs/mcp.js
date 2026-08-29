@@ -1000,7 +1000,12 @@ export function createMcpTab({
       ));
       return;
     }
-    var toolNames = discovery.tools.map(function (t) { return server.name + "__" + t.name; });
+    // GET /admin/mcp/tools reads MCPClientManager's OpenAI-format cache,
+    // whose function names are already namespaced as <server>__<tool>.
+    // Prefixing them here again would produce
+    // business-sample__business-sample__tool and prevent every correctly
+    // authored database playbook from matching.
+    var toolNames = discovery.tools.map(function (t) { return t.name; });
 
     var render = function (skills) {
       clear(container);

@@ -38,3 +38,15 @@ def test_admin_panel_module_imports_resolve_and_parse():
                 check=False,
             )
             assert result.returncode == 0, result.stderr
+
+
+def test_mcp_playbooks_match_already_namespaced_discovered_tools():
+    """The admin MCP endpoint exposes names from MCPClientManager's
+    OpenAI-format cache, where every tool is already ``<server>__<tool>``.
+    Guard against the UI adding the server namespace a second time, which
+    makes valid database skill bindings impossible to display.
+    """
+    source = (ADMIN_DIR / "admin_panel" / "tabs" / "mcp.js").read_text()
+
+    assert 'discovery.tools.map(function (t) { return t.name; })' in source
+    assert 'server.name + "__" + t.name' not in source
