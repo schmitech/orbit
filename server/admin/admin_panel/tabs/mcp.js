@@ -849,9 +849,20 @@ export function createMcpTab({
     syncToolsBody();
     detail.appendChild(toolsBody);
 
+    // ----- Playbooks (read-only) -----
+    // Tool skills (docs/roadmap/mcp-tool-skills.md, "Tool Skills" tab) are
+    // bound to namespaced tool names via an mcp_tools glob, independently of
+    // this server's own definition. This is a read-only cross-reference so
+    // an author can see, from the server side, which playbooks already cover
+    // its tools — editing happens on the Tool Skills tab, not here.
+    var playbooksBody = el("div", { className: "mcp-tools-body" });
+    detail.appendChild(el("h3", null, "Playbooks"));
+    detail.appendChild(playbooksBody);
+    syncPlaybooks(server, playbooksBody);
+
     mcpDetailSync = {
       name: server.name,
-      sync: function () { syncToolsHeader(); syncToolsBody(); },
+      sync: function () { syncToolsHeader(); syncToolsBody(); syncPlaybooks(server, playbooksBody); },
     };
 
     // ----- Settings ledger -----
@@ -970,6 +981,62 @@ export function createMcpTab({
           : "Check the URL is reachable and required headers are set. Startup logs record the underlying error."
       )
     );
+  }
+
+  var mcpSkillsCache = null; // fetched lazily, once per tab session
+  function mcpSimpleGlobMatch(name, pattern) {
+    // "*" only — enough for the mcp_tools convention (business-sample__*,
+    // github__search_issues); not a full fnmatch implementation.
+    var escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+    return new RegExp("^" + escaped + "$").test(name);
+  }
+
+  function syncPlaybooks(server, container) {
+    clear(container);
+    var discovery = (mcpTools && mcpTools.servers) ? mcpTools.servers[server.name] : null;
+    if (!discovery || !discovery.reachable || !discovery.tools || !discovery.tools.length) {
+      container.appendChild(el("p", { className: "muted mcp-tools-empty" },
+        "Ping this server to see which tool-skill playbooks are bound to its tools."
+      ));
+      return;
+    }
+    var toolNames = discovery.tools.map(function (t) { return server.name + "__" + t.name; });
+
+    var render = function (skills) {
+      clear(container);
+      var matches = (skills || []).filter(function (s) {
+        return s.enabled && (s.mcp_tools || []).some(function (pattern) {
+          return toolNames.some(function (n) { return mcpSimpleGlobMatch(n, pattern); });
+        });
+      });
+      if (!matches.length) {
+        container.appendChild(el("p", { className: "muted mcp-tools-empty" },
+          "No database-authored tool-skill playbooks are bound to this server's tools yet. " +
+          "File-authored config/skills playbooks may still be active at runtime; author a database playbook on the Tool Skills tab to list it here."
+        ));
+        return;
+      }
+      var list = el("div", { className: "mcp-tools" });
+      matches.forEach(function (s) {
+        list.appendChild(el("div", { className: "mcp-tool" },
+          el("p", { className: "mcp-tool-name" }, s.name),
+          el("p", { className: "mcp-tool-desc" }, s.description)
+        ));
+      });
+      container.appendChild(list);
+    };
+
+    if (mcpSkillsCache) {
+      render(mcpSkillsCache);
+      return;
+    }
+    container.appendChild(el("p", { className: "muted mcp-tools-empty" }, "Loading playbooks…"));
+    api("GET", endpoints.skills).then(function (skills) {
+      mcpSkillsCache = skills || [];
+      render(mcpSkillsCache);
+    }).catch(function () {
+      container.appendChild(el("p", { className: "muted mcp-tools-empty" }, "Failed to load tool-skill playbooks."));
+    });
   }
 
   function mcpRenderTools(server, enabled) {
@@ -1503,5 +1570,10 @@ export function createMcpTab({
     mcpCheckedAtNodes = [];
   }
 
-  return { render: renderMcp, dispose: dispose, hasPendingEdits: hasPendingEdits, clearPendingEdits: clearPendingEdits };
+  function invalidatePlaybooksCache() { mcpSkillsCache = null; }
+
+  return {
+    render: renderMcp, dispose: dispose, hasPendingEdits: hasPendingEdits, clearPendingEdits: clearPendingEdits,
+    invalidatePlaybooksCache: invalidatePlaybooksCache,
+  };
 }

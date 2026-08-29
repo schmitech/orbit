@@ -112,6 +112,25 @@ async def test_initialization(postgres_service: PostgresService):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_tool_skills_table_is_created_on_initialization(postgres_service: PostgresService):
+    """Tool-skill CRUD reads before its first insert, so the fixed SQL schema
+    must exist on a fresh Postgres database at service initialization."""
+    with postgres_service._db_lock:
+        cursor = postgres_service.connection.cursor()
+        cursor.execute("SELECT to_regclass('public.tool_skills') AS table_name")
+        table = cursor.fetchone()["table_name"]
+        cursor.execute(
+            "SELECT indexname FROM pg_indexes "
+            "WHERE schemaname = 'public' AND tablename = 'tool_skills'"
+        )
+        indexes = {row["indexname"] for row in cursor.fetchall()}
+
+    assert table == "tool_skills"
+    assert "idx_tool_skills_name" in indexes
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_insert_and_find_one(postgres_service: PostgresService):
     """Test inserting and finding a single document (exercises dynamic table creation)"""
     test_doc = {

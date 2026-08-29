@@ -160,6 +160,41 @@ class SystemPromptResponse(BaseModel):
     updated_at: float  # Unix timestamp
 
 
+class ToolSkillCreate(BaseModel):
+    """Tool skill creation request model (docs/roadmap/mcp-tool-skills.md Phase 3)."""
+    name: str
+    description: str = Field(min_length=1, max_length=500)
+    mcp_tools: List[str] = Field(min_length=1)
+    body: str = Field(min_length=1, max_length=32_768)
+    enabled: bool = True
+    version: Optional[str] = None
+    priority: int = 0
+
+
+class ToolSkillUpdate(BaseModel):
+    """Tool skill update request model. Name is immutable — delete and recreate to rename."""
+    description: Optional[str] = Field(default=None, min_length=1, max_length=500)
+    mcp_tools: Optional[List[str]] = Field(default=None, min_length=1)
+    body: Optional[str] = Field(default=None, min_length=1, max_length=32_768)
+    enabled: Optional[bool] = None
+    version: Optional[str] = None
+    priority: Optional[int] = None
+
+
+class ToolSkillResponse(BaseModel):
+    """Tool skill response model."""
+    id: str
+    name: str
+    description: str
+    mcp_tools: List[str]
+    body: str
+    enabled: bool
+    version: Optional[str] = None
+    priority: int
+    created_at: float
+    updated_at: float
+
+
 class APIError(BaseModel):
     """Standard error envelope for all API error responses."""
     code: str       # machine-readable: "SERVICE_UNAVAILABLE", "NOT_FOUND", "VALIDATION_ERROR"

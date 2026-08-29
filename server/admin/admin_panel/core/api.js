@@ -3,6 +3,7 @@ export const ENDPOINTS = {
   register: "/auth/register", users: "/auth/users", roles: "/auth/roles", changePassword: "/auth/change-password",
   blacklist: "/auth/blacklist", allowlist: "/auth/allowlist",
   resetPassword: "/auth/reset-password", apiKeys: "/admin/api-keys", prompts: "/admin/prompts",
+  skills: "/admin/skills", skillsValidate: "/admin/skills/validate",
   adapterCapabilities: "/admin/adapters/capabilities", jobs: "/admin/jobs", logsTail: "/admin/logs/tail",
   logsFiles: "/admin/logs/files", renderMarkdown: "/admin/render-markdown", reloadAdapters: "/admin/reload-adapters",
   reloadTemplates: "/admin/reload-templates", restart: "/admin/restart", shutdown: "/admin/shutdown", pause: "/admin/pause",

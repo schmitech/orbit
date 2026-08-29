@@ -5,9 +5,14 @@
 ### Core System Updates
 - **MCP Tool Skills (Phase 1)**: Added file-authored `SKILL.md` procedural playbooks that bind to MCP tools and are progressively disclosed to `mcp-agent` adapters. Each turn receives a compact, capped catalog and can call an enum-scoped `orbit__load_tool_skill` loader to attach one trusted playbook to the matching tool-result message. Loading is authorized against the turn's surfaced set and idempotent, while tool output remains untrusted and provenance records playbook loads separately from MCP calls.
 - **MCP Tool Skills (Phase 2)**: Added just-in-time playbook injection after a bound MCP tool's first call and extended the catalog, loader, and injection behavior to opportunistic MCP tool calling. Adapters can now restrict playbooks through `capabilities.tool_skills`; a shared per-turn budget caps trusted context while precomputing priority-based admission so a higher-priority skill can no longer be crowded out by lower-priority skills invoked first.
+- **MCP Tool Skills (Phase 3)**: Added database-backed tool-skill CRUD through `/admin/skills` and the Tool Skills admin tab. Database skills override same-named file skills without modifying them, become live immediately after a mutation, and propagate across workers through the existing reload-generation mechanism. The MCP tab now shows matching playbooks for each server.
 
 ### Documentation & Configuration
 - **MCP Tool Skills Example Library**: Split the bundled example CRM playbook into four scoped tool skills (pipeline, support tickets, churn risk, sales performance) to exercise multiple simultaneous playbooks and priority ordering live, fixing an overly broad binding that had caused the model to wrongly decline valid ticket-creation requests.
+- **MCP Tool Skills Phase 3 Playbook and SQL Schemas**: Documented the database CRUD, precedence, hot-reload, and admin-panel checks, and added the `tool_skills` schema to the SQLite and PostgreSQL references.
+
+### Bug Fixes & Technical Improvements
+- **Tool-Skill SQL Initialization and MCP Playbook Refresh**: Create the `tool_skills` table and unique name index during SQLite/PostgreSQL initialization (including the bundled SQLite database), serialize SQL `mcp_tools` values safely, and invalidate the MCP playbook cache after Tool Skills CRUD operations.
 
 ## [2.17.1] - 2026-08-28
 

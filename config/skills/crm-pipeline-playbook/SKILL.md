@@ -17,6 +17,13 @@ priority: 10
 Always resolve the customer id with `list_customers` before calling
 `get_customer_health` or `build_account_plan` — both take an id, never a name.
 
+When asked for a segment or region (e.g. "Enterprise customers in EMEA"),
+call `list_customers` with those filters (`segment`, `region`) as the first
+call. Never guess at customer ids by iterating `cus_0001`, `cus_0002`, ...
+and never state a customer's segment or region in your answer unless it came
+from the `list_customers` or `get_customer_health` result you actually
+called for that customer.
+
 ## Limits
 
 `search_opportunities` rejects `limit` above 25. Page instead of raising it.

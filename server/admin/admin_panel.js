@@ -12,6 +12,7 @@ import { createPromptsTab } from "./admin_panel/tabs/prompts.js";
 import { createOpsTab } from "./admin_panel/tabs/ops.js";
 import { createAdaptersTab } from "./admin_panel/tabs/adapters.js";
 import { createMcpTab } from "./admin_panel/tabs/mcp.js";
+import { createSkillsTab } from "./admin_panel/tabs/skills.js";
 import { createSettingsTab } from "./admin_panel/tabs/settings.js";
 
 /* ============================================================
@@ -957,6 +958,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     { id: "adapters", label: "Adapters", permission: "adapters.manage", group: "configure", icon: ICON_NAV_ADAPTERS },
     { id: "settings", label: "Settings", permission: "config.manage", group: "configure", icon: ICON_NAV_SETTINGS },
     { id: "mcp", label: "MCP", permission: "config.manage", group: "system", icon: ICON_NAV_MCP },
+    { id: "skills", label: "Tool Skills", permission: "config.manage", group: "system", icon: ICON_NAV_MCP },
     { id: "ops", label: "Ops", permission: "system.manage", group: "system", icon: ICON_NAV_OPS },
     { id: "audit", label: "Audit", permission: "audit.read", group: "system", icon: ICON_NAV_AUDIT },
   ];
@@ -1377,6 +1379,30 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     getActiveTab: function () { return activeTab; }
   });
 
+  var skillsTab = createSkillsTab({
+    api: api,
+    endpoints: ENDPOINTS,
+    el: el,
+    clear: clear,
+    wrapTable: wrapTable,
+    skeleton: skeleton,
+    refreshButton: refreshButton,
+    field: field,
+    svgIcon: svgIcon,
+    iconPlus: ICON_PLUS,
+    iconSave: ICON_SAVE,
+    iconX: ICON_X,
+    withButton: withButton,
+    requireTypedConfirmation: requireTypedConfirmation,
+    showStatus: showStatus,
+    showTableLoadError: showTableLoadError,
+    bindValidationClear: bindValidationClear,
+    setFieldReadOnly: setFieldReadOnly,
+    characterCount: characterCount,
+    createMarkdownPreview: createMarkdownPreview,
+    onSkillsChanged: function () { mcpTab.invalidatePlaybooksCache(); },
+  });
+
   var settingsTab = createSettingsTab({
     api: api,
     endpoints: ENDPOINTS,
@@ -1475,6 +1501,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
       case "costs": costsTab.render(c); break;
       case "settings": settingsTab.render(c); break;
       case "mcp": mcpTab.render(c); break;
+      case "skills": skillsTab.render(c); break;
     }
   }
 

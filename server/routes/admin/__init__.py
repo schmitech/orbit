@@ -22,6 +22,7 @@ from routes.admin import (
     mcp,
     observability,
     prompts,
+    skills,
 )
 from routes.admin._shared import (
     adapters_auth,
@@ -48,6 +49,7 @@ for _module in (
     audit,
     observability,
     mcp,
+    skills,
 ):
     admin_router.include_router(_module.router)
 

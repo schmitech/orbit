@@ -177,6 +177,10 @@ class ServiceFactory:
         # Initialize Audit Service (for audit trail storage)
         await self._initialize_audit_service(app)
 
+        # Initialize Tool Skill Service (Phase 3 DB-backed admin skills;
+        # requires database to be initialized first, same as prompts/audit)
+        await self._initialize_tool_skill_service(app)
+
         # Initialize Metrics Service (for monitoring dashboard)
         await self._initialize_metrics_service(app)
         
@@ -542,6 +546,29 @@ class ServiceFactory:
             logger.error(f"Failed to initialize Prompt Service: {str(e)}")
             raise
     
+    async def _initialize_tool_skill_service(self, app: FastAPI) -> None:
+        """Initialize the DB-backed Tool Skill Service (docs/roadmap/mcp-tool-skills.md
+        Phase 3) and merge its enabled skills into the process-wide
+        ``ToolSkillRegistry`` (file skills loaded lazily on first use by the
+        pipeline steps; this only adds the database layer on top, DB winning
+        on a name collision per §2.6). A missing database service (no auth
+        backend configured) leaves tool skills file-only, matching Phase 1/2
+        behavior — not a startup failure."""
+        database_service = getattr(app.state, 'database_service', None)
+        if database_service is None:
+            app.state.tool_skill_service = None
+            return
+
+        from services.tool_skill_service import ToolSkillService, refresh_tool_skill_registry_db
+        app.state.tool_skill_service = ToolSkillService(self.config, database_service=database_service)
+        try:
+            await app.state.tool_skill_service.initialize()
+            await refresh_tool_skill_registry_db(self.config, app.state.tool_skill_service)
+            logger.info("Tool Skill Service initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Tool Skill Service: {str(e)}")
+            app.state.tool_skill_service = None
+
     async def _initialize_adapter_manager(self, app: FastAPI) -> None:
         """Initialize Dynamic Adapter Manager for adapter-based routing."""
         try:

@@ -57,3 +57,25 @@ class TestMcpReloadPropagation:
             side_effect=RuntimeError("invalid config"),
         ):
             assert not await adapter_reload_state._apply_reload(app_state, "mcp_config")
+
+
+class TestToolSkillsReloadPropagation:
+    @pytest.mark.asyncio
+    async def test_apply_tool_skills_reload_refreshes_registry(self):
+        app_state = SimpleNamespace(config={"tool_skills": {}}, tool_skill_service=MagicMock())
+
+        with patch(
+            "services.tool_skill_service.refresh_tool_skill_registry_db",
+            new=AsyncMock(),
+        ) as refresh:
+            assert await adapter_reload_state._apply_reload(app_state, "tool_skills")
+
+        refresh.assert_awaited_once_with(app_state.config, app_state.tool_skill_service)
+
+    @pytest.mark.asyncio
+    async def test_apply_tool_skills_reload_fails_without_service(self):
+        app_state = SimpleNamespace(config={}, tool_skill_service=None)
+        assert not await adapter_reload_state._apply_reload(app_state, "tool_skills")
+
+    def test_tool_skills_is_a_known_reload_kind(self):
+        assert "tool_skills" in adapter_reload_state._KINDS

@@ -218,6 +218,20 @@ class PostgresService(DatabaseService):
                     updated_at TEXT NOT NULL
                 )
             ''',
+            'tool_skills': '''
+                CREATE TABLE IF NOT EXISTS tool_skills (
+                    id TEXT PRIMARY KEY,
+                    name TEXT UNIQUE NOT NULL,
+                    description TEXT NOT NULL,
+                    mcp_tools TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    version TEXT,
+                    priority INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            ''',
             'chat_history': '''
                 CREATE TABLE IF NOT EXISTS chat_history (
                     id TEXT PRIMARY KEY,
@@ -390,6 +404,9 @@ class PostgresService(DatabaseService):
             ],
             'system_prompts': [
                 'CREATE INDEX IF NOT EXISTS idx_system_prompts_name ON system_prompts(name)',
+            ],
+            'tool_skills': [
+                'CREATE UNIQUE INDEX IF NOT EXISTS idx_tool_skills_name ON tool_skills(name)',
             ],
             'chat_history': [
                 'CREATE INDEX IF NOT EXISTS idx_chat_history_session ON chat_history(session_id, timestamp)',

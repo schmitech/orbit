@@ -19,6 +19,12 @@ def get_prompt_service(request: Request):
     return request.app.state.prompt_service
 
 
+def get_tool_skill_service(request: Request):
+    """Get the tool skill service from app state (may be None if no database
+    service is configured — see ServiceFactory._initialize_tool_skill_service)."""
+    return getattr(request.app.state, 'tool_skill_service', None)
+
+
 def _serialize_created_at(value) -> Optional[float]:
     """Normalize a created_at value (datetime or ISO string) to a Unix timestamp float."""
     if value is None:

@@ -34,7 +34,7 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 _COLLECTION = "adapter_reload_state"
-_KINDS = ("adapter_config", "templates", "mcp_config")
+_KINDS = ("adapter_config", "templates", "mcp_config", "tool_skills")
 _POLL_INTERVAL_SECONDS = 5
 
 
@@ -166,6 +166,15 @@ async def _apply_reload(app_state: Any, kind: str) -> bool:
             if manager is not None:
                 await manager.refresh_tool_cache()
             logger.info("Propagated MCP reload from another worker")
+        elif kind == "tool_skills":
+            tool_skill_service = getattr(app_state, "tool_skill_service", None)
+            if tool_skill_service is None:
+                return False
+            from services.tool_skill_service import refresh_tool_skill_registry_db
+
+            app_config = getattr(app_state, "config", None) or {}
+            await refresh_tool_skill_registry_db(app_config, tool_skill_service)
+            logger.info("Propagated tool skill reload from another worker")
         else:
             return False
     except Exception as e:

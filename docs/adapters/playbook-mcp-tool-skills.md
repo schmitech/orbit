@@ -1,7 +1,9 @@
-# Manual/Integration Check: MCP Tool Skills (Phase 0 + Phase 1 + Phase 2)
+# Manual/Integration Check: MCP Tool Skills
 
-Steps to verify Phase 0–2 of [`docs/roadmap/mcp-tool-skills.md`](../roadmap/mcp-tool-skills.md)
-before starting Phase 3 (admin API + panel).
+Steps to verify Phase 0–3 of [`docs/roadmap/mcp-tool-skills.md`](../roadmap/mcp-tool-skills.md).
+Phase 3 (§16–§19 below) added database-backed CRUD, an admin API, and the
+"Tool Skills" admin panel tab — everything before that is unchanged from the
+Phase 0–2 file-only mechanism.
 
 This is the **tool skill** mechanism — an admin-authored `SKILL.md` procedural
 playbook the model can load (or has auto-attached) while calling MCP tools —
@@ -45,9 +47,31 @@ is the new shared module both call sites use):
   front, from the turn's full matched-skill set, so which skills get dropped
   never depends on which order the model happens to call tools in.
 
-Everything below only requires `skill: "mcp-agent"` (explicit path) or
-`capabilities.mcp_tools: true` (opportunistic path) — there is no admin panel
-yet (Phase 3).
+What Phase 3 added on top, concretely (`server/services/tool_skill_service.py`'s
+`ToolSkillService` + `server/routes/admin/skills.py` + `server/admin/admin_panel/tabs/skills.js`):
+
+- **Database-backed CRUD**, alongside (not instead of) the file-based skills
+  Phase 1 already supports — `POST/GET/PUT/DELETE /admin/skills` and
+  `POST /admin/skills/validate`, all behind `config_auth`.
+- **Database-over-file precedence.** A database skill with the same `name`
+  as a `config/skills/*/SKILL.md` file wins — the file version becomes the
+  shadowed "on-disk default", never deleted or edited by the override.
+- **Hot reload, no restart.** Every admin CRUD write re-merges the live
+  `ToolSkillRegistry` immediately, and (under `performance.workers > 1`)
+  propagates to sibling workers within 5 seconds via the same
+  `services/adapter_reload_state.py` generation-bump poll the MCP config
+  reload already uses (`"tool_skills"` is a new reload kind alongside
+  `"mcp_config"`).
+- **The "Tool Skills" admin panel tab** — create/edit/delete a skill with a
+  markdown-preview editor, no YAML file editing required. `mcp.js`'s
+  per-server detail view also gained a read-only "Playbooks" cross-reference
+  section.
+
+Steps 1–15 below only require `skill: "mcp-agent"` (explicit path) or
+`capabilities.mcp_tools: true` (opportunistic path) and are unaffected by
+whether Phase 3 is in play — a file-based skill behaves exactly as before
+unless a database skill of the same name overrides it. Phase 3 itself starts
+at step 16.
 
 ## 1. Start the sample MCP server
 
@@ -271,7 +295,7 @@ practical way to reproduce this with `examples/mcp-server` (it isn't named
 
 ```bash
 ruff check server/
-/path/to/venv/bin/python -m pytest server/tests/ -k "mcp or tool_skill" -v
+/path/to/venv/bin/python -m pytest server/tests/ -k "mcp or tool_skill or admin_skills" -v
 ```
 
 All tests should pass, including the pre-existing MCP suites — Phase 1 was
@@ -280,7 +304,10 @@ completely unmodified, and every pre-existing test in `test_mcp_tool_loop.py`
 and `test_mcp_agent_step.py` should still pass unchanged alongside the new
 ones. Phase 2 adds `test_inference/test_tool_skills_support.py` and new test
 classes in both `test_mcp_agent_step.py` and `test_llm_inference_mcp_tools.py`
-to that same sweep.
+to that same sweep. Phase 3 adds `test_services/test_tool_skill_service_db.py`,
+`test_routes/test_admin_skills.py`, and new cases in
+`test_services/test_adapter_reload_state.py` — all covered by the same
+`-k "mcp or tool_skill or admin_skills"` filter above.
 
 ## 12. Confirm Level 3 just-in-time injection
 
@@ -642,21 +669,192 @@ first-come-first-served budget, which would let three low-priority tool
 calls exhaust the budget before a higher-priority tool is ever invoked later
 in the same turn.
 
+## 16. Confirm database CRUD — create, edit, and delete a tool skill with no restart
+
+Create a new skill via the admin API (any `config.manage`-permissioned
+bearer token or API key):
+
+```bash
+curl -X POST http://localhost:3000/admin/skills \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{
+    "name": "db-test-playbook",
+    "description": "A database-authored test playbook.",
+    "mcp_tools": ["business-sample__get_sales_rep_performance"],
+    "body": "Always rank reps by attainment percentage, never raw closed amount.",
+    "priority": 3
+  }'
+```
+
+Confirm:
+
+- The response is `201`-shaped (`id`, `name`, ... — same fields step 3's file
+  skill has) and includes the `id` you'll need for the next calls.
+- `GET /admin/skills` lists the new **database-authored** skill with no
+  server restart between the create and the list call. This CRUD API (and
+  the Tool Skills tab) intentionally lists database-authored skills only;
+  file-authored `config/skills/*/SKILL.md` entries remain available to the
+  runtime registry but are not enumerated by this endpoint.
+- With no `"skill"` field or `mcp-agent` routing involved yet, send a live
+  request that should bind to `get_sales_rep_performance` (any adapter
+  reaching `business-sample`) and confirm `sources` includes `{"type":
+  "tool_skill_load", "skill": "db-test-playbook", ...}` — proof the new
+  skill is live in the running server's `ToolSkillRegistry`, not just
+  persisted to the database.
+
+Then edit it:
+
+```bash
+curl -X PUT http://localhost:3000/admin/skills/<id> \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{"priority": 20}'
+```
+
+Repeat step 15a's catalog-ordering check — `db-test-playbook` (now priority
+`20`) should sort *ahead* of `crm-pipeline-playbook` (priority `10`) in the
+`orbit__load_tool_skill` enum, with no restart between the edit and that
+check.
+
+Finally, delete it:
+
+```bash
+curl -X DELETE http://localhost:3000/admin/skills/<id> \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+Confirm `GET /admin/skills` no longer lists it, and a repeat of the live
+request from above produces no `tool_skill_load` entry for
+`db-test-playbook` — deletion also took effect with no restart.
+
+Also confirm `POST /admin/skills/validate` catches bad input before you
+persist it — useful for scripting a check into a CI/CD pipeline that
+authors skills as code:
+
+```bash
+curl -X POST http://localhost:3000/admin/skills/validate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{"name": "Not A Valid Slug", "description": "d", "mcp_tools": ["a__b"], "body": "b"}'
+```
+
+Confirm the response is `{"valid": false, "error": "..."}` and that nothing
+was persisted (`GET /admin/skills` is unchanged) — this endpoint never
+writes to the database.
+
+## 17. Confirm database-over-file precedence
+
+This is the core Phase 3 guarantee from `docs/roadmap/mcp-tool-skills.md`
+§2.6: a database skill with the same `name` as a bundled file skill wins,
+without touching or deleting the file.
+
+```bash
+curl -X POST http://localhost:3000/admin/skills \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{
+    "name": "crm-pipeline-playbook",
+    "description": "DB override: pipeline questions now always page at 10, not 25.",
+    "mcp_tools": ["business-sample__search_opportunities", "business-sample__summarize_pipeline"],
+    "body": "Never pass limit above 10 to search_opportunities, regardless of what the user asks for.",
+    "priority": 10
+  }'
+```
+
+Confirm:
+
+- The create succeeds — the name collides with a *file* skill, not another
+  *database* skill, so the unique-index-on-`name` rejection from step 16
+  doesn't apply here (§2.6 is specifically about this cross-source case).
+- `cat config/skills/crm-pipeline-playbook/SKILL.md` still shows the
+  original file content, untouched.
+- Repeat step 5's or step 12's request. The catalog line, the loaded body,
+  and the model's actual behavior (paging at ≤10, not ≤25) should all now
+  reflect the **database** version — proof `ToolSkillRegistry.get()` served
+  the DB entry, not the file one.
+- Delete the database override (`DELETE /admin/skills/<id>`, using the id
+  from this step's create response) and repeat the request once more.
+  Confirm the *file* version's behavior returns immediately (paging at ≤25
+  again) — the file skill was never lost, only shadowed while the database
+  entry existed.
+
+## 18. Confirm multi-worker hot-reload propagation (optional, only if `performance.workers > 1`)
+
+Skip this step entirely on a single-worker deployment — no `"performance":
+{"workers": N}` config, or `N` is `1`. Otherwise, with two or more workers
+running behind the shared listening socket:
+
+1. Send enough requests (or use `X-Session-ID` values you know differ) to
+   get responses served by more than one worker — the worker's PID isn't
+   exposed in the API response, so watch server logs for
+   `"Propagated tool skill reload from another worker"` instead.
+2. Create a tool skill via `POST /admin/skills` (step 16). Whichever worker
+   accepts that HTTP connection applies it locally and bumps the shared
+   `"tool_skills"` generation counter (`services/adapter_reload_state.py`).
+3. Within roughly 5 seconds (`_POLL_INTERVAL_SECONDS`), confirm the server
+   log shows every *other* worker logging `"Propagated tool skill reload
+   from another worker"` — each sibling's own `ToolSkillRegistry` re-merged
+   the new database skill without that worker ever having handled the
+   `POST` request itself.
+4. Confirm a live request that would previously have been served by any
+   worker now picks up the new skill regardless of which worker happens to
+   handle it.
+
+Unit-level equivalent, if you don't have a multi-worker deployment handy:
+
+```bash
+/path/to/venv/bin/python -m pytest server/tests/test_services/test_adapter_reload_state.py -k "ToolSkillsReloadPropagation" -v
+```
+
+## 19. Confirm the "Tool Skills" admin panel tab
+
+Open `/admin` in a browser, log in, and select **Tool Skills** in the System
+group of the nav (next to **MCP**).
+
+- **List view**: confirm database skills created in steps 16–17 appear with
+  name, description, priority, and enabled state. The panel currently
+  enumerates database-authored skills only; file-authored
+  `config/skills/*/SKILL.md` skills remain active at runtime but are not
+  shown as editable rows here.
+- **Create**: use the "Create Tool Skill" form to author a new skill (name,
+  description, comma-separated `mcp_tools` glob list, priority, markdown
+  body). Confirm it appears in the list immediately and — per step 16 — is
+  live in a request's `sources` with no restart.
+- **Edit**: select a skill, choose "Edit Tool Skill", change its body or
+  priority, save, and confirm the markdown preview re-renders and a repeat
+  live request reflects the change.
+- **Delete**: use the Danger Zone's "Delete Tool Skill", typing the skill's
+  name to confirm. Confirm it disappears from the list and — if it had
+  overridden a file skill by name (step 17) — the file skill's original
+  behavior returns.
+- **Cross-reference from MCP**: open the **MCP** tab, select the
+  `business-sample` server, ping it if you haven't already this session, and
+  confirm its detail view's new "Playbooks" section lists every tool skill
+  currently bound to one of its tools (by glob match against the live
+  discovered tool list). Create or delete a skill bound to
+  `business-sample` from the Tool Skills tab, then return to the MCP tab's
+  server detail without a full page reload — confirm the Playbooks section
+  reflects the change (this is the P2 stale-cache fix: `skills.js` calls
+  `mcpTab.invalidatePlaybooksCache()` after every create/update/delete, so
+  the MCP tab's cached skill list is invalidated instead of surviving for
+  the rest of the SPA session).
+
 ---
 
-## What NOT to expect yet (Phase 3 territory)
+## What Phase 3 does *not* do (Phase 4 territory)
 
-- **No admin UI.** Skills are file-based only (`config/skills/*/SKILL.md`,
-  git-edited, requiring a restart to pick up changes) — there's no `/admin`
-  panel tab yet (Phase 3).
-- **No hot reload.** A new or edited `SKILL.md` isn't picked up until ORBIT
-  restarts (or `reload_tool_skill_registry` is called some other way) — the
-  multi-worker hot-reload path (mirroring the MCP tab's) is Phase 3 scope.
-- **No database-backed skills.** Everything is file-based; Phase 3 adds a
-  `tool_skills` collection with database-wins-over-file precedence (§2.6).
+- **No bundled resources.** A skill is a single `SKILL.md` document (or
+  single database row) — no additional files loaded on a second call.
+- **No versioning or eval harness.** `version` is a free-text field an
+  author sets by convention; nothing tracks version history or measures
+  whether a skill actually improves tool-selection accuracy.
+- **No tool skills for non-MCP tools.** Binding is still `mcp_tools` globs
+  against namespaced MCP tool names only — intent/function-calling adapters
+  aren't covered.
 
-If everything above checks out, Phase 0, Phase 1, and Phase 2 are confirmed
-working end-to-end and it's reasonable to move on to Phase 3.
+If everything above checks out, Phase 0 through Phase 3 are confirmed
+working end-to-end.
 
 ## Troubleshooting
 
@@ -687,3 +885,38 @@ working end-to-end and it's reasonable to move on to Phase 3.
 - **401/EADDRINUSE/health-check issues with the sample server**: see the
   Troubleshooting section of `docs/adapters/playbook-mcp-tool-loop.md` —
   identical setup, same server.
+- **`POST /admin/skills` returns `500` on SQLite/Postgres** (step 16): this
+  was a real bug, fixed post-review — `mcp_tools` is a Python list, and
+  neither backend's driver can bind one directly to a dynamically-created
+  table's `TEXT` column. `ToolSkillService._encode_doc`/`_decode_doc`
+  JSON-encode/decode it transparently now (MongoDB is untouched, since it
+  stores the list natively). If you see `"Error binding parameter
+  'mcp_tools': type 'list' is not supported"` on a Mongo backend, that
+  would indicate a real regression — file it.
+- **A database skill doesn't override its file counterpart** (step 17):
+  confirm the `name` fields are byte-identical (case-sensitive, no trailing
+  whitespace) and that the database skill's own `enabled` is `true` — a
+  disabled database skill is excluded from the merge entirely and the file
+  version is served, which looks identical to "the override didn't apply"
+  from the outside. Also confirm you actually created it via `POST
+  /admin/skills` (or the panel) and not just edited the file — the two
+  sources are never reconciled automatically.
+- **A CRUD write doesn't show up in a live request** (steps 16–17):
+  `_refresh_registry` (in `routes/admin/skills.py`) re-merges the
+  in-process registry synchronously as part of the same request that
+  performed the write — if a live check still shows stale behavior, confirm
+  you're hitting the same worker process (single-worker deployments always
+  are), then see the next entry for the multi-worker case.
+- **Sibling workers don't pick up a Phase 3 CRUD write within ~5s** (step
+  18): confirm `os.environ["ORBIT_SUPERVISOR_PID"]` is actually set in your
+  deployment (single-process/dev runs never propagate, by design — there
+  are no siblings to notify), and check for `"Failed to propagate tool
+  skill reload to other workers"` in the logs, which means the generation
+  bump itself failed (a `database_service` outage) rather than the poll
+  not having run yet.
+- **The MCP tab's "Playbooks" section still shows a deleted/edited skill**
+  (step 19): confirm you're on the fixed build — `skills.js` must call the
+  `onSkillsChanged` callback wired to `mcpTab.invalidatePlaybooksCache()`
+  after create/update/delete (this was a real bug, fixed post-review). A
+  full page reload always clears the stale cache as a workaround, but
+  shouldn't be necessary after the fix.

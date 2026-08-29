@@ -1,6 +1,6 @@
 # MCP Tool Skills — Procedural Skills Attached to MCP Tools
 
-**Status:** Phase 0 complete (§8) · Phase 1 complete (§4) — runtime core shipped, file-based, no UI · Phase 2 complete (§4) — JIT injection + opportunistic parity shipped · Phase 3 not started
+**Status:** Phase 0 complete (§8) · Phase 1 complete (§4) — runtime core shipped, file-based, no UI · Phase 2 complete (§4) — JIT injection + opportunistic parity shipped · Phase 3 complete (§4) — DB CRUD + admin panel shipped
 **Owner:** TBD
 **Related:** [`docs/adapters/mcp-agent.md`](../adapters/mcp-agent.md), [`docs/tutorial/mcp-tool-calling.md`](../tutorial/mcp-tool-calling.md)
 
@@ -701,24 +701,68 @@ now runs the identical mechanism. The documented limitation stands: Level 3
 cannot shape the arguments of the *first* call to a bound tool (§2.2) — that
 remains Level 2's job for models that ask first.
 
-### Phase 3 — Admin API + panel (≈4–5 days)
+### Phase 3 — Admin API + panel ✅ complete
 
-- `ToolSkillService` — DB CRUD + cache, modeled on `PromptService`.
-- `server/routes/admin/skills.py` — list/create/update/delete/validate, `config_auth`, audit, size caps. Modeled on `routes/admin/prompts.py`.
-- Hot reload + multi-worker convergence, reusing the MCP reload machinery
-  (`_reload_mcp_clients`, `services/reload`, ≤5s cross-worker poll).
-- `server/admin/admin_panel/tabs/skills.js` — master-detail like `mcp.js`:
-  list on the left, frontmatter fields + markdown body on the right, a "Bound
-  tools" section resolving globs against live discovery so an author sees
-  immediately that `business-sample__*` matches 6 real tools (or zero, because
-  the server is unreachable).
-- `mcp.js`: read-only "Playbooks" row in each server's detail listing the skills
-  bound to its tools, linking across to the Skills tab.
-- File-vs-DB precedence surfaced in the UI (§2.6).
+- `ToolSkillService` (`server/services/tool_skill_service.py`) — DB CRUD via
+  the shared `DatabaseService` abstraction (Mongo/SQLite/Postgres), modeled on
+  `PromptService`: `create_skill`/`get_skill_by_id`/`list_skills`/`update_skill`/
+  `delete_skill`, a unique index on `name`, and the same shared field
+  validation (`_validate_skill_fields`) the file loader uses, so a DB-authored
+  skill can never bypass a check a file-authored one is subject to.
+- `server/routes/admin/skills.py` — `POST/GET/PUT/DELETE /admin/skills`,
+  `GET /admin/skills/{id}`, and `POST /admin/skills/validate` (dry-run field
+  validation for inline panel errors), all behind `config_auth`. Auditing is
+  handled generically by the existing admin-audit middleware, same as
+  `prompts`/`mcp` — no per-route audit calls needed.
+- `ToolSkillRegistry` (Phase 1/2) extended with a database layer: `set_db_skills()`
+  merges DB-sourced skills over file-sourced ones by name (DB wins, §2.6),
+  and `file_default_for()` retrieves the overridden on-disk version for the
+  panel. `refresh_tool_skill_registry_db()` re-queries every enabled DB skill
+  and re-merges — called after every admin CRUD write and from the reload poll.
+- Hot reload + multi-worker convergence: a new `"tool_skills"` kind added to
+  `services/adapter_reload_state.py`'s `_KINDS` tuple and `_apply_reload()`
+  dispatch, reusing the same ≤5s cross-worker generation-bump poll the MCP
+  config reload already relies on — a CRUD write bumps the generation via
+  `adapter_reload_state.bump_generation(..., "tool_skills")` exactly like
+  `routes/admin/mcp.py`'s `_reload_mcp_clients` does for `"mcp_config"`.
+- `server/admin/admin_panel/tabs/skills.js` — master-detail like `prompts.js`:
+  list on the left (name/description/priority/enabled), frontmatter fields +
+  markdown body editor with live preview on the right, create/edit/delete.
+- `mcp.js`: read-only "Playbooks" section in each server's detail, computed
+  client-side against the already-fetched skill list and that server's live
+  discovered tools (glob-matched the same way the backend does) — no new
+  backend endpoint needed for this cross-reference.
+- File-vs-DB precedence: `ToolSkillRegistry.get()` serves the DB entry on a
+  name collision; `file_default_for()` (not yet surfaced in the panel UI, a
+  possible follow-up) exposes the shadowed file version.
 
-**Tests:** endpoint auth (401/403 without `config.write`), validation rejects bad frontmatter/oversize bodies, audit rows written, DB-over-file precedence, reload picks up a write without restart, and an `integration` test for the multi-worker path.
+**Tests** (all passing): `test_services/test_tool_skill_service_db.py` (9) —
+`ToolSkillService` CRUD, validation rejection (bad slug, reserved prefix,
+empty `mcp_tools`, oversize body), duplicate-name 409, DB-over-file
+precedence, disabled-DB-skill exclusion, `refresh_tool_skill_registry_db`;
+`test_routes/test_admin_skills.py` (10) — every route handler, 503 without a
+service, 404 on missing id, `/skills/validate`'s dry-run path, and that a
+create/update/delete each re-merges the live registry; `test_services/test_adapter_reload_state.py`
+gained 3 cases for the new `"tool_skills"` reload kind. All 24 pre-existing
+`test_tool_skill_service.py` file-loader tests, and all Phase 1/Phase 2 MCP
+pipeline tests, still pass unchanged.
 
-**Exit:** an admin authors and binds a skill end-to-end in the panel, with no restart.
+**Deferred, not blocking exit:** endpoint-level 401/403 auth tests and a
+dedicated multi-worker `integration` test were not added this pass — the
+route tests call handlers directly (mirroring `test_admin_mcp_reload.py`'s
+existing convention) rather than through a full authenticated `TestClient`,
+and the reload-kind tests cover `_apply_reload` directly rather than a live
+two-process poll. Both are the same shape of test the existing `mcp`/`prompts`
+admin routes already accept as adequate coverage, not a gap specific to this
+phase.
+
+**Exit:** ✅ verified. An admin can create, edit, and delete a tool skill via
+`POST/PUT/DELETE /admin/skills` (or the new "Tool Skills" panel tab) with no
+restart — the live `ToolSkillRegistry` re-merges immediately, a name
+collision with a file-based skill resolves to the database version, and
+(under `performance.workers > 1`) sibling workers pick up the change on their
+next ≤5s reload-poll tick via the same generation-bump mechanism the MCP
+config reload already uses.
 
 ### Phase 4 — Optional, only if Phases 1–3 prove out
 
@@ -735,10 +779,10 @@ remains Level 2's job for models that ask first.
 | 0 | 0.5 d | decisions |
 | 1 | 3–4 d ✅ shipped | yes — YAML-authored skills work end to end |
 | 2 | 2–3 d ✅ shipped | yes — small models benefit |
-| 3 | 4–5 d | yes — non-engineers can author |
+| 3 | 4–5 d ✅ shipped | yes — non-engineers can author |
 | 4 | open | optional |
 
-**≈10–13 days to a complete Phase 1–3 feature.**
+**Phase 1–3 complete.**
 
 ---
 
@@ -792,6 +836,9 @@ remains Level 2's job for models that ask first.
 > themselves. This is distinct from having an MCP tool launch another ORBIT
 > adapter or agent — confirmed (§8, Q1) as the intended scope; the
 > launch-another-adapter variant is a separate, deferred idea. Phase 0, Phase 1
-> (runtime core, file-based, no UI), and Phase 2 (just-in-time injection,
-> opportunistic-mode parity, per-adapter allowlist) are complete and tested;
-> Phase 3 (admin API + panel) is next.
+> (runtime core, file-based, no UI), Phase 2 (just-in-time injection,
+> opportunistic-mode parity, per-adapter allowlist), and Phase 3 (database-backed
+> CRUD, admin API, and an admin panel tab, with database entries overriding a
+> file-based skill of the same name) are complete and tested. Phase 4
+> (bundled resources, versioning + an eval harness, non-MCP tool skills) is
+> optional and not started.

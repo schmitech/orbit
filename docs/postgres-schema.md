@@ -14,6 +14,7 @@ The database contains the following tables:
 - `user_allowlist` - Pattern-based pre-clearing of external identities
 - `api_keys` - API keys for authentication
 - `system_prompts` - System prompts for chat
+- `tool_skills` - Admin-authored procedural playbooks bound to MCP tools
 - `chat_history` - Chat message history
 - `conversation_threads` - Conversation threading for intent adapters
 - `thread_datasets` - Database fallback storage for conversation thread datasets
@@ -172,6 +173,36 @@ CREATE TABLE IF NOT EXISTS system_prompts (
 ```
 
 **Indexes:** `idx_system_prompts_name` on `name`
+
+---
+
+### tool_skills
+
+Stores database-authored procedural `SKILL.md`-style playbooks for MCP tool
+calling, managed through `/admin/skills` and the Tool Skills admin tab. An
+enabled database skill overrides a file-authored skill with the same `name`
+at runtime; the file is not modified. See `docs/roadmap/mcp-tool-skills.md`.
+
+```sql
+CREATE TABLE IF NOT EXISTS tool_skills (
+    id TEXT PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT NOT NULL,
+    mcp_tools TEXT NOT NULL,
+    body TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    version TEXT,
+    priority INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)
+```
+
+**Indexes:** `idx_tool_skills_name` unique on `name`
+
+`mcp_tools` is a JSON-encoded list of case-sensitive `fnmatch` patterns for
+namespaced MCP tools; see [`docs/sqlite-schema.md#tool_skills`](sqlite-schema.md#tool_skills)
+for the full field descriptions and runtime semantics.
 
 ---
 

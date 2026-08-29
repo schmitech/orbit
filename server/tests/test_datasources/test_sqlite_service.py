@@ -83,6 +83,30 @@ async def test_initialization(sqlite_service: SQLiteService):
 
 
 @pytest.mark.asyncio
+async def test_tool_skills_table_is_created_on_initialization(sqlite_service: SQLiteService):
+    """Phase 3 tool-skill CRUD reads before its first insert, so the fixed
+    SQL schema must exist on a brand-new database rather than relying on
+    insert_one's dynamic-table fallback."""
+    with sqlite_service._db_lock:
+        table = sqlite_service.connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'tool_skills'"
+        ).fetchone()
+        columns = {
+            row[1] for row in sqlite_service.connection.execute("PRAGMA table_info(tool_skills)")
+        }
+        indexes = {
+            row[1] for row in sqlite_service.connection.execute("PRAGMA index_list(tool_skills)")
+        }
+
+    assert table is not None
+    assert columns == {
+        "id", "name", "description", "mcp_tools", "body", "enabled",
+        "version", "priority", "created_at", "updated_at",
+    }
+    assert "idx_tool_skills_name" in indexes
+
+
+@pytest.mark.asyncio
 async def test_insert_and_find_one(sqlite_service: SQLiteService):
     """Test inserting and finding a single document"""
     # Create test document
