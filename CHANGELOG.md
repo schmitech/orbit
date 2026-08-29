@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.2] - 2026-08-29
 
 ### Core System Updates
 - **MCP Tool Skills (Phase 1)**: Added file-authored `SKILL.md` procedural playbooks that bind to MCP tools and are progressively disclosed to `mcp-agent` adapters. Each turn receives a compact, capped catalog and can call an enum-scoped `orbit__load_tool_skill` loader to attach one trusted playbook to the matching tool-result message. Loading is authorized against the turn's surfaced set and idempotent, while tool output remains untrusted and provenance records playbook loads separately from MCP calls.

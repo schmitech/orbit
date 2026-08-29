@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=social" alt="GitHub stars" /></a>
   <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit?color=red" alt="Last commit" /></a>
-  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.17.1-blue" alt="Version 2.17.1" /></a>
+  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/badge/version-2.17.2-blue" alt="Version 2.17.2" /></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license" /></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white" alt="Python 3.12+" /></a>
 </p>
@@ -107,9 +107,9 @@ For organizations evaluating an AI gateway for adoption, the [capability matrix]
 Download and install the latest stable release:
 
 ```bash
-curl -L https://github.com/schmitech/orbit/releases/download/v2.17.1/orbit-2.17.1.tar.gz -o orbit-2.17.1.tar.gz
-tar -xzf orbit-2.17.1.tar.gz
-cd orbit-2.17.1
+curl -L https://github.com/schmitech/orbit/releases/download/v2.17.2/orbit-2.17.2.tar.gz -o orbit-2.17.2.tar.gz
+tar -xzf orbit-2.17.2.tar.gz
+cd orbit-2.17.2
 ./install/setup.sh --profile default
 ./bin/orbit.sh start
 ```

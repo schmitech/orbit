@@ -41,7 +41,7 @@ async def get_server_info(
 
     return {
         "pid": pid,
-        "version": "2.17.1",
+        "version": "2.17.2",
         "status": "paused" if await is_paused(request.app.state) else "running"
     }
 
