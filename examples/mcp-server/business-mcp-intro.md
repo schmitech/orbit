@@ -15,3 +15,9 @@
 
 Support-ticket changes apply only to this sample server's in-memory synthetic
 data and reset when it restarts. Ask explicitly before deleting a ticket.
+
+**📘 Tool playbook:** a bound `SKILL.md` playbook teaches correct tool usage
+(page `search_opportunities` in batches of 25, resolve customers by ID,
+format pipeline results as a table) — loaded automatically, no setup needed.
+Try "Find the top 100 open opportunities" and watch it page instead of
+over-requesting. More: [playbook-mcp-tool-skills.md](https://github.com/schmitech/orbit/blob/main/docs/adapters/playbook-mcp-tool-skills.md).

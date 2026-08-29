@@ -320,9 +320,9 @@ Confirm:
 ## 13. Confirm opportunistic-mode parity
 
 Repeat the same idea against an adapter using `capabilities.mcp_tools: true`
-instead of `skill: "mcp-agent"` — e.g. `simple-chat-with-files` from
-`docs/adapters/playbook-mcp-tool-loop.md`, with `business-sample` reachable
-from its `mcp_servers` allowlist:
+instead of `skill: "mcp-agent"` — e.g. `simple-chat` from
+`config/adapters/passthrough.yaml`, which already lists `business-sample` in
+its `mcp_servers` allowlist:
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
@@ -331,18 +331,47 @@ curl -X POST http://localhost:3000/v1/chat \
   -H "X-Session-ID: skill-test-opportunistic-1" \
   -d '{
     "messages": [
-      {"role": "user", "content": "Find the top 100 open opportunities."}
+      {"role": "user", "content": "Call search_opportunities and show me the first 25 open opportunities."}
     ]
   }'
 ```
 
-No `"skill"` field at all — this is the plain conversational path. Confirm
-the same thing step 12 confirmed on the explicit path: a `tool_skill_load`
-source appears alongside the real `mcp_tool_call`, without the model ever
-having to call the loader. This is the concrete difference Phase 2 made:
-before it, this exact request would have produced zero tool-skill-related
-`sources` entries, ever (see the "What NOT to expect yet" note this playbook
-used to carry — now folded into Phase 3's list below).
+No `"skill"` field at all — this is the plain conversational path. Be
+directive about wanting the tool actually called: a vaguer prompt like "Find
+the top 100 open opportunities" is a weaker check here, since a model may
+answer from the tool's own schema description (e.g. "results are capped at
+25") without calling anything — that produces `sources: []` and confirms
+nothing about the tool-skill mechanism one way or the other (it's the
+documented "a turn calling no bound tool injects nothing" case, not a
+failure, but it isn't evidence of success either).
+
+Confirmed working, `simple-chat` (`ollama_cloud`/`gpt-oss:120b` adapter
+default, `gpt-5.4-mini` resolved at runtime for this request):
+
+```json
+{"done": true, "sources": [
+  {"type": "tool_skill_load", "skill": "crm-pipeline-playbook", "version": "1.0"},
+  {"type": "mcp_tool_call", "tool": "business-sample__search_opportunities", "arguments": {"limit": 25}, "...": "..."},
+  {"type": "mcp_tool_call", "tool": "business-sample__search_opportunities", "arguments": {"stage": "Negotiation", "limit": 25}, "...": "..."},
+  {"type": "mcp_tool_call", "tool": "business-sample__search_opportunities", "arguments": {"stage": "Proposal", "limit": 25}, "...": "..."},
+  {"type": "mcp_tool_call", "tool": "business-sample__search_opportunities", "arguments": {"stage": "Discovery", "limit": 25}, "...": "..."},
+  {"type": "mcp_tool_call", "tool": "business-sample__search_opportunities", "arguments": {"stage": "Qualification", "limit": 25}, "...": "..."}
+]}
+```
+
+Confirm the same thing step 12 confirmed on the explicit path: a
+`tool_skill_load` source appears alongside the real `mcp_tool_call` entries,
+without the model ever calling `orbit__load_tool_skill` — plus two things
+this run demonstrates that step 12 didn't: the model made *multiple*
+follow-up tool calls in the same turn, each one still respecting the
+skill's `limit ≤ 25` rule (it split the query by `stage` rather than ever
+raising `limit`), and the final answer's table matches the skill's exact
+`Owner | Account | Stage | ARR | Close date` formatting spec — direct
+evidence the injected guidance, not just the tool schema, shaped the
+output. This is the concrete difference Phase 2 made: before it, this exact
+request would have produced zero tool-skill-related `sources` entries,
+ever (see the "What NOT to expect yet" note this playbook used to carry —
+now folded into Phase 3's list below).
 
 ## 14. Confirm the `capabilities.tool_skills` allowlist
 
@@ -363,26 +392,104 @@ the allowlist blocks skill surfacing/loading specifically, not tool access
 `tool_skills: ["crm-pipeline-playbook"]` (or remove the key entirely, which
 defaults to "every skill matching a visible tool") afterward.
 
-## 15. Confirm the shared budget preserves priority regardless of call order
+**Pitfall — the allowlist only applies to the adapter actually running the
+turn.** A `"skill": "mcp-agent"` request swaps the active adapter to
+`mcp-agent-chat` for that turn, so `tool_skills` set on some *other* adapter
+(e.g. `simple-chat` in `passthrough.yaml`) has no effect on it — you'll see
+the loader/skill surface exactly as before and wrongly conclude the
+allowlist "isn't working." Match the request to the adapter you edited: an
+allowlist on `mcp-agent-chat` needs `"skill": "mcp-agent"` in the request
+(step 5's shape); an allowlist on an opportunistic adapter like
+`simple-chat` needs a plain request with no `"skill"` field at all (step
+13's shape) against that adapter's own API key.
 
-This one is easiest to confirm at the unit level — it requires more than one
-skill bound to more than one tool to observe live, which the bundled example
-doesn't set up on its own:
+## 15. Confirm multiple distinct skills — the surfaced set, priorities, and per-tool binding
+
+`crm-pipeline-playbook` alone can't show two things Phase 0–2 both promise:
+several *different* skills surfacing in the same catalog, and priority
+actually mattering when more than one is in play. The bundled example now
+ships four skills, each bound to a disjoint slice of `business-sample`'s
+tools with different `priority` values, so this is testable live:
+
+| Skill | Bound tools | Priority |
+|---|---|---|
+| `crm-pipeline-playbook` | `list_customers`, `get_customer_health`, `search_opportunities`, `summarize_pipeline`, `build_account_plan` | 10 (highest) |
+| `support-ticket-playbook` | `list_support_tickets`, `get_support_ticket`, `create_support_ticket`, `update_support_ticket`, `delete_support_ticket` | 5 |
+| `churn-risk-playbook` | `get_product_telemetry`, `simulate_churn_risk_scenario` | 0 (default) |
+| `sales-performance-playbook` | `get_sales_rep_performance` | -1 (lowest) |
+
+**15a. Catalog shows all four, in priority order.**
+
+```bash
+/path/to/venv/bin/python -m pytest server/tests/test_services/test_tool_skill_service.py -k "matched_for or sort" -v
+```
+
+Or live: send step 5's request as-is (any prompt is fine, since the catalog
+is built before the model calls anything) and inspect the system message /
+first `generate_with_tools` call's tool list — `orbit__load_tool_skill`'s
+`name` enum should list all four names, ordered
+`crm-pipeline-playbook, support-ticket-playbook, churn-risk-playbook,
+sales-performance-playbook` (priority desc, then name).
+
+**15b. Different tools load different skills (Level 3), independently.**
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <key for an adapter with mcp-agent in available_skills>" \
+  -H "X-Session-ID: skill-test-multi-1" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Summarize the EMEA pipeline, then show me sales rep performance for this quarter, then list any open support tickets for cus_0005."}
+    ],
+    "skill": "mcp-agent"
+  }'
+```
+
+Confirm `sources` contains **three** distinct `tool_skill_load` entries —
+`crm-pipeline-playbook`, `sales-performance-playbook`, and
+`support-ticket-playbook` — each paired with the `mcp_tool_call` for its own
+bound tool, and each loaded independently (calling `get_sales_rep_performance`
+doesn't also trigger `crm-pipeline-playbook`, and vice versa). This is the
+live version of the "sibling tool calls are isolated" guarantee from step 12's
+mechanism section — here demonstrated across three genuinely different
+skills instead of one skill vs. no skill.
+
+**15c. Priority survives call order under the budget.**
+
+The per-turn budget admits at most 3 skills. Ask for all four bound
+categories in an order that puts the lowest-priority one first:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <key for an adapter with mcp-agent in available_skills>" \
+  -H "X-Session-ID: skill-test-multi-2" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Show me sales rep performance for this quarter, then check product telemetry and churn risk for cus_0005, then list customers, then summarize the EMEA pipeline."}
+    ],
+    "skill": "mcp-agent"
+  }'
+```
+
+Confirm `sources` shows exactly **three** `tool_skill_load` entries, and
+`sales-performance-playbook` (priority `-1`, the lowest) is the one
+**missing** — even though its bound tool was called *first* in the turn.
+`crm-pipeline-playbook` (priority `10`) must be present regardless of when
+its tool was actually called. If instead the *first three skills
+encountered* are the ones admitted (i.e. `sales-performance-playbook` makes
+it in and `crm-pipeline-playbook` doesn't), that's the exact regression the
+priority-precomputation fix in `tool_skills_support.py` exists to prevent —
+worth filing immediately.
+
+Unit-level equivalents of 15c, if you'd rather not depend on model
+cooperation for call order:
 
 ```bash
 /path/to/venv/bin/python -m pytest server/tests/test_inference/test_tool_skills_support.py -k "priority_admission" -v
 /path/to/venv/bin/python -m pytest server/tests/test_inference/test_mcp_agent_step.py -k "budget_preserves_priority" -v
 ```
-
-Both assert the same thing from different angles: when more matched skills
-exist than the 3-skill/24KB budget allows, the skills actually admitted are
-the highest-priority candidates — decided once from the full matched set —
-never whichever skills happened to have their bound tool called first. If you
-want to see this live, author two more example skills under `config/skills/`
-bound to two different `business-sample` tools with different `priority`
-values, ask the model to use the lower-priority tool a few times before the
-higher-priority one, and confirm the higher-priority skill's `tool_skill_load`
-source still appears.
 
 ---
 

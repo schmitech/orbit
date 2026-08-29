@@ -6,6 +6,9 @@
 - **MCP Tool Skills (Phase 1)**: Added file-authored `SKILL.md` procedural playbooks that bind to MCP tools and are progressively disclosed to `mcp-agent` adapters. Each turn receives a compact, capped catalog and can call an enum-scoped `orbit__load_tool_skill` loader to attach one trusted playbook to the matching tool-result message. Loading is authorized against the turn's surfaced set and idempotent, while tool output remains untrusted and provenance records playbook loads separately from MCP calls.
 - **MCP Tool Skills (Phase 2)**: Added just-in-time playbook injection after a bound MCP tool's first call and extended the catalog, loader, and injection behavior to opportunistic MCP tool calling. Adapters can now restrict playbooks through `capabilities.tool_skills`; a shared per-turn budget caps trusted context while precomputing priority-based admission so a higher-priority skill can no longer be crowded out by lower-priority skills invoked first.
 
+### Documentation & Configuration
+- **MCP Tool Skills Example Library**: Split the bundled example CRM playbook into four scoped tool skills (pipeline, support tickets, churn risk, sales performance) to exercise multiple simultaneous playbooks and priority ordering live, fixing an overly broad binding that had caused the model to wrongly decline valid ticket-creation requests.
+
 ## [2.17.1] - 2026-08-28
 
 ### Security

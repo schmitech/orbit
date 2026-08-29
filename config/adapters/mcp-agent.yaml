@@ -55,3 +55,23 @@ adapters:
         - "business-sample"
         - "filesystem"
         - "github"
+      # Optional tool-skill (SKILL.md) allowlist, for this adapter only
+      # (docs/roadmap/mcp-tool-skills.md §2.7). This can only NARROW which
+      # skills surface/load here — it never grants a skill that isn't
+      # already bound to a tool this adapter can reach via mcp_servers
+      # above, and never overrides a skill's own mcp_tools binding,
+      # enabled flag, priority, or version. Two gates both apply: a skill's
+      # own mcp_tools glob must match a visible tool AND (if this list is
+      # set) its name must be in it.
+      # Omit (or set to null) to allow every skill that already matches a
+      # visible tool — the same default convention as mcp_servers above.
+      # Lists every skill currently in config/skills/ here, so it's
+      # currently equivalent to omitting the key — kept explicit so the
+      # allowlist mechanism itself stays exercised. Set to [] to test it
+      # denying every tool skill (docs/adapters/playbook-mcp-tool-skills.md
+      # step 14), or to a subset to test it excluding specific skills.
+      tool_skills:
+        - "crm-pipeline-playbook"
+        - "support-ticket-playbook"
+        - "churn-risk-playbook"
+        - "sales-performance-playbook"
