@@ -204,6 +204,11 @@ CREATE TABLE IF NOT EXISTS tool_skills (
 namespaced MCP tools; see [`docs/sqlite-schema.md#tool_skills`](sqlite-schema.md#tool_skills)
 for the full field descriptions and runtime semantics.
 
+Service validation limits names to 64 characters, descriptions to 500,
+`mcp_tools` to 64 patterns of 256 characters each, and bodies to 24 KB of
+UTF-8 data. No more than 10,000 database skills may be enabled at once;
+disabled drafts can remain stored beyond that active ceiling.
+
 ---
 
 ### chat_history

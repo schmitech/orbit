@@ -162,10 +162,10 @@ class SystemPromptResponse(BaseModel):
 
 class ToolSkillCreate(BaseModel):
     """Tool skill creation request model (docs/roadmap/mcp-tool-skills.md Phase 3)."""
-    name: str
+    name: str = Field(min_length=1, max_length=64)
     description: str = Field(min_length=1, max_length=500)
-    mcp_tools: List[str] = Field(min_length=1)
-    body: str = Field(min_length=1, max_length=32_768)
+    mcp_tools: List[str] = Field(min_length=1, max_length=64)
+    body: str = Field(min_length=1, max_length=24_576)
     enabled: bool = True
     version: Optional[str] = None
     priority: int = 0
@@ -174,8 +174,8 @@ class ToolSkillCreate(BaseModel):
 class ToolSkillUpdate(BaseModel):
     """Tool skill update request model. Name is immutable — delete and recreate to rename."""
     description: Optional[str] = Field(default=None, min_length=1, max_length=500)
-    mcp_tools: Optional[List[str]] = Field(default=None, min_length=1)
-    body: Optional[str] = Field(default=None, min_length=1, max_length=32_768)
+    mcp_tools: Optional[List[str]] = Field(default=None, min_length=1, max_length=64)
+    body: Optional[str] = Field(default=None, min_length=1, max_length=24_576)
     enabled: Optional[bool] = None
     version: Optional[str] = None
     priority: Optional[int] = None

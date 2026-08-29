@@ -14,9 +14,12 @@ sys.path.insert(0, server_dir)
 
 from services.tool_skill_service import (
     MAX_SKILL_BODY_BYTES,
+    SURFACED_SET_CAP,
+    ToolSkill,
     ToolSkillRegistry,
     get_tool_skill_registry,
     reload_tool_skill_registry,
+    warn_catalog_overflow,
 )
 
 
@@ -291,3 +294,95 @@ class TestGetToolSkillRegistrySingleton:
         first = get_tool_skill_registry(config)
         second = reload_tool_skill_registry(config)
         assert first is not second
+
+
+class TestCatalogOverflowWarning:
+    class _Manager:
+        _tools_cache = {
+            "business-sample": [
+                {"function": {"name": "business-sample__list_customers"}},
+            ],
+            "private": [
+                {"function": {"name": "private__secret"}},
+            ],
+        }
+
+        @staticmethod
+        def setting(server_name, key):
+            return server_name == "business-sample" and key == "allow_opportunistic"
+
+    def test_warns_with_priority_ordered_drops_for_reachable_tools(self, caplog, tmp_path):
+        skills = [
+            ToolSkill(
+                name=f"skill-{i:02d}",
+                description="procedure",
+                mcp_tools=["business-sample__*"],
+                body="body",
+                priority=20 - i,
+            )
+            for i in range(SURFACED_SET_CAP + 2)
+        ]
+        registry = ToolSkillRegistry(tmp_path, db_skills=skills)
+        config = {
+            "adapters": [{
+                "name": "mcp-agent-chat",
+                "type": "mcp_agent",
+                "enabled": True,
+                "capabilities": {"mcp_servers": ["business-sample"]},
+            }],
+        }
+
+        warn_catalog_overflow(config, registry, self._Manager())
+
+        assert "matches 12 tool skills" in caplog.text
+        assert "skill-10, skill-11" in caplog.text
+
+    def test_respects_tool_skill_allowlist(self, caplog, tmp_path):
+        skills = [
+            ToolSkill(
+                name=f"skill-{i:02d}", description="procedure",
+                mcp_tools=["business-sample__*"], body="body",
+            )
+            for i in range(SURFACED_SET_CAP + 2)
+        ]
+        registry = ToolSkillRegistry(tmp_path, db_skills=skills)
+        config = {
+            "adapters": [{
+                "name": "inline",
+                "type": "conversational",
+                "enabled": True,
+                "capabilities": {
+                    "mcp_tools": True,
+                    "mcp_servers": ["business-sample"],
+                    "tool_skills": ["skill-00"],
+                },
+            }],
+        }
+
+        warn_catalog_overflow(config, registry, self._Manager())
+
+        assert "surfaced-set cap" not in caplog.text
+
+    def test_warns_when_one_tool_exceeds_injection_budget(self, caplog, tmp_path):
+        skills = [
+            ToolSkill(
+                name=f"skill-{i:02d}", description="procedure",
+                mcp_tools=["business-sample__list_customers"], body="body",
+                priority=10 - i,
+            )
+            for i in range(4)
+        ]
+        registry = ToolSkillRegistry(tmp_path, db_skills=skills)
+        config = {
+            "adapters": [{
+                "name": "mcp-agent-chat",
+                "type": "mcp_agent",
+                "enabled": True,
+                "capabilities": {"mcp_servers": ["business-sample"]},
+            }],
+        }
+
+        warn_catalog_overflow(config, registry, self._Manager())
+
+        assert "shared injection budget of 3 skills/24576 bytes" in caplog.text
+        assert "skill-03" in caplog.text

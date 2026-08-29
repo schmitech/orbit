@@ -52,6 +52,7 @@ _AUDITED_PREFIXES = ("/admin/", "/auth/")
 # record them as `admin.unknown`.
 _SKIP_PATHS = frozenset({
     "/admin/render-markdown",  # markdown preview; no state, no secrets
+    "/admin/skills/validate",  # field validation only; does not persist a skill
 })
 
 
@@ -139,6 +140,14 @@ _ROUTE_MAP: List[Tuple[str, str, str, str, str, Optional[str], Any]] = [
     ("POST",   "/admin/prompts",                                    "admin.prompt.create",      "CREATE", "prompt",  None,                  ("name", "version")),
     ("PUT",    "/admin/prompts/{prompt_id}",                        "admin.prompt.update",      "UPDATE", "prompt",  "path:prompt_id",      ("name", "version")),
     ("DELETE", "/admin/prompts/{prompt_id}",                        "admin.prompt.delete",      "DELETE", "prompt",  "path:prompt_id",      ()),
+
+    # ---- MCP tool-skill playbooks ----
+    # The procedural body is deliberately excluded, matching prompt-body
+    # handling above: audit who changed which skill and its routing metadata,
+    # without copying trusted operational instructions into the audit store.
+    ("POST",   "/admin/skills",                                    "admin.tool_skill.create",  "CREATE", "tool_skill", "context",       ("name", "description", "mcp_tools", "enabled", "version", "priority")),
+    ("PUT",    "/admin/skills/{skill_id}",                         "admin.tool_skill.update",  "UPDATE", "tool_skill", "path:skill_id", ("description", "mcp_tools", "enabled", "version", "priority")),
+    ("DELETE", "/admin/skills/{skill_id}",                         "admin.tool_skill.delete",  "DELETE", "tool_skill", "path:skill_id", ()),
 
     # ---- Adapter config ----
     ("PUT",    "/admin/adapters/config/entry/{adapter_name}",       "admin.adapter.config_update",      "UPDATE",  "adapter", "path:adapter_name", _CHANGED_KEYS),

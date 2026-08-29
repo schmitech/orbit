@@ -2,7 +2,7 @@
 
 **Level 0 · Orientation**
 
-The admin panel (`http://localhost:3000/admin`) is where you'll do almost every setup and monitoring task in this tutorial — creating keys, wiring up adapters, watching what your server is doing. This page is a screen-by-screen tour of all 11 tabs, so you know what's there before you need it. If you just want to create your first key right now, go to [Your first chat](first-chat.md) or [Creating API Keys](creating-api-keys.md) instead — come back here when you want the full map.
+The admin panel (`http://localhost:3000/admin`) is where you'll do almost every setup and monitoring task in this tutorial — creating keys, wiring up adapters, watching what your server is doing. This page is a screen-by-screen tour of all 12 tabs, so you know what's there before you need it. If you just want to create your first key right now, go to [Your first chat](first-chat.md) or [Creating API Keys](creating-api-keys.md) instead — come back here when you want the full map.
 
 Sign in with the default credentials (`admin` / the value of `ORBIT_DEFAULT_ADMIN_PASSWORD`, or `admin123` if unset — change this before any real deployment).
 
@@ -52,11 +52,26 @@ Create/edit/delete admin accounts, assign roles, reset passwords. Relevant once 
 
 ### MCP
 
-Add and configure MCP servers — tool discovery/timeout defaults and per-server settings. Only relevant once you're using [MCP tool calling](mcp-tool-calling.md); skip this tab entirely until then.
+Add and configure MCP servers — tool discovery/timeout defaults and per-server settings. Ping a server to inspect its live tools. Its **Playbooks** section lists database-authored Tool Skills whose `mcp_tools` patterns match those discovered, already-namespaced tool names. File-authored playbooks can still be active at runtime even though this cross-reference intentionally lists database records only. Only relevant once you're using [MCP tool calling](mcp-tool-calling.md); skip this tab entirely until then.
 
 <!-- MEDIA: screenshot | admin-panel-tour/mcp | MCP tab showing a configured MCP server -->
 > 🖼️ **Screenshot placeholder:** the MCP tab.
 > _(To be added — see [`_media-todo.md`](_media-todo.md))_
+
+### Tool Skills
+
+Create, edit, enable/disable, and delete database-authored procedural
+playbooks bound to MCP tools with case-sensitive `mcp_tools` glob patterns.
+Changes become live without restarting ORBIT. A database playbook with the
+same name as `config/skills/<name>/SKILL.md` overrides that file; disabling or
+deleting the database record restores the file. This tab lists database
+records only, not the active file library. In governed or multi-tenant
+deployments, pair new playbooks with explicit adapter
+`capabilities.tool_skills` allowlists—omitting the field makes every playbook
+matching a visible tool eligible for that adapter.
+
+See [MCP Agent Skill](../adapters/mcp-agent.md#mcp-tool-skill-playbooks) for
+authoring and runtime details.
 
 ### Settings
 

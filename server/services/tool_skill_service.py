@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import yaml
 from fastapi import HTTPException
@@ -42,8 +42,19 @@ _RESERVED_PREFIX = "orbit__"
 
 _FRONTMATTER_DELIM = "---"
 
-# Per-skill body cap (docs/roadmap/mcp-tool-skills.md §3, §8 Q5).
-MAX_SKILL_BODY_BYTES = 32 * 1024
+# Authoring/storage guardrails. The body cap intentionally equals the per-turn
+# byte budget: accepting a larger body would create a valid-looking skill that
+# can never be injected.
+MAX_SKILL_NAME_CHARS = 64
+MAX_SKILL_DESCRIPTION_CHARS = 500
+MAX_MCP_TOOL_PATTERNS = 64
+MAX_MCP_TOOL_PATTERN_CHARS = 256
+MAX_SKILL_BODY_BYTES = 24 * 1024
+MAX_ACTIVE_DB_SKILLS = 10_000
+
+# Per-turn injection budget shared by Level 2 and Level 3.
+INJECTION_BUDGET_MAX_SKILLS = 3
+INJECTION_BUDGET_MAX_BYTES = 24 * 1024
 
 # Level 1 catalog / Level 2 enum cap — the "surfaced set" (§2.2, §8 Q5). Any
 # skill beyond this, sorted by (priority desc, name), is present in the
@@ -119,6 +130,10 @@ def _validate_skill_fields(
         raise SkillValidationError(
             f"{label}: missing/invalid 'name' (must be a lowercase slug)"
         )
+    if len(name) > MAX_SKILL_NAME_CHARS:
+        raise SkillValidationError(
+            f"{label}: skill name exceeds {MAX_SKILL_NAME_CHARS} characters"
+        )
     if name.startswith(_RESERVED_PREFIX):
         raise SkillValidationError(
             f"{label}: skill '{name}' uses the reserved '{_RESERVED_PREFIX}' prefix "
@@ -127,12 +142,27 @@ def _validate_skill_fields(
 
     if not isinstance(description, str) or not description.strip():
         raise SkillValidationError(f"{label}: skill '{name}' is missing a non-empty 'description'")
+    if len(description.strip()) > MAX_SKILL_DESCRIPTION_CHARS:
+        raise SkillValidationError(
+            f"{label}: skill '{name}' description exceeds "
+            f"{MAX_SKILL_DESCRIPTION_CHARS} characters"
+        )
 
     if not isinstance(mcp_tools, list) or not mcp_tools or not all(
         isinstance(t, str) and t.strip() for t in mcp_tools
     ):
         raise SkillValidationError(f"{label}: skill '{name}' has a missing/invalid 'mcp_tools' list")
+    if len(mcp_tools) > MAX_MCP_TOOL_PATTERNS:
+        raise SkillValidationError(
+            f"{label}: skill '{name}' has more than "
+            f"{MAX_MCP_TOOL_PATTERNS} mcp_tools patterns"
+        )
     for pattern in mcp_tools:
+        if len(pattern) > MAX_MCP_TOOL_PATTERN_CHARS:
+            raise SkillValidationError(
+                f"{label}: skill '{name}' has an mcp_tools pattern longer than "
+                f"{MAX_MCP_TOOL_PATTERN_CHARS} characters"
+            )
         if pattern.startswith(_RESERVED_PREFIX):
             raise SkillValidationError(
                 f"{label}: skill '{name}' binds the reserved '{_RESERVED_PREFIX}' prefix in mcp_tools"
@@ -168,6 +198,25 @@ def _validate_skill_fields(
         "version": version,
         "priority": priority,
     }
+
+
+def select_injection_eligible(
+    candidate_skills: Iterable[ToolSkill],
+    max_skills: int = INJECTION_BUDGET_MAX_SKILLS,
+    max_bytes: int = INJECTION_BUDGET_MAX_BYTES,
+) -> List[ToolSkill]:
+    """Select the priority-ordered skills that fit the shared turn budget."""
+    eligible: List[ToolSkill] = []
+    bytes_used = 0
+    for skill in candidate_skills:
+        if len(eligible) >= max_skills:
+            break
+        size = len(skill.body.encode("utf-8"))
+        if bytes_used + size > max_bytes:
+            continue
+        eligible.append(skill)
+        bytes_used += size
+    return eligible
 
 
 def _parse_skill_file(path: Path) -> Optional[ToolSkill]:
@@ -358,6 +407,99 @@ def reload_tool_skill_registry(config: dict) -> ToolSkillRegistry:
     return _registry_instance
 
 
+def warn_catalog_overflow(
+    config: dict,
+    registry: ToolSkillRegistry,
+    mcp_manager: Any,
+) -> None:
+    """Warn when statically reachable matches exceed catalog/injection caps.
+
+    This is intentionally called from discovery/registry-refresh paths, not
+    request resolution, so varied user queries cannot create log volume. The
+    check is conservative: it considers every currently cached tool the
+    adapter may reach at once, then applies the adapter's tool-skill allowlist.
+    Level 3 still uses the full matched set and is unaffected by this cap.
+    """
+    if mcp_manager is None:
+        return
+
+    cached_by_server = getattr(mcp_manager, "_tools_cache", {}) or {}
+    for adapter in (config or {}).get("adapters", []) or []:
+        if not isinstance(adapter, dict) or not adapter.get("enabled", True):
+            continue
+        capabilities = adapter.get("capabilities") or {}
+        is_mcp_agent = adapter.get("type") == "mcp_agent"
+        is_opportunistic = bool(capabilities.get("mcp_tools"))
+        if not is_mcp_agent and not is_opportunistic:
+            continue
+
+        allowed_servers = capabilities.get("mcp_servers")
+        tool_names: List[str] = []
+        for server_name, tools in cached_by_server.items():
+            if allowed_servers and server_name not in allowed_servers:
+                continue
+            if is_opportunistic and not mcp_manager.setting(server_name, "allow_opportunistic"):
+                continue
+            tool_names.extend(
+                tool.get("function", {}).get("name", "") for tool in tools
+            )
+
+        tool_names = sorted(set(filter(None, tool_names)))
+        matched = registry.matched_for(tool_names)
+        skill_allowlist = capabilities.get("tool_skills")
+        if skill_allowlist is not None:
+            allowed_skills = set(skill_allowlist)
+            matched = [skill for skill in matched if skill.name in allowed_skills]
+        adapter_name = adapter.get("name", "<unnamed>")
+        if len(matched) > SURFACED_SET_CAP:
+            dropped = [skill.name for skill in matched[SURFACED_SET_CAP:]]
+            logger.warning(
+                "Adapter '%s' matches %d tool skills across its statically reachable "
+                "MCP tools; the Level 1/2 surfaced-set cap is %d, so these "
+                "lower-priority skills are omitted from the catalog and loader: %s",
+                adapter_name,
+                len(matched),
+                SURFACED_SET_CAP,
+                ", ".join(dropped),
+            )
+
+        for tool_name in tool_names:
+            tool_matches = registry.matched_for([tool_name])
+            if skill_allowlist is not None:
+                tool_matches = [
+                    skill for skill in tool_matches if skill.name in allowed_skills
+                ]
+            if len(tool_matches) > SURFACED_SET_CAP:
+                logger.warning(
+                    "Adapter '%s' tool '%s' matches %d tool skills; only the first "
+                    "%d by priority/name can appear in the catalog and loader.",
+                    adapter_name,
+                    tool_name,
+                    len(tool_matches),
+                    SURFACED_SET_CAP,
+                )
+
+            eligible_names = {
+                skill.name for skill in select_injection_eligible(tool_matches)
+            }
+            injection_dropped = [
+                skill.name for skill in tool_matches
+                if skill.name not in eligible_names
+            ]
+            if injection_dropped:
+                logger.warning(
+                    "Adapter '%s' tool '%s' matches %d tool skills, exceeding the "
+                    "shared injection budget of %d skills/%d bytes; dropped by "
+                    "priority and size: %s",
+                    adapter_name,
+                    tool_name,
+                    len(tool_matches),
+                    INJECTION_BUDGET_MAX_SKILLS,
+                    INJECTION_BUDGET_MAX_BYTES,
+                    ", ".join(injection_dropped),
+                )
+
+
 def _db_doc_to_skill(doc: Dict[str, Any]) -> Optional[ToolSkill]:
     """Validate one ``tool_skills`` DB document into a ``ToolSkill``. Returns
     None (with a warning logged) on any validation failure — mirrors
@@ -393,9 +535,26 @@ async def refresh_tool_skill_registry_db(config: dict, tool_skill_service: "Tool
     at startup once ``ToolSkillService`` is initialized, after any admin CRUD
     write, and from the cross-worker reload poll (services/adapter_reload_state.py)."""
     registry = get_tool_skill_registry(config)
-    docs = await tool_skill_service.list_skills(enabled_only=True, limit=10_000)
+    docs = await tool_skill_service.list_skills(
+        enabled_only=True,
+        limit=MAX_ACTIVE_DB_SKILLS + 1,
+        sort=[("priority", -1), ("name", 1)],
+    )
+    if len(docs) > MAX_ACTIVE_DB_SKILLS:
+        logger.error(
+            "Database contains more than the supported %d active tool skills; "
+            "loading the deterministic highest-priority subset.",
+            MAX_ACTIVE_DB_SKILLS,
+        )
+        docs = docs[:MAX_ACTIVE_DB_SKILLS]
     db_skills = [s for s in (_db_doc_to_skill(doc) for doc in docs) if s is not None]
     registry.set_db_skills(db_skills)
+    try:
+        from services.mcp_client_service import get_current_mcp_client_manager
+        warn_catalog_overflow(config, registry, get_current_mcp_client_manager())
+    except Exception as exc:
+        # Diagnostics must never make a successful registry refresh fail.
+        logger.debug("Could not evaluate tool-skill catalog overflow: %s", exc)
     return registry
 
 
@@ -476,6 +635,8 @@ class ToolSkillService:
         existing = await self.database.find_one(self.collection_name, {"name": fields["name"]})
         if existing:
             raise HTTPException(status_code=409, detail=f"Tool skill '{fields['name']}' already exists")
+        if fields["enabled"]:
+            await self._assert_active_capacity()
 
         now = datetime.now(UTC)
         doc = self._encode_doc({**fields, "created_at": now, "updated_at": now})
@@ -500,6 +661,7 @@ class ToolSkillService:
         enabled_only: bool = False,
         limit: int = 100,
         offset: int = 0,
+        sort: Optional[List[Tuple[str, int]]] = None,
     ) -> List[Dict[str, Any]]:
         filter_query: Dict[str, Any] = {}
         if name_filter:
@@ -509,7 +671,7 @@ class ToolSkillService:
 
         try:
             docs = await self.database.find_many(
-                self.collection_name, filter_query, limit=limit, skip=offset,
+                self.collection_name, filter_query, sort=sort, limit=limit, skip=offset,
             )
         except Exception as exc:
             logger.error("Error listing tool skills: %s", exc)
@@ -546,6 +708,8 @@ class ToolSkillService:
             version=version if version is not None else current.get("version"),
             priority=priority if priority is not None else current.get("priority", 0),
         )
+        if fields["enabled"] and not current.get("enabled", True):
+            await self._assert_active_capacity()
         # name is not re-validated for uniqueness here — it's unchanged.
         update_doc = self._encode_doc({k: v for k, v in fields.items() if k != "name"})
         update_doc["updated_at"] = datetime.now(UTC)
@@ -564,6 +728,19 @@ class ToolSkillService:
         except Exception as exc:
             logger.error("Error deleting tool skill %s: %s", skill_id, exc)
             return False
+
+    async def _assert_active_capacity(self) -> None:
+        active_count = await self.database.count(
+            self.collection_name, {"enabled": True}
+        )
+        if active_count >= MAX_ACTIVE_DB_SKILLS:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Active tool-skill limit ({MAX_ACTIVE_DB_SKILLS}) reached; "
+                    "disable or delete an active skill before enabling another"
+                ),
+            )
 
     @staticmethod
     def _validate(

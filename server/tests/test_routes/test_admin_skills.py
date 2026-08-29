@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 import routes.admin.skills as admin_skills
 import services.tool_skill_service as tss
@@ -40,11 +41,19 @@ class FakeDatabaseService:
                     return doc
         return None
 
-    async def find_many(self, collection, query, limit=100, skip=0):
+    async def find_many(self, collection, query, limit=100, sort=None, skip=0):
         results = list(self.docs.values())
         if query.get("enabled") is True:
             results = [d for d in results if d.get("enabled", True)]
+        for field, direction in reversed(sort or []):
+            results.sort(key=lambda d: d.get(field), reverse=direction < 0)
         return [dict(d) for d in results[skip:skip + limit]]
+
+    async def count(self, collection, query):
+        results = list(self.docs.values())
+        if query.get("enabled") is True:
+            results = [d for d in results if d.get("enabled", True)]
+        return len(results)
 
     async def insert_one(self, collection, document):
         doc_id = document.get("_id") or f"id-{self._next_id}"
@@ -74,7 +83,7 @@ def _fake_request(tool_skill_service, config=None):
     )
     # No ORBIT_SUPERVISOR_PID in the test environment, so _refresh_registry's
     # multi-worker propagation branch is not exercised here.
-    return SimpleNamespace(app=SimpleNamespace(state=state))
+    return SimpleNamespace(app=SimpleNamespace(state=state), state=SimpleNamespace())
 
 
 def _make_service():
@@ -94,6 +103,31 @@ def _reset_registry_singleton():
 
 
 class TestCreateSkill:
+    def test_request_schema_enforces_authoring_caps(self):
+        from models.schema import ToolSkillCreate
+
+        with pytest.raises(ValidationError):
+            ToolSkillCreate(
+                name="x" * 65,
+                description="d",
+                mcp_tools=["x__y"],
+                body="b",
+            )
+        with pytest.raises(ValidationError):
+            ToolSkillCreate(
+                name="valid",
+                description="d",
+                mcp_tools=[f"x__{i}" for i in range(65)],
+                body="b",
+            )
+        with pytest.raises(ValidationError):
+            ToolSkillCreate(
+                name="valid",
+                description="d",
+                mcp_tools=["x__y"],
+                body="b" * 24_577,
+            )
+
     @pytest.mark.asyncio
     async def test_create_returns_response_and_refreshes_registry(self):
         from models.schema import ToolSkillCreate
@@ -112,6 +146,9 @@ class TestCreateSkill:
         assert response["name"] == "new-playbook"
         assert response["enabled"] is True
         assert "id" in response
+        assert request.state.audit_context["resource_id"] == response["id"]
+        assert request.state.audit_context["summary"]["name"] == "new-playbook"
+        assert "body" not in request.state.audit_context["summary"]
 
         registry = tss.get_tool_skill_registry(request.app.state.config)
         assert registry.get("new-playbook") is not None

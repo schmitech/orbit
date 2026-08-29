@@ -50,3 +50,10 @@ def test_mcp_playbooks_match_already_namespaced_discovered_tools():
 
     assert 'discovery.tools.map(function (t) { return t.name; })' in source
     assert 'server.name + "__" + t.name' not in source
+
+
+def test_mcp_playbook_glob_matcher_covers_backend_fnmatch_shapes():
+    source = (ADMIN_DIR / "admin_panel" / "tabs" / "mcp.js").read_text()
+    assert "export function mcpToolSkillGlobMatch" in source
+    assert 'contents[0] === "!"' in source
+    assert "mcpToolSkillGlobMatch(n, pattern)" in source

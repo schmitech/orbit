@@ -66,6 +66,13 @@ What Phase 3 added on top, concretely (`server/services/tool_skill_service.py`'s
   markdown-preview editor, no YAML file editing required. `mcp.js`'s
   per-server detail view also gained a read-only "Playbooks" cross-reference
   section.
+- **Named, body-redacted audit events.** Database create/update/delete writes
+  produce `admin.tool_skill.*` audit records with safe routing metadata; the
+  trusted procedural body is not duplicated into the audit store.
+- **SQL initialization.** SQLite/PostgreSQL create the `tool_skills` table and
+  unique name index during startup (and the bundled SQLite default already
+  contains them); MongoDB continues using a native collection/array with no
+  schema migration.
 
 Steps 1–15 below only require `skill: "mcp-agent"` (explicit path) or
 `capabilities.mcp_tools: true` (opportunistic path) and are unaffected by
@@ -460,6 +467,11 @@ sales-performance-playbook` (priority desc, then name).
 
 **15b. Different tools load different skills (Level 3), independently.**
 
+Before this check, confirm `mcp_clients.tool_selection.max_tools` is at least
+the number of tool domains in the request (the default is 15). A temporary
+`max_tools: 1` selector test exposes only one candidate and cannot demonstrate
+this three-tool pipeline.
+
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
   -H "Content-Type: application/json" \
@@ -537,7 +549,8 @@ globs `config/skills/*/SKILL.md` — so it finds
 `config/skills/crm-pipeline-playbook/SKILL.md` — splits each file on the
 `---` frontmatter delimiters, parses the YAML header with `yaml.safe_load`,
 and validates it (name is a lowercase slug, the `orbit__` prefix is rejected,
-`description`/`mcp_tools` are present, the body is under the 32KB cap, etc.).
+`description`/`mcp_tools` are present, the body is under the 24 KB UTF-8 cap,
+and the metadata/pattern-count guardrails are satisfied).
 A valid file becomes a `ToolSkill` object holding `name`, `description`,
 `mcp_tools` (the glob list), `body`, `priority`, and `version`.
 
@@ -841,6 +854,45 @@ group of the nav (next to **MCP**).
   the MCP tab's cached skill list is invalidated instead of surviving for
   the rest of the SPA session).
 
+## 20. Confirm tool-skill audit events redact the body
+
+Create, edit, and delete a temporary database playbook, then open the admin
+panel's **Audit** tab (or query the configured admin-audit store). Confirm the
+three mutations use these named event types rather than `admin.unknown`:
+
+- `admin.tool_skill.create`
+- `admin.tool_skill.update`
+- `admin.tool_skill.delete`
+
+The create event should carry the generated skill id. Create/update summaries
+may include safe routing metadata such as `name`, `description`, `mcp_tools`,
+`enabled`, `version`, and `priority`, but must not contain the playbook `body`.
+`POST /admin/skills/validate` is a read-only validation utility and should not
+produce a mutation audit event.
+
+## 21. Confirm authoring and capacity guardrails
+
+The Tool Skills form advertises the enforced limits: a 64-character name,
+500-character description, at most 64 `mcp_tools` patterns (256 characters
+each), and a 24 KB UTF-8 body. Invalid API payloads return 400/422 instead of
+being persisted. The database accepts disabled drafts beyond the 10,000-active
+skill ceiling, while creating another enabled skill or re-enabling a draft at
+capacity returns 409.
+
+Run the focused regressions:
+
+```bash
+/path/to/venv/bin/python -m pytest \
+  server/tests/test_services/test_tool_skill_service_db.py \
+  server/tests/test_services/test_tool_skill_service.py \
+  server/tests/test_routes/test_admin_skills.py -v
+```
+
+On discovery or registry refresh, check logs if a tool has many overlapping
+glob bindings. ORBIT warns when one tool exceeds the 10-entry catalog or the
+shared three-skill/24 KB injection budget; it does not reject the bindings,
+because the overlap depends on the live MCP tool inventory.
+
 ---
 
 ## What Phase 3 does *not* do (Phase 4 territory)
@@ -921,3 +973,10 @@ working end-to-end.
   after create/update/delete (this was a real bug, fixed post-review). A
   full page reload always clears the stale cache as a workaround, but
   shouldn't be necessary after the fix.
+- **The MCP tab says no database playbook is bound even though the Tool Skills
+  tab contains one**: ping the server so the panel has its live tool list, then
+  confirm the binding targets the already-namespaced name shown there (for
+  example `business-sample__update_support_ticket`). Fixed builds compare that
+  returned name directly; older builds incorrectly prefixed the server a
+  second time. Refresh `/admin` after upgrading so the versioned panel module
+  is loaded.

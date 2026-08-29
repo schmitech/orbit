@@ -39,6 +39,29 @@ Every adapter accepts these shared fields:
     max_retries: 3
 ```
 
+Adapters that participate in MCP tool calling may also use these capability
+fields:
+
+```yaml
+capabilities:
+  mcp_tools: true                    # Run MCP tools opportunistically on ordinary turns
+  mcp_servers: ["business-sample"]  # Omit/null = all enabled servers
+  tool_skills:                       # Omit/null = all matching playbooks
+    - "crm-pipeline-playbook"
+```
+
+`mcp_servers` limits tool access. `tool_skills` is a second, narrowing gate on
+procedural playbooks bound to those visible tools; it never grants access to a
+tool or overrides the playbook's own `mcp_tools` pattern. An empty list denies
+all playbooks while leaving MCP tools available. Omitting `tool_skills` allows
+every playbook matching a visible tool, so tightly governed or multi-tenant
+deployments should prefer an explicit allowlist. `mcp_tools: true` is the
+opportunistic path and additionally requires the target MCP server's
+`allow_opportunistic` setting. The explicit `mcp-agent` adapter uses the same
+`mcp_servers`/`tool_skills` scoping without requiring `mcp_tools: true`.
+
+See [MCP Agent Skill](../adapters/mcp-agent.md#mcp-tool-skill-playbooks).
+
 Intent adapters add:
 
 ```yaml

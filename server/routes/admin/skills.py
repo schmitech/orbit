@@ -91,6 +91,17 @@ async def create_skill(
     doc = await tool_skill_service.get_skill_by_id(skill_id)
     if not doc:
         raise HTTPException(status_code=500, detail="Failed to retrieve created tool skill")
+    request.state.audit_context = {
+        "resource_id": str(skill_id),
+        "summary": {
+            "name": doc.get("name"),
+            "description": doc.get("description"),
+            "mcp_tools": doc.get("mcp_tools", []),
+            "enabled": doc.get("enabled", True),
+            "version": doc.get("version"),
+            "priority": doc.get("priority", 0),
+        },
+    }
     return _to_response(doc)
 
 

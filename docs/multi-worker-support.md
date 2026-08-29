@@ -53,7 +53,7 @@ was a no-op — see "History" below for why.
   routed to a specific worker deterministically. If this becomes a real
   problem, it needs a shared store (same pattern as
   `server/services/pause_state.py`'s database-backed coordination).
-- **`/admin/reload-adapters` / `/admin/reload-templates`**: each worker has
+- **Admin adapter/template/MCP/tool-skill reloads**: each worker has
   its own `DynamicAdapterManager`, `config_manager` cache, and
   `adapter_cache` — a reload request only updated the one worker that
   happened to `accept()` that connection off the shared socket, leaving
@@ -63,11 +63,12 @@ was a no-op — see "History" below for why.
   push/pub-sub primitive exists anywhere in this codebase, and uvicorn's
   `Multiprocess` supervisor exposes no way to message a specific worker or
   all workers): after a successful local reload, the handling worker bumps
-  a durable generation counter (one for `adapter_config`, one for
-  `templates`); every worker runs a background poll loop (every 5s) that
-  detects a stale counter and performs a full reload
-  (`reload_adapter_configs(config, None)` / `reload_templates(None)`)
-  locally to catch up. Deliberately does **not** track a per-adapter hint —
+  a durable generation counter for `adapter_config`, `templates`,
+  `mcp_config`, and `tool_skills`; every worker runs a background poll loop
+  (every 5s) that detects a stale counter and performs the corresponding full
+  local reload. For tool skills, the handling worker re-merges the database
+  registry synchronously and sibling workers normally converge within five
+  seconds. Deliberately does **not** track a per-adapter hint —
   `update_one()` only supports `$set` (no atomic `$inc`), so bumping is
   read-then-write; a lost update under concurrent bumps just means a
   sibling does one full reload instead of two, which is always safe since

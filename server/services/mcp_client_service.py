@@ -57,7 +57,7 @@ def get_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClientManager
     if _instance is None:
         mcp_config = config.get("mcp_clients", {})
         if mcp_config.get("enabled", False):
-            _instance = MCPClientManager(mcp_config)
+            _instance = MCPClientManager(mcp_config, runtime_config=config)
     return _instance
 
 
@@ -76,7 +76,10 @@ async def reload_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClie
     if outgoing_manager is not None:
         await outgoing_manager.aclose()
     mcp_config = config.get("mcp_clients", {})
-    _instance = MCPClientManager(mcp_config) if mcp_config.get("enabled", False) else None
+    _instance = (
+        MCPClientManager(mcp_config, runtime_config=config)
+        if mcp_config.get("enabled", False) else None
+    )
     return _instance
 
 
@@ -133,7 +136,12 @@ class MCPClientManager:
         "url", "headers",
     }
 
-    def __init__(self, mcp_config: Dict[str, Any]):
+    def __init__(
+        self,
+        mcp_config: Dict[str, Any],
+        runtime_config: Optional[Dict[str, Any]] = None,
+    ):
+        self._runtime_config = runtime_config
         servers_list = mcp_config.get("servers") or []
         self._server_configs: Dict[str, Dict[str, Any]] = {
             s["name"]: s for s in servers_list if s.get("enabled", True)
@@ -398,6 +406,7 @@ class MCPClientManager:
                 self._pool_for(name).reset_breaker()
             await asyncio.gather(*(self._discover_server(n) for n in names))
             self._cache_populated = True
+        self._warn_tool_skill_catalog_overflow()
 
     async def _ensure_cache_populated(self) -> None:
         async with self._cache_lock:
@@ -423,6 +432,22 @@ class MCPClientManager:
             # rather than one per unreachable server.
             await asyncio.gather(*(self._discover_server(n) for n in server_names))
             self._cache_populated = True
+            self._warn_tool_skill_catalog_overflow()
+
+    def _warn_tool_skill_catalog_overflow(self) -> None:
+        """Re-emit static surfaced-set diagnostics after tool discovery."""
+        if self._runtime_config is None:
+            return
+        try:
+            from services.tool_skill_service import (
+                get_tool_skill_registry,
+                warn_catalog_overflow,
+            )
+            registry = get_tool_skill_registry(self._runtime_config)
+            warn_catalog_overflow(self._runtime_config, registry, self)
+        except Exception as exc:
+            # Discovery succeeded; a diagnostic must not change that outcome.
+            logger.debug("Could not evaluate tool-skill catalog overflow: %s", exc)
 
     def _any_server_marked_failed(self) -> bool:
         return any(p.breaker.state != "closed" for p in self._pools.values())

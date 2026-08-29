@@ -12,7 +12,7 @@ export function createSkillsTab({
   bindValidationClear, setFieldReadOnly, characterCount, createMarkdownPreview,
   onSkillsChanged,
 }) {
-  var BODY_MAX = 32 * 1024;
+  var BODY_MAX = 24 * 1024;
   var cachedSkills = null;
 
   function notifySkillsChanged() {
@@ -41,12 +41,13 @@ export function createSkillsTab({
     ));
     listPanel.appendChild(el("p", { className: "field-hint" },
       "Procedural SKILL.md playbooks bound to MCP tools via an mcp_tools glob list. ",
-      "A skill with the same name as one under config/skills/ overrides it here."
+      "A database skill with the same name as one under config/skills/ overrides the file at runtime; disabling or deleting it restores the file. ",
+      "Up to 10,000 skills may be enabled; disabled drafts can be staged beyond that limit. "
     ));
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "64", placeholder: "my-tool-playbook" });
     var descInput = el("input", { type: "text", required: "true", maxlength: "500" });
-    var toolsInput = el("input", { type: "text", required: "true", placeholder: "business-sample__list_customers, business-sample__get_customer_health" });
+    var toolsInput = el("input", { type: "text", required: "true", maxlength: "16510", placeholder: "business-sample__list_customers, business-sample__get_customer_health" });
     var priorityInput = el("input", { type: "number", value: "0" });
     var bodyArea = el("textarea", { rows: "8", required: "true", maxlength: String(BODY_MAX) });
     var bodyCounter = characterCount(bodyArea, BODY_MAX);
@@ -70,8 +71,8 @@ export function createSkillsTab({
         field("Description", descInput),
         field("Priority", priorityInput)
       ),
-      field("mcp_tools (comma-separated glob patterns)", toolsInput),
-      el("div", { className: "stack" }, field("Playbook body (markdown)", bodyArea), bodyCounter),
+      field("mcp_tools (comma-separated; max 64 patterns, 256 chars each)", toolsInput),
+      el("div", { className: "stack" }, field("Playbook body (markdown; 24 KB UTF-8 max)", bodyArea), bodyCounter),
       el("div", { className: "admin-create-form-actions" }, createBtn)
     ));
     bindValidationClear(nameInput, descInput, toolsInput, bodyArea);
@@ -206,7 +207,7 @@ export function createSkillsTab({
     var isEditing = false;
 
     var descInput = el("input", { type: "text", value: originalDesc, maxlength: "500", readonly: "true", "aria-readonly": "true" });
-    var toolsInput = el("input", { type: "text", value: originalTools, readonly: "true", "aria-readonly": "true" });
+    var toolsInput = el("input", { type: "text", maxlength: "16510", value: originalTools, readonly: "true", "aria-readonly": "true" });
     var priorityInput = el("input", { type: "number", value: originalPriority, readonly: "true", "aria-readonly": "true" });
     var enabledInput = el("input", { type: "checkbox" });
     enabledInput.checked = originalEnabled;
@@ -240,8 +241,8 @@ export function createSkillsTab({
         field("Priority", priorityInput),
         field("Enabled", enabledInput)
       ),
-      field("mcp_tools (comma-separated)", toolsInput),
-      el("div", { className: "stack" }, field("Playbook body (markdown)", bodyArea), bodyCounter)
+      field("mcp_tools (comma-separated; max 64 patterns, 256 chars each)", toolsInput),
+      el("div", { className: "stack" }, field("Playbook body (markdown; 24 KB UTF-8 max)", bodyArea), bodyCounter)
     );
     var previewWrap = el("div", { className: "prompt-preview-pane" }, editPreview);
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Tool Skill");

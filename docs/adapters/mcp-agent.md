@@ -58,7 +58,7 @@ The tool-calling loop works with any provider that implements `generate_with_too
 | `llama_cpp` | ✅ API · ⚠️ direct | **API mode** (llama-server, OpenAI-compatible) recommended. **Direct mode** (in-process GGUF) only works for chat formats that implement function calling; with a plain `chatml` format the model ignores tool schemas. |
 | `vllm` | ✅ API only | **API mode** requires the vLLM server be started with `--enable-auto-tool-choice --tool-call-parser <parser>` (e.g. `hermes`, `llama3_json`, `mistral`). **Direct/in-process mode is not supported** and raises `NotImplementedError`. |
 
-> **Model capability matters as much as provider support.** Tool selection is a reasoning task. The hosted frontier models (`gpt-4.1`, `claude-sonnet-4-6`, `gemini-3.1-pro`) are the most reliable at picking the right tool and chaining calls. Small local models (functiongemma, Gemma 4 E2B, 1–4B Ollama models) work but are less reliable when many tools are visible or the query is ambiguous — scope them with `mcp_servers` (see [Scoping tools](#scoping-tools-with-the-mcp_servers-allowlist)).
+> **Model capability matters as much as provider support.** Tool selection is a reasoning task. The hosted frontier models (`GPT-5.6`, `claude-sonnet-4-6`, `gemini-3.1-pro`) are the most reliable at picking the right tool and chaining calls. Small local models (functiongemma, Gemma 4 E2B, 1–4B Ollama models) work but are less reliable when many tools are visible or the query is ambiguous — scope them with `mcp_servers` (see [Scoping tools](#scoping-tools-with-the-mcp_servers-allowlist)).
 
 ---
 
@@ -157,7 +157,174 @@ and refresh their tool caches on the next cross-worker poll (up to five
 seconds). This full sibling reload guarantees that all workers converge after
 multiple closely-spaced saves.
 
-#### Per-client overrides
+### MCP tool-skill playbooks
+
+The `mcp-agent` skill described above is an adapter-routing skill. MCP
+**tool-skill playbooks** are a separate feature: they provide procedural
+instructions associated with namespaced MCP tools through `mcp_tools` glob
+patterns such as `business-sample__*`.
+
+File-authored playbooks live under `config/skills/<name>/SKILL.md` by default.
+The directory is configurable from the root configuration, and a relative path
+is resolved from the directory where ORBIT starts:
+
+```yaml
+tool_skills:
+  directory: "config/skills"
+```
+
+Each file uses YAML frontmatter followed by a Markdown procedure:
+
+```markdown
+---
+name: crm-pipeline-playbook
+description: Safe CRM pipeline lookup and presentation procedure.
+mcp_tools:
+  - "business-sample__search_opportunities"
+  - "business-sample__summarize_pipeline"
+enabled: true
+version: "1"
+priority: 10
+---
+
+Always keep `search_opportunities.limit` at or below 25.
+```
+
+`name`, `description`, and a non-empty `mcp_tools` list are required. Names are
+case-sensitive lowercase slugs; bindings use case-sensitive `fnmatch` patterns.
+The `orbit__` namespace is reserved. `enabled`, `version`, and `priority` are
+ORBIT extensions; `version` is free-form metadata rather than revision history.
+
+The model receives playbooks progressively:
+
+1. A capped catalog of matching names and descriptions is appended after the
+   prompt-cache breakpoint.
+2. The model may call `orbit__load_tool_skill` to load one surfaced playbook
+   before invoking its MCP tool.
+3. If it does not, the first invocation of a bound MCP tool automatically
+   attaches the matching playbook to that tool's result for the next model
+   round.
+
+Level 3 is deliberately just-in-time but cannot change the arguments of the
+first tool call—the tool has already run when the playbook arrives. It can
+guide retries, subsequent calls, and output formatting. Likewise, sibling tool
+calls emitted together in one assistant message cannot influence one another.
+Use Level 2 when first-call constraints matter, and choose a tool-capable model
+reliable enough to load the catalog entry.
+
+For multi-step requests that span several tool domains, keep
+`mcp_clients.tool_selection.max_tools` high enough to retain those candidate
+tools (the shipped default is 15). A temporary value of `1` is useful for
+selector/token experiments but can make a pipeline impossible because only one
+real MCP tool is exposed to the model for the turn.
+
+Level 1/2 surface at most 10 skills per turn, ordered by descending priority
+then name. Level 2 and Level 3 share an idempotent injection budget of three
+skills and 24 KB per turn; each body is limited to 24 KB of UTF-8 data so every
+accepted skill can fit by itself. Level 3 considers the
+full matched set, while the catalog and loader use the capped surfaced set.
+Loaded bodies are trusted admin-authored procedural context but remain in the
+tool-role message—they never become system instructions. Responses record
+loads as `{"type": "tool_skill_load", "skill": "...", "version": "..."}`
+without exposing the body through an MCP result preview.
+
+Authoring guardrails apply equally to file- and database-backed skills: names
+are at most 64 characters, descriptions 500 characters, and each skill may
+declare at most 64 `mcp_tools` patterns of at most 256 characters each. The
+database may contain at most 10,000 enabled skills; disabled drafts can be
+stored beyond that ceiling, but creating or re-enabling an active skill returns
+HTTP 409 until another active skill is disabled or deleted. There is no hard
+per-tool authoring limit because glob bindings and discovered tools change over
+time. Instead, discovery and registry refresh log warnings when one tool
+matches more than the 10-entry catalog or three-skill/24 KB injection budget.
+
+Use `capabilities.tool_skills` to narrow an adapter's eligible playbook names:
+
+```yaml
+capabilities:
+  mcp_servers: ["business-sample"]
+  tool_skills: ["crm-pipeline-playbook"]
+```
+
+The binding and both allowlists apply together. `tool_skills: []` denies every
+playbook without removing MCP tool access. Omitting the field allows every
+playbook matching a tool the adapter can reach, which is convenient for a
+trusted single-tenant installation but security-sensitive in governed or
+multi-tenant deployments.
+
+For an end-to-end validation procedure, see
+[Manual/Integration Check: MCP Tool Skills](playbook-mcp-tool-skills.md).
+
+#### File and database name collisions
+
+Playbooks can come from either:
+
+- files under `config/skills/*/SKILL.md`; or
+- database records created on the admin panel's **Tool Skills** tab.
+
+A playbook's lowercase-slug `name` is its identity across both sources. When
+an enabled database playbook and a file playbook have the same name, ORBIT
+treats the database record as an intentional override:
+
+1. File playbooks are loaded first.
+2. Enabled database playbooks are merged second.
+3. On a matching name, the database playbook completely replaces the file
+   playbook at runtime. Individual fields are not merged.
+
+The file remains unchanged on disk while it is shadowed. Disabling or deleting
+the database record restores the file version after the tool-skill registry
+refreshes; admin CRUD triggers that refresh immediately in one worker and
+propagates it through the normal cross-worker reload mechanism. Adapter
+`capabilities.tool_skills` allowlists continue to reference the same playbook
+name, so no adapter configuration change is needed when an override appears or
+is removed.
+
+Other duplicate cases are handled deterministically:
+
+- Database names are unique. Creating a second database record with the same
+  name is rejected.
+- If multiple file playbooks declare the same name, files are inspected in
+  sorted path order; the first valid enabled file is retained and ORBIT logs a
+  warning for later duplicates.
+- Disabled or invalid database records do not shadow a valid file playbook.
+
+The Tool Skills tab currently lists database-authored records only, and the
+MCP tab's **Playbooks** section is likewise a database-authored cross-reference.
+A file-authored playbook may therefore still be active at runtime even when it
+does not appear in either list. When deliberately overriding a bundled file
+playbook, use exactly the same name; use a distinct name when both playbooks
+should remain independently eligible.
+
+#### Database CRUD and backend initialization
+
+Database-authored playbooks are managed through the Tool Skills tab or the
+`config.manage`-protected admin API:
+
+| Method | Endpoint | Behavior |
+|---|---|---|
+| `POST` | `/admin/skills` | Create; duplicate database names return `409` |
+| `GET` | `/admin/skills` | List database records only; supports `name_filter`, `limit`, and `offset` |
+| `GET` | `/admin/skills/{id}` | Read one database record |
+| `PUT` | `/admin/skills/{id}` | Partially update fields; `name` is immutable |
+| `DELETE` | `/admin/skills/{id}` | Delete and restore a same-name file fallback, if present |
+| `POST` | `/admin/skills/validate` | Validate fields without persisting |
+
+Create/update/delete refresh the current worker synchronously. With multiple
+workers, siblings converge through the shared reload-generation poll, normally
+within five seconds. Named `admin.tool_skill.create/update/delete` audit events
+record the resource id and safe routing metadata but intentionally exclude the
+procedural body.
+
+SQLite and PostgreSQL create the `tool_skills` table and unique name index
+during normal service initialization, including when upgrading an existing
+database. New SQLite installations also receive the schema through
+`install/orbit.db.default`. MongoDB creates/uses its collection normally and
+stores `mcp_tools` as a native array, so it requires no schema migration;
+SQLite/PostgreSQL store that list as JSON text transparently. See
+[SQLite schema](../sqlite-schema.md#tool_skills) and
+[PostgreSQL schema](../postgres-schema.md#tool_skills).
+
+### Per-client overrides
 
 Everything under `mcp_clients:` other than `enabled` is a **default**. Any entry
 under `servers:` may redeclare any of those keys to override it for that server
@@ -229,7 +396,7 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     inference_provider: "openai"    # openai | anthropic | gemini | xai | ollama | ollama_cloud | llama_cpp | vllm
-    model: "gpt-4.1-mini"
+    model: "GPT-5.4-mini"
 
     capabilities:
       expose_as_skill: true
@@ -255,7 +422,7 @@ The `mcp_servers` allowlist under `capabilities` is optional. When present, the 
 > configured model, regardless of which model the conversation was otherwise
 > using. For example, sending `{"model": "claude", "skill": "mcp-agent"}` to
 > an adapter whose `allowed_models` includes `claude` still runs the tool
-> loop on `mcp-agent-chat`'s `openai`/`gpt-4.1-mini` — not Claude. If you
+> loop on `mcp-agent-chat`'s `openai`/`GPT-5.4-mini` — not Claude. If you
 > want the skill to run on a different model, change `inference_provider`/
 > `model` here, not the invoking adapter's `allowed_models`.
 >
@@ -822,7 +989,7 @@ The model reads the descriptions and parameter schemas and selects the best-fitt
 |--------|--------|
 | **Tool description quality** | The MCP server's description is what the model reads. Vague descriptions lead to wrong picks or missed tools — this is the single biggest lever and it's set by the MCP server, not ORBIT |
 | **Number of tools visible** | More tools = more tokens consumed per round + higher chance of confusion when tools overlap. Use the `mcp_servers` allowlist to scope what the model sees |
-| **Model capability** | GPT-4.1, Claude Sonnet, and Gemini Pro reliably select correct tools in complex multi-step scenarios. Smaller models (GPT-4.1-mini, Gemma 4 E2B, llama.cpp direct) are less reliable when many tools are available or the query is ambiguous |
+| **Model capability** | GPT-5.6, Claude Sonnet, and Gemini Pro reliably select correct tools in complex multi-step scenarios. Smaller models (GPT-5.4-mini, Gemma 4 E2B, llama.cpp direct) are less reliable when many tools are available or the query is ambiguous |
 | **System prompt** | You can guide tool preference in the adapter's system prompt: *"When asked about files, use the filesystem tools. When asked about code, use the GitHub tools."* |
 | **Query specificity** | `"List files in /config"` → deterministic single-tool call. `"Tell me about the project"` → the model may explore with multiple tools across several rounds |
 
@@ -877,8 +1044,8 @@ This keeps context windows lean and makes tool selection more deterministic.
 
 | Use case | Recommended provider/model |
 |----------|---------------------------|
-| Complex multi-server, multi-step tasks | `openai` / `gpt-4.1`, `anthropic` / `claude-sonnet-4-6` |
-| Single-server tasks, cost-sensitive | `openai` / `gpt-4.1-mini`, `gemini` / `gemini-3.1-flash` |
+| Complex multi-server, multi-step tasks | `openai` / `GPT-5.6`, `anthropic` / `claude-sonnet-4-6` |
+| Single-server tasks, cost-sensitive | `openai` / `GPT-5.4-mini`, `gemini` / `gemini-3.1-flash` |
 | Local via Ollama (CPU/GPU) | `ollama` / `qwen3.5-4b-cpu` or `qwen2.5-3b-cpu` *(good balance)*, `functiongemma-cpu` *(fastest tool selection, thin final answers)* |
 | Self-hosted GPU server, high throughput | `vllm` (API mode, server started with `--enable-auto-tool-choice --tool-call-parser <parser>`) |
 | Private / offline, API mode (llama-server) | `llama_cpp` / `gemma4-e2b-api` |
@@ -922,7 +1089,7 @@ Increase `tool_timeout` — set it on the specific server entry rather than at t
 
 - **Too many tools:** scope the adapter to fewer servers with `mcp_servers` in capabilities.
 - **Weak tool descriptions:** the MCP server's `description` field drives selection — nothing in ORBIT can compensate for a vague description. Check what `list_tools()` returns from the server.
-- **Model too small:** switch to a larger model. Tool selection is a reasoning task — GPT-4.1-mini and Gemma 4 E2B struggle when multiple tools have overlapping descriptions.
+- **Model too small:** switch to a larger model. Tool selection is a reasoning task — GPT-5.4-mini and Gemma 4 E2B struggle when multiple tools have overlapping descriptions.
 - **System prompt:** add tool-use hints to the adapter's system prompt to steer the model.
 
 ### "generate_with_tools not implemented" error

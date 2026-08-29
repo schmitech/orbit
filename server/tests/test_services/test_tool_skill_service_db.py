@@ -58,11 +58,19 @@ class FakeDatabaseService:
                     return doc
         return None
 
-    async def find_many(self, collection, query, limit=100, skip=0):
+    async def find_many(self, collection, query, limit=100, sort=None, skip=0):
         results = list(self.docs.values())
         if query.get("enabled") is True:
             results = [d for d in results if d.get("enabled", True)]
+        for field, direction in reversed(sort or []):
+            results.sort(key=lambda d: d.get(field), reverse=direction < 0)
         return [dict(d) for d in results[skip:skip + limit]]
+
+    async def count(self, collection, query):
+        results = list(self.docs.values())
+        if query.get("enabled") is True:
+            results = [d for d in results if d.get("enabled", True)]
+        return len(results)
 
     async def insert_one(self, collection, document):
         if self.reject_lists:
@@ -201,6 +209,57 @@ async def test_create_invalid_fields_rejected():
     with pytest.raises(HTTPException):
         await service.create_skill(name="oversize", description="d", mcp_tools=["x__y"], body="a" * 40_000)
 
+    with pytest.raises(HTTPException):
+        await service.create_skill(
+            name="oversize-utf8",
+            description="d",
+            mcp_tools=["x__y"],
+            body="é" * 12_289,
+        )
+
+    with pytest.raises(HTTPException):
+        await service.create_skill(
+            name="too-many-patterns",
+            description="d",
+            mcp_tools=[f"x__{i}" for i in range(65)],
+            body="b",
+        )
+
+    with pytest.raises(HTTPException):
+        await service.create_skill(
+            name="long-pattern",
+            description="d",
+            mcp_tools=["x" * 257],
+            body="b",
+        )
+
+
+@pytest.mark.asyncio
+async def test_active_capacity_allows_staging_but_blocks_create_and_reenable(monkeypatch):
+    import services.tool_skill_service as mod
+
+    monkeypatch.setattr(mod, "MAX_ACTIVE_DB_SKILLS", 1)
+    service = _make_service()
+    await service.initialize()
+    await service.create_skill(
+        name="active", description="d", mcp_tools=["x__a"], body="b",
+    )
+
+    staged_id = await service.create_skill(
+        name="staged", description="d", mcp_tools=["x__b"], body="b", enabled=False,
+    )
+
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as create_error:
+        await service.create_skill(
+            name="second-active", description="d", mcp_tools=["x__c"], body="b",
+        )
+    assert create_error.value.status_code == 409
+
+    with pytest.raises(HTTPException) as enable_error:
+        await service.update_skill(staged_id, enabled=True)
+    assert enable_error.value.status_code == 409
+
 
 @pytest.mark.asyncio
 async def test_update_skill_preserves_unspecified_fields_and_bumps_updated_at():
@@ -318,3 +377,32 @@ async def test_refresh_tool_skill_registry_db_merges_enabled_db_skills(monkeypat
     registry = await refresh_tool_skill_registry_db(config, service)
     assert registry.get("fresh-db-skill") is not None
     assert registry.get("fresh-db-skill").source == "db"
+
+
+@pytest.mark.asyncio
+async def test_refresh_over_capacity_keeps_deterministic_priority_subset(
+    monkeypatch, caplog,
+):
+    import services.tool_skill_service as tss
+
+    monkeypatch.setattr(tss, "_registry_instance", None)
+    monkeypatch.setattr(tss, "_registry_dir", None)
+    service = _make_service()
+    await service.initialize()
+    await service.create_skill(
+        name="low", description="d", mcp_tools=["x__y"], body="b", priority=0,
+    )
+    await service.create_skill(
+        name="high-b", description="d", mcp_tools=["x__y"], body="b", priority=9,
+    )
+    await service.create_skill(
+        name="high-a", description="d", mcp_tools=["x__y"], body="b", priority=9,
+    )
+    monkeypatch.setattr(tss, "MAX_ACTIVE_DB_SKILLS", 2)
+
+    registry = await refresh_tool_skill_registry_db(
+        {"tool_skills": {"directory": "/nonexistent-dir"}}, service,
+    )
+
+    assert [skill.name for skill in registry.all_skills()] == ["high-a", "high-b"]
+    assert "deterministic highest-priority subset" in caplog.text

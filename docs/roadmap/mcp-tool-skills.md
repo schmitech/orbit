@@ -357,8 +357,8 @@ depends on which tools survived per-request relevance filtering (step 2 above,
 itself query-dependent), so "did this adapter's matched set exceed the cap"
 has no single fixed answer to log once, and logging it per-request would spam
 at request volume for what is really a static authoring problem. Instead:
-`ToolSkillRegistry` computes it against each adapter's **statically reachable
-tool set** — the full tool list `MCPClientManager` has cached for the servers
+the registry/discovery diagnostic computes it against each adapter's
+**statically reachable tool set** — the full tool list `MCPClientManager` has cached for the servers
 in that adapter's `mcp_servers` allowlist (§2.7), independent of any one
 turn's query or relevance filtering — and (re-)checks it whenever that cached
 tool set changes: at MCP tool-discovery refresh (`refresh_tool_cache`,
@@ -378,10 +378,11 @@ request to trigger it.
 | Edited by | git | admin panel |
 
 Both end up loaded by one `ToolSkillRegistry`. Precedence when a name exists in
-both: **database wins**, file version is shown in the UI as the on-disk default
-(same shape as an MCP server override, and legible in the panel). Phase 3
-decides whether to also allow "revert to file", mirroring the MCP tab's
-"Use default".
+both: **database wins**. The file remains available internally through
+`file_default_for()` and becomes active again when the database override is
+disabled or deleted, but Phase 3 does not display or edit that shadowed file in
+the panel. The Tool Skills and MCP Playbooks views enumerate database records
+only; a future UI may expose the on-disk default and a comparison/revert flow.
 
 ### 2.7 Per-adapter scoping
 
@@ -533,11 +534,21 @@ That difference drives the rest of this section:
   supply, ever — same posture as `mcp_clients.yaml` server definitions.
 - **No MCP server may author a skill.** A skill is never derived from a tool
   description or a tool result.
-- **Audit every write.** Create/update/delete land in the audit log with the
-  full body diff; a skill body is as security-relevant as a system prompt.
-- **Size caps.** Per-skill body cap (proposed 32 KB) and a per-turn injection
-  budget (proposed: 3 skills / 24 KB) so a large library cannot blow the context
+- **Audit every write without duplicating trusted instructions.**
+  Create/update/delete land under named `admin.tool_skill.*` events with the
+  skill id and safe routing metadata (`name`, description, bindings, enabled,
+  version, priority). The procedural body is intentionally excluded, matching
+  system-prompt audit handling; it is security-relevant content and should not
+  be copied into a second long-lived store.
+- **Size caps.** Per-skill body cap (24 KB) and a per-turn injection
+  budget (3 skills / 24 KB) so a large library cannot blow the context
   window or the token bill.
+- **Authoring and registry caps.** Names are limited to 64 characters,
+  descriptions to 500, and each skill to 64 tool patterns of 256 characters
+  each. At most 10,000 database skills may be enabled; disabled drafts remain
+  stageable. Legacy over-cap databases load the deterministic highest-priority
+  subset and log an error. Per-tool overlap is diagnosed at discovery/reload
+  rather than rejected because glob matches depend on the live tool inventory.
 - **No `${VAR}` expansion in bodies.** MCP connection fields expand env vars;
   skill bodies must not, or a skill becomes a secret-exfiltration primitive.
 - **Never recorded or wrapped as an `mcp_tool_call`.** A Level 2 load is a
@@ -559,7 +570,7 @@ All six decisions in §8 are locked. Summary (details and rationale in §8):
 - **Binding location:** skill frontmatter (`mcp_tools` glob list), `mcp_clients.yaml` untouched.
 - **Storage order:** files first (`config/skills/*/SKILL.md`) in Phase 1; DB + admin panel in Phase 3.
 - **JIT default (Phase 2):** Level 3 auto-injection on by default once it ships.
-- **Budget numbers:** accepted as proposed — 32 KB max per skill body, 3 skills / 24 KB per turn (Level 2/3 injection budget), 10 lines (Level 1 catalog cap).
+- **Budget numbers:** 24 KB max per skill body, 3 skills / 24 KB per turn (Level 2/3 injection budget), 10 lines (Level 1 catalog cap), and 10,000 enabled database skills.
 - **Allowlist default:** omitting `capabilities.tool_skills` surfaces every skill matching the adapter's visible tools (matches `mcp_servers`' own default).
 
 **Exit:** this document updated with all six answers recorded; Phase 1 unblocked.
@@ -711,13 +722,13 @@ remains Level 2's job for models that ask first.
   skill can never bypass a check a file-authored one is subject to.
 - `server/routes/admin/skills.py` — `POST/GET/PUT/DELETE /admin/skills`,
   `GET /admin/skills/{id}`, and `POST /admin/skills/validate` (dry-run field
-  validation for inline panel errors), all behind `config_auth`. Auditing is
-  handled generically by the existing admin-audit middleware, same as
-  `prompts`/`mcp` — no per-route audit calls needed.
+  validation for inline panel errors), all behind `config_auth`. The existing
+  admin-audit middleware has explicit `admin.tool_skill.create/update/delete`
+  route mappings; it records safe metadata but redacts the playbook body.
 - `ToolSkillRegistry` (Phase 1/2) extended with a database layer: `set_db_skills()`
   merges DB-sourced skills over file-sourced ones by name (DB wins, §2.6),
-  and `file_default_for()` retrieves the overridden on-disk version for the
-  panel. `refresh_tool_skill_registry_db()` re-queries every enabled DB skill
+  and `file_default_for()` retains access to the overridden on-disk version
+  for a future comparison/revert UI. `refresh_tool_skill_registry_db()` re-queries every enabled DB skill
   and re-merges — called after every admin CRUD write and from the reload poll.
 - Hot reload + multi-worker convergence: a new `"tool_skills"` kind added to
   `services/adapter_reload_state.py`'s `_KINDS` tuple and `_apply_reload()`
@@ -730,22 +741,24 @@ remains Level 2's job for models that ask first.
   markdown body editor with live preview on the right, create/edit/delete.
 - `mcp.js`: read-only "Playbooks" section in each server's detail, computed
   client-side against the already-fetched skill list and that server's live
-  discovered tools (glob-matched the same way the backend does) — no new
-  backend endpoint needed for this cross-reference.
+  discovered, already-namespaced tools. Its browser matcher mirrors backend
+  `fnmatchcase` shapes (`*`, `?`, `[seq]`, `[!seq]`) — no new backend endpoint
+  is needed for this cross-reference.
 - File-vs-DB precedence: `ToolSkillRegistry.get()` serves the DB entry on a
   name collision; `file_default_for()` (not yet surfaced in the panel UI, a
   possible follow-up) exposes the shadowed file version.
 
-**Tests** (all passing): `test_services/test_tool_skill_service_db.py` (9) —
+**Tests** (all passing): `test_services/test_tool_skill_service_db.py` —
 `ToolSkillService` CRUD, validation rejection (bad slug, reserved prefix,
 empty `mcp_tools`, oversize body), duplicate-name 409, DB-over-file
 precedence, disabled-DB-skill exclusion, `refresh_tool_skill_registry_db`;
-`test_routes/test_admin_skills.py` (10) — every route handler, 503 without a
+`test_routes/test_admin_skills.py` — every route handler, 503 without a
 service, 404 on missing id, `/skills/validate`'s dry-run path, and that a
-create/update/delete each re-merges the live registry; `test_services/test_adapter_reload_state.py`
-gained 3 cases for the new `"tool_skills"` reload kind. All 24 pre-existing
-`test_tool_skill_service.py` file-loader tests, and all Phase 1/Phase 2 MCP
-pipeline tests, still pass unchanged.
+create/update/delete each re-merges the live registry;
+`test_middleware/test_admin_audit_middleware.py` — named CRUD events and body
+redaction; `test_services/test_tool_skill_service.py` — static catalog-overflow
+diagnostics; and `test_services/test_adapter_reload_state.py` covers the new
+`"tool_skills"` reload kind. All Phase 1/Phase 2 MCP pipeline tests still pass.
 
 **Deferred, not blocking exit:** endpoint-level 401/403 auth tests and a
 dedicated multi-worker `integration` test were not added this pass — the
@@ -806,7 +819,7 @@ config reload already uses.
 | A skill body is mistaken for privileged/system-level instruction in code or docs | consistently described as "trusted procedural context," never "privileged" (§3) |
 | A skill load is misrecorded as an MCP server call, leaking its body via `result_preview` or polluting MCP-call analytics | dedicated `tool_skill_load` source type, no body preview (§2.8) |
 | Two concepts named "skill" confuse operators and code | wire name `tool_skill`, UI label "Tool Skills" (§1) |
-| DB/file precedence surprises | precedence stated in §2.6 and surfaced in the panel |
+| DB/file precedence surprises | precedence and automatic fallback are stated in §2.6; the panel explicitly warns that a same-name DB row overrides the file, while the shadowed file itself remains a future UI enhancement |
 | Omitted `tool_skills` allowlist silently exposes a new skill to every adapter reaching its tools | documented as a security-sensitive default, not a neutral convenience default (§2.7) |
 | A model guesses/hallucinates a skill name — or names a skill that matched but was truncated out of the surfaced set — and reads a skill it shouldn't | loader's `name` enum, and the dispatcher's server-side authorization, are both built from the same capped surfaced set (§2.2); a name outside it is rejected regardless of source |
 | Catalog cap is cosmetic because the enum/authorization boundary stays unbounded | one surfaced set drives the catalog, the enum, and authorization together — never capped in one place and left open in another (§2.2) |
@@ -823,7 +836,7 @@ config reload already uses.
 2. **Binding location** — ✅ **skill frontmatter.** `mcp_tools` glob list lives in the `SKILL.md` document; `mcp_clients.yaml` server entries are untouched.
 3. **Storage order** — ✅ **files first.** `config/skills/*/SKILL.md` in Phase 1; `ToolSkillService` (DB) + admin panel in Phase 3.
 4. **Injection default** — ✅ **on by default** once Level 3 (Phase 2) ships. Per §2.2, this only covers the second-and-later call to a bound tool, never the first — that limitation is documented, not silently accepted as a gap.
-5. **Budget numbers** — ✅ **accepted as proposed.** 32 KB max per skill body; 3 skills / 24 KB per turn for the Level 2/3 injection budget; 10 lines for the separate Level 1 catalog cap (§2.2). These are config constants, tunable later against real usage.
+5. **Budget numbers** — ✅ **implemented with guardrails.** 24 KB max per skill body; 3 skills / 24 KB per turn for the Level 2/3 injection budget; 10 lines for the separate Level 1 catalog cap (§2.2); and 10,000 enabled database skills. The body cap was aligned with the injection byte budget so an accepted skill is never impossible to load by itself.
 6. **`tool_skills` allowlist default** — ✅ **omit-means-all-matching**, consistent with `mcp_servers`' own default (§2.7). Documented in `capabilities.py` and the admin panel's help text as a security-sensitive default (§2.7), not a neutral convenience one — worth revisiting per-deployment if a future multi-tenant use case needs the stricter opt-in variant.
 
 ---

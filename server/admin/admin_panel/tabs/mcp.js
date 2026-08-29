@@ -7,6 +7,48 @@
 // departs from the default, reusing the panel accent already used across
 // this design system to mean "this is the thing you changed".
 // ==================================================================
+export function mcpToolSkillGlobMatch(name, pattern) {
+  // Browser equivalent of Python's fnmatch.fnmatchcase for the flat MCP tool
+  // names used here. MCP names contain no path separators, so *, ?, [seq],
+  // and [!seq] have the same whole-string semantics as the backend registry.
+  var regex = "";
+  for (var i = 0; i < pattern.length; i += 1) {
+    var ch = pattern[i];
+    if (ch === "*") { regex += ".*"; continue; }
+    if (ch === "?") { regex += "."; continue; }
+    if (ch !== "[") {
+      regex += ch.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
+      continue;
+    }
+
+    var end = i + 1;
+    if (pattern[end] === "!") end += 1;
+    if (pattern[end] === "]") end += 1;
+    while (end < pattern.length && pattern[end] !== "]") end += 1;
+    if (end >= pattern.length) {
+      regex += "\\[";
+      continue;
+    }
+
+    var contents = pattern.slice(i + 1, end);
+    var negate = contents[0] === "!";
+    if (negate) contents = contents.slice(1);
+    // A leading ^ would negate a JavaScript character class accidentally;
+    // backslashes and closing brackets must also remain literal.
+    contents = contents.replace(/\\/g, "\\\\").replace(/\]/g, "\\]");
+    if (contents[0] === "^") contents = "\\" + contents;
+    regex += "[" + (negate ? "^" : "") + contents + "]";
+    i = end;
+  }
+  try {
+    return new RegExp("^" + regex + "$").test(name);
+  } catch (_err) {
+    // Match Python's safe behavior for malformed/unusable patterns: they do
+    // not make the panel fail, and simply cover no discovered tool here.
+    return false;
+  }
+}
+
 export function createMcpTab({
   api, endpoints, el, clear, skeleton, refreshButton, withButton,
   confirmAction, showError, showStatus, createSelect, getActiveTab
@@ -984,13 +1026,6 @@ export function createMcpTab({
   }
 
   var mcpSkillsCache = null; // fetched lazily, once per tab session
-  function mcpSimpleGlobMatch(name, pattern) {
-    // "*" only — enough for the mcp_tools convention (business-sample__*,
-    // github__search_issues); not a full fnmatch implementation.
-    var escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
-    return new RegExp("^" + escaped + "$").test(name);
-  }
-
   function syncPlaybooks(server, container) {
     clear(container);
     var discovery = (mcpTools && mcpTools.servers) ? mcpTools.servers[server.name] : null;
@@ -1011,7 +1046,7 @@ export function createMcpTab({
       clear(container);
       var matches = (skills || []).filter(function (s) {
         return s.enabled && (s.mcp_tools || []).some(function (pattern) {
-          return toolNames.some(function (n) { return mcpSimpleGlobMatch(n, pattern); });
+          return toolNames.some(function (n) { return mcpToolSkillGlobMatch(n, pattern); });
         });
       });
       if (!matches.length) {

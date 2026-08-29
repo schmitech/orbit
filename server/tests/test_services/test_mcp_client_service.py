@@ -574,6 +574,25 @@ class TestReloadMcpClientManager:
 
 class TestRefreshToolCache:
     @pytest.mark.asyncio
+    async def test_refresh_rechecks_static_tool_skill_catalog(self, tmp_path):
+        runtime_config = {
+            "tool_skills": {"directory": str(tmp_path)},
+            "adapters": [],
+        }
+        mgr = MCPClientManager(
+            {"servers": [{"name": "a", "transport": "stdio", "command": "x"}]},
+            runtime_config=runtime_config,
+        )
+        mgr._list_tools_on_server = AsyncMock(return_value=[])
+
+        with patch("services.tool_skill_service.warn_catalog_overflow") as warn:
+            await mgr.refresh_tool_cache()
+
+        warn.assert_called_once()
+        assert warn.call_args.args[0] is runtime_config
+        assert warn.call_args.args[2] is mgr
+
+    @pytest.mark.asyncio
     async def test_refresh_clears_failures_and_redials(self):
         mgr = MCPClientManager({
             "servers": [{"name": "flaky", "transport": "stdio", "command": "x"}],

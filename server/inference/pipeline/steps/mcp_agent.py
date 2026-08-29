@@ -23,11 +23,9 @@ from ..base import PipelineStep, ProcessingContext
 from ..prompt_builder import PromptInstructionBuilder
 from ..mcp_tool_loop import run_tool_calling_loop
 from ..tool_skills_support import (
-    TOOL_SKILL_LOADER_NAME as _TOOL_SKILL_LOADER_NAME,
     InjectionBudget,
     build_dispatch,
     resolve_surfaced_skills,
-    tool_names as _tool_names,
     tool_skill_catalog_text as _tool_skill_catalog_text,
     tool_skill_loader_schema as _tool_skill_loader_schema,
 )

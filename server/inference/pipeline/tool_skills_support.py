@@ -10,7 +10,14 @@ import logging
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .mcp_tool_loop import ToolDispatchResult, TrustedContext
-from services.tool_skill_service import ToolSkill, ToolSkillRegistry, SURFACED_SET_CAP
+from services.tool_skill_service import (
+    INJECTION_BUDGET_MAX_BYTES,
+    INJECTION_BUDGET_MAX_SKILLS,
+    SURFACED_SET_CAP,
+    ToolSkill,
+    ToolSkillRegistry,
+    select_injection_eligible,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +28,6 @@ TOOL_SKILL_LOADER_NAME = "orbit__load_tool_skill"
 # (JIT auto-injection) — docs/roadmap/mcp-tool-skills.md §3/§8 Q5. A skill
 # already counted toward this budget (via either level) cannot be loaded a
 # second time in the same turn, and the two levels draw from one shared pool.
-INJECTION_BUDGET_MAX_SKILLS = 3
-INJECTION_BUDGET_MAX_BYTES = 24 * 1024
-
-
 def tool_names(tools: Sequence[Dict[str, Any]]) -> List[str]:
     return [t.get("function", {}).get("name", "") for t in tools]
 
@@ -147,17 +150,12 @@ class InjectionBudget:
         scan, so a later, smaller, lower-priority skill can still be
         admitted within the same byte budget.
         """
-        eligible: set = set()
-        bytes_used = 0
-        for skill in candidate_skills:
-            if len(eligible) >= max_skills:
-                break
-            size = len(skill.body.encode("utf-8"))
-            if bytes_used + size > max_bytes:
-                continue
-            eligible.add(skill.name)
-            bytes_used += size
-        return eligible
+        return {
+            skill.name
+            for skill in select_injection_eligible(
+                candidate_skills, max_skills=max_skills, max_bytes=max_bytes
+            )
+        }
 
     def already_loaded(self, name: str) -> bool:
         return name in self.loaded

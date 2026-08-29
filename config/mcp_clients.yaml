@@ -20,10 +20,11 @@
 # register config/adapters/mcp-agent.yaml in config/adapters.yaml.
 
 mcp_clients:
-  enabled: true                     # Set to false to disable MCP tool calling entirely
-                                    # (global only — cannot be overridden per server;
-                                    #  use each server's own `enabled` for that)
-
+  # Set to false to disable MCP tool calling entirely
+  # (global only — cannot be overridden per server;
+  #  use each server's own `enabled` for that)
+  enabled: true
+                                    
   # ── Defaults ─────────────────────────────────────────────────────────────
   # Every setting in this block is a DEFAULT. Any entry under `servers:` may
   # redeclare any of these keys to override it for that server alone — so a
@@ -69,7 +70,10 @@ mcp_clients:
   # global embedding.provider in embeddings.yaml).
   tool_selection:
     enabled: true
-    max_tools: 1                   # No filtering below this many tools for a request
+    # Keep enough candidates for multi-step MCP requests spanning several
+    # domains. Set this lower only for a focused token-optimization test;
+    # max_tools: 1 can make a pipeline impossible by exposing one tool only.
+    max_tools: 15
     embedding_threshold: 0.3        # Cosine-similarity cutoff against the query
 
   servers:

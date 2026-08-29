@@ -290,11 +290,15 @@ CREATE TABLE IF NOT EXISTS tool_skills (
 - `name` (TEXT, UNIQUE): Stable lowercase slug used for routing and database-over-file precedence
 - `description` (TEXT): Short catalog description shown to the model
 - `mcp_tools` (TEXT): JSON-encoded list of case-sensitive `fnmatch` patterns for namespaced MCP tools (for example, `business-sample__*`)
-- `body` (TEXT): Full trusted procedural playbook body, capped at 32 KB by the service
+- `body` (TEXT): Full trusted procedural playbook body, capped at 24 KB of UTF-8 data by the service
 - `enabled` (INTEGER): Whether the skill participates in matching (1=true, 0=false)
 - `version` (TEXT, nullable): Optional author-supplied version label
 - `priority` (INTEGER): Higher values sort first and receive preference under the per-turn injection budget
 - `created_at` / `updated_at` (TEXT): ISO-format creation and last-update timestamps
+
+The service also limits names to 64 characters, descriptions to 500, and each
+skill to 64 `mcp_tools` patterns of 256 characters each. At most 10,000 rows
+may be enabled at once; disabled drafts may be stored beyond that limit.
 
 **Indexes:**
 - `idx_tool_skills_name` unique on `name`

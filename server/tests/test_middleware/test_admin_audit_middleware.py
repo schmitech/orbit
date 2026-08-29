@@ -265,6 +265,50 @@ class TestAdapterLifecycleRoutes:
         assert matched is None or matched[0][2] != "admin.adapter.create"
 
 
+class TestToolSkillRoutes:
+    """Tool-skill CRUD must produce named, body-redacted audit events."""
+
+    def test_create_skill_uses_handler_published_id_and_safe_fields(self):
+        matched = _match_route("POST", "/admin/skills")
+        assert matched is not None
+        entry, params = matched
+        assert entry[2:6] == (
+            "admin.tool_skill.create", "CREATE", "tool_skill", "context",
+        )
+        assert params == {}
+        summary = _build_request_summary(
+            {
+                "name": "crm-playbook",
+                "description": "CRM procedure",
+                "mcp_tools": ["business-sample__*"],
+                "body": "trusted internal procedure",
+                "enabled": True,
+                "version": "1",
+                "priority": 5,
+            },
+            entry[6],
+        )
+        assert summary["name"] == "crm-playbook"
+        assert summary["mcp_tools"] == ["business-sample__*"]
+        assert "body" not in summary
+
+    @pytest.mark.parametrize(
+        ("method", "path", "event_type"),
+        [
+            ("PUT", "/admin/skills/skill-123", "admin.tool_skill.update"),
+            ("DELETE", "/admin/skills/skill-123", "admin.tool_skill.delete"),
+        ],
+    )
+    def test_skill_mutations_are_named_and_keyed(self, method, path, event_type):
+        matched = _match_route(method, path)
+        assert matched is not None
+        entry, params = matched
+        assert entry[2] == event_type
+        assert entry[4] == "tool_skill"
+        assert entry[5] == "path:skill_id"
+        assert params == {"skill_id": "skill-123"}
+
+
 # ---------------------------------------------------------------------------
 # AdminAuditMiddleware.__init__
 # ---------------------------------------------------------------------------
