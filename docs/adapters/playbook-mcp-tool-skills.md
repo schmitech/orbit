@@ -129,10 +129,12 @@ Phase 1 ships an example skill already bound to this server:
 cat config/skills/crm-pipeline-playbook/SKILL.md
 ```
 
-You should see frontmatter with `mcp_tools: ["business-sample__*"]` and a body
-that tells the model to resolve a customer id via `list_customers` before
-calling `build_account_plan`, and to never pass `limit` above 25 to
-`search_opportunities`.
+You should see frontmatter binding the five CRM tools — `list_customers`,
+`get_customer_health`, `search_opportunities`, `summarize_pipeline`, and
+`build_account_plan` — and a body that tells the model to resolve a customer
+id via `list_customers` before calling `build_account_plan`. It also documents
+that `search_opportunities` clamps limits above 25 and has no pagination or
+offset parameter.
 
 `config/adapters/mcp-agent.yaml`'s `mcp-agent-chat` adapter should already
 list `business-sample` in `capabilities.mcp_servers` (add it if not), and
@@ -190,8 +192,8 @@ least once.
 
 ## 6. Confirm the playbook actually changes behavior
 
-The skill's real value: ask something that would otherwise trip
-`search_opportunities`' own validation error.
+The skill's real value: verify that the model makes a request the tool can
+fulfill and presents its result using the playbook's required table format.
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
@@ -200,20 +202,17 @@ curl -X POST http://localhost:3000/v1/chat \
   -H "X-Session-ID: skill-test-2" \
   -d '{
     "messages": [
-      {"role": "user", "content": "Using the CRM tool playbook, find the top 100 open opportunities."}
+      {"role": "user", "content": "Using the CRM tool playbook, show up to 25 Negotiation opportunities, grouped by owner."}
     ],
     "skill": "mcp-agent"
   }'
 ```
 
-Confirm the model pages (`limit: 25` or less) instead of first trying
-`limit: 100` and hitting the tool's `"limit: too_big, maximum 25"` error —
-i.e. the skill's guidance actually prevented the round-trip
-error-then-correct pattern documented in `docs/adapters/mcp-agent.md`'s
-"self-correcting multi-step chain" example. If the model still tries 100
-first, that's plausible behavior too (see step 5's note) — but it's the
-interesting case to watch either way, since it's the clearest signal of
-whether the loaded skill changed anything.
+Confirm the `search_opportunities` call uses a limit of 25 or less and that
+the final answer uses the playbook's `Owner | Account | Stage | ARR | Close
+date` table. The server clamps larger limits to 25 rather than returning an
+error, and it has no pagination or offset parameter; a request for a global
+top 100 result cannot be fulfilled by this tool alone.
 
 ## 7. Confirm prompt-cache breakpoint is unaffected
 
@@ -330,7 +329,7 @@ curl -X POST http://localhost:3000/v1/chat \
   -H "X-Session-ID: skill-test-jit-1" \
   -d '{
     "messages": [
-      {"role": "user", "content": "Find the top 100 open opportunities."}
+      {"role": "user", "content": "Show up to 25 Negotiation opportunities, grouped by owner."}
     ],
     "skill": "mcp-agent"
   }'
@@ -343,13 +342,11 @@ Confirm:
   for `crm-pipeline-playbook` — with no `orbit__load_tool_skill` call ever
   appearing in the tool-call history, unlike step 5.
 - Because Level 3 cannot shape the *first* call's arguments (§2.2's
-  documented limitation), the first `search_opportunities` call may still be
-  made with `limit: 100` and get the tool's own validation error back — the
-  skill body arrives *attached to that same error result*, and it's the
-  **next** call (or the final answer's formatting) that should reflect the
-  guidance. If the model never needed a second call at all (e.g. it happened
-  to pass a safe `limit` the first time), that's fine too — the injection
-  still occurred, there was just nothing left to correct.
+  documented limitation), the first `search_opportunities` call may use any
+  limit the model chooses; the server clamps values above 25 rather than
+  returning an error. The skill body arrives attached to that same tool
+  result, so a subsequent call or the final answer should reflect its
+  guidance. If no second call is needed, the injection still occurred.
 
 ## 13. Confirm opportunistic-mode parity
 
@@ -371,13 +368,13 @@ curl -X POST http://localhost:3000/v1/chat \
 ```
 
 No `"skill"` field at all — this is the plain conversational path. Be
-directive about wanting the tool actually called: a vaguer prompt like "Find
-the top 100 open opportunities" is a weaker check here, since a model may
-answer from the tool's own schema description (e.g. "results are capped at
-25") without calling anything — that produces `sources: []` and confirms
-nothing about the tool-skill mechanism one way or the other (it's the
-documented "a turn calling no bound tool injects nothing" case, not a
-failure, but it isn't evidence of success either).
+directive about wanting the tool actually called: a vaguer request is a
+weaker check here, since a model may answer from the tool's schema description
+(for example, that results are capped at 25) without calling anything. That
+produces `sources: []` and confirms nothing about the tool-skill mechanism
+one way or the other (it's the documented "a turn calling no bound tool
+injects nothing" case, not a failure, but it isn't evidence of success
+either).
 
 Confirmed working, `simple-chat` (`ollama_cloud`/`gpt-oss:120b` adapter
 default, `gpt-5.4-mini` resolved at runtime for this request):
@@ -397,15 +394,15 @@ Confirm the same thing step 12 confirmed on the explicit path: a
 `tool_skill_load` source appears alongside the real `mcp_tool_call` entries,
 without the model ever calling `orbit__load_tool_skill` — plus two things
 this run demonstrates that step 12 didn't: the model made *multiple*
-follow-up tool calls in the same turn, each one still respecting the
-skill's `limit ≤ 25` rule (it split the query by `stage` rather than ever
-raising `limit`), and the final answer's table matches the skill's exact
-`Owner | Account | Stage | ARR | Close date` formatting spec — direct
-evidence the injected guidance, not just the tool schema, shaped the
-output. This is the concrete difference Phase 2 made: before it, this exact
-request would have produced zero tool-skill-related `sources` entries,
-ever (see the "What NOT to expect yet" note this playbook used to carry —
-now folded into Phase 3's list below).
+follow-up tool calls in the same turn, each one still respecting the skill's
+`limit ≤ 25` rule. They are separately bounded queries by `stage`, not pages
+of one global result set: the tool provides no pagination or offset. The final
+answer's table also matches the skill's exact `Owner | Account | Stage | ARR |
+Close date` formatting spec — direct evidence the injected guidance, not just
+the tool schema, shaped the output. This is the concrete difference Phase 2
+made: before it, this exact request would have produced zero tool-skill-related
+`sources` entries, ever (see the "What NOT to expect yet" note this playbook
+used to carry — now folded into Phase 3's list below).
 
 ## 14. Confirm the `capabilities.tool_skills` allowlist
 
@@ -558,7 +555,12 @@ For this file specifically, that's:
 
 ```yaml
 name: crm-pipeline-playbook
-mcp_tools: ["business-sample__*"]
+mcp_tools:
+  - "business-sample__list_customers"
+  - "business-sample__get_customer_health"
+  - "business-sample__search_opportunities"
+  - "business-sample__summarize_pipeline"
+  - "business-sample__build_account_plan"
 ```
 
 ### 2. Linking to `business-sample` — glob matching, not a hardcoded reference
@@ -577,11 +579,12 @@ registry.matched_for(_tool_names(tools))
 every enabled MCP server, each namespaced as `<server>__<tool>` (built in
 `MCPClientManager._to_openai_tool`) — so `business-sample`'s tools show up as
 `business-sample__list_customers`, `business-sample__search_opportunities`,
-etc. `ToolSkillRegistry.matched_for(tool_names)` then runs
-`fnmatch.fnmatchcase(tool_name, "business-sample__*")` against each of those
-names — any tool from that server matches, no matter which one. That's the
-entire "link": a glob pattern checked at request time against whatever tools
-are currently live, not a static binding validated at config-load time.
+etc. `ToolSkillRegistry.matched_for(tool_names)` compares each live name with
+the skill's five configured patterns, so only those CRM tools match this
+playbook. Patterns may contain globs, but this bundled skill deliberately uses
+explicit names. That's the entire "link": patterns checked at request time
+against whatever tools are currently live, not a static binding validated at
+config-load time.
 
 This has real consequences worth internalizing before debugging a
 surprising result:
@@ -783,13 +786,13 @@ Confirm:
 - `cat config/skills/crm-pipeline-playbook/SKILL.md` still shows the
   original file content, untouched.
 - Repeat step 5's or step 12's request. The catalog line, the loaded body,
-  and the model's actual behavior (paging at ≤10, not ≤25) should all now
+  and the model's actual behavior (using a limit of ≤10, not ≤25) should all
   reflect the **database** version — proof `ToolSkillRegistry.get()` served
   the DB entry, not the file one.
 - Delete the database override (`DELETE /admin/skills/<id>`, using the id
   from this step's create response) and repeat the request once more.
-  Confirm the *file* version's behavior returns immediately (paging at ≤25
-  again) — the file skill was never lost, only shadowed while the database
+  Confirm the *file* version's behavior returns immediately (using a limit of
+  ≤25 again) — the file skill was never lost, only shadowed while the database
   entry existed.
 
 ## 18. Confirm multi-worker hot-reload propagation (optional, only if `performance.workers > 1`)

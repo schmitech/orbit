@@ -41,6 +41,12 @@ general:
     required: true                  # Reject requests that omit the session header
   inference_provider: "ollama"      # Default provider (a key from inference.yaml) when an adapter sets none
 
+# Procedural SKILL.md playbooks bound to namespaced MCP tools. Database-authored
+# playbooks from the Tool Skills admin tab are merged over these files by name.
+# Relative paths resolve from the directory where ORBIT is started.
+tool_skills:
+  directory: "config/skills"
+
 # Detects the language of each user message with an ensemble of local libraries
 # (weighted voting plus script/heuristic checks). Used to keep replies in the
 # user's language and to bias RAG retrieval toward same-language documents.

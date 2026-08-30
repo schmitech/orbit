@@ -26,7 +26,8 @@ called for that customer.
 
 ## Limits
 
-`search_opportunities` rejects `limit` above 25. Page instead of raising it.
+`search_opportunities` clamps `limit` values above 25 to 25. Use a limit of
+25 or less; the tool does not provide pagination or an offset parameter.
 
 ## Output
 

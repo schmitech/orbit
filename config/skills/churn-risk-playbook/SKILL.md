@@ -17,6 +17,7 @@ customer's actual usage trends instead of the model's own assumptions.
 
 ## Presenting results
 
-Never present a bare churn probability. Always pair it with the top
-contributing signals from the telemetry (e.g. declining seat utilization,
-rising support-ticket volume) so the number is explainable, not a black box.
+Never present a bare churn probability. Always pair it with the simulation's
+key drivers and the telemetry's utilization or adoption alerts, so the number
+is explainable rather than a black box. The simulation itself accounts for
+open P1/P2 support escalations; telemetry does not return ticket volume.

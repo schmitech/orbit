@@ -103,7 +103,8 @@ mcp_clients:
     - name: "business-sample"
       transport: "http"
       url: "http://127.0.0.1:9999/mcp"
-      token: "${MCP_TOKEN}"
+      headers:
+        Authorization: "Bearer ${MCP_TOKEN}"
       enabled: true
       allow_opportunistic: true   # needed only for opportunistic (no-skill) turns
 ```
@@ -122,10 +123,14 @@ names as:
 - `business-sample__search_opportunities`
 - `business-sample__summarize_pipeline`
 - `business-sample__build_account_plan`
+- `business-sample__get_product_telemetry`
+- `business-sample__list_support_tickets`
 - `business-sample__get_support_ticket`
 - `business-sample__create_support_ticket`
 - `business-sample__update_support_ticket`
 - `business-sample__delete_support_ticket`
+- `business-sample__simulate_churn_risk_scenario`
+- `business-sample__get_sales_rep_performance`
 
 ## Smoke Test
 

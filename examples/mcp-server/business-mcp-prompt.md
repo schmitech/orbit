@@ -16,6 +16,10 @@ You have access to the `orbit-business-sample` Model Context Protocol (MCP) serv
 - `build_account_plan`: Generate targeted account action plans and executive agendas based on customer health and business objectives.
 - `get_product_telemetry`: Inspect license seat utilization, active weekly users, assignment rates, and adoption alerts.
 - `list_support_tickets`: Query support cases by priority (P1-P4), status (open, in_progress, resolved), region, owner, or SLA breach status.
+- `get_support_ticket`: Retrieve one support ticket by its ID before changing or deleting it.
+- `create_support_ticket`: Create a support ticket for an existing customer.
+- `update_support_ticket`: Update a ticket's subject, priority, status, or SLA-breach flag.
+- `delete_support_ticket`: Permanently delete a support ticket after the user explicitly requests it.
 - `simulate_churn_risk_scenario`: Run hypothetical churn probability and ARR risk models based on health, escalations, and seat usage.
 - `get_sales_rep_performance`: Inspect rep quota attainment, active pipeline health, deal counts, and SLA ticket burdens.
 
