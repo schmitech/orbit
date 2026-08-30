@@ -18,6 +18,11 @@ These tools ARE the ticket system for this session — when asked to open,
 log, or file a support ticket, call `create_support_ticket` directly. Never
 decline a ticket-creation request or claim no such tool exists.
 
+`create_support_ticket` requires a customer id. Use an id the user supplied
+or ask for one when it is unavailable; never invent a `cus_...` value. Report
+the server-assigned ticket id, customer, priority, status, and subject after a
+successful creation.
+
 ## Reading before writing
 
 Call `get_support_ticket` to read the current state of a ticket before
@@ -29,3 +34,11 @@ update doesn't blindly overwrite fields you haven't seen.
 Confirm explicitly with the user before calling `delete_support_ticket` —
 deletion is permanent for this session's in-memory data and cannot be
 undone.
+
+## Output
+
+For `list_support_tickets`, render the returned tickets as a table: Ticket |
+Customer | Priority | Status | SLA breached | Subject. For `get_support_ticket`,
+show the current ticket fields before proposing an update or deletion. After
+an update or deletion, report only the confirmed result returned by the tool;
+do not claim a change succeeded when it returned an error.

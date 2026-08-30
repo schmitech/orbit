@@ -209,7 +209,7 @@ curl -X POST http://localhost:3000/v1/chat \
 ```
 
 Confirm the `search_opportunities` call uses a limit of 25 or less and that
-the final answer uses the playbook's `Owner | Account | Stage | ARR | Close
+the final answer uses the playbook's `Owner | Account | Stage | Amount | Close
 date` table. The server clamps larger limits to 25 rather than returning an
 error, and it has no pagination or offset parameter; a request for a global
 top 100 result cannot be fulfilled by this tool alone.
@@ -397,7 +397,7 @@ this run demonstrates that step 12 didn't: the model made *multiple*
 follow-up tool calls in the same turn, each one still respecting the skill's
 `limit ≤ 25` rule. They are separately bounded queries by `stage`, not pages
 of one global result set: the tool provides no pagination or offset. The final
-answer's table also matches the skill's exact `Owner | Account | Stage | ARR |
+answer's table also matches the skill's exact `Owner | Account | Stage | Amount |
 Close date` formatting spec — direct evidence the injected guidance, not just
 the tool schema, shaped the output. This is the concrete difference Phase 2
 made: before it, this exact request would have produced zero tool-skill-related

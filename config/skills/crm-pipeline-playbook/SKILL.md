@@ -29,7 +29,26 @@ called for that customer.
 `search_opportunities` clamps `limit` values above 25 to 25. Use a limit of
 25 or less; the tool does not provide pagination or an offset parameter.
 
+## Choose the right tool
+
+Use `summarize_pipeline` for aggregate pipeline questions. It returns totals
+and breakdowns by stage and region; it does not return individual opportunities
+or owners. Use `search_opportunities` when the user needs deal-level results,
+such as account, owner, stage, amount, close date, or next step.
+
 ## Output
 
-Group opportunities by owner and render as a markdown table: Owner | Account |
-Stage | ARR | Close date.
+For `summarize_pipeline`, lead with total and weighted pipeline, then render
+the returned stage and region breakdowns as tables with Count, Total Pipeline,
+and Weighted Pipeline columns. Do not invent an owner breakdown from this
+aggregate response.
+
+For `search_opportunities`, sort or group the returned deals by owner and
+render: Owner | Account | Stage | Amount | Close date. Use `customerName` as
+the Account value and `amount` as the Amount value. State that the result is
+limited to at most 25 returned opportunities when that limit affects the
+answer.
+
+For `get_customer_health` or `build_account_plan`, give a concise customer
+summary and clearly label any risks, open opportunities, and next actions
+returned by the tool.
