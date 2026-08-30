@@ -322,6 +322,32 @@ def _mcp_endpoint_label(server: Dict[str, Any]) -> str:
     return str(server.get("url", ""))
 
 
+def _serialize_mcp_tools(tools: list) -> list:
+    """Convert the manager's OpenAI-format cached schemas to the compact
+    admin-panel shape. Both the server-list and explicit discovery endpoints
+    use this so a cached server can show its tools/playbooks without a second
+    round trip or a needless re-dial."""
+    serialized = []
+    for tool in tools:
+        fn = tool.get("function", {})
+        params = fn.get("parameters", {}) or {}
+        required = params.get("required", []) or []
+        serialized.append({
+            "name": fn.get("name", ""),
+            "description": fn.get("description", ""),
+            "parameters": [
+                {
+                    "name": pname,
+                    "type": (pspec or {}).get("type", "string"),
+                    "required": pname in required,
+                    "description": (pspec or {}).get("description", ""),
+                }
+                for pname, pspec in (params.get("properties") or {}).items()
+            ],
+        })
+    return serialized
+
+
 def _read_mcp_config(request: Request) -> tuple[Path, str, Dict[str, Any]]:
     """Return (path, raw_text, parsed mcp_clients block)."""
     path = _get_mcp_config_path(request)
@@ -386,6 +412,10 @@ async def list_mcp_servers(request: Request):
             status = {
                 "reachable": manager.is_reachable(name),
                 "tool_count": len(manager._tools_cache[name]),
+                # This is the manager's already-discovered cache: returning
+                # it is read-only and never dials a server. The panel uses it
+                # to resolve Playbooks immediately on first view.
+                "tools": _serialize_mcp_tools(manager._tools_cache[name]),
             }
         servers.append({
             "name": name,
@@ -546,27 +576,9 @@ async def discover_mcp_tools(request: Request, server: Optional[str] = None):
     servers: Dict[str, Any] = {}
     names = [server] if server is not None else list(manager._server_configs)
     for name in names:
-        tools = []
-        for tool in manager._tools_cache.get(name, []):
-            fn = tool.get("function", {})
-            params = fn.get("parameters", {}) or {}
-            required = params.get("required", []) or []
-            tools.append({
-                "name": fn.get("name", ""),
-                "description": fn.get("description", ""),
-                "parameters": [
-                    {
-                        "name": pname,
-                        "type": (pspec or {}).get("type", "string"),
-                        "required": pname in required,
-                        "description": (pspec or {}).get("description", ""),
-                    }
-                    for pname, pspec in (params.get("properties") or {}).items()
-                ],
-            })
         servers[name] = {
             "reachable": manager.is_reachable(name),
-            "tools": tools,
+            "tools": _serialize_mcp_tools(manager._tools_cache.get(name, [])),
         }
 
     return {"available": True, "servers": servers}

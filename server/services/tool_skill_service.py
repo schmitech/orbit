@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 # (routes/admin/mcp.py) — kept consistent so a skill name never surprises an
 # author familiar with that convention.
 _SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
+_SKILL_VERSION_PATTERN = re.compile(r"^\d+(?:\.\d+)*$")
 
 # Reserved for the synthetic loader tool (orbit__load_tool_skill) — no skill
 # may claim this namespace (docs/roadmap/mcp-tool-skills.md §2.1).
@@ -47,6 +48,9 @@ _FRONTMATTER_DELIM = "---"
 # can never be injected.
 MAX_SKILL_NAME_CHARS = 64
 MAX_SKILL_DESCRIPTION_CHARS = 500
+MAX_SKILL_VERSION_CHARS = 25
+MIN_SKILL_PRIORITY = -1
+MAX_SKILL_PRIORITY = 99
 MAX_MCP_TOOL_PATTERNS = 64
 MAX_MCP_TOOL_PATTERN_CHARS = 256
 MAX_SKILL_BODY_BYTES = 24 * 1024
@@ -173,11 +177,23 @@ def _validate_skill_fields(
         enabled = True
 
     if version is not None:
-        version = str(version)
+        version = str(version).strip()
+        if len(version) > MAX_SKILL_VERSION_CHARS:
+            raise SkillValidationError(
+                f"{label}: skill '{name}' version exceeds {MAX_SKILL_VERSION_CHARS} characters"
+            )
+        if not _SKILL_VERSION_PATTERN.fullmatch(version):
+            raise SkillValidationError(
+                f"{label}: skill '{name}' version must contain only numbers separated by dots"
+            )
 
     if not isinstance(priority, int) or isinstance(priority, bool):
         logger.warning("%s: skill '%s' has non-integer 'priority'; defaulting to 0.", label, name)
         priority = 0
+    elif not MIN_SKILL_PRIORITY <= priority <= MAX_SKILL_PRIORITY:
+        raise SkillValidationError(
+            f"{label}: skill '{name}' priority must be between {MIN_SKILL_PRIORITY} and {MAX_SKILL_PRIORITY}"
+        )
 
     if not isinstance(body, str) or not body.strip():
         raise SkillValidationError(f"{label}: skill '{name}' has an empty body")
@@ -686,6 +702,7 @@ class ToolSkillService:
         self,
         skill_id: Union[str, Any],
         *,
+        name: Optional[str] = None,
         description: Optional[str] = None,
         mcp_tools: Optional[List[str]] = None,
         body: Optional[str] = None,
@@ -693,14 +710,13 @@ class ToolSkillService:
         version: Optional[str] = None,
         priority: Optional[int] = None,
     ) -> bool:
-        """Update an existing skill. Name is immutable (mirrors ``PromptService``'s
-        name-is-the-identity convention) — delete and recreate to rename."""
+        """Update an existing skill, including a validated rename."""
         current = await self.get_skill_by_id(skill_id)
         if not current:
             return False
 
         fields = self._validate(
-            name=current["name"],
+            name=name if name is not None else current["name"],
             description=description if description is not None else current["description"],
             mcp_tools=mcp_tools if mcp_tools is not None else current["mcp_tools"],
             body=body if body is not None else current["body"],
@@ -710,8 +726,11 @@ class ToolSkillService:
         )
         if fields["enabled"] and not current.get("enabled", True):
             await self._assert_active_capacity()
-        # name is not re-validated for uniqueness here — it's unchanged.
-        update_doc = self._encode_doc({k: v for k, v in fields.items() if k != "name"})
+        if fields["name"] != current["name"]:
+            existing = await self.database.find_one(self.collection_name, {"name": fields["name"]})
+            if existing:
+                raise HTTPException(status_code=409, detail=f"Tool skill '{fields['name']}' already exists")
+        update_doc = self._encode_doc(fields)
         update_doc["updated_at"] = datetime.now(UTC)
 
         try:

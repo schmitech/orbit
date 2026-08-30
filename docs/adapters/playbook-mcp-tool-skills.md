@@ -759,6 +759,82 @@ Confirm the response is `{"valid": false, "error": "..."}` and that nothing
 was persisted (`GET /admin/skills` is unchanged) — this endpoint never
 writes to the database.
 
+### 16a. Isolate and verify a database-authored skill
+
+Use this check when you need to prove that a skill stored through the admin
+panel/API is loaded from the database, rather than a similarly bound
+`config/skills/*/SKILL.md` playbook. The adapter's `tool_skills` allowlist is
+applied to **both** database- and file-authored skills, so temporarily scope
+`mcp-agent-chat` to the one database test skill:
+
+```yaml
+# config/adapters/mcp-agent.yaml
+capabilities:
+  mcp_servers:
+    - "business-sample"
+  tool_skills:
+    - "telemetry-db-verification"
+```
+
+Reload the adapter configuration after this edit. This isolation matters: the
+three-skill per-turn budget admits the highest-priority matching playbooks, so
+leaving the bundled file playbooks in the allowlist can prevent a lower-priority
+database test skill from loading.
+
+Create a **database** skill in **Admin → Tool Skills** with these fields:
+
+```text
+Name:        telemetry-db-verification
+Description: Verify database-authored telemetry playbook loading.
+mcp_tools:   business-sample__get_product_telemetry
+Version:     1.0
+Priority:    20
+```
+
+Paste this into the **Playbook body**:
+
+```markdown
+## Purpose
+
+Use this playbook when answering questions about a customer's product usage,
+adoption, seat utilization, or telemetry alerts.
+
+## Required tool call
+
+Call `get_product_telemetry` with the relevant customer ID. If no customer ID
+is available, ask for one or use a customer-lookup tool; never invent an ID.
+
+## Response guidelines
+
+Base the answer only on the telemetry response. Summarize relevant seat
+utilization, active usage, adoption trends, and telemetry alerts. Do not infer
+support-ticket volume, churn probability, revenue impact, or any other metric
+not returned by telemetry.
+
+## Verification marker
+
+Only after `get_product_telemetry` succeeds, append this exact final line to
+the user-facing response:
+
+[DB_SKILL_TEST: telemetry-db-verification]
+```
+
+In a fresh `mcp-agent` chat/request, send:
+
+> Before making any other tool call, load `telemetry-db-verification`. Then
+> retrieve product telemetry for customer `cus_0005`, follow the playbook
+> exactly, and summarize the result.
+
+Both of these must be present to confirm the database skill loaded:
+
+- A `sources` entry with `{"type":"tool_skill_load","skill":"telemetry-db-verification",...}`.
+- The exact `[DB_SKILL_TEST: telemetry-db-verification]` marker at the end of
+  the final response.
+
+The `sources` entry is the authoritative proof of the loaded skill; the marker
+is a useful user-visible confirmation that its body shaped the response. After
+testing, restore the adapter allowlist and delete the temporary database skill.
+
 ## 17. Confirm database-over-file precedence
 
 This is the core Phase 3 guarantee from `docs/roadmap/mcp-tool-skills.md`
@@ -844,9 +920,11 @@ group of the nav (next to **MCP**).
   name to confirm. Confirm it disappears from the list and — if it had
   overridden a file skill by name (step 17) — the file skill's original
   behavior returns.
-- **Cross-reference from MCP**: open the **MCP** tab, select the
-  `business-sample` server, ping it if you haven't already this session, and
-  confirm its detail view's new "Playbooks" section lists every
+- **Cross-reference from MCP**: open the **MCP** tab and select the
+  `business-sample` server. Its cached tool schema populates the detail view's
+  **Playbooks** section immediately; servers without a cache are discovered
+  automatically, while the ping control remains available for a manual retry.
+  Confirm the section lists every
   database-authored tool skill currently bound to one of its tools (by glob
   match against the live discovered, already-namespaced tool list). Create or
   delete a skill bound to

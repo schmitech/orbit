@@ -173,11 +173,12 @@ async def update_skill(
     request: Request,
     tool_skill_service = Depends(get_tool_skill_service),
 ):
-    """Update a tool skill. Name is immutable."""
+    """Update a tool skill."""
     check_service_availability(tool_skill_service, "Tool skill service")
 
     success = await tool_skill_service.update_skill(
         skill_id,
+        name=skill_data.name,
         description=skill_data.description,
         mcp_tools=skill_data.mcp_tools,
         body=skill_data.body,

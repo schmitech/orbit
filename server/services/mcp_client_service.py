@@ -569,7 +569,12 @@ class MCPClientManager:
             await conn.close()
 
     async def _list_tools_on_server(self, server_config: Dict[str, Any]) -> list:
-        """List tools on one server, via a pooled connection when enabled."""
+        """List tools on one server, via a pooled connection when enabled.
+
+        Discovery gets one transparent retry: a just-started subprocess or a
+        transient HTTP handshake should not make the admin panel require a
+        second manual ping before it can show the server as connected.
+        """
         server_name = server_config.get("name", "")
 
         async def op(session):
@@ -577,7 +582,7 @@ class MCPClientManager:
             return result.tools
 
         return await self._pool_for(server_name).run(
-            lambda: self._create_connection(server_config), op, retries=0
+            lambda: self._create_connection(server_config), op, retries=1
         )
 
     async def _call_tool_on_server(

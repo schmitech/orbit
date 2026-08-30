@@ -954,6 +954,19 @@ class TestConnectionPooling:
         assert not result.startswith("Tool error:")
         assert not connections  # both connections were consumed
 
+    async def test_tool_discovery_retries_once_after_a_transient_failure(self):
+        mgr = self._pooled_manager(pool_size=2)
+        connections = [_fake_connection(mgr, fail=True), _fake_connection(mgr, fail=False)]
+
+        async def build(server_config):
+            return connections.pop(0)
+
+        mgr._create_connection = build
+
+        tools = await mgr._list_tools_on_server({"name": "srv"})
+        assert tools == []
+        assert not connections  # discovery used its transparent retry
+
     async def test_second_consecutive_failure_propagates_and_opens_breaker(self):
         mgr = self._pooled_manager(pool_size=2)
 

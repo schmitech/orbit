@@ -167,18 +167,19 @@ class ToolSkillCreate(BaseModel):
     mcp_tools: List[str] = Field(min_length=1, max_length=64)
     body: str = Field(min_length=1, max_length=24_576)
     enabled: bool = True
-    version: Optional[str] = None
-    priority: int = 0
+    version: Optional[str] = Field(default=None, max_length=25, pattern=r"^\d+(?:\.\d+)*$")
+    priority: int = Field(default=0, ge=-1, le=99)
 
 
 class ToolSkillUpdate(BaseModel):
-    """Tool skill update request model. Name is immutable — delete and recreate to rename."""
+    """Tool skill update request model."""
+    name: Optional[str] = Field(default=None, min_length=1, max_length=64)
     description: Optional[str] = Field(default=None, min_length=1, max_length=500)
     mcp_tools: Optional[List[str]] = Field(default=None, min_length=1, max_length=64)
     body: Optional[str] = Field(default=None, min_length=1, max_length=24_576)
     enabled: Optional[bool] = None
-    version: Optional[str] = None
-    priority: Optional[int] = None
+    version: Optional[str] = Field(default=None, max_length=25, pattern=r"^\d+(?:\.\d+)*$")
+    priority: Optional[int] = Field(default=None, ge=-1, le=99)
 
 
 class ToolSkillResponse(BaseModel):

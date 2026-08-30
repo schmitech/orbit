@@ -127,6 +127,22 @@ class TestCreateSkill:
                 mcp_tools=["x__y"],
                 body="b" * 24_577,
             )
+        with pytest.raises(ValidationError):
+            ToolSkillCreate(
+                name="valid", description="d", mcp_tools=["x__y"], body="b", priority=100,
+            )
+        with pytest.raises(ValidationError):
+            ToolSkillCreate(
+                name="valid", description="d", mcp_tools=["x__y"], body="b", priority=-2,
+            )
+        with pytest.raises(ValidationError):
+            ToolSkillCreate(
+                name="valid", description="d", mcp_tools=["x__y"], body="b", version="v" * 26,
+            )
+        with pytest.raises(ValidationError):
+            ToolSkillCreate(
+                name="valid", description="d", mcp_tools=["x__y"], body="b", version="3#@#@#!@#!@##!@",
+            )
 
     @pytest.mark.asyncio
     async def test_create_returns_response_and_refreshes_registry(self):
@@ -210,6 +226,20 @@ class TestValidateSkill:
         assert result["valid"] is True
         assert result["normalized"]["name"] == "good-slug"
 
+    def test_validate_rejects_out_of_range_priority_and_long_version(self):
+        payload = {"name": "good-slug", "description": "d", "mcp_tools": ["a__b"], "body": "b"}
+
+        assert "priority" in admin_skills.validate_skill({**payload, "priority": 100})["error"]
+        assert "version" in admin_skills.validate_skill({**payload, "version": "v" * 26})["error"]
+        assert "version" in admin_skills.validate_skill({**payload, "version": "1.beta"})["error"]
+
+    def test_validate_accepts_lowest_documented_priority(self):
+        result = admin_skills.validate_skill({
+            "name": "good-slug", "description": "d", "mcp_tools": ["a__b"], "body": "b", "priority": -1,
+        })
+        assert result["valid"] is True
+        assert result["normalized"]["priority"] == -1
+
 
 class TestUpdateSkill:
     @pytest.mark.asyncio
@@ -229,6 +259,38 @@ class TestUpdateSkill:
 
         registry = tss.get_tool_skill_registry(request.app.state.config)
         assert registry.get("s1").body == "updated body"
+
+    @pytest.mark.asyncio
+    async def test_update_renames_skill_and_refreshes_registry(self):
+        from models.schema import ToolSkillUpdate
+
+        service = await _init(_make_service())
+        skill_id = await service.create_skill(name="typo-name", description="d", mcp_tools=["a__b"], body="body")
+        request = _fake_request(service)
+
+        response = await admin_skills.update_skill(
+            str(skill_id), ToolSkillUpdate(name="corrected-name"), request, tool_skill_service=service,
+        )
+
+        assert response["name"] == "corrected-name"
+        registry = tss.get_tool_skill_registry(request.app.state.config)
+        assert registry.get("typo-name") is None
+        assert registry.get("corrected-name") is not None
+
+    @pytest.mark.asyncio
+    async def test_update_rejects_duplicate_name(self):
+        from models.schema import ToolSkillUpdate
+
+        service = await _init(_make_service())
+        first_id = await service.create_skill(name="first", description="d", mcp_tools=["a__b"], body="body")
+        await service.create_skill(name="taken", description="d", mcp_tools=["a__b"], body="body")
+        request = _fake_request(service)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_skills.update_skill(
+                str(first_id), ToolSkillUpdate(name="taken"), request, tool_skill_service=service,
+            )
+        assert exc_info.value.status_code == 409
 
     @pytest.mark.asyncio
     async def test_update_missing_raises_404(self):

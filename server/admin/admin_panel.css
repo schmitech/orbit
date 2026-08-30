@@ -976,6 +976,70 @@ textarea {
   align-items: end;
 }
 
+/* Tool-skill descriptions are authored prose, while version and priority are
+   compact metadata. Keep them in distinct visual groups so neither has to
+   compete for the same grid column. */
+.skill-metadata-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: var(--sp-3) var(--sp-4);
+}
+
+.skill-name-field {
+  width: min(100%, 42rem);
+}
+
+.skill-metadata-row > label {
+  width: min(100%, 14rem);
+}
+
+.skill-metadata-row input[type="number"] {
+  width: 5.5rem;
+}
+
+.skill-metadata-row > label.skill-priority-field {
+  width: auto;
+}
+
+.skill-priority-control {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.skill-priority-control .field-hint {
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* Enabled is a binary setting, not a text field. Align its compact label and
+   checkbox with the version/priority controls rather than putting the box on
+   a separate line beneath its heading. */
+.skill-metadata-row > label.skill-enabled-field {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: 1.85rem;
+  white-space: nowrap;
+}
+
+.skill-enabled-field input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--brand-500);
+  cursor: pointer;
+}
+
+/* Finish editing where the author finishes the form. This keeps the Save and
+   Cancel actions immediately above the destructive controls, rather than
+   separating them from the last editable field. */
+.skill-edit-actions {
+  margin-top: var(--sp-2);
+}
+
 .user-create-grid {
   grid-template-columns: minmax(220px, 320px) minmax(220px, 320px);
   align-items: end;

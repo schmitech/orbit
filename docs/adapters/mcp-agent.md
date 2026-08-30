@@ -193,7 +193,8 @@ Always keep `search_opportunities.limit` at or below 25.
 `name`, `description`, and a non-empty `mcp_tools` list are required. Names are
 case-sensitive lowercase slugs; bindings use case-sensitive `fnmatch` patterns.
 The `orbit__` namespace is reserved. `enabled`, `version`, and `priority` are
-ORBIT extensions; `version` is free-form metadata rather than revision history.
+ORBIT extensions; `version` is numeric metadata made of digits separated by dots
+(for example `1.0` or `1.2.3`), rather than revision history.
 
 The model receives playbooks progressively:
 

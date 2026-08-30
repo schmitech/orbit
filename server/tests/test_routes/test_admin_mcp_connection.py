@@ -456,6 +456,33 @@ class TestPatchYamlList:
 
 class TestListMcpServersConnectionField:
     @pytest.mark.asyncio
+    async def test_exposes_cached_tools_without_redialing(self, tmp_path):
+        config_path = _write_temp_config(tmp_path)
+        config = {"mcp_clients": yaml.safe_load(MCP_YAML)["mcp_clients"]}
+        request = _fake_request(config_path, config=config)
+        manager = mcp_client_service.get_mcp_client_manager(config)
+        manager._tools_cache["http-server"] = [{
+            "function": {
+                "name": "http-server__lookup",
+                "description": "Look up a record.",
+                "parameters": {
+                    "properties": {"id": {"type": "string", "description": "Record ID"}},
+                    "required": ["id"],
+                },
+            },
+        }]
+
+        result = await admin_routes.list_mcp_servers(request)
+
+        status = next(s for s in result["servers"] if s["name"] == "http-server")["status"]
+        assert status["tool_count"] == 1
+        assert status["tools"] == [{
+            "name": "http-server__lookup",
+            "description": "Look up a record.",
+            "parameters": [{"name": "id", "type": "string", "required": True, "description": "Record ID"}],
+        }]
+
+    @pytest.mark.asyncio
     async def test_http_server_exposes_connection(self, tmp_path):
         config_path = _write_temp_config(tmp_path)
         request = _fake_request(config_path)

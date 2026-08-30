@@ -15,6 +15,33 @@ export function createSkillsTab({
   var BODY_MAX = 24 * 1024;
   var cachedSkills = null;
 
+  function reportFirstInvalid(inputs) {
+    for (var i = 0; i < inputs.length; i += 1) {
+      if (!inputs[i].checkValidity()) {
+        inputs[i].reportValidity();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function priorityField(input, hintId) {
+    return el("label", { className: "stack skill-priority-field" },
+      el("span", null, "Priority"),
+      el("span", { className: "skill-priority-control" },
+        input,
+        el("span", { id: hintId, className: "field-hint" }, "−1 is the lowest priority; higher values appear first.")
+      )
+    );
+  }
+
+  function enabledField(input) {
+    return el("label", { className: "skill-enabled-field" },
+      el("span", null, "Enabled"),
+      input
+    );
+  }
+
   function notifySkillsChanged() {
     // The MCP tab's per-server "Playbooks" cross-reference fetches the skill
     // list once and caches it (mcp.js) — invalidate it on every create/
@@ -46,9 +73,20 @@ export function createSkillsTab({
     ));
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "64", placeholder: "my-tool-playbook" });
-    var descInput = el("input", { type: "text", required: "true", maxlength: "500" });
+    var descInput = el("textarea", {
+      rows: "3", required: "true", maxlength: "500",
+      placeholder: "Explain when this playbook should be used and what it helps accomplish."
+    });
+    var descCounter = characterCount(descInput, 500);
     var toolsInput = el("input", { type: "text", required: "true", maxlength: "16510", placeholder: "business-sample__list_customers, business-sample__get_customer_health" });
-    var priorityInput = el("input", { type: "number", value: "0" });
+    var versionInput = el("input", {
+      type: "text", value: "1.0", maxlength: "25", placeholder: "1.0", inputmode: "decimal",
+      pattern: "\\d+(?:\\.\\d+)*", title: "Use numbers separated by dots, for example 1.0 or 1.2.3.", spellcheck: "false"
+    });
+    var priorityInput = el("input", {
+      type: "number", value: "0", min: "-1", max: "99", step: "1", inputmode: "numeric",
+      style: "max-width:5.5rem", "aria-describedby": "skill-priority-help"
+    });
     var bodyArea = el("textarea", { rows: "8", required: "true", maxlength: String(BODY_MAX) });
     var bodyCounter = characterCount(bodyArea, BODY_MAX);
     var createBtn = el("button", { type: "button" }, "Create Tool Skill");
@@ -66,16 +104,20 @@ export function createSkillsTab({
       createPanelToggle
     ));
     createPanel.appendChild(el("div", { className: "admin-create-form" },
-      el("div", { className: "admin-create-form-grid persona-create-grid" },
-        field("Name (lowercase-slug)", nameInput),
+      el("div", { className: "skill-name-field" }, field("Name (lowercase-slug)", nameInput)),
+      el("div", { className: "stack" },
         field("Description", descInput),
-        field("Priority", priorityInput)
+        descCounter
+      ),
+      el("div", { className: "skill-metadata-row" },
+        field("Version (up to 25 characters)", versionInput),
+        priorityField(priorityInput, "skill-priority-help")
       ),
       field("mcp_tools (comma-separated; max 64 patterns, 256 chars each)", toolsInput),
       el("div", { className: "stack" }, field("Playbook body (markdown; 24 KB UTF-8 max)", bodyArea), bodyCounter),
       el("div", { className: "admin-create-form-actions" }, createBtn)
     ));
-    bindValidationClear(nameInput, descInput, toolsInput, bodyArea);
+    bindValidationClear(nameInput, descInput, versionInput, priorityInput, toolsInput, bodyArea);
 
     var createLaunchBtn = el("button", {
       className: "secondary create-launch-btn",
@@ -93,6 +135,7 @@ export function createSkillsTab({
       var description = descInput.value.trim();
       var mcpTools = parseToolsList(toolsInput.value);
       var body = bodyArea.value.trim();
+      if (reportFirstInvalid([nameInput, descInput, versionInput, priorityInput, toolsInput, bodyArea])) return;
       if (!name || !description || !mcpTools.length || !body) return;
       withButton(createBtn, async function () {
         var created = await api("POST", endpoints.skills, {
@@ -100,11 +143,13 @@ export function createSkillsTab({
           description: description,
           mcp_tools: mcpTools,
           body: body,
+          version: versionInput.value.trim() || null,
           priority: parseInt(priorityInput.value, 10) || 0,
         });
         nameInput.value = "";
         descInput.value = "";
         toolsInput.value = "";
+        versionInput.value = "1.0";
         priorityInput.value = "0";
         bodyArea.value = "";
         bodyArea.dispatchEvent(new Event("input"));
@@ -200,15 +245,30 @@ export function createSkillsTab({
     ));
 
     var originalDesc = skill.description || "";
+    var originalName = skill.name || "";
     var originalTools = (skill.mcp_tools || []).join(", ");
     var originalPriority = String(skill.priority);
     var originalEnabled = !!skill.enabled;
     var originalBody = skill.body || "";
     var isEditing = false;
 
-    var descInput = el("input", { type: "text", value: originalDesc, maxlength: "500", readonly: "true", "aria-readonly": "true" });
+    var nameInput = el("input", {
+      type: "text", value: originalName, required: "true", maxlength: "64", readonly: "true", "aria-readonly": "true",
+      pattern: "[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?", title: "Use a lowercase slug with letters, numbers, and hyphens."
+    });
+    // Unlike <input>, a textarea's initial content is text/value property,
+    // not a `value` HTML attribute. Set it directly so saved descriptions
+    // reappear when this detail panel is opened again.
+    var descInput = el("textarea", { rows: "3", maxlength: "500", readonly: "true", "aria-readonly": "true" });
+    descInput.value = originalDesc;
+    var descCounter = characterCount(descInput, 500);
     var toolsInput = el("input", { type: "text", maxlength: "16510", value: originalTools, readonly: "true", "aria-readonly": "true" });
-    var priorityInput = el("input", { type: "number", value: originalPriority, readonly: "true", "aria-readonly": "true" });
+    var originalVersion = skill.version || "";
+    var versionInput = el("input", {
+      type: "text", value: originalVersion, maxlength: "25", readonly: "true", "aria-readonly": "true",
+      inputmode: "decimal", pattern: "\\d+(?:\\.\\d+)*", title: "Use numbers separated by dots, for example 1.0 or 1.2.3.", spellcheck: "false"
+    });
+    var priorityInput = el("input", { type: "number", value: originalPriority, min: "-1", max: "99", step: "1", inputmode: "numeric", style: "max-width:5.5rem", readonly: "true", "aria-readonly": "true" });
     var enabledInput = el("input", { type: "checkbox" });
     enabledInput.checked = originalEnabled;
     enabledInput.disabled = true;
@@ -216,16 +276,19 @@ export function createSkillsTab({
     var bodyCounter = characterCount(bodyArea, BODY_MAX);
 
     var saveBtn = el("button", {
-      type: "button", className: "btn--icon", "aria-label": "Save changes", title: "Save changes",
-    }, svgIcon(iconSave));
+      type: "button", "aria-label": "Save changes", title: "Save changes",
+    }, svgIcon(iconSave), "Save changes");
     saveBtn.style.display = "none";
     saveBtn.addEventListener("click", function () {
       if (saveBtn.disabled) return;
+      if (reportFirstInvalid([nameInput, descInput, versionInput, priorityInput, toolsInput, bodyArea])) return;
       withButton(saveBtn, async function () {
         var updated = await api("PUT", endpoints.skills + "/" + encodeURIComponent(skill.id), {
+          name: nameInput.value.trim(),
           description: descInput.value.trim(),
           mcp_tools: parseToolsList(toolsInput.value),
           body: bodyArea.value.trim(),
+          version: versionInput.value.trim() || null,
           priority: parseInt(priorityInput.value, 10) || 0,
           enabled: enabledInput.checked,
         });
@@ -236,10 +299,15 @@ export function createSkillsTab({
 
     var editPreview = createMarkdownPreview(bodyArea);
     var editorWrap = el("div", { className: "prompt-editor-pane", style: "display:none" },
-      el("div", { className: "admin-create-form-grid persona-create-grid" },
+      el("div", { className: "skill-name-field" }, field("Name (lowercase-slug)", nameInput)),
+      el("div", { className: "stack" },
         field("Description", descInput),
-        field("Priority", priorityInput),
-        field("Enabled", enabledInput)
+        descCounter
+      ),
+      el("div", { className: "skill-metadata-row" },
+        field("Version (up to 25 characters)", versionInput),
+        priorityField(priorityInput, null),
+        enabledField(enabledInput)
       ),
       field("mcp_tools (comma-separated; max 64 patterns, 256 chars each)", toolsInput),
       el("div", { className: "stack" }, field("Playbook body (markdown; 24 KB UTF-8 max)", bodyArea), bodyCounter)
@@ -247,13 +315,16 @@ export function createSkillsTab({
     var previewWrap = el("div", { className: "prompt-preview-pane" }, editPreview);
     var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Tool Skill");
     var cancelBtn = el("button", {
-      className: "secondary btn--icon", type: "button", style: "display:none",
+      className: "secondary", type: "button", style: "display:none",
       "aria-label": "Cancel editing tool skill", title: "Cancel editing tool skill",
-    }, svgIcon(iconX));
+    }, svgIcon(iconX), "Cancel");
+    var editActions = el("div", { className: "admin-create-form-actions skill-edit-actions", style: "display:none" }, cancelBtn, saveBtn);
 
     function hasChanges() {
-      return descInput.value.trim() !== originalDesc
+      return nameInput.value.trim() !== originalName
+        || descInput.value.trim() !== originalDesc
         || toolsInput.value.trim() !== originalTools
+        || versionInput.value.trim() !== originalVersion
         || priorityInput.value.trim() !== originalPriority
         || enabledInput.checked !== originalEnabled
         || bodyArea.value !== originalBody;
@@ -261,8 +332,10 @@ export function createSkillsTab({
     function syncSaveState() { saveBtn.disabled = !isEditing || !hasChanges(); }
     function setEditMode(editing) {
       isEditing = editing;
+      setFieldReadOnly(nameInput, editing);
       setFieldReadOnly(descInput, editing);
       setFieldReadOnly(toolsInput, editing);
+      setFieldReadOnly(versionInput, editing);
       setFieldReadOnly(priorityInput, editing);
       enabledInput.disabled = !editing;
       setFieldReadOnly(bodyArea, editing);
@@ -271,29 +344,33 @@ export function createSkillsTab({
       editToggle.style.display = editing ? "none" : "inline-flex";
       cancelBtn.style.display = editing ? "inline-flex" : "none";
       saveBtn.style.display = editing ? "inline-flex" : "none";
+      editActions.style.display = editing ? "flex" : "none";
       syncSaveState();
     }
     editToggle.addEventListener("click", function () { setEditMode(true); });
     cancelBtn.addEventListener("click", function () {
+      nameInput.value = originalName;
       descInput.value = originalDesc;
       toolsInput.value = originalTools;
+      versionInput.value = originalVersion;
       priorityInput.value = originalPriority;
       enabledInput.checked = originalEnabled;
       bodyArea.value = originalBody;
       bodyArea.dispatchEvent(new Event("input"));
       setEditMode(false);
     });
-    [descInput, toolsInput, priorityInput, bodyArea].forEach(function (input) {
+    [nameInput, descInput, toolsInput, versionInput, priorityInput, bodyArea].forEach(function (input) {
       input.addEventListener("input", syncSaveState);
     });
     enabledInput.addEventListener("change", syncSaveState);
-    bindValidationClear(descInput, toolsInput, priorityInput, bodyArea);
+    bindValidationClear(nameInput, descInput, toolsInput, versionInput, priorityInput, bodyArea);
     syncSaveState();
 
     panel.appendChild(el("div", { className: "stack", style: "margin-top:var(--sp-3)" },
-      el("div", { className: "inline-form" }, editToggle, cancelBtn, saveBtn),
+      el("div", { className: "inline-form" }, editToggle),
       previewWrap,
-      editorWrap
+      editorWrap,
+      editActions
     ));
     setEditMode(false);
 

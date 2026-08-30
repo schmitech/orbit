@@ -233,6 +233,33 @@ export function createMcpTab({
     }
   }
 
+  // The server-list response includes any schemas already discovered by the
+  // live manager. Hydrate the same cache used by Ping so the Tools and
+  // Playbooks sections can render immediately without a needless re-dial.
+  function mcpHydrateCachedTools(data) {
+    var servers = {};
+    (data.servers || []).forEach(function (server) {
+      if (!server.status || !Array.isArray(server.status.tools)) return;
+      servers[server.name] = {
+        reachable: !!server.status.reachable,
+        tools: server.status.tools,
+      };
+    });
+    if (Object.keys(servers).length) mcpTools = { available: true, servers: servers };
+  }
+
+  // A panel visit should be enough to show a server's tools and associated
+  // playbooks. Only servers without an existing cached discovery are dialed;
+  // this is the same endpoint/state path as the per-row ping button, so a
+  // manual retry remains available without creating a competing code path.
+  function mcpDiscoverMissingServers() {
+    if (!mcpData || !mcpData.enabled) return;
+    (mcpData.servers || []).forEach(function (server) {
+      var known = mcpTools && mcpTools.servers && mcpTools.servers[server.name];
+      if (server.enabled && !known && !mcpPinging[server.name]) mcpPingServer(server.name);
+    });
+  }
+
   // Reflects an unsaved enable/disable of `key` (a server name, or
   // MCP_DEFAULTS_KEY) for whichever entry is currently selected — used for
   // display everywhere except ping eligibility, which must stay pinned to
@@ -287,6 +314,7 @@ export function createMcpTab({
       container.appendChild(skeleton());
       try {
         mcpData = await api("GET", endpoints.mcpServers);
+        mcpHydrateCachedTools(mcpData);
       } catch (err) {
         clear(container);
         container.appendChild(el("div", { className: "panel empty-state" },
@@ -332,6 +360,7 @@ export function createMcpTab({
     layout.appendChild(detail);
     mcpDetailContainer = detail;
     mcpRenderDetail(detail);
+    mcpDiscoverMissingServers();
   }
 
   function mcpRerender() {
@@ -1029,9 +1058,15 @@ export function createMcpTab({
   function syncPlaybooks(server, container) {
     clear(container);
     var discovery = (mcpTools && mcpTools.servers) ? mcpTools.servers[server.name] : null;
+    if (mcpPinging[server.name]) {
+      container.appendChild(el("p", { className: "muted mcp-tools-empty" },
+        "Checking this server for associated playbooks…"
+      ));
+      return;
+    }
     if (!discovery || !discovery.reachable || !discovery.tools || !discovery.tools.length) {
       container.appendChild(el("p", { className: "muted mcp-tools-empty" },
-        "Ping this server to see which tool-skill playbooks are bound to its tools."
+        "No tool schema is available yet, so associated playbooks cannot be determined."
       ));
       return;
     }

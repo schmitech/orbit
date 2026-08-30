@@ -77,8 +77,8 @@ class ServerConnectionPool:
 
         Gated by the circuit breaker up front (fails fast without attempting
         a connection when open). On failure, retries up to `retries` extra
-        times, rebuilding the connection each time — tool calls pass
-        retries=1 for one transparent retry; discovery passes retries=0.
+        times, rebuilding the connection each time — tool calls and discovery
+        both pass retries=1 for one transparent retry.
         """
         if self.breaker.is_open:
             raise RuntimeError(
