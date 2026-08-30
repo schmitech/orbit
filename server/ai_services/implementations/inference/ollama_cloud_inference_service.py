@@ -15,7 +15,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from ollama import AsyncClient
 
-from ...errors import sanitize_provider_error
+from ...errors import raise_sanitized, sanitize_provider_error
 from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService, ToolCallingResult
 
@@ -212,8 +212,19 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
 
             return self._extract_content(response)
         except Exception as exc:
-            logger.error("Error generating response with Ollama Cloud: %s", exc)
-            raise
+            logger.error(
+                "Ollama Cloud generation failed: %s",
+                sanitize_provider_error(
+                    exc,
+                    provider=getattr(self, "provider_name", "ollama_cloud"),
+                    operation="generation",
+                ),
+            )
+            raise_sanitized(
+                exc,
+                provider=getattr(self, "provider_name", "ollama_cloud"),
+                operation="generation",
+            )
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate a streaming response using Ollama Cloud."""
@@ -258,7 +269,14 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
                             getattr(chunk, "eval_count", None),
                         )
         except Exception as exc:
-            logger.exception("Error generating streaming response with Ollama Cloud")
+            logger.error(
+                "Ollama Cloud streaming generation failed: %s",
+                sanitize_provider_error(
+                    exc,
+                    provider=getattr(self, "provider_name", "ollama_cloud"),
+                    operation="streaming generation",
+                ),
+            )
             yield sanitize_provider_error(
                 exc,
                 provider=getattr(self, "provider_name", "ollama_cloud"),
@@ -306,8 +324,22 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
         try:
             response = await self.client.chat(**chat_kwargs)
         except Exception as exc:
-            logger.error("Error generating tool-calling response with Ollama Cloud: %s", exc)
-            raise
+            logger.error(
+                "Ollama Cloud tool-calling generation failed: %s",
+                sanitize_provider_error(
+                    exc,
+                    provider=getattr(self, "provider_name", "ollama_cloud"),
+                    operation="tool-calling generation",
+                ),
+            )
+            # The MCP tool loop does not consume streamed error text, so this
+            # path must raise a client-safe exception rather than letting the
+            # Ollama SDK's raw response body propagate through the pipeline.
+            raise_sanitized(
+                exc,
+                provider=getattr(self, "provider_name", "ollama_cloud"),
+                operation="tool-calling generation",
+            )
 
         if getattr(response, "prompt_eval_count", None) is not None or getattr(response, "eval_count", None) is not None:
             self._report_usage(

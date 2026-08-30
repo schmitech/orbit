@@ -26,6 +26,7 @@ from ai_services.implementations.inference.anthropic_inference_service import An
 from ai_services.implementations.inference.ollama_inference_service import OllamaInferenceService
 from ai_services.implementations.inference.ollama_cloud_inference_service import OllamaCloudInferenceService
 from ai_services.implementations.inference.vllm_inference_service import VLLMInferenceService
+from ai_services.errors import ProviderServiceError
 
 
 # ----------------------------------------------------------------------------
@@ -511,3 +512,26 @@ class TestOllamaCloudToolCalling:
         assert result.tool_calls is None
         assert result.finish_reason == "stop"
         assert "tools" not in captured  # empty tools list omitted
+
+    async def test_provider_error_is_sanitized(self):
+        class _BillingError(Exception):
+            status_code = 403
+
+        raw_error = _BillingError(
+            "your subscription payment is past due. update your payment method"
+        )
+        svc, _ = self._svc(None)
+
+        async def _failing_chat(**kwargs):
+            raise raw_error
+
+        svc.client = type("_Client", (), {"chat": staticmethod(_failing_chat)})()
+
+        with pytest.raises(ProviderServiceError) as exc_info:
+            await svc.generate_with_tools([{"role": "user", "content": "hi"}], [])
+
+        assert exc_info.value.user_message == (
+            "The AI service rejected this request. Please contact your administrator."
+        )
+        assert "past due" not in exc_info.value.user_message
+        assert exc_info.value.original_error is raw_error

@@ -24,6 +24,7 @@ if 'inference' not in sys.modules:
     sys.modules['inference'] = _pkg
 
 from ai_services.services import ToolCallingResult
+from ai_services.errors import ProviderServiceError
 from inference.pipeline.base import ProcessingContext
 from inference.pipeline.steps.llm_inference import LLMInferenceStep
 
@@ -201,6 +202,29 @@ class TestOpportunisticMCPToolsEnabled:
 
         assert chunks == ["streamed tool answer"]
         assert ctx.response == "streamed tool answer"
+
+    async def test_streaming_provider_error_is_safe_and_has_no_traceback(self, caplog):
+        raw_error = RuntimeError("subscription payment is past due")
+        provider_error = ProviderServiceError(
+            "The AI service rejected this request. Please contact your administrator.",
+            original_error=raw_error,
+            provider="ollama_cloud",
+        )
+        provider = _FakeProvider(generate_with_tools_error=provider_error)
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step(provider, manager)
+        ctx = ProcessingContext(message="x", adapter_name="simple-chat-with-files", mcp_tools=True)
+
+        with caplog.at_level("WARNING"):
+            chunks = [chunk async for chunk in step.process_stream(ctx)]
+
+        assert chunks == [provider_error.user_message]
+        assert ctx.error == provider_error.user_message
+        record = next(
+            record for record in caplog.records
+            if record.message.startswith("Streaming LLM inference failed:")
+        )
+        assert record.exc_info is None
 
 
 class TestOpportunisticMCPToolsFallback:

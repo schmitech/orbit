@@ -8,7 +8,7 @@ import logging
 from collections import OrderedDict
 from typing import AsyncGenerator
 
-from ai_services.errors import sanitize_provider_error
+from ai_services.errors import ProviderServiceError, sanitize_provider_error
 from ..base import PipelineStep, ProcessingContext
 from ..prompt_builder import PromptInstructionBuilder
 from ..mcp_tool_loop import run_tool_calling_loop
@@ -157,6 +157,12 @@ class LLMInferenceStep(PipelineStep):
             else:
                 logger.debug("Generated response preview: %s...", response[:100])
             
+        except ProviderServiceError as e:
+            # The provider already logged the full upstream failure and
+            # converted it to a client-safe message. Do not re-log it with
+            # exc_info=True here, which would expose the chained SDK error.
+            logger.warning("LLM inference failed: %s", e.user_message)
+            context.set_error(e.user_message)
         except Exception as e:
             logger.exception("Error during LLM inference")
             user_message = sanitize_provider_error(
@@ -247,6 +253,12 @@ class LLMInferenceStep(PipelineStep):
             else:
                 logger.debug("Generated streaming response preview: %s...", accumulated_response[:100])
             
+        except ProviderServiceError as e:
+            # Avoid a traceback containing the provider response body. The
+            # original exception remains available in the provider's own log.
+            logger.warning("Streaming LLM inference failed: %s", e.user_message)
+            yield e.user_message
+            context.set_error(e.user_message)
         except Exception as e:
             logger.exception("Error during streaming LLM inference")
             user_message = sanitize_provider_error(
