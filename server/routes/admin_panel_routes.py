@@ -19,6 +19,11 @@ from urllib.parse import quote, urlsplit
 
 from routes.auth_helpers import get_admin_user, get_sso_service, render_login_html
 from auth.rbac import has_any_permission, has_permission
+from services.login_rate_limiter import (
+    audit_login_rate_limit,
+    get_login_rate_limiter,
+    login_rate_limited_response,
+)
 
 # User-facing messages for /admin/login?error=<code>
 _SSO_ERROR_MESSAGES = {
@@ -218,8 +223,23 @@ def create_admin_panel_router() -> APIRouter:
         if not getattr(auth_service, "_initialized", True):
             await auth_service.initialize()
 
+        limiter = get_login_rate_limiter(request)
+        ip_result = await limiter.check_ip(request)
+        if not ip_result.allowed:
+            request.state.auth_rate_limited = True
+            return login_rate_limited_response(ip_result)
+
+        username_result = await limiter.check_username(request, username)
+        if not username_result.allowed:
+            request.state.auth_rate_limited = True
+            return login_rate_limited_response(username_result)
+
         success, token, user_info = await auth_service.authenticate_user(username, password)
         if not success or not token or not user_info or not has_any_permission(user_info):
+            username_result = await limiter.record_username_failure(request, username)
+            if not username_result.allowed:
+                request.state.auth_rate_limited = True
+                return login_rate_limited_response(username_result)
             return HTMLResponse(
                 content=render_login_html(
                     next_path=_safe_next_path(next),
@@ -254,6 +274,12 @@ def create_admin_panel_router() -> APIRouter:
     @router.get("/admin/auth/{provider}/login")
     async def admin_sso_login(request: Request, provider: str, next: str = "/admin"):
         """Begin an SSO login: redirect to the provider's authorize endpoint."""
+        limiter = get_login_rate_limiter(request)
+        ip_result = await limiter.check_ip(request)
+        if not ip_result.allowed:
+            await audit_login_rate_limit(request)
+            return login_rate_limited_response(ip_result)
+
         sso = get_sso_service(request)
         if not sso or not sso.provider_enabled(provider):
             return _login_redirect("sso_unavailable")
@@ -287,6 +313,12 @@ def create_admin_panel_router() -> APIRouter:
         error: Optional[str] = None,
     ):
         """Complete an SSO login: validate the id_token and mint a session cookie."""
+        limiter = get_login_rate_limiter(request)
+        ip_result = await limiter.check_ip(request)
+        if not ip_result.allowed:
+            await audit_login_rate_limit(request)
+            return login_rate_limited_response(ip_result)
+
         sso = get_sso_service(request)
         if not sso or not sso.provider_enabled(provider):
             return _login_redirect("sso_unavailable")
@@ -314,6 +346,12 @@ def create_admin_panel_router() -> APIRouter:
 
         subject = claims["sub"]
         email = claims.get("email") or claims.get("preferred_username")
+        identity = email or f"{provider}:{subject}"
+        username_result = await limiter.check_username(request, identity)
+        if not username_result.allowed:
+            await audit_login_rate_limit(request, identity)
+            return login_rate_limited_response(username_result)
+
         is_admin_allowlisted = sso.is_admin(
             email, provider, subject, email_verified=claims.get("email_verified")
         )
@@ -333,6 +371,10 @@ def create_admin_panel_router() -> APIRouter:
                 "Admin SSO denied for %s: email=%r subject=%r is not on the identity allowlist",
                 provider, email, subject,
             )
+            username_result = await limiter.record_username_failure(request, identity)
+            if not username_result.allowed:
+                await audit_login_rate_limit(request, identity)
+                return login_rate_limited_response(username_result)
             return _login_redirect("not_cleared")
 
         # Allowlisted identities are always granted (or kept as) admin. Everyone
@@ -345,6 +387,10 @@ def create_admin_panel_router() -> APIRouter:
                 "Admin SSO denied for %s: email=%r subject=%r has no admin-panel permissions",
                 provider, email, subject,
             )
+            username_result = await limiter.record_username_failure(request, identity)
+            if not username_result.allowed:
+                await audit_login_rate_limit(request, identity)
+                return login_rate_limited_response(username_result)
             return _login_redirect("not_authorized")
 
         token = await auth_service.create_session(user)

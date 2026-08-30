@@ -361,6 +361,9 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
             entry, path_params = match
             _method, _regex, event_type, action, resource_type, resource_id_source, allowed, _template = entry
 
+        if getattr(request.state, "auth_rate_limited", False):
+            event_type = "auth.login.rate_limited"
+
         # Resolve actor
         actor_type = "anonymous"
         actor_id: Optional[str] = None

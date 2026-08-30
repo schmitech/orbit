@@ -76,6 +76,12 @@ auth:
   default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
   pbkdf2_iterations: 600000
   credential_storage: file
+  login_rate_limit:
+    enabled: true
+    window_seconds: 60
+    max_attempts_per_ip: 10
+    max_attempts_per_username: 5
+    lockout_after_username_limit: false
 
 api_keys:
   header_name: "X-API-Key"

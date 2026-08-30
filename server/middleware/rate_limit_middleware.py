@@ -36,30 +36,39 @@ class InMemoryRateLimiter:
         self._last_cleanup = time.monotonic()
         self._cleanup_interval = cleanup_interval
 
-    def is_allowed(self, key: str, limit: int) -> Tuple[bool, int]:
+    def is_allowed(
+        self, key: str, limit: int, window_seconds: int = 60
+    ) -> Tuple[bool, int]:
         """Check if a request is allowed and return (allowed, remaining)."""
         now = time.monotonic()
-        window_minute = int(now // 60)
+        window = int(now // window_seconds)
 
         with self._lock:
             # Periodic cleanup of stale entries
             if now - self._last_cleanup > self._cleanup_interval:
-                cutoff_window = window_minute - 2  # Evict entries silent for two full 60s windows.
+                cutoff_window = window - 2
                 self._windows = {
                     k: v for k, v in self._windows.items() if v[1] > cutoff_window
                 }
                 self._last_cleanup = now
 
-            count, stored_minute = self._windows.get(key, (0, window_minute))
-            if stored_minute != window_minute:
+            count, stored_window = self._windows.get(key, (0, window))
+            if stored_window != window:
                 count = 0
 
             if count < limit:
                 count += 1
-                self._windows[key] = (count, window_minute)
+                self._windows[key] = (count, window)
                 return True, max(0, limit - count)
             else:
                 return False, 0
+
+    def get_count(self, key: str, window_seconds: int = 60) -> int:
+        """Return the current-window count without consuming an attempt."""
+        window = int(time.monotonic() // window_seconds)
+        with self._lock:
+            count, stored_window = self._windows.get(key, (0, window))
+            return count if stored_window == window else 0
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

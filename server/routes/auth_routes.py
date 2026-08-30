@@ -16,6 +16,10 @@ from pydantic import BaseModel, Field
 
 from routes.auth_dependencies import get_auth_service, get_current_user, get_current_user_with_token, require_permission
 from services.auth_service import AuthService
+from services.login_rate_limiter import (
+    get_login_rate_limiter,
+    login_rate_limited_response,
+)
 from auth.rbac import has_permission, is_valid_role, get_role_names
 from services.user_blacklist_service import (
     ENTRY_TYPES,
@@ -129,7 +133,8 @@ class BlacklistRuleResponse(BaseModel):
 # Authentication Endpoints
 @auth_router.post("/login", response_model=LoginResponse)
 async def login(
-    request: LoginRequest,
+    login_request: LoginRequest,
+    request: Request,
     auth_service = Depends(get_auth_service)
 ):
     """
@@ -146,16 +151,35 @@ async def login(
         HTTPException: If login fails
     """
     try:
-        logger.info(f"Login attempt for user: {request.username}")
+        limiter = get_login_rate_limiter(request)
+        ip_result = await limiter.check_ip(request)
+        if not ip_result.allowed:
+            request.state.auth_rate_limited = True
+            return login_rate_limited_response(ip_result)
+
+        username_result = await limiter.check_username(
+            request, login_request.username
+        )
+        if not username_result.allowed:
+            request.state.auth_rate_limited = True
+            return login_rate_limited_response(username_result)
+
+        logger.info(f"Login attempt for user: {login_request.username}")
         
         success, token, user_info = await auth_service.authenticate_user(
-            request.username, 
-            request.password
+            login_request.username,
+            login_request.password
         )
         
         logger.info(f"Authentication result: success={success}")
         
         if not success:
+            username_result = await limiter.record_username_failure(
+                request, login_request.username
+            )
+            if not username_result.allowed:
+                request.state.auth_rate_limited = True
+                return login_rate_limited_response(username_result)
             raise HTTPException(
                 status_code=401,
                 detail="Invalid username or password"

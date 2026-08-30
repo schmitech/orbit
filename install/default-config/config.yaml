@@ -174,6 +174,15 @@ auth:
   # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
   credential_storage: keyring
 
+  # Dedicated sign-in protection. The IP bucket is consumed by each login
+  # request; the username bucket is consumed only after a failed attempt.
+  login_rate_limit:
+    enabled: true
+    window_seconds: 60
+    max_attempts_per_ip: 10
+    max_attempts_per_username: 5
+    lockout_after_username_limit: false
+
   # When true, every inference surface (chat, files, voice, A2A) requires a
   # valid Authorization: Bearer <user-token> in addition to the API key, and
   # the API key must be sent in the X-API-Key header (the Bearer-as-API-key

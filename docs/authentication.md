@@ -1577,13 +1577,13 @@ Located in `bin/orbit.py`
 ✅ **Input Validation**: Pydantic models validate all inputs  
 ✅ **Error Handling**: Secure error messages, no info leakage  
 ✅ **Audit Logging**: Authentication events logged  
+✅ **Login Rate Limiting**: Cache-backed IP and username throttling with degraded-mode fallback — [implementation plan](roadmap/authentication/complete/phase-1-auth-login-rate-limiting.md)
 
 ### Recommended Additional Security
 
-Phased implementation plans for each item below are tracked under
-[`docs/roadmap/authentication/`](roadmap/authentication/), ordered by dependency and effort (Phase 1 → 7).
+Plans for the remaining phases are tracked under
+[`docs/roadmap/authentication/`](roadmap/authentication/), ordered by dependency and effort (Phase 2 → 7).
 
-🔸 **Rate Limiting**: Implement login attempt throttling — [roadmap](roadmap/authentication/phase-1-auth-login-rate-limiting.md) (Phase 1)  
 🔸 **Password Complexity**: Enforce minimum password requirements — [roadmap](roadmap/authentication/phase-2-auth-password-complexity.md) (Phase 2)  
 🔸 **Account Lockout**: Temporary lockout after failed attempts — [roadmap](roadmap/authentication/phase-3-auth-account-lockout.md) (Phase 3)  
 🔸 **Audit Trail**: Detailed logging of all user actions — [roadmap](roadmap/authentication/phase-4-auth-audit-trail-coverage.md) (Phase 4)  

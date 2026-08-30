@@ -1,5 +1,7 @@
 # Login Rate Limiting — Implementation Plan
 
+**Status:** Complete (2026-08-30)
+
 ## Summary
 
 Add a stricter, login-specific rate-limit bucket on top of ORBIT's existing
@@ -9,9 +11,9 @@ every route. No new infrastructure — this reuses the cache-backed counter and
 IP-extraction utilities already in the codebase.
 
 **Roadmap position:** Phase 1. No dependencies. Pairs naturally with
-[Password Complexity](phase-2-auth-password-complexity.md) (Phase 2) as the two
+[Password Complexity](../phase-2-auth-password-complexity.md) (Phase 2) as the two
 lowest-effort items, and is a prerequisite building block for
-[Account Lockout](phase-3-auth-account-lockout.md) (Phase 3), which shares its counter
+[Account Lockout](../phase-3-auth-account-lockout.md) (Phase 3), which shares its counter
 pattern.
 
 ## Current state
@@ -40,7 +42,7 @@ auth:
     window_seconds: 60
     max_attempts_per_ip: 10        # coarse guard, independent of identity
     max_attempts_per_username: 5   # the real control
-    lockout_after_username_limit: false   # if true, hands off to Account Lockout (Phase 2)
+    lockout_after_username_limit: false   # if true, hands off to Account Lockout (Phase 3)
 ```
 
 Applies to both `POST /auth/login` (local password) and the SSO initiation/
@@ -63,6 +65,9 @@ bucket is the first line of defense on that path).
   after it returns `False`, not in the middleware's request-start hook — the
   middleware doesn't know whether a request already inside the window will
   succeed or fail.
+- Check the username counter before authentication without incrementing it. Once
+  the failure allowance is exhausted, every attempt receives the same `429`
+  until the window resets, including an attempt presenting a correct password.
 - Do not distinguish "unknown username" from "wrong password" in the throttled
   response — same behavior and same error message either way, to avoid
   leaking which usernames exist (this is already the existing 401 message
@@ -70,7 +75,7 @@ bucket is the first line of defense on that path).
 - Return `429` with `Retry-After` once the username-keyed bucket is exceeded,
   reusing the existing `X-RateLimit-*` header convention for consistency.
 - Log a rate-limit-triggered event through the existing audit path (see
-  [Audit Trail](phase-4-auth-audit-trail-coverage.md)) rather than inventing a
+  [Audit Trail](../phase-4-auth-audit-trail-coverage.md)) rather than inventing a
   separate log line.
 
 ## Verification
@@ -78,6 +83,8 @@ bucket is the first line of defense on that path).
 - Unit test: N+1 failed logins for the same username within the window return
   429 on the (N+1)th; a successful login for a *different* username in the
   same window is unaffected.
+- Unit test: correct credentials for an exhausted username still return 429
+  until the fixed window resets.
 - Unit test: the per-IP bucket still trips independently when attempts are
   spread across many distinct usernames from one IP.
 - Confirm the cache-down fallback (`InMemoryRateLimiter`) still throttles

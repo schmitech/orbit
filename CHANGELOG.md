@@ -1,5 +1,13 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core System Updates
+- **Login Rate Limiting**: Added cache-backed fixed-window throttling for password and SSO login surfaces with independent IP and normalized-username buckets, in-memory fallback behavior, standard rate-limit headers, and configurable lockout thresholds.
+
+### Security
+- **Login Rate-Limit Auditing**: Rate-limited authentication attempts now produce `auth.login.rate_limited` administrative audit events without recording credentials, alongside HTTP 429 responses.
+
 ## [2.17.2] - 2026-08-29
 
 ### Core System Updates
