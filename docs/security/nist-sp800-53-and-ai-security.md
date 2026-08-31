@@ -61,69 +61,230 @@ This section maps ORBIT's documented features to NIST SP 800-53 (Rev. 5) control
 
 ## 3. AI Security Guardrails & OWASP LLM Risk Mitigations
 
-This section outlines technical guardrails in ORBIT that align with OWASP Top 10 for LLM Applications risk mitigation patterns.
+This section maps documented ORBIT capabilities to the OWASP Top 10 for LLM
+Applications risk areas. The mapping describes risk reduction and containment;
+it does not claim universal jailbreak, prompt-injection, hallucination, or
+unsafe-output prevention. Several controls are optional and must be enabled and
+configured by the deploying organization. External moderation, identity,
+secret-management, storage, model, and tool services remain part of the
+deployment authorization boundary and require separate assessment.
 
 ```
                     +-------------------------------------------------+
-                    |              Client API / Chat Request           |
+                    |       Client / File / Retrieval / Tool Input     |
                     +-------------------------------------------------+
                                             |
                                             v
                     +-------------------------------------------------+
                     |  1. Identity Allowlist & OIDC Authentication     |
-                    |     (AC-2, AC-6, OWASP LLM07 Identity Scoping)   |
+                    |     (AC-2, AC-6, AU-10)                          |
                     +-------------------------------------------------+
                                             |
                                             v
                     +-------------------------------------------------+
-                    |  2. Inbound Presidio PII Detection & Blocking   |
-                    |     (SI-10, OWASP LLM02 Sensitive Data Guard)   |
+                    |  2. Configurable Safety Moderation Gate         |
+                    |     (request/response; optional)                |
                     +-------------------------------------------------+
                                             |
                                             v
                     +-------------------------------------------------+
-                    |  3. Intent Query Template & AST SQL Guard       |
-                    |     (SI-10, OWASP LLM01 SQL Risk Reduction)     |
+                    |  3. Adapter / Skill / Model Scope & Routing      |
+                    |     (AC-3, AC-6, SI-10)                          |
                     +-------------------------------------------------+
                                             |
                                             v
                     +-------------------------------------------------+
-                    |  4. MCP Tool-Skill Playbooks & Context Budget   |
-                    |     (Text Playbooks, Priority Token Budget,     |
-                    |      24 KB Limit, OWASP LLM06 Agency Control)   |
+                    |  4. Retrieval / Intent / Tool Guardrails        |
+                    |     (templates, AST SQL, skills, context caps)  |
                     +-------------------------------------------------+
                                             |
                                             v
                     +-------------------------------------------------+
-                    |  5. Audit Event Logging & Cost Estimation Engine|
-                    |     (AU-2, AU-3, OWASP LLM10 Resource Control)  |
+                    |  5. Output / Usage Monitoring & Audit             |
+                    |     (AU-2, AU-3, SI-4, quotas, cost controls)   |
                     +-------------------------------------------------+
 ```
 
 ### 3.1 OWASP LLM Top 10 Risk Mitigation Mapping
 
-#### 1. LLM01: Prompt Injection
-- **Intent-Based Query Generation**: Natural language database questions match curated, configured query templates rather than invoking unconstrained LLM text generation over live databases.
-- **AST SQL Query Guard**: Intent SQL retrievers parse generated queries using an AST validator enforcing single read-only statements (`SELECT`).
-- **Prompt Prefix Stabilization**: System prompt prefixes are structured into static blocks for prompt-cache optimization. *(Note: Prompt prefix stabilization is a performance optimization, not a cryptographic or mathematical jailbreak defense).*
+#### LLM01: Prompt Injection
 
-#### 2. LLM02: Sensitive Information Disclosure
-- **Inbound Presidio PII Moderation**: Evaluates incoming user prompts against Microsoft Presidio (HTTP REST service) for ~100 PII entity types with batch concurrency limits and safe serial fallback clamps. Flagged requests are blocked prior to model dispatch.
-- **Local `privacy-filter` Model**: On-premises PII detection option for air-gapped environments. *(Note: `privacy-filter` fails open on technical errors and requires model files to be pre-staged in air-gapped deployments).*
-- **Ungrounded Document Generation Guard**: Document generation skills refuse to generate filler content when requested file attachments are unretrieved or missing.
+ORBIT provides layered containment controls, but no universal direct- or
+indirect-prompt-injection detector. Injection may arrive in user input,
+conversation history, uploaded documents, retrieved or web content, MCP/A2A
+messages, or tool results.
 
-#### 3. LLM06: Excessive Agency
-- **MCP Tool Skills & Procedural Playbooks (`SKILL.md`)**: Provides models with text-based procedural guidance for Model Context Protocol tools without granting unmonitored execution privileges.
-- **Dual Injection Mechanism**: Supports explicit turn loading via an enum-scoped `orbit__load_tool_skill` loader and automatic post-invocation JIT injection (Phase 2). *(Note: JIT injection attaches after a bound tool's first call and does not shape the initial tool invocation).*
-- **Turn Context Budget & Hard Limits**: Enforces a per-turn context budget (maximum 3 skills / 24 KB total per turn), catalog prioritization, and body-redacted audit logging.
+- **Configurable safety moderation**: When `safety.enabled: true`, ORBIT can
+  screen requests and responses using OpenAI, Anthropic, Llama Guard 3,
+  Shieldstral, or local PII-focused moderators. This is a policy gate, not a
+  dedicated prompt-injection detector. The deployment must select the moderator,
+  define policy coverage, and test inbound and outbound behavior.
+- **Intent template validation and approval**: Natural-language structured-data
+  requests match configured templates; templates can be validated and optionally
+  require administrator approval before use.
+- **Read-only query enforcement**: Generated SQL is parsed and rejected unless
+  it is a single, read-only, size-limited statement. This contains injection
+  attempting database modification, but applies to guarded intent-SQL paths only.
+- **Adapter, skill, and model scoping**: Skills are bound to adapters, automatic
+  skill routing is optional and disabled by default, and `allowed_models` can
+  constrain model selection per adapter. API-key and RBAC controls further limit
+  invocation.
+- **MCP skill playbooks and context limits**: File- and database-authored
+  playbooks, progressive loading, priority admission, and the maximum three
+  skills/24 KB per turn reduce uncontrolled tool-context expansion. JIT skill
+  injection occurs after a bound tool's first invocation and does not protect
+  that initial invocation.
+- **Retrieval monitoring and refusal behavior**: Retrieval confidence, candidate
+  scores, guard rejections, disambiguation, and Misses triage expose suspicious
+  or low-confidence routing. Document and image generation skills refuse to
+  invent filler when required files or matching context are unavailable.
 
-#### 4. LLM07: System Prompt Leakage & Supply Chain Security
-- **Secrets Manager Resolution**: Resolves credentials from AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager at startup, with fallback to environment/`.env` values.
-- **Model Scoping per Adapter**: Adapters support `allowed_models` configuration to restrict model selection choices per client request.
+**Residual risk and assessment evidence**: ORBIT does not establish that
+retrieved or tool-returned text is instruction-free, does not cryptographically
+separate trusted instructions from untrusted content, and does not guarantee
+that an LLM follows a playbook. Assessors should require tests covering direct,
+indirect, multi-turn, document, web, MCP, A2A, and tool-result attacks, plus
+evidence of enabled moderation, routing settings, denied tool calls, guard
+rejections, and low-confidence retrieval review.
 
-#### 5. LLM10: Unbounded Consumption & Cost Controls
-- **Request Quotas & Throttling**: Daily and monthly request quotas per API key with priority-based request throttling.
-- **Local Cost Estimation**: Estimates token and media costs using an editable local rate table (`config/pricing.yaml`) with staleness tracking. *(Note: Costs are local estimations, not official cloud provider billing invoices).*
+#### LLM02: Sensitive Information Disclosure
+
+- **Request and response moderation**: Configurable moderation backends can
+  screen requests and responses; deployment policy must define blocked
+  categories.
+- **PII detection**: Presidio supports roughly 100 configurable entity types
+  through a self-hosted HTTP analyzer; `privacy_filter` provides an in-process,
+  air-gapped alternative. Detected PII is blocked, not redacted.
+- **Failure behavior**: Presidio failures are blocked by default through
+  `safety.allow_on_timeout: false`; `privacy_filter` fails open on technical
+  errors. This difference must be tested for the selected deployment.
+- **Access and secret controls**: OIDC/RBAC, strict authenticated-user mode,
+  adapter scoping, file encryption, and secret-manager resolution reduce
+  unauthorized data access and credential exposure.
+- **Grounding guard**: Document-generation skills refuse to generate filler when
+  requested attachments are missing or unretrieved; this is not a general
+  confidentiality guarantee.
+
+#### LLM03: Supply Chain
+
+- ORBIT supports local, self-hosted, and cloud inference providers, per-adapter
+  provider/model overrides, and `allowed_models` restrictions.
+- AWS Secrets Manager, Azure Key Vault, and GCP Secret Manager integrations can
+  keep provider credentials out of ordinary configuration.
+- YAML capability and security settings can be version-controlled, reviewed,
+  and promoted through change management.
+
+**Limitations**: These capabilities do not establish model/dependency
+provenance, signature verification, vulnerability scanning, or secure-update
+controls. Those remain deployment and supply-chain responsibilities.
+
+#### LLM04: Data and Model Poisoning
+
+- Approved retrieval paths, optional administrator approval for intent templates,
+  read-only SQL guards, confidence bands, and Misses triage constrain or expose
+  some unsafe retrieval behavior.
+- Retrieval outcomes, guard rejections, confidence, user feedback, and audit
+  events support review of suspicious data or model behavior.
+
+**Limitations**: ORBIT does not provide general training-data provenance,
+corpus-poisoning detection, model-weight validation, or semantic integrity
+guarantees for external documents, web content, vector stores, or tools.
+
+#### LLM05: Improper Output Handling
+
+- Response moderation can block policy-violating model responses when the safety
+  layer is enabled.
+- Read-only SQL validation, Magika file-type verification, adapter/model
+  scoping, and bounded tool-skill context provide downstream boundary controls.
+
+**Limitations**: Moderation is not HTML/Markdown sanitization, output encoding,
+schema validation, malware scanning, sandboxing, CDR, or validation of tool
+arguments and downstream commands. Integrators must safely render and consume
+ORBIT output.
+
+#### LLM06: Excessive Agency
+
+- MCP tool skills and procedural playbooks provide explicit guidance and tool
+  boundaries for external MCP calls.
+- Skill allowlisting and adapter scoping limit which capabilities an adapter can
+  invoke; automatic routing is optional and disabled by default.
+- Context hard limits enforce a maximum of three skills/24 KB per turn,
+  priority-based admission, and body-redacted skill audit logging.
+- MCP/A2A and async integrations expand the trust boundary and require
+  deployment-specific authorization, tool inventory, least privilege, and
+  approval controls. A playbook does not make an external tool trustworthy.
+
+#### LLM07: System Prompt Leakage
+
+- Static prompt blocks, scoped adapters, bounded skill loading, and redacted
+  skill-body audit records reduce accidental exposure of internal context.
+- Secret-manager resolution keeps provider credentials out of prompts and
+  ordinary configuration values.
+
+**Limitations**: These controls do not guarantee that system prompts, hidden
+instructions, retrieved content, or tool metadata cannot be elicited. Prompt
+prefix stabilization is a performance optimization, not a cryptographic or
+mathematical jailbreak defense.
+
+#### LLM08: Vector and Embedding Weaknesses
+
+- Hybrid semantic/keyword scoring, reranking, confidence bands, intent
+  validation, row caps, and retrieval telemetry provide retrieval controls.
+- Configured vector-store backends, adapter/API-key scoping, RBAC, and optional
+  encrypted file/content storage provide related access and storage controls.
+
+**Limitations**: The documented capabilities do not establish tenant-aware
+authorization filtering for every vector backend, embedding-inversion
+resistance, poisoned-vector detection, or provenance/integrity validation.
+These properties must be verified for each data source and deployment.
+
+#### LLM09: Misinformation
+
+- Grounded retrieval, reranking, confidence/clarification behavior, row caps,
+  Misses triage, and refusal to fabricate missing document context reduce some
+  unsupported answers.
+- Per-response feedback, request history, retrieval outcomes, and audit events
+  provide review signals.
+
+**Limitations**: These are grounding and review aids, not factuality proofs,
+source verification, citation correctness, or guarantees against hallucination.
+Deployment procedures should define when human review or authoritative-source
+validation is required.
+
+#### LLM10: Unbounded Consumption
+
+- Per-key daily/monthly quotas, priority-based throttling, rate limiting, and
+  request telemetry constrain consumption.
+- Per-turn skill/context caps, dynamic history budgeting, and configured
+  model/media limits reduce uncontrolled token and media use.
+- Local token/media cost estimation and dashboards report usage by model,
+  provider, adapter, user, request type, and API key, with pricing staleness
+  tracking.
+
+**Limitations**: Local prices are estimates rather than provider invoices, and
+quota enforcement does not prevent distributed abuse across identities or keys.
+Operators must define aggregate tenant, network, and provider-side limits where
+required.
+
+### 3.2 OWASP Control Configuration & Assessment Evidence
+
+For an authorization assessment, the deploying organization should retain:
+
+- the effective guardrail, moderator, adapter, skill, model, MCP, A2A, and
+  retrieval configurations;
+- evidence that moderation is enabled, the selected policy is approved,
+  timeout/failure behavior is intentional, and request/response paths were
+  tested;
+- approved intent templates, adapter/skill/model allowlists, tool inventories,
+  external-service trust decisions, and least-privilege assignments;
+- prompt-injection, unsafe-output, PII, retrieval-isolation, tool-abuse, quota,
+  and failover test results;
+- audit records and monitoring alerts for moderation decisions, retrieval guard
+  rejections, tool calls, low-confidence retrievals, quota events, and
+  administrative changes; and
+- documented residual-risk acceptance for universal prompt-injection prevention,
+  model/dependency provenance, corpus-poisoning detection, output sanitization,
+  vector-store isolation, and factuality verification.
 
 ---
 
