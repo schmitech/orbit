@@ -1,0 +1,1249 @@
+status: completed
+generated_at: '2025-01-27T12:00:00.000000'
+last_updated: '2025-01-27T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 33
+
+# =============================================================================
+# GOVERNMENT OF CANADA AI REGISTER (MVP) - QUERY TEMPLATES
+# =============================================================================
+# This database tracks AI systems deployed across federal government institutions
+# All queries focus on English language content by default
+# Bilingual data is available in French (_fr) columns
+# =============================================================================
+
+templates:
+
+# =============================================================================
+# OVERVIEW & SUMMARY QUERIES
+# =============================================================================
+
+- id: count_all_ai_systems
+  description: Count the total number of AI systems registered
+  sql: SELECT COUNT(*) AS total_ai_systems FROM ai_register
+  parameters: []
+  nl_examples:
+  - How many AI systems are registered?
+  - Count all AI systems in the government
+  - What's the total number of AI tools?
+  - How many AI applications does the government have?
+  - Total AI systems registered
+  - Count of federal AI systems
+  - How many machine learning systems?
+  - Number of AI solutions
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: count
+    primary_entity: ai_register
+    qualifiers: []
+  tags:
+  - count
+  - overview
+  - summary
+
+- id: ai_systems_statistics
+  description: Get summary statistics for all AI systems
+  sql: |
+    SELECT
+        COUNT(*) AS total_systems,
+        COUNT(DISTINCT government_organization) AS unique_organizations,
+        COUNT(CASE WHEN ai_system_status_en = 'In production' THEN 1 END) AS in_production,
+        COUNT(CASE WHEN ai_system_status_en = 'In development' THEN 1 END) AS in_development,
+        COUNT(CASE WHEN ai_system_status_en = 'Retired' THEN 1 END) AS retired,
+        COUNT(CASE WHEN involves_personal_information = 'Y' THEN 1 END) AS involves_personal_info,
+        COUNT(CASE WHEN notification_ai = 'Y' THEN 1 END) AS with_ai_notification,
+        COUNT(DISTINCT vendor_information) AS unique_vendors
+    FROM ai_register
+  parameters: []
+  nl_examples:
+  - Show me AI register statistics
+  - Give me an overview of AI systems
+  - Summary of federal AI deployments
+  - What's the breakdown of AI systems?
+  - AI register overview
+  - Statistics for government AI
+  - Federal AI summary
+  - How is AI being used across government?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: ai_register
+    qualifiers: []
+  tags:
+  - calculate
+  - statistics
+  - overview
+
+- id: list_all_ai_systems
+  description: List all AI systems with key details
+  sql: |
+    SELECT
+        ai_register_id,
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_status_en AS status,
+        status_date,
+        ai_system_capabilities_en AS capabilities,
+        developed_by_en AS developed_by
+    FROM ai_register
+    ORDER BY status_date DESC, name_ai_system_en
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 50
+  nl_examples:
+  - List all AI systems
+  - Show me all registered AI
+  - Display all AI applications
+  - Get all AI tools
+  - What AI systems exist?
+  - Show the AI register
+  - List federal AI systems
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers: []
+  tags:
+  - find
+  - list
+  - all
+
+# =============================================================================
+# STATUS-BASED QUERIES
+# =============================================================================
+
+- id: ai_systems_by_status
+  description: Count AI systems by status
+  sql: |
+    SELECT
+        ai_system_status_en AS status,
+        COUNT(*) AS count,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM ai_register
+    WHERE ai_system_status_en IS NOT NULL
+    GROUP BY ai_system_status_en
+    ORDER BY count DESC
+  parameters: []
+  nl_examples:
+  - How many AI systems are in production?
+  - Show AI systems by status
+  - What's the status breakdown?
+  - How many are in development vs production?
+  - AI system status distribution
+  - Production vs development AI
+  - Status of federal AI systems
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: ai_register
+    qualifiers:
+    - status
+  tags:
+  - compare
+  - status
+  - breakdown
+
+- id: ai_systems_in_production
+  description: List AI systems currently in production
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_capabilities_en AS capabilities,
+        status_date,
+        vendor_information AS vendor
+    FROM ai_register
+    WHERE ai_system_status_en = 'In production'
+    ORDER BY status_date DESC, name_ai_system_en
+  parameters: []
+  nl_examples:
+  - Show me AI systems in production
+  - What AI is currently deployed?
+  - List live AI systems
+  - Which AI tools are operational?
+  - Production AI systems
+  - Active AI deployments
+  - AI currently in use
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - production
+  tags:
+  - find
+  - production
+  - active
+
+- id: ai_systems_in_development
+  description: List AI systems currently in development
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_capabilities_en AS capabilities,
+        status_date,
+        developed_by_en AS developed_by
+    FROM ai_register
+    WHERE ai_system_status_en = 'In development'
+    ORDER BY status_date DESC, name_ai_system_en
+  parameters: []
+  nl_examples:
+  - Show me AI systems in development
+  - What AI is being developed?
+  - List AI projects in progress
+  - Which AI tools are being built?
+  - Upcoming AI systems
+  - AI under development
+  - New AI projects
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - development
+  tags:
+  - find
+  - development
+  - upcoming
+
+- id: retired_ai_systems
+  description: List retired AI systems
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_capabilities_en AS capabilities,
+        status_date,
+        ai_system_results_en AS results
+    FROM ai_register
+    WHERE ai_system_status_en = 'Retired'
+    ORDER BY status_date DESC
+  parameters: []
+  nl_examples:
+  - Show me retired AI systems
+  - What AI has been decommissioned?
+  - List discontinued AI tools
+  - Which AI systems are no longer in use?
+  - Retired AI projects
+  - Discontinued AI
+  - AI that's been shut down
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - retired
+  tags:
+  - find
+  - retired
+  - historical
+
+# =============================================================================
+# ORGANIZATION-BASED QUERIES
+# =============================================================================
+
+- id: ai_systems_by_organization
+  description: Count AI systems by government organization
+  sql: |
+    SELECT
+        government_organization AS organization,
+        COUNT(*) AS ai_system_count,
+        COUNT(CASE WHEN ai_system_status_en = 'In production' THEN 1 END) AS in_production,
+        COUNT(CASE WHEN ai_system_status_en = 'In development' THEN 1 END) AS in_development
+    FROM ai_register
+    GROUP BY government_organization
+    ORDER BY ai_system_count DESC
+  parameters: []
+  nl_examples:
+  - Which organizations have the most AI systems?
+  - AI systems by department
+  - Show AI count by organization
+  - Who has the most AI?
+  - Department AI breakdown
+  - Which ministry uses most AI?
+  - AI adoption by organization
+  - Government departments using AI
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: ai_register
+    qualifiers:
+    - organization
+  tags:
+  - compare
+  - organization
+  - department
+
+- id: ai_systems_for_organization
+  description: List AI systems for a specific organization
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        ai_system_status_en AS status,
+        ai_system_capabilities_en AS capabilities,
+        status_date,
+        developed_by_en AS developed_by,
+        vendor_information AS vendor
+    FROM ai_register
+    WHERE government_organization ILIKE '%' || :organization || '%'
+    ORDER BY
+        CASE ai_system_status_en
+            WHEN 'In production' THEN 1
+            WHEN 'In development' THEN 2
+            WHEN 'Retired' THEN 3
+            ELSE 4
+        END,
+        name_ai_system_en
+  parameters:
+  - name: organization
+    type: string
+    description: Organization name to search for (partial match)
+    required: true
+  nl_examples:
+  - Show me AI systems for Health Canada
+  - What AI does Transport Canada use?
+  - List AI at RCMP
+  - National Defence AI systems
+  - AI at Statistics Canada
+  - CRA AI tools
+  - ESDC AI applications
+  - Immigration AI systems
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - organization
+  tags:
+  - find
+  - organization
+  - department
+
+# =============================================================================
+# VENDOR & DEVELOPMENT QUERIES
+# =============================================================================
+
+- id: ai_systems_by_developer
+  description: Count AI systems by who developed them
+  sql: |
+    SELECT
+        developed_by_en AS developed_by,
+        COUNT(*) AS count,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM ai_register
+    WHERE developed_by_en IS NOT NULL
+    GROUP BY developed_by_en
+    ORDER BY count DESC
+  parameters: []
+  nl_examples:
+  - Who develops government AI?
+  - Vendor vs government developed AI
+  - How many AI systems are built in-house?
+  - AI development breakdown
+  - Who builds federal AI?
+  - In-house vs vendor AI
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: ai_register
+    qualifiers:
+    - developer
+  tags:
+  - compare
+  - developer
+  - vendor
+
+- id: ai_systems_by_vendor
+  description: List AI systems grouped by vendor
+  sql: |
+    SELECT
+        vendor_information AS vendor,
+        COUNT(*) AS system_count,
+        GROUP_CONCAT(DISTINCT government_organization) AS organizations
+    FROM ai_register
+    WHERE vendor_information IS NOT NULL
+        AND vendor_information != ''
+    GROUP BY vendor_information
+    ORDER BY system_count DESC
+  parameters: []
+  nl_examples:
+  - Which vendors supply AI systems?
+  - Show AI systems by vendor
+  - Top AI vendors
+  - Which companies provide AI?
+  - Vendor breakdown
+  - Who are the AI suppliers?
+  - AI vendor list
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: ai_register
+    qualifiers:
+    - vendor
+  tags:
+  - compare
+  - vendor
+  - supplier
+
+- id: vendor_ai_systems
+  description: List AI systems for a specific vendor
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_status_en AS status,
+        ai_system_capabilities_en AS capabilities,
+        status_date
+    FROM ai_register
+    WHERE vendor_information ILIKE '%' || :vendor || '%'
+    ORDER BY government_organization, name_ai_system_en
+  parameters:
+  - name: vendor
+    type: string
+    description: Vendor name to search for
+    required: true
+  nl_examples:
+  - Show me AI systems from Microsoft
+  - What AI does IBM provide?
+  - List AI from Thomson Reuters
+  - Google AI systems
+  - Amazon AI tools
+  - OpenAI systems
+  - Deloitte AI solutions
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - vendor
+  tags:
+  - find
+  - vendor
+  - specific
+
+# =============================================================================
+# CAPABILITY-BASED QUERIES
+# =============================================================================
+
+- id: ai_systems_by_capability
+  description: Search AI systems by capability type
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_capabilities_en AS capabilities,
+        ai_system_status_en AS status,
+        description_ai_system_en AS description
+    FROM ai_register
+    WHERE ai_system_capabilities_en ILIKE '%' || :capability || '%'
+        OR description_ai_system_en ILIKE '%' || :capability || '%'
+    ORDER BY government_organization, name_ai_system_en
+  parameters:
+  - name: capability
+    type: string
+    description: Capability to search for (e.g., generative, machine learning, chatbot)
+    required: true
+  nl_examples:
+  - Show me generative AI systems
+  - Find chatbot applications
+  - List machine learning systems
+  - NLP AI tools
+  - Computer vision AI
+  - Document extraction AI
+  - AI for image recognition
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - capability
+  tags:
+  - find
+  - capability
+  - type
+
+- id: generative_ai_systems
+  description: List all generative AI systems
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_capabilities_en AS capabilities,
+        ai_system_status_en AS status,
+        vendor_information AS vendor,
+        ai_system_primary_users_en AS users
+    FROM ai_register
+    WHERE ai_system_capabilities_en ILIKE '%generative%'
+        OR ai_system_capabilities_en ILIKE '%chatbot%'
+        OR ai_system_capabilities_en ILIKE '%LLM%'
+        OR ai_system_capabilities_en ILIKE '%large language%'
+        OR description_ai_system_en ILIKE '%generative ai%'
+        OR description_ai_system_en ILIKE '%LLM%'
+        OR description_ai_system_en ILIKE '%large language model%'
+    ORDER BY government_organization, name_ai_system_en
+  parameters: []
+  nl_examples:
+  - Show me all generative AI
+  - List chatbots
+  - Find LLM applications
+  - Generative AI in government
+  - AI assistants and chatbots
+  - Large language model systems
+  - GenAI tools
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - generative
+  tags:
+  - find
+  - generative
+  - chatbot
+  - LLM
+
+- id: machine_learning_systems
+  description: List machine learning AI systems
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_capabilities_en AS capabilities,
+        ai_system_status_en AS status,
+        description_ai_system_en AS description
+    FROM ai_register
+    WHERE ai_system_capabilities_en ILIKE '%machine learning%'
+        OR regexp_matches(ai_system_capabilities_en, '(?i)\bML\b')
+        OR ai_system_capabilities_en ILIKE '%deep learning%'
+        OR ai_system_capabilities_en ILIKE '%predictive%'
+        OR description_ai_system_en ILIKE '%machine learning%'
+    ORDER BY government_organization, name_ai_system_en
+  parameters: []
+  nl_examples:
+  - Show me machine learning systems
+  - List ML applications
+  - Predictive AI tools
+  - Machine learning in government
+  - ML models
+  - Predictive analytics AI
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - machine_learning
+  tags:
+  - find
+  - machine_learning
+  - predictive
+
+# =============================================================================
+# USER-BASED QUERIES
+# =============================================================================
+
+- id: ai_systems_by_users
+  description: Count AI systems by primary user type
+  sql: |
+    SELECT
+        ai_system_primary_users_en AS primary_users,
+        COUNT(*) AS count,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM ai_register
+    WHERE ai_system_primary_users_en IS NOT NULL
+    GROUP BY ai_system_primary_users_en
+    ORDER BY count DESC
+  parameters: []
+  nl_examples:
+  - Who uses government AI systems?
+  - AI for employees vs public
+  - User breakdown for AI
+  - How many AI systems serve the public?
+  - Internal vs external AI
+  - Employee AI tools
+  - Public-facing AI
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: ai_register
+    qualifiers:
+    - users
+  tags:
+  - compare
+  - users
+  - audience
+
+- id: public_facing_ai_systems
+  description: List AI systems used by members of the public
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_capabilities_en AS capabilities,
+        ai_system_status_en AS status,
+        description_ai_system_en AS description
+    FROM ai_register
+    WHERE ai_system_primary_users_en ILIKE '%public%'
+        OR ai_system_primary_users_en ILIKE '%citizen%'
+    ORDER BY government_organization, name_ai_system_en
+  parameters: []
+  nl_examples:
+  - Show AI systems for the public
+  - Public-facing AI tools
+  - AI that citizens can use
+  - What AI do Canadians interact with?
+  - External AI services
+  - AI for the public
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - public
+  tags:
+  - find
+  - public
+  - citizen
+
+# =============================================================================
+# PRIVACY & COMPLIANCE QUERIES
+# =============================================================================
+
+- id: ai_systems_with_personal_information
+  description: List AI systems that involve personal information
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_capabilities_en AS capabilities,
+        ai_system_status_en AS status,
+        personal_information_banks_en AS pib,
+        notification_ai AS notifies_users
+    FROM ai_register
+    WHERE involves_personal_information = 'Y'
+    ORDER BY government_organization, name_ai_system_en
+  parameters: []
+  nl_examples:
+  - Show AI that uses personal information
+  - Which AI involves PII?
+  - AI with privacy implications
+  - Personal data AI systems
+  - AI using sensitive information
+  - Privacy-related AI
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - privacy
+  tags:
+  - find
+  - privacy
+  - personal_information
+
+- id: ai_notification_status
+  description: Analyze AI notification status
+  sql: |
+    SELECT
+        CASE notification_ai WHEN 'Y' THEN 'Yes' WHEN 'N' THEN 'No' ELSE notification_ai END AS notifies_users,
+        COUNT(*) AS count,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 1) AS percentage
+    FROM ai_register
+    WHERE notification_ai IS NOT NULL
+    GROUP BY notification_ai
+    ORDER BY count DESC
+  parameters: []
+  nl_examples:
+  - How many AI systems notify users?
+  - AI notification breakdown
+  - Are users told about AI?
+  - AI transparency stats
+  - Notification status for AI
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: ai_register
+    qualifiers:
+    - notification
+  tags:
+  - compare
+  - notification
+  - transparency
+
+- id: ai_privacy_summary
+  description: Summary of AI privacy and notification status
+  sql: |
+    SELECT
+        COUNT(*) AS total_systems,
+        COUNT(CASE WHEN involves_personal_information = 'Y' THEN 1 END) AS with_personal_info,
+        ROUND(100.0 * COUNT(CASE WHEN involves_personal_information = 'Y' THEN 1 END) / COUNT(*), 1) AS pct_with_personal_info,
+        COUNT(CASE WHEN notification_ai = 'Y' THEN 1 END) AS with_notification,
+        ROUND(100.0 * COUNT(CASE WHEN notification_ai = 'Y' THEN 1 END) / COUNT(*), 1) AS pct_with_notification
+    FROM ai_register
+  parameters: []
+  nl_examples:
+  - Privacy overview for AI systems
+  - How many AI systems use personal data?
+  - AI privacy and notification summary
+  - Compliance statistics for AI
+  - Privacy metrics for federal AI
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: ai_register
+    qualifiers:
+    - privacy
+  tags:
+  - calculate
+  - privacy
+  - compliance
+
+# =============================================================================
+# SEARCH & LOOKUP QUERIES
+# =============================================================================
+
+- id: search_ai_systems
+  description: Search AI systems by keyword
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_status_en AS status,
+        ai_system_capabilities_en AS capabilities,
+        description_ai_system_en AS description
+    FROM ai_register
+    WHERE name_ai_system_en ILIKE '%' || :keyword || '%'
+        OR description_ai_system_en ILIKE '%' || :keyword || '%'
+        OR ai_system_capabilities_en ILIKE '%' || :keyword || '%'
+        OR government_organization ILIKE '%' || :keyword || '%'
+    ORDER BY name_ai_system_en
+    LIMIT :limit
+  parameters:
+  - name: keyword
+    type: string
+    description: Keyword to search for in AI system name, description, or capabilities
+    required: true
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 50
+  nl_examples:
+  - Search for legal AI
+  - Find AI related to healthcare
+  - Look for crop AI systems
+  - Search immigration AI
+  - Find security AI
+  - AI systems about translation
+  - Search for document AI
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - keyword
+  tags:
+  - find
+  - search
+  - keyword
+
+- id: ai_system_details
+  description: Get full details for a specific AI system
+  sql: |
+    SELECT
+        ai_register_id,
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        description_ai_system_en AS description,
+        ai_system_primary_users_en AS primary_users,
+        developed_by_en AS developed_by,
+        vendor_information AS vendor,
+        ai_system_status_en AS status,
+        status_date,
+        ai_system_capabilities_en AS capabilities,
+        data_sources_en AS data_sources,
+        involves_personal_information AS uses_personal_info,
+        personal_information_banks_en AS pib,
+        notification_ai AS notifies_users,
+        ai_system_results_en AS results
+    FROM ai_register
+    WHERE ai_register_id = :ai_register_id
+        OR name_ai_system_en ILIKE '%' || :ai_register_id || '%'
+  parameters:
+  - name: ai_register_id
+    type: string
+    description: AI register ID or name to look up
+    required: true
+  nl_examples:
+  - Show details for Milo
+  - Get info on AgPal Chat
+  - Details about Document Detective
+  - Tell me about Westlaw AI
+  - What is the Annual Crop Inventory Map?
+  - Information on specific AI system
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - specific
+  tags:
+  - find
+  - details
+  - lookup
+
+# =============================================================================
+# YEAR-BASED QUERIES
+# =============================================================================
+
+- id: ai_systems_by_year
+  description: Count AI systems by status date year
+  sql: |
+    SELECT
+        status_date AS year,
+        COUNT(*) AS count,
+        COUNT(CASE WHEN ai_system_status_en = 'In production' THEN 1 END) AS in_production,
+        COUNT(CASE WHEN ai_system_status_en = 'In development' THEN 1 END) AS in_development
+    FROM ai_register
+    WHERE status_date IS NOT NULL
+    GROUP BY status_date
+    ORDER BY status_date DESC
+  parameters: []
+  nl_examples:
+  - Show AI systems by year
+  - When were AI systems deployed?
+  - AI adoption over time
+  - Yearly AI breakdown
+  - AI timeline
+  - History of AI deployments
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: ai_register
+    qualifiers:
+    - year
+  tags:
+  - compare
+  - year
+  - timeline
+
+- id: ai_systems_for_year
+  description: List AI systems for a specific year
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_status_en AS status,
+        ai_system_capabilities_en AS capabilities,
+        vendor_information AS vendor
+    FROM ai_register
+    WHERE status_date = :year
+    ORDER BY government_organization, name_ai_system_en
+  parameters:
+  - name: year
+    type: integer
+    description: Year to filter by
+    required: true
+  nl_examples:
+  - Show AI systems from 2024
+  - What AI was deployed in 2025?
+  - 2023 AI systems
+  - AI registered in 2024
+  - List AI for year 2025
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - year
+  tags:
+  - find
+  - year
+  - specific
+
+# =============================================================================
+# THEMATIC ANALYSIS QUERIES
+# =============================================================================
+
+- id: common_themes_use_cases
+  description: Identify common themes across AI use cases by analyzing capabilities
+  sql: |
+    SELECT
+        theme,
+        COUNT(*) AS system_count,
+        ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM ai_register), 1) AS percentage
+    FROM (
+        SELECT
+            CASE
+                WHEN LOWER(ai_system_capabilities_en) LIKE '%generative%'
+                    OR LOWER(ai_system_capabilities_en) LIKE '%llm%'
+                    OR LOWER(ai_system_capabilities_en) LIKE '%large language%' THEN 'Generative AI / LLM'
+                WHEN LOWER(ai_system_capabilities_en) LIKE '%chatbot%' THEN 'Chatbots / Conversational AI'
+                WHEN LOWER(ai_system_capabilities_en) LIKE '%nlp%'
+                    OR LOWER(ai_system_capabilities_en) LIKE '%natural language%' THEN 'Natural Language Processing'
+                WHEN LOWER(ai_system_capabilities_en) LIKE '%machine learning%'
+                    OR regexp_matches(ai_system_capabilities_en, '(?i)\bML\b')
+                    OR LOWER(ai_system_capabilities_en) LIKE '%deep learning%' THEN 'Machine Learning'
+                WHEN LOWER(ai_system_capabilities_en) LIKE '%computer vision%'
+                    OR LOWER(ai_system_capabilities_en) LIKE '%image%'
+                    OR LOWER(ai_system_capabilities_en) LIKE '%object recognition%' THEN 'Computer Vision / Image Analysis'
+                WHEN LOWER(ai_system_capabilities_en) LIKE '%document%'
+                    OR LOWER(ai_system_capabilities_en) LIKE '%ocr%'
+                    OR LOWER(ai_system_capabilities_en) LIKE '%extraction%' THEN 'Document Processing / Extraction'
+                WHEN LOWER(ai_system_capabilities_en) LIKE '%translat%' THEN 'Translation'
+                WHEN LOWER(ai_system_capabilities_en) LIKE '%automation%'
+                    OR LOWER(ai_system_capabilities_en) LIKE '%workflow%' THEN 'Process Automation'
+                WHEN LOWER(ai_system_capabilities_en) LIKE '%classif%'
+                    OR LOWER(ai_system_capabilities_en) LIKE '%categor%' THEN 'Classification / Categorization'
+                WHEN LOWER(ai_system_capabilities_en) LIKE '%predict%'
+                    OR LOWER(ai_system_capabilities_en) LIKE '%anomal%' THEN 'Predictive Analytics / Anomaly Detection'
+                WHEN ai_system_capabilities_en IS NULL THEN 'Unspecified'
+                ELSE 'Other Specialized AI'
+            END AS theme
+        FROM ai_register
+    ) themes
+    GROUP BY theme
+    ORDER BY system_count DESC
+  parameters: []
+  nl_examples:
+  - What are some common themes across the use cases?
+  - What are the main AI themes?
+  - Common use case patterns
+  - How is AI being used thematically?
+  - What types of AI are most common?
+  - Categorize AI systems by theme
+  - Breakdown of AI capabilities
+  - What are the top AI use case categories?
+  - Thematic analysis of AI systems
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: analyze
+    primary_entity: ai_register
+    qualifiers:
+    - themes
+    - use_cases
+  tags:
+  - analyze
+  - themes
+  - patterns
+  - categorization
+
+- id: high_risk_ai_systems
+  description: Identify high-risk AI systems that are public-facing and involve personal information
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_status_en AS status,
+        ai_system_capabilities_en AS capabilities,
+        notification_ai AS notifies_users,
+        personal_information_banks_en AS pib
+    FROM ai_register
+    WHERE (ai_system_primary_users_en ILIKE '%public%'
+           OR ai_system_primary_users_en ILIKE '%both%')
+      AND involves_personal_information = 'Y'
+    ORDER BY government_organization, name_ai_system_en
+  parameters: []
+  nl_examples:
+  - What are the high-risk AI systems?
+  - Show public-facing AI with personal data
+  - AI systems with privacy risk
+  - Which AI systems handle public data?
+  - High risk AI deployments
+  - AI that uses personal information and serves the public
+  - Privacy-sensitive public AI
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - risk
+    - privacy
+    - public
+  tags:
+  - find
+  - risk
+  - privacy
+  - compliance
+
+- id: privacy_compliance_gap
+  description: Find AI systems that use personal information but do not notify users
+  sql: |
+    SELECT
+        name_ai_system_en AS name,
+        government_organization AS organization,
+        ai_system_status_en AS status,
+        ai_system_primary_users_en AS users,
+        ai_system_capabilities_en AS capabilities
+    FROM ai_register
+    WHERE involves_personal_information = 'Y'
+      AND (notification_ai = 'N' OR notification_ai IS NULL)
+    ORDER BY government_organization, name_ai_system_en
+  parameters: []
+  nl_examples:
+  - Which AI systems don't notify users about personal data?
+  - Show privacy compliance gaps
+  - AI with personal info but no notification
+  - Privacy notification gaps
+  - Non-transparent AI systems
+  - AI that uses personal data without notifying
+  - Compliance gaps in AI
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - compliance
+    - gap
+  tags:
+  - find
+  - compliance
+  - privacy
+  - gap
+
+- id: vendor_concentration_analysis
+  description: Analyze vendor market concentration and cross-government presence
+  sql: |
+    SELECT
+        vendor_information AS vendor,
+        COUNT(*) AS system_count,
+        COUNT(DISTINCT government_organization) AS org_count,
+        ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM ai_register WHERE vendor_information IS NOT NULL AND vendor_information != ''), 1) AS market_share_pct
+    FROM ai_register
+    WHERE vendor_information IS NOT NULL AND vendor_information != ''
+    GROUP BY vendor_information
+    ORDER BY system_count DESC
+    LIMIT 20
+  parameters: []
+  nl_examples:
+  - What is the vendor concentration?
+  - Which vendors dominate?
+  - Top AI vendors in government
+  - Vendor market share analysis
+  - AI supplier concentration
+  - Who are the biggest AI providers?
+  - Vendor dependency analysis
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: analyze
+    primary_entity: ai_register
+    qualifiers:
+    - vendor
+    - concentration
+  tags:
+  - analyze
+  - vendor
+  - market
+  - concentration
+
+- id: organization_ai_maturity
+  description: Assess AI maturity by organization based on production rate and portfolio diversity
+  sql: |
+    SELECT
+        government_organization AS organization,
+        COUNT(*) AS total_systems,
+        COUNT(CASE WHEN ai_system_status_en = 'In production' THEN 1 END) AS in_production,
+        COUNT(CASE WHEN ai_system_status_en = 'In development' THEN 1 END) AS in_development,
+        ROUND(100.0 * COUNT(CASE WHEN ai_system_status_en = 'In production' THEN 1 END) / NULLIF(COUNT(*), 0), 1) AS production_rate_pct,
+        COUNT(CASE WHEN developed_by_en = 'Government of Canada' THEN 1 END) AS built_in_house,
+        COUNT(DISTINCT vendor_information) AS vendor_diversity
+    FROM ai_register
+    GROUP BY government_organization
+    HAVING COUNT(*) >= 3
+    ORDER BY production_rate_pct DESC, total_systems DESC
+  parameters: []
+  nl_examples:
+  - Which organizations are most mature in AI?
+  - AI maturity by department
+  - Organization AI readiness
+  - Who has the most production AI?
+  - Department AI maturity scores
+  - AI deployment success by organization
+  - Production rate by department
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: analyze
+    primary_entity: ai_register
+    qualifiers:
+    - maturity
+    - organization
+  tags:
+  - analyze
+  - maturity
+  - organization
+  - production
+
+- id: ai_adoption_trends
+  description: Analyze AI adoption trends over time by capability type
+  sql: |
+    SELECT
+        status_date AS year,
+        COUNT(*) AS total_systems,
+        COUNT(CASE WHEN LOWER(ai_system_capabilities_en) LIKE '%generative%' OR LOWER(ai_system_capabilities_en) LIKE '%llm%' THEN 1 END) AS generative_ai,
+        COUNT(CASE WHEN LOWER(ai_system_capabilities_en) LIKE '%machine learning%' OR regexp_matches(ai_system_capabilities_en, '(?i)\bML\b') THEN 1 END) AS machine_learning,
+        COUNT(CASE WHEN LOWER(ai_system_capabilities_en) LIKE '%chatbot%' THEN 1 END) AS chatbots,
+        COUNT(CASE WHEN ai_system_status_en = 'In production' THEN 1 END) AS in_production
+    FROM ai_register
+    WHERE status_date IS NOT NULL
+    GROUP BY status_date
+    ORDER BY status_date DESC
+  parameters: []
+  nl_examples:
+  - How has AI adoption changed over time?
+  - AI trends by year
+  - When did generative AI take off?
+  - AI growth trends
+  - Yearly AI deployment patterns
+  - AI adoption timeline
+  - Historical AI trends
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: analyze
+    primary_entity: ai_register
+    qualifiers:
+    - trends
+    - timeline
+  tags:
+  - analyze
+  - trends
+  - timeline
+  - adoption
+
+- id: cross_government_vendors
+  description: Identify vendors serving multiple government organizations
+  sql: |
+    SELECT
+        vendor_information AS vendor,
+        COUNT(DISTINCT government_organization) AS organizations_served,
+        COUNT(*) AS total_systems
+    FROM ai_register
+    WHERE vendor_information IS NOT NULL AND vendor_information != ''
+    GROUP BY vendor_information
+    HAVING COUNT(DISTINCT government_organization) >= 2
+    ORDER BY organizations_served DESC, total_systems DESC
+  parameters: []
+  nl_examples:
+  - Which vendors work across multiple departments?
+  - Cross-government AI vendors
+  - Vendors serving multiple organizations
+  - Shared AI vendors
+  - Enterprise AI providers
+  - Pan-government vendor analysis
+  - Vendor spread analysis
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ai_register
+    qualifiers:
+    - vendor
+    - cross_government
+  tags:
+  - find
+  - vendor
+  - cross_government
+  - enterprise
+
+- id: inhouse_vs_vendor_by_org
+  description: Compare in-house vs vendor development patterns by organization
+  sql: |
+    SELECT
+        government_organization AS organization,
+        COUNT(*) AS total,
+        COUNT(CASE WHEN developed_by_en = 'Government of Canada' THEN 1 END) AS in_house,
+        COUNT(CASE WHEN developed_by_en = 'Vendor' THEN 1 END) AS vendor_built,
+        COUNT(CASE WHEN developed_by_en = 'Open source' THEN 1 END) AS open_source,
+        ROUND(100.0 * COUNT(CASE WHEN developed_by_en = 'Government of Canada' THEN 1 END) / NULLIF(COUNT(*), 0), 1) AS in_house_pct
+    FROM ai_register
+    GROUP BY government_organization
+    HAVING COUNT(*) >= 3
+    ORDER BY in_house_pct DESC
+  parameters: []
+  nl_examples:
+  - Which departments build AI in-house?
+  - In-house vs vendor AI by organization
+  - Who builds vs buys AI?
+  - AI development strategy by department
+  - In-house development rates
+  - Build vs buy analysis
+  - Department development patterns
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: ai_register
+    qualifiers:
+    - development
+    - organization
+  tags:
+  - compare
+  - in_house
+  - vendor
+  - development
+

@@ -1,0 +1,416 @@
+domain_name: Government of Canada AI Register (MVP)
+description: Government of Canada Artificial Intelligence Register - Minimum Viable Product (GC AI Register MVP). Tracks AI systems deployed across federal government institutions, including development status, capabilities, vendors, and privacy considerations. Bilingual content in English and French.
+domain_type: analytical
+semantic_types:
+  identifier:
+    description: Unique identifier for AI system registration
+    patterns:
+    - id
+    - identifier
+    - register
+    - registration
+    regex_patterns:
+    - \b\d{4}-[A-Z]+-[A-Z]+-\d+\b
+  year_value:
+    description: Year values (status date)
+    patterns:
+    - year
+    - date
+    - when
+    - time
+    regex_patterns:
+    - \b\d{4}\b
+  boolean_value:
+    description: Yes/No values
+    patterns:
+    - involves
+    - notification
+    - personal
+    regex_patterns:
+    - \b[YN]\b
+vocabulary:
+  entity_synonyms:
+    ai_system:
+    - AI
+    - artificial intelligence
+    - AI system
+    - machine learning
+    - ML
+    - algorithm
+    - model
+    - tool
+    - solution
+    - application
+    - chatbot
+    - bot
+    organization:
+    - department
+    - ministry
+    - agency
+    - institution
+    - org
+    - organization
+    - government body
+    vendor:
+    - supplier
+    - contractor
+    - company
+    - provider
+    - developer
+    status:
+    - status
+    - state
+    - phase
+    - stage
+    - production
+    - development
+    - retired
+    capability:
+    - capability
+    - feature
+    - function
+    - ability
+    - generative
+    - machine learning
+    - NLP
+    - computer vision
+    privacy:
+    - privacy
+    - personal information
+    - PII
+    - sensitive
+    - data protection
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    - retrieve
+    - lookup
+    - search
+    - view
+    filter:
+    - filter
+    - only
+    - just
+    - where
+    - with
+    - having
+    - containing
+    - for
+    count:
+    - count
+    - number of
+    - how many
+    - total
+    - sum
+    sort:
+    - sort
+    - order
+    - arrange
+    - rank
+    compare:
+    - compare
+    - vs
+    - versus
+    - difference
+    - breakdown
+entities:
+  ai_register:
+    name: ai_register
+    entity_type: primary
+    table_name: ai_register
+    description: AI system registrations from Government of Canada federal institutions
+    primary_key: ai_register_id
+    display_name_field: name_ai_system_en
+    searchable_fields:
+    - name_ai_system_en
+    - description_ai_system_en
+    - government_organization
+    - ai_system_capabilities_en
+    - vendor_information
+    common_filters:
+    - government_organization
+    - ai_system_status_en
+    - developed_by_en
+    - status_date
+    - involves_personal_information
+    - notification_ai
+    default_sort_field: status_date
+    default_sort_order: DESC
+fields:
+  ai_register:
+    ai_register_id:
+      name: ai_register_id
+      data_type: string
+      db_column: ai_register_id
+      description: Unique identifier for the AI system registration
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 10
+    name_ai_system_en:
+      name: name_ai_system_en
+      data_type: string
+      db_column: name_ai_system_en
+      description: Name of the AI system (English)
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    name_ai_system_fr:
+      name: name_ai_system_fr
+      data_type: string
+      db_column: name_ai_system_fr
+      description: Name of the AI system (French)
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 5
+    government_organization:
+      name: government_organization
+      data_type: string
+      db_column: government_organization
+      description: Federal government organization responsible for the AI system
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    description_ai_system_en:
+      name: description_ai_system_en
+      data_type: string
+      db_column: description_ai_system_en
+      description: Description of the AI system (English)
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 8
+    description_ai_system_fr:
+      name: description_ai_system_fr
+      data_type: string
+      db_column: description_ai_system_fr
+      description: Description of the AI system (French)
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 4
+    ai_system_primary_users_en:
+      name: ai_system_primary_users_en
+      data_type: string
+      db_column: ai_system_primary_users_en
+      description: Primary users of the AI system (English) - e.g., GC employees, Members of public
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    ai_system_primary_users_fr:
+      name: ai_system_primary_users_fr
+      data_type: string
+      db_column: ai_system_primary_users_fr
+      description: Primary users of the AI system (French)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 3
+    developed_by_en:
+      name: developed_by_en
+      data_type: string
+      db_column: developed_by_en
+      description: Who developed the AI system (English) - e.g., Government of Canada, Vendor
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    developed_by_fr:
+      name: developed_by_fr
+      data_type: string
+      db_column: developed_by_fr
+      description: Who developed the AI system (French)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 3
+    vendor_information:
+      name: vendor_information
+      data_type: string
+      db_column: vendor_information
+      description: Name of the vendor if developed by a vendor
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 6
+    ai_system_status_en:
+      name: ai_system_status_en
+      data_type: string
+      db_column: ai_system_status_en
+      description: Current status of the AI system (English) - In production, In development, Retired
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    ai_system_status_fr:
+      name: ai_system_status_fr
+      data_type: string
+      db_column: ai_system_status_fr
+      description: Current status of the AI system (French)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 4
+    status_date:
+      name: status_date
+      data_type: integer
+      db_column: status_date
+      description: Year when the status was recorded
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: year_value
+      summary_priority: 8
+    ai_system_capabilities_en:
+      name: ai_system_capabilities_en
+      data_type: string
+      db_column: ai_system_capabilities_en
+      description: AI system capabilities (English) - e.g., Generative AI, Machine Learning, NLP
+      required: false
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 7
+    ai_system_capabilities_fr:
+      name: ai_system_capabilities_fr
+      data_type: string
+      db_column: ai_system_capabilities_fr
+      description: AI system capabilities (French)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 3
+    data_sources_en:
+      name: data_sources_en
+      data_type: string
+      db_column: data_sources_en
+      description: Data sources used by the AI system (English)
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 6
+    data_sources_fr:
+      name: data_sources_fr
+      data_type: string
+      db_column: data_sources_fr
+      description: Data sources used by the AI system (French)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 2
+    involves_personal_information:
+      name: involves_personal_information
+      data_type: string
+      db_column: involves_personal_information
+      description: Whether the AI system involves personal information (Y/N)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: boolean_value
+      summary_priority: 7
+    personal_information_banks_en:
+      name: personal_information_banks_en
+      data_type: string
+      db_column: personal_information_banks_en
+      description: Personal Information Banks referenced (English)
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 5
+    personal_information_banks_fr:
+      name: personal_information_banks_fr
+      data_type: string
+      db_column: personal_information_banks_fr
+      description: Personal Information Banks referenced (French)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 2
+    notification_ai:
+      name: notification_ai
+      data_type: string
+      db_column: notification_ai
+      description: Whether users are notified about AI use (Y/N)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: boolean_value
+      summary_priority: 6
+    ai_system_results_en:
+      name: ai_system_results_en
+      data_type: string
+      db_column: ai_system_results_en
+      description: Results or outcomes of the AI system (English)
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 6
+    ai_system_results_fr:
+      name: ai_system_results_fr
+      data_type: string
+      db_column: ai_system_results_fr
+      description: Results or outcomes of the AI system (French)
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 2
+relationships: []
+query_patterns: []
+metadata:
+  generated_at: '2025-01-27T12:00:00.000000'
+  generator_version: 1.0.0
+  auto_generated: true
+  source_url: https://open.canada.ca/data/en/dataset/gc-ai-register-mvp
+

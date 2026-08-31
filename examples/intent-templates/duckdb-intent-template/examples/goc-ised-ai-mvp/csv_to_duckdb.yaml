@@ -1,0 +1,50 @@
+# CSV to DuckDB Configuration for Government of Canada AI Register (MVP)
+# Source: Innovation, Science and Economic Development Canada (ISED)
+# Usage: python ../csv_to_duckdb.py goc-ai-mvp-register.csv --config csv_to_duckdb.yaml
+
+# Table name in DuckDB
+table_name: ai_register
+
+# Output database file
+output: goc-ised-ai-register.duckdb
+
+# Primary key column for upserts (INSERT OR REPLACE)
+primary_key: ai_register_id
+
+# Columns to create indexes on (improves query performance)
+indexes:
+  - government_organization
+  - ai_system_status_en
+  - developed_by_en
+  - status_date
+  - involves_personal_information
+  - notification_ai
+  - vendor_information
+
+# Type overrides - force specific column types instead of auto-detect
+# All text fields are VARCHAR, status_date is INTEGER (year)
+type_overrides:
+  ai_register_id: VARCHAR
+  name_ai_system_en: VARCHAR
+  name_ai_system_fr: VARCHAR
+  government_organization: VARCHAR
+  description_ai_system_en: VARCHAR
+  description_ai_system_fr: VARCHAR
+  ai_system_primary_users_en: VARCHAR
+  ai_system_primary_users_fr: VARCHAR
+  developed_by_en: VARCHAR
+  developed_by_fr: VARCHAR
+  vendor_information: VARCHAR
+  ai_system_status_en: VARCHAR
+  ai_system_status_fr: VARCHAR
+  status_date: INTEGER
+  ai_system_capabilities_en: VARCHAR
+  ai_system_capabilities_fr: VARCHAR
+  data_sources_en: VARCHAR
+  data_sources_fr: VARCHAR
+  involves_personal_information: VARCHAR
+  personal_information_banks_en: VARCHAR
+  personal_information_banks_fr: VARCHAR
+  notification_ai: VARCHAR
+  ai_system_results_en: VARCHAR
+  ai_system_results_fr: VARCHAR

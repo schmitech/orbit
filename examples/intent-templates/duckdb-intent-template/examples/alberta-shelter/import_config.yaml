@@ -1,0 +1,12 @@
+column_mapping:
+  date: "date"
+  city: "city"
+  shelter_type: "ShelterType"
+  shelter_name: "ShelterName"
+  organization: "Organization"
+  shelter: "Shelter"
+  capacity: "Capacity"
+  overnight: "Overnight"
+  daytime: "Daytime"
+  year: "year"
+  month: "month"

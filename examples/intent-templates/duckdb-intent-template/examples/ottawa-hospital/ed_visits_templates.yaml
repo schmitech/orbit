@@ -1,0 +1,479 @@
+status: completed
+generated_at: '2025-01-27T12:00:00.000000'
+last_updated: '2025-01-27T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 15
+templates:
+# =============================================================================
+# OVERALL TRENDS - ED visit patterns over time
+# =============================================================================
+
+- id: weekly_ed_totals
+  description: Get total ED visits by week across all age groups
+  sql: |
+    SELECT
+      epi_week,
+      SUM(all_causes_visits) AS total_visits,
+      SUM(respiratory_visits) AS total_respiratory,
+      ROUND(SUM(respiratory_visits) * 100.0 / SUM(all_causes_visits), 1) AS respiratory_pct
+    FROM ed_visits
+    GROUP BY epi_week
+    ORDER BY epi_week DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of weeks to return
+    required: false
+    default: 20
+  nl_examples:
+  - Show me weekly ED visits
+  - How many emergency visits each week?
+  - Weekly hospital visit trends
+  - ED visit totals by week
+  - Emergency department weekly summary
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: ed_visits
+    qualifiers: [weekly, trends]
+  tags: [weekly, trends, totals]
+
+- id: respiratory_trend
+  description: Track respiratory-related visits over time
+  sql: |
+    SELECT
+      epi_week,
+      SUM(respiratory_visits) AS respiratory_visits,
+      ROUND(SUM(respiratory_visits) * 100.0 / SUM(all_causes_visits), 1) AS respiratory_pct
+    FROM ed_visits
+    GROUP BY epi_week
+    ORDER BY epi_week DESC
+  parameters: []
+  nl_examples:
+  - How are respiratory visits trending?
+  - Show me flu-related ED visits over time
+  - Respiratory illness trends
+  - Are respiratory visits increasing?
+  - Track respiratory ED visits
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: ed_visits
+    qualifiers: [respiratory, trends]
+  tags: [respiratory, trends, illness]
+
+- id: latest_week_summary
+  description: Get the most recent week's ED visit summary
+  sql: |
+    SELECT
+      epi_week,
+      age_category,
+      all_causes_visits,
+      respiratory_visits,
+      respiratory_pct
+    FROM ed_visits
+    WHERE epi_week = (SELECT MAX(epi_week) FROM ed_visits)
+    ORDER BY
+      CASE age_category
+        WHEN '00 to 03 Years' THEN 1
+        WHEN '04 to 11 Years' THEN 2
+        WHEN '12 to 17 Years' THEN 3
+        WHEN '18 to 54 Years' THEN 4
+        WHEN '55 to 79 Years' THEN 5
+        WHEN '80+ Years' THEN 6
+      END
+  parameters: []
+  nl_examples:
+  - What are the latest ED visit numbers?
+  - Show me this week's emergency visits
+  - Current ED visit summary
+  - Most recent hospital visit data
+  - Latest respiratory numbers
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ed_visits
+    qualifiers: [latest, summary]
+  tags: [latest, current, summary]
+
+# =============================================================================
+# AGE GROUP ANALYSIS - Patterns by demographic
+# =============================================================================
+
+- id: visits_by_age_group
+  description: Compare ED visits across age groups
+  sql: |
+    SELECT
+      age_category,
+      SUM(all_causes_visits) AS total_visits,
+      SUM(respiratory_visits) AS respiratory_visits,
+      ROUND(AVG(respiratory_pct), 1) AS avg_respiratory_pct
+    FROM ed_visits
+    GROUP BY age_category
+    ORDER BY
+      CASE age_category
+        WHEN '00 to 03 Years' THEN 1
+        WHEN '04 to 11 Years' THEN 2
+        WHEN '12 to 17 Years' THEN 3
+        WHEN '18 to 54 Years' THEN 4
+        WHEN '55 to 79 Years' THEN 5
+        WHEN '80+ Years' THEN 6
+      END
+  parameters: []
+  nl_examples:
+  - Compare ED visits by age group
+  - Which age group has the most visits?
+  - ED visits by demographic
+  - Age breakdown of emergency visits
+  - How do visits differ by age?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: ed_visits
+    qualifiers: [age, demographic]
+  tags: [age, demographic, comparison]
+
+- id: children_visits
+  description: Analyze ED visits for children (0-17 years)
+  sql: |
+    SELECT
+      epi_week,
+      age_category,
+      all_causes_visits,
+      respiratory_visits,
+      respiratory_pct
+    FROM ed_visits
+    WHERE age_category IN ('00 to 03 Years', '04 to 11 Years', '12 to 17 Years')
+    ORDER BY epi_week DESC,
+      CASE age_category
+        WHEN '00 to 03 Years' THEN 1
+        WHEN '04 to 11 Years' THEN 2
+        WHEN '12 to 17 Years' THEN 3
+      END
+  parameters: []
+  nl_examples:
+  - How many children are visiting the ED?
+  - Show me pediatric emergency visits
+  - Kids ED visit data
+  - Children's hospital visits
+  - Youth emergency department visits
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ed_visits
+    qualifiers: [children, pediatric]
+  tags: [children, pediatric, youth]
+
+- id: elderly_visits
+  description: Analyze ED visits for seniors (55+ years)
+  sql: |
+    SELECT
+      epi_week,
+      age_category,
+      all_causes_visits,
+      respiratory_visits,
+      respiratory_pct
+    FROM ed_visits
+    WHERE age_category IN ('55 to 79 Years', '80+ Years')
+    ORDER BY epi_week DESC,
+      CASE age_category
+        WHEN '55 to 79 Years' THEN 1
+        WHEN '80+ Years' THEN 2
+      END
+  parameters: []
+  nl_examples:
+  - How many seniors are visiting the ED?
+  - Show me elderly emergency visits
+  - Senior ED visit data
+  - Older adults hospital visits
+  - 80+ emergency visits
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ed_visits
+    qualifiers: [seniors, elderly]
+  tags: [seniors, elderly, aging]
+
+- id: specific_age_group_trend
+  description: Track trends for a specific age group
+  sql: |
+    SELECT
+      epi_week,
+      all_causes_visits,
+      respiratory_visits,
+      respiratory_pct
+    FROM ed_visits
+    WHERE age_category = :age_category
+    ORDER BY epi_week DESC
+  parameters:
+  - name: age_category
+    type: string
+    description: Age group to analyze (e.g., '00 to 03 Years', '18 to 54 Years')
+    required: true
+  nl_examples:
+  - Show me trends for toddlers
+  - 18 to 54 age group ED visits over time
+  - Track visits for 80+ years
+  - Specific age group analysis
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: ed_visits
+    qualifiers: [age, trend]
+  tags: [age, specific, trend]
+
+# =============================================================================
+# RESPIRATORY ANALYSIS - Illness patterns
+# =============================================================================
+
+- id: highest_respiratory_weeks
+  description: Find weeks with highest respiratory visit percentages
+  sql: |
+    SELECT
+      epi_week,
+      SUM(all_causes_visits) AS total_visits,
+      SUM(respiratory_visits) AS respiratory_visits,
+      ROUND(SUM(respiratory_visits) * 100.0 / SUM(all_causes_visits), 1) AS respiratory_pct
+    FROM ed_visits
+    GROUP BY epi_week
+    ORDER BY respiratory_pct DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of weeks to return
+    required: false
+    default: 10
+  nl_examples:
+  - When were respiratory visits highest?
+  - Peak flu weeks
+  - Worst weeks for respiratory illness
+  - Highest respiratory percentages
+  - When was the ED busiest with respiratory cases?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ed_visits
+    qualifiers: [respiratory, peak]
+  tags: [respiratory, peak, ranking]
+
+- id: respiratory_by_age
+  description: Compare respiratory visit rates across age groups
+  sql: |
+    SELECT
+      age_category,
+      SUM(respiratory_visits) AS total_respiratory,
+      ROUND(AVG(respiratory_pct), 1) AS avg_respiratory_pct,
+      MAX(respiratory_pct) AS max_respiratory_pct
+    FROM ed_visits
+    GROUP BY age_category
+    ORDER BY avg_respiratory_pct DESC
+  parameters: []
+  nl_examples:
+  - Which age group has the most respiratory visits?
+  - Compare flu rates by age
+  - Respiratory illness by demographic
+  - Who gets sick most often?
+  - Age groups most affected by respiratory illness
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: ed_visits
+    qualifiers: [respiratory, age]
+  tags: [respiratory, age, comparison]
+
+- id: young_children_respiratory
+  description: Focus on respiratory visits for young children (0-3 years)
+  sql: |
+    SELECT
+      epi_week,
+      all_causes_visits,
+      respiratory_visits,
+      respiratory_pct
+    FROM ed_visits
+    WHERE age_category = '00 to 03 Years'
+    ORDER BY epi_week DESC
+  parameters: []
+  nl_examples:
+  - How are toddlers affected by respiratory illness?
+  - Young children respiratory visits
+  - Infant and toddler flu rates
+  - 0-3 year old respiratory trends
+  - Baby respiratory ED visits
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ed_visits
+    qualifiers: [children, respiratory]
+  tags: [toddlers, infants, respiratory]
+
+# =============================================================================
+# TOTALS & STATISTICS - Summary metrics
+# =============================================================================
+
+- id: total_visits_summary
+  description: Get overall summary statistics
+  sql: |
+    SELECT
+      COUNT(DISTINCT epi_week) AS weeks_covered,
+      SUM(all_causes_visits) AS total_visits,
+      SUM(respiratory_visits) AS total_respiratory,
+      ROUND(SUM(respiratory_visits) * 100.0 / SUM(all_causes_visits), 1) AS overall_respiratory_pct,
+      ROUND(AVG(all_causes_visits), 0) AS avg_weekly_visits_per_age_group
+    FROM ed_visits
+  parameters: []
+  nl_examples:
+  - How many total ED visits?
+  - Overall summary statistics
+  - Total emergency visits
+  - Database summary
+  - How much data is available?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: ed_visits
+    qualifiers: [summary, totals]
+  tags: [summary, totals, statistics]
+
+- id: weekly_average_by_age
+  description: Calculate average weekly visits by age group
+  sql: |
+    SELECT
+      age_category,
+      ROUND(AVG(all_causes_visits), 0) AS avg_weekly_visits,
+      ROUND(AVG(respiratory_visits), 0) AS avg_respiratory,
+      ROUND(AVG(respiratory_pct), 1) AS avg_respiratory_pct
+    FROM ed_visits
+    GROUP BY age_category
+    ORDER BY avg_weekly_visits DESC
+  parameters: []
+  nl_examples:
+  - What is the average weekly visits by age?
+  - Average ED visits per week
+  - Typical visit numbers by age group
+  - Weekly averages by demographic
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: ed_visits
+    qualifiers: [average, weekly]
+  tags: [average, weekly, age]
+
+- id: busiest_weeks
+  description: Find the busiest weeks for ED visits
+  sql: |
+    SELECT
+      epi_week,
+      SUM(all_causes_visits) AS total_visits,
+      SUM(respiratory_visits) AS respiratory_visits
+    FROM ed_visits
+    GROUP BY epi_week
+    ORDER BY total_visits DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of weeks to return
+    required: false
+    default: 10
+  nl_examples:
+  - What were the busiest weeks?
+  - When was the ED most crowded?
+  - Peak weeks for hospital visits
+  - Highest volume weeks
+  - Busiest times at the emergency department
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ed_visits
+    qualifiers: [peak, volume]
+  tags: [peak, busy, ranking]
+
+# =============================================================================
+# REFERENCE DATA - Metadata
+# =============================================================================
+
+- id: data_coverage
+  description: Show data coverage and date range
+  sql: |
+    SELECT
+      MIN(epi_week) AS earliest_week,
+      MAX(epi_week) AS latest_week,
+      COUNT(DISTINCT epi_week) AS weeks_covered,
+      COUNT(*) AS total_records,
+      COUNT(DISTINCT age_category) AS age_groups
+    FROM ed_visits
+  parameters: []
+  nl_examples:
+  - What data is available?
+  - Show me data coverage
+  - Date range of the data
+  - How many weeks of data?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: ed_visits
+    qualifiers: [reference, metadata]
+  tags: [reference, coverage, metadata]
+
+- id: list_age_categories
+  description: List all age categories in the data
+  sql: |
+    SELECT DISTINCT
+      age_category,
+      COUNT(*) AS weeks_of_data,
+      SUM(all_causes_visits) AS total_visits
+    FROM ed_visits
+    GROUP BY age_category
+    ORDER BY
+      CASE age_category
+        WHEN '00 to 03 Years' THEN 1
+        WHEN '04 to 11 Years' THEN 2
+        WHEN '12 to 17 Years' THEN 3
+        WHEN '18 to 54 Years' THEN 4
+        WHEN '55 to 79 Years' THEN 5
+        WHEN '80+ Years' THEN 6
+      END
+  parameters: []
+  nl_examples:
+  - What age groups are tracked?
+  - List age categories
+  - Show me all demographics
+  - Age groups in the data
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: ed_visits
+    qualifiers: [reference]
+  tags: [reference, age, metadata]

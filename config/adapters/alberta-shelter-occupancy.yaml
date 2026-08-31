@@ -1,0 +1,41 @@
+adapters:
+  - name: "intent-duckdb-alberta-shelter-occupancy"
+    enabled: true
+    type: "retriever"
+    datasource: "duckdb"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
+    database: "examples/intent-templates/duckdb-intent-template/examples/alberta-shelter/shelter.duckdb"
+    inference_provider: "openai"
+    model: "gpt-5.6"
+    embedding_provider: "openai"
+    config:
+      # Path to the domain definition file
+      domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/alberta-shelter/shelter_occupancy_domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/duckdb-intent-template/examples/alberta-shelter/shelter_occupancy_templates.yaml"
+
+      # Name for the vector store collection for templates
+      template_collection_name: "duckdb_alberta_shelter_occupancy_templates"
+      # Store configuration - references stores.yaml
+      store_name: "chroma"
+      confidence_threshold: 0.4
+
+      # Maximum templates to consider
+      max_templates: 5
+
+      # Return top N results
+      return_results: 100
+
+      # Template loading settings
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in storage
+
+      # DuckDB-specific configuration
+      read_only: true  # Allow concurrent reads from multiple processes (no writes needed for intent queries)
+      access_mode: "READ_ONLY"  # Multiple processes can read simultaneously (see https://duckdb.org/docs/stable/connect/concurrency)
+      threads: null  # Use default thread count
+
+      # Query monitoring (automatically provided by unified base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds

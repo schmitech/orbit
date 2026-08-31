@@ -1,0 +1,212 @@
+domain_name: Ottawa Hospital ED Visits Database
+description: City of Ottawa emergency department visits database - tracks weekly ED visits to Ottawa hospitals by age group, including respiratory-related visits for the current respiratory season
+domain_type: analytical
+semantic_types:
+  date_value:
+    description: Date values (epidemiological weeks)
+    patterns:
+    - date
+    - week
+    - time
+    - when
+    - from
+    - to
+    - between
+    regex_patterns:
+    - \b\d{4}-\d{2}-\d{2}\b
+  identifier:
+    description: Unique identifier
+    patterns:
+    - id
+    - identifier
+    regex_patterns:
+    - \b(\d+)\b
+  integer_value:
+    description: Integer/count values
+    patterns:
+    - count
+    - number
+    - visits
+    - total
+    regex_patterns:
+    - \b\d+\b
+  percentage_value:
+    description: Percentage values
+    patterns:
+    - percent
+    - percentage
+    - rate
+    - proportion
+    regex_patterns:
+    - \b\d+\.?\d*%?\b
+vocabulary:
+  entity_synonyms:
+    visits:
+    - visits
+    - visit
+    - patients
+    - cases
+    - admissions
+    emergency:
+    - emergency
+    - ED
+    - ER
+    - emergency department
+    - emergency room
+    respiratory:
+    - respiratory
+    - breathing
+    - lung
+    - flu
+    - cold
+    - illness
+    - syndrome
+    age:
+    - age
+    - age group
+    - demographic
+    - children
+    - adults
+    - elderly
+    - seniors
+    - youth
+    - kids
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    count:
+    - count
+    - number of
+    - how many
+    - total
+    - sum
+    calculate:
+    - calculate
+    - compute
+    - average
+    - avg
+    - total
+    - rate
+    compare:
+    - compare
+    - vs
+    - versus
+    - difference
+    - trend
+entities:
+  ed_visits:
+    name: ed_visits
+    entity_type: primary
+    table_name: ed_visits
+    description: Weekly emergency department visits to Ottawa hospitals by age group
+    primary_key: id
+    display_name_field: age_category
+    searchable_fields:
+    - age_category
+    common_filters:
+    - epi_week
+    - epi_year
+    - age_category
+    default_sort_field: epi_week
+    default_sort_order: DESC
+fields:
+  ed_visits:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Unique record identifier
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 1
+    epi_week:
+      name: epi_week
+      data_type: date
+      db_column: epi_week
+      description: Epidemiological week start date
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 10
+    epi_year:
+      name: epi_year
+      data_type: integer
+      db_column: epi_year
+      description: Year of the epidemiological week
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 9
+    epi_week_num:
+      name: epi_week_num
+      data_type: integer
+      db_column: epi_week_num
+      description: Week number within the year (1-52)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 7
+    age_category:
+      name: age_category
+      data_type: string
+      db_column: age_category
+      description: Age group (00 to 03 Years, 04 to 11 Years, 12 to 17 Years, 18 to 54 Years, 55 to 79 Years, 80+ Years)
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    all_causes_visits:
+      name: all_causes_visits
+      data_type: integer
+      db_column: all_causes_visits
+      description: Total ED visits for all causes
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 10
+    respiratory_visits:
+      name: respiratory_visits
+      data_type: integer
+      db_column: respiratory_visits
+      description: ED visits related to respiratory syndromes
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: integer_value
+      summary_priority: 10
+    respiratory_pct:
+      name: respiratory_pct
+      data_type: decimal
+      db_column: respiratory_pct
+      description: Percentage of ED visits that are respiratory-related
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: percentage_value
+      summary_priority: 9
+relationships: []
+query_patterns: []
+metadata:
+  generated_at: '2025-01-27T12:00:00.000000'
+  generator_version: 1.0.0
+  auto_generated: true
+  source: City of Ottawa Open Data - ED Visits to Ottawa Hospitals

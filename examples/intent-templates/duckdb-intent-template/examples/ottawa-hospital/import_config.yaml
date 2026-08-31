@@ -1,0 +1,10 @@
+column_mapping:
+  epi_week: "Epidemiological_Week"
+  age_category: "Age_Category"
+  all_causes_visits: "All_Causes_ED_Visits_to_Ottawa_Hospitals"
+  respiratory_visits: "Respiratory_related_ED_Visits_to_Ottawa_Hospitals"
+
+derived_columns:
+  epi_year: 'YEAR(CAST("Epidemiological_Week" AS DATE))'
+  epi_week_num: 'WEEK(CAST("Epidemiological_Week" AS DATE))'
+  respiratory_pct: 'CAST(REPLACE("F__ED_Visits_Respiratory_related_in_Ottawa_Hospitals", ''%'', '''') AS DECIMAL(5,2))'
