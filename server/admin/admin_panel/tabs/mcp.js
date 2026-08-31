@@ -925,7 +925,7 @@ export function createMcpTab({
     // bound to namespaced tool names via an mcp_tools glob, independently of
     // this server's own definition. This is a read-only cross-reference so
     // an author can see, from the server side, which playbooks already cover
-    // its tools — editing happens on the Tool Skills tab, not here.
+    // its tools — editing happens on the Skills tab, not here.
     var playbooksBody = el("div", { className: "mcp-tools-body" });
     detail.appendChild(el("h3", null, "Playbooks"));
     detail.appendChild(playbooksBody);
@@ -1087,7 +1087,7 @@ export function createMcpTab({
       if (!matches.length) {
         container.appendChild(el("p", { className: "muted mcp-tools-empty" },
           "No database-authored tool-skill playbooks are bound to this server's tools yet. " +
-          "File-authored config/skills playbooks may still be active at runtime; author a database playbook on the Tool Skills tab to list it here."
+          "File-authored config/skills playbooks may still be active at runtime; author a database playbook on the Skills tab to list it here."
         ));
         return;
       }

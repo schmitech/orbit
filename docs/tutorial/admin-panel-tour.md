@@ -58,7 +58,7 @@ Add and configure MCP servers — tool discovery/timeout defaults and per-server
 > 🖼️ **Screenshot placeholder:** the MCP tab.
 > _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
-### Tool Skills
+### Skills
 
 Create, edit, enable/disable, and delete database-authored procedural
 playbooks bound to MCP tools with case-sensitive `mcp_tools` glob patterns.

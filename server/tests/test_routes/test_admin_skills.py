@@ -133,6 +133,10 @@ class TestCreateSkill:
             )
         with pytest.raises(ValidationError):
             ToolSkillCreate(
+                name="valid", description="d", mcp_tools=["x__y"], body="b", priority=999999,
+            )
+        with pytest.raises(ValidationError):
+            ToolSkillCreate(
                 name="valid", description="d", mcp_tools=["x__y"], body="b", priority=-2,
             )
         with pytest.raises(ValidationError):
@@ -230,6 +234,7 @@ class TestValidateSkill:
         payload = {"name": "good-slug", "description": "d", "mcp_tools": ["a__b"], "body": "b"}
 
         assert "priority" in admin_skills.validate_skill({**payload, "priority": 100})["error"]
+        assert "priority" in admin_skills.validate_skill({**payload, "priority": 999999})["error"]
         assert "version" in admin_skills.validate_skill({**payload, "version": "v" * 26})["error"]
         assert "version" in admin_skills.validate_skill({**payload, "version": "1.beta"})["error"]
 

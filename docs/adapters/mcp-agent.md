@@ -261,7 +261,7 @@ For an end-to-end validation procedure, see
 Playbooks can come from either:
 
 - files under `config/skills/*/SKILL.md`; or
-- database records created on the admin panel's **Tool Skills** tab.
+- database records created on the admin panel's **Skills** tab.
 
 A playbook's lowercase-slug `name` is its identity across both sources. When
 an enabled database playbook and a file playbook have the same name, ORBIT
@@ -289,7 +289,7 @@ Other duplicate cases are handled deterministically:
   warning for later duplicates.
 - Disabled or invalid database records do not shadow a valid file playbook.
 
-The Tool Skills tab currently lists database-authored records only, and the
+The Skills tab currently lists database-authored records only, and the
 MCP tab's **Playbooks** section is likewise a database-authored cross-reference.
 A file-authored playbook may therefore still be active at runtime even when it
 does not appear in either list. When deliberately overriding a bundled file
@@ -298,7 +298,7 @@ should remain independently eligible.
 
 #### Database CRUD and backend initialization
 
-Database-authored playbooks are managed through the Tool Skills tab or the
+Database-authored playbooks are managed through the Skills tab or the
 `config.manage`-protected admin API:
 
 | Method | Endpoint | Behavior |

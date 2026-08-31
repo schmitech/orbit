@@ -943,6 +943,12 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     "M9.5 13.45L15.39 7.55C16.48 6.46 18.26 6.46 19.35 7.55L19.39 7.59C20.48 8.69 20.48 10.46 19.39 11.55L12.23 18.71C11.87 19.07 11.87 19.67 12.23 20.03L13.7 21.5",
     "M13.41 5.57L7.56 11.43C6.46 12.52 6.46 14.29 7.56 15.39C8.65 16.48 10.42 16.48 11.52 15.39L17.37 9.53",
   ];
+  // Open playbook: skills are authored guidance, distinct from the MCP
+  // connection itself and therefore intentionally use a different mark.
+  var ICON_NAV_SKILLS = [
+    "M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z",
+    "M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z",
+  ];
   var ICON_NAV_COSTS = ["M3 3v18h18", "M7 15l4-6 3 4 4-7"];
   var ICON_CHEVRONS_LEFT = ["M11 17l-5-5 5-5", "M18 17l-5-5 5-5"];
   var ICON_CHEVRON_DOWN = ["M6 9l6 6 6-6"];
@@ -958,7 +964,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     { id: "adapters", label: "Adapters", permission: "adapters.manage", group: "configure", icon: ICON_NAV_ADAPTERS },
     { id: "settings", label: "Settings", permission: "config.manage", group: "configure", icon: ICON_NAV_SETTINGS },
     { id: "mcp", label: "MCP", permission: "config.manage", group: "system", icon: ICON_NAV_MCP },
-    { id: "skills", label: "Tool Skills", permission: "config.manage", group: "system", icon: ICON_NAV_MCP },
+    { id: "skills", label: "Skills", permission: "config.manage", group: "system", icon: ICON_NAV_SKILLS },
     { id: "ops", label: "Ops", permission: "system.manage", group: "system", icon: ICON_NAV_OPS },
     { id: "audit", label: "Audit", permission: "audit.read", group: "system", icon: ICON_NAV_AUDIT },
   ];

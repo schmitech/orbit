@@ -2,7 +2,7 @@
 
 Steps to verify Phase 0–3 of [`docs/roadmap/mcp-tool-skills.md`](../roadmap/mcp-tool-skills.md).
 Phase 3 (§16–§19 below) added database-backed CRUD, an admin API, and the
-"Tool Skills" admin panel tab — everything before that is unchanged from the
+"Skills" admin panel tab — everything before that is unchanged from the
 Phase 0–2 file-only mechanism.
 
 This is the **tool skill** mechanism — an admin-authored `SKILL.md` procedural
@@ -62,7 +62,7 @@ What Phase 3 added on top, concretely (`server/services/tool_skill_service.py`'s
   `services/adapter_reload_state.py` generation-bump poll the MCP config
   reload already uses (`"tool_skills"` is a new reload kind alongside
   `"mcp_config"`).
-- **The "Tool Skills" admin panel tab** — create/edit/delete a skill with a
+- **The "Skills" admin panel tab** — create/edit/delete a skill with a
   markdown-preview editor, no YAML file editing required. `mcp.js`'s
   per-server detail view also gained a read-only "Playbooks" cross-reference
   section.
@@ -709,7 +709,7 @@ Confirm:
   skill has) and includes the `id` you'll need for the next calls.
 - `GET /admin/skills` lists the new **database-authored** skill with no
   server restart between the create and the list call. This CRUD API (and
-  the Tool Skills tab) intentionally lists database-authored skills only;
+  the Skills tab) intentionally lists database-authored skills only;
   file-authored `config/skills/*/SKILL.md` entries remain available to the
   runtime registry but are not enumerated by this endpoint.
 - With no `"skill"` field or `mcp-agent` routing involved yet, send a live
@@ -781,7 +781,7 @@ three-skill per-turn budget admits the highest-priority matching playbooks, so
 leaving the bundled file playbooks in the allowlist can prevent a lower-priority
 database test skill from loading.
 
-Create a **database** skill in **Admin → Tool Skills** with these fields:
+Create a **database** skill in **Admin → Skills** with these fields:
 
 ```text
 Name:        telemetry-db-verification
@@ -899,9 +899,9 @@ Unit-level equivalent, if you don't have a multi-worker deployment handy:
 /path/to/venv/bin/python -m pytest server/tests/test_services/test_adapter_reload_state.py -k "ToolSkillsReloadPropagation" -v
 ```
 
-## 19. Confirm the "Tool Skills" admin panel tab
+## 19. Confirm the "Skills" admin panel tab
 
-Open `/admin` in a browser, log in, and select **Tool Skills** in the System
+Open `/admin` in a browser, log in, and select **Skills** in the System
 group of the nav (next to **MCP**).
 
 - **List view**: confirm database skills created in steps 16–17 appear with
@@ -909,14 +909,14 @@ group of the nav (next to **MCP**).
   enumerates database-authored skills only; file-authored
   `config/skills/*/SKILL.md` skills remain active at runtime but are not
   shown as editable rows here.
-- **Create**: use the "Create Tool Skill" form to author a new skill (name,
+- **Create**: use the "Create Skill" form to author a new skill (name,
   description, comma-separated `mcp_tools` glob list, priority, markdown
   body). Confirm it appears in the list immediately and — per step 16 — is
   live in a request's `sources` with no restart.
-- **Edit**: select a skill, choose "Edit Tool Skill", change its body or
+- **Edit**: select a skill, choose "Edit Skill", change its body or
   priority, save, and confirm the markdown preview re-renders and a repeat
   live request reflects the change.
-- **Delete**: use the Danger Zone's "Delete Tool Skill", typing the skill's
+- **Delete**: use the Danger Zone's "Delete Skill", typing the skill's
   name to confirm. Confirm it disappears from the list and — if it had
   overridden a file skill by name (step 17) — the file skill's original
   behavior returns.
@@ -928,7 +928,7 @@ group of the nav (next to **MCP**).
   database-authored tool skill currently bound to one of its tools (by glob
   match against the live discovered, already-namespaced tool list). Create or
   delete a skill bound to
-  `business-sample` from the Tool Skills tab, then return to the MCP tab's
+  `business-sample` from the Skills tab, then return to the MCP tab's
   server detail without a full page reload — confirm the Playbooks section
   reflects the change (this is the P2 stale-cache fix: `skills.js` calls
   `mcpTab.invalidatePlaybooksCache()` after every create/update/delete, so
@@ -953,7 +953,7 @@ produce a mutation audit event.
 
 ## 21. Confirm authoring and capacity guardrails
 
-The Tool Skills form advertises the enforced limits: a 64-character name,
+The Skills form advertises the enforced limits: a 64-character name,
 500-character description, at most 64 `mcp_tools` patterns (256 characters
 each), and a 24 KB UTF-8 body. Invalid API payloads return 400/422 instead of
 being persisted. The database accepts disabled drafts beyond the 10,000-active
@@ -1054,7 +1054,7 @@ working end-to-end.
   after create/update/delete (this was a real bug, fixed post-review). A
   full page reload always clears the stale cache as a workaround, but
   shouldn't be necessary after the fix.
-- **The MCP tab says no database playbook is bound even though the Tool Skills
+- **The MCP tab says no database playbook is bound even though the Skills
   tab contains one**: ping the server so the panel has its live tool list, then
   confirm the binding targets the already-namespaced name shown there (for
   example `business-sample__update_support_ticket`). Fixed builds compare that

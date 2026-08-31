@@ -82,7 +82,7 @@ ORBIT is actively maintained. See the [release history](https://github.com/schmi
 | **Agents and protocols** | MCP tool calling, file- & DB-authored procedural tool skills (`SKILL.md`), progressive disclosure, priority token budgeting, bounded multi-step loops, natural-language skill routing, and A2A. |
 | **Media** | Image (OpenAI, Gemini, xAI, Azure OpenAI, OpenRouter), video, speech, PDF, Word, Excel, PowerPoint, CSV, and markdown generation. |
 | **Security** | API keys, RBAC, Entra ID and Auth0 SSO, deny-by-default identity allowlists, session withdrawal, external JWT role capping, rate limits, quotas, moderation, file encryption, and cloud secret managers. |
-| **Operations** | Admin UI, MCP Tool Skills tab, retrieval misses triage view, health checks, metrics, audit logs, per-request token and estimated-cost tracking, spend analytics, circuit breakers, datasource pooling, and hot adapter reloads. |
+| **Operations** | Admin UI, Skills tab for MCP playbooks, retrieval misses triage view, health checks, metrics, audit logs, per-request token and estimated-cost tracking, spend analytics, circuit breakers, datasource pooling, and hot adapter reloads. |
 
 [Browse all adapters](docs/adapters/adapters.md) · [See provider configuration](config/inference.yaml) · [Read the configuration reference](install/default-config/config.yaml) · [Full capability matrix & platform comparison](docs/ORBIT_CAPABILITY_MATRIX.md)
 

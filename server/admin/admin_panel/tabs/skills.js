@@ -6,7 +6,7 @@
 // procedural playbooks bound to MCP tools via an `mcp_tools` glob list; see
 // docs/roadmap/mcp-tool-skills.md §1 for the terminology split.
 export function createSkillsTab({
-  api, endpoints, el, clear, wrapTable, skeleton, refreshButton, field,
+  api, endpoints, el, clear, wrapTable, skeleton, refreshButton,
   svgIcon, iconPlus, iconSave, iconX,
   withButton, requireTypedConfirmation, showStatus, showTableLoadError,
   bindValidationClear, setFieldReadOnly, characterCount, createMarkdownPreview,
@@ -25,20 +25,70 @@ export function createSkillsTab({
     return false;
   }
 
-  function priorityField(input, hintId) {
-    return el("label", { className: "stack skill-priority-field" },
-      el("span", null, "Priority"),
-      el("span", { className: "skill-priority-control" },
-        input,
-        el("span", { id: hintId, className: "field-hint" }, "−1 is the lowest priority; higher values appear first.")
-      )
+  function helpTooltip(labelText, helpText, helpId) {
+    var helpButton = el("button", {
+      type: "button",
+      className: "skill-help-button",
+      "aria-label": "Help for " + labelText,
+      "aria-describedby": helpId,
+    }, "?");
+    helpButton.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") helpButton.blur();
+    });
+    return el("span", { className: "skill-help" },
+      helpButton,
+      el("span", { id: helpId, className: "skill-help-tooltip", role: "tooltip" }, helpText)
     );
   }
 
-  function enabledField(input) {
-    return el("label", { className: "skill-enabled-field" },
-      el("span", null, "Enabled"),
+  function tooltipField(labelText, input, helpText, helpId, className) {
+    input.id = input.id || helpId + "-input";
+    input.setAttribute("aria-describedby", helpId);
+    return el("div", { className: "stack skill-tooltip-field" + (className ? " " + className : "") },
+      el("div", { className: "skill-label-row" },
+        el("label", { htmlFor: input.id }, labelText),
+        helpTooltip(labelText, helpText, helpId)
+      ),
       input
+    );
+  }
+
+  function priorityField(input, hintId) {
+    return tooltipField("Loading priority", input, "Higher values load first. Use -1 to 99.", hintId, "skill-priority-field");
+  }
+
+  function enforcePriorityRange(input) {
+    input.addEventListener("input", function () {
+      // Keep "-" as a temporary value while the user types -1, but normalize
+      // every other negative value immediately. The pattern remains the final
+      // validation guard for programmatic changes and form submission.
+      if (input.value.charAt(0) === "-" && input.value !== "-" && input.value !== "-1") {
+        input.value = "-1";
+      }
+    });
+  }
+
+  function versionField(input, hintId) {
+    return tooltipField("Version", input, "Use dotted numbers, such as 1.0 or 1.2.3.", hintId, "skill-version-field");
+  }
+
+  function enabledField(input, hintId) {
+    input.id = input.id || hintId + "-input";
+    input.setAttribute("aria-describedby", hintId);
+    return el("div", { className: "skill-enabled-field" },
+      input,
+      el("label", { className: "skill-enabled-title", htmlFor: input.id }, "Enabled"),
+      helpTooltip("Enabled", "Makes this skill available to load.", hintId)
+    );
+  }
+
+  function formSection(title, description, content) {
+    return el("section", { className: "skill-form-section" },
+      el("div", { className: "skill-form-section-heading" },
+        el("h3", null, title),
+        el("p", null, description)
+      ),
+      content
     );
   }
 
@@ -61,15 +111,10 @@ export function createSkillsTab({
     layout.appendChild(createPanel);
     container.appendChild(layout);
 
-    var skillsRefreshBtn = refreshButton("Refresh the tool skill list", function () { refreshSkills(); });
+    var skillsRefreshBtn = refreshButton("Refresh the skill list", function () { refreshSkills(); });
     listPanel.appendChild(el("div", { className: "panel-header-row" },
-      el("h2", null, "Tool Skills"),
+      el("h2", null, "Skills"),
       skillsRefreshBtn
-    ));
-    listPanel.appendChild(el("p", { className: "field-hint" },
-      "Procedural SKILL.md playbooks bound to MCP tools via an mcp_tools glob list. ",
-      "A database skill with the same name as one under config/skills/ overrides the file at runtime; disabling or deleting it restores the file. ",
-      "Up to 10,000 skills may be enabled; disabled drafts can be staged beyond that limit. "
     ));
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "64", placeholder: "my-tool-playbook" });
@@ -84,12 +129,16 @@ export function createSkillsTab({
       pattern: "\\d+(?:\\.\\d+)*", title: "Use numbers separated by dots, for example 1.0 or 1.2.3.", spellcheck: "false"
     });
     var priorityInput = el("input", {
-      type: "number", value: "0", min: "-1", max: "99", step: "1", inputmode: "numeric",
-      style: "max-width:5.5rem", "aria-describedby": "skill-priority-help"
+      // A text input is intentional: number inputs ignore maxlength, allowing
+      // arbitrarily long values to be typed despite their min/max attributes.
+      type: "text", value: "0", maxlength: "2", inputmode: "numeric",
+      pattern: "(?:-1|[0-9]|[1-9][0-9])", title: "Enter a whole number from −1 to 99.",
+      style: "max-width:5.5rem", "aria-describedby": "skill-priority-help", autocomplete: "off"
     });
+    enforcePriorityRange(priorityInput);
     var bodyArea = el("textarea", { rows: "8", required: "true", maxlength: String(BODY_MAX) });
     var bodyCounter = characterCount(bodyArea, BODY_MAX);
-    var createBtn = el("button", { type: "button" }, "Create Tool Skill");
+    var createBtn = el("button", { type: "button" }, "Create Skill");
 
     function openCreatePanel() {
       createPanel.style.display = "";
@@ -100,21 +149,28 @@ export function createSkillsTab({
     var createPanelToggle = el("button", { className: "secondary", type: "button" }, "Close");
     createPanelToggle.addEventListener("click", closeCreatePanel);
     createPanel.appendChild(el("div", { className: "panel-header-row" },
-      el("h2", null, "New Tool Skill"),
+      el("h2", null, "New Skill"),
       createPanelToggle
     ));
-    createPanel.appendChild(el("div", { className: "admin-create-form" },
-      el("div", { className: "skill-name-field" }, field("Name (lowercase-slug)", nameInput)),
-      el("div", { className: "stack" },
-        field("Description", descInput),
-        descCounter
+    bodyArea.className = "skill-body-input";
+    createPanel.appendChild(el("div", { className: "admin-create-form skill-form" },
+      formSection("Basics", "Identify this playbook and control when it loads.",
+        el("div", { className: "skill-basics-grid" },
+          tooltipField("Name", nameInput, "Use lowercase letters, numbers, and hyphens.", "skill-name-help", "skill-name-field"),
+          versionField(versionInput, "skill-version-help"),
+          priorityField(priorityInput, "skill-priority-help"),
+          el("div", { className: "stack skill-description-field" },
+            tooltipField("Description", descInput, "Explain when this playbook should be used.", "skill-description-help"),
+            descCounter
+          )
+        )
       ),
-      el("div", { className: "skill-metadata-row" },
-        field("Version (up to 25 characters)", versionInput),
-        priorityField(priorityInput, "skill-priority-help")
+      formSection("Tool matching", "Choose the MCP tools that make this playbook relevant.",
+        tooltipField("MCP tools", toolsInput, "Enter comma-separated glob patterns; up to 64 patterns and 256 characters per pattern.", "skill-tools-help")
       ),
-      field("mcp_tools (comma-separated; max 64 patterns, 256 chars each)", toolsInput),
-      el("div", { className: "stack" }, field("Playbook body (markdown; 24 KB UTF-8 max)", bodyArea), bodyCounter),
+      formSection("Instructions", "Write the procedural guidance the model should follow.",
+        el("div", { className: "stack" }, tooltipField("Playbook body", bodyArea, "Supports Markdown; 24 KB UTF-8 maximum.", "skill-body-help"), bodyCounter)
+      ),
       el("div", { className: "admin-create-form-actions" }, createBtn)
     ));
     bindValidationClear(nameInput, descInput, versionInput, priorityInput, toolsInput, bodyArea);
@@ -122,8 +178,8 @@ export function createSkillsTab({
     var createLaunchBtn = el("button", {
       className: "secondary create-launch-btn",
       type: "button",
-      "aria-label": "Create tool skill",
-    }, svgIcon(iconPlus), el("span", null, "Create Tool Skill"));
+      "aria-label": "Create skill",
+    }, svgIcon(iconPlus), el("span", null, "Create Skill"));
     createLaunchBtn.addEventListener("click", openCreatePanel);
     listPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn));
 
@@ -156,7 +212,7 @@ export function createSkillsTab({
         closeCreatePanel();
         notifySkillsChanged();
         await refreshSkills(created ? created.id : null);
-      }, "Tool skill created");
+      }, "Skill created");
     });
 
     async function refreshSkills(selectedId) {
@@ -177,7 +233,7 @@ export function createSkillsTab({
         clear(detailPanel);
         detailPanel.style.display = "none";
       } catch (err) {
-        showTableLoadError(tableWrap, "Failed to load tool skills");
+        showTableLoadError(tableWrap, "Failed to load skills");
       }
     }
 
@@ -196,7 +252,7 @@ export function createSkillsTab({
     if (!skills || skills.length === 0) {
       wrap.appendChild(el("div", { className: "empty-state" },
         el("div", { className: "empty-state-icon" }, "\u{1F4D8}"),
-        el("p", null, "No tool skills found")
+        el("p", null, "No skills found")
       ));
       return;
     }
@@ -268,11 +324,18 @@ export function createSkillsTab({
       type: "text", value: originalVersion, maxlength: "25", readonly: "true", "aria-readonly": "true",
       inputmode: "decimal", pattern: "\\d+(?:\\.\\d+)*", title: "Use numbers separated by dots, for example 1.0 or 1.2.3.", spellcheck: "false"
     });
-    var priorityInput = el("input", { type: "number", value: originalPriority, min: "-1", max: "99", step: "1", inputmode: "numeric", style: "max-width:5.5rem", readonly: "true", "aria-readonly": "true" });
+    var priorityInput = el("input", {
+      type: "text", value: originalPriority, maxlength: "2", inputmode: "numeric",
+      pattern: "(?:-1|[0-9]|[1-9][0-9])", title: "Enter a whole number from −1 to 99.",
+      style: "max-width:5.5rem", readonly: "true", "aria-readonly": "true",
+      "aria-describedby": "skill-priority-help-edit", autocomplete: "off"
+    });
+    enforcePriorityRange(priorityInput);
     var enabledInput = el("input", { type: "checkbox" });
     enabledInput.checked = originalEnabled;
     enabledInput.disabled = true;
     var bodyArea = el("textarea", { rows: "10", maxlength: String(BODY_MAX), readonly: "true", "aria-readonly": "true" }, originalBody);
+    bodyArea.className = "skill-body-input";
     var bodyCounter = characterCount(bodyArea, BODY_MAX);
 
     var saveBtn = el("button", {
@@ -294,29 +357,35 @@ export function createSkillsTab({
         });
         notifySkillsChanged();
         onRefresh(updated ? updated.id : skill.id);
-      }, "Tool skill updated");
+      }, "Skill updated");
     });
 
     var editPreview = createMarkdownPreview(bodyArea);
-    var editorWrap = el("div", { className: "prompt-editor-pane", style: "display:none" },
-      el("div", { className: "skill-name-field" }, field("Name (lowercase-slug)", nameInput)),
-      el("div", { className: "stack" },
-        field("Description", descInput),
-        descCounter
+    var editorWrap = el("div", { className: "prompt-editor-pane skill-form", style: "display:none" },
+      formSection("Basics", "Identify this playbook and control when it loads.",
+        el("div", { className: "skill-basics-grid skill-basics-grid-edit" },
+          tooltipField("Name", nameInput, "Use lowercase letters, numbers, and hyphens.", "skill-name-help-edit", "skill-name-field"),
+          versionField(versionInput, "skill-version-help-edit"),
+          priorityField(priorityInput, "skill-priority-help-edit"),
+          enabledField(enabledInput, "skill-enabled-help-edit"),
+          el("div", { className: "stack skill-description-field" },
+            tooltipField("Description", descInput, "Explain when this playbook should be used.", "skill-description-help-edit"),
+            descCounter
+          )
+        )
       ),
-      el("div", { className: "skill-metadata-row" },
-        field("Version (up to 25 characters)", versionInput),
-        priorityField(priorityInput, null),
-        enabledField(enabledInput)
+      formSection("Tool matching", "Choose the MCP tools that make this playbook relevant.",
+        tooltipField("MCP tools", toolsInput, "Enter comma-separated glob patterns; up to 64 patterns and 256 characters per pattern.", "skill-tools-help-edit")
       ),
-      field("mcp_tools (comma-separated; max 64 patterns, 256 chars each)", toolsInput),
-      el("div", { className: "stack" }, field("Playbook body (markdown; 24 KB UTF-8 max)", bodyArea), bodyCounter)
+      formSection("Instructions", "Write the procedural guidance the model should follow.",
+        el("div", { className: "stack" }, tooltipField("Playbook body", bodyArea, "Supports Markdown; 24 KB UTF-8 maximum.", "skill-body-help-edit"), bodyCounter)
+      )
     );
     var previewWrap = el("div", { className: "prompt-preview-pane" }, editPreview);
-    var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Tool Skill");
+    var editToggle = el("button", { className: "secondary", type: "button" }, "Edit Skill");
     var cancelBtn = el("button", {
       className: "secondary", type: "button", style: "display:none",
-      "aria-label": "Cancel editing tool skill", title: "Cancel editing tool skill",
+      "aria-label": "Cancel editing skill", title: "Cancel editing skill",
     }, svgIcon(iconX), "Cancel");
     var editActions = el("div", { className: "admin-create-form-actions skill-edit-actions", style: "display:none" }, cancelBtn, saveBtn);
 
@@ -375,23 +444,23 @@ export function createSkillsTab({
     setEditMode(false);
 
     panel.appendChild(el("h3", null, "Danger Zone"));
-    var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Tool Skill");
+    var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Skill");
     deleteBtn.addEventListener("click", function () {
       requireTypedConfirmation({
-        title: "Delete Tool Skill",
-        message: 'Delete tool skill "' + skill.name + '"? This cannot be undone.',
+        title: "Delete Skill",
+        message: 'Delete skill "' + skill.name + '"? This cannot be undone.',
         expectedText: skill.name,
         confirmLabel: "Delete",
         onConfirm: async function () {
           await api("DELETE", endpoints.skills + "/" + encodeURIComponent(skill.id));
           notifySkillsChanged();
-          showStatus("Tool skill deleted");
+          showStatus("Skill deleted");
           onRefresh(null);
         }
       });
     });
     panel.appendChild(el("div", { className: "danger-zone" },
-      el("p", null, "Deleting a database tool skill falls back to the on-disk SKILL.md of the same name, if one exists."),
+      el("p", null, "Deleting a database skill restores the on-disk SKILL.md of the same name, if one exists."),
       deleteBtn
     ));
   }
