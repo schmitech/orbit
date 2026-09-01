@@ -9,6 +9,8 @@ import getpass
 import secrets
 import string
 from datetime import datetime
+
+import requests
 from rich.console import Console
 from rich.prompt import Confirm
 
@@ -17,6 +19,43 @@ from bin.orbit.services.api_service import ApiService
 from bin.orbit.utils.output import OutputFormatter
 
 console = Console()
+
+_FALLBACK_PASSWORD_POLICY = {
+    "min_length": 12,
+    "max_length": 128,
+    "require_uppercase": True,
+    "require_lowercase": True,
+    "require_digit": True,
+    "require_symbol": True,
+}
+_PASSWORD_SYMBOLS = "!@#$%^&*()-_=+[]{}:,.?"
+
+
+def generate_policy_compliant_password(policy: dict) -> str:
+    """Generate an ASCII password satisfying the server's advertised policy."""
+    min_length = int(policy.get("min_length", _FALLBACK_PASSWORD_POLICY["min_length"]))
+    max_length = int(policy.get("max_length", _FALLBACK_PASSWORD_POLICY["max_length"]))
+    required_sets = []
+    if policy.get("require_uppercase", False):
+        required_sets.append(string.ascii_uppercase)
+    if policy.get("require_lowercase", False):
+        required_sets.append(string.ascii_lowercase)
+    if policy.get("require_digit", False):
+        required_sets.append(string.digits)
+    if policy.get("require_symbol", False):
+        required_sets.append(_PASSWORD_SYMBOLS)
+
+    length = max(16, min_length, len(required_sets))
+    if max_length < length:
+        length = max_length
+    if length < min_length or length < len(required_sets):
+        raise ValueError("Password policy cannot be satisfied within its maximum length")
+
+    password = [secrets.choice(characters) for characters in required_sets]
+    alphabet = string.ascii_letters + string.digits + _PASSWORD_SYMBOLS
+    password.extend(secrets.choice(alphabet) for _ in range(length - len(password)))
+    secrets.SystemRandom().shuffle(password)
+    return "".join(password)
 
 
 class UserListCommand(BaseCommand):
@@ -104,9 +143,15 @@ class UserResetPasswordCommand(BaseCommand):
         
         password = args.password
         if not password:
-            # Generate a random password
-            alphabet = string.ascii_letters + string.digits
-            password = ''.join(secrets.choice(alphabet) for i in range(16))
+            try:
+                policy = self.api_service.get_password_policy()
+            except requests.exceptions.HTTPError as error:
+                # Older servers do not expose the policy endpoint. The fallback
+                # remains strong and satisfies the current default policy.
+                if error.response is None or error.response.status_code != 404:
+                    raise
+                policy = _FALLBACK_PASSWORD_POLICY
+            password = generate_policy_compliant_password(policy)
             console.print(f"[bold]Generated password:[/bold] {password}")
         
         result = self.api_service.reset_user_password(user_id, password)
@@ -324,4 +369,3 @@ class UserChangePasswordCommand(BaseCommand):
         # Clear the local token since it's now invalid
         self.api_service.auth_service.clear_token()
         return 0
-

@@ -1,5 +1,7 @@
 # Password Complexity Requirements — Implementation Plan
 
+**Status:** Complete (2026-08-31)
+
 ## Summary
 
 Strengthen `AuthService.validate_password` with configurable minimum

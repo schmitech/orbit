@@ -241,7 +241,7 @@ Set these in `docker-compose.yml` under the `orbit` service:
 - `OLLAMA_HOST` - Ollama service address (default: `ollama:11434`)
   - Use host:port such as `ollama:11434`; `http://` and `https://` URLs are also accepted.
   - Use `host.docker.internal:11434` to reach an Ollama server running on the Docker host.
-- `ORBIT_DEFAULT_ADMIN_PASSWORD` - Admin password for CLI access (default: `admin123`)
+- `ORBIT_DEFAULT_ADMIN_PASSWORD` - Admin password for CLI access (default: `ChangeMe!2026`)
 - `ORBIT_ALLOW_DEFAULT_CREDENTIALS` - Set to `true` to acknowledge and silence the startup warning about the bundled default database/API key.
   - Leave unset for the warning to print on each start.
   - Rotate the default API key/admin password before exposing ORBIT beyond localhost.
@@ -538,7 +538,7 @@ docker run -d --name orbit-2.17.2-openai \
   schmitech/orbit:2.17.2-openai
 ```
 
-The Docker image defaults `ORBIT_DEFAULT_ADMIN_PASSWORD` to `admin123` for
+The Docker image defaults `ORBIT_DEFAULT_ADMIN_PASSWORD` to `ChangeMe!2026` for
 first-run convenience. Override it before exposing ORBIT beyond localhost.
 
 Advanced builds can override the runtime user and CUDA wheel channel:

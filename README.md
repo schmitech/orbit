@@ -213,7 +213,7 @@ For peer-agent orchestration using Google's A2A protocol, see the blocking and s
 
 Using Claude with ORBIT? See [Using ORBIT from Claude](docs/claude-agent-integration.md) for both connection options — Claude calling ORBIT as an MCP tool, or a Claude agent addressing ORBIT as a peer via A2A.
 
-Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `admin123`, set via `auth.default_admin_password` in `config.yaml` — change this immediately after first login).
+Admin Panel at [http://localhost:3000/admin](http://localhost:3000/admin) (default credentials: username `admin`, password `ChangeMe!2026`, set via `ORBIT_DEFAULT_ADMIN_PASSWORD` — change this immediately after first login).
 
 For custom Docker deployments, follow [Docker guide](docker/README.md).
 

@@ -1242,7 +1242,6 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     showError: showError,
     showTableLoadError: showTableLoadError,
     validateUsername: validateUsername,
-    validatePassword: validatePassword,
     bindValidationClear: bindValidationClear,
     createSelect: createSelect,
     getCurrentUser: function () { return currentUser; }

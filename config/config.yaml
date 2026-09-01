@@ -4,6 +4,7 @@
 import:
   - "ollama.yaml"
   - "llama_cpp.yaml"
+  - "azure.yaml"
   - "adapters.yaml"
   - "inference.yaml"
   - "pricing.yaml"
@@ -39,6 +40,12 @@ general:
     header_name: "X-Session-ID"     # HTTP header carrying the conversation/session id
     required: true                  # Reject requests that omit the session header
   inference_provider: "ollama"      # Default provider (a key from inference.yaml) when an adapter sets none
+
+# Procedural SKILL.md playbooks bound to namespaced MCP tools. Database-authored
+# playbooks from the Tool Skills admin tab are merged over these files by name.
+# Relative paths resolve from the directory where ORBIT is started.
+tool_skills:
+  directory: "config/skills"
 
 # Detects the language of each user message with an ensemble of local libraries
 # (weighted voting plus script/heuristic checks). Used to keep replies in the
@@ -167,6 +174,57 @@ auth:
   # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
   credential_storage: keyring
 
+  # Applied to newly created and changed local passwords only. Existing
+  # passwords and sessions are not retroactively invalidated.
+  password_policy:
+    min_length: 12
+    max_length: 128
+    require_uppercase: true
+    require_lowercase: true
+    require_digit: true
+    require_symbol: true
+    reject_common_passwords: true
+
+  # Dedicated sign-in protection. The IP bucket is consumed by each login
+  # request; the username bucket is consumed only after a failed attempt.
+  login_rate_limit:
+    enabled: true
+    window_seconds: 60
+    max_attempts_per_ip: 10
+    max_attempts_per_username: 5
+    lockout_after_username_limit: false
+
+  # When true, every inference surface (chat, files, voice, A2A) requires a
+  # valid Authorization: Bearer <user-token> in addition to the API key, and
+  # the API key must be sent in the X-API-Key header (the Bearer-as-API-key
+  # fallback used for OpenAI-SDK compatibility is disabled). This is what
+  # makes the blacklist below actually enforceable on inference — with it
+  # false, a blacklisted user can still reach /v1/chat by presenting only an
+  # API key, since API-key-only requests never resolve a user identity.
+  # Individual adapters may override via capabilities.requires_authenticated_user.
+  # Default false: flipping to true will 401 any client that only sends an
+  # API key (including OpenAI SDK clients, which pass the key as Bearer).
+  require_authenticated_user: false
+
+  # Blacklisted identities. Rules are managed at runtime from the admin panel's
+  # Users tab (or GET/POST/DELETE /auth/blacklist) and stored in the database,
+  # not here — a rule blocks an identity pattern from authenticating on every
+  # surface. This setting only controls how long each worker caches the rule
+  # set before re-reading it, which bounds propagation delay under
+  # performance.workers > 1. Adding a rule revokes matching sessions
+  # immediately, so this delay only affects newly presented credentials.
+  blacklist:
+    cache_ttl: 30                   # Seconds a worker caches blacklist rules (0 = always re-read)
+
+  # Identity allowlist — pre-clears external (Entra/Auth0) identities before
+  # ORBIT will provision them an account. Like the blacklist, rules live in the
+  # database and are managed from the admin panel's Users tab ("Allowed
+  # Identities"), GET/POST/PUT/DELETE /auth/allowlist, or `orbit user allowlist`.
+  # This setting only bounds the per-worker cache. See
+  # auth.providers.access_control below for what enforcement actually means.
+  allowlist:
+    cache_ttl: 30                   # Seconds a worker caches allowlist rules (0 = always re-read)
+
   # External identity providers (OIDC / OAuth2). Optional — the built-in
   # username/password auth above always works. When enabled, ORBIT validates
   # access-token JWTs presented as `Authorization: Bearer <jwt>` by clients
@@ -175,12 +233,38 @@ auth:
   providers:
     enabled: false                 # Master switch for external-provider bearer-token validation
     default_role: "user"           # Role assigned to users provisioned on first login
+    # How external identities gain access once a provider is enabled:
+    #   allowlist (default) - deny by default. An identity must match an
+    #     allowlist rule (or an admin_sso.admin_users entry) before ORBIT will
+    #     provision it an account, on any surface. An empty rule set admits
+    #     nobody, which is what makes this fail closed.
+    #   open - any identity an enabled provider authenticates is provisioned.
+    #     Appropriate only when the IdP itself is the access control (e.g. a
+    #     single-tenant directory with no guest accounts); unsafe against a
+    #     tenant with open signup or social connections.
+    # Inert while `enabled` is false — with no provider there are no external
+    # identities to gate. Enabling this on a deployment that already has
+    # external users denies every one no rule covers; the server logs the count
+    # at startup, and `orbit user allowlist seed-from-existing` grandfathers the
+    # current population. Keep default_role a role with no permissions ('user'):
+    # anything else grants every external identity admin-panel access at first
+    # login, and the server warns at startup if it does.
+    access_control: allowlist
     # Microsoft Entra ID (Azure AD)
     entra:
       enabled: false
       tenant_id: ${ORBIT_AUTH_ENTRA_TENANT_ID:-}
       client_id: ${ORBIT_AUTH_ENTRA_CLIENT_ID:-}       # Expected token audience (this app's client id)
       client_secret: ${ORBIT_AUTH_ENTRA_CLIENT_SECRET:-}  # Optional; only for admin-panel SSO confidential clients
+      # Require a provider-verified email before an admin_sso.admin_users *email*
+      # entry may match this provider. False for Entra: its id_tokens carry no
+      # `email_verified` claim and the address comes from the directory rather
+      # than user self-assertion. "provider:subject" entries are never affected.
+      require_verified_email: false
+      # Optional: Entra access tokens include `preferred_username` by default, so
+      # this is rarely needed. Set only if a tenant's token shape omits it and you
+      # add a custom claim via an Entra optional claim / App Manifest change.
+      # email_claim: "preferred_username"
     # Auth0
     auth0:
       enabled: false
@@ -188,6 +272,19 @@ auth:
       audience: ${ORBIT_AUTH_AUTH0_AUDIENCE:-}         # API identifier = expected token audience
       client_id: ${ORBIT_AUTH_AUTH0_CLIENT_ID:-}       # Required for admin-panel SSO (id_token audience)
       client_secret: ${ORBIT_AUTH_AUTH0_CLIENT_SECRET:-}  # Optional; only for admin-panel SSO confidential clients
+      # Require a provider-verified email before an admin_sso.admin_users *email*
+      # entry may match. Keep true: Auth0 connections (database signup, some
+      # social providers) let a user self-assert an address, so without this
+      # anyone able to register an allowlisted email at the IdP would be granted
+      # admin at login. "provider:subject" entries are never affected.
+      require_verified_email: true
+      # Optional: Auth0 access tokens issued against a custom API audience carry
+      # no email claim by default (unlike Entra). To populate user email on JIT
+      # provisioning, add an Auth0 Action (Actions > Flows > Login) that injects
+      # a namespaced custom claim, e.g.:
+      #   api.accessToken.setCustomClaim('https://your-api/email', event.user.email)
+      # then point this at that claim key. Defaults to Auth0's standard `email` claim.
+      # email_claim: "https://your-api/email"
 
     # Admin-panel browser SSO (server-side OAuth Authorization Code + PKCE).
     # Lets admins sign in to /admin with Entra/Auth0 instead of a password.
@@ -370,7 +467,7 @@ internal_services:
     # Set to false for debugging/testing to see plain text responses
     # Compressed responses are stored as base64-encoded gzip data
     compress_responses: true
-    # Clear audit logs on server startup
+    # Clear inference-request audit logs on server startup
     # WARNING: This will delete ALL audit logs when the server starts
     # Use with caution - only recommended for development/testing environments
     clear_on_startup: false
@@ -380,6 +477,9 @@ internal_services:
     admin_events:
       enabled: false
       collection_name: "audit_admin_logs"
+      # Clear privileged admin/auth audit events independently on startup.
+      # Leave false to retain administrative event history when inference logs refresh.
+      clear_on_startup: false
 
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}

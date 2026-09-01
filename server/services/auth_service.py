@@ -24,6 +24,7 @@ from services.database_service import (
     DatabaseTimeoutError
 )
 from auth.rbac import is_valid_role, permissions_for_roles
+from services.common_passwords import load_common_passwords
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ class AuthService:
         # Default admin configuration
         self.default_admin_username = config.get('auth', {}).get('default_admin_username', 'admin')
         self.default_admin_password = config.get('auth', {}).get('default_admin_password', 'admin123')
+        self.password_policy = config.get('auth', {}).get('password_policy', {}) or {}
 
         # External identity provider (OIDC) configuration - built in initialize()
         self._oidc = None
@@ -253,17 +255,67 @@ class AuthService:
         return None
 
     @classmethod
-    def validate_password(cls, password: str) -> Optional[str]:
-        """Validate password rules without imposing composition requirements."""
+    def normalize_password_policy(
+        cls, policy: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Return the public, type-normalized form of a password policy."""
+        policy = policy or {}
+        min_length = policy.get("min_length", cls.PASSWORD_MIN_LENGTH)
+        max_length = policy.get("max_length", cls.PASSWORD_MAX_LENGTH)
+        try:
+            min_length = min(cls.PASSWORD_MAX_LENGTH, max(1, int(min_length)))
+            max_length = min(
+                cls.PASSWORD_MAX_LENGTH, max(min_length, int(max_length))
+            )
+        except (TypeError, ValueError):
+            min_length = cls.PASSWORD_MIN_LENGTH
+            max_length = cls.PASSWORD_MAX_LENGTH
+
+        def enabled(name: str) -> bool:
+            value = policy.get(name, False)
+            return value is True or str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+        return {
+            "min_length": min_length,
+            "max_length": max_length,
+            "require_uppercase": enabled("require_uppercase"),
+            "require_lowercase": enabled("require_lowercase"),
+            "require_digit": enabled("require_digit"),
+            "require_symbol": enabled("require_symbol"),
+            "reject_common_passwords": enabled("reject_common_passwords"),
+        }
+
+    @classmethod
+    def validate_password(
+        cls, password: str, policy: Optional[Dict[str, Any]] = None
+    ) -> Optional[str]:
+        """Validate a password, applying an optional configured complexity policy."""
         if password is None:
             return "Password is required"
-        if len(password) < cls.PASSWORD_MIN_LENGTH:
-            return f"Password must be at least {cls.PASSWORD_MIN_LENGTH} characters"
-        if len(password) > cls.PASSWORD_MAX_LENGTH:
-            return f"Password must be at most {cls.PASSWORD_MAX_LENGTH} characters"
+
+        policy = cls.normalize_password_policy(policy)
+        min_length = policy["min_length"]
+        max_length = policy["max_length"]
+        errors = []
+        if len(password) < min_length:
+            errors.append(f"Password must be at least {min_length} characters")
+        if len(password) > max_length:
+            errors.append(f"Password must be at most {max_length} characters")
         if any(ch.isspace() for ch in password):
-            return "Password cannot contain spaces or other whitespace"
-        return None
+            errors.append("Password cannot contain spaces or other whitespace")
+
+        if policy["require_uppercase"] and not any(ch.isupper() for ch in password):
+            errors.append("Password must include an uppercase letter")
+        if policy["require_lowercase"] and not any(ch.islower() for ch in password):
+            errors.append("Password must include a lowercase letter")
+        if policy["require_digit"] and not any(ch.isdigit() for ch in password):
+            errors.append("Password must include a digit")
+        if policy["require_symbol"] and not any(not ch.isalnum() for ch in password):
+            errors.append("Password must include a symbol")
+        if policy["reject_common_passwords"] and password.casefold() in load_common_passwords():
+            errors.append("Password is too common")
+
+        return "; ".join(errors) if errors else None
     
     def _verify_password(self, password: str, stored_password: str) -> bool:
         """
@@ -354,6 +406,15 @@ class AuthService:
             )
 
             if not admin_user:
+                password_error = self.validate_password(
+                    self.default_admin_password, self.password_policy
+                )
+                if password_error:
+                    raise ValueError(
+                        "Default admin password does not satisfy auth.password_policy: "
+                        f"{password_error}"
+                    )
+
                 # Create default admin user
                 user_doc = {
                     "username": self.default_admin_username,
@@ -732,7 +793,7 @@ class AuthService:
             True if successful, False otherwise
         """
         try:
-            password_error = self.validate_password(new_password)
+            password_error = self.validate_password(new_password, self.password_policy)
             if password_error:
                 logger.warning(f"Rejected password change for invalid new password: {password_error}")
                 return False
@@ -808,7 +869,7 @@ class AuthService:
                 logger.warning(f"Rejected user creation for invalid username: {username_error}")
                 return None
 
-            password_error = self.validate_password(password)
+            password_error = self.validate_password(password, self.password_policy)
             if password_error:
                 logger.warning(f"Rejected user creation for invalid password: {password_error}")
                 return None
@@ -1128,7 +1189,7 @@ class AuthService:
             True if successful, False otherwise
         """
         try:
-            password_error = self.validate_password(new_password)
+            password_error = self.validate_password(new_password, self.password_policy)
             if password_error:
                 logger.warning(f"Rejected password reset for invalid new password: {password_error}")
                 return False

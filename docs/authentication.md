@@ -1578,13 +1578,13 @@ Located in `bin/orbit.py`
 ✅ **Error Handling**: Secure error messages, no info leakage  
 ✅ **Audit Logging**: Authentication events logged  
 ✅ **Login Rate Limiting**: Cache-backed IP and username throttling with degraded-mode fallback — [implementation plan](roadmap/authentication/complete/phase-1-auth-login-rate-limiting.md)
+✅ **Password Complexity**: Configurable local password requirements and common-password rejection — [implementation plan](roadmap/authentication/complete/phase-2-auth-password-complexity.md)
 
 ### Recommended Additional Security
 
 Plans for the remaining phases are tracked under
-[`docs/roadmap/authentication/`](roadmap/authentication/), ordered by dependency and effort (Phase 2 → 7).
+[`docs/roadmap/authentication/`](roadmap/authentication/), ordered by dependency and effort (Phase 3 → 7).
 
-🔸 **Password Complexity**: Enforce minimum password requirements — [roadmap](roadmap/authentication/phase-2-auth-password-complexity.md) (Phase 2)  
 🔸 **Account Lockout**: Temporary lockout after failed attempts — [roadmap](roadmap/authentication/phase-3-auth-account-lockout.md) (Phase 3)  
 🔸 **Audit Trail**: Detailed logging of all user actions — [roadmap](roadmap/authentication/phase-4-auth-audit-trail-coverage.md) (Phase 4)  
 🔸 **Session Monitoring**: Track active sessions per user — [roadmap](roadmap/authentication/phase-5-auth-session-monitoring.md) (Phase 5)  

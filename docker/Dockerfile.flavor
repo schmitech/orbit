@@ -127,7 +127,7 @@ RUN mkdir -p /orbit/logs /orbit/data /orbit/models /orbit/config-runtime
 ENV PYTHONPATH=/orbit:/orbit/server
 ENV PATH="/orbit/bin:${PATH}"
 ENV ENVIRONMENT=production
-ENV ORBIT_DEFAULT_ADMIN_PASSWORD=admin123
+ENV ORBIT_DEFAULT_ADMIN_PASSWORD=ChangeMe!2026
 ENV ORBIT_PROFILE=${ORBIT_FLAVOR}
 # Non-root: keep Ollama's model store under a directory the "orbit" user
 # owns rather than the default /root/.ollama. Mount a volume at

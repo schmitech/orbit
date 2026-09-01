@@ -34,7 +34,7 @@ If that responds, you're ready.
 Every admin task in this tutorial (creating API keys, managing prompts/personas, toggling adapters, editing config, viewing audit events, watching live metrics) can be done two ways:
 
 - **CLI** — the `./bin/orbit.sh …` commands you'll see below.
-- **Admin panel** — point your browser at **`http://localhost:3000/admin`** and sign in with the default admin credentials, `admin` / `admin123` (override via `ORBIT_DEFAULT_ADMIN_PASSWORD` in your `.env`).
+- **Admin panel** — point your browser at **`http://localhost:3000/admin`** and sign in with the default admin credentials, `admin` / `ChangeMe!2026` (override via `ORBIT_DEFAULT_ADMIN_PASSWORD` in your `.env`).
 
 The panel covers Users, API Keys, Prompts/Personas, Adapters (with live toggle + per-adapter YAML editor), Settings (in-browser `config.yaml` editor), Audit, and Overview monitoring. The CLI is faster for scripted setup; the UI is friendlier for exploration. Use whichever you prefer — they act on the same underlying state.
 

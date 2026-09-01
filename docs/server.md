@@ -146,7 +146,7 @@ http://localhost:3000/admin
 Sign in with the bootstrap administrator account:
 
 - **Username:** `admin`
-- **Password:** `admin123` by default, or the value of `ORBIT_DEFAULT_ADMIN_PASSWORD`
+- **Password:** `ChangeMe!2026` by default, or the value of `ORBIT_DEFAULT_ADMIN_PASSWORD`
 
 Change the default password immediately after the first login. The panel groups its tools into these areas:
 

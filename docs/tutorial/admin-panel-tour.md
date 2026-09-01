@@ -4,7 +4,7 @@
 
 The admin panel (`http://localhost:3000/admin`) is where you'll do almost every setup and monitoring task in this tutorial — creating keys, wiring up adapters, watching what your server is doing. This page is a screen-by-screen tour of all 12 tabs, so you know what's there before you need it. If you just want to create your first key right now, go to [Your first chat](first-chat.md) or [Creating API Keys](creating-api-keys.md) instead — come back here when you want the full map.
 
-Sign in with the default credentials (`admin` / the value of `ORBIT_DEFAULT_ADMIN_PASSWORD`, or `admin123` if unset — change this before any real deployment).
+Sign in with the default credentials (`admin` / the value of `ORBIT_DEFAULT_ADMIN_PASSWORD`, or `ChangeMe!2026` if unset — change this before any real deployment).
 
 <!-- MEDIA: screenshot | admin-panel-tour/login | Admin panel login screen -->
 > 🖼️ **Screenshot placeholder:** the login screen.

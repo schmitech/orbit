@@ -192,6 +192,13 @@ class ApiService:
         response = self.api_client.post("/auth/reset-password", headers=headers, json_data=data)
         response.raise_for_status()
         return response.json()
+
+    def get_password_policy(self) -> Dict[str, Any]:
+        """Return the active local-password policy for an authenticated user."""
+        headers = self._get_auth_headers()
+        response = self.api_client.get("/auth/password-policy", headers=headers)
+        response.raise_for_status()
+        return response.json()
     
     @handle_api_errors(operation_name="Find user by username", custom_errors={
         403: "Admin privileges required",

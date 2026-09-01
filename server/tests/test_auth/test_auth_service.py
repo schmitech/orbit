@@ -85,6 +85,13 @@ if config_path.exists():
     
     # Override backend type for tests
     TEST_CONFIG['internal_services']['backend']['type'] = BACKEND_TYPE
+    # This suite exercises the legacy AuthService behavior and intentionally
+    # uses short fixture passwords. Password-policy behavior is covered by the
+    # dedicated test_password_policy.py suite instead of inheriting a local
+    # deployment's opt-in policy from config.yaml.
+    TEST_CONFIG['auth'].pop('password_policy', None)
+    TEST_CONFIG['auth']['default_admin_password'] = 'admin123'
+    TEST_CONFIG['auth']['providers'] = {'enabled': False}
     
     # Use test database path for SQLite
     if BACKEND_TYPE == 'sqlite':
@@ -126,7 +133,7 @@ else:
             'session_duration_hours': 1,
             'default_admin_username': 'admin',
             'default_admin_password': 'admin123',
-            'pbkdf2_iterations': 600000
+            'pbkdf2_iterations': 600000,
         }
     }
 

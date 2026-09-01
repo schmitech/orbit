@@ -42,10 +42,21 @@ def validate_username_or_400(username: str) -> None:
         raise HTTPException(status_code=400, detail=error)
 
 
-def validate_password_or_400(password: str) -> None:
-    error = AuthService.validate_password(password)
+def validate_password_or_400(password: str, auth_service: AuthService) -> None:
+    error = auth_service.validate_password(password, auth_service.password_policy)
     if error:
         raise HTTPException(status_code=400, detail=error)
+
+
+@auth_router.get("/password-policy")
+async def get_password_policy(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Return the active, non-sensitive local-password rules for the admin UI."""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return AuthService.normalize_password_policy(auth_service.password_policy)
 
 
 # Request/Response Models
@@ -422,7 +433,7 @@ async def register_user(
         )
 
     validate_username_or_400(request.username)
-    validate_password_or_400(request.password)
+    validate_password_or_400(request.password, auth_service)
     assigned_roles = request.roles or [request.role]
     invalid_roles = [r for r in assigned_roles if not is_valid_role(r)]
     if invalid_roles:
@@ -615,7 +626,7 @@ async def change_password(
         HTTPException: If password change fails
     """
     try:
-        validate_password_or_400(request.new_password)
+        validate_password_or_400(request.new_password, auth_service)
         success = await auth_service.change_password(
             current_user["id"],
             request.current_password,
@@ -674,7 +685,7 @@ async def reset_user_password(
             detail="Use change-password to change your own password"
         )
 
-    validate_password_or_400(request.new_password)
+    validate_password_or_400(request.new_password, auth_service)
     
     try:
         success = await auth_service.reset_user_password(

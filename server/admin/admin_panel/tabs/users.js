@@ -3,12 +3,60 @@ export function createUsersTab({
   svgIcon, iconPlus, iconPencil, iconSave, iconX, roleDetails, usernameMaxLength, passwordMaxLength,
   createPaginator, createColumnSorter, itemsPerPage, markSelectedRow, syncVisibleSelection,
   syncBulkActionButton, withButton, confirmAction, requireTypedConfirmation, showStatus,
-  showError, showTableLoadError, validateUsername, validatePassword, bindValidationClear,
+  showError, showTableLoadError, validateUsername, bindValidationClear,
   createSelect, getCurrentUser
 }) {
   let selectedUser = null;
+  let passwordPolicy = null;
+  let passwordPolicyInputs = [];
+  let passwordPolicyHints = [];
+
+  function describePasswordPolicy() {
+    if (!passwordPolicy) return "Password requirements are loading.";
+    var requirements = [
+      "at least " + passwordPolicy.min_length + " characters",
+      "at most " + passwordPolicy.max_length + " characters",
+    ];
+    if (passwordPolicy.require_uppercase) requirements.push("an uppercase letter");
+    if (passwordPolicy.require_lowercase) requirements.push("a lowercase letter");
+    if (passwordPolicy.require_digit) requirements.push("a digit");
+    if (passwordPolicy.require_symbol) requirements.push("a symbol");
+    requirements.push("no whitespace");
+    if (passwordPolicy.reject_common_passwords) requirements.push("not a common password");
+    return "Password must include " + requirements.join(", ") + ".";
+  }
+
+  function applyPasswordPolicyGuidance() {
+    var description = describePasswordPolicy();
+    passwordPolicyHints.forEach(function (hint) { hint.textContent = description; });
+    passwordPolicyInputs.forEach(function (input) {
+      input.placeholder = passwordPolicy
+        ? "Meet the password requirements below"
+        : "Password requirements unavailable";
+    });
+  }
+
+  function validateConfiguredPassword(password) {
+    if (!password) return "Password is required";
+    // JavaScript character classes and string lengths cannot exactly mirror
+    // Python's Unicode-aware predicates. Keep the panel advisory; the API
+    // returns the authoritative aggregated policy error after submission.
+    return "";
+  }
 
   async function render(container) {
+    passwordPolicyInputs = [];
+    passwordPolicyHints = [];
+
+    (async function loadPasswordPolicy() {
+      try {
+        passwordPolicy = await api("GET", endpoints.passwordPolicy);
+      } catch (_) {
+        // The server still enforces its policy and returns the complete error.
+      }
+      applyPasswordPolicyGuidance();
+    })();
+
     var layout = el("div", { className: "tab-stacked-layout" });
     var listPanel = el("div", { className: "panel" });
     var detailPanel = el("div", { className: "panel", style: "display:none" });
@@ -91,12 +139,15 @@ export function createUsersTab({
     var passwordInput = el("input", {
       type: "password",
       maxlength: String(passwordMaxLength),
-      placeholder: "8-128 chars. No spaces.",
+      placeholder: "Meet the password requirements below",
       autocomplete: "new-password",
       autocapitalize: "none",
       autocorrect: "off",
       spellcheck: "false"
     });
+    passwordPolicyInputs.push(passwordInput);
+    var createPasswordHint = el("p", { className: "muted" }, describePasswordPolicy());
+    passwordPolicyHints.push(createPasswordHint);
     var roleOptions = el("div", {
       className: "role-picker-options",
       role: "group",
@@ -197,6 +248,7 @@ export function createUsersTab({
         field("Username", usernameInput),
         passwordField("Password", passwordInput)
       ),
+      createPasswordHint,
       el("div", { className: "admin-create-form-actions user-create-form-actions" }, createBtn)
     );
     createPanel.appendChild(form);
@@ -212,7 +264,7 @@ export function createUsersTab({
       var p = passwordInput.value;
       var usernameError = validateUsername(u);
       if (usernameError) { showError(usernameError); return; }
-      var passwordError = validatePassword(p);
+      var passwordError = validateConfiguredPassword(p);
       if (passwordError) { showError(passwordError); return; }
       var selectedRoles = Array.from(roleOptions.querySelectorAll("input:checked")).map(function (input) { return input.value; });
       if (!selectedRoles.length) { showError("Select at least one role."); return; }
@@ -792,6 +844,9 @@ export function createUsersTab({
       autocorrect: "off",
       spellcheck: "false"
     });
+    passwordPolicyInputs.push(newPwInput);
+    var changePasswordHint = el("p", { className: "muted" }, describePasswordPolicy());
+    passwordPolicyHints.push(changePasswordHint);
     var confirmPwInput = el("input", {
       type: "password",
       placeholder: "Confirm new password",
@@ -825,8 +880,10 @@ export function createUsersTab({
       var cur = curPwInput.value;
       var nw = newPwInput.value;
       var conf = confirmPwInput.value;
-      if (!cur || !nw) return;
-      var passwordError = validatePassword(nw);
+      if (!cur) { showError("Enter your current password"); return; }
+      if (!nw) { showError("Enter a new password"); return; }
+      if (!conf) { showError("Confirm your new password"); return; }
+      var passwordError = validateConfiguredPassword(nw);
       if (passwordError) { showError(passwordError); return; }
       if (nw !== conf) { showError("Passwords do not match"); return; }
       withButton(changeBtn, async function () {
@@ -841,7 +898,8 @@ export function createUsersTab({
     panel.appendChild(el("div", { className: "admin-create-form" },
       el("p", { className: "muted" }, "Update the password for the account currently signed into the admin panel."),
       passwordField("Current Password", curPwInput),
-      passwordField("New Password", newPwInput, "8-128 chars. No spaces."),
+      passwordField("New Password", newPwInput),
+      changePasswordHint,
       passwordField("Confirm Password", confirmPwInput),
       el("div", { className: "inline-form detail-action-row" }, cancelBtn, changeBtn)
     ));
@@ -961,12 +1019,15 @@ export function createUsersTab({
     var newPwInput = el("input", {
       type: "password",
       maxlength: String(passwordMaxLength),
-      placeholder: "8-128 chars. No spaces.",
+      placeholder: "Meet the password requirements below",
       autocomplete: "new-password",
       autocapitalize: "none",
       autocorrect: "off",
       spellcheck: "false"
     });
+    passwordPolicyInputs.push(newPwInput);
+    var resetPasswordHint = el("p", { className: "muted" }, describePasswordPolicy());
+    passwordPolicyHints.push(resetPasswordHint);
     var resetBtn = el("button", { type: "button" }, "Apply Reset");
     var resetCancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
     var resetToggle = el("button", { className: "secondary", type: "button" }, "Reset Password");
@@ -1138,7 +1199,7 @@ export function createUsersTab({
       resetBtn.addEventListener("click", function () {
         var pw = newPwInput.value;
         if (!pw) return;
-        var passwordError = validatePassword(pw);
+        var passwordError = validateConfiguredPassword(pw);
         if (passwordError) { showError(passwordError); return; }
         confirmAction({
           title: "Reset Password",
@@ -1178,6 +1239,7 @@ export function createUsersTab({
       panel.appendChild(roleEditor);
       resetPanel.appendChild(el("div", { className: "admin-create-form user-reset-form" },
         passwordField("New Password", newPwInput),
+        resetPasswordHint,
         el("div", { className: "inline-form detail-action-row" }, resetCancelBtn, resetBtn)
       ));
       bindValidationClear(newPwInput);
