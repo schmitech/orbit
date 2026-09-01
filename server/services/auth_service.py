@@ -67,6 +67,9 @@ class AuthService:
         self.default_admin_username = config.get('auth', {}).get('default_admin_username', 'admin')
         self.default_admin_password = config.get('auth', {}).get('default_admin_password', 'admin123')
         self.password_policy = config.get('auth', {}).get('password_policy', {}) or {}
+        self.account_lockout_policy = self.normalize_account_lockout_policy(
+            config.get('auth', {}).get('account_lockout')
+        )
 
         # External identity provider (OIDC) configuration - built in initialize()
         self._oidc = None
@@ -359,6 +362,86 @@ class AuthService:
         return self._encode_password(salt, hash_bytes)
 
     @staticmethod
+    def normalize_account_lockout_policy(policy: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Return a safe, type-normalized account-lockout policy.
+
+        Lockout is deliberately disabled when the configuration block is absent,
+        preserving the behavior of deployments that have not opted in.
+        """
+        policy = policy if isinstance(policy, dict) else {}
+
+        def positive_int(name: str, default: int) -> int:
+            try:
+                return max(1, int(policy.get(name, default)))
+            except (TypeError, ValueError):
+                return default
+
+        def non_negative_int(name: str, default: int) -> int:
+            try:
+                return max(0, int(policy.get(name, default)))
+            except (TypeError, ValueError):
+                return default
+
+        enabled = policy.get("enabled", False)
+        return {
+            "enabled": enabled is True or str(enabled).strip().lower() in {"1", "true", "yes", "on"},
+            "max_failed_attempts": positive_int("max_failed_attempts", 5),
+            "lockout_duration_minutes": non_negative_int("lockout_duration_minutes", 15),
+            "reset_counter_after_minutes": non_negative_int("reset_counter_after_minutes", 30),
+        }
+
+    @staticmethod
+    def _as_utc_datetime(value: Any) -> Optional[datetime]:
+        """Parse database timestamps from all supported storage backends."""
+        if isinstance(value, datetime):
+            return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        if isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+            except ValueError:
+                return None
+        return None
+
+    def _is_account_locked(self, user: Dict[str, Any], now: datetime) -> bool:
+        """Return whether an active durable lockout applies to this local user."""
+        if not self.account_lockout_policy["enabled"] or user.get("provider"):
+            return False
+        locked_until = self._as_utc_datetime(user.get("locked_until"))
+        return bool(locked_until and locked_until > now)
+
+    async def _record_failed_login(self, user: Dict[str, Any], now: datetime) -> None:
+        """Persist a failed local-password attempt and lock the account if needed."""
+        if not self.account_lockout_policy["enabled"] or user.get("provider"):
+            return
+
+        policy = self.account_lockout_policy
+        updated = await self.database.record_failed_login_attempt(
+            self.users_collection_name,
+            user["_id"],
+            now,
+            now - timedelta(minutes=policy["reset_counter_after_minutes"]),
+            policy["max_failed_attempts"],
+            now + timedelta(minutes=policy["lockout_duration_minutes"]),
+        )
+        if not updated:
+            logger.error("Could not record failed login for local user: %s", user["username"])
+
+    async def _reset_failed_logins(self, user: Dict[str, Any]) -> None:
+        """Clear durable lockout state after a successful local-password login."""
+        if not self.account_lockout_policy["enabled"] or user.get("provider"):
+            return
+        await self.database.update_one(
+            self.users_collection_name,
+            {"_id": user["_id"]},
+            {"$set": {
+                "failed_login_attempts": 0,
+                "last_failed_login_at": None,
+                "locked_until": None,
+            }},
+        )
+
+    @staticmethod
     def _resolve_roles(user: Dict[str, Any]) -> List[str]:
         """Resolve a user's role list, falling back to the legacy single `role` field."""
         roles = user.get("roles")
@@ -509,11 +592,24 @@ class AuthService:
             if not user or not user.get("active", True):
                 return False, None
 
+            # Password verification surfaces, including WebSocket HTTP Basic
+            # authentication, must enforce the same local-account state.
+            if user.get("provider"):
+                return False, None
+
+            now = datetime.now(UTC)
+            if self._is_account_locked(user, now):
+                logger.warning(f"Credential check for locked user: {username}")
+                return False, None
+
             if not self._verify_password(password, user["password"]):
+                await self._record_failed_login(user, now)
                 return False, None
 
             if await self._is_blacklisted(user):
                 return False, None
+
+            await self._reset_failed_logins(user)
 
             return True, self._user_info(user)
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
@@ -558,13 +654,23 @@ class AuthService:
                 logger.warning(f"Password login attempt for external user: {username}")
                 return False, None, None
 
+            now = datetime.now(UTC)
+            # Check durable lockout before paying the PBKDF2 cost. The route
+            # deliberately returns the same generic credential error here.
+            if self._is_account_locked(user, now):
+                logger.warning(f"Login attempt for locked user: {username}")
+                return False, None, None
+
             # Verify password
             if not self._verify_password(password, user["password"]):
                 logger.warning(f"Invalid password for user: {username}")
+                await self._record_failed_login(user, now)
                 return False, None, None
 
             if await self._is_blacklisted(user):
                 return False, None, None
+
+            await self._reset_failed_logins(user)
 
             token = await self.create_session(user)
 

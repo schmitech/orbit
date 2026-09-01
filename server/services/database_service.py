@@ -12,6 +12,7 @@ interface regardless of the underlying database technology.
 
 import logging
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
 
 logger = logging.getLogger(__name__)
@@ -211,6 +212,19 @@ class DatabaseService(ABC):
         Returns:
             True if a document/record was updated, False otherwise
         """
+        pass
+
+    @abstractmethod
+    async def record_failed_login_attempt(
+        self,
+        collection_name: str,
+        user_id: Any,
+        failed_at: datetime,
+        reset_before: datetime,
+        max_failed_attempts: int,
+        locked_until: datetime,
+    ) -> bool:
+        """Atomically persist a failed local-password attempt and lockout state."""
         pass
 
     @abstractmethod

@@ -90,6 +90,11 @@ auth:
     max_attempts_per_ip: 10
     max_attempts_per_username: 5
     lockout_after_username_limit: false
+  account_lockout:
+    enabled: true
+    max_failed_attempts: 5
+    lockout_duration_minutes: 15
+    reset_counter_after_minutes: 30
 
 api_keys:
   header_name: "X-API-Key"

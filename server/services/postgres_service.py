@@ -157,7 +157,10 @@ class PostgresService(DatabaseService):
                     last_login TEXT,
                     provider TEXT,
                     external_id TEXT,
-                    email TEXT
+                    email TEXT,
+                    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+                    last_failed_login_at TEXT,
+                    locked_until TEXT
                 )
             ''',
             'sessions': '''
@@ -1174,6 +1177,47 @@ class PostgresService(DatabaseService):
             except Exception as e:
                 logger.error(f"Error updating document in {collection_name}: {str(e)}")
                 return False
+
+    async def record_failed_login_attempt(
+        self,
+        collection_name: str,
+        user_id: Any,
+        failed_at: datetime,
+        reset_before: datetime,
+        max_failed_attempts: int,
+        locked_until: datetime,
+    ) -> bool:
+        """Atomically increment a user's durable failed-login state."""
+        if not self._initialized:
+            await self.initialize()
+
+        next_attempts = (
+            "CASE WHEN last_failed_login_at IS NULL OR "
+            "last_failed_login_at < %s THEN 1 ELSE failed_login_attempts + 1 END"
+        )
+        sql = f'''UPDATE {collection_name}
+            SET failed_login_attempts = {next_attempts},
+                last_failed_login_at = %s,
+                locked_until = CASE WHEN ({next_attempts}) >= %s THEN %s ELSE locked_until END
+            WHERE id = %s'''
+        params = (
+            reset_before.isoformat(),
+            failed_at.isoformat(),
+            reset_before.isoformat(),
+            max_failed_attempts,
+            locked_until.isoformat(),
+            ensure_id(user_id, 'postgres'),
+        )
+        try:
+            async with self._operation_scope():
+                loop = asyncio.get_running_loop()
+                cursor = await loop.run_in_executor(
+                    self.executor, self._execute_sql, sql, params
+                )
+                return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error recording failed login attempt: {str(e)}")
+            return False
 
     async def delete_one(
         self,

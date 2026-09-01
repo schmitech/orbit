@@ -444,6 +444,57 @@ class MongoDBService(DatabaseService):
         except Exception as e:
             logger.error(f"Error updating document in {collection_name}: {str(e)}")
             return False
+
+    async def record_failed_login_attempt(
+        self,
+        collection_name: str,
+        user_id: Any,
+        failed_at: datetime,
+        reset_before: datetime,
+        max_failed_attempts: int,
+        locked_until: datetime,
+    ) -> bool:
+        """Atomically increment a user's durable failed-login state."""
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            collection = self.get_collection(collection_name)
+            user_id = self._convert_string_ids_to_objectid({"_id": user_id})["_id"]
+            attempts = {
+                "$cond": [
+                    {
+                        "$or": [
+                            {"$eq": [{"$ifNull": ["$last_failed_login_at", None]}, None]},
+                            {"$lt": ["$last_failed_login_at", reset_before]},
+                        ]
+                    },
+                    1,
+                    {"$add": [{"$ifNull": ["$failed_login_attempts", 0]}, 1]},
+                ]
+            }
+            result = await collection.update_one(
+                {"_id": user_id},
+                [
+                    {"$set": {"_lockout_attempts": attempts}},
+                    {"$set": {
+                        "failed_login_attempts": "$_lockout_attempts",
+                        "last_failed_login_at": failed_at,
+                        "locked_until": {
+                            "$cond": [
+                                {"$gte": ["$_lockout_attempts", max_failed_attempts]},
+                                locked_until,
+                                "$locked_until",
+                            ]
+                        },
+                    }},
+                    {"$unset": "_lockout_attempts"},
+                ],
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error recording failed login attempt: {str(e)}")
+            return False
     
     async def delete_one(self, collection_name: str, query: Dict[str, Any]) -> bool:
         """

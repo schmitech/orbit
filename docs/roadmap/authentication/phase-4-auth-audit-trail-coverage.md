@@ -8,8 +8,8 @@ non-admin user actions — rather than building anything new. This is a
 coverage gap, not an infrastructure gap.
 
 **Roadmap position:** Phase 4. No hard dependency, but is most useful once
-[Login Rate Limiting](phase-1-auth-login-rate-limiting.md) and
-[Account Lockout](phase-3-auth-account-lockout.md) exist, since two of the new event
+[Login Rate Limiting](complete/phase-1-auth-login-rate-limiting.md) and
+[Account Lockout](complete/phase-3-auth-account-lockout.md) exist, since two of the new event
 types this phase adds (`auth.login.rate_limited`, `auth.login.locked_out`)
 come from those phases. Land this phase last of the three so there's
 something concrete to log; land it standalone if those phases slip, using

@@ -23,7 +23,7 @@ a session directly. External (Entra/Auth0) identities are out of scope here —
 2FA for those identities is the IdP's responsibility (Entra/Auth0 both support
 their own MFA policies), so this phase applies only to local password
 accounts, the same scoping boundary as
-[Account Lockout](phase-3-auth-account-lockout.md).
+[Account Lockout](complete/phase-3-auth-account-lockout.md).
 
 ## Configuration / schema
 
@@ -87,7 +87,7 @@ rather than a separate device-token table.
   ever having a "logged in but not fully authenticated" session token floating
   around with full session capabilities.
 - **Rate limit the second factor** using the same pattern as
-  [Login Rate Limiting](phase-1-auth-login-rate-limiting.md) — a 6-digit TOTP code has
+  [Login Rate Limiting](complete/phase-1-auth-login-rate-limiting.md) — a 6-digit TOTP code has
   low enough entropy that it must be throttled independently of the password
   check.
 - **Admin reset**: an admin with `users.manage` must be able to disable 2FA

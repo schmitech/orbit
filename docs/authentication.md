@@ -1196,6 +1196,15 @@ auth:
   
   # Session configuration
   session_duration_hours: 12
+
+  # Durable local-password account lockout. Lockouts expire automatically;
+  # retain a separate administrator recovery path because the bootstrap admin
+  # follows this policy too.
+  account_lockout:
+    enabled: true
+    max_failed_attempts: 5
+    lockout_duration_minutes: 15
+    reset_counter_after_minutes: 30
   
   # Default admin (change immediately!)
   default_admin_username: "admin"

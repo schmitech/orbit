@@ -6,6 +6,7 @@
 - **Login Rate Limiting**: Added cache-backed fixed-window throttling for password and SSO login surfaces with independent IP and normalized-username buckets, in-memory fallback behavior, standard rate-limit headers, and configurable lockout thresholds.
 - **Login Rate-Limit Auditing**: Rate-limited authentication attempts now produce `auth.login.rate_limited` administrative audit events without recording credentials, alongside HTTP 429 responses.
 - **Configurable Local Password Policy**: Added configurable password length, character-class, and common-password requirements across local account creation, password changes, resets, and default-admin provisioning. The active policy is available to authenticated clients so the Users panel can provide matching guidance before submission.
+- **Durable Local Account Lockout (Authentication Phase 3)**: Added configurable automatic lockout after consecutive failed local-password logins, with durable per-user counters, automatic expiry, and a stale-failure reset window. Lockout is enforced consistently for password login and WebSocket Basic authentication, while external SSO identities remain unaffected. SQLite, PostgreSQL, and MongoDB persist failure increments and lockout decisions atomically, preventing concurrent attempts from bypassing the configured threshold.
 
 ## [2.17.2] - 2026-08-29
 

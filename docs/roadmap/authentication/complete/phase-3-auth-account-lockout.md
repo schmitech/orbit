@@ -1,5 +1,7 @@
 # Account Lockout — Implementation Plan
 
+**Status:** Complete (2026-09-01)
+
 ## Summary
 
 Temporarily lock a **local password account** out after a configurable number

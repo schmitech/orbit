@@ -54,7 +54,10 @@ CREATE TABLE IF NOT EXISTS users (
     last_login TEXT,
     provider TEXT,
     external_id TEXT,
-    email TEXT
+    email TEXT,
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    last_failed_login_at TEXT,
+    locked_until TEXT
 )
 ```
 
@@ -70,6 +73,9 @@ CREATE TABLE IF NOT EXISTS users (
 - `provider` (TEXT): External identity provider that authenticated the user (`entra` or `auth0`); `NULL` for built-in username/password users
 - `external_id` (TEXT): The provider's immutable subject (`sub`) claim; `NULL` for built-in users
 - `email` (TEXT): Email/`preferred_username` claim captured from the provider (for display/audit); `NULL` for built-in users
+- `failed_login_attempts` (INTEGER): Consecutive failed local-password attempts. Reset after a successful local login or a configured inactive-failure window; `0` for external identities
+- `last_failed_login_at` (TEXT): ISO timestamp of the most recent failed local-password attempt; `NULL` until one occurs
+- `locked_until` (TEXT): ISO timestamp until which a local-password account is rejected before PBKDF2 verification; `NULL` when not locked. Lockouts expire automatically
 
 **Indexes:**
 - `idx_users_username` on `username`
@@ -958,6 +964,10 @@ chmod 600 orbit.db  # Owner read/write only
 ---
 
 ## Version History
+
+- **v1.17** (2026-09-01): Durable local account lockout
+  - Added `users.failed_login_attempts`, `users.last_failed_login_at`, and `users.locked_until`, which persist configurable local-password account lockouts across cache eviction and restarts. External identity rows do not use these fields.
+  - Applied to existing SQLite/PostgreSQL databases through the additive startup migration (`_migrate_table_schema`); MongoDB is schemaless and needs no migration.
 
 - **v1.16** (2026-08-26): External-identity pre-clearing (allowlist)
   - Added the `user_allowlist` table and its unique index `idx_user_allowlist_entry_type_pattern` on `(entry_type, pattern)` — pattern-based approval of external (Entra/Auth0) identities, so that under `auth.providers.access_control: allowlist` (the new default) a subject no rule covers is never provisioned a `users` row on any surface. Columns are identical to `user_blacklist`; the semantics are inverted (empty = deny, deletion withdraws access). See `docs/authentication.md`

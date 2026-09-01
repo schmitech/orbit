@@ -65,7 +65,10 @@ CREATE TABLE IF NOT EXISTS users (
     last_login TEXT,
     provider TEXT,
     external_id TEXT,
-    email TEXT
+    email TEXT,
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    last_failed_login_at TEXT,
+    locked_until TEXT
 )
 ```
 
@@ -554,6 +557,10 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are 
 - Restrict database user permissions to only the schema Orbit needs; avoid using a Postgres superuser for the application connection.
 
 ## Version History
+
+- **v1.7** (2026-09-01): Durable local account lockout (matches SQLite v1.17)
+  - Added `users.failed_login_attempts`, `users.last_failed_login_at`, and `users.locked_until` for durable configurable lockout of local-password accounts. External identities do not use this state.
+  - Created on existing databases through the additive startup migration (`ADD COLUMN IF NOT EXISTS`); MongoDB is schemaless and needs no migration.
 
 - **v1.6** (2026-08-26): External-identity pre-clearing (allowlist) (matches SQLite v1.16)
   - Added the `user_allowlist` table and its unique index `idx_user_allowlist_entry_type_pattern` on `(entry_type, pattern)` — pattern-based approval of external (Entra/Auth0) identities. Columns are identical to `user_blacklist`; the semantics are inverted (empty = deny, deletion withdraws access). See `docs/authentication.md`

@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 import yaml
@@ -262,6 +263,135 @@ async def test_invalid_login(auth_service: AuthService):
     success, bad_token, _ = await auth_service.authenticate_user('admin', 'wrongpassword')
     assert not success, "Login with wrong password should fail"
     assert bad_token is None, "Should not receive a token"
+
+async def test_account_lockout_blocks_correct_password_and_expires(auth_service: AuthService):
+    auth_service.account_lockout_policy.update({
+        "enabled": True,
+        "max_failed_attempts": 3,
+        "lockout_duration_minutes": 15,
+        "reset_counter_after_minutes": 30,
+    })
+    user_id = await auth_service.create_user("lockoutuser", "password123")
+    assert user_id
+
+    for _ in range(3):
+        success, _, _ = await auth_service.authenticate_user("lockoutuser", "wrongpassword")
+        assert success is False
+
+    user = await auth_service.database.find_one(
+        auth_service.users_collection_name, {"_id": user_id}
+    )
+    assert user["failed_login_attempts"] == 3
+    assert user["locked_until"]
+
+    success, _, _ = await auth_service.authenticate_user("lockoutuser", "password123")
+    assert success is False
+
+    await auth_service.database.update_one(
+        auth_service.users_collection_name,
+        {"_id": user["_id"]},
+        {"$set": {"locked_until": datetime.now(UTC) - timedelta(seconds=1)}},
+    )
+    success, _, _ = await auth_service.authenticate_user("lockoutuser", "password123")
+    assert success is True
+
+    user = await auth_service.database.find_one(
+        auth_service.users_collection_name, {"_id": user_id}
+    )
+    assert user["failed_login_attempts"] == 0
+    assert user["last_failed_login_at"] is None
+    assert user["locked_until"] is None
+
+async def test_account_lockout_resets_stale_failures(auth_service: AuthService):
+    auth_service.account_lockout_policy.update({
+        "enabled": True,
+        "max_failed_attempts": 3,
+        "lockout_duration_minutes": 15,
+        "reset_counter_after_minutes": 30,
+    })
+    user_id = await auth_service.create_user("staleuser", "password123")
+    user = await auth_service.database.find_one(
+        auth_service.users_collection_name, {"_id": user_id}
+    )
+    await auth_service.database.update_one(
+        auth_service.users_collection_name,
+        {"_id": user["_id"]},
+        {"$set": {
+            "failed_login_attempts": 2,
+            "last_failed_login_at": datetime.now(UTC) - timedelta(minutes=31),
+        }},
+    )
+
+    success, _, _ = await auth_service.authenticate_user("staleuser", "wrongpassword")
+    assert success is False
+    user = await auth_service.database.find_one(
+        auth_service.users_collection_name, {"_id": user_id}
+    )
+    assert user["failed_login_attempts"] == 1
+    assert user["locked_until"] is None
+
+async def test_account_lockout_does_not_touch_external_identity(auth_service: AuthService):
+    auth_service.account_lockout_policy.update({"enabled": True, "max_failed_attempts": 1})
+    user_id = await auth_service.create_user("externaluser", "password123")
+    user = await auth_service.database.find_one(
+        auth_service.users_collection_name, {"_id": user_id}
+    )
+    await auth_service.database.update_one(
+        auth_service.users_collection_name,
+        {"_id": user["_id"]},
+        {"$set": {
+            "provider": "entra",
+            "failed_login_attempts": 7,
+            "locked_until": datetime.now(UTC) + timedelta(minutes=15),
+        }},
+    )
+
+    success, _, _ = await auth_service.authenticate_user("externaluser", "anything")
+    assert success is False
+    user = await auth_service.database.find_one(
+        auth_service.users_collection_name, {"_id": user_id}
+    )
+    assert user["failed_login_attempts"] == 7
+    assert user["locked_until"] is not None
+
+async def test_verify_credentials_enforces_account_lockout(auth_service: AuthService):
+    auth_service.account_lockout_policy.update({
+        "enabled": True,
+        "max_failed_attempts": 2,
+        "lockout_duration_minutes": 15,
+    })
+    user_id = await auth_service.create_user("basiclockout", "password123")
+
+    for _ in range(2):
+        success, _ = await auth_service.verify_credentials("basiclockout", "wrongpassword")
+        assert success is False
+
+    success, _ = await auth_service.verify_credentials("basiclockout", "password123")
+    assert success is False
+    user = await auth_service.database.find_one(
+        auth_service.users_collection_name, {"_id": user_id}
+    )
+    assert user["failed_login_attempts"] == 2
+    assert user["locked_until"] is not None
+
+async def test_concurrent_failed_logins_are_counted_atomically(auth_service: AuthService):
+    auth_service.account_lockout_policy.update({
+        "enabled": True,
+        "max_failed_attempts": 20,
+        "lockout_duration_minutes": 15,
+        "reset_counter_after_minutes": 30,
+    })
+    user_id = await auth_service.create_user("concurrentlockout", "password123")
+
+    results = await asyncio.gather(*[
+        auth_service.authenticate_user("concurrentlockout", "wrongpassword")
+        for _ in range(8)
+    ])
+    assert all(success is False for success, _, _ in results)
+    user = await auth_service.database.find_one(
+        auth_service.users_collection_name, {"_id": user_id}
+    )
+    assert user["failed_login_attempts"] == 8
 
 async def test_create_new_user(new_user):
     """Test 4: Create a new user"""

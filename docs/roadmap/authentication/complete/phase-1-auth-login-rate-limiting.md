@@ -13,7 +13,7 @@ IP-extraction utilities already in the codebase.
 **Roadmap position:** Phase 1. No dependencies. Pairs naturally with
 [Password Complexity](phase-2-auth-password-complexity.md) (Phase 2) as the two
 lowest-effort items, and is a prerequisite building block for
-[Account Lockout](../phase-3-auth-account-lockout.md) (Phase 3), which shares its counter
+[Account Lockout](phase-3-auth-account-lockout.md) (Phase 3), which shares its counter
 pattern.
 
 ## Current state
