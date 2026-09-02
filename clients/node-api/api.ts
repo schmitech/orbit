@@ -2130,7 +2130,7 @@ export class ApiClient {
 
   public async getAllSkills(): Promise<AllSkillsResponse> {
     return await this.requestJsonOrThrow<AllSkillsResponse>(
-      `${this.apiUrl}/admin/skills`,
+      `${this.apiUrl}/admin/adapter-skills`,
       { method: 'GET' },
       'Failed to get all skills'
     );

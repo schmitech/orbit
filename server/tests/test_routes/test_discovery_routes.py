@@ -9,6 +9,7 @@ resolves the model override for such skills at request time.
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from routes.admin import admin_router
 from routes.discovery_routes import discovery_router
 
 
@@ -23,6 +24,17 @@ class FakeAdapterManager:
     def get_skill_adapter(self, skill):
         return self._skill_map.get(skill)
 
+    def get_all_skills(self):
+        return [
+            {
+                'name': skill_name,
+                'description': f'{skill_name} description',
+                'adapter_name': adapter_name,
+                'enabled': True,
+            }
+            for skill_name, adapter_name in self._skill_map.items()
+        ]
+
 
 def _make_app(adapter_manager, config=None):
     app = FastAPI()
@@ -30,6 +42,27 @@ def _make_app(adapter_manager, config=None):
     app.state.adapter_manager = adapter_manager
     app.state.config = config or {}
     return TestClient(app)
+
+
+def test_adapter_skill_discovery_does_not_collide_with_admin_tool_skills():
+    """The full app mounts admin first, where /admin/skills is Tool Skill CRUD."""
+    manager = FakeAdapterManager({}, {'Image': 'image-generator'})
+    app = FastAPI()
+    app.include_router(admin_router)
+    app.include_router(discovery_router)
+    app.state.adapter_manager = manager
+
+    response = TestClient(app).get('/admin/adapter-skills')
+
+    assert response.status_code == 200
+    assert response.json() == {
+        'skills': [{
+            'name': 'Image',
+            'description': 'Image description',
+            'adapter_name': 'image-generator',
+            'enabled': True,
+        }]
+    }
 
 
 CALLER_CFG = {

@@ -298,13 +298,18 @@ async def list_adapter_models(
 # Skills discovery
 # ---------------------------------------------------------------------------
 
-@discovery_router.get("/skills", response_model=SkillsResponse)
+@discovery_router.get("/adapter-skills", response_model=SkillsResponse)
+@discovery_router.get("/skills", response_model=SkillsResponse, deprecated=True)
 async def list_skills(request: Request):
     """
-    List all skills registered in ORBIT.
+    List all adapter-routing skills registered in ORBIT.
 
     A skill is an adapter with expose_as_skill: true under its capabilities.
     Returns name, description, adapter_name, and enabled state for each skill.
+
+    ``/adapter-skills`` is the canonical client-facing path.  ``/skills`` is
+    retained for deployments which mount only the discovery router, but a full
+    ORBIT app reserves that older path for authenticated Tool Skill CRUD.
     """
     adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
     if not adapter_manager:

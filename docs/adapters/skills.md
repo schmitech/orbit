@@ -64,7 +64,7 @@ Add three fields under the adapter's `capabilities` section:
 |-------|----------|-------------|
 | `expose_as_skill` | yes | Set to `true` to register this adapter as a skill |
 | `skill_name` | yes | The identifier clients send in `skill:` — must be unique across all adapters |
-| `skill_description` | no | Human-readable description shown in `GET /admin/skills` |
+| `skill_description` | no | Human-readable description shown in `GET /admin/adapter-skills` |
 
 > **Note:** `requires_api_key_validation: false` on a skill adapter means ORBIT does not enforce a separate API key for the skill itself. The caller's existing API key is used for authentication; ORBIT only checks that the caller's adapter permits the skill.
 
@@ -358,10 +358,11 @@ See `docs/adapters/auto-skill-intent-detection.md` for the design rationale and
 ### List all registered skills
 
 ```
-GET /admin/skills
+GET /admin/adapter-skills
 ```
 
-No authentication required beyond the standard admin check.
+No admin authentication is required; clients access this through their normal
+adapter-authenticated proxy route.
 
 **Response:**
 
@@ -408,7 +409,7 @@ Use this endpoint to determine which skills to show in the UI for the current us
 
 OrbitChat implements a built-in skill picker:
 
-1. **On load**, call `GET /admin/adapters/{name}/skills` and `GET /admin/skills` to fetch available skills for the current adapter.
+1. **On load**, call `GET /admin/adapters/{name}/skills` and `GET /admin/adapter-skills` to fetch available skills for the current adapter.
 2. **Trigger**: typing `/` as the first character of a message opens the skill picker. Continuing to type (e.g. `/ima`) filters by skill name or description in real time.
 3. **Select**: clicking or pressing Enter on a skill closes the picker, attaches a skill badge to the message input, and clears the text field.
 4. **Send**: submitting the message sends `skill: "<skill-name>"` in the request body alongside the user's message.
@@ -442,7 +443,7 @@ The UI reads this to decide whether to show the skill picker.
 ### Generic integration flow
 
 1. Call `GET /admin/adapters/{name}/skills` to get the allowlist for the current adapter.
-2. Call `GET /admin/skills` to get display metadata (`name`, `description`) for each skill.
+2. Call `GET /admin/adapter-skills` to get display metadata (`name`, `description`) for each skill.
 3. Merge the two responses to build your picker UI.
 4. When the user selects a skill and submits a message, send `skill: "<skill-name>"` in the request body.
 5. The response will contain `image` / `image_format` instead of a text `response`. Render accordingly.
@@ -523,7 +524,7 @@ No server code changes are required. ORBIT discovers skill adapters at startup b
 | Automatic intent detection | `server/services/skill_intent_router.py` | `SkillIntentRouter.detect()` — hybrid embed→confirm router |
 | Auto-detection wiring + gate | `server/services/pipeline_chat_service.py` | `_maybe_detect_skill()`, `_auto_skill_routing_enabled()` before `build_context` |
 | Auto-detection global config | `config/config.yaml` | `skill_routing` block (`auto_detect`, `embedding_threshold`, `router_provider`/`router_model`) |
-| Admin endpoints | `server/routes/admin_routes.py` | `GET /admin/skills`, `GET /admin/adapters/{name}/skills` |
+| Discovery endpoints | `server/routes/discovery_routes.py` | `GET /admin/adapter-skills`, `GET /admin/adapters/{name}/skills` |
 | Response schemas | `server/models/schema.py` | `SkillInfo`, `SkillsResponse`, `AdapterSkillsResponse` |
 | `supportsThreading` in adapter info | `server/services/api_key_service.py` | `get_adapter_info` returns `supportsThreading` from capabilities |
 | Image skill adapter config | `config/adapters/image.yaml` | `image-generator` |
@@ -558,7 +559,7 @@ These fields are available to all pipeline steps and can be used for logging, au
 ### End-to-end verification checklist
 
 1. Server starts with `image-generator` enabled and `image-generation` in HR adapter's `available_skills`.
-2. `GET /admin/skills` returns `image-generation`.
+2. `GET /admin/adapter-skills` returns `image-generation`.
 3. `GET /admin/adapters/intent-sql-sqlite-hr/skills` (with HR API key) returns `["image-generation"]`.
 4. `POST /v1/chat` with HR API key and `skill: "image-generation"` returns `image` + `image_format` with no LLM text.
 5. Same request without `skill` field returns normal HR retrieval response — pipeline unchanged.

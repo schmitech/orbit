@@ -92,7 +92,7 @@ describe('Discovery endpoints (models & skills)', () => {
   });
 
   describe('getAllSkills', () => {
-    it('should GET /admin/skills', async () => {
+    it('should GET /admin/adapter-skills', async () => {
       const mockResponse = {
         skills: [
           { name: 'summarize', description: 'Summarize text', adapter_name: 'hr', enabled: true },
@@ -106,7 +106,7 @@ describe('Discovery endpoints (models & skills)', () => {
       expect(result.skills).toHaveLength(2);
       expect(result.skills[0].name).toBe('summarize');
       const [url] = (global.fetch as any).mock.calls[0];
-      expect(url).toBe(`${TEST_API_URL}/admin/skills`);
+      expect(url).toBe(`${TEST_API_URL}/admin/adapter-skills`);
     });
 
     it('should throw on HTTP error', async () => {

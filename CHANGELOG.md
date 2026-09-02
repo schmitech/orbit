@@ -10,6 +10,7 @@
 
 ### Bug Fixes
 - **Generation Follow-up Memory**: Restored prior prompt/spec context in the packaged image, video, and document rewrite templates so refinements in fresh installs and Docker images build on the previous generation.
+- **OrbitChat Skill Picker Discovery**: Restored the `/` skill menu by separating public adapter-skill discovery from the authenticated Tool Skill CRUD route, eliminating the `/admin/skills` route collision introduced in 2.17.2.
 
 ## [2.17.2] - 2026-08-29
 

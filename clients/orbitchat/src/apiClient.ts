@@ -771,7 +771,9 @@ function createProxyApi(): ApiFunctions {
       },
 
       async getAllSkills() {
-        const response = await fetch('/api/admin/skills', {
+        // Adapter-routing skill discovery is deliberately separate from the
+        // authenticated /admin/skills Tool Skill CRUD endpoint.
+        const response = await fetch('/api/admin/adapter-skills', {
           headers: await buildHeaders({
             'X-Adapter-Name': clientAdapterName,
           }),
