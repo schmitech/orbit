@@ -133,8 +133,14 @@ logging:
       propagate: false
     httpx:
       level: "WARNING"
+    httpx2:
+      level: "WARNING"
+      propagate: false
     httpcore:
       level: "WARNING"
+    mcp.client.streamable_http:
+      level: "WARNING"
+      propagate: false
 
 # DISABLED - Not needed for basic chat
 clock_service:

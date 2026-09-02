@@ -11,6 +11,7 @@
 ### Bug Fixes
 - **Generation Follow-up Memory**: Restored prior prompt/spec context in the packaged image, video, and document rewrite templates so refinements in fresh installs and Docker images build on the previous generation.
 - **OrbitChat Skill Picker Discovery**: Restored the `/` skill menu by separating public adapter-skill discovery from the authenticated Tool Skill CRUD route, eliminating the `/admin/skills` route collision introduced in 2.17.2.
+- **MCP 2 / FastMCP 4 Outbound Client Compatibility**: Updated the external MCP client for MCP 2's two-stream HTTP transport and snake_case tool/result fields, while retaining MCP 1 compatibility. Fresh installs now resolve FastMCP 4 and MCP 2 within bounded major-version ranges, preventing the HTTP tool-discovery unpacking failure seen with unbounded upgrades.
 
 ## [2.17.2] - 2026-08-29
 

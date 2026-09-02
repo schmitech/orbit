@@ -541,9 +541,15 @@ class MCPClientManager:
                 # Use create_mcp_http_client so the client inherits MCP defaults:
                 # follow_redirects=True, 30s general timeout, 300s SSE read timeout.
                 http_client = await stack.enter_async_context(create_mcp_http_client(headers=headers))
-                read, write, _ = await stack.enter_async_context(
+                # MCP 1.x yielded (read, write, get_session_id); MCP 2.x
+                # standardizes every transport on the (read, write) pair.
+                # Only the streams are needed by ClientSession, so accepting
+                # either shape keeps existing MCP 1 installations working
+                # while allowing FastMCP 4 / MCP 2 installations.
+                transport = await stack.enter_async_context(
                     streamable_http_client(url, http_client=http_client)
                 )
+                read, write = transport[:2]
                 session = await stack.enter_async_context(ClientSession(read, write))
                 await session.initialize()
 
@@ -599,7 +605,13 @@ class MCPClientManager:
             lambda: self._create_connection(server_config), op, retries=1
         )
 
-        if result.isError:
+        # MCP 2 Python models use snake_case; MCP 1 used camelCase. Avoid
+        # treating a mock/dynamic attribute as truthy when testing the
+        # compatibility fallback by accepting only a real boolean here.
+        is_error = getattr(result, "is_error", None)
+        if not isinstance(is_error, bool):
+            is_error = getattr(result, "isError", False)
+        if is_error:
             # Return the server's own error message (safe — it came from the MCP
             # server itself, not from an internal exception). The model receives
             # this and can reason about it (e.g. retry with corrected arguments).
@@ -643,7 +655,12 @@ class MCPClientManager:
     def _to_openai_tool(server_name: str, mcp_tool) -> Dict[str, Any]:
         """Convert an mcp.types.Tool to an OpenAI function-calling tool dict."""
         namespaced = f"{server_name}__{mcp_tool.name}"
-        input_schema = mcp_tool.inputSchema if mcp_tool.inputSchema else {
+        # MCP 2 Python models renamed fields to snake_case. Retain MCP 1's
+        # camelCase field so deployments can upgrade independently.
+        input_schema = getattr(mcp_tool, "input_schema", None)
+        if input_schema is None:
+            input_schema = getattr(mcp_tool, "inputSchema", None)
+        input_schema = input_schema or {
             "type": "object",
             "properties": {},
         }

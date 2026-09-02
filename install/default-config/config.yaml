@@ -393,8 +393,14 @@ logging:
       propagate: false
     httpx:
       level: "WARNING"
+    httpx2:
+      level: "WARNING"
+      propagate: false
     httpcore:
       level: "WARNING"
+    mcp.client.streamable_http:
+      level: "WARNING"
+      propagate: false
     primp:
       level: "WARNING"
     hpack:

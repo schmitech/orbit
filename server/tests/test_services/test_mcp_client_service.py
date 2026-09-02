@@ -19,6 +19,7 @@ import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -37,6 +38,15 @@ class _FakeMCPTool:
         self.name = name
         self.description = description
         self.inputSchema = input_schema
+
+
+class _FakeMCP2Tool:
+    """Mimics MCP 2's snake_case Tool model fields."""
+
+    def __init__(self, name, description, input_schema):
+        self.name = name
+        self.description = description
+        self.input_schema = input_schema
 
 
 def _stub_list_tools(mgr, fn):
@@ -128,6 +138,13 @@ class TestToOpenAITool:
             "srv", _FakeMCPTool("t", "", None)
         )
         assert tool["function"]["parameters"] == {"type": "object", "properties": {}}
+
+    def test_mcp2_snake_case_input_schema(self):
+        schema = {"type": "object", "properties": {"query": {"type": "string"}}}
+        tool = MCPClientManager._to_openai_tool(
+            "srv", _FakeMCP2Tool("search", "Search", schema)
+        )
+        assert tool["function"]["parameters"] == schema
 
 
 class TestGetAllTools:
@@ -321,6 +338,26 @@ class TestCallTool:
         mgr._call_tool_on_server = AsyncMock(return_value="hello")
         result = await mgr.call_tool("filesystem__read_file", {"path": "/tmp/x"})
         assert result == "hello"
+
+    async def test_mcp2_snake_case_tool_error(self):
+        mgr = MCPClientManager({
+            "servers": [{"name": "srv", "command": "noop", "pool_size": 0}],
+        })
+        result = SimpleNamespace(
+            is_error=True,
+            content=[SimpleNamespace(text="MCP 2 tool failure")],
+        )
+        session = MagicMock()
+        session.call_tool = AsyncMock(return_value=result)
+        stack = MagicMock()
+        stack.aclose = AsyncMock()
+        mgr._create_connection = AsyncMock(
+            return_value=pool_mod.MCPConnection(session=session, stack=stack)
+        )
+
+        response = await mgr._call_tool_on_server({"name": "srv"}, "tool", {})
+
+        assert response == "Tool error: MCP 2 tool failure"
 
 
 class TestPerServerSettings:
@@ -788,6 +825,29 @@ class TestOpenSessionTransportSelection:
              patch("mcp.shared._httpx_utils.create_mcp_http_client", fake_create_mcp_http_client), \
              patch("mcp.client.session.ClientSession", fake_client_session):
             async with mgr._open_session(server_cfg) as session:
+                assert session is not None
+
+    async def test_http_transport_accepts_mcp2_two_stream_shape(self):
+        mgr = _make_manager()
+
+        @asynccontextmanager
+        async def fake_streamable_http_client(url, http_client=None):
+            yield MagicMock(), MagicMock()
+
+        @asynccontextmanager
+        async def fake_create_mcp_http_client(headers=None, **kwargs):
+            yield MagicMock()
+
+        @asynccontextmanager
+        async def fake_client_session(read, write):
+            session = MagicMock()
+            session.initialize = AsyncMock()
+            yield session
+
+        with patch("mcp.client.streamable_http.streamable_http_client", fake_streamable_http_client), \
+             patch("mcp.shared._httpx_utils.create_mcp_http_client", fake_create_mcp_http_client), \
+             patch("mcp.client.session.ClientSession", fake_client_session):
+            async with mgr._open_session({"transport": "http", "url": "http://example.com/mcp"}) as session:
                 assert session is not None
 
     async def test_http_transport_sets_accept_header_by_default(self):
