@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.3] - 2026-09-02
 
 ### Security
 - **Login Rate Limiting**: Added cache-backed fixed-window throttling for password and SSO login surfaces with independent IP and normalized-username buckets, in-memory fallback behavior, standard rate-limit headers, and configurable lockout thresholds.

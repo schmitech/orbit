@@ -64,7 +64,7 @@ Open the [live ORBIT sandbox](https://orbit.schmitech.ca/?utm_source=github&utm_
 
 **Prerequisites:** Linux or macOS, Python 3.12+, and an internet connection for dependencies. Windows users can follow the [Windows installation guide](install/windows.md).
 
-1. Download the [ORBIT v2.17.2 tarball](https://github.com/schmitech/orbit/releases/download/v2.17.2/orbit-2.17.2.tar.gz).
+1. Download the [ORBIT v2.17.3 tarball](https://github.com/schmitech/orbit/releases/download/v2.17.3/orbit-2.17.3.tar.gz).
 2. Extract it, enter the release directory, and start ORBIT:
 
 ```bash

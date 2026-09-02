@@ -194,6 +194,14 @@ auth:
     max_attempts_per_username: 5
     lockout_after_username_limit: false
 
+  # Durable local-password lockout; expires automatically. The bootstrap admin
+  # follows this policy too, so retain a separate administrator recovery path.
+  account_lockout:
+    enabled: true
+    max_failed_attempts: 5
+    lockout_duration_minutes: 15
+    reset_counter_after_minutes: 30
+
   # When true, every inference surface (chat, files, voice, A2A) requires a
   # valid Authorization: Bearer <user-token> in addition to the API key, and
   # the API key must be sent in the X-API-Key header (the Bearer-as-API-key
