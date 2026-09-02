@@ -49,7 +49,11 @@ dependencies = [
     "sseclient-py>=1.9.0",
     "psutil>=7.2.2",
     "websockets>=16.0",
-    "fastmcp>=3.2.0",
+    # Orbit's outbound MCP client uses the MCP 1.x Streamable HTTP transport
+    # API. FastMCP 4 pulls in MCP 2, whose transport return shape is
+    # incompatible with that client, so keep both major versions bounded.
+    "fastmcp>=3.2.0,<4.0.0",
+    "mcp>=1.24.0,<2.0.0",
     "toml>=0.10.2",
     "rich>=14.3.3",
     "environs>=14.0.0,<15.0.0",  # 15+ needs marshmallow>=4; langchain-community/dataclasses-json need marshmallow<4
