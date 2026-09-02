@@ -35,7 +35,7 @@ rewriters:
 
       Conversation History:
       {history_text}
-      {context_text}User request: {message}
+      {context_text}{previous_generation_text}User request: {message}
       Image prompt:
 
   video:
@@ -55,7 +55,7 @@ rewriters:
 
       Conversation History:
       {history_text}
-      {context_text}User request: {message}
+      {context_text}{previous_generation_text}User request: {message}
       Video prompt:
 
   audio:
@@ -148,4 +148,4 @@ rewriters:
       {rules}
       Conversation History:
       {history_text}
-      {pre_extracted}{context_text}User request: {message}
+      {pre_extracted}{context_text}{previous_generation_text}User request: {message}

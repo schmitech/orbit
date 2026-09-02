@@ -8,6 +8,9 @@
 - **Configurable Local Password Policy**: Added configurable password length, character-class, and common-password requirements across local account creation, password changes, resets, and default-admin provisioning. The active policy is available to authenticated clients so the Users panel can provide matching guidance before submission.
 - **Durable Local Account Lockout (Authentication Phase 3)**: Added configurable automatic lockout after consecutive failed local-password logins, with durable per-user counters, automatic expiry, and a stale-failure reset window. Lockout is enforced consistently for password login and WebSocket Basic authentication, while external SSO identities remain unaffected. SQLite, PostgreSQL, and MongoDB persist failure increments and lockout decisions atomically, preventing concurrent attempts from bypassing the configured threshold.
 
+### Bug Fixes
+- **Generation Follow-up Memory**: Restored prior prompt/spec context in the packaged image, video, and document rewrite templates so refinements in fresh installs and Docker images build on the previous generation.
+
 ## [2.17.2] - 2026-08-29
 
 ### Core System Updates
