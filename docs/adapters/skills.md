@@ -385,10 +385,16 @@ Use this endpoint to build a skill picker in the UI (see [UI Integration](#ui-in
 
 ```
 GET /admin/adapters/{adapter_name}/skills
-X-API-Key: <key>
+X-API-Key: <key>  # optional; when supplied, resolves the adapter from the key
 ```
 
-Returns the `available_skills` list from the adapter's capabilities config. The adapter name is resolved from the API key (same behaviour as `/admin/adapters/{name}/models`).
+Returns the configured `available_skills` allowlist from the adapter's
+capabilities config. When a valid API key is supplied, the adapter name is
+resolved from that key (matching `/admin/adapters/{name}/models`); otherwise,
+the `{adapter_name}` path parameter is used.
+
+The response reflects configuration and can include skills which are currently
+disabled or no longer registered.
 
 **Response:**
 
