@@ -1268,7 +1268,7 @@ export function createAdaptersTab({
     // Builds the Test Query form + results area inside an intent adapter's
     // detail panel. Lazily constructed on first expand of the <details> section.
     function buildTestQueryBody(section, a) {
-      var queryInput = el("input", { type: "text", style: "width:100%",
+      var queryInput = el("input", { type: "text", maxlength: "1000", style: "width:100%",
         placeholder: "Natural language query to test, e.g. \"salary stats for engineering\"" });
       var maxTemplatesInput = el("input", { type: "number", value: "5", min: "1", max: "20", style: "width:70px" });
       var executeLabel = el("label", { className: "adapter-checkbox-field" },
