@@ -680,7 +680,7 @@ CREATE TABLE IF NOT EXISTS audit_admin_logs (
 **Fields:**
 - `id` (TEXT, PK): Unique record ID (UUID)
 - `timestamp` (TEXT): ISO format timestamp of the event
-- `event_type` (TEXT): Canonical event name (e.g. `auth.login`, `admin.api_key.create`, `admin.config.update`)
+- `event_type` (TEXT): Canonical event name (e.g. `auth.login`, `auth.login.failed`, `auth.login.locked_out`, `auth.dashboard.login.denied`, `auth.password.changed`, `admin.api_key.create`)
 - `action` (TEXT): Operation class (`CREATE`, `UPDATE`, `DELETE`, `LOGIN`, `LOGOUT`, `CONTROL`)
 - `resource_type` (TEXT): Kind of resource affected (`user`, `api_key`, `adapter`, `config`, `prompt`, `session`, `server`, ...)
 - `resource_id` (TEXT): Identifier of the affected resource (path param, body field, or actor id, depending on the route)
@@ -698,7 +698,7 @@ CREATE TABLE IF NOT EXISTS audit_admin_logs (
 - `ip_original_value` (TEXT): Raw IP value before parsing
 - `user_agent` (TEXT): Request `User-Agent` header
 - `error_message` (TEXT): Short marker for failed requests (e.g. `HTTP 401`)
-- `request_summary` (TEXT): JSON-encoded, secret-scrubbed subset of the request body. Per-route allowlists ensure passwords, raw API keys, and prompt bodies are never stored; config/adapter-config updates record only the list of changed top-level keys (no values).
+- `request_summary` (TEXT): JSON-encoded, secret-scrubbed subset of the request body. Per-route allowlists ensure passwords, raw API keys, and prompt bodies are never stored; failed password logins store only the submitted username and the server-defined `invalid_credentials` reason class (including database-error failures), while a durable lockout uses the `auth.login.locked_out` event type. Dashboard authorization denials use `insufficient_permissions`. Config/adapter-config updates record only the list of changed top-level keys (no values).
 
 **Indexes:**
 - `idx_audit_admin_logs_timestamp` on `timestamp`

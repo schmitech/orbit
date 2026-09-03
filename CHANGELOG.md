@@ -1,5 +1,11 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Security
+
+- **Authentication Audit Coverage (Authentication Phase 4)**: Failed local and dashboard password logins now emit redacted `auth.login.failed` events, while durable lockout denials emit `auth.login.locked_out` and successful dashboard logins denied for insufficient permissions emit `auth.dashboard.login.denied`. Audit summaries accept the fixed failure reason taxonomy only from trusted handler context, bound dashboard identities to the supported username length, and never record passwords, hashes, tokens, or account-existence details. Password changes now use the canonical `auth.password.changed` event name.
+
 ## [2.17.3] - 2026-09-02
 
 ### Security

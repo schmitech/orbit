@@ -284,8 +284,12 @@ async def test_account_lockout_blocks_correct_password_and_expires(auth_service:
     assert user["failed_login_attempts"] == 3
     assert user["locked_until"]
 
-    success, _, _ = await auth_service.authenticate_user("lockoutuser", "password123")
+    failure_context = {}
+    success, _, _ = await auth_service.authenticate_user(
+        "lockoutuser", "password123", failure_context
+    )
     assert success is False
+    assert failure_context == {"reason": "invalid_credentials", "locked_out": True}
 
     await auth_service.database.update_one(
         auth_service.users_collection_name,

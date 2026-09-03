@@ -622,18 +622,38 @@ class AuthService:
             logger.error(f"Unexpected error verifying credentials for {username}: {str(e)}")
             return False, None
     
-    async def authenticate_user(self, username: str, password: str) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+    async def authenticate_user(
+        self,
+        username: str,
+        password: str,
+        failure_context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         """
         Authenticate a user and create a session
         
         Args:
             username: The username
             password: The password
+            failure_context: Optional caller-owned metadata populated for an
+                audit-capable login surface. It deliberately contains only a
+                coarse reason class, never credentials or account existence.
             
         Returns:
             Tuple of (success, token, user_info)
         """
         try:
+            def record_failure(*, locked_out: bool = False) -> None:
+                """Classify every service-level denial for the audit caller.
+
+                All ordinary credential failures use the same class so the
+                audit trail, like the HTTP response, cannot reveal whether a
+                username exists. A currently active durable lockout is the
+                sole distinct event because it is a security control action.
+                """
+                if failure_context is not None:
+                    failure_context["reason"] = "invalid_credentials"
+                    failure_context["locked_out"] = locked_out
+
             # Find user
             user = await self.database.find_one(
                 self.users_collection_name,
@@ -642,16 +662,19 @@ class AuthService:
             
             if not user:
                 logger.warning(f"Login attempt for non-existent user: {username}")
+                record_failure()
                 return False, None, None
             
             # Check if user is active
             if not user.get("active", True):
                 logger.warning(f"Login attempt for inactive user: {username}")
+                record_failure()
                 return False, None, None
 
             # External users authenticate only through their identity provider
             if user.get("provider"):
                 logger.warning(f"Password login attempt for external user: {username}")
+                record_failure()
                 return False, None, None
 
             now = datetime.now(UTC)
@@ -659,15 +682,23 @@ class AuthService:
             # deliberately returns the same generic credential error here.
             if self._is_account_locked(user, now):
                 logger.warning(f"Login attempt for locked user: {username}")
+                record_failure(locked_out=True)
                 return False, None, None
 
             # Verify password
             if not self._verify_password(password, user["password"]):
                 logger.warning(f"Invalid password for user: {username}")
                 await self._record_failed_login(user, now)
+                record_failure()
                 return False, None, None
 
             if await self._is_blacklisted(user):
+                # Keep blacklist denials indistinguishable from invalid
+                # credentials in both HTTP responses and audit summaries. A
+                # blacklist match is not the documented durable lockout
+                # control, and exposing it would reveal protected account
+                # state to an unauthenticated caller.
+                record_failure()
                 return False, None, None
 
             await self._reset_failed_logins(user)
@@ -679,12 +710,18 @@ class AuthService:
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
             logger.error(f"Database connection error authenticating user {username}: {str(e)}")
+            if failure_context is not None:
+                failure_context["reason"] = "invalid_credentials"
             return False, None, None
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
             logger.error(f"Database operation error authenticating user {username}: {str(e)}")
+            if failure_context is not None:
+                failure_context["reason"] = "invalid_credentials"
             return False, None, None
         except Exception as e:
             logger.error(f"Unexpected error authenticating user {username}: {str(e)}")
+            if failure_context is not None:
+                failure_context["reason"] = "invalid_credentials"
             return False, None, None
 
     async def create_session(self, user: Dict[str, Any]) -> str:

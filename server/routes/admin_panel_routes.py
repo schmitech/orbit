@@ -19,6 +19,7 @@ from urllib.parse import quote, urlsplit
 
 from routes.auth_helpers import get_admin_user, get_sso_service, render_login_html
 from auth.rbac import has_any_permission, has_permission
+from services.auth_service import AuthService
 from services.login_rate_limiter import (
     audit_login_rate_limit,
     get_login_rate_limiter,
@@ -234,12 +235,38 @@ def create_admin_panel_router() -> APIRouter:
             request.state.auth_rate_limited = True
             return login_rate_limited_response(username_result)
 
-        success, token, user_info = await auth_service.authenticate_user(username, password)
-        if not success or not token or not user_info or not has_any_permission(user_info):
+        failure_context = {}
+        success, token, user_info = await auth_service.authenticate_user(
+            username, password, failure_context
+        )
+        credential_failure = not success or not token or not user_info
+        authorization_denied = not credential_failure and not has_any_permission(user_info)
+        if credential_failure or authorization_denied:
+            # Form input is not Pydantic-bounded like the JSON login model.
+            # Keep the context-only audit identity within the same supported
+            # username limit before it reaches a durable audit backend.
+            audit_username = username[:AuthService.USERNAME_MAX_LENGTH]
+            request.state.audit_context = {
+                "summary": {
+                    "username": audit_username,
+                    "reason": (
+                        "insufficient_permissions"
+                        if authorization_denied
+                        else failure_context.get("reason", "invalid_credentials")
+                    ),
+                }
+            }
             username_result = await limiter.record_username_failure(request, username)
             if not username_result.allowed:
                 request.state.auth_rate_limited = True
                 return login_rate_limited_response(username_result)
+            if authorization_denied:
+                request.state.auth_login_authorization_denied = True
+            else:
+                # The rate-limit result above has precedence. Only publish
+                # credential-denial state when this remains a 401 response.
+                request.state.auth_login_failed = True
+                request.state.auth_login_locked_out = failure_context.get("locked_out", False)
             return HTMLResponse(
                 content=render_login_html(
                     next_path=_safe_next_path(next),

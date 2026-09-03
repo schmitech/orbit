@@ -80,6 +80,14 @@ _SKIP_PATHS = frozenset({
 
 _CHANGED_KEYS = object()
 
+# These fields are published only by trusted route handlers, never copied from
+# a client request body.  Login failure reasons are a fixed server-side
+# taxonomy; accepting them from JSON would let a caller forge audit metadata.
+_CONTEXT_ONLY_SUMMARY_FIELDS: Dict[Tuple[str, str], Tuple[str, ...]] = {
+    ("POST", "/auth/login"): ("reason",),
+    ("POST", "/admin/login"): ("reason",),
+}
+
 _ROUTE_MAP: List[Tuple[str, str, str, str, str, Optional[str], Any]] = [
     # ---- Auth ----
     ("POST",   "/auth/login",                         "auth.login",              "LOGIN",  "session", None,               ("username",)),
@@ -93,7 +101,7 @@ _ROUTE_MAP: List[Tuple[str, str, str, str, str, Optional[str], Any]] = [
     ("DELETE", "/auth/users/{user_id}",               "auth.user.delete",        "DELETE", "user",    "path:user_id",     ()),
     ("POST",   "/auth/users/{user_id}/deactivate",    "auth.user.deactivate",    "UPDATE", "user",    "path:user_id",     ()),
     ("POST",   "/auth/users/{user_id}/activate",      "auth.user.activate",      "UPDATE", "user",    "path:user_id",     ()),
-    ("POST",   "/auth/change-password",               "auth.password.change",    "UPDATE", "user",    "actor",            ()),
+    ("POST",   "/auth/change-password",               "auth.password.changed",   "UPDATE", "user",    "actor",            ()),
     ("POST",   "/auth/reset-password",                "auth.password.reset",     "UPDATE", "user",    "body:user_id",     ("user_id",)),
 
     # ---- User blacklist ----
@@ -255,13 +263,17 @@ def _apply_summary_overrides(
     summary: Optional[Dict[str, Any]],
     overrides: Any,
     allowed: Any,
+    context_only: Tuple[str, ...] = (),
 ) -> Optional[Dict[str, Any]]:
     """Merge handler-published values into the summary, allowlist-bound.
 
-    Overrides go through the SAME per-route allowlist as the request body. The
-    redaction contract is a property of the route, not of who supplies the
-    value: a handler must not be able to publish a field the route deliberately
-    excludes, or the hook becomes a way to write secrets into the ledger.
+    Overrides go through the route's request-body allowlist plus any explicitly
+    declared context-only fields. Context-only fields are never copied from a
+    client body; they are reserved for trusted handler classifications such as
+    the fixed login-failure reason taxonomy. The redaction contract is a
+    property of the route, not of who supplies the value: a handler must not
+    be able to publish a field the route deliberately excludes, or the hook
+    becomes a way to write secrets into the ledger.
 
     Routes recording nothing (empty allowlist) or only changed-key names
     (`_CHANGED_KEYS`) accept no overrides at all. An override of None removes
@@ -272,11 +284,11 @@ def _apply_summary_overrides(
         return summary
     # `_CHANGED_KEYS` summaries are derived key names, not field values, and an
     # empty allowlist means "record nothing" - neither takes overrides.
-    if allowed is _CHANGED_KEYS or not allowed:
+    if allowed is _CHANGED_KEYS or (not allowed and not context_only):
         return summary
 
     merged = dict(summary or {})
-    for field in allowed:
+    for field in (*allowed, *context_only):
         if field not in overrides:
             continue
         value = overrides[field]
@@ -357,12 +369,20 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
             resource_id_source: Optional[str] = None
             allowed: Any = ()
             path_params: Dict[str, str] = {}
+            context_only: Tuple[str, ...] = ()
         else:
             entry, path_params = match
             _method, _regex, event_type, action, resource_type, resource_id_source, allowed, _template = entry
+            context_only = _CONTEXT_ONLY_SUMMARY_FIELDS.get((method, _template), ())
 
         if getattr(request.state, "auth_rate_limited", False):
             event_type = "auth.login.rate_limited"
+        elif getattr(request.state, "auth_login_authorization_denied", False):
+            event_type = "auth.dashboard.login.denied"
+        elif getattr(request.state, "auth_login_locked_out", False):
+            event_type = "auth.login.locked_out"
+        elif getattr(request.state, "auth_login_failed", False):
+            event_type = "auth.login.failed"
 
         # Resolve actor
         actor_type = "anonymous"
@@ -407,6 +427,7 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
             _build_request_summary(body_json, allowed),
             audit_context.get("summary"),
             allowed,
+            context_only,
         )
 
         # IP + metadata

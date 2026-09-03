@@ -1,11 +1,13 @@
 # Audit Trail Coverage — Implementation Plan
 
+**Status:** Complete (2026-09-03)
+
 ## Summary
 
-Extend ORBIT's **existing** audit infrastructure to cover authentication
-events it currently misses — failed logins, lockouts, password changes, and
-non-admin user actions — rather than building anything new. This is a
-coverage gap, not an infrastructure gap.
+Extended ORBIT's **existing** audit infrastructure to cover authentication
+events it previously missed — failed logins and durable lockouts — while
+retaining its existing password-change/reset and rate-limit coverage. This
+was a coverage gap, not an infrastructure gap.
 
 **Roadmap position:** Phase 4. No hard dependency, but is most useful once
 [Login Rate Limiting](complete/phase-1-auth-login-rate-limiting.md) and
@@ -42,14 +44,15 @@ existing route-action mapping in `admin_audit_middleware.py` (or the
 equivalent hook point in `auth_service.py` for non-route-triggered events
 like an internal lockout expiry).
 
-New event names to add to the existing taxonomy, following the current
+Event names added to the existing taxonomy, following the current
 `auth.<action>` / `auth.dashboard.<action>` naming convention:
 
 - `auth.login.failed` — username (or masked identity), source IP, reason
   class (`invalid_credentials` — never distinguish "unknown user" from
   "wrong password" in the stored reason any more than in the HTTP response).
-- `auth.login.rate_limited` — from Phase 1, only if that phase has landed.
-- `auth.login.locked_out` — from Phase 3, only if that phase has landed.
+- `auth.login.rate_limited` — emitted by Phase 1's existing middleware hook.
+- `auth.login.locked_out` — emitted when Phase 3's durable-lockout check
+  rejects a local-password attempt.
 - `auth.password.changed` / `auth.password.reset` — actor, target user
   (self vs. admin-initiated), never the password itself or its hash.
 - `auth.session.revoked` — already may partially exist via logout; confirm
@@ -59,11 +62,12 @@ New event names to add to the existing taxonomy, following the current
 
 ## Implementation notes
 
-- Add failure-path logging inside `AuthService.authenticate_user`'s failure
-  branch, not only in the route handler — some failure paths (e.g. a lockout
-  check that short-circuits before the password comparison) don't reach the
-  route handler's success/failure branching in the same shape as a normal
-  401, so logging at the service boundary catches all of them uniformly.
+- `AuthService.authenticate_user` classifies every failure path through an
+  optional caller-owned context, including a lockout check that short-circuits
+  before password comparison. The HTTP handlers pass that coarse classification
+  to the existing audit middleware, which supplies request-derived IP and user
+  agent data. This preserves a single write path without making the service
+  depend on a request object.
 - Reuse the existing audit write path/service rather than adding a second
   logging mechanism — check how `auth.login` (success) is currently emitted
   in `admin_audit_middleware.py` and mirror that call shape for the failure
@@ -90,3 +94,17 @@ New event names to add to the existing taxonomy, following the current
   `grep -rn "admin_audit_middleware" server/tests/`) still pass unmodified —
   this phase only adds rows, it doesn't change existing ones.
 - `ruff check server/`.
+
+## Completed implementation
+
+- Local API and dashboard password-login failures now emit
+  `auth.login.failed`; currently locked local accounts emit
+  `auth.login.locked_out` instead. Rate-limit events retain precedence when a
+  failure also reaches a configured rate limit.
+- Failure summaries record only the submitted username and the single
+  `invalid_credentials` reason class. Passwords, hashes, tokens, and a
+  user-existence distinction are never passed to the ledger.
+- The existing change-password event now uses the documented canonical name
+  `auth.password.changed`; administrator resets retain `auth.password.reset`.
+- Added route-level regression coverage confirming a failed login produces the
+  expected redacted audit record.

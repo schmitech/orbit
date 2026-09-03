@@ -177,20 +177,34 @@ async def login(
 
         logger.info(f"Login attempt for user: {login_request.username}")
         
+        failure_context: Dict[str, Any] = {}
         success, token, user_info = await auth_service.authenticate_user(
             login_request.username,
-            login_request.password
+            login_request.password,
+            failure_context,
         )
         
         logger.info(f"Authentication result: success={success}")
         
         if not success:
+            # AuthService classifies the failure at the service boundary so
+            # early failures (notably durable lockout) remain visible here.
+            # The middleware permits only this coarse reason into the audit
+            # summary; passwords and account-existence details are excluded.
+            request.state.audit_context = {
+                "summary": {"reason": failure_context.get("reason", "invalid_credentials")}
+            }
             username_result = await limiter.record_username_failure(
                 request, login_request.username
             )
             if not username_result.allowed:
                 request.state.auth_rate_limited = True
                 return login_rate_limited_response(username_result)
+            # Set these only after rate limiting has declined to supersede the
+            # credential failure. This keeps request state internally
+            # unambiguous as well as preserving middleware event precedence.
+            request.state.auth_login_failed = True
+            request.state.auth_login_locked_out = failure_context.get("locked_out", False)
             raise HTTPException(
                 status_code=401,
                 detail="Invalid username or password"
