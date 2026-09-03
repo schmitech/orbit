@@ -12,8 +12,6 @@ export function createAdaptersTab({
   var adapterPreviewEditor = null; // Read-only Ace editor for the create preview
   var importEditor = null;         // Ace editor instance for the import panel
   var selectedAdapterEntry = null; // { name, filename, ... }
-  var editingAdapterName = null;   // set while the create form is prefilled to edit an existing adapter
-  var editingAdapterFilename = null; // that adapter's existing file, preserved across the save
 
   async function loadAdapterFiles() {
     try {
@@ -343,17 +341,8 @@ export function createAdaptersTab({
     // Options are filled in by populateStrictSelect() once the initial value for
     // this question is known, not here.
     //
-    // `preserveUnavailable` keeps `currentValue` in the list even when it's not
-    // (or no longer) enabled — but only when it came from an existing saved
-    // adapter being edited. A brand-new form's `currentValue` is just the spec's
-    // static default (e.g. mcp_agent defaults inference_provider to "openai"),
-    // which the config may not have enabled at all; offering it there would start
-    // the form on a value the server is guaranteed to reject.
-    function populateStrictSelect(q, select, currentValue, preserveUnavailable) {
+    function populateStrictSelect(q, select, currentValue) {
       var options = ((cachedAdapterAnswerOptions || {})[q.options_source] || []).slice();
-      if (preserveUnavailable && currentValue && options.indexOf(currentValue) === -1) {
-        options.unshift(currentValue);
-      }
       // Questions whose default is `null` (e.g. "override; blank for global
       // default") must stay clearable — the old free-text combobox let a user
       // just empty the box, and a <select> needs an explicit blank option to
@@ -618,7 +607,7 @@ export function createAdaptersTab({
       });
     }
 
-    function buildAdapterCreateForm(prefillAnswers) {
+    function buildAdapterCreateForm() {
       var spec = currentSpec();
       clear(formGrid);
       clear(optionsGroup);
@@ -636,9 +625,8 @@ export function createAdaptersTab({
         });
       }
 
-      var variant = prefillAnswers && spec.variant_field
-        ? prefillAnswers[spec.variant_field]
-        : (spec.variant_field ? (spec.variants && spec.variants.length ? spec.variants[0] : null) : null);
+      var variant = spec.variant_field
+        ? (spec.variants && spec.variants.length ? spec.variants[0] : null) : null;
 
       ordered.forEach(function (q) {
         var input = makeQuestionInput(q);
@@ -646,18 +634,13 @@ export function createAdaptersTab({
         var initial = q.variant_defaults && variant !== null
           && Object.prototype.hasOwnProperty.call(q.variant_defaults, variant)
           ? q.variant_defaults[variant] : q.default;
-        var isPrefilled = !!(prefillAnswers && Object.prototype.hasOwnProperty.call(prefillAnswers, q.field));
-        if (isPrefilled) {
-          initial = prefillAnswers[q.field];
-        }
-        if (q.options_strict) populateStrictSelect(q, input, defaultAsString(q, initial), isPrefilled);
+        if (q.options_strict) populateStrictSelect(q, input, defaultAsString(q, initial));
         applyDefault(q, input, initial);
         if (spec.variant_field && q.field === spec.variant_field) {
           input.value = variant;
           input._appliedDefault = variant;
           input.addEventListener("change", function () { applyVariantDefaults(input.value); });
         }
-        if (editingAdapterName && q.field === "name") input.readOnly = true;
         var target = q.type === "bool" ? optionsGroup : formGrid;
         target.appendChild(adapterQuestionField(q, input, questionHint(q)));
       });
@@ -730,16 +713,6 @@ export function createAdaptersTab({
       });
     });
 
-    // A rendered "adapters:\n  - name: ...\n    ..." document down to just the
-    // per-adapter block, matching what GET .../config/entry/{name} returns —
-    // that's the shape PUT .../config/entry/{name} (save_adapter_entry) expects,
-    // since it splices the block back into the file at its existing location.
-    function extractAdapterBlock(yamlText) {
-      var lines = yamlText.split("\n");
-      var idx = lines.findIndex(function (line) { return line.trim() === "adapters:"; });
-      return (idx === -1 ? lines : lines.slice(idx + 1)).join("\n").replace(/^\n+/, "");
-    }
-
     createBtn.addEventListener("click", function () {
       var spec = currentSpec();
       if (!spec) return;
@@ -747,43 +720,13 @@ export function createAdaptersTab({
       if (!answers.name) { showError("An adapter name is required."); return; }
       withButton(createBtn, async function () {
         var data;
-        if (editingAdapterName) {
-          // Existing adapters can live in a shared, multi-adapter file (e.g.
-          // web-search-providers.yaml). POST /admin/adapters always targets
-          // "<name>.yaml" and would 409 on a name owned by a different file, so
-          // saving an edit goes through the same in-place block-splice endpoint
-          // the raw YAML editor uses instead, which preserves the original file.
-          var preview;
-          try {
-            preview = await api("POST", endpoints.adapterPreview, { spec: spec.key, answers: answers });
-          } catch (err) {
-            throw new Error("Save failed: " + err.message);
-          }
-          if (preview.errors && preview.errors.length) {
-            throw new Error("Save failed: " + preview.errors.join("; "));
-          }
-          try {
-            await api("PUT", endpoints.adapterConfigs + "/entry/" + encodeURIComponent(editingAdapterName),
-              { content: extractAdapterBlock(preview.yaml) });
-          } catch (err) {
-            throw new Error("Save failed: " + err.message);
-          }
-          await loadAdapterFiles();
-          var reloadPath = endpoints.reloadAdapters + "/async?adapter_name=" + encodeURIComponent(editingAdapterName);
-          var started = await api("POST", reloadPath);
-          await waitForAdminJob(started.job_id, "Reloading adapter…");
-          await loadAdapterCapabilities();
-          data = { name: answers.name, filename: editingAdapterFilename,
-            message: "Adapter '" + answers.name + "' saved and reloaded." };
-        } else {
-          try {
-            data = await api("POST", endpoints.adapterCreate, { spec: spec.key, answers: answers });
-          } catch (err) {
-            throw new Error("Create failed: " + err.message);
-          }
-          await loadAdapterFiles();
-          await loadAdapterCapabilities();
+        try {
+          data = await api("POST", endpoints.adapterCreate, { spec: spec.key, answers: answers });
+        } catch (err) {
+          throw new Error("Create failed: " + err.message);
         }
+        await loadAdapterFiles();
+        await loadAdapterCapabilities();
         closeAdapterCreatePanel();
         // Re-render so the adapter appears in the (re-flattened) list, then
         // open it in the detail editor.
@@ -794,18 +737,8 @@ export function createAdaptersTab({
       });
     });
 
-    // `prefill` is `{spec, variant, answers, filename}` — `filename` from the
-    // caller's already-loaded adapter row, the rest from GET .../edit-form —
-    // used to open the form pre-populated with an existing adapter's answers.
-    // The name field is locked in that case: renaming here has nowhere good to
-    // go (the save path patches the existing block in place by current name),
-    // so editing in the form is save-in-place only.
-    async function openAdapterCreatePanel(prefill) {
-      editingAdapterName = prefill ? prefill.answers.name : null;
-      editingAdapterFilename = prefill ? prefill.filename : null;
-      createPanelTitle.textContent = editingAdapterName ? "Edit Adapter: " + editingAdapterName : "New Adapter";
-      specSelect.disabled = !!editingAdapterName;
-      if (prefill) specSelect.value = prefill.spec;
+    async function openAdapterCreatePanel() {
+      createPanelTitle.textContent = "New Adapter";
       // Refresh the enumerable answer options (providers/stores/datasources) so a
       // config change since the panel last loaded is reflected, before the form is
       // built — a strict field (e.g. inference_provider) bakes this list into a
@@ -813,15 +746,12 @@ export function createAdaptersTab({
       // `cachedAdapterAnswerOptions` live on every open/keystroke.
       await loadAdapterAnswerOptions();
       createPanel.style.display = "";
-      buildAdapterCreateForm(prefill ? prefill.answers : null);
+      buildAdapterCreateForm();
       createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     function closeAdapterCreatePanel() {
       hideCreatePreview();
-      editingAdapterName = null;
-      editingAdapterFilename = null;
-      specSelect.disabled = false;
       createPanel.style.display = "none";
     }
 
@@ -1013,7 +943,7 @@ export function createAdaptersTab({
 
       // Header
       var headerRow = el("div", { style: "display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-2)" });
-      headerRow.appendChild(el("h3", { style: "margin:0" }, a.name));
+      headerRow.appendChild(el("h3", { style: "margin:0;padding-top:0;border-top:0" }, a.name));
       headerRow.appendChild(el("span", { className: "monitoring-badge " + (a.enabled ? "green" : "muted") },
         a.enabled ? "enabled" : "disabled"
       ));
@@ -1067,7 +997,6 @@ export function createAdaptersTab({
         ? el("button", { className: "btn btn--neutral" }, "Test Query")
         : null;
 
-      var editFormBtn = el("button", { className: "secondary", type: "button" }, "Edit in Form");
       var exportBtn = el("button", { className: "secondary", type: "button" }, "Export");
       var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Adapter");
 
@@ -1083,7 +1012,6 @@ export function createAdaptersTab({
         btnRow.appendChild(testQueryBtn);
       }
       btnRow.appendChild(el("span", { className: "ops-action-divider" }));
-      btnRow.appendChild(editFormBtn);
       btnRow.appendChild(exportBtn);
       btnRow.appendChild(deleteBtn);
       detailPanel.appendChild(btnRow);
@@ -1136,28 +1064,6 @@ export function createAdaptersTab({
         });
         detailPanel.appendChild(missesSection);
       }
-
-      // Tries to reopen this adapter in the spec-driven create form instead of raw
-      // YAML. Only possible when the adapter was produced by a known spec family
-      // and hasn't been hand-edited beyond what the form can represent — the
-      // backend confirms this by re-rendering the recovered answers and comparing
-      // them to the entry on disk (server/adapter_sdk/detector.py).
-      editFormBtn.addEventListener("click", function () {
-        withButton(editFormBtn, async function () {
-          var data;
-          try {
-            data = await api("GET", endpoints.adapterCreate + "/" + encodeURIComponent(a.name) + "/edit-form");
-          } catch (err) {
-            throw new Error("Edit in form failed: " + err.message);
-          }
-          if (!data.editable) {
-            showError(data.reason || "This adapter can't be edited through the form; use the YAML editor below.");
-            return;
-          }
-          data.filename = a.filename;
-          await openAdapterCreatePanel(data);
-        });
-      });
 
       // Downloads the adapter as a standalone YAML file for moving it to another
       // environment. The exported document is whatever is on disk verbatim — secrets
