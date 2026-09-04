@@ -153,7 +153,10 @@ class SQLiteService(DatabaseService):
                     user_id TEXT NOT NULL,
                     username TEXT NOT NULL,
                     expires TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    ip_address TEXT,
+                    user_agent TEXT,
+                    last_seen_at TEXT
                 )
             ''',
             'user_blacklist': '''

@@ -7,11 +7,11 @@ accounts**, required at minimum for the `admin` role, with an enrollment flow,
 a second-factor check in the login path, and recovery codes for account
 recovery if the authenticator device is lost. This is the highest-effort item
 on the roadmap and the last phase, since it benefits from
-[Session Monitoring](phase-5-auth-session-monitoring.md)'s session metadata for an
+[Session Monitoring](complete/phase-5-auth-session-monitoring.md)'s session metadata for an
 optional "remember this device" feature.
 
 **Roadmap position:** Phase 7. Soft dependency on
-[Session Monitoring](phase-5-auth-session-monitoring.md) (Phase 5) for device-remember;
+[Session Monitoring](complete/phase-5-auth-session-monitoring.md) (Phase 5) for device-remember;
 implementable without it (every login just always prompts for the TOTP code).
 No dependency on Phases 1, 2, 3, 4, or 6.
 
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS user_mfa (
 );
 ```
 
-If [Session Monitoring](phase-5-auth-session-monitoring.md) has landed, device-remember
+If [Session Monitoring](complete/phase-5-auth-session-monitoring.md) has landed, device-remember
 reuses its `sessions` table with an additional `mfa_verified_until` column
 rather than a separate device-token table.
 

@@ -104,6 +104,13 @@ _ROUTE_MAP: List[Tuple[str, str, str, str, str, Optional[str], Any]] = [
     ("POST",   "/auth/change-password",               "auth.password.changed",   "UPDATE", "user",    "actor",            ()),
     ("POST",   "/auth/reset-password",                "auth.password.reset",     "UPDATE", "user",    "body:user_id",     ("user_id",)),
 
+    # ---- Session monitoring ----
+    # Listing sessions is read-only and not audited, matching GET /auth/blacklist.
+    # Revocation is the security-relevant action, whether self-service or
+    # admin-initiated (sessions.manage), so both surfaces are recorded.
+    ("DELETE", "/auth/sessions/{session_id}",                 "auth.session.revoke", "DELETE", "session", "path:session_id", ()),
+    ("DELETE", "/auth/users/{user_id}/sessions/{session_id}", "auth.session.revoke", "DELETE", "session", "path:session_id", ()),
+
     # ---- User blacklist ----
     # The pattern is the whole point of the event — an auditor needs to know
     # *who* was blocked, not just that a rule changed. It's operator-authored

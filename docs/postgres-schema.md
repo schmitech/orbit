@@ -87,9 +87,14 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_id TEXT NOT NULL,
     username TEXT NOT NULL,
     expires TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    last_seen_at TEXT
 )
 ```
+
+`ip_address`/`user_agent` are captured at login; `last_seen_at` is refreshed on token validation, throttled to at most once per 60 seconds. All three are `NULL` for sessions created before v1.8.
 
 **Indexes:** `idx_sessions_token` on `token`; `idx_sessions_expires` on `expires`
 
@@ -557,6 +562,10 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are 
 - Restrict database user permissions to only the schema Orbit needs; avoid using a Postgres superuser for the application connection.
 
 ## Version History
+
+- **v1.8** (2026-09-03): Session monitoring (matches SQLite v1.18)
+  - Added `sessions.ip_address`, `sessions.user_agent`, and `sessions.last_seen_at`. New `sessions.manage` RBAC permission and self-service/admin session list-and-revoke routes; see the SQLite v1.18 entry for details
+  - Created on existing databases through the additive startup migration (`ADD COLUMN IF NOT EXISTS`); MongoDB is schemaless and needs no migration
 
 - **v1.7** (2026-09-01): Durable local account lockout (matches SQLite v1.17)
   - Added `users.failed_login_attempts`, `users.last_failed_login_at`, and `users.locked_until` for durable configurable lockout of local-password accounts. External identities do not use this state.

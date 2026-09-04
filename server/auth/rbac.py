@@ -27,6 +27,7 @@ ALL_PERMISSIONS: Set[str] = {
     "metrics.read",
     "conversations.read",
     "feedback.read",
+    "sessions.manage",
 }
 
 WILDCARD = "*"
@@ -55,6 +56,7 @@ ROLE_PERMISSIONS: Dict[str, Set[str]] = {
     },
     "user-manager": {
         "users.manage",
+        "sessions.manage",
     },
     "user": set(),
 }

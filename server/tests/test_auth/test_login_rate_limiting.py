@@ -16,7 +16,7 @@ from routes.admin_panel_routes import create_admin_panel_router  # noqa: E402
 
 
 class FakeAuthService:
-    async def authenticate_user(self, username, password, failure_context=None):
+    async def authenticate_user(self, username, password, failure_context=None, ip_address=None, user_agent=None):
         if password == "correct-password":
             return True, "token", {"id": "2", "username": username, "role": "user"}
         if failure_context is not None:

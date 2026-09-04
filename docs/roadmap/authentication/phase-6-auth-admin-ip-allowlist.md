@@ -9,7 +9,7 @@ panel should only ever be reachable from an office network, VPN, or bastion,
 regardless of whether credentials are otherwise correct.
 
 **Roadmap position:** Phase 6. No hard dependency, but benefits from
-[Session Monitoring](phase-5-auth-session-monitoring.md) (Phase 5) having already
+[Session Monitoring](complete/phase-5-auth-session-monitoring.md) (Phase 5) having already
 established the `ip_address` extraction/storage convention for consistency.
 
 ## Current state

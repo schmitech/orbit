@@ -237,7 +237,11 @@ def create_admin_panel_router() -> APIRouter:
 
         failure_context = {}
         success, token, user_info = await auth_service.authenticate_user(
-            username, password, failure_context
+            username,
+            password,
+            failure_context,
+            ip_address=limiter.client_ip(request),
+            user_agent=request.headers.get("user-agent"),
         )
         credential_failure = not success or not token or not user_info
         authorization_denied = not credential_failure and not has_any_permission(user_info)
@@ -420,7 +424,11 @@ def create_admin_panel_router() -> APIRouter:
                 return login_rate_limited_response(username_result)
             return _login_redirect("not_authorized")
 
-        token = await auth_service.create_session(user)
+        token = await auth_service.create_session(
+            user,
+            ip_address=limiter.client_ip(request),
+            user_agent=request.headers.get("user-agent"),
+        )
 
         destination = _safe_next_path(flow.get("next"))
         response = RedirectResponse(url=destination, status_code=303)

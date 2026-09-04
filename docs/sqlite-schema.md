@@ -95,7 +95,10 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_id TEXT NOT NULL,
     username TEXT NOT NULL,
     expires TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    last_seen_at TEXT
 )
 ```
 
@@ -106,6 +109,9 @@ CREATE TABLE IF NOT EXISTS sessions (
 - `username` (TEXT): Username for quick reference
 - `expires` (TEXT): ISO format timestamp when session expires
 - `created_at` (TEXT): ISO format timestamp of session creation
+- `ip_address` (TEXT, nullable): Source IP captured at login, via the same `extract_ip` helper (and trusted-proxy config) used by the rate-limit middleware. `NULL` for sessions created before v1.18 or by a caller with no request context
+- `user_agent` (TEXT, nullable): Client `User-Agent` header captured at login. `NULL` under the same conditions as `ip_address`
+- `last_seen_at` (TEXT, nullable): ISO format timestamp of the session's last successful token validation, set at creation and refreshed thereafter, throttled to at most once per 60 seconds so authenticated traffic doesn't turn into a write per request. `NULL` for sessions created before v1.18, until their first post-upgrade validation
 
 **Indexes:**
 - `idx_sessions_token` on `token`
@@ -965,6 +971,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.18** (2026-09-03): Session monitoring
+  - Added `sessions.ip_address`, `sessions.user_agent`, and `sessions.last_seen_at`. `ip_address`/`user_agent` are captured at `create_session` time via the same `extract_ip` helper (and trusted-proxy config) already used by the rate-limit middleware; `last_seen_at` is refreshed on `validate_token`, throttled to at most once per 60 seconds
+  - New `sessions.manage` RBAC permission (`server/auth/rbac.py`) lets an admin list/revoke sessions belonging to other users; every authenticated user can already list/revoke their own sessions without it, the same way `GET /auth/me` needs no elevated permission. New routes: `GET/DELETE /auth/sessions[/{session_id}]` (self-service) and `GET/DELETE /auth/users/{user_id}/sessions[/{session_id}]` (admin, gated on `sessions.manage`)
+  - Applied to existing SQLite/PostgreSQL databases through the additive startup migration (`_migrate_table_schema`); MongoDB is schemaless and needs no migration. All three new columns are `NULL` on rows created before this version until their next login/validation
 - **v1.17** (2026-09-01): Durable local account lockout
   - Added `users.failed_login_attempts`, `users.last_failed_login_at`, and `users.locked_until`, which persist configurable local-password account lockouts across cache eviction and restarts. External identity rows do not use these fields.
   - Applied to existing SQLite/PostgreSQL databases through the additive startup migration (`_migrate_table_schema`); MongoDB is schemaless and needs no migration.

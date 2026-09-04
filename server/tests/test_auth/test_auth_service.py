@@ -694,6 +694,127 @@ async def test_backfill_roles_for_legacy_user(auth_service: AuthService, databas
     await auth_service.delete_user(user_id)
 
 
+async def test_list_sessions_excludes_expired_sessions(auth_service: AuthService, new_user, database_service):
+    """list_sessions must not report an expired session as active, and should
+    opportunistically clean it up rather than leaving it to accumulate."""
+    success, token, user_info = await auth_service.authenticate_user(
+        new_user['username'], new_user['password']
+    )
+    assert success
+
+    # Force the session this login created into the past.
+    session = await database_service.find_one(auth_service.sessions_collection_name, {"token": token})
+    await database_service.update_one(
+        auth_service.sessions_collection_name,
+        {"_id": session["_id"]},
+        {"$set": {"expires": datetime.now(UTC) - timedelta(hours=1)}}
+    )
+
+    sessions = await auth_service.list_sessions(user_info['id'])
+    assert sessions == [], "An expired session must not be reported as active"
+
+    # Opportunistic cleanup: the row should be gone, not just filtered.
+    remaining = await database_service.find_one(
+        auth_service.sessions_collection_name, {"_id": session["_id"]}
+    )
+    assert remaining is None
+
+
+async def test_list_sessions_finds_valid_session_behind_many_expired_ones(
+    auth_service: AuthService, new_user, database_service
+):
+    """A valid session must still be reported even if 1000+ expired sessions
+    for the same user exist - filtering must happen in the query, not by
+    fetching a limited page and filtering client-side (which would let a wall
+    of expired rows hide every valid one)."""
+    user = await database_service.find_one(auth_service.users_collection_name, {"username": new_user['username']})
+    expired_at = datetime.now(UTC) - timedelta(hours=1)
+    for _ in range(1005):
+        await database_service.insert_one(auth_service.sessions_collection_name, {
+            "token": f"expired-{time.time_ns()}-{_}",
+            "user_id": user["_id"],
+            "username": user["username"],
+            "expires": expired_at,
+            "created_at": expired_at,
+        })
+
+    success, token, user_info = await auth_service.authenticate_user(
+        new_user['username'], new_user['password']
+    )
+    assert success
+
+    sessions = await auth_service.list_sessions(user_info['id'])
+    assert len(sessions) == 1, "The one valid session must be found despite 1000+ expired sessions"
+
+    await auth_service.logout(token)
+
+
+async def test_create_session_populates_ip_and_user_agent(auth_service: AuthService):
+    """create_session records ip_address/user_agent, and a second login from a
+    different IP/agent creates a second, independently identifiable session."""
+    success, token_a, user_info = await auth_service.authenticate_user(
+        'admin', 'admin123', ip_address="203.0.113.5", user_agent="agent-a/1.0"
+    )
+    assert success
+    success, token_b, _ = await auth_service.authenticate_user(
+        'admin', 'admin123', ip_address="198.51.100.9", user_agent="agent-b/2.0"
+    )
+    assert success
+
+    sessions = await auth_service.list_sessions(user_info['id'])
+    by_agent = {s['user_agent']: s for s in sessions}
+    assert "agent-a/1.0" in by_agent
+    assert "agent-b/2.0" in by_agent
+    assert by_agent["agent-a/1.0"]['ip_address'] == "203.0.113.5"
+    assert by_agent["agent-b/2.0"]['ip_address'] == "198.51.100.9"
+
+    await auth_service.logout(token_a)
+    await auth_service.logout(token_b)
+
+
+async def test_list_and_revoke_own_session_without_permission(auth_service: AuthService, new_user):
+    """A user can list and revoke their own sessions without sessions.manage."""
+    success, token, user_info = await auth_service.authenticate_user(
+        new_user['username'], new_user['password'], ip_address="10.0.0.1", user_agent="ua"
+    )
+    assert success
+    assert 'sessions.manage' not in user_info.get('permissions', [])
+
+    sessions = await auth_service.list_sessions(user_info['id'])
+    assert len(sessions) == 1
+    session_id = sessions[0]['id']
+
+    revoked = await auth_service.revoke_session(session_id, user_info)
+    assert revoked, "A user should be able to revoke their own session without sessions.manage"
+
+    is_valid, _ = await auth_service.validate_token(token)
+    assert not is_valid, "Revoking a session immediately invalidates its token"
+
+
+async def test_revoke_another_users_session_requires_permission(auth_service: AuthService, new_user):
+    """Revoking a session belonging to a different user requires sessions.manage."""
+    success, token, target_user_info = await auth_service.authenticate_user(
+        new_user['username'], new_user['password']
+    )
+    assert success
+    sessions = await auth_service.list_sessions(target_user_info['id'])
+    session_id = sessions[0]['id']
+
+    unprivileged_requester = {"id": "not-the-owner", "username": "someone-else", "permissions": []}
+    revoked = await auth_service.revoke_session(session_id, unprivileged_requester)
+    assert not revoked, "Revoking another user's session without sessions.manage must be denied"
+
+    is_valid, _ = await auth_service.validate_token(token)
+    assert is_valid, "The session must remain valid after a denied revoke attempt"
+
+    privileged_requester = {"id": "some-admin-id", "username": "an-admin", "permissions": ["sessions.manage"]}
+    revoked = await auth_service.revoke_session(session_id, privileged_requester)
+    assert revoked, "sessions.manage should allow revoking another user's session"
+
+    is_valid, _ = await auth_service.validate_token(token)
+    assert not is_valid
+
+
 def test_auth_service():
     """Run all authentication service tests"""
     logger.info("Starting Authentication Service tests...")

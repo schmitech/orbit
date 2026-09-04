@@ -23,7 +23,7 @@ from services.database_service import (
     DatabaseDuplicateKeyError,
     DatabaseTimeoutError
 )
-from auth.rbac import is_valid_role, permissions_for_roles
+from auth.rbac import has_permission, is_valid_role, permissions_for_roles
 from services.common_passwords import load_common_passwords
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,7 @@ class AuthService:
     PASSWORD_MIN_LENGTH = 8
     PASSWORD_MAX_LENGTH = 128
     USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+    _SESSION_LAST_SEEN_THROTTLE_SECONDS = 60
 
     def __init__(self, config: Dict[str, Any], database_service: Optional[DatabaseService] = None):
         """Initialize the authentication service with configuration"""
@@ -627,17 +628,21 @@ class AuthService:
         username: str,
         password: str,
         failure_context: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
     ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         """
         Authenticate a user and create a session
-        
+
         Args:
             username: The username
             password: The password
             failure_context: Optional caller-owned metadata populated for an
                 audit-capable login surface. It deliberately contains only a
                 coarse reason class, never credentials or account existence.
-            
+            ip_address: Best-effort source IP for session monitoring.
+            user_agent: Best-effort client user agent for session monitoring.
+
         Returns:
             Tuple of (success, token, user_info)
         """
@@ -703,7 +708,7 @@ class AuthService:
 
             await self._reset_failed_logins(user)
 
-            token = await self.create_session(user)
+            token = await self.create_session(user, ip_address=ip_address, user_agent=user_agent)
 
             logger.debug(f"User {username} logged in successfully")
             return True, token, self._user_info(user)
@@ -724,11 +729,19 @@ class AuthService:
                 failure_context["reason"] = "invalid_credentials"
             return False, None, None
 
-    async def create_session(self, user: Dict[str, Any]) -> str:
+    async def create_session(
+        self,
+        user: Dict[str, Any],
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> str:
         """Mint a session token for an already-authenticated user.
 
         Used both by password login and by SSO (where the identity is verified
-        by an external provider rather than a local password).
+        by an external provider rather than a local password). ``ip_address``/
+        ``user_agent`` are best-effort metadata for session monitoring - a
+        caller that has no request context (or an SSO path not yet updated to
+        pass one) simply leaves the session unidentified by device.
         """
         token = secrets.token_hex(32)
         session_doc = {
@@ -737,6 +750,9 @@ class AuthService:
             "username": user["username"],
             "expires": datetime.now(UTC) + timedelta(hours=self.session_duration_hours),
             "created_at": datetime.now(UTC),
+            "ip_address": ip_address,
+            "user_agent": user_agent,
+            "last_seen_at": datetime.now(UTC),
         }
         await self.database.insert_one(self.sessions_collection_name, session_doc)
         await self.database.update_one(
@@ -875,6 +891,8 @@ class AuthService:
             if not await self._is_cleared(user):
                 return False, None
 
+            await self._touch_session_last_seen(session, now)
+
             return True, self._user_info(user)
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
@@ -886,6 +904,22 @@ class AuthService:
         except Exception as e:
             logger.error(f"Unexpected error validating token: {str(e)}")
             return False, None
+
+    async def _touch_session_last_seen(self, session: Dict[str, Any], now: datetime) -> None:
+        """Refresh a session's ``last_seen_at``, throttled to avoid a write on
+        every authenticated request. Best-effort: a failure here must never
+        fail token validation."""
+        last_seen = self._as_utc_datetime(session.get("last_seen_at"))
+        if last_seen is not None and (now - last_seen).total_seconds() < self._SESSION_LAST_SEEN_THROTTLE_SECONDS:
+            return
+        try:
+            await self.database.update_one(
+                self.sessions_collection_name,
+                {"_id": session["_id"]},
+                {"$set": {"last_seen_at": now}}
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update session last_seen_at: {str(e)}")
     
     async def logout(self, token: str) -> bool:
         """
@@ -922,7 +956,117 @@ class AuthService:
         except Exception as e:
             logger.error(f"Unexpected error during logout: {str(e)}")
             return False
-    
+
+    async def list_sessions(self, user_id: str) -> List[Dict[str, Any]]:
+        """List a user's active sessions, newest first.
+
+        Returns session dicts shaped for the API layer (string id, no token),
+        so a session listing can never leak a bearer token that could be
+        replayed - the token is a secret and revocation is done by id.
+        """
+        try:
+            user_id_converted = await self.database.ensure_id_is_object_id(user_id)
+        except ValueError as e:
+            logger.error(f"Invalid user ID format: {str(e)}")
+            return []
+
+        now = datetime.now(UTC)
+
+        # Filter expiry in the query itself and sort at the database layer,
+        # rather than fetching up to 1000 rows and filtering in Python - if
+        # the first 1000 rows returned were all expired, a Python-side filter
+        # would hide every valid session behind them. Query expiry is a
+        # supported operator on every backend (SQLite/Postgres convert the
+        # datetime to its stored ISO string; MongoDB compares natively).
+        try:
+            sessions = await self.database.find_many(
+                self.sessions_collection_name,
+                {"user_id": user_id_converted, "expires": {"$gt": now}},
+                limit=1000,
+                sort=[("created_at", -1)],
+            )
+        except (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError) as e:
+            logger.error(f"Database error listing sessions for {user_id}: {str(e)}")
+            return []
+
+        # Expired sessions are only cleaned up lazily, at validate_token time
+        # for that specific token - an abandoned session can otherwise sit in
+        # the table indefinitely. Opportunistically sweep a bounded batch of
+        # them here too, as a best-effort side effect - this must never block
+        # or fail the (already-fetched) active-session listing above.
+        try:
+            expired_sessions = await self.database.find_many(
+                self.sessions_collection_name,
+                {"user_id": user_id_converted, "expires": {"$lte": now}},
+                limit=100,
+            )
+            for expired in expired_sessions:
+                # One delete per row: the query abstraction's "_id" handling
+                # is equality-only (it does not support "$in" against _id the
+                # way it does for other fields), so a single $in-based bulk
+                # delete would silently match nothing on SQL backends.
+                await self.database.delete_one(
+                    self.sessions_collection_name,
+                    {"_id": expired["_id"]},
+                )
+        except Exception as e:
+            logger.warning(f"Failed to opportunistically clean up expired sessions for {user_id}: {str(e)}")
+        return [
+            {
+                "id": str(session["_id"]),
+                "ip_address": session.get("ip_address"),
+                "user_agent": session.get("user_agent"),
+                "created_at": session.get("created_at"),
+                "last_seen_at": session.get("last_seen_at"),
+                "expires": session.get("expires"),
+            }
+            for session in sessions
+        ]
+
+    async def revoke_session(self, session_id: str, requesting_user: Dict[str, Any]) -> bool:
+        """Revoke one session by id.
+
+        Allowed when the session belongs to the requesting user, or when the
+        requester holds ``sessions.manage``. Mirrors the caller-owns-it-or-has-
+        the-permission shape used elsewhere (e.g. the blacklist routes), but
+        inverted: revoking your own session is always allowed and is just a
+        targeted logout, not a lockout, so there is no "last session" guard.
+        """
+        try:
+            session_id_converted = await self.database.ensure_id_is_object_id(session_id)
+        except ValueError as e:
+            logger.warning(f"Invalid session ID format: {str(e)}")
+            return False
+
+        try:
+            session = await self.database.find_one(
+                self.sessions_collection_name,
+                {"_id": session_id_converted},
+            )
+        except (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError) as e:
+            logger.error(f"Database error looking up session {session_id}: {str(e)}")
+            return False
+
+        if not session:
+            return False
+
+        is_own_session = str(session.get("user_id")) == str(requesting_user.get("id"))
+        if not is_own_session and not has_permission(requesting_user, "sessions.manage"):
+            logger.warning(
+                f"User {requesting_user.get('username')} attempted to revoke a session "
+                "they do not own without sessions.manage"
+            )
+            return False
+
+        try:
+            return await self.database.delete_one(
+                self.sessions_collection_name,
+                {"_id": session_id_converted},
+            )
+        except (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError) as e:
+            logger.error(f"Database error revoking session {session_id}: {str(e)}")
+            return False
+
     async def change_password(self, user_id: str, old_password: str, new_password: str) -> bool:
         """
         Change a user's password

@@ -1,7 +1,7 @@
 export const ENDPOINTS = {
   token: "/admin/api/token", logout: "/admin/logout", health: "/health", healthAdapters: "/health/adapters",
   register: "/auth/register", users: "/auth/users", roles: "/auth/roles", passwordPolicy: "/auth/password-policy", changePassword: "/auth/change-password",
-  blacklist: "/auth/blacklist", allowlist: "/auth/allowlist",
+  blacklist: "/auth/blacklist", allowlist: "/auth/allowlist", sessions: "/auth/sessions",
   resetPassword: "/auth/reset-password", apiKeys: "/admin/api-keys", prompts: "/admin/prompts",
   skills: "/admin/skills", skillsValidate: "/admin/skills/validate",
   adapterCapabilities: "/admin/adapters/capabilities", jobs: "/admin/jobs", logsTail: "/admin/logs/tail",

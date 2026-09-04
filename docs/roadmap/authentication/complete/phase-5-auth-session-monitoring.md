@@ -1,5 +1,7 @@
 # Session Monitoring — Implementation Plan
 
+**Status:** Complete (2026-09-03)
+
 ## Summary
 
 Track enough metadata per session (source IP, user agent, last-activity time)

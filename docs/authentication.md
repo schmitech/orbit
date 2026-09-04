@@ -89,7 +89,10 @@ A user may hold multiple roles (e.g. `["operator", "auditor"]`); effective permi
   "user_id": ObjectId("..."),  // Reference to users collection
   "username": "admin",
   "expires": ISODate("2025-01-01T24:00:00Z"),  // TTL index
-  "created_at": ISODate("2025-01-01T12:00:00Z")
+  "created_at": ISODate("2025-01-01T12:00:00Z"),
+  "ip_address": "203.0.113.5",   // Captured at login via extract_ip; null if unavailable
+  "user_agent": "Mozilla/5.0 ...",  // Captured at login; null if unavailable
+  "last_seen_at": ISODate("2025-01-01T12:05:00Z")  // Refreshed on validate_token, throttled to once/60s
 }
 ```
 
@@ -697,6 +700,53 @@ Remove a rule (requires `users.manage`). Unlike deleting a blacklist rule, this
 rather than at token expiry, and the response reports the counts. Returns 400 if
 it would revoke the caller's own clearance — a local password administrator is
 never gated, so that guard only bites an external admin.
+
+### Session Endpoints
+
+Session monitoring: every authenticated user can always list and revoke
+their **own** sessions, no special permission required (the same way
+`GET /auth/me` needs none). Listing or revoking another user's sessions
+requires the `sessions.manage` permission.
+
+#### GET /auth/sessions
+List the caller's own active sessions, newest first. Expired sessions are
+never returned (and are opportunistically cleaned up as a side effect of the
+call).
+
+**Headers:**
+```
+Authorization: Bearer abc123...
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "507f1f77bcf86cd799439011",
+    "ip_address": "203.0.113.5",
+    "user_agent": "Mozilla/5.0 ...",
+    "created_at": "2026-09-03T12:00:00+00:00",
+    "last_seen_at": "2026-09-03T12:05:00+00:00",
+    "expires": "2026-09-04T00:00:00+00:00"
+  }
+]
+```
+
+#### DELETE /auth/sessions/{session_id}
+Revoke one of the caller's own sessions (e.g. sign out another device or
+browser). Immediately invalidates that session's token. Revoking your own
+current session is just a targeted logout — there is no "last session" guard.
+Returns 404 if the session doesn't exist or doesn't belong to the caller.
+
+#### GET /auth/users/{user_id}/sessions
+List another user's active sessions (requires `sessions.manage`). Same
+response shape as `GET /auth/sessions`.
+
+#### DELETE /auth/users/{user_id}/sessions/{session_id}
+Revoke another user's session (requires `sessions.manage`). Returns 404 if
+the session doesn't exist or doesn't belong to `user_id`, so this endpoint
+can't be used to revoke an unrelated user's session by guessing a session id.
+Recorded in the admin audit ledger as `auth.session.revoke`.
 
 ### Password Management Endpoints
 
@@ -1588,15 +1638,15 @@ Located in `bin/orbit.py`
 ✅ **Audit Logging**: Authentication events logged  
 ✅ **Login Rate Limiting**: Cache-backed IP and username throttling with degraded-mode fallback — [implementation plan](roadmap/authentication/complete/phase-1-auth-login-rate-limiting.md)
 ✅ **Password Complexity**: Configurable local password requirements and common-password rejection — [implementation plan](roadmap/authentication/complete/phase-2-auth-password-complexity.md)
+✅ **Account Lockout**: Durable, automatically-expiring lockout after consecutive failed local-password logins — [implementation plan](roadmap/authentication/complete/phase-3-auth-account-lockout.md)
+✅ **Audit Trail**: Detailed logging of authentication and session events — [implementation plan](roadmap/authentication/complete/phase-4-auth-audit-trail-coverage.md)
+✅ **Session Monitoring**: Self-service and admin listing/revocation of active sessions, with source IP/user agent/last-seen tracking — [implementation plan](roadmap/authentication/complete/phase-5-auth-session-monitoring.md)
 
 ### Recommended Additional Security
 
 Plans for the remaining phases are tracked under
-[`docs/roadmap/authentication/`](roadmap/authentication/), ordered by dependency and effort (Phase 3 → 7).
+[`docs/roadmap/authentication/`](roadmap/authentication/), ordered by dependency and effort (Phase 6 → 7).
 
-🔸 **Account Lockout**: Temporary lockout after failed attempts — [roadmap](roadmap/authentication/phase-3-auth-account-lockout.md) (Phase 3)  
-🔸 **Audit Trail**: Detailed logging of all user actions — [completed implementation plan](roadmap/authentication/complete/phase-4-auth-audit-trail-coverage.md) (Phase 4)
-🔸 **Session Monitoring**: Track active sessions per user — [roadmap](roadmap/authentication/phase-5-auth-session-monitoring.md) (Phase 5)  
 🔸 **IP Whitelisting**: Restrict admin access by IP — [roadmap](roadmap/authentication/phase-6-auth-admin-ip-allowlist.md) (Phase 6)  
 🔸 **2FA Support**: Two-factor authentication for admin accounts — [roadmap](roadmap/authentication/phase-7-auth-2fa.md) (Phase 7)  
 

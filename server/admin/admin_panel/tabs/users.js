@@ -1245,6 +1245,94 @@ export function createUsersTab({
       bindValidationClear(newPwInput);
       panel.appendChild(resetPanel);
     }
+
+    panel.appendChild(renderSessionsSection(user, isCurrentUser));
+  }
+
+  // Self-service (isCurrentUser) uses /auth/sessions, which needs no special
+  // permission - every user may always see and revoke their own sessions.
+  // Viewing another user's sessions uses /auth/users/{id}/sessions, which the
+  // server gates on sessions.manage; a viewer without it simply sees a load
+  // error here; there is no permission check duplicated in this file.
+  function renderSessionsSection(user, isCurrentUser) {
+    var section = el("div", { className: "detail-subsection" });
+    var listEndpoint = isCurrentUser
+      ? endpoints.sessions
+      : endpoints.users + "/" + encodeURIComponent(user.id) + "/sessions";
+    var tableWrap = el("div", null, skeleton());
+
+    section.appendChild(el("div", { className: "panel-header-row" },
+      el("h3", null, "Active Sessions"),
+      refreshButton("Refresh Sessions", function () { loadSessions(); })
+    ));
+    section.appendChild(tableWrap);
+
+    function formatTimestamp(value) {
+      if (!value) return "—";
+      var date = new Date(value);
+      return isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+    }
+
+    function buildSessionRow(session) {
+      var revokeBtn = el("button", { className: "secondary btn--icon btn--icon-danger", type: "button" },
+        svgIcon(iconX)
+      );
+      revokeBtn.setAttribute("aria-label", "Revoke session " + session.id);
+      revokeBtn.title = "Revoke session";
+      revokeBtn.addEventListener("click", function () {
+        confirmAction({
+          title: "Revoke Session",
+          message: "Sign out this session (" + (session.ip_address || "unknown IP") + ")?",
+          confirmLabel: "Revoke",
+          onConfirm: async function () {
+            await api("DELETE", listEndpoint + "/" + encodeURIComponent(session.id));
+            showStatus("Session revoked");
+            await loadSessions();
+          }
+        });
+      });
+
+      return el("tr", null,
+        el("td", null, session.ip_address || "—"),
+        el("td", null, session.user_agent || "—"),
+        el("td", null, formatTimestamp(session.created_at)),
+        el("td", null, formatTimestamp(session.last_seen_at)),
+        el("td", null, revokeBtn)
+      );
+    }
+
+    function renderSessions(sessions) {
+      clear(tableWrap);
+      if (!sessions.length) {
+        tableWrap.appendChild(el("p", { className: "muted" }, "No active sessions."));
+        return;
+      }
+      var table = el("table");
+      table.appendChild(el("thead", null, el("tr", null,
+        el("th", null, "IP Address"),
+        el("th", null, "User Agent"),
+        el("th", null, "Created"),
+        el("th", null, "Last Seen"),
+        el("th", null, "")
+      )));
+      var tbody = el("tbody");
+      sessions.forEach(function (session) {
+        tbody.appendChild(buildSessionRow(session));
+      });
+      table.appendChild(tbody);
+      tableWrap.appendChild(wrapTable(table));
+    }
+
+    async function loadSessions() {
+      try {
+        renderSessions(await api("GET", listEndpoint));
+      } catch (err) {
+        showTableLoadError(tableWrap, "Failed to load sessions");
+      }
+    }
+
+    loadSessions();
+    return section;
   }
 
   return { render };

@@ -23,3 +23,29 @@ def test_auth_me_without_bearer_token_is_401_not_500():
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
     assert response.json()["detail"] == "Authentication required"
+
+
+def test_list_my_sessions_without_bearer_token_is_401_not_500():
+    """/auth/sessions requires identity even though the shared dependency is optional."""
+    app = FastAPI()
+    app.state.auth_service = object()
+    app.include_router(auth_router)
+
+    response = TestClient(app, raise_server_exceptions=False).get("/auth/sessions")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json()["detail"] == "Authentication required"
+
+
+def test_revoke_my_session_without_bearer_token_is_401_not_500():
+    """DELETE /auth/sessions/{id} requires identity even though the shared dependency is optional."""
+    app = FastAPI()
+    app.state.auth_service = object()
+    app.include_router(auth_router)
+
+    response = TestClient(app, raise_server_exceptions=False).delete("/auth/sessions/some-id")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json()["detail"] == "Authentication required"

@@ -122,6 +122,15 @@ class SetRolesRequest(BaseModel):
     roles: List[str]
 
 
+class SessionResponse(BaseModel):
+    id: str
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    created_at: Optional[str] = None
+    last_seen_at: Optional[str] = None
+    expires: Optional[str] = None
+
+
 class BlacklistRuleRequest(BaseModel):
     pattern: str = Field(min_length=1, max_length=MAX_PATTERN_LENGTH)
     entry_type: str = Field(description="One of: email, user_id, username")
@@ -182,6 +191,8 @@ async def login(
             login_request.username,
             login_request.password,
             failure_context,
+            ip_address=limiter.client_ip(request),
+            user_agent=request.headers.get("user-agent"),
         )
         
         logger.info(f"Authentication result: success={success}")
@@ -1231,4 +1242,115 @@ async def delete_allowlist_rule(
         raise
     except Exception as e:
         logger.error(f"Error deleting allowlist rule: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+def _serialize_session(session: Dict[str, Any]) -> SessionResponse:
+    def _iso(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+    return SessionResponse(
+        id=session["id"],
+        ip_address=session.get("ip_address"),
+        user_agent=session.get("user_agent"),
+        created_at=_iso(session.get("created_at")),
+        last_seen_at=_iso(session.get("last_seen_at")),
+        expires=_iso(session.get("expires")),
+    )
+
+
+@auth_router.get("/sessions", response_model=List[SessionResponse])
+async def list_my_sessions(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """List the caller's own active sessions. No special permission required,
+    the same way ``GET /auth/me`` needs none - a user can always see their
+    own sessions."""
+    # get_current_user returns None (rather than raising) when a request has
+    # no bearer credential at all, since several routes treat authentication
+    # as optional. This route does not - mirror /auth/me's explicit guard.
+    if not current_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        sessions = await auth_service.list_sessions(current_user["id"])
+        return [_serialize_session(session) for session in sessions]
+    except Exception as e:
+        logger.error(f"Error listing sessions: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.delete("/sessions/{session_id}")
+async def revoke_my_session(
+    session_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Revoke one of the caller's own sessions (e.g. sign out another device)."""
+    if not current_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        revoked = await auth_service.revoke_session(session_id, current_user)
+        if not revoked:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {"status": "revoked", "id": session_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error revoking session: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.get(
+    "/users/{user_id}/sessions",
+    response_model=List[SessionResponse],
+    dependencies=[Depends(require_permission("sessions.manage"))],
+)
+async def list_user_sessions(user_id: str, auth_service=Depends(get_auth_service)):
+    """List another user's active sessions (sessions.manage permission required)."""
+    try:
+        sessions = await auth_service.list_sessions(user_id)
+        return [_serialize_session(session) for session in sessions]
+    except Exception as e:
+        logger.error(f"Error listing sessions for user {user_id}: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.delete(
+    "/users/{user_id}/sessions/{session_id}",
+    dependencies=[Depends(require_permission("sessions.manage"))],
+)
+async def revoke_user_session(
+    user_id: str,
+    session_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Revoke another user's session (sessions.manage permission required)."""
+    try:
+        # Confirm session_id actually belongs to user_id before revoking, so
+        # this route can't be used to revoke an unrelated user's session by
+        # guessing/enumerating a session id.
+        sessions = await auth_service.list_sessions(user_id)
+        if not any(session["id"] == session_id for session in sessions):
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        revoked = await auth_service.revoke_session(session_id, current_user)
+        if not revoked:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {"status": "revoked", "id": session_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error revoking session {session_id} for user {user_id}: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
