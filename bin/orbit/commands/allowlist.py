@@ -13,7 +13,7 @@ bless an account that shouldn't have had one.
 """
 
 import argparse
-from typing import Any, Dict, List
+from typing import Any
 
 from rich.console import Console
 from rich.prompt import Confirm
@@ -171,7 +171,7 @@ class AllowlistSeedCommand(BaseCommand):
             help='Show the rules that would be added and exit'
         )
 
-    def _external_users(self) -> List[Dict[str, Any]]:
+    def _external_users(self) -> list[dict[str, Any]]:
         """Existing users provisioned by an external provider.
 
         Identified by the stored '{provider}:{subject}' username, which is the

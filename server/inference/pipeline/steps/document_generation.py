@@ -16,7 +16,7 @@ import json
 import logging
 import re
 from datetime import date
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any
 
 from ..base import PipelineStep, ProcessingContext
 from ._utils import (
@@ -244,7 +244,7 @@ class DocumentGenerationStep(PipelineStep):
     # ------------------------------------------------------------------
 
     def _references_unavailable_file(
-        self, context: ProcessingContext, memory: Optional[Dict[str, Any]],
+        self, context: ProcessingContext, memory: Optional[dict[str, Any]],
     ) -> bool:
         """Whether the request depends on a file/data source that never actually reached
         this adapter — either because file_ids were attached but ignored, or because the
@@ -323,7 +323,7 @@ class DocumentGenerationStep(PipelineStep):
         return False
 
     async def _generate_spec(
-        self, context: ProcessingContext, fmt: str, memory: Optional[Dict[str, Any]] = None,
+        self, context: ProcessingContext, fmt: str, memory: Optional[dict[str, Any]] = None,
     ) -> Optional[dict]:
         """Call an LLM to produce a structured JSON document specification.
 
@@ -362,7 +362,7 @@ class DocumentGenerationStep(PipelineStep):
         # are kept separate (not summed into one token count) because a
         # fallback chain can span different providers/models — pricing a
         # cross-provider token sum against a single rate would misstate cost.
-        attempts: List[Dict[str, Any]] = []
+        attempts: list[dict[str, Any]] = []
 
         for label, llm_provider in providers:
             usage_sink: dict = {}
@@ -417,7 +417,7 @@ class DocumentGenerationStep(PipelineStep):
         self._record_spec_usage(context, attempts)
         return self._fallback_spec(context)
 
-    def _record_spec_usage(self, context: ProcessingContext, attempts: List[Dict[str, Any]]) -> None:
+    def _record_spec_usage(self, context: ProcessingContext, attempts: list[dict[str, Any]]) -> None:
         """
         Record usage/cost for the document spec-generation LLM call(s) into
         context.metadata["usage"]. Each attempt (generation and, if a skill
@@ -452,7 +452,7 @@ class DocumentGenerationStep(PipelineStep):
         context.runtime_provider = last["provider"]
         context.runtime_model_name = last["model"]
 
-        usage: Dict[str, Any] = {
+        usage: dict[str, Any] = {
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "total_tokens": prompt_tokens + completion_tokens,
@@ -497,7 +497,7 @@ class DocumentGenerationStep(PipelineStep):
         context.metadata["total_tokens"] = usage["total_tokens"]
 
     @staticmethod
-    def _extract_markdown_tables(messages: List[Dict[str, str]]) -> List[List[List[str]]]:
+    def _extract_markdown_tables(messages: list[dict[str, str]]) -> list[list[list[str]]]:
         """Parse markdown pipe-tables from conversation messages into 2-D string arrays."""
         tables = []
         for msg in messages:
@@ -526,8 +526,8 @@ class DocumentGenerationStep(PipelineStep):
         return tables
 
     def _build_spec_prompt(
-        self, context: ProcessingContext, fmt: str, prompt_cfg: Dict[str, Any], history_limit: int = 6,
-        memory: Optional[Dict[str, Any]] = None,
+        self, context: ProcessingContext, fmt: str, prompt_cfg: dict[str, Any], history_limit: int = 6,
+        memory: Optional[dict[str, Any]] = None,
     ) -> Optional[str]:
         """Build the LLM prompt asking for a JSON document spec from history + context.
 

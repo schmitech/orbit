@@ -4,7 +4,7 @@ Value extractor for applying patterns and parsing user input
 
 import re
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from datetime import datetime
 from ...domain import DomainConfig
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ValueExtractor:
     """Extracts values from user queries using patterns"""
 
-    def __init__(self, domain_config: DomainConfig, patterns: Dict[str, re.Pattern], domain_strategy=None):
+    def __init__(self, domain_config: DomainConfig, patterns: dict[str, re.Pattern], domain_strategy=None):
         """Initialize value extractor with patterns and optional domain strategy"""
         self.domain_config = domain_config
         self.patterns = patterns
@@ -59,7 +59,7 @@ class ValueExtractor:
             return self._parse_value(value_str, data_type)
         return None
 
-    def _build_field_param_context(self, entity_name: str, field_name: str, data_type: str) -> Dict[str, Any]:
+    def _build_field_param_context(self, entity_name: str, field_name: str, data_type: str) -> dict[str, Any]:
         """Build a template-like parameter definition for an entity field"""
         param_context = {
             'name': field_name,
@@ -78,7 +78,7 @@ class ValueExtractor:
         return param_context
 
     def _extract_range(self, user_query: str, entity_name: str, field_name: str,
-                       data_type: str) -> Optional[Dict[str, Any]]:
+                       data_type: str) -> Optional[dict[str, Any]]:
         """Extract range values for numeric fields"""
         range_pattern_key = f"{entity_name}.{field_name}_range"
         if range_pattern_key not in self.patterns:
@@ -197,7 +197,7 @@ class ValueExtractor:
             return False
         return None
 
-    def extract_all_values(self, user_query: str) -> Dict[str, Any]:
+    def extract_all_values(self, user_query: str) -> dict[str, Any]:
         """Extract all possible values from the query"""
         extracted = {}
 
@@ -213,7 +213,7 @@ class ValueExtractor:
 
         return extracted
 
-    def extract_template_parameter(self, user_query: str, param: Dict) -> Optional[Any]:
+    def extract_template_parameter(self, user_query: str, param: dict) -> Optional[Any]:
         """
         Extract a template parameter - delegates to domain strategy when available.
         Falls back to generic extraction for common patterns.
@@ -229,7 +229,7 @@ class ValueExtractor:
         # Fall back to generic extraction for common types
         return self._extract_generic_parameter(user_query, param)
 
-    def _extract_generic_parameter(self, user_query: str, param: Dict) -> Optional[Any]:
+    def _extract_generic_parameter(self, user_query: str, param: dict) -> Optional[Any]:
         """Generic parameter extraction for common types without domain-specific logic"""
         param_name = param.get('name', '')
         param_type = param.get('type') or param.get('data_type', 'string')
@@ -460,7 +460,7 @@ class ValueExtractor:
 
         return None
 
-    def _extract_type_parameter(self, user_query: str, param: Dict) -> Optional[str]:
+    def _extract_type_parameter(self, user_query: str, param: dict) -> Optional[str]:
         """Extract a categorical/type value from the query.
 
         Domain-agnostic — works for any type/category parameter. First tries to match

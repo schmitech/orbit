@@ -3,7 +3,7 @@ Simplified plugin system for Intent retriever
 """
 
 import logging
-from typing import Protocol, List, Dict, Any, Optional
+from typing import Protocol, Any, Optional
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
@@ -24,10 +24,10 @@ class IntentPluginContext:
     """Context information passed to intent plugins"""
     user_query: str
     template_id: Optional[str] = None
-    parameters: Optional[Dict[str, Any]] = None
+    parameters: Optional[dict[str, Any]] = None
     similarity_score: Optional[float] = None
     execution_time_ms: Optional[float] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
 
 
 class IntentPlugin(Protocol):
@@ -49,7 +49,7 @@ class IntentPlugin(Protocol):
         """Modify query before processing"""
         ...
     
-    def post_process_results(self, results: List[Dict], context: IntentPluginContext) -> List[Dict]:
+    def post_process_results(self, results: list[dict], context: IntentPluginContext) -> list[dict]:
         """Transform results after query execution"""
         ...
     
@@ -85,7 +85,7 @@ class BaseIntentPlugin(ABC):
         """Default implementation - return query unchanged"""
         return query
     
-    def post_process_results(self, results: List[Dict], context: IntentPluginContext) -> List[Dict]:
+    def post_process_results(self, results: list[dict], context: IntentPluginContext) -> list[dict]:
         """Default implementation - return results unchanged"""
         return results
     
@@ -98,7 +98,7 @@ class IntentPluginManager:
     """Manager for Intent retriever plugins"""
     
     def __init__(self):
-        self.plugins: List[IntentPlugin] = []
+        self.plugins: list[IntentPlugin] = []
     
     def register_plugin(self, plugin: IntentPlugin):
         """Register a plugin"""
@@ -107,7 +107,7 @@ class IntentPluginManager:
         self.plugins.sort(key=lambda p: p.get_priority().value, reverse=True)
         logger.info(f"Registered Intent plugin: {plugin.get_name()}")
     
-    def get_enabled_plugins(self) -> List[IntentPlugin]:
+    def get_enabled_plugins(self) -> list[IntentPlugin]:
         """Get list of enabled plugins"""
         return [p for p in self.plugins if p.is_enabled()]
     
@@ -123,7 +123,7 @@ class IntentPluginManager:
         
         return result_query
     
-    def execute_post_processing(self, results: List[Dict], context: IntentPluginContext) -> List[Dict]:
+    def execute_post_processing(self, results: list[dict], context: IntentPluginContext) -> list[dict]:
         """Execute post-processing plugins"""
         result_data = results
         
@@ -182,7 +182,7 @@ class ResultEnrichmentPlugin(BaseIntentPlugin):
     def __init__(self):
         super().__init__("Result Enrichment", PluginPriority.NORMAL)
     
-    def post_process_results(self, results: List[Dict], context: IntentPluginContext) -> List[Dict]:
+    def post_process_results(self, results: list[dict], context: IntentPluginContext) -> list[dict]:
         """Add enrichment metadata to results"""
         for result in results:
             if 'metadata' not in result:

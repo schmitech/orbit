@@ -7,14 +7,14 @@ is chosen by ``secrets_management.provider`` (default: env), so existing
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .base_secrets import SecretsBackend
 
 logger = logging.getLogger(__name__)
 
 
-def create_secrets_backend(config: Dict[str, Any]) -> Optional[SecretsBackend]:
+def create_secrets_backend(config: dict[str, Any]) -> Optional[SecretsBackend]:
     """
     Construct a secrets backend from the merged config.
 

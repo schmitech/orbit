@@ -14,7 +14,7 @@ import requests
 import yaml
 import os
 import sys
-from typing import Dict, Any
+from typing import Any
 from requests.exceptions import ReadTimeout, ConnectionError
 
 # Get the absolute path to the server directory (parent of tests)
@@ -29,7 +29,7 @@ sys.path.append(server_dir)
 DEFAULT_TIMEOUT = 120  # Increased timeout for local Ollama
 
 @pytest.fixture
-def config() -> Dict[str, Any]:
+def config() -> dict[str, Any]:
     """Load and return the configuration"""
     # Use the server's config loading function to handle the modular config structure
     try:
@@ -63,7 +63,7 @@ def config() -> Dict[str, Any]:
     return base_config
 
 @pytest.fixture
-def ollama_embedding_config(config: Dict[str, Any]) -> Dict[str, Any]:
+def ollama_embedding_config(config: dict[str, Any]) -> dict[str, Any]:
     """Extract and return Ollama embedding configuration"""
     ollama_config = config.get('embeddings', {}).get('ollama', {})
     
@@ -76,7 +76,7 @@ def test_text() -> str:
     """Return a test text for embedding"""
     return "This is a test sentence for embedding generation."
 
-def test_config_loading(ollama_embedding_config: Dict[str, Any]):
+def test_config_loading(ollama_embedding_config: dict[str, Any]):
     """Test that the embedding configuration is loaded correctly"""
     assert ollama_embedding_config, "Ollama embedding configuration should not be empty"
     assert "model" in ollama_embedding_config, "Model should be specified in config"
@@ -84,7 +84,7 @@ def test_config_loading(ollama_embedding_config: Dict[str, Any]):
     assert ollama_embedding_config["base_url"], "Base URL should not be empty"
     assert ollama_embedding_config["model"], "Model should not be empty"
 
-def test_ollama_connection(ollama_embedding_config: Dict[str, Any]):
+def test_ollama_connection(ollama_embedding_config: dict[str, Any]):
     """Test that Ollama service is accessible"""
     try:
         response = requests.get(
@@ -97,7 +97,7 @@ def test_ollama_connection(ollama_embedding_config: Dict[str, Any]):
     except ReadTimeout as e:
         pytest.fail(f"Connection to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
 
-def test_ollama_embedding_generation(ollama_embedding_config: Dict[str, Any], test_text: str):
+def test_ollama_embedding_generation(ollama_embedding_config: dict[str, Any], test_text: str):
     """Test that Ollama generates a valid embedding"""
     model = ollama_embedding_config["model"]
     base_url = ollama_embedding_config["base_url"]
@@ -146,7 +146,7 @@ def test_ollama_embedding_generation(ollama_embedding_config: Dict[str, Any], te
     except ReadTimeout as e:
         pytest.fail(f"Request to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
 
-def test_ollama_embedding_dimensions(ollama_embedding_config: Dict[str, Any]):
+def test_ollama_embedding_dimensions(ollama_embedding_config: dict[str, Any]):
     """Test that embeddings have consistent dimensions across multiple calls"""
     model = ollama_embedding_config["model"]
     base_url = ollama_embedding_config["base_url"]
@@ -189,7 +189,7 @@ def test_ollama_embedding_dimensions(ollama_embedding_config: Dict[str, Any]):
     except ReadTimeout as e:
         pytest.fail(f"Request to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
 
-def test_ollama_embedding_error_handling(ollama_embedding_config: Dict[str, Any]):
+def test_ollama_embedding_error_handling(ollama_embedding_config: dict[str, Any]):
     """Test error handling with invalid requests"""
     base_url = ollama_embedding_config["base_url"]
     
@@ -216,7 +216,7 @@ def test_ollama_embedding_error_handling(ollama_embedding_config: Dict[str, Any]
     except ReadTimeout as e:
         pytest.fail(f"Request to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
 
-def test_ollama_embedding_empty_text(ollama_embedding_config: Dict[str, Any]):
+def test_ollama_embedding_empty_text(ollama_embedding_config: dict[str, Any]):
     """Test that empty text is handled appropriately"""
     model = ollama_embedding_config["model"]
     base_url = ollama_embedding_config["base_url"]

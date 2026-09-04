@@ -9,7 +9,7 @@ behaviour is identical across backends.
 import asyncio
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from .base_storage import FileStorageBackend
 
@@ -122,7 +122,7 @@ class AzureBlobStorage(FileStorageBackend):
         """Get the sidecar blob name for a storage key."""
         return self._full_key(key) + _METADATA_SUFFIX
 
-    async def put_file(self, file_data: bytes, key: str, metadata: Dict[str, Any]) -> str:
+    async def put_file(self, file_data: bytes, key: str, metadata: dict[str, Any]) -> str:
         """Store a file blob and its metadata sidecar (each upload is atomic)."""
         metadata_bytes = json.dumps(metadata).encode("utf-8")
 
@@ -173,12 +173,12 @@ class AzureBlobStorage(FileStorageBackend):
             logger.debug(f"Deleted blob {self._full_key(key)}")
         return deleted
 
-    async def list_files(self, prefix: str) -> List[str]:
+    async def list_files(self, prefix: str) -> list[str]:
         """List file keys under a prefix (metadata sidecars excluded)."""
         search_prefix = self._full_key(self._normalize_list_prefix(prefix))
 
-        def _list() -> List[str]:
-            files: List[str] = []
+        def _list() -> list[str]:
+            files: list[str] = []
             for blob in self._container.list_blobs(name_starts_with=search_prefix):
                 if blob.name.endswith(_METADATA_SUFFIX):
                     continue
@@ -189,7 +189,7 @@ class AzureBlobStorage(FileStorageBackend):
         logger.debug(f"Listed {len(files)} files with prefix {prefix}")
         return files
 
-    async def get_metadata(self, key: str) -> Dict[str, Any]:
+    async def get_metadata(self, key: str) -> dict[str, Any]:
         """Get file metadata from the sidecar blob."""
         from azure.core.exceptions import ResourceNotFoundError
 

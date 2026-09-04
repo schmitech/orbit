@@ -6,7 +6,7 @@ Supports: PDF, DOCX, PPTX, XLSX, HTML, Markdown, AsciiDoc, XML, images, VTT, and
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -189,7 +189,7 @@ class DoclingProcessor(FileProcessor):
             logger.error(f"[Docling] Error processing document '{filename or 'unknown'}': {e}")
             raise
     
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
         """Extract metadata from document."""
         metadata = await super().extract_metadata(file_data, filename)
         
@@ -244,7 +244,7 @@ class DoclingProcessor(FileProcessor):
         
         return metadata
     
-    def get_converter_config(self) -> Dict[str, Any]:
+    def get_converter_config(self) -> dict[str, Any]:
         """
         Get Docling converter configuration.
         

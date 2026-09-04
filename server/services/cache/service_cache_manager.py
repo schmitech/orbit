@@ -10,7 +10,8 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Optional
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +31,11 @@ class ServiceCacheManager:
 
     service_label = "service"
 
-    def __init__(self, config: Dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
+    def __init__(self, config: dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
         self.config = config
-        self._cache: Dict[str, Any] = {}
+        self._cache: dict[str, Any] = {}
         self._cache_lock = threading.Lock()
-        self._initializing: Dict[str, _InitializationState] = {}
+        self._initializing: dict[str, _InitializationState] = {}
         self._owns_pool = thread_pool is None
         self._thread_pool = thread_pool or ThreadPoolExecutor(max_workers=3)
 

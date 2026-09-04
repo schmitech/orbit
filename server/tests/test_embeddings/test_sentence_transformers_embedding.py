@@ -16,7 +16,7 @@ import pytest
 import yaml
 import os
 import sys
-from typing import Dict, Any
+from typing import Any
 from unittest.mock import Mock, patch, AsyncMock
 
 # Skip all tests in this module if sentence-transformers is not installed
@@ -35,7 +35,7 @@ sys.path.append(server_dir)
 
 
 @pytest.fixture
-def config() -> Dict[str, Any]:
+def config() -> dict[str, Any]:
     """Load and return the configuration"""
     # Use the server's config loading function to handle the modular config structure
     try:
@@ -69,7 +69,7 @@ def config() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def st_embedding_config(config: Dict[str, Any]) -> Dict[str, Any]:
+def st_embedding_config(config: dict[str, Any]) -> dict[str, Any]:
     """Extract and return Sentence Transformers embedding configuration"""
     st_config = config.get('embeddings', {}).get('sentence_transformers', {})
 
@@ -94,7 +94,7 @@ def test_texts() -> list:
     ]
 
 
-def test_config_loading(st_embedding_config: Dict[str, Any]):
+def test_config_loading(st_embedding_config: dict[str, Any]):
     """Test that the embedding configuration is loaded correctly"""
     assert st_embedding_config, "Sentence Transformers configuration should not be empty"
     assert "model" in st_embedding_config, "Model should be specified in config"
@@ -126,7 +126,7 @@ def test_device_detection():
 
 
 @pytest.mark.asyncio
-async def test_local_embedding_generation(st_embedding_config: Dict[str, Any], test_text: str):
+async def test_local_embedding_generation(st_embedding_config: dict[str, Any], test_text: str):
     """Test local embedding generation"""
     # Skip if mode is remote or if sentence-transformers is not installed
     if st_embedding_config.get("mode") == "remote":
@@ -178,7 +178,7 @@ async def test_local_embedding_generation(st_embedding_config: Dict[str, Any], t
 
 
 @pytest.mark.asyncio
-async def test_batch_embedding_generation(st_embedding_config: Dict[str, Any], test_texts: list):
+async def test_batch_embedding_generation(st_embedding_config: dict[str, Any], test_texts: list):
     """Test batch embedding generation"""
     # Skip if mode is remote or if sentence-transformers is not installed
     if st_embedding_config.get("mode") == "remote":
@@ -231,7 +231,7 @@ async def test_batch_embedding_generation(st_embedding_config: Dict[str, Any], t
 
 
 @pytest.mark.asyncio
-async def test_dimensions_consistency(st_embedding_config: Dict[str, Any]):
+async def test_dimensions_consistency(st_embedding_config: dict[str, Any]):
     """Test that embeddings have consistent dimensions across multiple calls"""
     # Skip if mode is remote or if sentence-transformers is not installed
     if st_embedding_config.get("mode") == "remote":
@@ -283,7 +283,7 @@ async def test_dimensions_consistency(st_embedding_config: Dict[str, Any]):
 
 
 @pytest.mark.asyncio
-async def test_get_dimensions(st_embedding_config: Dict[str, Any]):
+async def test_get_dimensions(st_embedding_config: dict[str, Any]):
     """Test the get_dimensions method"""
     # Skip if mode is remote or if sentence-transformers is not installed
     if st_embedding_config.get("mode") == "remote":

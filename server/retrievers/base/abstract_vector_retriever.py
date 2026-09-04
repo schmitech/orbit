@@ -5,7 +5,7 @@ This provides the foundation for all vector database implementations,
 similar to how AbstractSQLRetriever works for SQL databases.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 from abc import abstractmethod
 import logging
 from .base_retriever import BaseRetriever
@@ -24,7 +24,7 @@ class AbstractVectorRetriever(BaseRetriever):
     """
 
     def __init__(self,
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 embeddings: Optional[Any] = None,
                 datasource: Any = None,
                 domain_adapter=None,
@@ -227,7 +227,7 @@ class AbstractVectorRetriever(BaseRetriever):
 
         return True
 
-    async def embed_query(self, query: str, usage_sink=None) -> List[float]:
+    async def embed_query(self, query: str, usage_sink=None) -> list[float]:
         """
         Generate an embedding for a query using the appropriate embedding service.
 
@@ -259,7 +259,7 @@ class AbstractVectorRetriever(BaseRetriever):
             return result
         return await self.embeddings.embed_query(query)
     
-    def format_document(self, doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def format_document(self, doc: str, metadata: dict[str, Any]) -> dict[str, Any]:
         """
         Format document using domain adapter if available.
         This provides compatibility with domain adapter pattern.
@@ -281,7 +281,7 @@ class AbstractVectorRetriever(BaseRetriever):
             "content": doc
         }
     
-    def apply_domain_filtering(self, context_items: List[Dict[str, Any]], query: str) -> List[Dict[str, Any]]:
+    def apply_domain_filtering(self, context_items: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
         """
         Apply domain-specific filtering if domain adapter is available.
         Otherwise return items as-is.
@@ -315,7 +315,7 @@ class AbstractVectorRetriever(BaseRetriever):
     
     # Abstract methods that concrete implementations must provide
     @abstractmethod
-    async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
+    async def vector_search(self, query_embedding: list[float], top_k: int) -> list[dict[str, Any]]:
         """
         Perform vector similarity search.
         
@@ -359,7 +359,7 @@ class AbstractVectorRetriever(BaseRetriever):
                            query: str,
                            api_key: Optional[str] = None,
                            collection_name: Optional[str] = None,
-                           **kwargs) -> List[Dict[str, Any]]:
+                           **kwargs) -> list[dict[str, Any]]:
         """
         Retrieve and filter relevant context from the vector database.
 

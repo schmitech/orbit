@@ -9,7 +9,7 @@ Configuration is read from config.yaml under files.processing.json
 
 import logging
 import json
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ class JSONProcessor(FileProcessor):
     Supports: application/json
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, Any]] = None):
         """
         Initialize JSON processor with optional configuration.
 
@@ -52,7 +52,7 @@ class JSONProcessor(FileProcessor):
         super().__init__()
         self._load_config(config)
 
-    def _load_config(self, config: Optional[Dict[str, Any]] = None):
+    def _load_config(self, config: Optional[dict[str, Any]] = None):
         """Load settings from config or use defaults."""
         json_config = {}
         if config:
@@ -110,7 +110,7 @@ class JSONProcessor(FileProcessor):
             return s
         return s[:max_len] + "..."
 
-    def _extract_schema(self, data: Any, depth: int = 0, path: str = "") -> Dict[str, Any]:
+    def _extract_schema(self, data: Any, depth: int = 0, path: str = "") -> dict[str, Any]:
         """
         Extract schema information from JSON data.
 
@@ -195,7 +195,7 @@ class JSONProcessor(FileProcessor):
             return f"{{{', '.join(items)}}}"
         return str(value)
 
-    def _format_array_sample(self, data: List, max_items: int = None) -> str:
+    def _format_array_sample(self, data: list, max_items: int = None) -> str:
         """Format a sample of array items."""
         if max_items is None:
             max_items = self.max_array_preview_items
@@ -218,7 +218,7 @@ class JSONProcessor(FileProcessor):
 
         return "\n".join(lines)
 
-    def _format_object_summary(self, data: Dict, indent: str = "") -> str:
+    def _format_object_summary(self, data: dict, indent: str = "") -> str:
         """Format object with key summaries."""
         lines = []
         keys = list(data.keys())
@@ -346,7 +346,7 @@ class JSONProcessor(FileProcessor):
             logger.error(f"Error processing JSON: {e}")
             raise
     
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
         """Extract metadata from JSON."""
         metadata = await super().extract_metadata(file_data, filename)
         

@@ -7,7 +7,8 @@ the new unified AI services architecture.
 Compare with: server/inference/pipeline/providers/vertex_ai_provider.py (old implementation)
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
@@ -41,7 +42,7 @@ class VertexAIInferenceService(UsageReportingMixin, InferenceService, GoogleBase
         thoughts = getattr(usage, "thoughts_token_count", None) or 0
         return candidates + thoughts
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Vertex AI inference service."""
         # Initialize via GoogleBaseService first, which will call ProviderAIService
         # This ensures the model is properly extracted from config

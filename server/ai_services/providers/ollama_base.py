@@ -5,7 +5,7 @@ This module provides a unified base class for all Ollama-based services,
 consolidating common functionality and integrating with existing Ollama utilities.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 import logging
 
 from ..base import ProviderAIService, ServiceType
@@ -48,7 +48,7 @@ class OllamaBaseService(ProviderAIService):
 
     DEFAULT_BASE_URL = "http://localhost:11434"
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "ollama"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "ollama"):
         """
         Initialize the Ollama base service.
 

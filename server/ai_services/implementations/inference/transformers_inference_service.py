@@ -8,7 +8,8 @@ tokens as they are decoded, rather than faking streaming after full generation.
 import logging
 import asyncio
 from threading import Thread
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
 from ...errors import sanitize_provider_error
@@ -33,7 +34,7 @@ class TransformersInferenceService(InferenceService, TransformersBaseService):
     first and chunking it.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         TransformersBaseService.__init__(self, config, ServiceType.INFERENCE)
         InferenceService.__init__(self, config, "transformers")
 
@@ -93,7 +94,7 @@ class TransformersInferenceService(InferenceService, TransformersBaseService):
         repetition_penalty = kwargs.get("repetition_penalty", self.repetition_penalty)
         do_sample = kwargs.get("do_sample", self.do_sample)
 
-        gen_kwargs: Dict[str, Any] = {
+        gen_kwargs: dict[str, Any] = {
             "input_ids": input_ids,
             "max_new_tokens": max_new_tokens,
             "do_sample": do_sample,

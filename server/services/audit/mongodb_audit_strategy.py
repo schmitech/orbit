@@ -8,7 +8,7 @@ Uses the existing MongoDBService/DatabaseService interface for storage operation
 
 import logging
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from .audit_storage_strategy import AuditStorageStrategy, AuditRecord, decompress_text
 
@@ -23,7 +23,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
     audit_logs collection with nested document structure.
     """
 
-    def __init__(self, config: Dict[str, Any], database_service=None):
+    def __init__(self, config: dict[str, Any], database_service=None):
         """
         Initialize the MongoDB audit strategy.
 
@@ -176,12 +176,12 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
 
     async def query(
         self,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
         sort_order: int = -1
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Query audit records from MongoDB.
 
@@ -242,7 +242,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         applied as a pipeline stage rather than a plain field reference)."""
         return self._GROUP_BY_FIELDS.get(dimension)
 
-    def _api_key_resolution_stages(self) -> List[Dict[str, Any]]:
+    def _api_key_resolution_stages(self) -> list[dict[str, Any]]:
         """Pipeline stages computing `_apiKeyResolved` on every document:
         this row's own stable id if it has one; otherwise, the id from ANY
         other document (anywhere in the collection, not just this query's
@@ -287,9 +287,9 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         until: str,
         bucket: str = "day",
         group_by: str = "model",
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         limit_groups: int = 10,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """MongoDB implementation: $match + $group aggregation pipeline."""
         if not self._initialized:
             await self.initialize()
@@ -305,7 +305,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         if needs_api_key_resolution:
             prefix_stages += self._api_key_resolution_stages()
 
-        match: Dict[str, Any] = {}
+        match: dict[str, Any] = {}
         for key, value in (filters or {}).items():
             if key not in self._FILTERABLE_DIMENSIONS:
                 continue
@@ -362,7 +362,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             for doc in series_docs
         ]
 
-        groups: List[Dict[str, Any]] = []
+        groups: list[dict[str, Any]] = []
         if group_by == "api_key":
             group_expr = "$_apiKeyResolved"
             null_exclusion_match = {"_apiKeyResolved": {"$ne": None}}

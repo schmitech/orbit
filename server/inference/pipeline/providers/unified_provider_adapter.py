@@ -6,7 +6,8 @@ existing pipeline LLMProvider interface, allowing the pipeline to use
 the new services without breaking changes.
 """
 
-from typing import Dict, Any, AsyncGenerator, List, Optional
+from typing import Any, Optional
+from collections.abc import AsyncGenerator
 from .llm_provider import LLMProvider
 
 # Import the new unified architecture
@@ -21,7 +22,7 @@ class UnifiedProviderAdapter(LLMProvider):
     This allows the pipeline to use the new architecture transparently.
     """
 
-    def __init__(self, config: Dict[str, Any], provider_name: str):
+    def __init__(self, config: dict[str, Any], provider_name: str):
         """
         Initialize the adapter with a provider from the new architecture.
 
@@ -85,7 +86,7 @@ class UnifiedProviderAdapter(LLMProvider):
     async def generate_tracked(
         self,
         prompt: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         cache_prefix_len: Optional[int] = None,
         **kwargs,
     ) -> str:
@@ -99,7 +100,7 @@ class UnifiedProviderAdapter(LLMProvider):
     async def generate_stream_tracked(
         self,
         prompt: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         cache_prefix_len: Optional[int] = None,
         **kwargs,
     ) -> AsyncGenerator[str, None]:
@@ -113,8 +114,8 @@ class UnifiedProviderAdapter(LLMProvider):
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ):
         """Delegate tool-calling generation to the underlying inference service."""
@@ -124,9 +125,9 @@ class UnifiedProviderAdapter(LLMProvider):
 
     async def generate_with_tools_tracked(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
-        usage_sink: Optional[Dict[str, Any]] = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        usage_sink: Optional[dict[str, Any]] = None,
         cache_prefix_len: Optional[int] = None,
         **kwargs,
     ):
@@ -163,7 +164,7 @@ class UnifiedProviderAdapter(LLMProvider):
             return False
 
 
-def create_unified_provider(provider_name: str, config: Dict[str, Any]) -> LLMProvider:
+def create_unified_provider(provider_name: str, config: dict[str, Any]) -> LLMProvider:
     """
     Factory function to create a provider using the new unified architecture.
 

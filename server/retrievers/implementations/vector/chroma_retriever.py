@@ -4,7 +4,7 @@ Uses the datasource registry pattern for connection management.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from chromadb.errors import InvalidArgumentError
 from fastapi import HTTPException
 
@@ -21,7 +21,7 @@ class ChromaRetriever(AbstractVectorRetriever):
     """
 
     def __init__(self,
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 embeddings: Optional[Any] = None,
                 datasource: Any = None,
                 domain_adapter=None,
@@ -154,7 +154,7 @@ class ChromaRetriever(AbstractVectorRetriever):
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
-    async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
+    async def vector_search(self, query_embedding: list[float], top_k: int) -> list[dict[str, Any]]:
         """
         Perform vector similarity search in ChromaDB.
         

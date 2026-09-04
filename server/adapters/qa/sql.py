@@ -2,7 +2,7 @@
 Generic SQL QA adapter that works with any SQL provider
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 import logging
 from adapters.base import DocumentAdapter
 from adapters.factory import DocumentAdapterFactory
@@ -17,8 +17,8 @@ logger.debug("Registered QASQLAdapter as 'sql_qa'")
 
 class QASQLAdapter(DocumentAdapter):
     """Generic adapter for question-answer pairs in SQL databases"""
-    
-    def __init__(self, confidence_threshold: float = 0.5, config: Dict[str, Any] = None, **kwargs):
+
+    def __init__(self, confidence_threshold: float = 0.5, config: dict[str, Any] = None, **kwargs):
         """
         Initialize the adapter with configurable confidence threshold.
 
@@ -30,73 +30,73 @@ class QASQLAdapter(DocumentAdapter):
         super().__init__(config=config, **kwargs)
         self.confidence_threshold = confidence_threshold
         logger.debug(f"QASQLAdapter initialized with confidence_threshold={confidence_threshold}")
-    
-    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+
+    def format_document(self, raw_doc: str, metadata: dict[str, Any]) -> dict[str, Any]:
         """
         Format and create a context item from a document and its metadata.
-        
+
         Args:
-            raw_doc: The document text
+            raw_doc: The document tex
             metadata: The document metadata
-            
+
         Returns:
             A formatted context item
         """
         logger.debug(f"QASQLAdapter.format_document called with metadata keys: {list(metadata.keys())}")
-            
+
         # Create the base item
         item = {
             "raw_document": raw_doc,
             "metadata": metadata.copy(),
         }
-        
+
         # Handle different document formats
         if "question" in metadata and "answer" in metadata:
-            # QA pair format
+            # QA pair forma
             item["content"] = f"Question: {metadata['question']}\nAnswer: {metadata['answer']}"
             item["question"] = metadata["question"]
             item["answer"] = metadata["answer"]
         elif "title" in metadata and "content" in metadata:
-            # Title + content format
+            # Title + content forma
             item["content"] = f"Title: {metadata['title']}\nContent: {metadata['content']}"
             item["title"] = metadata["title"]
         else:
-            # Generic content format
+            # Generic content forma
             item["content"] = raw_doc
-            
+
         return item
-    
-    def extract_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
+
+    def extract_direct_answer(self, context: list[dict[str, Any]]) -> Optional[str]:
         """
         Extract a direct answer from context if available.
-        
+
         Args:
             context: List of context items
-            
+
         Returns:
             A direct answer if found, otherwise None
         """
         if not context:
             return None
-            
+
         first_result = context[0]
-        
+
         # Check if we have a QA document with sufficient confidence
-        if ("question" in first_result and "answer" in first_result and 
+        if ("question" in first_result and "answer" in first_result and
             first_result.get("confidence", 0) >= self.confidence_threshold):
             return f"Question: {first_result['question']}\nAnswer: {first_result['answer']}"
-        
+
         return None
-    
-    def apply_domain_specific_filtering(self, 
-                                      context_items: List[Dict[str, Any]], 
-                                      query: str) -> List[Dict[str, Any]]:
+
+    def apply_domain_specific_filtering(self,
+                                      context_items: list[dict[str, Any]],
+                                      query: str) -> list[dict[str, Any]]:
         """
         Apply QA-specific filtering/ranking.
         """
         # Filter out items below confidence threshold
         return [
-            item for item in context_items 
+            item for item in context_items
             if item.get("confidence", 0) >= self.confidence_threshold
         ]
-        
+

@@ -17,7 +17,8 @@ Architecture:
 """
 
 import logging
-from typing import AsyncGenerator, List, Dict, Any, Optional, Sequence
+from typing import Any, Optional
+from collections.abc import AsyncGenerator, Sequence
 
 from ..base import PipelineStep, ProcessingContext
 from ..prompt_builder import PromptInstructionBuilder
@@ -45,7 +46,7 @@ def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
         return None
 
 
-def _get_mcp_servers_allowlist(container, adapter_name: str) -> Optional[List[str]]:
+def _get_mcp_servers_allowlist(container, adapter_name: str) -> Optional[list[str]]:
     """Return the mcp_servers allowlist from adapter capabilities, or None (= all)."""
     if not adapter_name or not container.has("adapter_manager"):
         return None
@@ -59,7 +60,7 @@ def _get_mcp_servers_allowlist(container, adapter_name: str) -> Optional[List[st
     return None
 
 
-def _get_tool_skills_allowlist(container, adapter_name: str) -> Optional[List[str]]:
+def _get_tool_skills_allowlist(container, adapter_name: str) -> Optional[list[str]]:
     """Return the capabilities.tool_skills allowlist, or None (= every skill
     matching a visible tool — docs/roadmap/mcp-tool-skills.md §2.7)."""
     if not adapter_name or not container.has("adapter_manager"):
@@ -237,7 +238,7 @@ class MCPAgentStep(PipelineStep):
 
     async def _build_initial_messages(
         self, context: ProcessingContext, surfaced_skills: Optional[Sequence] = None
-    ) -> "tuple[List[Dict[str, Any]], Optional[int]]":
+    ) -> "tuple[list[dict[str, Any]], Optional[int]]":
         """
         Build the initial OpenAI-format messages list from the processing
         context, plus the prompt-caching breakpoint (see
@@ -265,7 +266,7 @@ class MCPAgentStep(PipelineStep):
         if surfaced_skills:
             system_content = system_content + "\n\n" + _tool_skill_catalog_text(surfaced_skills)
 
-        messages: List[Dict[str, Any]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_content}
         ]
 

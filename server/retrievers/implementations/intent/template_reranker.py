@@ -3,7 +3,7 @@ Template reranking system for Intent retriever using domain-specific rules
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from .domain import DomainConfig
 from .domain_strategies.registry import DomainStrategyRegistry
@@ -39,7 +39,7 @@ class TemplateReranker:
                 self.domain_name,
             )
     
-    def rerank_templates(self, templates: List[Dict], user_query: str) -> List[Dict]:
+    def rerank_templates(self, templates: list[dict], user_query: str) -> list[dict]:
         """Rerank templates using domain-specific rules and generic rules"""
         query_lower = user_query.lower()
         
@@ -78,7 +78,7 @@ class TemplateReranker:
         # Re-sort by adjusted similarity
         return sorted(templates, key=lambda x: x['similarity'], reverse=True)
     
-    def _calculate_generic_boost(self, template: Dict, query_lower: str) -> float:
+    def _calculate_generic_boost(self, template: dict, query_lower: str) -> float:
         """Calculate boost using generic rules applicable to any domain"""
         boost = 0.0
         
@@ -167,7 +167,7 @@ class TemplateReranker:
         
         return len(intersection) / len(union) if union else 0.0
     
-    def explain_ranking(self, templates: List[Dict]) -> str:
+    def explain_ranking(self, templates: list[dict]) -> str:
         """Generate explanation of template ranking for debugging"""
         lines = ["Template Ranking Explanation:", "=" * 30]
         

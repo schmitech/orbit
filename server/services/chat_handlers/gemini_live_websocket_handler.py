@@ -13,7 +13,7 @@ import base64
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import numpy as np
 from fastapi import WebSocket, WebSocketDisconnect
@@ -39,7 +39,7 @@ GEMINI_INPUT_SAMPLE_RATE = 16000
 GEMINI_OUTPUT_SAMPLE_RATE = 24000
 
 
-def _resolve_gemini_api_key(config: Dict[str, Any]) -> Optional[str]:
+def _resolve_gemini_api_key(config: dict[str, Any]) -> Optional[str]:
     key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if key:
         return key
@@ -91,8 +91,8 @@ class GeminiLiveWebSocketHandler(BaseRealtimeWebSocketHandler):
         self,
         websocket: WebSocket,
         adapter_name: str,
-        adapter_config: Dict[str, Any],
-        config: Dict[str, Any],
+        adapter_config: dict[str, Any],
+        config: dict[str, Any],
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
         prompt_service: Optional[Any] = None,
@@ -137,7 +137,7 @@ class GeminiLiveWebSocketHandler(BaseRealtimeWebSocketHandler):
     async def _build_live_config(self) -> Any:
         instructions = await self._resolve_realtime_instructions()
 
-        kwargs: Dict[str, Any] = dict(
+        kwargs: dict[str, Any] = dict(
             response_modalities=[genai_types.Modality.AUDIO],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(

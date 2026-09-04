@@ -7,7 +7,8 @@ the new unified AI services architecture with OpenAI-compatible base class.
 Compare with: server/inference/pipeline/providers/mistral_provider.py (old implementation)
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
 from ...providers import OpenAICompatibleBaseService
@@ -27,7 +28,7 @@ class MistralInferenceService(UsageReportingMixin, InferenceService, OpenAICompa
     Reduction: ~51%
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Mistral inference service."""
         OpenAICompatibleBaseService.__init__(self, config, ServiceType.INFERENCE, "mistral")
         InferenceService.__init__(self, config, "mistral")
@@ -133,7 +134,7 @@ class MistralInferenceService(UsageReportingMixin, InferenceService, OpenAICompa
         )
         return model_name.startswith(reasoning_prefixes)
 
-    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_reasoning_effort(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the reasoning effort level for the current request.
 

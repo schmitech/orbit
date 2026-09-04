@@ -6,7 +6,7 @@ have native audio APIs. This service can be updated when Anthropic
 adds audio support.
 """
 
-from typing import Dict, Any, Optional, Union
+from typing import Any, Optional, Union
 
 from ...base import ServiceType
 from ...providers import AnthropicBaseService
@@ -21,7 +21,7 @@ class AnthropicAudioService(AudioService, AnthropicBaseService):
     This is a placeholder that will be implemented when audio support is added.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Anthropic audio service placeholder."""
         # Initialize via AnthropicBaseService first
         AnthropicBaseService.__init__(self, config, ServiceType.AUDIO, "anthropic")

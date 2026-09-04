@@ -13,7 +13,7 @@ import requests
 import yaml
 import os
 import sys
-from typing import Dict, Any
+from typing import Any
 from requests.exceptions import ReadTimeout, ConnectionError
 
 #  Quick test
@@ -31,7 +31,7 @@ sys.path.append(server_dir)
 DEFAULT_TIMEOUT = 30
 
 @pytest.fixture
-def config() -> Dict[str, Any]:
+def config() -> dict[str, Any]:
     """Load and return the configuration"""
     # Use the server's config loading function to handle the modular config structure
     try:
@@ -79,7 +79,7 @@ def config() -> Dict[str, Any]:
         pytest.fail("Could not load configuration from any expected location")
 
 @pytest.fixture
-def vllm_config(config: Dict[str, Any]) -> Dict[str, Any]:
+def vllm_config(config: dict[str, Any]) -> dict[str, Any]:
     """Extract and return vLLM configuration"""
     if config is None:
         pytest.fail("Configuration is None - cannot extract vLLM config")
@@ -108,7 +108,7 @@ def test_query() -> str:
     """Return a test query"""
     return "What is the capital of France?"
 
-def test_config_loading(vllm_config: Dict[str, Any]):
+def test_config_loading(vllm_config: dict[str, Any]):
     """Test that the configuration is loaded correctly"""
     assert vllm_config, "vLLM configuration should not be empty"
     assert "model" in vllm_config, "Model should be specified in config"
@@ -118,7 +118,7 @@ def test_config_loading(vllm_config: Dict[str, Any]):
     assert vllm_config["port"], "Port should not be empty"
     assert vllm_config["model"], "Model should not be empty"
 
-def test_vllm_connection(vllm_config: Dict[str, Any]):
+def test_vllm_connection(vllm_config: dict[str, Any]):
     """Test that vLLM service is accessible"""
     base_url = f"http://{vllm_config['host']}:{vllm_config['port']}"
     
@@ -141,7 +141,7 @@ def test_vllm_connection(vllm_config: Dict[str, Any]):
     except ReadTimeout as e:
         pytest.fail(f"Connection to vLLM service timed out after {DEFAULT_TIMEOUT} seconds. Is vLLM running? Error: {str(e)}")
 
-def test_vllm_chat_completion(vllm_config: Dict[str, Any], test_query: str):
+def test_vllm_chat_completion(vllm_config: dict[str, Any], test_query: str):
     """Test that vLLM generates a valid chat completion response"""
     base_url = f"http://{vllm_config['host']}:{vllm_config['port']}"
     
@@ -187,7 +187,7 @@ def test_vllm_chat_completion(vllm_config: Dict[str, Any], test_query: str):
     except ReadTimeout as e:
         pytest.fail(f"Request to vLLM service timed out after {DEFAULT_TIMEOUT} seconds. Is vLLM running? Error: {str(e)}")
 
-def test_vllm_error_handling(vllm_config: Dict[str, Any]):
+def test_vllm_error_handling(vllm_config: dict[str, Any]):
     """Test error handling with invalid requests"""
     base_url = f"http://{vllm_config['host']}:{vllm_config['port']}"
     
@@ -213,7 +213,7 @@ def test_vllm_error_handling(vllm_config: Dict[str, Any]):
     except ReadTimeout as e:
         pytest.fail(f"Request to vLLM service timed out after {DEFAULT_TIMEOUT} seconds. Is vLLM running? Error: {str(e)}")
 
-def test_vllm_provider_integration(vllm_config: Dict[str, Any], test_query: str):
+def test_vllm_provider_integration(vllm_config: dict[str, Any], test_query: str):
     """Test the vLLM provider integration"""
     try:
         from inference.pipeline.providers.vllm_provider import VLLMProvider
@@ -254,7 +254,7 @@ def test_vllm_provider_integration(vllm_config: Dict[str, Any], test_query: str)
     except Exception as e:
         pytest.fail(f"vLLM provider integration test failed: {str(e)}")
 
-def test_vllm_provider_streaming(vllm_config: Dict[str, Any], test_query: str):
+def test_vllm_provider_streaming(vllm_config: dict[str, Any], test_query: str):
     """Test the vLLM provider streaming functionality"""
     try:
         from inference.pipeline.providers.vllm_provider import VLLMProvider

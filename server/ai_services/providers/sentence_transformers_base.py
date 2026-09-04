@@ -5,7 +5,7 @@ This module provides a unified base class for Sentence Transformers embedding se
 supporting both local model inference and remote Hugging Face Inference API.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 import logging
 
 from ..base import ProviderAIService, ServiceType
@@ -35,7 +35,7 @@ class SentenceTransformersBaseService(ProviderAIService):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         service_type: ServiceType = None,
         provider_name: str = "sentence_transformers"
     ):

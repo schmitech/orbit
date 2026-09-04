@@ -6,7 +6,7 @@ normal text immediately for optimal user experience during LLM response streamin
 """
 
 import re
-from typing import List, Optional
+from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
 
@@ -60,7 +60,7 @@ class BlockAwareStreamer:
         self.code_block_language: Optional[str] = None
         self.max_buffer_size = max_buffer_size
 
-    def add_text(self, new_text: str) -> List[StreamChunk]:
+    def add_text(self, new_text: str) -> list[StreamChunk]:
         """
         Add new text and return chunks ready for streaming.
 
@@ -79,7 +79,7 @@ class BlockAwareStreamer:
             return []
 
         self.buffer += new_text
-        chunks: List[StreamChunk] = []
+        chunks: list[StreamChunk] = []
 
         # Safety check: prevent unbounded memory growth
         if len(self.buffer) > self.max_buffer_size:

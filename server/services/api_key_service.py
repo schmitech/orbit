@@ -12,7 +12,7 @@ Updated to support adapter-based API keys per the adapter migration strategy.
 import logging
 import secrets
 import string
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Optional
 from datetime import datetime, UTC
 from fastapi import HTTPException
 from bson import ObjectId
@@ -64,10 +64,10 @@ class ApiKeyService:
     """Service for handling API key authentication and adapter/collection mapping"""
 
     # Singleton pattern implementation
-    _instances: Dict[str, 'ApiKeyService'] = {}
+    _instances: dict[str, 'ApiKeyService'] = {}
     _lock = threading.Lock()
 
-    def __new__(cls, config: Dict[str, Any], database_service: Optional[DatabaseService] = None):
+    def __new__(cls, config: dict[str, Any], database_service: Optional[DatabaseService] = None):
         """Create or return existing API key service instance based on configuration"""
         cache_key = cls._create_cache_key(config, database_service)
         
@@ -81,7 +81,7 @@ class ApiKeyService:
             return cls._instances[cache_key]
     
     @classmethod
-    def _create_cache_key(cls, config: Dict[str, Any], database_service: Optional[DatabaseService] = None) -> str:
+    def _create_cache_key(cls, config: dict[str, Any], database_service: Optional[DatabaseService] = None) -> str:
         """Create a cache key based on database configuration and collection name"""
         # Use database configuration for the cache key
         backend_config = config.get('internal_services', {}).get('backend', {})
@@ -112,7 +112,7 @@ class ApiKeyService:
         return hashlib.md5(key_string.encode()).hexdigest()
 
     @staticmethod
-    def _get_api_key_collection_name(config: Dict[str, Any], backend_type: str) -> str:
+    def _get_api_key_collection_name(config: dict[str, Any], backend_type: str) -> str:
         """Resolve the API key collection/table name from supported config layouts."""
         if backend_type != 'mongodb':
             return 'api_keys'
@@ -126,7 +126,7 @@ class ApiKeyService:
         )
     
     @classmethod
-    def get_cache_stats(cls) -> Dict[str, Any]:
+    def get_cache_stats(cls) -> dict[str, Any]:
         """Get statistics about cached API key service instances"""
         with cls._lock:
             return {
@@ -142,7 +142,7 @@ class ApiKeyService:
             cls._instances.clear()
             logger.debug("Cleared API key service cache")
     
-    def __init__(self, config: Dict[str, Any], database_service: Optional[DatabaseService] = None):
+    def __init__(self, config: dict[str, Any], database_service: Optional[DatabaseService] = None):
         """Initialize the API key service with configuration"""
         # Avoid re-initialization if this instance was already initialized
         if hasattr(self, '_singleton_initialized'):
@@ -208,7 +208,7 @@ class ApiKeyService:
         prefix = self.config.get('api_keys', {}).get('prefix', 'api_')
         return f"{prefix}{api_key}"
     
-    def _get_adapter_config(self, adapter_name: str, adapter_manager=None) -> Optional[Dict[str, Any]]:
+    def _get_adapter_config(self, adapter_name: str, adapter_manager=None) -> Optional[dict[str, Any]]:
         """
         Get adapter configuration by name (only if enabled)
 
@@ -242,7 +242,7 @@ class ApiKeyService:
             return adapter
         return None
     
-    async def get_api_key_status(self, api_key: str) -> Dict[str, Any]:
+    async def get_api_key_status(self, api_key: str) -> dict[str, Any]:
         """
         Get the full status of an API key
         
@@ -294,7 +294,7 @@ class ApiKeyService:
         adapter_manager=None,
         current_user_id: Optional[str] = None,
         current_user_email: Optional[str] = None,
-    ) -> Tuple[bool, Optional[str], Optional[ObjectId]]:
+    ) -> tuple[bool, Optional[str], Optional[ObjectId]]:
         """
         Validate the API key and return the associated adapter name and system prompt ID
 
@@ -382,7 +382,7 @@ class ApiKeyService:
         adapter_manager=None,
         current_user_id: Optional[str] = None,
         current_user_email: Optional[str] = None,
-    ) -> Tuple[str, Optional[ObjectId]]:
+    ) -> tuple[str, Optional[ObjectId]]:
         """
         Get the adapter name and system prompt ID for a given API key
 
@@ -424,7 +424,7 @@ class ApiKeyService:
         adapter_manager=None,
         current_user_id: Optional[str] = None,
         current_user_email: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get adapter information for a given API key.
 
@@ -566,7 +566,7 @@ class ApiKeyService:
         allowed_user_ids: Optional[list] = None,
         allowed_emails: Optional[list] = None,
         adapter_manager=None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create a new API key for a specific adapter
 
@@ -858,7 +858,7 @@ class ApiKeyService:
             raise HTTPException(status_code=404, detail="API key not found")
         return doc
 
-    async def get_api_key_status_by_id(self, api_key_id: str) -> Dict[str, Any]:
+    async def get_api_key_status_by_id(self, api_key_id: str) -> dict[str, Any]:
         """Get the full status of an API key by record _id or raw key value."""
         try:
             key_doc = await self.database.find_one(self.collection_name, {"_id": api_key_id})

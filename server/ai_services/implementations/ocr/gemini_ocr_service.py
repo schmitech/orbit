@@ -9,7 +9,7 @@ mirroring Mistral's native OCR endpoint.
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
@@ -28,7 +28,7 @@ _DEFAULT_OCR_PROMPT = (
 class GeminiOcrService(UsageReportingMixin, OcrService, GoogleBaseService):
     """Gemini native document OCR service (single call, no rasterization)."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Gemini OCR service."""
         GoogleBaseService.__init__(self, config, ServiceType.OCR, "gemini")
         # Default to a fast Gemini model rather than the vision-service default.
@@ -54,8 +54,8 @@ class GeminiOcrService(UsageReportingMixin, OcrService, GoogleBaseService):
         file_data: bytes,
         mime_type: str,
         filename: Optional[str] = None,
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         """Extract markdown from a PDF or image via a single Gemini call."""
         if not self.initialized:
             await self.initialize()

@@ -9,7 +9,7 @@ import textwrap
 import yaml
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from fastapi import APIRouter, Request, Depends, HTTPException, Query, Body
 
 from models.schema import (
@@ -380,7 +380,7 @@ def _adapter_sdk_paths(request: Request) -> tuple[Path, Path]:
     return adapters_dir, adapters_dir.parent / "adapters.yaml"
 
 
-def _render_from_spec(spec_key: str, answers: Dict[str, Any]) -> str:
+def _render_from_spec(spec_key: str, answers: dict[str, Any]) -> str:
     """Render a spec + answers to YAML, mapping SDK errors onto HTTP codes."""
     try:
         spec = get_spec(spec_key)
@@ -396,7 +396,7 @@ def _render_from_spec(spec_key: str, answers: Dict[str, Any]) -> str:
         raise HTTPException(status_code=422, detail=f"Missing answer: {exc}")
 
 
-def _enabled_inference_providers(config: Dict[str, Any]) -> Optional[set]:
+def _enabled_inference_providers(config: dict[str, Any]) -> Optional[set]:
     """The set of provider names enabled under `inference:`, for `validate_providers`.
 
     Mirrors `ai_services.registry._is_enabled`'s bool/str-flag semantics (a
@@ -423,7 +423,7 @@ def _enabled_inference_providers(config: Dict[str, Any]) -> Optional[set]:
     }
 
 
-def _enabled_config_section_names(config: Dict[str, Any], key: str, default_enabled: bool = True) -> Optional[set]:
+def _enabled_config_section_names(config: dict[str, Any], key: str, default_enabled: bool = True) -> Optional[set]:
     """Names enabled under a top-level `key` section (e.g. `datasources`, `vector_stores`).
 
     `default_enabled` is the enabled-ness of an entry that omits `enabled` — True

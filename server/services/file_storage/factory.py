@@ -7,7 +7,7 @@ existing filesystem deployments are unaffected.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
 
 from .base_storage import FileStorageBackend
 from .filesystem_storage import FilesystemStorage
@@ -15,7 +15,7 @@ from .filesystem_storage import FilesystemStorage
 logger = logging.getLogger(__name__)
 
 
-def create_storage_backend(config: Dict[str, Any]) -> FileStorageBackend:
+def create_storage_backend(config: dict[str, Any]) -> FileStorageBackend:
     """
     Construct a storage backend from the merged config.
 

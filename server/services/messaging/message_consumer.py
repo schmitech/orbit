@@ -22,7 +22,7 @@ Only unparseable messages and unexpected exceptions propagate, routing to the DL
 
 import json
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 from ..message_brokers.base import BrokerMessage, MessageBroker
 
@@ -34,7 +34,7 @@ class MessageConsumerService:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         broker: MessageBroker,
         chat_service,
         api_key_service=None,
@@ -114,7 +114,7 @@ class MessageConsumerService:
 
     async def _resolve_adapter(
         self, api_key: Optional[str], adapter_override: Optional[str]
-    ) -> Tuple[str, Optional[Any]]:
+    ) -> tuple[str, Optional[Any]]:
         """Return (adapter_name, system_prompt_id) for a request.
 
         Mirrors a2a_routes._resolve_adapter / the /v1/chat key resolution: when a key
@@ -151,7 +151,7 @@ class MessageConsumerService:
         return (adapter_override or adapter_name or "default"), system_prompt_id
 
     @staticmethod
-    def _failed(request_id: Optional[str], error: str) -> Dict[str, Any]:
+    def _failed(request_id: Optional[str], error: str) -> dict[str, Any]:
         return {
             "id": request_id,
             "status": "failed",
@@ -161,7 +161,7 @@ class MessageConsumerService:
             "metadata": {},
         }
 
-    async def _publish(self, reply_to: Optional[str], correlation_id: Optional[str], envelope: Dict[str, Any]) -> None:
+    async def _publish(self, reply_to: Optional[str], correlation_id: Optional[str], envelope: dict[str, Any]) -> None:
         await self.broker.publish(
             reply_to, json.dumps(envelope).encode(), correlation_id=correlation_id
         )

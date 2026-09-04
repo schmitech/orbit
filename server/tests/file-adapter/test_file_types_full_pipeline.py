@@ -31,7 +31,7 @@ import pytest
 import httpx
 import asyncio
 import logging
-from typing import Dict, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ async def upload_file(
     content: bytes,
     filename: str,
     mime_type: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Upload a file and return the response data.
 
@@ -190,7 +190,7 @@ async def wait_for_processing(
     http_client: httpx.AsyncClient,
     file_id: str,
     max_wait: int = 15
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Wait for file processing to complete and return file info.
 
@@ -240,7 +240,7 @@ async def query_file(
     file_id: str,
     query: str,
     max_results: int = 3
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Query file content via /api/files/{file_id}/query"""
     headers = {
         "X-API-Key": TEST_API_KEY,
@@ -263,7 +263,7 @@ async def chat_with_file(
     message: str,
     max_retries: int = 3,
     retry_delay: float = 1.0
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Chat with file context via /v1/chat"""
     headers = {
         "X-API-Key": TEST_API_KEY,
@@ -286,7 +286,7 @@ async def chat_with_file(
             json=chat_request
         )
 
-        data: Dict[str, Any] = {}
+        data: dict[str, Any] = {}
         if response.text:
             try:
                 data = response.json()

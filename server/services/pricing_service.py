@@ -10,7 +10,7 @@ estimate, not an invoice — see docs on config/pricing.yaml.
 import logging
 from dataclasses import dataclass
 from fnmatch import fnmatch
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -63,14 +63,14 @@ class PricingService:
     "*"), then a provider-level "*" default, else unpriced.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         pricing_config = (config or {}).get('pricing', {}) or {}
         self._currency = pricing_config.get('currency', 'USD')
         self._updated = pricing_config.get('updated')
         self._stale_after_days = pricing_config.get('stale_after_days', 120)
-        self._providers: Dict[str, Dict[str, ModelRate]] = {}
+        self._providers: dict[str, dict[str, ModelRate]] = {}
         for provider, models in (pricing_config.get('providers', {}) or {}).items():
-            rates: Dict[str, ModelRate] = {}
+            rates: dict[str, ModelRate] = {}
             for model_pattern, rate in (models or {}).items():
                 rates[model_pattern] = ModelRate(
                     input_per_1m=rate.get('input_per_1m'),
@@ -81,9 +81,9 @@ class PricingService:
                 )
             self._providers[provider] = rates
 
-        self._media_providers: Dict[str, Dict[str, MediaRate]] = {}
+        self._media_providers: dict[str, dict[str, MediaRate]] = {}
         for provider, models in (pricing_config.get('media', {}) or {}).items():
-            rates: Dict[str, MediaRate] = {}
+            rates: dict[str, MediaRate] = {}
             for model_pattern, rate in (models or {}).items():
                 rates[model_pattern] = MediaRate(
                     unit=rate.get('unit'),
@@ -96,7 +96,7 @@ class PricingService:
 
     @staticmethod
     def _resolve_rate_with_source(
-        rates_by_provider: Dict[str, Dict[str, Any]], provider: Optional[str], model: Optional[str]
+        rates_by_provider: dict[str, dict[str, Any]], provider: Optional[str], model: Optional[str]
     ) -> "tuple[Optional[Any], Optional[str]]":
         """
         Generic exact -> longest-glob -> provider-"*"-default matcher, shared

@@ -9,7 +9,7 @@ import base64
 import html
 import logging
 from http.cookies import SimpleCookie
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from urllib.parse import quote
 from fastapi import Request, WebSocket, HTTPException
 from pathlib import Path
@@ -49,7 +49,7 @@ def load_login_template() -> str:
     return _login_template_cache
 
 
-def _render_sso_block(next_path: str, sso_providers: Optional[Dict[str, str]]) -> str:
+def _render_sso_block(next_path: str, sso_providers: Optional[dict[str, str]]) -> str:
     """Build the 'or continue with' block of provider sign-in buttons."""
     if not sso_providers:
         return ""
@@ -69,7 +69,7 @@ def _render_sso_block(next_path: str, sso_providers: Optional[Dict[str, str]]) -
 def render_login_html(
     next_path: str = "/admin",
     error_message: Optional[str] = None,
-    sso_providers: Optional[Dict[str, str]] = None,
+    sso_providers: Optional[dict[str, str]] = None,
 ) -> str:
     """Render the login template.
 
@@ -113,7 +113,7 @@ def get_sso_service(request: Request):
     return svc
 
 
-async def get_admin_user(request: Request) -> Optional[Dict[str, Any]]:
+async def get_admin_user(request: Request) -> Optional[dict[str, Any]]:
     """Validate the auth cookie and return the admin user."""
     auth_service = getattr(request.app.state, 'auth_service', None)
     if not auth_service:
@@ -133,7 +133,7 @@ async def get_admin_user(request: Request) -> Optional[Dict[str, Any]]:
     return user_info
 
 
-async def require_admin(request: Request) -> Dict[str, Any]:
+async def require_admin(request: Request) -> dict[str, Any]:
     """Require an authenticated admin via cookie token."""
     user_info = await get_admin_user(request)
     if not user_info:
@@ -147,7 +147,7 @@ def check_service_availability(service, service_name: str) -> None:
         raise HTTPException(status_code=503, detail=f"{service_name} is not available")
 
 
-async def resolve_authenticated_user(request: Request, header_name: str = "authorization") -> Optional[Dict[str, Any]]:
+async def resolve_authenticated_user(request: Request, header_name: str = "authorization") -> Optional[dict[str, Any]]:
     """
     Resolve the authenticated ORBIT user context from a bearer token, if present.
 
@@ -179,7 +179,7 @@ async def resolve_authenticated_user(request: Request, header_name: str = "autho
     if cached is not _UNRESOLVED:
         return cached
 
-    user_info: Optional[Dict[str, Any]] = None
+    user_info: Optional[dict[str, Any]] = None
     auth_header = request.headers.get(header_name)
     if auth_header and auth_header.lower().startswith("bearer "):
         token = auth_header.split(" ", 1)[1].strip()
@@ -213,7 +213,7 @@ def normalize_adapter_auth_override(value: Any) -> Optional[bool]:
     return is_true_value(value)
 
 
-def is_authenticated_user_required(config: Dict[str, Any], adapter_config: Optional[Dict[str, Any]] = None) -> bool:
+def is_authenticated_user_required(config: dict[str, Any], adapter_config: Optional[dict[str, Any]] = None) -> bool:
     """
     Decide whether an authenticated user (not just an API key) must be present.
 
@@ -237,9 +237,9 @@ def is_authenticated_user_required(config: Dict[str, Any], adapter_config: Optio
 async def require_authenticated_user(
     request: Request,
     *,
-    adapter_config: Optional[Dict[str, Any]] = None,
+    adapter_config: Optional[dict[str, Any]] = None,
     header_name: str = "authorization",
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """
     Resolve the caller's identity and, if required, enforce that it is present.
 
@@ -272,7 +272,7 @@ async def resolve_authenticated_user_ws(
     websocket: WebSocket,
     header_name: str = "authorization",
     query_param: str = "access_token",
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """
     WebSocket counterpart to `resolve_authenticated_user`.
 
@@ -293,7 +293,7 @@ async def resolve_authenticated_user_ws(
     if cached is not _UNRESOLVED:
         return cached
 
-    user_info: Optional[Dict[str, Any]] = None
+    user_info: Optional[dict[str, Any]] = None
     auth_header = websocket.headers.get(header_name)
     if not auth_header:
         token = websocket.query_params.get(query_param)
@@ -315,10 +315,10 @@ async def resolve_authenticated_user_ws(
 async def require_authenticated_user_ws(
     websocket: WebSocket,
     *,
-    adapter_config: Optional[Dict[str, Any]] = None,
+    adapter_config: Optional[dict[str, Any]] = None,
     header_name: str = "authorization",
     query_param: str = "access_token",
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """
     WebSocket counterpart to `require_authenticated_user`.
 

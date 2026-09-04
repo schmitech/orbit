@@ -8,7 +8,8 @@ Compare with: server/inference/pipeline/providers/xai_provider.py (old implement
 """
 
 import json
-from typing import Dict, Any, AsyncGenerator, List
+from typing import Any
+from collections.abc import AsyncGenerator
 from urllib.parse import urlparse
 
 from ...base import ServiceType
@@ -29,7 +30,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
     Reduction: ~65%
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the xAI inference service."""
         OpenAICompatibleBaseService.__init__(self, config, ServiceType.INFERENCE, "xai")
         InferenceService.__init__(self, config, "xai")
@@ -54,8 +55,8 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using the xAI (Grok) API."""
@@ -65,7 +66,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
 
         reasoning_effort = self._resolve_reasoning_effort(kwargs)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": kwargs.pop("temperature", self.temperature),
@@ -101,7 +102,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
         choice = response.choices[0]
         msg = choice.message
 
-        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": msg.content}
         tool_calls_result = None
 
         if msg.tool_calls:
@@ -270,7 +271,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
             self._handle_openai_compatible_error(e, "streaming generation")
             yield f"Error: {str(e)}"
 
-    def _build_web_search_params(self, messages: list, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def _build_web_search_params(self, messages: list, stream: bool = False, **kwargs) -> dict[str, Any]:
         """
         Build parameters for a web-search request via the Responses API.
 
@@ -289,7 +290,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
             else:
                 input_items.append({"role": role, "content": content})
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": self.model,
             "input": input_items,
             "tools": [{"type": "web_search"}],
@@ -313,7 +314,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
         return params
 
     @staticmethod
-    def _extract_annotations(response: Any) -> List[Any]:
+    def _extract_annotations(response: Any) -> list[Any]:
         """Collect url_citation annotations from a non-streaming Responses API result."""
         annotations = []
         for item in getattr(response, "output", []) or []:
@@ -324,7 +325,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
         return annotations
 
     @staticmethod
-    def _format_url_citations(annotations: List[Any]) -> str:
+    def _format_url_citations(annotations: list[Any]) -> str:
         """Format Responses API url_citation annotations as a markdown source list.
 
         xAI populates ``title`` with the citation index (e.g. "1") rather than
@@ -367,7 +368,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
         )
         return model_name.startswith(supported_prefixes)
 
-    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_reasoning_effort(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the reasoning effort level for the current request.
 

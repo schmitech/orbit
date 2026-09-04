@@ -3,7 +3,8 @@
 import io
 import textwrap
 from numbers import Number
-from typing import Any, Dict, Iterable, List
+from typing import Any
+from collections.abc import Iterable
 
 import matplotlib
 import matplotlib.ticker as ticker
@@ -25,7 +26,7 @@ _GRID_COLOR = "#DDE3EC"
 _FONT_FAMILY = "DejaVu Sans"
 
 
-def _numeric_series(values: Iterable[Any], length: int) -> List[float]:
+def _numeric_series(values: Iterable[Any], length: int) -> list[float]:
     series = []
     for value in list(values)[:length]:
         if isinstance(value, Number):
@@ -53,7 +54,7 @@ def _apply_compact_formatter(ax) -> None:
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(_compact_formatter))
 
 
-def _label_rotation(labels: List[str]) -> int:
+def _label_rotation(labels: list[str]) -> int:
     """Pick an x-axis label rotation that avoids overlap.
 
     Rotating only past 6 categories ignores label *length* — a handful of long
@@ -66,7 +67,7 @@ def _label_rotation(labels: List[str]) -> int:
     return 30 if avg_len > 8 else 0
 
 
-def _display_labels(labels: List[str]) -> List[str]:
+def _display_labels(labels: list[str]) -> list[str]:
     """Wrap long category labels instead of relying on steep diagonal text."""
     max_width = 18 if len(labels) <= 5 else 12
     return ["\n".join(textwrap.wrap(label, width=max_width, break_long_words=False)) or label
@@ -113,7 +114,7 @@ def _add_legend(ax, handles=None, labels=None) -> None:
 
 
 def render_chart_to_png(
-    chart: Dict[str, Any],
+    chart: dict[str, Any],
     width_px: int = 600,
     height_px: int = 350,
     dpi: int = 200,
@@ -201,7 +202,7 @@ def render_chart_to_png(
     return buf.getvalue()
 
 
-def _render_bar(ax, labels: List[str], datasets: List[Dict[str, Any]]) -> None:
+def _render_bar(ax, labels: list[str], datasets: list[dict[str, Any]]) -> None:
     n_datasets = len(datasets)
     n_labels = len(labels)
     bar_width = 0.8 / max(n_datasets, 1)
@@ -219,7 +220,7 @@ def _render_bar(ax, labels: List[str], datasets: List[Dict[str, Any]]) -> None:
     _apply_compact_formatter(ax)
 
 
-def _render_composed(ax, fig, labels: List[str], datasets: List[Dict[str, Any]]) -> None:
+def _render_composed(ax, fig, labels: list[str], datasets: list[dict[str, Any]]) -> None:
     """Render a composed chart: mixed bar/line series with optional dual y-axes."""
 
     right_ds = [ds for ds in datasets if ds.get("yAxisId") == "right"]

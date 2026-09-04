@@ -5,7 +5,7 @@ This module provides a base class for vLLM services that supports:
 2. API mode: Connect to a running vLLM server via OpenAI-compatible API
 """
 
-from typing import Dict, Any
+from typing import Any
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from ..base import ProviderAIService, ServiceType
@@ -25,7 +25,7 @@ class VLLMBaseService(ProviderAIService):
     2. Direct mode: Loads models directly using vLLM engine (requires GPU)
     """
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "vllm"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "vllm"):
         """
         Initialize the vLLM base service.
 
@@ -57,7 +57,7 @@ class VLLMBaseService(ProviderAIService):
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
 
-    def _setup_api_mode(self, vllm_config: Dict[str, Any]) -> None:
+    def _setup_api_mode(self, vllm_config: dict[str, Any]) -> None:
         """Setup for API mode (OpenAI-compatible server)."""
         host = vllm_config.get("host", "localhost")
         port = vllm_config.get("port", 8000)
@@ -77,7 +77,7 @@ class VLLMBaseService(ProviderAIService):
 
         logger.debug(f"Configured vLLM in API mode at {self.base_url}")
 
-    def _setup_direct_mode(self, vllm_config: Dict[str, Any]) -> None:
+    def _setup_direct_mode(self, vllm_config: dict[str, Any]) -> None:
         """Setup for direct mode (in-process model loading with vLLM engine)."""
         # Model configuration
         self.model = vllm_config.get("model") or vllm_config.get("model_path")

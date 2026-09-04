@@ -4,7 +4,7 @@ Base classes and factory for embedding services.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 
 class EmbeddingService(ABC):
     """
@@ -12,7 +12,7 @@ class EmbeddingService(ABC):
     All embedding providers should implement this interface.
     """
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the embedding service with configuration.
         
@@ -34,7 +34,7 @@ class EmbeddingService(ABC):
         pass
     
     @abstractmethod
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str) -> list[float]:
         """
         Generate embeddings for a query string.
         
@@ -47,7 +47,7 @@ class EmbeddingService(ABC):
         pass
     
     @abstractmethod
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for multiple documents.
         
@@ -93,7 +93,7 @@ class EmbeddingServiceFactory:
     Implements singleton pattern to share embedding services across adapters.
     """
     
-    _instances: Dict[str, EmbeddingService] = {}
+    _instances: dict[str, EmbeddingService] = {}
     _lock = None
     
     @classmethod
@@ -105,7 +105,7 @@ class EmbeddingServiceFactory:
         return cls._lock
     
     @classmethod
-    def create_embedding_service(cls, config: Dict[str, Any], provider_name: Optional[str] = None) -> EmbeddingService:
+    def create_embedding_service(cls, config: dict[str, Any], provider_name: Optional[str] = None) -> EmbeddingService:
         """
         Create or return a cached embedding service instance based on configuration.
         Implements singleton pattern to share embedding services across adapters.
@@ -142,7 +142,7 @@ class EmbeddingServiceFactory:
             return instance
     
     @staticmethod
-    def _create_cache_key(provider_name: str, config: Dict[str, Any]) -> str:
+    def _create_cache_key(provider_name: str, config: dict[str, Any]) -> str:
         """Create a cache key for the embedding service based on provider and config."""
         # Include relevant config parameters that would affect the service instance
         provider_config = config.get('embeddings', {}).get(provider_name, {})
@@ -155,7 +155,7 @@ class EmbeddingServiceFactory:
         return f"{provider_name}:{host}:{model}"
     
     @staticmethod
-    def _create_new_instance(provider_name: str, config: Dict[str, Any]) -> EmbeddingService:
+    def _create_new_instance(provider_name: str, config: dict[str, Any]) -> EmbeddingService:
         """
         Create a new embedding service instance.
 
@@ -220,13 +220,13 @@ class EmbeddingServiceFactory:
             cls._instances.clear()
     
     @classmethod
-    def get_cached_instances(cls) -> Dict[str, EmbeddingService]:
+    def get_cached_instances(cls) -> dict[str, EmbeddingService]:
         """Get all currently cached embedding service instances. Useful for debugging."""
         with cls._get_lock():
             return cls._instances.copy()
     
     @classmethod
-    def get_cache_stats(cls) -> Dict[str, Any]:
+    def get_cache_stats(cls) -> dict[str, Any]:
         """Get statistics about cached embedding services."""
         with cls._get_lock():
             return {

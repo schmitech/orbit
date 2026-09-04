@@ -4,7 +4,7 @@
 
 Modernize the server's Python type annotations and imports to resolve the
 existing Ruff `UP006` and `UP035` findings. This is repository-wide technical
-debt and is not specific to the authentication roadmap.
+debt.
 
 The project targets Python 3.11 in `ruff.toml`, so the modern syntax requested
 by Ruff is supported. The preferred resolution is to update the code rather

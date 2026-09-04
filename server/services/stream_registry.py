@@ -7,7 +7,7 @@ Tracks streams by (session_id, request_id) tuple for precise cancellation.
 
 import asyncio
 import logging
-from typing import Dict, Tuple, Optional
+from typing import Optional
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import threading
@@ -41,7 +41,7 @@ class StreamRegistry:
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
-                cls._instance._streams: Dict[Tuple[str, str], StreamInfo] = {}
+                cls._instance._streams: dict[tuple[str, str], StreamInfo] = {}
                 cls._instance._registry_lock = asyncio.Lock()
                 cls._instance._initialized = True
         return cls._instance

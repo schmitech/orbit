@@ -3,7 +3,7 @@ Domain response generator that formats SQL results for intent retrieval
 """
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Any, Optional
 from ...domain import DomainConfig
 from .formatters import ResponseFormatter
 
@@ -27,7 +27,7 @@ class DomainResponseGenerator:
         logger.debug("Initialized DomainResponseGenerator for %s", self.domain_config.domain_name)
 
 
-    def format_response_data(self, results: List[Dict], template: Dict, error: Optional[str] = None) -> Dict[str, Any]:
+    def format_response_data(self, results: list[dict], template: dict, error: Optional[str] = None) -> dict[str, Any]:
         """
         Format query results for the inference pipeline.
 
@@ -77,14 +77,14 @@ class DomainResponseGenerator:
 
         return response_data
 
-    def format_results(self, results: List[Dict], template: Dict) -> List[Dict]:
+    def format_results(self, results: list[dict], template: dict) -> list[dict]:
         """
         Format results according to domain configuration.
         Public method for direct formatting without LLM generation.
         """
         return self.formatter.format_results(results, template)
 
-    def get_table_data(self, results: List[Dict], columns: Optional[List[str]] = None) -> Dict[str, Any]:
+    def get_table_data(self, results: list[dict], columns: Optional[list[str]] = None) -> dict[str, Any]:
         """
         Get formatted table data for UI display.
         Returns structured data with columns and rows.
@@ -92,7 +92,7 @@ class DomainResponseGenerator:
         formatted_results = self.formatter.format_results(results, {})
         return self.formatter.format_table_data(formatted_results, columns)
 
-    def get_summary_data(self, results: List[Dict], fields: Optional[List[str]] = None) -> str:
+    def get_summary_data(self, results: list[dict], fields: Optional[list[str]] = None) -> str:
         """
         Get formatted summary text.
         Returns a text summary of the results.

@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -28,7 +28,7 @@ class ShieldstralModerationService(ModerationService):
         "llama_cpp": "http://localhost:8080/v1",
     }
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "shieldstral")
 
         provider_config = self._extract_provider_config()
@@ -48,7 +48,7 @@ class ShieldstralModerationService(ModerationService):
             timeout=self.request_timeout,
         )
 
-    def _load_policy(self, provider_config: Dict[str, Any]) -> str:
+    def _load_policy(self, provider_config: dict[str, Any]) -> str:
         """Return inline policy, then a policy file, then the bundled default."""
         inline_policy = provider_config.get("policy")
         if isinstance(inline_policy, str) and inline_policy.strip():
@@ -66,7 +66,7 @@ class ShieldstralModerationService(ModerationService):
 
         return DEFAULT_SHIELDSTRAL_POLICY
 
-    def _build_messages(self, content: str) -> list[Dict[str, str]]:
+    def _build_messages(self, content: str) -> list[dict[str, str]]:
         return [
             {
                 "role": "system",
@@ -81,7 +81,7 @@ class ShieldstralModerationService(ModerationService):
         ]
 
     @staticmethod
-    def _parse_response(response_text: str) -> Tuple[bool, Dict[str, float]]:
+    def _parse_response(response_text: str) -> tuple[bool, dict[str, float]]:
         """Parse Shieldstral's binary answer, failing open on ambiguity."""
         normalized = (response_text or "").strip().lower().rstrip(".")
         if normalized == "yes":

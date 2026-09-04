@@ -6,7 +6,7 @@ Supports both character-based and token-based chunking.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Optional, Union
 
 from .base_chunker import TextChunker, Chunk
 from .utils import TokenizerProtocol
@@ -45,7 +45,7 @@ class FixedSizeChunker(TextChunker):
         self.overlap = overlap
         self.use_tokens = use_tokens
     
-    def chunk_text(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    def chunk_text(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """
         Chunk text into fixed-size pieces.
         
@@ -65,7 +65,7 @@ class FixedSizeChunker(TextChunker):
         else:
             return self._chunk_by_characters(text, file_id, metadata)
     
-    def _chunk_by_characters(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    def _chunk_by_characters(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """Chunk text by characters (original implementation)."""
         chunks = []
         start = 0
@@ -105,7 +105,7 @@ class FixedSizeChunker(TextChunker):
         logger.debug(f"Chunked text into {len(chunks)} chunks (character-based)")
         return chunks
     
-    def _chunk_by_tokens(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    def _chunk_by_tokens(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """Chunk text by tokens (token-aware implementation)."""
         # Encode text to tokens
         try:

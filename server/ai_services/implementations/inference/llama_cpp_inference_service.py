@@ -11,7 +11,8 @@ import json
 import logging
 import os
 import asyncio
-from typing import Dict, Any, AsyncGenerator, List
+from typing import Any
+from collections.abc import AsyncGenerator
 from ...errors import sanitize_provider_error
 from ...services import InferenceService, ToolCallingResult
 from ...providers.llama_cpp_base import LlamaCppBaseService
@@ -28,7 +29,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
     2. Direct mode: Loads GGUF models directly using llama-cpp-python
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         # Cooperative initialization - LlamaCppBaseService handles mode detection
         super().__init__(config, "llama_cpp")
 
@@ -124,8 +125,8 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         """
@@ -162,7 +163,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
 
             choice = response.choices[0]
             msg = choice.message
-            assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+            assistant_msg: dict[str, Any] = {"role": "assistant", "content": msg.content}
             tool_calls_result = None
 
             if msg.tool_calls:

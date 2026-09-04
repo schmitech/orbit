@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 import json
 
 try:
@@ -54,7 +54,7 @@ class PgvectorStore(BaseVectorStore):
         except Exception:
             return False
 
-    async def add_vectors(self, vectors: List[List[float]], ids: List[str], metadata: Optional[List[Dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[List[str]] = None) -> bool:
+    async def add_vectors(self, vectors: list[list[float]], ids: list[str], metadata: Optional[list[dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[list[str]] = None) -> bool:
         collection_name = collection_name or self._default_collection
 
         try:
@@ -89,7 +89,7 @@ class PgvectorStore(BaseVectorStore):
             logger.error(f"Error adding vectors to Pgvector: {e}")
             return False
 
-    async def search_vectors(self, query_vector: List[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    async def search_vectors(self, query_vector: list[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
         collection_name = collection_name or self._default_collection
 
         try:
@@ -173,7 +173,7 @@ class PgvectorStore(BaseVectorStore):
             logger.error(f"Error deleting Pgvector collection: {e}")
             return False
 
-    async def list_collections(self) -> List[str]:
+    async def list_collections(self) -> list[str]:
         try:
             self._cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
             return [row[0] for row in self._cursor.fetchall()]
@@ -189,7 +189,7 @@ class PgvectorStore(BaseVectorStore):
             logger.error(f"Error checking if Pgvector collection exists: {e}")
             return False
 
-    async def get_collection_info(self, collection_name: str) -> Dict[str, Any]:
+    async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
         try:
             self._cursor.execute(f"SELECT COUNT(*) FROM {collection_name}")
             count = self._cursor.fetchone()[0]
@@ -198,7 +198,7 @@ class PgvectorStore(BaseVectorStore):
             logger.error(f"Error getting Pgvector collection info: {e}")
             return {}
 
-    async def get_vector(self, vector_id: str, collection_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_vector(self, vector_id: str, collection_name: Optional[str] = None) -> Optional[dict[str, Any]]:
         collection_name = collection_name or self._default_collection
         try:
             self._cursor.execute(f"SELECT embedding, metadata FROM {collection_name} WHERE id = %s", (vector_id,))
@@ -210,7 +210,7 @@ class PgvectorStore(BaseVectorStore):
             logger.error(f"Error getting vector from Pgvector: {e}")
             return None
 
-    async def update_vector(self, vector_id: str, vector: Optional[List[float]] = None, metadata: Optional[Dict[str, Any]] = None, collection_name: Optional[str] = None) -> bool:
+    async def update_vector(self, vector_id: str, vector: Optional[list[float]] = None, metadata: Optional[dict[str, Any]] = None, collection_name: Optional[str] = None) -> bool:
         collection_name = collection_name or self._default_collection
         try:
             if vector and metadata:

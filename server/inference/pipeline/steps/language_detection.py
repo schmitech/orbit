@@ -19,7 +19,8 @@ import logging
 import re
 import math
 import urllib.parse
-from typing import Dict, Any, Optional, List, Tuple, Pattern
+from typing import Any, Optional
+from re import Pattern
 from dataclasses import dataclass
 
 from ..base import PipelineStep, ProcessingContext
@@ -72,7 +73,7 @@ AMBIGUOUS_LATIN_LANGS = frozenset({'de', 'nl', 'no', 'da', 'fi', 'id'})
 
 # Script detection patterns - covers 20+ scripts
 # NOTE: Order matters for overlapping scripts - check Japanese before Chinese
-SCRIPT_PATTERNS: List[Tuple[str, Pattern, float]] = [
+SCRIPT_PATTERNS: list[tuple[str, Pattern, float]] = [
     # East Asian - Japanese MUST come before Chinese (Kanji overlaps with CJK)
     ('ja', re.compile(r'[\u3040-\u309f\u30a0-\u30ff]'), 0.95),       # Japanese (Hiragana + Katakana)
     ('zh', re.compile(r'[\u4e00-\u9fff]'), 0.95),                    # Chinese (CJK Unified)
@@ -110,7 +111,7 @@ SCRIPT_PATTERNS: List[Tuple[str, Pattern, float]] = [
 ]
 
 # French phrase patterns for disambiguation
-FRENCH_PHRASE_PATTERNS: List[Pattern] = [
+FRENCH_PHRASE_PATTERNS: list[Pattern] = [
     re.compile(r"\bqui\s+es[- ]?tu\b", re.IGNORECASE),
     re.compile(r"\bqui\s+[êe]tes[- ]?vous\b", re.IGNORECASE),
     re.compile(r"\best[- ]?ce\s+que\b", re.IGNORECASE),
@@ -126,7 +127,7 @@ FRENCH_PHRASE_PATTERNS: List[Pattern] = [
 ]
 
 # Word patterns for Latin script languages (lang_code, patterns, base_confidence)
-LATIN_WORD_PATTERNS: List[Tuple[str, List[Pattern], float]] = [
+LATIN_WORD_PATTERNS: list[tuple[str, list[Pattern], float]] = [
     # Spanish
     ('es', [
         re.compile(r'¿'),
@@ -373,7 +374,7 @@ class DetectionResult:
     language: str
     confidence: float
     method: str
-    raw_results: Optional[Dict[str, Any]] = None
+    raw_results: Optional[dict[str, Any]] = None
 
     def __post_init__(self):
         # Normalize language code on creation
@@ -622,7 +623,7 @@ class LanguageDetectionStep(PipelineStep):
         safe_id = urllib.parse.quote(str(session_id), safe='')
         return f"lang_detect:{safe_id}"
 
-    async def _get_chat_history_language_prior(self, context: ProcessingContext) -> Optional[Dict[str, float]]:
+    async def _get_chat_history_language_prior(self, context: ProcessingContext) -> Optional[dict[str, float]]:
         """
         Get language distribution from recent chat history.
 
@@ -651,7 +652,7 @@ class LanguageDetectionStep(PipelineStep):
                 return None
 
             # Count language occurrences
-            lang_counts: Dict[str, int] = {}
+            lang_counts: dict[str, int] = {}
             for msg in messages:
                 lang = msg.get('detected_language') or msg.get('metadata', {}).get('detected_language')
                 if lang:
@@ -673,7 +674,7 @@ class LanguageDetectionStep(PipelineStep):
         self,
         text: str,
         previous_language: Optional[str] = None,
-        chat_history_prior: Optional[Dict[str, float]] = None
+        chat_history_prior: Optional[dict[str, float]] = None
     ) -> DetectionResult:
         """
         Detect language using ensemble of multiple backends with async execution.
@@ -905,11 +906,11 @@ class LanguageDetectionStep(PipelineStep):
 
     def _aggregate_backend_votes(
         self,
-        backend_results: List[Tuple[DetectionResult, float, str]],
-        chat_history_prior: Optional[Dict[str, float]],
-    ) -> Dict[str, float]:
+        backend_results: list[tuple[DetectionResult, float, str]],
+        chat_history_prior: Optional[dict[str, float]],
+    ) -> dict[str, float]:
         """Aggregate normalized backend scores and optional chat-history prior."""
-        language_votes: Dict[str, float] = {}
+        language_votes: dict[str, float] = {}
 
         for result, weight, _backend_name in backend_results:
             lang = normalize_language_code(result.language)
@@ -926,7 +927,7 @@ class LanguageDetectionStep(PipelineStep):
 
         return language_votes
 
-    def _apply_nudges(self, language_votes: Dict[str, float], signals: HeuristicSignals) -> None:
+    def _apply_nudges(self, language_votes: dict[str, float], signals: HeuristicSignals) -> None:
         """Apply configured heuristic nudges to aggregated votes in place."""
         en_boost = self.heuristic_nudges.get('en_boost', 0.2)
         es_penalty = self.heuristic_nudges.get('es_penalty', 0.1)
@@ -988,7 +989,7 @@ class LanguageDetectionStep(PipelineStep):
                 )
 
         # Check Latin word patterns - collect ALL matches first
-        pattern_matches: List[Tuple[str, int, float]] = []
+        pattern_matches: list[tuple[str, int, float]] = []
 
         # Languages with short common words that overlap English need min 2 matches
         for lang_code, patterns, base_confidence in LATIN_WORD_PATTERNS:

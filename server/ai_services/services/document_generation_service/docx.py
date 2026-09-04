@@ -1,6 +1,6 @@
 import io
 import logging
-from typing import Dict, Any
+from typing import Any
 
 from .base import BaseRenderer
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class DocxRenderer(BaseRenderer):
     """Render a document spec to DOCX bytes using python-docx."""
 
-    def render(self, spec: Dict[str, Any]) -> bytes:
+    def render(self, spec: dict[str, Any]) -> bytes:
         from docx import Document
         from docx.enum.text import WD_ALIGN_PARAGRAPH
 

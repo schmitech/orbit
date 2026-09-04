@@ -12,7 +12,7 @@ Enhanced with language-aware retrieval:
 from __future__ import annotations
 
 import logging
-from typing import Dict, Any, Optional, List, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..service_container import ServiceContainer
@@ -280,8 +280,8 @@ class ContextRetrievalStep(PipelineStep):
                 f"for skill-swapped adapter '{context.adapter_name}'"
             )
 
-        embedding_usage: Dict[str, Any] = {}
-        reranking_usage: Dict[str, Any] = {}
+        embedding_usage: dict[str, Any] = {}
+        reranking_usage: dict[str, Any] = {}
         try:
             # Get retriever instance
             retriever = await self._get_retriever(context, retrieval_adapter_name)
@@ -398,7 +398,7 @@ class ContextRetrievalStep(PipelineStep):
         self,
         context: ProcessingContext,
         capabilities: Optional[AdapterCapabilities]
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Build kwargs for get_relevant_context() based on capabilities.
 
@@ -416,10 +416,10 @@ class ContextRetrievalStep(PipelineStep):
 
     def _apply_language_boost(
         self,
-        docs: List[Dict[str, Any]],
+        docs: list[dict[str, Any]],
         detected_language: str,
         language_confidence: float
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Apply language-aware boosting to retrieved documents.
 
@@ -494,7 +494,7 @@ class ContextRetrievalStep(PipelineStep):
 
         return boosted_docs
 
-    def _get_truncation_info(self, docs: list) -> Optional[Dict[str, int]]:
+    def _get_truncation_info(self, docs: list) -> Optional[dict[str, int]]:
         """
         Extract truncation information from retrieved documents.
 
@@ -522,7 +522,7 @@ class ContextRetrievalStep(PipelineStep):
         self,
         documents: list,
         capabilities: Optional[AdapterCapabilities],
-        truncation_info: Optional[Dict[str, int]] = None
+        truncation_info: Optional[dict[str, int]] = None
     ) -> str:
         """
         Format retrieved documents into a context string.
@@ -571,7 +571,7 @@ class ContextRetrievalStep(PipelineStep):
     def _format_clean(
         self,
         documents: list,
-        truncation_info: Optional[Dict[str, int]] = None
+        truncation_info: Optional[dict[str, int]] = None
     ) -> str:
         """
         Format documents in clean style (no citations).
@@ -638,7 +638,7 @@ class ContextRetrievalStep(PipelineStep):
     def _format_standard(
         self,
         documents: list,
-        truncation_info: Optional[Dict[str, int]] = None
+        truncation_info: Optional[dict[str, int]] = None
     ) -> str:
         """
         Format documents in standard style (with citations).
@@ -683,7 +683,7 @@ class ContextRetrievalStep(PipelineStep):
         documents: list,
         max_tokens: int,
         formatting_style: FormattingStyle,
-        truncation_info: Optional[Dict[str, int]] = None
+        truncation_info: Optional[dict[str, int]] = None
     ) -> str:
         """
         Trim formatted context to fit within a token budget.

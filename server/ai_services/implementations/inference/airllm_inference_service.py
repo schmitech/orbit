@@ -8,7 +8,8 @@ completion and then chunks the result to simulate streaming.
 
 import logging
 import asyncio
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
 from ...providers.airllm_base import AirLLMBaseService
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 class AirLLMInferenceService(InferenceService, AirLLMBaseService):
     """Local AirLLM inference service for large models on limited memory."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         AirLLMBaseService.__init__(self, config, ServiceType.INFERENCE)
         InferenceService.__init__(self, config, "airllm")
 
@@ -80,7 +81,7 @@ class AirLLMInferenceService(InferenceService, AirLLMBaseService):
         repetition_penalty = kwargs.get("repetition_penalty", self.repetition_penalty)
         do_sample = kwargs.get("do_sample", self.do_sample)
 
-        gen_kwargs: Dict[str, Any] = {
+        gen_kwargs: dict[str, Any] = {
             "input_ids": input_ids,
             "max_new_tokens": max_new_tokens,
             "do_sample": do_sample,

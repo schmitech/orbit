@@ -9,7 +9,7 @@ Requires multimodal llama.cpp models like llava, bakllava, or other vision model
 
 import asyncio
 import logging
-from typing import Dict, Any, Union, List
+from typing import Any, Union
 from PIL import Image
 
 from ...services import VisionService
@@ -35,7 +35,7 @@ class LlamaCppVisionService(VisionService, LlamaCppBaseService):
     Note: Requires a multimodal model like LLaVA or BakLLaVA.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         # Cooperative initialization - LlamaCppBaseService handles mode detection
         super().__init__(config, "llama_cpp")
 
@@ -217,7 +217,7 @@ class LlamaCppVisionService(VisionService, LlamaCppBaseService):
     async def detect_objects(
         self,
         image: Union[str, bytes, Image.Image]
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Detect objects in image.
 

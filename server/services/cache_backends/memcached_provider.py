@@ -17,7 +17,7 @@ Known limitations vs. Redis (inherent to the Memcached protocol, not this client
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 try:
     import aiomcache
@@ -41,10 +41,10 @@ def _decode(value: Optional[bytes]) -> Optional[str]:
 class MemcachedCacheProvider(CacheProvider):
     """Cache provider backed by Memcached, with graceful fallback if unavailable."""
 
-    _instances: Dict[str, 'MemcachedCacheProvider'] = {}
+    _instances: dict[str, 'MemcachedCacheProvider'] = {}
     _lock = threading.Lock()
 
-    def __new__(cls, config: Dict[str, Any]):
+    def __new__(cls, config: dict[str, Any]):
         cache_key = cls._create_cache_key(config)
 
         with cls._lock:
@@ -55,7 +55,7 @@ class MemcachedCacheProvider(CacheProvider):
             return cls._instances[cache_key]
 
     @classmethod
-    def _create_cache_key(cls, config: Dict[str, Any]) -> str:
+    def _create_cache_key(cls, config: dict[str, Any]) -> str:
         memcached_config = config.get('internal_services', {}).get('memcached', {})
         return f"{memcached_config.get('host', 'localhost')}:{memcached_config.get('port', 11211)}"
 
@@ -65,7 +65,7 @@ class MemcachedCacheProvider(CacheProvider):
         with cls._lock:
             cls._instances.clear()
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         if hasattr(self, '_singleton_initialized'):
             return
 
@@ -208,7 +208,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._handle_error("expire", e)
             return False
 
-    async def mget(self, *keys: str) -> List[Optional[str]]:
+    async def mget(self, *keys: str) -> list[Optional[str]]:
         if not self._is_available() or not keys:
             return [None] * len(keys)
         try:
@@ -220,7 +220,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._handle_error("mget", e)
             return [None] * len(keys)
 
-    async def mset(self, mapping: Dict[str, str]) -> bool:
+    async def mset(self, mapping: dict[str, str]) -> bool:
         if not self._is_available() or not mapping:
             return False
         try:
@@ -296,7 +296,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._handle_error("clear_by_pattern", e)
             return 0
 
-    async def clear_all_application_cache(self) -> Dict[str, int]:
+    async def clear_all_application_cache(self) -> dict[str, int]:
         """Single flush_all instead of looping per-pattern (Memcached has no pattern matching)."""
         if not self._is_available():
             logger.debug("Memcached not available, skipping cache clearing")
@@ -310,7 +310,7 @@ class MemcachedCacheProvider(CacheProvider):
             logger.warning(f"Failed to flush Memcached on startup: {str(e)}")
             return {"flushed_all": 0}
 
-    def get_health_stats(self) -> Dict[str, Any]:
+    def get_health_stats(self) -> dict[str, Any]:
         return {
             "provider": "memcached",
             "enabled": self.enabled,

@@ -1,5 +1,6 @@
 import ipaddress
-from typing import Iterable, Optional
+from typing import Optional
+from collections.abc import Iterable
 from urllib.parse import urlparse
 
 from starlette.middleware.base import BaseHTTPMiddleware

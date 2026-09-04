@@ -9,7 +9,7 @@ Uses the MongoDB datasource from the datasource registry for connection pooling.
 import logging
 import traceback
 import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Optional
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 
@@ -34,7 +34,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
     - MongoDB-specific response processing
     """
 
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
         """
         Initialize MongoDB retriever.
 
@@ -90,8 +90,8 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
 
         logger.debug("MongoDB retriever initialized with datasource from registry")
 
-    async def _execute_template(self, template: Dict[str, Any],
-                                parameters: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+    async def _execute_template(self, template: dict[str, Any],
+                                parameters: dict[str, Any]) -> tuple[Any, Optional[str]]:
         """
         Execute MongoDB find template with parameters.
 
@@ -150,7 +150,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return [], error_msg
 
-    def _normalize_parameters(self, parameters: Dict[str, Any], template_params: List[Dict]) -> Dict[str, Any]:
+    def _normalize_parameters(self, parameters: dict[str, Any], template_params: list[dict]) -> dict[str, Any]:
         """
         Normalize parameters based on their type definitions in the template.
 
@@ -200,7 +200,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
 
         return normalized
 
-    def _process_mongodb_query_template(self, template: str, parameters: Dict[str, Any]) -> Dict:
+    def _process_mongodb_query_template(self, template: str, parameters: dict[str, Any]) -> dict:
         """
         Process MongoDB query template with variable substitution.
 
@@ -309,7 +309,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
 
         return normalized
 
-    async def _execute_find_query(self, collection, mongo_query: Dict, template: Dict) -> List[Dict]:
+    async def _execute_find_query(self, collection, mongo_query: dict, template: dict) -> list[dict]:
         """
         Execute MongoDB find query.
 
@@ -372,7 +372,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return []
 
-    async def _execute_count_query(self, collection, mongo_query: Dict, template: Dict) -> List[Dict]:
+    async def _execute_count_query(self, collection, mongo_query: dict, template: dict) -> list[dict]:
         """
         Execute MongoDB count query.
 
@@ -393,7 +393,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             logger.error(f"Error executing MongoDB count query: {e}")
             return [{'count': 0}]
 
-    async def _execute_aggregate_query(self, collection, mongo_query: Dict, template: Dict) -> List[Dict]:
+    async def _execute_aggregate_query(self, collection, mongo_query: dict, template: dict) -> list[dict]:
         """
         Execute MongoDB aggregation pipeline query.
 
@@ -433,8 +433,8 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return []
 
-    def _format_http_results(self, results: Any, template: Dict,
-                            parameters: Dict, similarity: float) -> List[Dict[str, Any]]:
+    def _format_http_results(self, results: Any, template: dict,
+                            parameters: dict, similarity: float) -> list[dict[str, Any]]:
         """
         Format MongoDB results into context documents.
 
@@ -480,7 +480,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             "confidence": similarity
         }]
 
-    def _format_mongodb_results(self, documents: List[Dict], template: Dict) -> str:
+    def _format_mongodb_results(self, documents: list[dict], template: dict) -> str:
         """
         Format MongoDB results as human-readable text.
 
@@ -531,7 +531,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
 
         return '\n'.join(lines)
 
-    def _get_nested_value(self, doc: Dict, field_path: str) -> Any:
+    def _get_nested_value(self, doc: dict, field_path: str) -> Any:
         """
         Get a value from a nested document using dot notation.
 
@@ -551,7 +551,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
                 return None
         return value
 
-    async def get_collection_info(self, collection_name: str) -> Dict:
+    async def get_collection_info(self, collection_name: str) -> dict:
         """
         Get collection information for template generation.
 
@@ -584,7 +584,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             logger.error(f"Failed to get collection info: {e}")
             return {}
 
-    async def execute_aggregation(self, collection_name: str, pipeline: List[Dict]) -> List[Dict]:
+    async def execute_aggregation(self, collection_name: str, pipeline: list[dict]) -> list[dict]:
         """
         Execute MongoDB aggregation pipeline.
 

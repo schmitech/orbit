@@ -14,7 +14,7 @@ Intent x datasource adapters are intentionally out of scope here.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 # Fully-qualified implementation classes (verified against config/adapters/*.yaml).
 _MULTIMODAL_IMPL = "implementations.passthrough.multimodal.MultimodalImplementation"
@@ -36,7 +36,7 @@ class Question:
     prompt: str
     type: str = "str"  # one of: str, int, bool, list
     default: Any = None
-    choices: Optional[List[str]] = None
+    choices: Optional[list[str]] = None
     help: str = ""
     max_length: Optional[int] = None  # str/list: chars per value (per item for lists)
     max_items: Optional[int] = None   # list only
@@ -51,7 +51,7 @@ class Question:
     options_strict: bool = False
 
 
-def question_limits(q: Question) -> Dict[str, Any]:
+def question_limits(q: Question) -> dict[str, Any]:
     """Concrete bounds for a question — explicit values win, else the type default.
 
     Resolved in one place so the form controls, the server-side check and the CLI
@@ -61,7 +61,7 @@ def question_limits(q: Question) -> Dict[str, Any]:
         return {}
     if q.type == "int":
         return {"min_value": q.min_value, "max_value": q.max_value}
-    limits: Dict[str, Any] = {"max_length": q.max_length or DEFAULT_MAX_LENGTH}
+    limits: dict[str, Any] = {"max_length": q.max_length or DEFAULT_MAX_LENGTH}
     if q.type == "list":
         limits["max_items"] = q.max_items or DEFAULT_MAX_ITEMS
     return limits
@@ -75,13 +75,13 @@ class AdapterSpec:
     title: str
     description: str
     template: str  # Jinja2 filename under templates/
-    fixed: Dict[str, Any]  # context values always emitted, never asked
-    questions: List[Question]
+    fixed: dict[str, Any]  # context values always emitted, never asked
+    questions: list[Question]
     variant_field: Optional[str] = None  # the question that selects a variant (e.g. document_format)
-    variants: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    variants: dict[str, dict[str, Any]] = field(default_factory=dict)
     # variants[value] = {"fixed": {...ctx overrides...}, "defaults": {...question defaults...}}
 
-    def variant_values(self) -> List[str]:
+    def variant_values(self) -> list[str]:
         return list(self.variants.keys())
 
     def question_default(self, q: Question, chosen_variant: Optional[str]) -> Any:
@@ -92,9 +92,9 @@ class AdapterSpec:
                 return defaults[q.field]
         return q.default
 
-    def resolve(self, answers: Dict[str, Any]) -> Dict[str, Any]:
+    def resolve(self, answers: dict[str, Any]) -> dict[str, Any]:
         """Build the full template context from fixed values + variant + answers."""
-        ctx: Dict[str, Any] = dict(self.fixed)
+        ctx: dict[str, Any] = dict(self.fixed)
         if self.variant_field:
             variant_val = answers.get(self.variant_field)
             if variant_val not in self.variants:
@@ -136,7 +136,7 @@ def _q_skill_description(default: Optional[str] = None) -> Question:
                     help="One line describing what the skill does. An AI assistant can help you draft this.")
 
 
-def _q_routing_examples(default: Optional[List[str]] = None) -> Question:
+def _q_routing_examples(default: Optional[list[str]] = None) -> Question:
     return Question("routing_examples", "Routing example phrases", type="list",
                     default=default if default is not None else [],
                     max_length=200, max_items=50,
@@ -467,7 +467,7 @@ WEB_SEARCH_EXTERNAL = AdapterSpec(
 )
 
 
-SPEC_REGISTRY: Dict[str, AdapterSpec] = {
+SPEC_REGISTRY: dict[str, AdapterSpec] = {
     s.key: s
     for s in [
         PASSTHROUGH,
@@ -488,7 +488,7 @@ def get_spec(key: str) -> AdapterSpec:
     return SPEC_REGISTRY[key]
 
 
-def serialize_spec(spec: AdapterSpec) -> Dict[str, Any]:
+def serialize_spec(spec: AdapterSpec) -> dict[str, Any]:
     """JSON form of a spec, used by the admin UI form builder and `--list --json`.
 
     Each question carries its per-variant defaults so a client can re-default the
@@ -513,6 +513,6 @@ def serialize_spec(spec: AdapterSpec) -> Dict[str, Any]:
     }
 
 
-def serialize_registry() -> List[Dict[str, Any]]:
+def serialize_registry() -> list[dict[str, Any]]:
     """JSON form of every registered spec, in registry order."""
     return [serialize_spec(spec) for spec in SPEC_REGISTRY.values()]

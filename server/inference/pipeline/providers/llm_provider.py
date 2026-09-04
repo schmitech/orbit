@@ -5,7 +5,8 @@ This module defines the base interface for LLM providers in the pipeline archite
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator, Dict, Optional
+from typing import Any, Optional
+from collections.abc import AsyncGenerator
 
 
 class LLMProvider(ABC):
@@ -54,7 +55,7 @@ class LLMProvider(ABC):
     async def generate_tracked(
         self,
         prompt: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         cache_prefix_len: Optional[int] = None,
         **kwargs,
     ) -> str:
@@ -70,7 +71,7 @@ class LLMProvider(ABC):
     async def generate_stream_tracked(
         self,
         prompt: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         cache_prefix_len: Optional[int] = None,
         **kwargs,
     ) -> AsyncGenerator[str, None]:
@@ -92,7 +93,7 @@ class LLMProvider(ABC):
         self,
         messages: Any,
         tools: Any,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         cache_prefix_len: Optional[int] = None,
         **kwargs,
     ) -> Any:

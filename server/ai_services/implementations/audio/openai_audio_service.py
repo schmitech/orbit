@@ -5,7 +5,8 @@ This implementation provides audio capabilities using OpenAI's Whisper API
 for speech-to-text and TTS-1 API for text-to-speech.
 """
 
-from typing import AsyncIterator, Dict, Any, Optional, Union
+from typing import Any, Optional, Union
+from collections.abc import AsyncIterator
 from io import BytesIO
 import wave
 
@@ -26,7 +27,7 @@ class OpenAIAudioService(UsageReportingMixin, AudioService, OpenAIBaseService):
     - Audio translation
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the OpenAI audio service."""
         # Initialize via OpenAIBaseService first
         OpenAIBaseService.__init__(self, config, ServiceType.AUDIO, "openai")
@@ -177,7 +178,7 @@ class OpenAIAudioService(UsageReportingMixin, AudioService, OpenAIBaseService):
         self,
         audio: Union[str, bytes],
         language: Optional[str] = None,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """Convert speech audio to text using OpenAI Whisper."""
@@ -258,7 +259,7 @@ class OpenAIAudioService(UsageReportingMixin, AudioService, OpenAIBaseService):
         self,
         audio: Union[str, bytes],
         language: Optional[str] = None,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """Transcribe audio to text (alias for speech_to_text)."""

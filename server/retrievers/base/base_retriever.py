@@ -5,7 +5,7 @@ Enhanced base retriever interface with domain adaptation support
 from abc import ABC, abstractmethod
 import logging
 import traceback
-from typing import Dict, Any, List, Optional, Type
+from typing import Any, Optional
 from utils.lazy_loader import AdapterRegistry
 from embeddings.base import EmbeddingServiceFactory
 
@@ -42,9 +42,9 @@ class BaseRetriever(ABC):
     """Enhanced base abstract class that all retriever implementations should extend"""
     
     def __init__(self, 
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 domain_adapter=None,
-                datasource_config: Optional[Dict[str, Any]] = None,
+                datasource_config: Optional[dict[str, Any]] = None,
                 **kwargs):
         """
         Initialize BaseRetriever with common configuration.
@@ -86,7 +86,7 @@ class BaseRetriever(ABC):
         self.audit_adapter_name = None
         self.pricing_service = None
 
-    async def audit_embedding_usage(self, usage_sink: Optional[Dict[str, Any]], operation: str) -> None:
+    async def audit_embedding_usage(self, usage_sink: Optional[dict[str, Any]], operation: str) -> None:
         """Persist a standalone audit event for background embedding work."""
         if not self.audit_service or not usage_sink or not usage_sink.get("reported"):
             return
@@ -135,7 +135,7 @@ class BaseRetriever(ABC):
             from adapters.qa.base import QADocumentAdapter
             return QADocumentAdapter(confidence_threshold=self.confidence_threshold)
     
-    def _get_datasource_config(self) -> Dict[str, Any]:
+    def _get_datasource_config(self) -> dict[str, Any]:
         """
         Get datasource-specific config, supporting both old and new config structures.
         
@@ -186,7 +186,7 @@ class BaseRetriever(ABC):
         """
         pass
         
-    def get_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
+    def get_direct_answer(self, context: list[dict[str, Any]]) -> Optional[str]:
         """
         Extract a direct answer from context if available.
         
@@ -199,7 +199,7 @@ class BaseRetriever(ABC):
         # Use the domain adapter to extract a direct answer
         return self.domain_adapter.extract_direct_answer(context)
 
-    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str,Any]:
+    def format_document(self, raw_doc: str, metadata: dict[str, Any]) -> dict[str,Any]:
         """
         Format document using the domain adapter.
         
@@ -212,7 +212,7 @@ class BaseRetriever(ABC):
         """
         return self.domain_adapter.format_document(raw_doc, metadata)
         
-    def apply_domain_filtering(self, context_items: List[Dict[str, Any]], query: str) -> List[Dict[str, Any]]:
+    def apply_domain_filtering(self, context_items: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
         """
         Apply domain-specific filtering to results.
         
@@ -230,7 +230,7 @@ class BaseRetriever(ABC):
                                   query: str, 
                                   api_key: Optional[str] = None,
                                   collection_name: Optional[str] = None,
-                                  **kwargs) -> List[Dict[str, Any]]:
+                                  **kwargs) -> list[dict[str, Any]]:
         """
         Retrieve relevant context for a query.
         
@@ -277,7 +277,7 @@ class VectorDBRetriever(BaseRetriever):
     """Abstract base class for vector database retrievers that use embeddings"""
     
     def __init__(self, 
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 embeddings: Optional[Any] = None,
                 domain_adapter=None,
                 **kwargs):
@@ -363,7 +363,7 @@ class VectorDBRetriever(BaseRetriever):
         if self._owns_embeddings and self.embeddings:
             await self.embeddings.close()
     
-    async def embed_query(self, query: str, usage_sink=None) -> List[float]:
+    async def embed_query(self, query: str, usage_sink=None) -> list[float]:
         """
         Generate an embedding for a query using the appropriate embedding service.
         
@@ -395,7 +395,7 @@ class SQLRetriever(BaseRetriever):
     """Abstract base class for SQL-based retrievers that use token/text matching"""
     
     def __init__(self, 
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 domain_adapter=None,
                 **kwargs):
         """
@@ -412,7 +412,7 @@ class SQLRetriever(BaseRetriever):
         self.connection = kwargs.get('connection', None)
         
     @abstractmethod
-    def _tokenize_text(self, text: str) -> List[str]:
+    def _tokenize_text(self, text: str) -> list[str]:
         """
         Tokenize text for better matching.
         
@@ -444,10 +444,10 @@ class RetrieverFactory:
     """
     
     _registry = AdapterRegistry()
-    _registered_retrievers: Dict[str, Type[BaseRetriever]] = {}
+    _registered_retrievers: dict[str, type[BaseRetriever]] = {}
     
     @classmethod
-    def register_retriever(cls, retriever_type: str, retriever_class: Type[BaseRetriever]):
+    def register_retriever(cls, retriever_type: str, retriever_class: type[BaseRetriever]):
         """
         Register a retriever class with the factory.
         

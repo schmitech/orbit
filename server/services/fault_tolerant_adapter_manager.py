@@ -6,7 +6,7 @@ parallel execution and circuit breaker protection without complex layering.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from .dynamic_adapter_manager import DynamicAdapterManager
 from .parallel_adapter_executor import ParallelAdapterExecutor
@@ -21,7 +21,7 @@ class FaultTolerantAdapterManager:
     - Easy debugging and monitoring
     """
     
-    def __init__(self, config: Dict[str, Any], app_state: Any):
+    def __init__(self, config: dict[str, Any], app_state: Any):
         self.config = config
         self.app_state = app_state
         
@@ -47,11 +47,11 @@ class FaultTolerantAdapterManager:
         """Get a single adapter by name."""
         return await self.base_adapter_manager.get_adapter(adapter_name)
     
-    def get_available_adapters(self) -> List[str]:
+    def get_available_adapters(self) -> list[str]:
         """Get list of available adapters"""
         return self.base_adapter_manager.get_available_adapters()
 
-    def get_adapter_config(self, adapter_name: str) -> Optional[Dict[str, Any]]:
+    def get_adapter_config(self, adapter_name: str) -> Optional[dict[str, Any]]:
         """Get adapter configuration - delegates to base adapter manager"""
         return self.base_adapter_manager.get_adapter_config(adapter_name)
 
@@ -59,7 +59,7 @@ class FaultTolerantAdapterManager:
         """Resolve a skill name to its adapter name."""
         return self.base_adapter_manager.get_skill_adapter(skill_name)
 
-    def get_all_skills(self) -> List[Dict[str, Any]]:
+    def get_all_skills(self) -> list[dict[str, Any]]:
         """Return metadata for all registered skill adapters."""
         return self.base_adapter_manager.get_all_skills()
 
@@ -68,7 +68,7 @@ class FaultTolerantAdapterManager:
         provider_name: str,
         adapter_name: Optional[str] = None,
         explicit_model_override: Optional[str] = None,
-        explicit_param_overrides: Optional[Dict[str, Any]] = None,
+        explicit_param_overrides: Optional[dict[str, Any]] = None,
     ) -> Any:
         """Get an overridden provider instance."""
         return await self.base_adapter_manager.get_overridden_provider(
@@ -111,7 +111,7 @@ class FaultTolerantAdapterManager:
         """Get the allowed search providers for an adapter."""
         return self.base_adapter_manager.get_allowed_search_providers(adapter_name)
 
-    def get_cached_adapters(self) -> List[str]:
+    def get_cached_adapters(self) -> list[str]:
         """Get list of currently cached adapter names."""
         return self.base_adapter_manager.get_cached_adapters()
 
@@ -127,9 +127,9 @@ class FaultTolerantAdapterManager:
         """Clear all cached adapters."""
         await self.base_adapter_manager.clear_cache()
 
-    async def get_relevant_context(self, query: str, adapter_names: List[str] = None,
+    async def get_relevant_context(self, query: str, adapter_names: list[str] = None,
                                  adapter_name: str = None, api_key: Optional[str] = None,
-                                 **kwargs) -> List[Dict[str, Any]]:
+                                 **kwargs) -> list[dict[str, Any]]:
         """
         Get relevant context from adapters with fault tolerance.
         
@@ -169,7 +169,7 @@ class FaultTolerantAdapterManager:
         
         return combined_context
     
-    def get_health_status(self) -> Dict[str, Any]:
+    def get_health_status(self) -> dict[str, Any]:
         """Get health status of the adapter system"""
         health = {
             "fault_tolerance_enabled": self.fault_tolerance_enabled,
@@ -182,7 +182,7 @@ class FaultTolerantAdapterManager:
         
         return health
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Perform health check on the adapter manager."""
         health = await self.base_adapter_manager.health_check()
         health["fault_tolerance_enabled"] = self.fault_tolerance_enabled
@@ -197,11 +197,11 @@ class FaultTolerantAdapterManager:
         else:
             logger.warning("Parallel executor not available, cannot reset circuit breaker")
     
-    async def preload_all_adapters(self, timeout_per_adapter: float = 30.0) -> Dict[str, Any]:
+    async def preload_all_adapters(self, timeout_per_adapter: float = 30.0) -> dict[str, Any]:
         """Preload all adapters"""
         return await self.base_adapter_manager.preload_all_adapters(timeout_per_adapter)
     
-    async def reload_adapter_configs(self, config: Dict[str, Any], adapter_name: Optional[str] = None) -> Dict[str, Any]:
+    async def reload_adapter_configs(self, config: dict[str, Any], adapter_name: Optional[str] = None) -> dict[str, Any]:
         """
         Reload adapter configurations via base adapter manager.
 
@@ -214,7 +214,7 @@ class FaultTolerantAdapterManager:
         """
         return await self.base_adapter_manager.reload_adapter_configs(config, adapter_name)
 
-    async def reload_templates(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+    async def reload_templates(self, adapter_name: Optional[str] = None) -> dict[str, Any]:
         """
         Reload templates for intent adapters via base adapter manager.
 

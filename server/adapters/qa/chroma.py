@@ -2,7 +2,7 @@
 ChromaDB-specific QA adapter
 """
 
-from typing import Dict, Any, List
+from typing import Any
 import logging
 from adapters.qa.base import QADocumentAdapter
 from adapters.factory import DocumentAdapterFactory
@@ -21,6 +21,6 @@ class ChromaQAAdapter(QADocumentAdapter):
     """
 
     def apply_domain_specific_filtering(self,
-                                        context_items: List[Dict[str, Any]],
-                                        query: str) -> List[Dict[str, Any]]:
+                                        context_items: list[dict[str, Any]],
+                                        query: str) -> list[dict[str, Any]]:
         return context_items

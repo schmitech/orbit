@@ -5,7 +5,7 @@ This service wraps the ApiClient and AuthService to provide convenient methods
 for all API operations.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 import requests
 
 from bin.orbit.services.api_client import ApiClient, handle_api_errors
@@ -32,7 +32,7 @@ class ApiService:
         self.api_client = api_client
         self.auth_service = auth_service
     
-    def _get_auth_headers(self) -> Dict[str, str]:
+    def _get_auth_headers(self) -> dict[str, str]:
         """Get authentication headers."""
         self.auth_service.ensure_authenticated()
         return {"Authorization": f"Bearer {self.auth_service.token}"}
@@ -42,7 +42,7 @@ class ApiService:
         401: "Invalid username or password",
         400: "Invalid login request"
     })
-    def login(self, username: str, password: str) -> Dict[str, Any]:
+    def login(self, username: str, password: str) -> dict[str, Any]:
         """Authenticate a user and return a bearer token."""
         data = {"username": username, "password": password}
         response = self.api_client.post("/auth/login", json_data=data)
@@ -55,7 +55,7 @@ class ApiService:
         
         return result
     
-    def logout(self) -> Dict[str, Any]:
+    def logout(self) -> dict[str, Any]:
         """Logout the current user."""
         if not self.auth_service.token:
             return {"message": "Not logged in"}
@@ -78,7 +78,7 @@ class ApiService:
         409: "User already exists"
     })
     def register_user(self, username: str, password: str, role: str = "user",
-                       roles: Optional[List[str]] = None) -> Dict[str, Any]:
+                       roles: Optional[list[str]] = None) -> dict[str, Any]:
         """Register a new user (users.manage permission required)."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -92,7 +92,7 @@ class ApiService:
     @handle_api_errors(operation_name="List roles", custom_errors={
         403: "users.manage permission required to list roles"
     })
-    def list_roles(self) -> List[str]:
+    def list_roles(self) -> list[str]:
         """List all registered roles."""
         headers = self._get_auth_headers()
         response = self.api_client.get("/auth/roles", headers=headers)
@@ -103,7 +103,7 @@ class ApiService:
         403: "users.manage permission required to assign roles",
         404: "User not found"
     })
-    def set_user_roles(self, user_id: str, roles: List[str]) -> Dict[str, Any]:
+    def set_user_roles(self, user_id: str, roles: list[str]) -> dict[str, Any]:
         """Replace a user's role assignment."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -116,7 +116,7 @@ class ApiService:
     @handle_api_errors(operation_name="Get current user", custom_errors={
         401: "Invalid or expired token"
     })
-    def get_current_user(self) -> Dict[str, Any]:
+    def get_current_user(self) -> dict[str, Any]:
         """Get information about the currently authenticated user."""
         headers = self._get_auth_headers()
         response = self.api_client.get("/auth/me", headers=headers)
@@ -127,7 +127,7 @@ class ApiService:
     @handle_api_errors(operation_name="List allowlist rules", custom_errors={
         403: "users.manage permission required to manage the identity allowlist"
     })
-    def list_allowlist_rules(self) -> List[Dict[str, Any]]:
+    def list_allowlist_rules(self) -> list[dict[str, Any]]:
         """List every identity allowlist rule, newest first."""
         headers = self._get_auth_headers()
         response = self.api_client.get("/auth/allowlist", headers=headers)
@@ -139,7 +139,7 @@ class ApiService:
         400: "Invalid or duplicate allowlist rule"
     })
     def add_allowlist_rule(self, pattern: str, entry_type: str,
-                           reason: Optional[str] = None) -> Dict[str, Any]:
+                           reason: Optional[str] = None) -> dict[str, Any]:
         """Pre-clear an identity pattern for external login."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -155,7 +155,7 @@ class ApiService:
         404: "Allowlist rule not found",
         400: "This change would revoke your own access"
     })
-    def delete_allowlist_rule(self, rule_id: str) -> Dict[str, Any]:
+    def delete_allowlist_rule(self, rule_id: str) -> dict[str, Any]:
         """Remove an allowlist rule, revoking the sessions it was clearing."""
         headers = self._get_auth_headers()
         response = self.api_client.delete(f"/auth/allowlist/{rule_id}", headers=headers)
@@ -167,7 +167,7 @@ class ApiService:
         403: "Admin privileges required to list users"
     })
     def list_users(self, role: Optional[str] = None, active_only: bool = False,
-                   limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+                   limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         """List all users in the system."""
         headers = self._get_auth_headers()
         params = {}
@@ -184,7 +184,7 @@ class ApiService:
         response.raise_for_status()
         return response.json()
     
-    def reset_user_password(self, user_id: str, new_password: str) -> Dict[str, Any]:
+    def reset_user_password(self, user_id: str, new_password: str) -> dict[str, Any]:
         """Reset a user's password (admin only)."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -193,7 +193,7 @@ class ApiService:
         response.raise_for_status()
         return response.json()
 
-    def get_password_policy(self) -> Dict[str, Any]:
+    def get_password_policy(self) -> dict[str, Any]:
         """Return the active local-password policy for an authenticated user."""
         headers = self._get_auth_headers()
         response = self.api_client.get("/auth/password-policy", headers=headers)
@@ -218,14 +218,14 @@ class ApiService:
         404: "User not found",
         400: "Cannot delete your own account"
     })
-    def delete_user(self, user_id: str) -> Dict[str, Any]:
+    def delete_user(self, user_id: str) -> dict[str, Any]:
         """Delete a user."""
         headers = self._get_auth_headers()
         response = self.api_client.delete(f"/auth/users/{user_id}", headers=headers)
         response.raise_for_status()
         return response.json()
     
-    def change_password(self, current_password: str, new_password: str) -> Dict[str, Any]:
+    def change_password(self, current_password: str, new_password: str) -> dict[str, Any]:
         """Change the current user's password."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -234,14 +234,14 @@ class ApiService:
         response.raise_for_status()
         return response.json()
     
-    def deactivate_user(self, user_id: str) -> Dict[str, Any]:
+    def deactivate_user(self, user_id: str) -> dict[str, Any]:
         """Deactivate a user."""
         headers = self._get_auth_headers()
         response = self.api_client.post(f"/auth/users/{user_id}/deactivate", headers=headers)
         response.raise_for_status()
         return response.json()
     
-    def activate_user(self, user_id: str) -> Dict[str, Any]:
+    def activate_user(self, user_id: str) -> dict[str, Any]:
         """Activate a user."""
         headers = self._get_auth_headers()
         response = self.api_client.post(f"/auth/users/{user_id}/activate", headers=headers)
@@ -253,7 +253,7 @@ class ApiService:
                       prompt_id: Optional[str] = None, prompt_name: Optional[str] = None,
                       prompt_file: Optional[str] = None, adapter_name: Optional[str] = None,
                       prompt_text: Optional[str] = None,
-                      notes_file: Optional[str] = None) -> Dict[str, Any]:
+                      notes_file: Optional[str] = None) -> dict[str, Any]:
         """Create a new API key."""
         # Resolve notes input.
         # Priority: notes > notes_file
@@ -304,7 +304,7 @@ class ApiService:
         
         return api_key_result
     
-    def list_api_keys(self, active_only: bool = False, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_api_keys(self, active_only: bool = False, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         """List all API keys."""
         headers = self._get_auth_headers()
         params = {}
@@ -323,7 +323,7 @@ class ApiService:
         404: "Old API key not found",
         409: "New API key already exists"
     })
-    def rename_api_key(self, old_api_key: str, new_api_key: str) -> Dict[str, Any]:
+    def rename_api_key(self, old_api_key: str, new_api_key: str) -> dict[str, Any]:
         """Rename an API key."""
         headers = self._get_auth_headers()
         params = {"new_api_key": new_api_key}
@@ -332,28 +332,28 @@ class ApiService:
         return response.json()
     
     @handle_api_errors(operation_name="Deactivate API key")
-    def deactivate_api_key(self, api_key: str) -> Dict[str, Any]:
+    def deactivate_api_key(self, api_key: str) -> dict[str, Any]:
         """Deactivate an API key."""
         headers = self._get_auth_headers()
         response = self.api_client.post(f"/admin/api-keys/{api_key}/deactivate", headers=headers)
         response.raise_for_status()
         return response.json()
     
-    def delete_api_key(self, api_key: str) -> Dict[str, Any]:
+    def delete_api_key(self, api_key: str) -> dict[str, Any]:
         """Delete an API key."""
         headers = self._get_auth_headers()
         response = self.api_client.delete(f"/admin/api-keys/{api_key}", headers=headers)
         response.raise_for_status()
         return response.json()
     
-    def get_api_key_status(self, api_key: str) -> Dict[str, Any]:
+    def get_api_key_status(self, api_key: str) -> dict[str, Any]:
         """Get the status of an API key."""
         headers = self._get_auth_headers()
         response = self.api_client.get(f"/admin/api-keys/{api_key}/status", headers=headers)
         response.raise_for_status()
         return response.json()
     
-    def test_api_key(self, api_key: str) -> Dict[str, Any]:
+    def test_api_key(self, api_key: str) -> dict[str, Any]:
         """Test an API key."""
         if not api_key or len(api_key) < 10:
             return {"status": "error", "error": "API key format is invalid"}
@@ -385,7 +385,7 @@ class ApiService:
             raise OrbitError(f"API key test failed: {str(e)}")
     
     # System Prompt methods
-    def create_prompt(self, name: str, prompt_text: str, version: str = "1.0") -> Dict[str, Any]:
+    def create_prompt(self, name: str, prompt_text: str, version: str = "1.0") -> dict[str, Any]:
         """Create a new system prompt."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -394,7 +394,7 @@ class ApiService:
         response.raise_for_status()
         return response.json()
     
-    def list_prompts(self, name_filter: Optional[str] = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_prompts(self, name_filter: Optional[str] = None, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         """List all system prompts."""
         headers = self._get_auth_headers()
         params = {}
@@ -409,14 +409,14 @@ class ApiService:
         response.raise_for_status()
         return response.json()
     
-    def get_prompt(self, prompt_id: str) -> Dict[str, Any]:
+    def get_prompt(self, prompt_id: str) -> dict[str, Any]:
         """Get a system prompt by its ID."""
         headers = self._get_auth_headers()
         response = self.api_client.get(f"/admin/prompts/{prompt_id}", headers=headers)
         response.raise_for_status()
         return response.json()
     
-    def update_prompt(self, prompt_id: str, prompt_text: str, version: Optional[str] = None) -> Dict[str, Any]:
+    def update_prompt(self, prompt_id: str, prompt_text: str, version: Optional[str] = None) -> dict[str, Any]:
         """Update an existing system prompt."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -427,14 +427,14 @@ class ApiService:
         response.raise_for_status()
         return response.json()
     
-    def delete_prompt(self, prompt_id: str) -> Dict[str, Any]:
+    def delete_prompt(self, prompt_id: str) -> dict[str, Any]:
         """Delete a system prompt."""
         headers = self._get_auth_headers()
         response = self.api_client.delete(f"/admin/prompts/{prompt_id}", headers=headers)
         response.raise_for_status()
         return response.json()
     
-    def associate_prompt_with_api_key(self, api_key: str, prompt_id: str) -> Dict[str, Any]:
+    def associate_prompt_with_api_key(self, api_key: str, prompt_id: str) -> dict[str, Any]:
         """Associate a system prompt with an API key."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -448,7 +448,7 @@ class ApiService:
         404: "Adapter not found or is disabled in configuration",
         503: "Adapter manager is not available"
     })
-    def reload_adapters(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+    def reload_adapters(self, adapter_name: Optional[str] = None) -> dict[str, Any]:
         """Reload adapter configurations from adapters.yaml without server restart."""
         headers = self._get_auth_headers()
         params = {}
@@ -463,7 +463,7 @@ class ApiService:
         404: "Adapter not found or does not support template reloading",
         503: "Adapter manager is not available"
     })
-    def reload_templates(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+    def reload_templates(self, adapter_name: Optional[str] = None) -> dict[str, Any]:
         """Reload intent templates from template library files without server restart."""
         headers = self._get_auth_headers()
         params = {}
@@ -474,7 +474,7 @@ class ApiService:
         response.raise_for_status()
         return response.json()
     
-    def check_auth_status(self) -> Dict[str, Any]:
+    def check_auth_status(self) -> dict[str, Any]:
         """Check authentication status."""
         storage_method = self.auth_service.config_service.get_auth_storage_method()
         auth_enabled = True  # Always enabled in server
@@ -536,7 +536,7 @@ class ApiService:
         404: "API key not found",
         503: "Quota service is not available (throttling may be disabled)"
     })
-    def get_quota(self, api_key: str) -> Dict[str, Any]:
+    def get_quota(self, api_key: str) -> dict[str, Any]:
         """Get quota configuration and usage for an API key."""
         headers = self._get_auth_headers()
         response = self.api_client.get(f"/admin/api-keys/{api_key}/quota", headers=headers)
@@ -547,7 +547,7 @@ class ApiService:
         404: "API key not found",
         503: "Quota service is not available (throttling may be disabled)"
     })
-    def update_quota(self, api_key: str, quota_data: Dict[str, Any]) -> Dict[str, Any]:
+    def update_quota(self, api_key: str, quota_data: dict[str, Any]) -> dict[str, Any]:
         """Update quota settings for an API key."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -559,7 +559,7 @@ class ApiService:
         404: "API key not found",
         503: "Quota service is not available (throttling may be disabled)"
     })
-    def reset_quota(self, api_key: str, period: str = "daily") -> Dict[str, Any]:
+    def reset_quota(self, api_key: str, period: str = "daily") -> dict[str, Any]:
         """Reset quota usage for an API key."""
         headers = self._get_auth_headers()
         params = {"period": period}
@@ -570,7 +570,7 @@ class ApiService:
     @handle_api_errors(operation_name="Get quota report", custom_errors={
         503: "Quota service is not available (throttling may be disabled)"
     })
-    def get_quota_report(self, period: str = "daily", limit: int = 100) -> Dict[str, Any]:
+    def get_quota_report(self, period: str = "daily", limit: int = 100) -> dict[str, Any]:
         """Get quota usage report for all API keys."""
         headers = self._get_auth_headers()
         params = {"period": period, "limit": str(limit)}

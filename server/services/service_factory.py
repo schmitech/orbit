@@ -6,7 +6,7 @@ required by the inference server, including dependency injection and lifecycle m
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
 from fastapi import FastAPI
 
 from utils import is_true_value
@@ -27,7 +27,7 @@ class ServiceFactory:
     - Health checking and verification
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+    def __init__(self, config: dict[str, Any], logger: logging.Logger):
         """
         Initialize the ServiceFactory.
 

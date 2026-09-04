@@ -1,6 +1,6 @@
 import io
 import logging
-from typing import Dict, Any
+from typing import Any
 
 from .base import BaseRenderer
 
@@ -16,7 +16,7 @@ class PptxRenderer(BaseRenderer):
         h = hex_str.lstrip('#')
         return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
-    def render(self, spec: Dict[str, Any]) -> bytes:
+    def render(self, spec: dict[str, Any]) -> bytes:
         from pptx import Presentation
         from pptx.util import Inches, Pt
         from pptx.enum.text import PP_ALIGN

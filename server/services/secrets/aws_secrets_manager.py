@@ -6,7 +6,7 @@ name.
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 from .base_secrets import SecretsBackend
 
@@ -38,7 +38,7 @@ class AWSSecretsManagerBackend(SecretsBackend):
             region_name=region_name or None,
             endpoint_url=endpoint_url or None,
         )
-        self._cache: Dict[str, Optional[str]] = {}
+        self._cache: dict[str, Optional[str]] = {}
 
         # Fail loudly if AWS Secrets Manager is not reachable / credentials are bad.
         try:

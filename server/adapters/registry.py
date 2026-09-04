@@ -4,7 +4,8 @@
 
 import logging
 import importlib
-from typing import Dict, Any, Callable, List, Optional
+from typing import Any, Optional
+from collections.abc import Callable
 from datasources.registry import get_registry as get_datasource_registry
 
 # Configure logging
@@ -32,7 +33,7 @@ class AdapterRegistry:
                 adapter_name: str, 
                 implementation: str = None,
                 factory_func: Callable = None,
-                config: Dict[str, Any] = None):
+                config: dict[str, Any] = None):
         """
         Register an adapter implementation.
         
@@ -61,7 +62,7 @@ class AdapterRegistry:
         
         logger.debug(f"Registered adapter: type={adapter_type}, datasource={datasource}, name={adapter_name}")
         
-    def get(self, adapter_type: str, datasource: str, adapter_name: str) -> Optional[Dict[str, Any]]:
+    def get(self, adapter_type: str, datasource: str, adapter_name: str) -> Optional[dict[str, Any]]:
         """
         Get an adapter's registration info.
         
@@ -82,7 +83,7 @@ class AdapterRegistry:
               adapter_type: str,
               datasource: str,
               adapter_name: str,
-              override_config: Dict[str, Any] = None,
+              override_config: dict[str, Any] = None,
               **kwargs) -> Any:
         """
         Create an adapter instance with datasource from registry.
@@ -212,23 +213,23 @@ class AdapterRegistry:
             logger.error(f"Error trying to import adapter: {str(e)}")
             return False
             
-    def get_types(self) -> List[str]:
+    def get_types(self) -> list[str]:
         """Get all registered adapter types."""
         return list(self._registry.keys())
         
-    def get_datasources(self, adapter_type: str) -> List[str]:
+    def get_datasources(self, adapter_type: str) -> list[str]:
         """Get all registered datasources for a given type."""
         if adapter_type in self._registry:
             return list(self._registry[adapter_type].keys())
         return []
         
-    def get_adapters(self, adapter_type: str, datasource: str) -> List[str]:
+    def get_adapters(self, adapter_type: str, datasource: str) -> list[str]:
         """Get all registered adapters for a given type and datasource."""
         if adapter_type in self._registry and datasource in self._registry[adapter_type]:
             return list(self._registry[adapter_type][datasource].keys())
         return []
         
-    def load_from_config(self, config: Dict[str, Any]) -> None:
+    def load_from_config(self, config: dict[str, Any]) -> None:
         """
         Load and register adapters from configuration.
         

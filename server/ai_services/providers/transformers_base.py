@@ -5,7 +5,7 @@ AutoModelForCausalLM + AutoTokenizer from the transformers library.
 Supports CUDA, MPS, and CPU devices with automatic detection.
 """
 
-from typing import Dict, Any
+from typing import Any
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from ..base import ProviderAIService, ServiceType
@@ -23,7 +23,7 @@ class TransformersBaseService(ProviderAIService):
     For serving models via API, use vLLM or TGI instead.
     """
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "transformers"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "transformers"):
         if service_type:
             super().__init__(config, service_type, provider_name)
         else:
@@ -120,7 +120,7 @@ class TransformersBaseService(ProviderAIService):
                 logger.debug("Set pad_token = eos_token (was missing)")
 
             # Build model kwargs
-            model_kwargs: Dict[str, Any] = {
+            model_kwargs: dict[str, Any] = {
                 "trust_remote_code": self.trust_remote_code,
             }
 

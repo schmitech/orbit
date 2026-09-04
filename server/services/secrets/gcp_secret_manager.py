@@ -6,7 +6,7 @@ name (latest version).
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 from .base_secrets import SecretsBackend
 
@@ -37,7 +37,7 @@ class GCPSecretManagerBackend(SecretsBackend):
 
         self._project = project
         self._client = secretmanager.SecretManagerServiceClient()
-        self._cache: Dict[str, Optional[str]] = {}
+        self._cache: dict[str, Optional[str]] = {}
 
         # Fail loudly if Secret Manager is not reachable / credentials are bad.
         try:

@@ -6,7 +6,7 @@ directly and returns per-page markdown. No page rasterization is required.
 """
 
 import base64
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from ...base import ServiceType
 from ...providers import MistralBaseService
@@ -16,7 +16,7 @@ from ...services import OcrService
 class MistralOcrService(OcrService, MistralBaseService):
     """Mistral native OCR service (``client.ocr.process``)."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Mistral OCR service."""
         MistralBaseService.__init__(self, config, ServiceType.OCR, "mistral")
         # Default to Mistral's OCR model rather than the embedding default set
@@ -28,7 +28,7 @@ class MistralOcrService(OcrService, MistralBaseService):
         file_data: bytes,
         mime_type: str,
         filename: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Extract markdown from a PDF or image via Mistral's OCR endpoint."""
         if not self.initialized:
             await self.initialize()

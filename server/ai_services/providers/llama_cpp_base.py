@@ -1,6 +1,6 @@
 """Llama.cpp base class."""
 
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 import os
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -24,7 +24,7 @@ class LlamaCppBaseService(ProviderAIService):
     2. Direct mode: Loads GGUF models directly using llama-cpp-python
     """
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "llama_cpp"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "llama_cpp"):
         """
         Initialize the Llama.cpp base service.
 
@@ -65,7 +65,7 @@ class LlamaCppBaseService(ProviderAIService):
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
 
-    def _setup_api_mode(self, llama_config: Dict[str, Any]) -> None:
+    def _setup_api_mode(self, llama_config: dict[str, Any]) -> None:
         """Setup for API mode (OpenAI-compatible server)."""
         self.base_url = llama_config.get("base_url", "http://localhost:8080")
         self.model = self._get_model()
@@ -79,7 +79,7 @@ class LlamaCppBaseService(ProviderAIService):
 
         logger.debug(f"Configured Llama.cpp in API mode at {self.base_url}")
 
-    def _setup_direct_mode(self, llama_config: Dict[str, Any]) -> None:
+    def _setup_direct_mode(self, llama_config: dict[str, Any]) -> None:
         """Setup for direct mode (GGUF model loading)."""
         # Support both model name and model_path for compatibility
         self.model = llama_config.get('model', '')

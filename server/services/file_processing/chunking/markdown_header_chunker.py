@@ -9,7 +9,7 @@ header-less text.
 
 import logging
 import re
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Optional, Union
 
 from .base_chunker import Chunk
 from .recursive_chunker import RecursiveChunker, RecursiveRules, RecursiveLevel
@@ -54,7 +54,7 @@ class MarkdownHeaderChunker(RecursiveChunker):
             tokenizer=tokenizer
         )
 
-    def chunk_text(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    def chunk_text(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """
         Chunk text using markdown-header-aware recursive strategy.
 

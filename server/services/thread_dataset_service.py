@@ -14,7 +14,7 @@ import json
 import gzip
 import threading
 import hashlib
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Optional
 from datetime import datetime, timedelta, UTC
 
 from services.cache_backends import CacheProvider, create_cache_service
@@ -27,10 +27,10 @@ class ThreadDatasetService:
     """Service for storing and retrieving thread datasets with singleton pattern"""
     
     # Singleton pattern implementation
-    _instances: Dict[str, 'ThreadDatasetService'] = {}
+    _instances: dict[str, 'ThreadDatasetService'] = {}
     _lock = threading.Lock()
     
-    def __new__(cls, config: Dict[str, Any], cache_service: Optional['CacheProvider'] = None):
+    def __new__(cls, config: dict[str, Any], cache_service: Optional['CacheProvider'] = None):
         """Create or return existing ThreadDatasetService instance based on configuration"""
         cache_key = cls._create_cache_key(config)
         
@@ -44,11 +44,11 @@ class ThreadDatasetService:
             return cls._instances[cache_key]
     
     @staticmethod
-    def _uses_cache_backend(threading_config: Dict[str, Any]) -> bool:
+    def _uses_cache_backend(threading_config: dict[str, Any]) -> bool:
         return threading_config.get('storage_backend', 'cache') == 'cache'
 
     @classmethod
-    def _create_cache_key(cls, config: Dict[str, Any]) -> str:
+    def _create_cache_key(cls, config: dict[str, Any]) -> str:
         """Create a cache key based on threading configuration"""
         threading_config = config.get('conversation_threading', {})
 
@@ -75,7 +75,7 @@ class ThreadDatasetService:
         return hashlib.md5(key_string.encode()).hexdigest()
     
     @classmethod
-    def get_cache_stats(cls) -> Dict[str, Any]:
+    def get_cache_stats(cls) -> dict[str, Any]:
         """Get statistics about cached ThreadDatasetService instances"""
         with cls._lock:
             return {
@@ -91,7 +91,7 @@ class ThreadDatasetService:
             cls._instances.clear()
             logger.debug("Cleared all ThreadDatasetService cached instances")
 
-    def __init__(self, config: Dict[str, Any], cache_service: Optional['CacheProvider'] = None):
+    def __init__(self, config: dict[str, Any], cache_service: Optional['CacheProvider'] = None):
         """
         Initialize the thread dataset service.
 
@@ -182,12 +182,12 @@ class ThreadDatasetService:
         else:
             return f"thread_dataset_{thread_id}"
 
-    def _compress_data(self, data: Dict[str, Any]) -> bytes:
+    def _compress_data(self, data: dict[str, Any]) -> bytes:
         """Compress data using gzip for efficient storage."""
         json_str = json.dumps(data, default=str)
         return gzip.compress(json_str.encode('utf-8'))
 
-    def _decompress_data(self, compressed_data: bytes) -> Dict[str, Any]:
+    def _decompress_data(self, compressed_data: bytes) -> dict[str, Any]:
         """Decompress data from gzip."""
         json_str = gzip.decompress(compressed_data).decode('utf-8')
         return json.loads(json_str)
@@ -195,7 +195,7 @@ class ThreadDatasetService:
     async def store_dataset(
         self,
         thread_id: str,
-        query_context: Dict[str, Any],
+        query_context: dict[str, Any],
         raw_results: list
     ) -> str:
         """
@@ -287,7 +287,7 @@ class ThreadDatasetService:
             logger.error(f"Failed to store dataset for thread {thread_id}: {e}")
             raise
 
-    async def get_dataset(self, dataset_key: str) -> Optional[Tuple[Dict[str, Any], list]]:
+    async def get_dataset(self, dataset_key: str) -> Optional[tuple[dict[str, Any], list]]:
         """
         Retrieve a dataset by key.
 

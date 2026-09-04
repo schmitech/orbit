@@ -3,7 +3,7 @@ Redis (RedisSearch) implementation of the AbstractVectorRetriever interface
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from fastapi import HTTPException
 
 from ...base.abstract_vector_retriever import AbstractVectorRetriever
@@ -16,7 +16,7 @@ class RedisRetriever(AbstractVectorRetriever):
     """Redis (RedisSearch) implementation of the AbstractVectorRetriever interface"""
 
     def __init__(self, 
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 embeddings: Optional[Any] = None,
                 domain_adapter=None,
                 **kwargs):
@@ -130,7 +130,7 @@ class RedisRetriever(AbstractVectorRetriever):
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
-    async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
+    async def vector_search(self, query_embedding: list[float], top_k: int) -> list[dict[str, Any]]:
         """
         Perform vector similarity search in Redis.
         

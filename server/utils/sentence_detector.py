@@ -6,7 +6,6 @@ enabling incremental TTS generation for better latency.
 """
 
 import re
-from typing import List
 
 
 class SentenceDetector:
@@ -32,9 +31,9 @@ class SentenceDetector:
         """Initialize the sentence detector."""
         self.accumulated_text = ""
         self.processed_text = ""
-        self.pending_sentences: List[str] = []
+        self.pending_sentences: list[str] = []
     
-    def add_text(self, new_text: str) -> List[str]:
+    def add_text(self, new_text: str) -> list[str]:
         """
         Add new text and return any completed sentences.
         
@@ -131,7 +130,7 @@ class SentenceDetector:
         return bool(self.accumulated_text.strip())
 
 
-def extract_sentences(text: str) -> List[str]:
+def extract_sentences(text: str) -> list[str]:
     """
     Extract all sentences from a block of text.
     

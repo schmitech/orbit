@@ -7,7 +7,8 @@ the new unified AI services architecture with OpenAI-compatible base class.
 Compare with: server/inference/pipeline/providers/together_provider.py (old implementation)
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
 from ...providers import OpenAICompatibleBaseService
@@ -26,7 +27,7 @@ class TogetherInferenceService(UsageReportingMixin, InferenceService, OpenAIComp
     Reduction: ~57%
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Together inference service."""
         OpenAICompatibleBaseService.__init__(self, config, ServiceType.INFERENCE, "together")
         InferenceService.__init__(self, config, "together")

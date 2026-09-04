@@ -4,7 +4,7 @@ Demonstrates massive code reduction - from ~200 lines to ~50 lines.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 try:
     import psycopg
@@ -31,7 +31,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
     Inherits all intent functionality and PostgreSQL connection handling.
     """
     
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
         """Initialize PostgreSQL intent retriever."""
         super().__init__(config=config, domain_adapter=domain_adapter, connection=connection, **kwargs)
 
@@ -141,7 +141,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
         except Exception:
             return False
     
-    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """Execute PostgreSQL query with intent-specific handling."""
         cursor = None
         try:

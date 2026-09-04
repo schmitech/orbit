@@ -4,7 +4,7 @@ Validator for extracted parameter values
 
 import re
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from datetime import datetime, date
 from ...domain import DomainConfig
 
@@ -60,7 +60,7 @@ class Validator:
         validator = type_validators.get(data_type, lambda v: True)
         return validator(value)
 
-    def _validate_rules(self, value: Any, rules: Dict[str, Any], field_name: str) -> tuple[bool, Optional[str]]:
+    def _validate_rules(self, value: Any, rules: dict[str, Any], field_name: str) -> tuple[bool, Optional[str]]:
         """Validate value against specific rules"""
         # Check min/max for numeric values
         if 'min' in rules and isinstance(value, (int, float)):
@@ -172,7 +172,7 @@ class Validator:
 
         return clean_phone.isdigit() and 10 <= len(clean_phone) <= 15
 
-    def validate_all(self, parameters: Dict[str, Any]) -> Dict[str, List[str]]:
+    def validate_all(self, parameters: dict[str, Any]) -> dict[str, list[str]]:
         """
         Validate all parameters.
 

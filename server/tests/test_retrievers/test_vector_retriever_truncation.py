@@ -5,7 +5,7 @@ Tests for vector retriever result truncation and metadata tracking
 import pytest
 import sys
 import os
-from typing import Dict, Any, List
+from typing import Any
 from unittest.mock import Mock, AsyncMock
 
 # Add the server directory to path
@@ -18,14 +18,14 @@ from retrievers.implementations.qa.qa_vector_base import QAVectorRetrieverBase
 class MockVectorRetriever(AbstractVectorRetriever):
     """Mock vector retriever for testing truncation behavior"""
 
-    def __init__(self, config: Dict[str, Any], embeddings=None, datasource: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], embeddings=None, datasource: Any = None, **kwargs):
         super().__init__(config=config, embeddings=embeddings, datasource=datasource, **kwargs)
         self.mock_search_results = []
 
     def _get_datasource_name(self) -> str:
         return "mock_vector"
 
-    async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
+    async def vector_search(self, query_embedding: list[float], top_k: int) -> list[dict[str, Any]]:
         """Return mock vector search results"""
         return self.mock_search_results[:top_k]
 
@@ -41,7 +41,7 @@ class MockVectorRetriever(AbstractVectorRetriever):
         """Mock close"""
         pass
 
-    def set_mock_search_results(self, results: List[Dict[str, Any]]):
+    def set_mock_search_results(self, results: list[dict[str, Any]]):
         """Set the mock results that will be returned"""
         self.mock_search_results = results
 
@@ -49,7 +49,7 @@ class MockVectorRetriever(AbstractVectorRetriever):
 class CountingQAVectorRetriever(QAVectorRetrieverBase):
     """QA retriever that counts QA parameter initialization calls."""
 
-    def __init__(self, config: Dict[str, Any], **kwargs):
+    def __init__(self, config: dict[str, Any], **kwargs):
         self.qa_parameter_initialization_count = 0
         super().__init__(config=config, **kwargs)
 
@@ -63,7 +63,7 @@ class CountingQAVectorRetriever(QAVectorRetrieverBase):
     def get_datasource_name(self) -> str:
         return "mock_vector"
 
-    async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
+    async def vector_search(self, query_embedding: list[float], top_k: int) -> list[dict[str, Any]]:
         return []
 
     async def set_collection(self, collection_name: str) -> None:
@@ -80,13 +80,13 @@ class CountingQAVectorRetriever(QAVectorRetrieverBase):
 
     async def query_vector_database(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         collection_name: str,
         max_results: int,
     ) -> Any:
         return []
 
-    def extract_document_data(self, result: Any) -> tuple[str, Dict[str, Any], float]:
+    def extract_document_data(self, result: Any) -> tuple[str, dict[str, Any], float]:
         return "", {}, 0.0
 
     def _iterate_results(self, results: Any):
@@ -150,7 +150,7 @@ def mock_embeddings():
     return embeddings
 
 
-def create_mock_vector_results(count: int, base_score: float = 0.9) -> List[Dict[str, Any]]:
+def create_mock_vector_results(count: int, base_score: float = 0.9) -> list[dict[str, Any]]:
     """Generate mock vector search results with decreasing scores"""
     return [
         {

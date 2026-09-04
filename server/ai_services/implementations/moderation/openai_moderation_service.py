@@ -6,7 +6,7 @@ the new unified AI services architecture.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Any
 import asyncio
 
 from ...providers import OpenAIBaseService
@@ -29,7 +29,7 @@ class OpenAIModerationService(ModerationService, OpenAIBaseService):
     Simplified with automatic handling of setup and configuration.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the OpenAI moderation service.
 
@@ -101,7 +101,7 @@ class OpenAIModerationService(ModerationService, OpenAIBaseService):
                 error=f"Moderation check failed (allowed): {str(e)}"
             )
 
-    async def moderate_batch(self, contents: List[str]) -> List[ModerationResult]:
+    async def moderate_batch(self, contents: list[str]) -> list[ModerationResult]:
         """
         Moderate multiple content items in a batch.
 

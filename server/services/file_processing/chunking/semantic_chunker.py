@@ -7,7 +7,7 @@ Enhanced with advanced techniques from chonkie.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Optional, Union
 
 from .base_chunker import TextChunker, Chunk
 from .utils import split_sentences, TokenizerProtocol
@@ -109,7 +109,7 @@ class SemanticChunker(TextChunker):
                 logger.warning(f"Could not load model {model_name}: {e}")
                 self.use_advanced = False
     
-    def _split_sentences(self, text: str) -> List[str]:
+    def _split_sentences(self, text: str) -> list[str]:
         """Split text into sentences using improved splitting."""
         return split_sentences(
             text,
@@ -118,7 +118,7 @@ class SemanticChunker(TextChunker):
             min_characters_per_sentence=self.min_characters_per_sentence
         )
     
-    def _get_similarity(self, sentences: List[str]) -> List[float]:
+    def _get_similarity(self, sentences: list[str]) -> list[float]:
         """
         Get semantic similarity between window and sentence embeddings.
         
@@ -170,7 +170,7 @@ class SemanticChunker(TextChunker):
             logger.warning(f"Error calculating similarities: {e}")
             return []
     
-    def _get_split_indices(self, similarities: List[float]) -> List[int]:
+    def _get_split_indices(self, similarities: list[float]) -> list[int]:
         """
         Get split indices using Savitzky-Golay filtering if available.
         
@@ -219,7 +219,7 @@ class SemanticChunker(TextChunker):
                     split_indices.append(i + self.similarity_window)
             return split_indices
     
-    def _skip_and_merge(self, sentence_groups: List[List[str]]) -> List[List[str]]:
+    def _skip_and_merge(self, sentence_groups: list[list[str]]) -> list[list[str]]:
         """
         Merge similar groups considering skip window.
         
@@ -281,7 +281,7 @@ class SemanticChunker(TextChunker):
             logger.warning(f"Error in skip-and-merge: {e}")
             return sentence_groups
     
-    def chunk_text(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    def chunk_text(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """
         Chunk text using semantic boundaries.
         
@@ -308,7 +308,7 @@ class SemanticChunker(TextChunker):
         else:
             return self._chunk_simple(sentences, file_id, metadata)
     
-    def _chunk_simple(self, sentences: List[str], file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    def _chunk_simple(self, sentences: list[str], file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """Simple sentence-based chunking (original implementation)."""
         chunks = []
         start = 0
@@ -350,7 +350,7 @@ class SemanticChunker(TextChunker):
         logger.debug(f"Chunked text into {len(chunks)} semantic chunks (simple mode)")
         return chunks
     
-    def _chunk_advanced(self, sentences: List[str], text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    def _chunk_advanced(self, sentences: list[str], text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """Advanced semantic chunking with similarity calculations."""
         # Get similarities
         similarities = self._get_similarity(sentences)
@@ -413,7 +413,7 @@ class SemanticChunker(TextChunker):
         logger.debug(f"Chunked text into {len(chunks)} semantic chunks (advanced mode)")
         return chunks
     
-    def _split_by_tokens(self, sentence_groups: List[List[str]]) -> List[List[str]]:
+    def _split_by_tokens(self, sentence_groups: list[list[str]]) -> list[list[str]]:
         """Split groups that exceed token limit."""
         if not self.chunk_size_tokens:
             return sentence_groups

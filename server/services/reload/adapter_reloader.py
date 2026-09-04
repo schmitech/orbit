@@ -5,7 +5,7 @@ Coordinates the reload process with cache managers and config manager.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from ..config.config_change_detector import ConfigChangeDetector
 
@@ -52,8 +52,8 @@ class AdapterReloader:
     async def reload_single_adapter(
         self,
         adapter_name: str,
-        new_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        new_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Reload a single adapter configuration.
 
@@ -163,7 +163,7 @@ class AdapterReloader:
                 "new_config": None
             }
 
-    async def reload_all_adapters(self, new_config: Dict[str, Any]) -> Dict[str, Any]:
+    async def reload_all_adapters(self, new_config: dict[str, Any]) -> dict[str, Any]:
         """
         Reload all adapter configurations.
 
@@ -258,7 +258,7 @@ class AdapterReloader:
     async def _preload_adapter_safe(
         self,
         adapter_name: str,
-        adapter_config: Dict[str, Any],
+        adapter_config: dict[str, Any],
         action_desc: str
     ) -> None:
         """
@@ -311,7 +311,7 @@ class AdapterReloader:
         except Exception as e:
             logger.warning(f"Failed to invalidate autocomplete cache after '{adapter_name}' reload: {e}")
 
-    def _register_capabilities(self, adapter_name: str, adapter_config: Dict[str, Any]) -> None:
+    def _register_capabilities(self, adapter_name: str, adapter_config: dict[str, Any]) -> None:
         """Re-register adapter capabilities (including available_skills) after reload."""
         try:
             from adapters.capabilities import get_capability_registry

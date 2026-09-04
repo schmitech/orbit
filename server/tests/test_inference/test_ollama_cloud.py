@@ -13,7 +13,7 @@ import pytest
 import yaml
 import os
 import sys
-from typing import Dict, Any
+from typing import Any
 
 # Get the absolute path to the server directory (parent of tests)
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,7 +30,7 @@ from ollama import AsyncClient
 DEFAULT_TIMEOUT = 120  # Cloud services may need longer timeout
 
 @pytest.fixture
-def config() -> Dict[str, Any]:
+def config() -> dict[str, Any]:
     """Load and return the configuration"""
     # Use the server's config loading function to handle the modular config structure
     try:
@@ -66,7 +66,7 @@ def config() -> Dict[str, Any]:
     return base_config
 
 @pytest.fixture
-def ollama_cloud_config(config: Dict[str, Any]) -> Dict[str, Any]:
+def ollama_cloud_config(config: dict[str, Any]) -> dict[str, Any]:
     """Extract and return Ollama Cloud configuration"""
     ollama_cloud_config = config.get('inference', {}).get('ollama_cloud', {})
     if not ollama_cloud_config:
@@ -77,7 +77,7 @@ def ollama_cloud_config(config: Dict[str, Any]) -> Dict[str, Any]:
     return ollama_cloud_config
 
 @pytest.fixture
-def api_key(ollama_cloud_config: Dict[str, Any]) -> str:
+def api_key(ollama_cloud_config: dict[str, Any]) -> str:
     """Extract and validate API key from config or environment"""
     api_key = ollama_cloud_config.get('api_key', '')
 
@@ -92,7 +92,7 @@ def api_key(ollama_cloud_config: Dict[str, Any]) -> str:
     return api_key
 
 @pytest.fixture
-def base_url(ollama_cloud_config: Dict[str, Any]) -> str:
+def base_url(ollama_cloud_config: dict[str, Any]) -> str:
     """Get base URL from config or use default"""
     return ollama_cloud_config.get('base_url', 'https://ollama.com')
 
@@ -110,7 +110,7 @@ def test_query() -> str:
     """Return a test query"""
     return "What is the cost of the Beginner English fee for service course?"
 
-def test_config_loading(ollama_cloud_config: Dict[str, Any]):
+def test_config_loading(ollama_cloud_config: dict[str, Any]):
     """Test that the configuration is loaded correctly"""
     assert ollama_cloud_config, "Ollama Cloud configuration should not be empty"
     assert "model" in ollama_cloud_config, "Model should be specified in config"
@@ -142,7 +142,7 @@ async def test_ollama_cloud_connection(ollama_client: AsyncClient, base_url: str
         pytest.skip(f"Could not verify Ollama Cloud connection: {str(e)}")
 
 @pytest.mark.asyncio
-async def test_ollama_cloud_response(ollama_client: AsyncClient, ollama_cloud_config: Dict[str, Any], test_query: str):
+async def test_ollama_cloud_response(ollama_client: AsyncClient, ollama_cloud_config: dict[str, Any], test_query: str):
     """Test that Ollama Cloud generates a valid response"""
     model = ollama_cloud_config["model"]
 
@@ -177,7 +177,7 @@ async def test_ollama_cloud_response(ollama_client: AsyncClient, ollama_cloud_co
         pytest.fail(f"Failed to generate response from Ollama Cloud: {str(e)}")
 
 @pytest.mark.asyncio
-async def test_ollama_cloud_streaming_response(ollama_client: AsyncClient, ollama_cloud_config: Dict[str, Any], test_query: str):
+async def test_ollama_cloud_streaming_response(ollama_client: AsyncClient, ollama_cloud_config: dict[str, Any], test_query: str):
     """Test that Ollama Cloud generates a valid streaming response"""
     model = ollama_cloud_config["model"]
 
@@ -272,7 +272,7 @@ async def test_ollama_cloud_invalid_api_key(base_url: str):
         pass
 
 @pytest.mark.asyncio
-async def test_ollama_cloud_parameters(ollama_client: AsyncClient, ollama_cloud_config: Dict[str, Any]):
+async def test_ollama_cloud_parameters(ollama_client: AsyncClient, ollama_cloud_config: dict[str, Any]):
     """Test that generation parameters are properly applied"""
     model = ollama_cloud_config["model"]
 

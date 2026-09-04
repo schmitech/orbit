@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import click
 
@@ -52,7 +52,7 @@ def _prompt_question(q: Question, default: Any) -> Any:
         return click.prompt(q.prompt, default=default, type=int)
 
     # str (optionally with choices); allow blank -> None when default is None (optional field)
-    kwargs: Dict[str, Any] = {"default": default, "show_default": True}
+    kwargs: dict[str, Any] = {"default": default, "show_default": True}
     if q.choices:
         kwargs["type"] = click.Choice(q.choices)
     if default is None:
@@ -61,8 +61,8 @@ def _prompt_question(q: Question, default: Any) -> Any:
     return None if val == "" else val
 
 
-def _collect_answers(spec) -> Dict[str, Any]:
-    answers: Dict[str, Any] = {}
+def _collect_answers(spec) -> dict[str, Any]:
+    answers: dict[str, Any] = {}
     chosen_variant: Optional[str] = None
 
     # Ask the variant selector first so subsequent defaults reflect it.

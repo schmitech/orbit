@@ -5,7 +5,7 @@ Handles PDF files using pypdf (formerly PyPDF2).
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ class PDFProcessor(FileProcessor):
             logger.error(f"Error processing PDF: {e}")
             raise
     
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
         """Extract metadata from PDF."""
         metadata = await super().extract_metadata(file_data, filename)
         

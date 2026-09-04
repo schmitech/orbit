@@ -15,7 +15,7 @@ the provider reachable again.
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import yaml
 
@@ -51,7 +51,7 @@ class _CachingEmbeddingClient:
         self._cache = self._load_cache()
         self._dirty = False
 
-    def _load_cache(self) -> Dict[str, List[float]]:
+    def _load_cache(self) -> dict[str, list[float]]:
         if os.path.exists(self._cache_path):
             with open(self._cache_path, "r") as f:
                 return json.load(f)
@@ -105,9 +105,9 @@ class EvalResult:
     recall_at_5: int = 0
     no_match: int = 0
     errors: int = 0
-    confidences: List[float] = field(default_factory=list)
-    confusions: List[Dict[str, Any]] = field(default_factory=list)
-    failures: List[Dict[str, Any]] = field(default_factory=list)
+    confidences: list[float] = field(default_factory=list)
+    confusions: list[dict[str, Any]] = field(default_factory=list)
+    failures: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def top1_match_rate(self) -> float:
@@ -125,7 +125,7 @@ class EvalResult:
     def mean_top1_confidence(self) -> float:
         return sum(self.confidences) / len(self.confidences) if self.confidences else 0.0
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         return {
             "adapter": self.adapter_name,
             "corpus": self.corpus_path,
@@ -139,7 +139,7 @@ class EvalResult:
         }
 
 
-def load_corpus(corpus_path: str) -> Dict[str, Any]:
+def load_corpus(corpus_path: str) -> dict[str, Any]:
     with open(corpus_path, "r") as f:
         return yaml.safe_load(f)
 
@@ -151,7 +151,7 @@ def default_hr_retriever_config(
     chroma_persist_dir: str,
     template_collection_name: str = "hr_intent_templates_eval",
     confidence_threshold: float = 0.4,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Minimal config to construct a real IntentSQLiteRetriever, mirroring the
     shape used by server/tests/test_retrievers/test_intent_sqlite_retriever.py
     but pointed at a real embedding provider (Ollama) instead of a mock."""

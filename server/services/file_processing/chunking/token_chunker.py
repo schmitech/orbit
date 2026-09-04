@@ -6,7 +6,7 @@ Better for LLM context windows than character-based chunking.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Optional, Union
 
 from .base_chunker import TextChunker, Chunk
 from .utils import TokenizerProtocol
@@ -47,7 +47,7 @@ class TokenChunker(TextChunker):
         self.chunk_size = chunk_size
         self.overlap = overlap
     
-    def chunk_text(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    def chunk_text(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """
         Chunk text into token-based pieces.
         

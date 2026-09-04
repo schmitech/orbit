@@ -12,7 +12,8 @@ import logging
 import re
 import time
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Optional, Union
+from collections.abc import Callable
 
 from .tool_definitions import (
     ExecutionType,
@@ -43,7 +44,7 @@ class BuiltinTools:
         return (value / total) * 100
 
     @staticmethod
-    def calculator_add(values: List[Union[int, float]]) -> Union[int, float]:
+    def calculator_add(values: list[Union[int, float]]) -> Union[int, float]:
         """Add a list of numbers."""
         return sum(values)
 
@@ -53,7 +54,7 @@ class BuiltinTools:
         return a - b
 
     @staticmethod
-    def calculator_multiply(values: List[Union[int, float]]) -> Union[int, float]:
+    def calculator_multiply(values: list[Union[int, float]]) -> Union[int, float]:
         """Multiply a list of numbers."""
         result = 1
         for v in values:
@@ -68,7 +69,7 @@ class BuiltinTools:
         return a / b
 
     @staticmethod
-    def calculator_average(values: List[Union[int, float]]) -> float:
+    def calculator_average(values: list[Union[int, float]]) -> float:
         """Calculate average of a list of numbers."""
         if not values:
             raise ValueError("Cannot calculate average of empty list")
@@ -208,7 +209,7 @@ class BuiltinTools:
     # ========================================================================
 
     @staticmethod
-    def _validate_data_array(data: Any, operation_name: str) -> List[Dict[str, Any]]:
+    def _validate_data_array(data: Any, operation_name: str) -> list[dict[str, Any]]:
         """
         Validate that data is a list of dictionaries.
 
@@ -244,11 +245,11 @@ class BuiltinTools:
 
     @staticmethod
     def json_transform_filter(
-        data: List[Dict[str, Any]],
+        data: list[dict[str, Any]],
         field: str,
         operator: str,
         value: Any
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Filter an array by condition."""
         data = BuiltinTools._validate_data_array(data, "filter")
 
@@ -270,10 +271,10 @@ class BuiltinTools:
 
     @staticmethod
     def json_transform_sort(
-        data: List[Dict[str, Any]],
+        data: list[dict[str, Any]],
         field: str,
         order: str = "asc"
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Sort an array by field."""
         data = BuiltinTools._validate_data_array(data, "sort")
 
@@ -285,16 +286,16 @@ class BuiltinTools:
 
     @staticmethod
     def json_transform_select(
-        data: List[Dict[str, Any]],
-        fields: List[str]
-    ) -> List[Dict[str, Any]]:
+        data: list[dict[str, Any]],
+        fields: list[str]
+    ) -> list[dict[str, Any]]:
         """Select specific fields from each item."""
         data = BuiltinTools._validate_data_array(data, "select")
         return [{k: v for k, v in item.items() if k in fields} for item in data]
 
     @staticmethod
     def json_transform_aggregate(
-        data: List[Dict[str, Any]],
+        data: list[dict[str, Any]],
         field: str,
         operation: str
     ) -> Union[int, float]:
@@ -346,7 +347,7 @@ class ToolExecutor:
         self._builtin_tools = BuiltinTools()
         
         # Map of builtin function names to their operation handlers
-        self._builtin_registry: Dict[str, Dict[str, Callable]] = {
+        self._builtin_registry: dict[str, dict[str, Callable]] = {
             "calculator": {
                 "percentage": self._builtin_tools.calculator_percentage,
                 "add": self._builtin_tools.calculator_add,
@@ -371,7 +372,7 @@ class ToolExecutor:
             },
         }
 
-    def get_available_tools(self) -> Dict[str, List[str]]:
+    def get_available_tools(self) -> dict[str, list[str]]:
         """Return available built-in tools and their operations."""
         return {
             name: list(ops.keys()) 
@@ -381,7 +382,7 @@ class ToolExecutor:
     async def execute(
         self, 
         tool_definition: ToolDefinition, 
-        parameters: Dict[str, Any]
+        parameters: dict[str, Any]
     ) -> ToolResult:
         """
         Execute a tool with the given parameters.
@@ -455,7 +456,7 @@ class ToolExecutor:
         self,
         function_name: str,
         operation: str,
-        parameters: Dict[str, Any]
+        parameters: dict[str, Any]
     ) -> Any:
         """Execute a built-in tool operation."""
         if function_name not in self._builtin_registry:
@@ -530,7 +531,7 @@ class ToolExecutor:
     async def _execute_http(
         self, 
         tool_definition: ToolDefinition, 
-        parameters: Dict[str, Any]
+        parameters: dict[str, Any]
     ) -> Any:
         """Execute an HTTP-based tool (delegates to parent retriever)."""
         if not self.http_executor:
@@ -562,7 +563,7 @@ class ToolExecutor:
 
     def convert_template_to_tool_definition(
         self, 
-        template: Dict[str, Any]
+        template: dict[str, Any]
     ) -> Optional[ToolDefinition]:
         """
         Convert a YAML template dict to a ToolDefinition.
@@ -586,8 +587,8 @@ class ToolExecutor:
 
     def build_openai_tools(
         self, 
-        tool_definitions: List[ToolDefinition]
-    ) -> List[Dict[str, Any]]:
+        tool_definitions: list[ToolDefinition]
+    ) -> list[dict[str, Any]]:
         """
         Convert tool definitions to OpenAI function calling format.
         

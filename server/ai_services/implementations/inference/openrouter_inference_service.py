@@ -8,7 +8,8 @@ SDK Documentation: https://openrouter.ai/docs/sdks/python/overview
 """
 
 import logging
-from typing import Dict, Any, AsyncGenerator, Optional
+from typing import Any, Optional
+from collections.abc import AsyncGenerator
 
 from openrouter import OpenRouter
 
@@ -29,7 +30,7 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
     automatic updates when new models are available.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the OpenRouter inference service."""
         # Initialize InferenceService (which extends ProviderAIService)
         super().__init__(config, "openrouter")

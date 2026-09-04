@@ -8,7 +8,8 @@ Compare with: server/ai_services/implementations/llama_cpp_inference_service.py
 """
 
 import logging
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 from ...base import ServiceType
 from ...services import InferenceService
 from ...providers.shimmy_base import ShimmyBaseService
@@ -23,7 +24,7 @@ class ShimmyInferenceService(InferenceService, ShimmyBaseService):
     Shimmy provides a 100% OpenAI-compatible API for local GGUF model serving.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Shimmy inference service."""
         # Cooperative initialization - call both base classes explicitly
         ShimmyBaseService.__init__(self, config, ServiceType.INFERENCE, "shimmy")
@@ -73,7 +74,7 @@ class ShimmyInferenceService(InferenceService, ShimmyBaseService):
         
         return text.strip()
 
-    def _build_request_params(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    def _build_request_params(self, prompt: str, **kwargs) -> dict[str, Any]:
         """Build the request parameters for the OpenAI-compatible API."""
         messages = kwargs.pop('messages', None)
         messages = self._build_messages(prompt, messages)

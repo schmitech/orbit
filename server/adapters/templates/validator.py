@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from pydantic import ValidationError
 
@@ -34,7 +34,7 @@ class Finding:
 class ValidationReport:
     path: str
     template_count: int = 0
-    findings: List[Finding] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
 
     def add_error(self, template_id: Optional[str], message: str) -> None:
         self.findings.append(Finding(level="error", template_id=template_id, message=message))
@@ -43,11 +43,11 @@ class ValidationReport:
         self.findings.append(Finding(level="warning", template_id=template_id, message=message))
 
     @property
-    def errors(self) -> List[Finding]:
+    def errors(self) -> list[Finding]:
         return [f for f in self.findings if f.level == "error"]
 
     @property
-    def warnings(self) -> List[Finding]:
+    def warnings(self) -> list[Finding]:
         return [f for f in self.findings if f.level == "warning"]
 
     @property
@@ -72,13 +72,13 @@ class TemplateValidationError(ValueError):
         )
 
 
-def content_hash(template: Dict[str, Any]) -> str:
+def content_hash(template: dict[str, Any]) -> str:
     """Stable sha256 hash of a template's canonicalized content, for audit/drift detection."""
     canonical = json.dumps(template, sort_keys=True, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _extract_templates(raw: Any) -> List[Any]:
+def _extract_templates(raw: Any) -> list[Any]:
     templates = raw.get("templates", raw) if isinstance(raw, dict) else raw
     if isinstance(templates, dict):
         return list(templates.values())
@@ -87,12 +87,12 @@ def _extract_templates(raw: Any) -> List[Any]:
     return []
 
 
-def _format_pydantic_error(err: Dict[str, Any]) -> str:
+def _format_pydantic_error(err: dict[str, Any]) -> str:
     loc = ".".join(str(p) for p in err.get("loc", ()))
     return f"{loc}: {err.get('msg')}" if loc else str(err.get("msg"))
 
 
-def scan_scaffolding_markers(source_text: str) -> List[str]:
+def scan_scaffolding_markers(source_text: str) -> list[str]:
     """Flag lines carrying a FIXME/TODO comment — a template left in a
     known-incomplete state by its author. Line-based since these are YAML
     comments, stripped before the file ever reaches parsed data."""
@@ -105,7 +105,7 @@ def scan_scaffolding_markers(source_text: str) -> List[str]:
 
 
 def validate_library(
-    raw: Optional[Dict[str, Any]],
+    raw: Optional[dict[str, Any]],
     *,
     path: str,
     strict: bool = False,

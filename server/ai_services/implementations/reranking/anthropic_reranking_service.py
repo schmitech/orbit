@@ -6,7 +6,7 @@ Claude excels at instruction following and nuanced relevance judgments.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 import json
 
 from ...providers import AnthropicBaseService
@@ -31,7 +31,7 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
     """
     SUPPORTS_USAGE_REPORTING = True
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Anthropic reranking service.
 
@@ -62,11 +62,11 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
     async def rerank(
         self,
         query: str,
-        documents: List[str],
+        documents: list[str],
         top_n: Optional[int] = None,
         _skip_init_check: bool = False,
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """
         Rerank documents using Claude models via prompt engineering.
 
@@ -119,10 +119,10 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
     async def _score_batch(
         self,
         query: str,
-        documents: List[str],
+        documents: list[str],
         offset: int = 0,
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """
         Score a batch of documents using Claude.
 
@@ -199,7 +199,7 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
                 for idx, doc in enumerate(documents)
             ]
 
-    def _create_scoring_prompt(self, query: str, documents: List[str]) -> str:
+    def _create_scoring_prompt(self, query: str, documents: list[str]) -> str:
         """
         Create a prompt for document scoring.
 

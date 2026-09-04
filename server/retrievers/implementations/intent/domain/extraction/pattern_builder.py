@@ -4,7 +4,7 @@ Pattern builder for constructing regex patterns for domain fields
 
 import re
 import logging
-from typing import Dict, Optional
+from typing import Optional
 from ...domain import DomainConfig, FieldConfig
 
 logger = logging.getLogger(__name__)
@@ -16,9 +16,9 @@ class PatternBuilder:
     def __init__(self, domain_config: DomainConfig):
         """Initialize pattern builder with domain configuration"""
         self.domain_config = domain_config
-        self.patterns: Dict[str, re.Pattern] = {}
+        self.patterns: dict[str, re.Pattern] = {}
 
-    def build_patterns(self) -> Dict[str, re.Pattern]:
+    def build_patterns(self) -> dict[str, re.Pattern]:
         """Build all patterns for the domain"""
         for entity_name, entity in self.domain_config.entities.items():
             for field_name, field_config in entity.fields.items():

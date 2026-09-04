@@ -10,7 +10,8 @@ import asyncio
 import base64
 import logging
 import inspect
-from typing import Dict, Any, Optional, AsyncIterator, Tuple
+from typing import Any, Optional
+from collections.abc import AsyncIterator
 from collections import deque
 
 from utils.sentence_detector import SentenceDetector
@@ -44,7 +45,7 @@ class StreamingHandler:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         audio_handler: AudioHandler
     ):
         """
@@ -86,7 +87,7 @@ class StreamingHandler:
         tts_voice: Optional[str],
         language: Optional[str],
         chunk_index: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """
         Generate audio for a single sentence with timeout.
 
@@ -105,7 +106,7 @@ class StreamingHandler:
             Audio chunk dictionary or None if generation fails
         """
         try:
-            async def _generate_audio() -> Tuple[Optional[bytes], Optional[str]]:
+            async def _generate_audio() -> tuple[Optional[bytes], Optional[str]]:
                 # Prefer provider-level streaming when available, then fall back
                 # to the stable non-streaming AudioHandler contract.
                 audio_chunks = []
@@ -206,7 +207,7 @@ class StreamingHandler:
     async def _yield_ready_audio_chunks(
         self, 
         state: StreamingState
-    ) -> AsyncIterator[Tuple[str, StreamingState]]:
+    ) -> AsyncIterator[tuple[str, StreamingState]]:
         """
         Yield any ready audio chunks in order.
 
@@ -241,7 +242,7 @@ class StreamingHandler:
         tts_voice: Optional[str] = None,
         language: Optional[str] = None,
         return_audio: bool = False
-    ) -> AsyncIterator[Tuple[str, StreamingState]]:
+    ) -> AsyncIterator[tuple[str, StreamingState]]:
         """
         Process the pipeline stream, yielding chunks and managing state.
 
@@ -450,7 +451,7 @@ class StreamingHandler:
         tts_voice: Optional[str] = None,
         language: Optional[str] = None,
         return_audio: bool = False
-    ) -> AsyncIterator[Tuple[Dict[str, Any], StreamingState]]:
+    ) -> AsyncIterator[tuple[dict[str, Any], StreamingState]]:
         """
         Process the pipeline stream, yielding structured data (no SSE formatting).
 
@@ -567,7 +568,7 @@ class StreamingHandler:
         state: StreamingState,
         audio_data: Optional[bytes] = None,
         audio_format_str: Optional[str] = None,
-        threading_metadata: Optional[Dict[str, Any]] = None,
+        threading_metadata: Optional[dict[str, Any]] = None,
         assistant_message_id: Optional[str] = None,
         model: Optional[str] = None,
         image: Optional[str] = None,

@@ -3,7 +3,7 @@ Intent adapter for SQL datasources that translates natural language queries to S
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Optional, Union
 import asyncio
 
 from adapters.http.adapter import HttpAdapter
@@ -25,9 +25,9 @@ class IntentAdapter(HttpAdapter):
 
     def __init__(self,
                  domain_config_path: Optional[str] = None,
-                 template_library_path: Optional[Union[str, List[str]]] = None,
+                 template_library_path: Optional[Union[str, list[str]]] = None,
                  confidence_threshold: float = 0.1,
-                 config: Dict[str, Any] = None,
+                 config: dict[str, Any] = None,
                  **kwargs):
         super().__init__(
             domain_config_path=domain_config_path,

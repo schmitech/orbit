@@ -17,7 +17,7 @@ Features:
 import asyncio
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -37,7 +37,7 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
     is enabled and Redis is available.
     """
 
-    def __init__(self, app, config: Dict[str, Any]):
+    def __init__(self, app, config: dict[str, Any]):
         """
         Initialize throttle middleware.
 

@@ -6,7 +6,7 @@ Abstract base class defining the interface for all datasource implementations.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 class BaseDatasource(ABC):
@@ -17,7 +17,7 @@ class BaseDatasource(ABC):
     must follow, ensuring consistency across different database types.
     """
     
-    def __init__(self, config: Dict[str, Any], logger: Optional[logging.Logger] = None):
+    def __init__(self, config: dict[str, Any], logger: Optional[logging.Logger] = None):
         """
         Initialize the base datasource.
         

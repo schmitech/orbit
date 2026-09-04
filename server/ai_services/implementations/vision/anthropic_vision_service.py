@@ -4,7 +4,7 @@ Anthropic vision service implementation using unified architecture.
 This implementation provides vision capabilities using Anthropic's Claude models.
 """
 
-from typing import Dict, Any, Optional, Union, List
+from typing import Any, Optional, Union
 from PIL import Image
 
 from ...base import ServiceType
@@ -24,7 +24,7 @@ class AnthropicVisionService(UsageReportingMixin, VisionService, AnthropicBaseSe
     - Multimodal inference (image + text)
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Anthropic vision service."""
         # Initialize via AnthropicBaseService first
         AnthropicBaseService.__init__(self, config, ServiceType.VISION, "anthropic")
@@ -37,7 +37,7 @@ class AnthropicVisionService(UsageReportingMixin, VisionService, AnthropicBaseSe
         self,
         image: Union[str, bytes, Image.Image],
         prompt: str = "Analyze this image in detail. Describe what you see, including any text, objects, and overall context.",
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Analyze image content with detailed response."""
         if not self.initialized:
@@ -103,7 +103,7 @@ class AnthropicVisionService(UsageReportingMixin, VisionService, AnthropicBaseSe
     async def describe_image(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Generate description of image."""
         return await self.analyze_image(
@@ -115,7 +115,7 @@ class AnthropicVisionService(UsageReportingMixin, VisionService, AnthropicBaseSe
     async def extract_text_from_image(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Extract text from image using OCR."""
         return await self.analyze_image(
@@ -127,8 +127,8 @@ class AnthropicVisionService(UsageReportingMixin, VisionService, AnthropicBaseSe
     async def detect_objects(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """Detect objects in image."""
         description = await self.analyze_image(
             image,
@@ -154,7 +154,7 @@ class AnthropicVisionService(UsageReportingMixin, VisionService, AnthropicBaseSe
         self,
         image: Union[str, bytes, Image.Image],
         text_prompt: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """Perform multimodal inference with image and text."""

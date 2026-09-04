@@ -1,5 +1,5 @@
 import io
-from typing import Dict, Any
+from typing import Any
 
 from .base import BaseRenderer
 
@@ -18,7 +18,7 @@ class XlsxRenderer(BaseRenderer):
         except ValueError:
             return s
 
-    def render(self, spec: Dict[str, Any]) -> bytes:
+    def render(self, spec: dict[str, Any]) -> bytes:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 

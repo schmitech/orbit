@@ -2,7 +2,7 @@
 Azure OpenAI embedding service implementation.
 """
 
-from typing import List, Dict, Any
+from typing import Any
 import asyncio
 import logging
 
@@ -23,7 +23,7 @@ class AzureEmbeddingService(UsageReportingMixin, EmbeddingService, AzureBaseServ
     AzureBaseService) instead of a raw model id.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         # Only AzureBaseService.__init__ is called (not EmbeddingService's) —
         # AzureBaseService's cooperative super().__init__() already reaches
         # ProviderAIService.__init__ with ServiceType.EMBEDDING, and
@@ -69,7 +69,7 @@ class AzureEmbeddingService(UsageReportingMixin, EmbeddingService, AzureBaseServ
     async def verify_connection(self) -> bool:
         return self.initialized
 
-    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> list[float]:
         """Generate embeddings for a single query text."""
         await self._ensure_initialized("Azure embedding service")
 
@@ -91,7 +91,7 @@ class AzureEmbeddingService(UsageReportingMixin, EmbeddingService, AzureBaseServ
             self._handle_azure_error(e, "embedding query")
             raise
 
-    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         """Generate embeddings for multiple documents, batched to avoid rate limits."""
         await self._ensure_initialized("Azure embedding service")
 
@@ -115,7 +115,7 @@ class AzureEmbeddingService(UsageReportingMixin, EmbeddingService, AzureBaseServ
 
         return all_embeddings
 
-    async def _embed_batch(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def _embed_batch(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         """Generate embeddings for a batch of texts."""
         try:
             response = await self.client.embeddings.create(

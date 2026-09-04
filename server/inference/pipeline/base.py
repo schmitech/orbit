@@ -8,7 +8,8 @@ the pipeline-based inference system.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, AsyncGenerator, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
+from collections.abc import AsyncGenerator
 
 if TYPE_CHECKING:
     from .service_container import ServiceContainer
@@ -29,17 +30,17 @@ class ProcessingContext:
     adapter_name: str = ""
     system_prompt_id: Optional[str] = None
     inference_provider: Optional[str] = None
-    context_messages: List[Dict[str, str]] = field(default_factory=list)
+    context_messages: list[dict[str, str]] = field(default_factory=list)
     
     # Processing data
-    retrieved_docs: List[Dict[str, Any]] = field(default_factory=list)
+    retrieved_docs: list[dict[str, Any]] = field(default_factory=list)
     formatted_context: str = ""
     full_prompt: str = ""
-    messages: Optional[List[Dict[str, str]]] = None  # For message-based prompt format
+    messages: Optional[list[dict[str, str]]] = None  # For message-based prompt format
     
     # Output data
     response: str = ""
-    sources: List[Dict[str, Any]] = field(default_factory=list)
+    sources: list[dict[str, Any]] = field(default_factory=list)
     processing_time: float = 0.0
     
     # Control flow
@@ -47,8 +48,8 @@ class ProcessingContext:
     error: Optional[str] = None
     
     # Metadata
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    config: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any] = field(default_factory=dict)
     
     # Security tracking
     user_id: Optional[str] = None
@@ -58,7 +59,7 @@ class ProcessingContext:
     time_format: Optional[str] = None  # Per-adapter time format override
     
     # File context
-    file_ids: List[str] = field(default_factory=list)  # Optional list of file IDs for file context
+    file_ids: list[str] = field(default_factory=list)  # Optional list of file IDs for file context
     
     # Thread context
     thread_id: Optional[str] = None  # Optional thread ID for follow-up questions on stored datasets
@@ -82,19 +83,19 @@ class ProcessingContext:
     runtime_model_name: Optional[str] = None
     # Optional temperature/max_tokens/context_window overrides from the matched
     # allowed_models entry, layered on top of the adapter's own overrides
-    runtime_param_overrides: Optional[Dict[str, Any]] = None
+    runtime_param_overrides: Optional[dict[str, Any]] = None
     # Optional provider-specific overrides (size/quality/aspect_ratio/...) from the
     # matched allowed_image_models entry, for image_generation adapters
-    runtime_image_param_overrides: Optional[Dict[str, Any]] = None
+    runtime_image_param_overrides: Optional[dict[str, Any]] = None
     # Optional provider-specific overrides (aspect_ratio/resolution/duration/...) from the
     # matched allowed_video_models entry, for video_generation adapters
-    runtime_video_param_overrides: Optional[Dict[str, Any]] = None
+    runtime_video_param_overrides: Optional[dict[str, Any]] = None
     # Optional provider-specific overrides (voice/format/...) from the
     # matched allowed_audio_models entry, for audio_generation adapters
-    runtime_audio_param_overrides: Optional[Dict[str, Any]] = None
+    runtime_audio_param_overrides: Optional[dict[str, Any]] = None
     # Search backend override (provider/result_count/filter_list/...) from the
     # matched allowed_search_providers entry, for web-search adapters
-    runtime_search_provider_overrides: Optional[Dict[str, Any]] = None
+    runtime_search_provider_overrides: Optional[dict[str, Any]] = None
 
     # Skill invocation (set when client sends skill= in request)
     requested_skill: Optional[str] = None
@@ -113,7 +114,7 @@ class ProcessingContext:
     # Opportunistic MCP tools: enables an inline bounded tool-calling loop on
     # the inference call for adapters that are NOT type == "mcp_agent".
     mcp_tools: bool = False
-    mcp_servers_allowlist: Optional[List[str]] = None  # None = all enabled servers
+    mcp_servers_allowlist: Optional[list[str]] = None  # None = all enabled servers
 
     # Image generation output
     image: Optional[str] = None               # base64-encoded generated image

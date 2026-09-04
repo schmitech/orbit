@@ -12,7 +12,7 @@ Single extension point for cache backends. To add a new provider:
 """
 
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from .base import CacheProvider
 from .memcached_provider import MemcachedCacheProvider
@@ -42,7 +42,7 @@ _PROVIDER_CONFIG_SECTIONS = {
 _IMPLICITLY_ENABLED_PROVIDERS = {"sqlite"}
 
 
-def get_provider_config(config: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+def get_provider_config(config: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Resolve the configured provider name and its internal_services config section."""
     provider_name = config.get('internal_services', {}).get('cache', {}).get('provider', 'redis')
     provider_name = (provider_name or 'redis').lower()
@@ -51,7 +51,7 @@ def get_provider_config(config: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
     return provider_name, provider_config
 
 
-def is_provider_enabled(provider_name: str, provider_config: Dict[str, Any]) -> bool:
+def is_provider_enabled(provider_name: str, provider_config: dict[str, Any]) -> bool:
     """Whether the given provider is enabled, independent of the cache.enabled master switch."""
     if provider_name in _IMPLICITLY_ENABLED_PROVIDERS:
         return True
@@ -60,7 +60,7 @@ def is_provider_enabled(provider_name: str, provider_config: Dict[str, Any]) -> 
     return is_true_value(provider_config.get('enabled', False))
 
 
-def create_cache_service(config: Dict[str, Any]) -> CacheProvider:
+def create_cache_service(config: dict[str, Any]) -> CacheProvider:
     """Instantiate the configured cache provider (internal_services.cache.provider)."""
     provider_name, _ = get_provider_config(config)
 

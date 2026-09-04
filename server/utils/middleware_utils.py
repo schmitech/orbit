@@ -1,6 +1,6 @@
 """Shared middleware helpers."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
 
 def path_is_excluded(path: str, excluded: Sequence[str]) -> bool:

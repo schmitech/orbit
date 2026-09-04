@@ -4,7 +4,7 @@ Significantly reduced code duplication.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -17,7 +17,7 @@ class MySQLRetriever(BaseSQLDatabaseRetriever):
     Demonstrates significant code reduction while maintaining functionality.
     """
     
-    def __init__(self, config: Dict[str, Any], connection: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], connection: Any = None, **kwargs):
         """Initialize MySQL retriever."""
         super().__init__(config=config, connection=connection, **kwargs)
         
@@ -95,7 +95,7 @@ class MySQLRetriever(BaseSQLDatabaseRetriever):
         """MySQL test query."""
         return "SELECT 1 as test"
     
-    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """Execute MySQL query and return raw results."""
         cursor = None
         try:
@@ -168,7 +168,7 @@ class MySQLRetriever(BaseSQLDatabaseRetriever):
             logger.error(f"Error verifying MySQL database structure: {e}")
             raise
 
-    def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
+    def _get_search_query(self, query: str, collection_name: str) -> dict[str, Any]:
         """Generate MySQL-optimized search query with full-text search."""
         if self.use_full_text_search:
             query_tokens = self._tokenize_text(query)

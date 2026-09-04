@@ -9,7 +9,7 @@ operator-guidance comments.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
@@ -26,7 +26,7 @@ _env = Environment(
 )
 
 
-def render_adapter(spec: AdapterSpec, answers: Dict[str, Any]) -> str:
+def render_adapter(spec: AdapterSpec, answers: dict[str, Any]) -> str:
     """Render one adapter file from a spec and a full set of answers."""
     context = spec.resolve(answers)
     template = _env.get_template(spec.template)

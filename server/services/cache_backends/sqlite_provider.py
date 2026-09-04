@@ -28,7 +28,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from .base import CacheProvider, CircuitBreaker, is_cache_master_enabled
 
@@ -38,10 +38,10 @@ logger = logging.getLogger(__name__)
 class SqliteCacheProvider(CacheProvider):
     """Cache provider backed by a dedicated SQLite database file."""
 
-    _instances: Dict[str, 'SqliteCacheProvider'] = {}
+    _instances: dict[str, 'SqliteCacheProvider'] = {}
     _lock = threading.Lock()
 
-    def __new__(cls, config: Dict[str, Any]):
+    def __new__(cls, config: dict[str, Any]):
         cache_key = cls._create_cache_key(config)
 
         with cls._lock:
@@ -52,7 +52,7 @@ class SqliteCacheProvider(CacheProvider):
             return cls._instances[cache_key]
 
     @classmethod
-    def _create_cache_key(cls, config: Dict[str, Any]) -> str:
+    def _create_cache_key(cls, config: dict[str, Any]) -> str:
         sqlite_config = config.get('internal_services', {}).get('sqlite_cache', {})
         return f"sqlite_cache:{sqlite_config.get('database_path', 'orbit_cache.db')}"
 
@@ -62,7 +62,7 @@ class SqliteCacheProvider(CacheProvider):
         with cls._lock:
             cls._instances.clear()
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         if hasattr(self, '_singleton_initialized'):
             return
 
@@ -223,7 +223,7 @@ class SqliteCacheProvider(CacheProvider):
             self.connection.commit()
             return cur.rowcount > 0
 
-    def _mget_sync(self, keys: tuple) -> List[Optional[str]]:
+    def _mget_sync(self, keys: tuple) -> list[Optional[str]]:
         now = time.time()
         with self._db_lock:
             placeholders = ','.join(['?'] * len(keys))
@@ -241,7 +241,7 @@ class SqliteCacheProvider(CacheProvider):
                 result.append(None if (expires_at is not None and expires_at <= now) else value)
         return result
 
-    def _mset_sync(self, mapping: Dict[str, str]) -> bool:
+    def _mset_sync(self, mapping: dict[str, str]) -> bool:
         expires_at = time.time() + self.default_ttl if self.default_ttl else None
         with self._db_lock:
             self.connection.executemany(
@@ -308,17 +308,17 @@ class SqliteCacheProvider(CacheProvider):
 
     def _check_and_increment_sync(
         self,
-        checks: List[Tuple[str, str, int, Optional[int]]],
+        checks: list[tuple[str, str, int, Optional[int]]],
         amount: int,
-    ) -> Tuple[Dict[str, int], Optional[str]]:
+    ) -> tuple[dict[str, int], Optional[str]]:
         """Check all counters against their limits and increment all of them (or
         none) in a single BEGIN IMMEDIATE transaction - atomic across processes."""
         now = time.time()
         with self._db_lock:
             self.connection.execute("BEGIN IMMEDIATE")
             try:
-                current_counts: Dict[str, int] = {}
-                is_fresh: Dict[str, bool] = {}
+                current_counts: dict[str, int] = {}
+                is_fresh: dict[str, bool] = {}
                 exceeded_name: Optional[str] = None
                 for name, key, _ttl, limit in checks:
                     cur = self.connection.execute(
@@ -342,7 +342,7 @@ class SqliteCacheProvider(CacheProvider):
                     self.connection.rollback()
                     return current_counts, exceeded_name
 
-                new_counts: Dict[str, int] = {}
+                new_counts: dict[str, int] = {}
                 for name, key, ttl, _limit in checks:
                     new_count = current_counts[name] + amount
                     if is_fresh[name]:
@@ -450,7 +450,7 @@ class SqliteCacheProvider(CacheProvider):
             self._handle_error("expire", e)
             return False
 
-    async def mget(self, *keys: str) -> List[Optional[str]]:
+    async def mget(self, *keys: str) -> list[Optional[str]]:
         if not self._is_available() or not keys:
             return [None] * len(keys)
         try:
@@ -462,7 +462,7 @@ class SqliteCacheProvider(CacheProvider):
             self._handle_error("mget", e)
             return [None] * len(keys)
 
-    async def mset(self, mapping: Dict[str, str]) -> bool:
+    async def mset(self, mapping: dict[str, str]) -> bool:
         if not self._is_available() or not mapping:
             return False
         try:
@@ -500,9 +500,9 @@ class SqliteCacheProvider(CacheProvider):
 
     async def check_and_increment(
         self,
-        checks: List[Tuple[str, str, int, Optional[int]]],
+        checks: list[tuple[str, str, int, Optional[int]]],
         amount: int = 1,
-    ) -> Tuple[Dict[str, int], Optional[str]]:
+    ) -> tuple[dict[str, int], Optional[str]]:
         if not checks:
             return {}, None
         if not self._is_available():
@@ -531,7 +531,7 @@ class SqliteCacheProvider(CacheProvider):
             self._handle_error("clear_by_pattern", e)
             return 0
 
-    def get_health_stats(self) -> Dict[str, Any]:
+    def get_health_stats(self) -> dict[str, Any]:
         return {
             "provider": "sqlite",
             "enabled": self.enabled,

@@ -10,7 +10,7 @@ memory usage by not loading disabled providers.
 import pytest
 import sys
 import os
-from typing import Dict, Any
+from typing import Any
 from unittest.mock import patch, MagicMock
 
 # Get the absolute path to the server directory (parent of tests)
@@ -42,7 +42,7 @@ class TestInferenceProviderRegistration:
         registry_module._services_registered = False
 
     @pytest.fixture
-    def enabled_providers_config(self) -> Dict[str, Any]:
+    def enabled_providers_config(self) -> dict[str, Any]:
         """Create a config with only some providers enabled."""
         return {
             "inference": {
@@ -76,7 +76,7 @@ class TestInferenceProviderRegistration:
         }
 
     @pytest.fixture
-    def all_disabled_config(self) -> Dict[str, Any]:
+    def all_disabled_config(self) -> dict[str, Any]:
         """Create a config with all providers disabled."""
         return {
             "inference": {

@@ -9,7 +9,7 @@ Stores AdminAuditRecord documents into an Elasticsearch index
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from elasticsearch import AsyncElasticsearch
 from elasticsearch.exceptions import ApiError
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
     """Elasticsearch implementation of admin audit storage."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self._es_client: Optional[AsyncElasticsearch] = None
         admin_cfg = (
@@ -160,12 +160,12 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
 
     async def query(
         self,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = "timestamp",
         sort_order: int = -1,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         if not self._initialized or not self._es_client:
             return []
 

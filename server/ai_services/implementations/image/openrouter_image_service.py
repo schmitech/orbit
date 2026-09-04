@@ -6,7 +6,7 @@ API Documentation: https://openrouter.ai/docs/api/api-reference/images/generate-
 
 import base64
 import logging
-from typing import Dict, Any
+from typing import Any
 
 from openrouter import OpenRouter
 from openrouter.utils.retries import BackoffStrategy, RetryConfig
@@ -31,7 +31,7 @@ class OpenRouterImageService(ImageGenerationService):
 
     DEFAULT_IMAGE_MODEL = "bytedance-seed/seedream-4.5"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "openrouter")
         provider_config = self._extract_provider_config()
 
@@ -93,14 +93,14 @@ class OpenRouterImageService(ImageGenerationService):
             logger.error(f"OpenRouter image generation connection verification failed: {e}")
             return False
 
-    async def generate_image(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_image(self, prompt: str, **kwargs) -> dict[str, Any]:
         if not self.initialized:
             if not await self.initialize():
                 raise ValueError("Failed to initialize OpenRouter image generation service")
 
         model = kwargs.get("model") or self.model
 
-        async def _generate() -> Dict[str, Any]:
+        async def _generate() -> dict[str, Any]:
             params = {
                 "model": model,
                 "prompt": prompt,

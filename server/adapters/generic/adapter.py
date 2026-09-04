@@ -5,7 +5,7 @@ This adapter provides basic document formatting and filtering without
 domain-specific logic (unlike QA or Intent adapters).
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 import logging
 from adapters.base import DocumentAdapter
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class GenericDocumentAdapter(DocumentAdapter):
     """Adapter for generic document retrieval (not QA-specific)"""
 
-    def __init__(self, config: Dict[str, Any] = None, **kwargs):
+    def __init__(self, config: dict[str, Any] = None, **kwargs):
         """
         Initialize generic document adapter.
 
@@ -29,7 +29,7 @@ class GenericDocumentAdapter(DocumentAdapter):
         # Extract configuration values with sensible defaults
         self.confidence_threshold = self.config.get('confidence_threshold', 0.3)
 
-    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def format_document(self, raw_doc: str, metadata: dict[str, Any]) -> dict[str, Any]:
         """Format document for general retrieval"""
         item = {
             "raw_document": raw_doc,
@@ -43,13 +43,13 @@ class GenericDocumentAdapter(DocumentAdapter):
 
         return item
 
-    def extract_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
+    def extract_direct_answer(self, context: list[dict[str, Any]]) -> Optional[str]:
         """Generic documents don't have direct answers"""
         return None
 
     def apply_domain_specific_filtering(self,
-                                      context_items: List[Dict[str, Any]],
-                                      query: str) -> List[Dict[str, Any]]:
+                                      context_items: list[dict[str, Any]],
+                                      query: str) -> list[dict[str, Any]]:
         """Apply generic content filtering"""
         if not context_items:
             return []

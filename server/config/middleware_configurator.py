@@ -15,12 +15,12 @@ from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from typing import Dict, Any, List
+from typing import Any
 
 _logger = logging.getLogger(__name__)
 
 
-def _cache_provider_enabled(config: Dict[str, Any]) -> bool:
+def _cache_provider_enabled(config: dict[str, Any]) -> bool:
     """True if the master switch and the configured cache provider's own flag are both on."""
     from services.cache_backends import get_provider_config, is_cache_master_enabled, is_provider_enabled
 
@@ -44,7 +44,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     - Permissions-Policy
     """
 
-    def __init__(self, app, headers_config: Dict[str, Any], https_enabled: bool = False):
+    def __init__(self, app, headers_config: dict[str, Any], https_enabled: bool = False):
         super().__init__(app)
         self.headers_config = headers_config
         self.https_enabled = https_enabled
@@ -90,7 +90,7 @@ class MiddlewareConfigurator:
     """
 
     @staticmethod
-    def configure_middleware(app: FastAPI, config: Dict[str, Any], logger: logging.Logger) -> None:
+    def configure_middleware(app: FastAPI, config: dict[str, Any], logger: logging.Logger) -> None:
         """
         Configure all middleware for the FastAPI application.
 
@@ -131,7 +131,7 @@ class MiddlewareConfigurator:
         MiddlewareConfigurator._configure_admin_audit_middleware(app, config)
 
     @staticmethod
-    def _configure_admin_audit_middleware(app: FastAPI, config: Dict[str, Any]) -> None:
+    def _configure_admin_audit_middleware(app: FastAPI, config: dict[str, Any]) -> None:
         """
         Configure admin/auth audit middleware.
 
@@ -157,7 +157,7 @@ class MiddlewareConfigurator:
             _logger.warning(f"Failed to configure admin audit middleware: {e}")
 
     @staticmethod
-    def _configure_security_headers_middleware(app: FastAPI, config: Dict[str, Any]) -> None:
+    def _configure_security_headers_middleware(app: FastAPI, config: dict[str, Any]) -> None:
         """Configure security headers middleware for enhanced security."""
         security_config = config.get('security', {}) or {}
         headers_config = security_config.get('headers', {}) or {}
@@ -171,7 +171,7 @@ class MiddlewareConfigurator:
             _logger.warning("Security headers middleware is DISABLED - this is not recommended for production")
 
     @staticmethod
-    def _configure_cors_middleware(app: FastAPI, config: Dict[str, Any]) -> None:
+    def _configure_cors_middleware(app: FastAPI, config: dict[str, Any]) -> None:
         """
         Configure CORS middleware for cross-origin requests with security validation.
 
@@ -186,11 +186,11 @@ class MiddlewareConfigurator:
         if not cors_config:
             cors_config = config.get('cors', {}) or {}
 
-        allowed_origins: List[str] = cors_config.get('allowed_origins', ["*"])
+        allowed_origins: list[str] = cors_config.get('allowed_origins', ["*"])
         allow_credentials: bool = cors_config.get('allow_credentials', False)
-        allowed_methods: List[str] = cors_config.get('allowed_methods', ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
-        allowed_headers: List[str] = cors_config.get('allowed_headers', ["Authorization", "Content-Type", "X-API-Key", "X-Session-ID"])
-        expose_headers: List[str] = cors_config.get('expose_headers', [])
+        allowed_methods: list[str] = cors_config.get('allowed_methods', ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
+        allowed_headers: list[str] = cors_config.get('allowed_headers', ["Authorization", "Content-Type", "X-API-Key", "X-Session-ID"])
+        expose_headers: list[str] = cors_config.get('expose_headers', [])
         max_age: int = cors_config.get('max_age', 600)
 
         has_wildcard = "*" in allowed_origins
@@ -231,7 +231,7 @@ class MiddlewareConfigurator:
         _logger.info("CORS middleware configured successfully")
 
     @staticmethod
-    def _configure_mcp_host_validation_middleware(app: FastAPI, config: Dict[str, Any]) -> None:
+    def _configure_mcp_host_validation_middleware(app: FastAPI, config: dict[str, Any]) -> None:
         """
         Configure Host/Origin validation on the /mcp mount.
 
@@ -243,7 +243,7 @@ class MiddlewareConfigurator:
         from middleware.mcp_host_validation_middleware import MCPHostValidationMiddleware
 
         cors_config = (config.get('security', {}) or {}).get('cors', {}) or config.get('cors', {}) or {}
-        allowed_origins: List[str] = cors_config.get('allowed_origins', [])
+        allowed_origins: list[str] = cors_config.get('allowed_origins', [])
         allowed_hosts = []
         for origin in allowed_origins:
             if origin and origin != "*":
@@ -296,7 +296,7 @@ class MiddlewareConfigurator:
             _logger.warning(f"Failed to configure metrics middleware: {e}")
 
     @staticmethod
-    def _configure_rate_limit_middleware(app: FastAPI, config: Dict[str, Any]) -> None:
+    def _configure_rate_limit_middleware(app: FastAPI, config: dict[str, Any]) -> None:
         """
         Configure rate limiting middleware for abuse prevention.
 
@@ -327,7 +327,7 @@ class MiddlewareConfigurator:
             _logger.warning(f"Failed to configure rate limit middleware: {e}")
 
     @staticmethod
-    def _configure_throttle_middleware(app: FastAPI, config: Dict[str, Any]) -> None:
+    def _configure_throttle_middleware(app: FastAPI, config: dict[str, Any]) -> None:
         """
         Configure throttle middleware for quota-based request delays.
 
@@ -358,7 +358,7 @@ class MiddlewareConfigurator:
             _logger.warning(f"Failed to configure throttle middleware: {e}")
 
     @staticmethod
-    def _configure_compression_middleware(app: FastAPI, config: Dict[str, Any]) -> None:
+    def _configure_compression_middleware(app: FastAPI, config: dict[str, Any]) -> None:
         """
         Configure GZip compression middleware.
 
@@ -393,7 +393,7 @@ class MiddlewareConfigurator:
             _logger.warning(f"Failed to configure compression middleware: {e}")
 
     @staticmethod
-    def _configure_etag_middleware(app: FastAPI, config: Dict[str, Any]) -> None:
+    def _configure_etag_middleware(app: FastAPI, config: dict[str, Any]) -> None:
         """
         Configure ETag caching middleware for GET requests.
 

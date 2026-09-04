@@ -27,7 +27,7 @@ import random
 import time
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import aiohttp
 
@@ -44,7 +44,7 @@ def safe_int(value: Optional[str]) -> Optional[int]:
 
 
 def load_config(path: Path, host_override: Optional[str], endpoint_override: Optional[str],
-                 adapter_subset: Optional[List[str]]) -> Dict[str, Any]:
+                 adapter_subset: Optional[list[str]]) -> dict[str, Any]:
     with open(path) as f:
         config = json.load(f)
 
@@ -66,7 +66,7 @@ def load_config(path: Path, host_override: Optional[str], endpoint_override: Opt
     return config
 
 
-def parse_stages(stages_str: str) -> List[tuple]:
+def parse_stages(stages_str: str) -> list[tuple]:
     stages = []
     for part in stages_str.split(","):
         users_str, seconds_str = part.strip().split(":")
@@ -74,12 +74,12 @@ def parse_stages(stages_str: str) -> List[tuple]:
     return stages
 
 
-def weighted_choice(adapters: List[Dict[str, Any]]) -> Dict[str, Any]:
+def weighted_choice(adapters: list[dict[str, Any]]) -> dict[str, Any]:
     weights = [max(0.0001, float(a.get("weight", 1))) for a in adapters]
     return random.choices(adapters, weights=weights, k=1)[0]
 
 
-def build_stage_schedule(stages: List[tuple], spawn_rate: float) -> List[tuple]:
+def build_stage_schedule(stages: list[tuple], spawn_rate: float) -> list[tuple]:
     """Turn a (target, hold_duration) stage list into a schedule of
     (ramp_start, ramp_end, hold_end, prev_target, target) tuples.
 
@@ -101,7 +101,7 @@ def build_stage_schedule(stages: List[tuple], spawn_rate: float) -> List[tuple]:
     return schedule
 
 
-def target_at(elapsed: float, schedule: List[tuple], spawn_rate: float) -> int:
+def target_at(elapsed: float, schedule: list[tuple], spawn_rate: float) -> int:
     for ramp_start, ramp_end, hold_end, prev_target, target in schedule:
         if elapsed >= hold_end:
             continue
@@ -116,7 +116,7 @@ def target_at(elapsed: float, schedule: List[tuple], spawn_rate: float) -> int:
 
 
 async def send_chat_request(session: aiohttp.ClientSession, host: str, endpoint: str,
-                             adapter: Dict[str, Any], prompt: str, stream: bool,
+                             adapter: dict[str, Any], prompt: str, stream: bool,
                              timeout: float, session_id: str) -> TestResult:
     url = f"{host.rstrip('/')}{endpoint}"
     headers = {
@@ -186,8 +186,8 @@ async def send_chat_request(session: aiohttp.ClientSession, host: str, endpoint:
         )
 
 
-async def user_worker(worker_id: int, config: Dict[str, Any], session: aiohttp.ClientSession,
-                       args: argparse.Namespace, target_ref: Dict[str, int],
+async def user_worker(worker_id: int, config: dict[str, Any], session: aiohttp.ClientSession,
+                       args: argparse.Namespace, target_ref: dict[str, int],
                        stop_event: asyncio.Event, metrics: PerformanceMetrics):
     session_id_base = f"perf_mu_{int(time.time())}_{worker_id}"
     counter = 0
@@ -218,8 +218,8 @@ async def user_worker(worker_id: int, config: Dict[str, Any], session: aiohttp.C
             pass
 
 
-def per_adapter_summaries(metrics: PerformanceMetrics) -> Dict[str, Dict[str, Any]]:
-    groups: Dict[str, List[TestResult]] = {}
+def per_adapter_summaries(metrics: PerformanceMetrics) -> dict[str, dict[str, Any]]:
+    groups: dict[str, list[TestResult]] = {}
     for result in metrics.results:
         groups.setdefault(result.adapter or "unknown", []).append(result)
 
@@ -232,7 +232,7 @@ def per_adapter_summaries(metrics: PerformanceMetrics) -> Dict[str, Dict[str, An
     return summaries
 
 
-async def run_load_test(config: Dict[str, Any], args: argparse.Namespace) -> PerformanceMetrics:
+async def run_load_test(config: dict[str, Any], args: argparse.Namespace) -> PerformanceMetrics:
     stages = parse_stages(args.stages) if args.stages else [(args.users, args.duration)]
     max_users = max(t for t, _ in stages)
     schedule = build_stage_schedule(stages, args.spawn_rate)
@@ -274,7 +274,7 @@ async def run_load_test(config: Dict[str, Any], args: argparse.Namespace) -> Per
     return metrics
 
 
-def print_report(metrics: PerformanceMetrics, adapter_summaries: Dict[str, Dict[str, Any]], stream: bool):
+def print_report(metrics: PerformanceMetrics, adapter_summaries: dict[str, dict[str, Any]], stream: bool):
     summary = metrics.get_summary()
 
     print("\n" + "=" * 70)
@@ -325,7 +325,7 @@ def print_report(metrics: PerformanceMetrics, adapter_summaries: Dict[str, Dict[
             print(f"  [{r.adapter}] HTTP {r.status_code}: {r.error_message[:200]}")
 
 
-def generate_html_report(summary: Dict[str, Any], adapter_summaries: Dict[str, Dict[str, Any]],
+def generate_html_report(summary: dict[str, Any], adapter_summaries: dict[str, dict[str, Any]],
                           args: argparse.Namespace, timestamp: str) -> str:
     rows = ""
     for adapter_id, s in sorted(adapter_summaries.items(), key=lambda kv: -kv[1].get("total_requests", 0)):

@@ -5,7 +5,8 @@ Moonshot AI provides the Kimi model family via an OpenAI-compatible API at
 https://api.moonshot.cn/v1. Supports up to 128K context window.
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...providers import OpenAICompatibleBaseService
 from ...providers.usage_reporting import UsageReportingMixin
@@ -15,7 +16,7 @@ from ...services import InferenceService
 class MoonshotInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibleBaseService):
     """Moonshot AI (Kimi) inference service using unified architecture."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         InferenceService.__init__(self, config, "moonshot")
 
         self.temperature = self._get_temperature(default=0.7)

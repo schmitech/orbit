@@ -6,7 +6,7 @@ including inference, embedding, datasource, and reranker providers.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class ConfigResolver:
     - Model resolution for components
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger = None):
+    def __init__(self, config: dict[str, Any], logger: logging.Logger = None):
         """
         Initialize the ConfigResolver.
         

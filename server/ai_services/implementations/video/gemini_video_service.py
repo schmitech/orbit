@@ -8,7 +8,7 @@ Requires a Veo model which is available via Google AI Studio API key.
 import asyncio
 import os
 import time
-from typing import Dict, Any
+from typing import Any
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
@@ -23,7 +23,7 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
     Supported models: veo-3.1-generate-preview, veo-3.1-generate-001, veo-2.0-generate-001
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         GoogleBaseService.__init__(self, config, ServiceType.VIDEO_GENERATION, "gemini")
         provider_config = self._extract_provider_config()
         self.aspect_ratio = provider_config.get("aspect_ratio", "16:9")
@@ -58,7 +58,7 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
         except Exception:
             return False
 
-    async def generate_video(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_video(self, prompt: str, **kwargs) -> dict[str, Any]:
         """Generate a video using Google Veo 2."""
         if not self.initialized:
             await self.initialize()

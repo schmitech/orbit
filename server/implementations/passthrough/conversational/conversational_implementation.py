@@ -9,7 +9,7 @@ management flows as retrievers without triggering vector or SQL lookups.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from retrievers.base.base_retriever import BaseRetriever
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class ConversationalImplementation(BaseRetriever):
     """Retriever-compatible adapter that short-circuits all retrieval logic."""
 
-    def __init__(self, config: Dict[str, Any], domain_adapter: Optional[Any] = None, **kwargs: Any) -> None:
+    def __init__(self, config: dict[str, Any], domain_adapter: Optional[Any] = None, **kwargs: Any) -> None:
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
         logger.debug("Initialized conversational passthrough implementation")
 
@@ -49,7 +49,7 @@ class ConversationalImplementation(BaseRetriever):
         api_key: Optional[str] = None,
         collection_name: Optional[str] = None,
         **kwargs: Any,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Return an empty context list to indicate no retrieval was performed."""
         await super().get_relevant_context(query, api_key, collection_name, **kwargs)
         logger.debug("Passthrough adapter skipping retrieval for query: %s", query)

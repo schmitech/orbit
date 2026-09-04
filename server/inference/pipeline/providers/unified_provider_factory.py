@@ -5,7 +5,7 @@ This factory creates LLM providers using the new unified AI services architectur
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Any
 from .llm_provider import LLMProvider
 from .unified_provider_adapter import create_unified_provider
 
@@ -19,7 +19,7 @@ class UnifiedProviderFactory:
     """
 
     @classmethod
-    def _get_configured_providers(cls, config: Dict[str, Any]) -> List[str]:
+    def _get_configured_providers(cls, config: dict[str, Any]) -> list[str]:
         """
         Get list of providers configured in inference.yaml.
 
@@ -33,7 +33,7 @@ class UnifiedProviderFactory:
         return list(inference_config.keys())
 
     @classmethod
-    def create_provider(cls, config: Dict[str, Any]) -> LLMProvider:
+    def create_provider(cls, config: dict[str, Any]) -> LLMProvider:
         """
         Create an LLM provider using the unified architecture.
 
@@ -71,7 +71,7 @@ class UnifiedProviderFactory:
     def create_provider_by_name(
         cls,
         provider_name: str,
-        config: Dict[str, Any]
+        config: dict[str, Any]
     ) -> LLMProvider:
         """
         Create a provider by name using the unified architecture.

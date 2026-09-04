@@ -7,7 +7,7 @@ Coordinates adapter creation with dependency services.
 import asyncio
 import copy
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 
 from config.config_manager import was_resolved_from_preset
@@ -36,7 +36,7 @@ class AdapterLoader:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         app_state: Any,
         provider_cache,
         embedding_cache,
@@ -73,7 +73,7 @@ class AdapterLoader:
     async def load_adapter(
         self,
         adapter_name: str,
-        adapter_config: Dict[str, Any]
+        adapter_config: dict[str, Any]
     ) -> Any:
         """
         Load and initialize an adapter asynchronously.
@@ -325,7 +325,7 @@ class AdapterLoader:
     def _resolve_retrieval_provider(
         self,
         adapter_name: str,
-        adapter_config: Dict[str, Any],
+        adapter_config: dict[str, Any],
         global_config_key: str,
         adapter_provider_key: str,
         log_label: str,
@@ -414,7 +414,7 @@ class AdapterLoader:
     def _create_adapter_sync(
         self,
         adapter_name: str,
-        adapter_config: Dict[str, Any]
+        adapter_config: dict[str, Any]
     ) -> Any:
         """
         Synchronously create an adapter instance.
@@ -626,7 +626,7 @@ class AdapterLoader:
                     logger.info(f"Initializing embeddings for adapter {adapter_name} without store manager")
                     await domain_adapter.initialize_embeddings()
 
-    def update_config(self, config: Dict[str, Any]) -> None:
+    def update_config(self, config: dict[str, Any]) -> None:
         """
         Update the configuration reference.
 

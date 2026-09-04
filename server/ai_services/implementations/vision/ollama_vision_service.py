@@ -6,7 +6,7 @@ like qwen3-vl. It follows the existing Ollama service patterns and implements
 the VisionService interface.
 """
 
-from typing import Dict, Any, Union, List
+from typing import Any, Union
 from PIL import Image
 
 from ...base import ServiceType
@@ -27,7 +27,7 @@ class OllamaVisionService(VisionService, OllamaBaseService):
     Uses Ollama's chat API with multimodal messages for vision tasks.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Ollama vision service.
 
@@ -142,7 +142,7 @@ class OllamaVisionService(VisionService, OllamaBaseService):
     async def detect_objects(
         self,
         image: Union[str, bytes, Image.Image]
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Detect objects in image.
 

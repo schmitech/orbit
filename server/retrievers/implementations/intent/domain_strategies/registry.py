@@ -1,7 +1,7 @@
 """Domain strategy registry for managing and loading domain-specific strategies."""
 
 import logging
-from typing import Any, Dict, Optional, Type
+from typing import Any, Optional
 
 from .base import DomainStrategy
 from .generic import GenericDomainStrategy
@@ -13,7 +13,7 @@ class DomainStrategyRegistry:
     """Registry for domain-specific strategies."""
 
     _builtin_strategies = []  # All domains now use GenericDomainStrategy with YAML config
-    _custom_strategies: Dict[str, Type[DomainStrategy]] = {}
+    _custom_strategies: dict[str, type[DomainStrategy]] = {}
 
     @classmethod
     def get_strategy(
@@ -77,7 +77,7 @@ class DomainStrategyRegistry:
         return None
 
     @classmethod
-    def register_strategy(cls, domain_name: str, strategy_class: Type[DomainStrategy]):
+    def register_strategy(cls, domain_name: str, strategy_class: type[DomainStrategy]):
         """Register a custom domain strategy."""
         if not issubclass(strategy_class, DomainStrategy):
             raise ValueError(f"{strategy_class} must inherit from DomainStrategy")

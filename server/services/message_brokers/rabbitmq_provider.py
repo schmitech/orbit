@@ -15,7 +15,7 @@ Requires the optional 'messaging' dependency profile:
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .base import BrokerMessage, MessageBroker, MessageHandler
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class RabbitMQBroker(MessageBroker):
     """MessageBroker backed by RabbitMQ via aio-pika."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         rmq = (config.get('messaging', {}) or {}).get('rabbitmq', {}) or {}
         self._url = rmq.get('url') or 'amqp://guest:guest@localhost:5672/'
         self._requests_queue = rmq.get('requests_queue', 'orbit.requests')
@@ -88,7 +88,7 @@ class RabbitMQBroker(MessageBroker):
         destination: Optional[str],
         body: bytes,
         correlation_id: Optional[str] = None,
-        headers: Optional[Dict[str, Any]] = None,
+        headers: Optional[dict[str, Any]] = None,
     ) -> None:
         import aio_pika
 

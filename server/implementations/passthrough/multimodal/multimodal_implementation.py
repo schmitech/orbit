@@ -10,7 +10,7 @@ provided in the request.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from retrievers.base.base_retriever import BaseRetriever
 
@@ -29,7 +29,7 @@ class MultimodalImplementation(BaseRetriever):
     is stateless - it only processes file_ids sent with each request.
     """
 
-    def __init__(self, config: Dict[str, Any], domain_adapter: Optional[Any] = None, **kwargs: Any) -> None:
+    def __init__(self, config: dict[str, Any], domain_adapter: Optional[Any] = None, **kwargs: Any) -> None:
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
 
         # Initialize file retriever (will be initialized lazily)
@@ -116,9 +116,9 @@ class MultimodalImplementation(BaseRetriever):
         api_key: Optional[str] = None,
         collection_name: Optional[str] = None,
         session_id: Optional[str] = None,
-        file_ids: Optional[List[str]] = None,
+        file_ids: Optional[list[str]] = None,
         **kwargs: Any,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Retrieve relevant context from files provided in the request.
 

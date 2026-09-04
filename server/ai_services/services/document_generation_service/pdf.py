@@ -1,6 +1,6 @@
 import unicodedata
 import logging
-from typing import Dict, Any
+from typing import Any
 
 from .base import BaseRenderer
 
@@ -68,7 +68,7 @@ class PDFRenderer(BaseRenderer):
                 result.append(ascii_part or '?')
         return ''.join(result)
 
-    def render(self, spec: Dict[str, Any]) -> bytes:
+    def render(self, spec: dict[str, Any]) -> bytes:
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import cm
@@ -152,7 +152,7 @@ class PDFRenderer(BaseRenderer):
         doc.build(story)
         return buf.getvalue()
 
-    def _pdf_should_use_landscape(self, spec: Dict[str, Any], portrait_pagesize, horizontal_margin: float) -> bool:
+    def _pdf_should_use_landscape(self, spec: dict[str, Any], portrait_pagesize, horizontal_margin: float) -> bool:
         portrait_width = portrait_pagesize[0] - (2 * horizontal_margin)
         threshold = self._get('pdf', 'table', 'landscape_threshold_cols', default=7)
         for section in spec.get("sections", []):

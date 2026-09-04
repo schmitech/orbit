@@ -8,7 +8,7 @@ shared DatabaseService abstraction.
 
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from .admin_audit_storage_strategy import AdminAuditRecord, AdminAuditStorageStrategy
 from utils.id_utils import generate_id
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
     """PostgreSQL implementation of admin audit storage."""
 
-    def __init__(self, config: Dict[str, Any], database_service=None):
+    def __init__(self, config: dict[str, Any], database_service=None):
         super().__init__(config)
         self._database_service = database_service
         self._owns_database_service = False
@@ -80,17 +80,17 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
 
     async def query(
         self,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = "timestamp",
         sort_order: int = -1,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         if not self._initialized:
             await self.initialize()
 
         try:
-            converted: Dict[str, Any] = {}
+            converted: dict[str, Any] = {}
             for key, value in filters.items():
                 if isinstance(value, bool):
                     converted[key] = 1 if value else 0
@@ -109,7 +109,7 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
             logger.error(f"Error querying admin audit records from Postgres: {e}")
             return []
 
-    def _unflatten(self, row: Dict[str, Any]) -> Dict[str, Any]:
+    def _unflatten(self, row: dict[str, Any]) -> dict[str, Any]:
         summary = row.get("request_summary")
         if isinstance(summary, str) and summary:
             try:
@@ -117,7 +117,7 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
             except json.JSONDecodeError:
                 pass
 
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "timestamp": row.get("timestamp"),
             "event_type": row.get("event_type"),
             "action": row.get("action"),

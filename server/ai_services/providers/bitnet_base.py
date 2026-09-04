@@ -1,6 +1,6 @@
 """BitNet base class for 1.58-bit LLM inference."""
 
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 import os
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -24,7 +24,7 @@ class BitNetBaseService(ProviderAIService):
     2. API mode: Connect to BitNet inference server via HTTP/REST
     """
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "bitnet"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "bitnet"):
         """
         Initialize the BitNet base service.
 
@@ -59,7 +59,7 @@ class BitNetBaseService(ProviderAIService):
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
 
-    def _setup_api_mode(self, bitnet_config: Dict[str, Any]) -> None:
+    def _setup_api_mode(self, bitnet_config: dict[str, Any]) -> None:
         """Setup for API mode (BitNet inference server)."""
         self.base_url = bitnet_config.get("base_url", "http://localhost:8080")
         self.model = self._get_model()
@@ -77,7 +77,7 @@ class BitNetBaseService(ProviderAIService):
 
         logger.debug(f"Configured BitNet in API mode at {self.base_url}")
 
-    def _setup_direct_mode(self, bitnet_config: Dict[str, Any]) -> None:
+    def _setup_direct_mode(self, bitnet_config: dict[str, Any]) -> None:
         """Setup for direct mode (1.58-bit quantized model loading)."""
         # Support both model name and model_path for compatibility
         self.model = bitnet_config.get('model', '')

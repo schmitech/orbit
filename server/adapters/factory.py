@@ -3,7 +3,7 @@ Document Adapter Factory for creating adapter instances.
 """
 
 import logging
-from typing import Dict, Callable
+from collections.abc import Callable
 from adapters.base import DocumentAdapter
 
 # Configure logging
@@ -17,7 +17,7 @@ class DocumentAdapterFactory:
     This class provides a simple factory pattern for creating adapter instances.
     """
 
-    _registered_adapters: Dict[str, Callable] = {
+    _registered_adapters: dict[str, Callable] = {
         'qa': lambda **kwargs: _create_qa_adapter(**kwargs),
         'generic': lambda **kwargs: _create_generic_adapter(**kwargs),
         'file': lambda **kwargs: _create_file_adapter(**kwargs),

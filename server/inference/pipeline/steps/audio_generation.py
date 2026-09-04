@@ -12,7 +12,7 @@ generation itself, producing a downloadable audio file.
 
 import base64
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 
 from ..base import PipelineStep, ProcessingContext
 from ._utils import get_rewrite_prompt_config, record_media_generation_usage
@@ -156,7 +156,7 @@ class AudioGenerationStep(PipelineStep):
         return self.container.get_or_none('llm_provider')
 
     async def _rewrite_text(
-        self, context: ProcessingContext, rewrite_sink: Optional[Dict[str, Any]] = None,
+        self, context: ProcessingContext, rewrite_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Resolve the text to speak from the user's request + conversation history/context.
 
@@ -245,7 +245,7 @@ class AudioGenerationStep(PipelineStep):
             ServiceType.AUDIO, provider, config, use_cache=True,
         )
 
-    def _resolve_provider(self, context: ProcessingContext, config: Dict[str, Any]) -> Optional[str]:
+    def _resolve_provider(self, context: ProcessingContext, config: dict[str, Any]) -> Optional[str]:
         """Return the TTS provider name for this request.
 
         Resolution order:

@@ -7,7 +7,7 @@ implementing singleton pattern for efficient service reuse across adapters.
 
 import logging
 import threading
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 try:
     from server.ai_services.factory import AIServiceFactory
@@ -31,7 +31,7 @@ class RerankingServiceManager:
     - Thread-safe with locks
     """
 
-    _instances: Dict[str, Any] = {}
+    _instances: dict[str, Any] = {}
     _lock = None
 
     @classmethod
@@ -44,7 +44,7 @@ class RerankingServiceManager:
     @classmethod
     def create_reranker_service(
         cls,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         provider_name: Optional[str] = None,
         model_override: Optional[str] = None,
     ) -> Any:
@@ -95,7 +95,7 @@ class RerankingServiceManager:
     @staticmethod
     def _create_cache_key(
         provider_name: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         model_override: Optional[str] = None,
     ) -> str:
         """
@@ -122,7 +122,7 @@ class RerankingServiceManager:
     @staticmethod
     def _create_new_instance(
         provider_name: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         model_override: Optional[str] = None,
     ) -> Any:
         """
@@ -181,7 +181,7 @@ class RerankingServiceManager:
             logger.info("Cleared all cached reranker service instances")
 
     @classmethod
-    def get_cached_instance(cls, provider_name: str, config: Dict[str, Any]) -> Optional[Any]:
+    def get_cached_instance(cls, provider_name: str, config: dict[str, Any]) -> Optional[Any]:
         """
         Get a cached reranker service instance if it exists.
 

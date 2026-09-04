@@ -4,7 +4,7 @@ OpenAI vision service implementation using unified architecture.
 This implementation provides vision capabilities using OpenAI's vision models.
 """
 
-from typing import Dict, Any, Optional, Union, List
+from typing import Any, Optional, Union
 from PIL import Image
 
 from ...base import ServiceType
@@ -24,7 +24,7 @@ class OpenAIVisionService(UsageReportingMixin, VisionService, OpenAIBaseService)
     - Multimodal inference (image + text)
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the OpenAI vision service."""
         # Initialize via OpenAIBaseService first
         OpenAIBaseService.__init__(self, config, ServiceType.VISION, "openai")
@@ -37,7 +37,7 @@ class OpenAIVisionService(UsageReportingMixin, VisionService, OpenAIBaseService)
         self,
         image: Union[str, bytes, Image.Image],
         prompt: str = "Analyze this image in detail. Describe what you see, including any text, objects, and overall context.",
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Analyze image content with detailed response."""
         if not self.initialized:
@@ -102,7 +102,7 @@ class OpenAIVisionService(UsageReportingMixin, VisionService, OpenAIBaseService)
     async def describe_image(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Generate description of image."""
         return await self.analyze_image(
@@ -114,7 +114,7 @@ class OpenAIVisionService(UsageReportingMixin, VisionService, OpenAIBaseService)
     async def extract_text_from_image(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Extract text from image using OCR."""
         return await self.analyze_image(
@@ -126,8 +126,8 @@ class OpenAIVisionService(UsageReportingMixin, VisionService, OpenAIBaseService)
     async def detect_objects(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """Detect objects in image."""
         # OpenAI vision doesn't provide explicit object detection API,
         # so we use vision analysis to infer objects
@@ -156,7 +156,7 @@ class OpenAIVisionService(UsageReportingMixin, VisionService, OpenAIBaseService)
         self,
         image: Union[str, bytes, Image.Image],
         text_prompt: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """
@@ -256,7 +256,7 @@ class OpenAIVisionService(UsageReportingMixin, VisionService, OpenAIBaseService)
         # Default to the legacy chat.completions parameter name
         return "max_tokens"
 
-    def _resolve_token_value(self, token_param: str, kwargs: Dict[str, Any]) -> int:
+    def _resolve_token_value(self, token_param: str, kwargs: dict[str, Any]) -> int:
         """Determine the token limit value while respecting caller overrides."""
         # Pop all known token parameter variants so they don't leak into kwargs
         overrides = {

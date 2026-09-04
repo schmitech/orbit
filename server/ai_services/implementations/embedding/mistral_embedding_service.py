@@ -8,7 +8,7 @@ Compare with: server/embeddings/mistral.py (old implementation)
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import Any
 
 from ...providers import MistralBaseService
 from ...providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
@@ -34,7 +34,7 @@ class MistralEmbeddingService(UsageReportingMixin, EmbeddingService, MistralBase
     - Retry logic
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Mistral embedding service.
 
@@ -48,7 +48,7 @@ class MistralEmbeddingService(UsageReportingMixin, EmbeddingService, MistralBase
         self.dimensions = self._get_dimensions()  # Default 1024 for mistral-embed
         self.batch_size = self._get_batch_size(default=16)
 
-    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> list[float]:
         """
         Generate embeddings for a single query text.
 
@@ -77,7 +77,7 @@ class MistralEmbeddingService(UsageReportingMixin, EmbeddingService, MistralBase
             self._handle_mistral_error(e, "embedding query")
             raise
 
-    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         """
         Generate embeddings for multiple documents.
 

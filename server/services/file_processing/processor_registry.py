@@ -5,7 +5,7 @@ Manages available file processors and routes requests to appropriate processors.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Optional
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -18,14 +18,14 @@ class FileProcessorRegistry:
     Automatically discovers and manages file format processors.
     """
     
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self, config: Optional[dict] = None):
         """
         Initialize processor registry.
         
         Args:
             config: Optional configuration dictionary to check for docling enable/disable setting
         """
-        self._processors: List[FileProcessor] = []
+        self._processors: list[FileProcessor] = []
         self._initialized = False
         self.config = config or {}
         self._register_builtin_processors()
@@ -184,7 +184,7 @@ class FileProcessorRegistry:
         processors = self.get_processors(mime_type)
         return processors[0] if processors else None
 
-    def get_processors(self, mime_type: str) -> List[FileProcessor]:
+    def get_processors(self, mime_type: str) -> list[FileProcessor]:
         """
         Get all processors that support a given MIME type, in priority order.
 
@@ -209,7 +209,7 @@ class FileProcessorRegistry:
 
         return matching
     
-    def list_supported_types(self) -> List[str]:
+    def list_supported_types(self) -> list[str]:
         """List all supported MIME types."""
         types = set()
         for processor in self._processors:

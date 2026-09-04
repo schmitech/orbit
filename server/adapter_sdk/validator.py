@@ -10,7 +10,7 @@ Sources of truth:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import yaml
 
@@ -34,9 +34,9 @@ KNOWN_DATASOURCES = {
 NO_INFERENCE_PROVIDER_TYPES = {"fetch", "openai_realtime", "openai_realtime_translation", "gemini_live"}
 
 
-def validate_structure(entry: Dict[str, Any]) -> List[str]:
+def validate_structure(entry: dict[str, Any]) -> list[str]:
     """Validate a single adapter entry (a dict). Returns a list of error strings (empty = valid)."""
-    errors: List[str] = []
+    errors: list[str] = []
 
     if not isinstance(entry, dict):
         return ["adapter entry is not a mapping"]
@@ -65,9 +65,9 @@ def validate_structure(entry: Dict[str, Any]) -> List[str]:
     return errors
 
 
-def validate_yaml_text(text: str) -> List[str]:
+def validate_yaml_text(text: str) -> list[str]:
     """Validate a rendered YAML file (must have `adapters:` as a list of valid entries)."""
-    errors: List[str] = []
+    errors: list[str] = []
     try:
         parsed = yaml.safe_load(text)
     except yaml.YAMLError as exc:
@@ -90,7 +90,7 @@ def validate_yaml_text(text: str) -> List[str]:
     return errors
 
 
-def validate_answers(spec, answers: Dict[str, Any]) -> List[str]:
+def validate_answers(spec, answers: dict[str, Any]) -> list[str]:
     """Bound each answer by its question's limits. Returns error strings (empty = valid).
 
     Runs before rendering: an over-long value would otherwise pass straight through
@@ -98,7 +98,7 @@ def validate_answers(spec, answers: Dict[str, Any]) -> List[str]:
     """
     from .specs import question_limits
 
-    errors: List[str] = []
+    errors: list[str] = []
     for q in spec.questions:
         if q.field not in answers:
             continue
@@ -151,7 +151,7 @@ def validate_answers(spec, answers: Dict[str, Any]) -> List[str]:
     return errors
 
 
-def validate_providers(entry: Dict[str, Any], enabled_providers: Optional[set]) -> List[str]:
+def validate_providers(entry: dict[str, Any], enabled_providers: Optional[set]) -> list[str]:
     """
     Optional provider check, separated so the core validator stays pure/testable.
     Pass the set of enabled provider names; pass None to skip.

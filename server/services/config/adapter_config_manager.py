@@ -5,7 +5,7 @@ Provides centralized configuration management for adapters.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from adapters.capabilities import AdapterCapabilities
 
@@ -25,7 +25,7 @@ class AdapterConfigManager:
     - Detect configuration changes
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the adapter config manager.
 
@@ -33,7 +33,7 @@ class AdapterConfigManager:
             config: Application configuration containing adapter configs
         """
         self.config = config
-        self._adapter_configs: Dict[str, Dict[str, Any]] = {}
+        self._adapter_configs: dict[str, dict[str, Any]] = {}
         self._load_configs()
 
     def _load_configs(self) -> None:
@@ -62,7 +62,7 @@ class AdapterConfigManager:
 
         logger.debug(f"Loaded {enabled_count} enabled adapter configurations ({disabled_count} disabled)")
 
-    def get(self, adapter_name: str) -> Optional[Dict[str, Any]]:
+    def get(self, adapter_name: str) -> Optional[dict[str, Any]]:
         """
         Get the configuration for a specific adapter.
 
@@ -86,7 +86,7 @@ class AdapterConfigManager:
         """
         return adapter_name in self._adapter_configs
 
-    def put(self, adapter_name: str, config: Dict[str, Any]) -> None:
+    def put(self, adapter_name: str, config: dict[str, Any]) -> None:
         """
         Set the configuration for an adapter.
 
@@ -96,7 +96,7 @@ class AdapterConfigManager:
         """
         self._adapter_configs[adapter_name] = config
 
-    def remove(self, adapter_name: str) -> Optional[Dict[str, Any]]:
+    def remove(self, adapter_name: str) -> Optional[dict[str, Any]]:
         """
         Remove an adapter configuration.
 
@@ -108,7 +108,7 @@ class AdapterConfigManager:
         """
         return self._adapter_configs.pop(adapter_name, None)
 
-    def get_available_adapters(self) -> List[str]:
+    def get_available_adapters(self) -> list[str]:
         """
         Get list of available adapter names.
 
@@ -126,7 +126,7 @@ class AdapterConfigManager:
         """
         return len(self._adapter_configs)
 
-    def reload_from_config(self, new_config: Dict[str, Any]) -> Dict[str, List[str]]:
+    def reload_from_config(self, new_config: dict[str, Any]) -> dict[str, list[str]]:
         """
         Reload configurations from new config and identify changes.
 
@@ -182,7 +182,7 @@ class AdapterConfigManager:
             'unchanged': unchanged
         }
 
-    def get_all_configs(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_configs(self) -> dict[str, dict[str, Any]]:
         """
         Get all adapter configurations.
 
@@ -199,7 +199,7 @@ class AdapterConfigManager:
                 return name
         return None
 
-    def get_all_skills(self) -> List[Dict[str, Any]]:
+    def get_all_skills(self) -> list[dict[str, Any]]:
         """Return metadata for all adapters marked as skills."""
         skills = []
         for name, cfg in self._adapter_configs.items():
@@ -217,8 +217,8 @@ class AdapterConfigManager:
     def find_adapter_in_config_list(
         self,
         adapter_name: str,
-        config_list: List[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        config_list: list[dict[str, Any]]
+    ) -> Optional[dict[str, Any]]:
         """
         Find an adapter configuration in a list of configs.
 

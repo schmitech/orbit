@@ -10,7 +10,7 @@ import hashlib
 import json
 import logging
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import redis.asyncio as redis
 
@@ -77,10 +77,10 @@ class RedisCacheProvider(CacheProvider):
     """Cache provider backed by Redis, with graceful fallback if Redis is unavailable."""
 
     # Singleton pattern implementation
-    _instances: Dict[str, 'RedisCacheProvider'] = {}
+    _instances: dict[str, 'RedisCacheProvider'] = {}
     _lock = threading.Lock()
 
-    def __new__(cls, config: Dict[str, Any]):
+    def __new__(cls, config: dict[str, Any]):
         """Create or return existing Redis provider instance based on configuration"""
         cache_key = cls._create_cache_key(config)
 
@@ -94,7 +94,7 @@ class RedisCacheProvider(CacheProvider):
             return cls._instances[cache_key]
 
     @classmethod
-    def _create_cache_key(cls, config: Dict[str, Any]) -> str:
+    def _create_cache_key(cls, config: dict[str, Any]) -> str:
         """Create a cache key based on Redis configuration"""
         redis_config = config.get('internal_services', {}).get('redis', {})
 
@@ -110,7 +110,7 @@ class RedisCacheProvider(CacheProvider):
         return hashlib.md5(key_string.encode()).hexdigest()
 
     @classmethod
-    def get_cache_stats(cls) -> Dict[str, Any]:
+    def get_cache_stats(cls) -> dict[str, Any]:
         """Get statistics about cached Redis provider instances"""
         with cls._lock:
             return {
@@ -126,7 +126,7 @@ class RedisCacheProvider(CacheProvider):
             cls._instances.clear()
             logger.debug("Cleared Redis cache provider cache")
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         if hasattr(self, '_singleton_initialized'):
             return
 
@@ -319,9 +319,9 @@ class RedisCacheProvider(CacheProvider):
 
     async def check_and_increment(
         self,
-        checks: List[Tuple[str, str, int, Optional[int]]],
+        checks: list[tuple[str, str, int, Optional[int]]],
         amount: int = 1,
-    ) -> Tuple[Dict[str, int], Optional[str]]:
+    ) -> tuple[dict[str, int], Optional[str]]:
         if not checks:
             return {}, None
 
@@ -335,7 +335,7 @@ class RedisCacheProvider(CacheProvider):
 
             names = [name for name, _key, _ttl, _limit in checks]
             keys = [key for _name, key, _ttl, _limit in checks]
-            args: List[int] = []
+            args: list[int] = []
             for _name, _key, ttl, limit in checks:
                 args.append(ttl)
                 args.append(-1 if limit is None else limit)
@@ -494,7 +494,7 @@ class RedisCacheProvider(CacheProvider):
             self._handle_redis_error("expire", e)
             return False
 
-    async def mget(self, *keys: str) -> List[Optional[str]]:
+    async def mget(self, *keys: str) -> list[Optional[str]]:
         if not self._is_available() or not keys:
             return [None] * len(keys)
 
@@ -507,7 +507,7 @@ class RedisCacheProvider(CacheProvider):
             self._handle_redis_error("mget", e)
             return [None] * len(keys)
 
-    async def mset(self, mapping: Dict[str, str]) -> bool:
+    async def mset(self, mapping: dict[str, str]) -> bool:
         if not self._is_available() or not mapping:
             return False
 
@@ -558,8 +558,8 @@ class RedisCacheProvider(CacheProvider):
             self._handle_redis_error("increment_with_ttl", e)
             return 0
 
-    def get_health_stats(self) -> Dict[str, Any]:
-        stats: Dict[str, Any] = {
+    def get_health_stats(self) -> dict[str, Any]:
+        stats: dict[str, Any] = {
             "provider": "redis",
             "enabled": self.enabled,
             "initialized": self.initialized,
@@ -609,7 +609,7 @@ class RedisCacheProvider(CacheProvider):
             self._handle_redis_error("rpush", e)
             return False
 
-    async def lrange(self, key: str, start: int, end: int) -> List[str]:
+    async def lrange(self, key: str, start: int, end: int) -> list[str]:
         if not self._is_available():
             return []
         try:
@@ -621,7 +621,7 @@ class RedisCacheProvider(CacheProvider):
             self._handle_redis_error("lrange", e)
             return []
 
-    async def store_list_json(self, key: str, data_list: List[Dict[str, Any]], ttl: Optional[int] = None) -> bool:
+    async def store_list_json(self, key: str, data_list: list[dict[str, Any]], ttl: Optional[int] = None) -> bool:
         """Store a list of JSON objects in Redis as a list, using a pipeline for atomicity."""
         if not self._is_available():
             return False
@@ -646,7 +646,7 @@ class RedisCacheProvider(CacheProvider):
             self._handle_redis_error("store_list_json", e)
             return False
 
-    async def get_list_json(self, key: str, start: int = 0, end: int = -1) -> List[Dict[str, Any]]:
+    async def get_list_json(self, key: str, start: int = 0, end: int = -1) -> list[dict[str, Any]]:
         if not self._is_available():
             return []
 

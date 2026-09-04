@@ -12,7 +12,7 @@ Usage:
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Any
 
 from ..base.sql_retriever import AbstractSQLRetriever
 from ..base.base_retriever import RetrieverFactory
@@ -28,7 +28,7 @@ class SQLTemplateRetriever(AbstractSQLRetriever):
     """
 
     def __init__(self, 
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 connection: Any = None,
                 **kwargs):
         """
@@ -54,7 +54,7 @@ class SQLTemplateRetriever(AbstractSQLRetriever):
         return 'sql_template'  # Change this to your datasource name (e.g., 'postgresql', 'mysql', etc.)
 
     # Required abstract method implementations
-    async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:
+    async def execute_query(self, sql: str, params: list[Any] = None) -> list[dict[str, Any]]:
         """
         Execute SQL query and return results.
         
@@ -126,7 +126,7 @@ class SQLTemplateRetriever(AbstractSQLRetriever):
             logger.error(f"Error closing connection: {str(e)}")
 
     # Optional: Override for database-specific search optimizations
-    def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
+    def _get_search_query(self, query: str, collection_name: str) -> dict[str, Any]:
         """
         Generate optimized SQL query for your specific database.
         

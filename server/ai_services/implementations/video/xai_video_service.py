@@ -6,7 +6,7 @@ The API returns a hosted URL; bytes are downloaded before returning.
 """
 
 from datetime import timedelta
-from typing import Dict, Any
+from typing import Any
 from urllib.parse import urlparse
 
 from ...connection import RetryHandler
@@ -19,7 +19,7 @@ class XAIVideoService(VideoGenerationService):
     DEFAULT_API_BASE = "https://api.x.ai/v1"
     DEFAULT_VIDEO_MODEL = "grok-imagine-video-1.5"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "xai")
         provider_config = self._extract_provider_config()
 
@@ -76,7 +76,7 @@ class XAIVideoService(VideoGenerationService):
             return await self.initialize()
         return True
 
-    async def generate_video(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_video(self, prompt: str, **kwargs) -> dict[str, Any]:
         if not self.initialized:
             if not await self.initialize():
                 raise ValueError("Failed to initialize xAI video generation service")
@@ -88,7 +88,7 @@ class XAIVideoService(VideoGenerationService):
         resolution = kwargs.get("resolution", self.resolution)
         duration = kwargs.get("duration", self.duration)
 
-        async def _generate() -> Dict[str, Any]:
+        async def _generate() -> dict[str, Any]:
             from xai_sdk.video import VideoGenerationError
 
             try:

@@ -7,7 +7,8 @@ are implemented once. See docs/roadmap/mcp-tool-skills.md §2, §3, §4 (Phase 2
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Optional
+from collections.abc import Sequence
 
 from .mcp_tool_loop import ToolDispatchResult, TrustedContext
 from services.tool_skill_service import (
@@ -28,11 +29,11 @@ TOOL_SKILL_LOADER_NAME = "orbit__load_tool_skill"
 # (JIT auto-injection) — docs/roadmap/mcp-tool-skills.md §3/§8 Q5. A skill
 # already counted toward this budget (via either level) cannot be loaded a
 # second time in the same turn, and the two levels draw from one shared pool.
-def tool_names(tools: Sequence[Dict[str, Any]]) -> List[str]:
+def tool_names(tools: Sequence[dict[str, Any]]) -> list[str]:
     return [t.get("function", {}).get("name", "") for t in tools]
 
 
-def tool_skill_loader_schema(surfaced_skills: Sequence[ToolSkill]) -> Dict[str, Any]:
+def tool_skill_loader_schema(surfaced_skills: Sequence[ToolSkill]) -> dict[str, Any]:
     """
     The synthetic ``orbit__load_tool_skill`` tool. Its ``name`` enum is built
     from exactly the turn's *surfaced set* (§2.2) — never the full matched
@@ -71,10 +72,10 @@ def tool_skill_catalog_text(surfaced_skills: Sequence[ToolSkill]) -> str:
 
 
 def resolve_surfaced_skills(
-    tools: Sequence[Dict[str, Any]],
+    tools: Sequence[dict[str, Any]],
     registry: ToolSkillRegistry,
     allowlist: Optional[Sequence[str]],
-) -> Tuple[List[ToolSkill], List[ToolSkill], bool]:
+) -> tuple[list[ToolSkill], list[ToolSkill], bool]:
     """
     Resolve this turn's matched and surfaced skill sets against ``tools``
     (the already relevance-filtered MCP tool list), applying the adapter's
@@ -134,7 +135,7 @@ class InjectionBudget:
 
     def __init__(
         self,
-        candidate_skills: List[ToolSkill],
+        candidate_skills: list[ToolSkill],
         max_skills: int = INJECTION_BUDGET_MAX_SKILLS,
         max_bytes: int = INJECTION_BUDGET_MAX_BYTES,
     ):
@@ -142,7 +143,7 @@ class InjectionBudget:
         self._eligible = self._select_eligible(candidate_skills, max_skills, max_bytes)
 
     @staticmethod
-    def _select_eligible(candidate_skills: List[ToolSkill], max_skills: int, max_bytes: int) -> set:
+    def _select_eligible(candidate_skills: list[ToolSkill], max_skills: int, max_bytes: int) -> set:
         """
         Greedily admit skills from ``candidate_skills`` in the order given
         (priority desc, name) until either cap is hit. A skill too large to
@@ -202,7 +203,7 @@ def build_dispatch(mcp_manager, surfaced_skills: Sequence[ToolSkill], matched_sk
     """
     surfaced_by_name = {skill.name: skill for skill in surfaced_skills}
 
-    async def dispatch(tool_name: str, arguments: Dict[str, Any]) -> ToolDispatchResult:
+    async def dispatch(tool_name: str, arguments: dict[str, Any]) -> ToolDispatchResult:
         if tool_name == TOOL_SKILL_LOADER_NAME and surfaced_by_name:
             requested = arguments.get("name") if isinstance(arguments, dict) else None
             skill = surfaced_by_name.get(requested)

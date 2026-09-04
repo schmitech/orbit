@@ -3,7 +3,7 @@ Admin and auth audit event query endpoint.
 """
 
 import logging
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Request, HTTPException, Query
 
 from routes.admin._shared import (
@@ -190,7 +190,7 @@ async def list_admin_audit_events(
     # reporting no further pages even when older admin events existed.
     fetch_limit = min(offset + (limit * 10), 5000)
 
-    rows: List[dict] = []
+    rows: list[dict] = []
     try:
         if source in ("all", "admin") and admin_enabled:
             admin_rows = await audit_service.query_admin_events(

@@ -8,7 +8,7 @@ by the auth service.
 
 import time
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 import requests
 
 from bin.orbit.utils.exceptions import NetworkError, OrbitError, AuthenticationError
@@ -16,7 +16,7 @@ from bin.orbit.utils.exceptions import NetworkError, OrbitError, AuthenticationE
 logger = logging.getLogger(__name__)
 
 
-def handle_api_errors(operation_name: str = None, custom_errors: Dict[int, str] = None):
+def handle_api_errors(operation_name: str = None, custom_errors: dict[int, str] = None):
     """
     Decorator to centralize HTTP error handling for API methods.
     
@@ -94,9 +94,9 @@ class ApiClient:
         self,
         method: str,
         endpoint: str,
-        headers: Optional[Dict[str, str]] = None,
-        json_data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[dict[str, str]] = None,
+        json_data: Optional[dict[str, Any]] = None,
+        params: Optional[dict[str, Any]] = None,
         retry: bool = True
     ) -> requests.Response:
         """
@@ -146,29 +146,29 @@ class ApiClient:
             except Exception as e:
                 raise NetworkError(f"Unexpected error: {e}")
     
-    def get(self, endpoint: str, headers: Optional[Dict[str, str]] = None,
-            params: Optional[Dict[str, Any]] = None, retry: bool = True) -> requests.Response:
+    def get(self, endpoint: str, headers: Optional[dict[str, str]] = None,
+            params: Optional[dict[str, Any]] = None, retry: bool = True) -> requests.Response:
         """Make a GET request."""
         return self.request("GET", endpoint, headers=headers, params=params, retry=retry)
     
-    def post(self, endpoint: str, headers: Optional[Dict[str, str]] = None,
-             json_data: Optional[Dict[str, Any]] = None,
-             params: Optional[Dict[str, Any]] = None, retry: bool = True) -> requests.Response:
+    def post(self, endpoint: str, headers: Optional[dict[str, str]] = None,
+             json_data: Optional[dict[str, Any]] = None,
+             params: Optional[dict[str, Any]] = None, retry: bool = True) -> requests.Response:
         """Make a POST request."""
         return self.request("POST", endpoint, headers=headers, json_data=json_data, params=params, retry=retry)
     
-    def put(self, endpoint: str, headers: Optional[Dict[str, str]] = None,
-            json_data: Optional[Dict[str, Any]] = None, retry: bool = True) -> requests.Response:
+    def put(self, endpoint: str, headers: Optional[dict[str, str]] = None,
+            json_data: Optional[dict[str, Any]] = None, retry: bool = True) -> requests.Response:
         """Make a PUT request."""
         return self.request("PUT", endpoint, headers=headers, json_data=json_data, retry=retry)
     
-    def patch(self, endpoint: str, headers: Optional[Dict[str, str]] = None,
-              json_data: Optional[Dict[str, Any]] = None,
-              params: Optional[Dict[str, Any]] = None, retry: bool = True) -> requests.Response:
+    def patch(self, endpoint: str, headers: Optional[dict[str, str]] = None,
+              json_data: Optional[dict[str, Any]] = None,
+              params: Optional[dict[str, Any]] = None, retry: bool = True) -> requests.Response:
         """Make a PATCH request."""
         return self.request("PATCH", endpoint, headers=headers, json_data=json_data, params=params, retry=retry)
     
-    def delete(self, endpoint: str, headers: Optional[Dict[str, str]] = None, retry: bool = True) -> requests.Response:
+    def delete(self, endpoint: str, headers: Optional[dict[str, str]] = None, retry: bool = True) -> requests.Response:
         """Make a DELETE request."""
         return self.request("DELETE", endpoint, headers=headers, retry=retry)
     

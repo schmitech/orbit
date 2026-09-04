@@ -11,7 +11,7 @@ import asyncio
 import hashlib
 import logging
 import time
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Optional
 from bson import ObjectId
 from fastapi import HTTPException
 
@@ -40,7 +40,7 @@ class PipelineChatService:
     for conversation history, audio generation, and streaming.
     """
 
-    def __init__(self, config: Dict[str, Any], logger_service,
+    def __init__(self, config: dict[str, Any], logger_service,
                  chat_history_service=None, moderator_service=None,
                  retriever=None, reranker_service=None, prompt_service=None, clock_service=None,
                  cache_service=None, adapter_manager=None, audit_service=None,
@@ -112,7 +112,7 @@ class PipelineChatService:
         self._query_cache_enabled = query_cache_config.get('enabled', True)
         self._query_cache_ttl = int(query_cache_config.get('ttl', 30))
         self._query_cache_max_memory = int(query_cache_config.get('max_memory_entries', 100))
-        self._memory_cache: Dict[str, Tuple[Dict[str, Any], float]] = {}
+        self._memory_cache: dict[str, tuple[dict[str, Any], float]] = {}
 
         logger.debug("Pipeline-based chat service initialized with clean providers")
 
@@ -237,8 +237,8 @@ class PipelineChatService:
         message: str,
         context_messages,
         adapter_name: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[Optional[str], bool]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> tuple[Optional[str], bool]:
         """Return ``(skill, was_auto_detected)``.
 
         An explicit ``skill`` (from the ``/`` picker) always wins — detection only
@@ -419,7 +419,7 @@ class PipelineChatService:
         message: str,
         adapter_name: str,
         thread_id: Optional[str] = None,
-        file_ids: Optional[List[str]] = None,
+        file_ids: Optional[list[str]] = None,
         system_prompt_id: Optional[ObjectId] = None,
         requested_model: Optional[str] = None,
         skill: Optional[str] = None,
@@ -436,7 +436,7 @@ class PipelineChatService:
         }, sort_keys=True)
         return f"qcache:{hashlib.sha256(key_data.encode()).hexdigest()[:32]}"
 
-    async def _get_cached_response(self, cache_key: str) -> Optional[Dict[str, Any]]:
+    async def _get_cached_response(self, cache_key: str) -> Optional[dict[str, Any]]:
         """Return cached query result from the cache service or in-memory fallback."""
         if not self._query_cache_enabled:
             return None
@@ -460,7 +460,7 @@ class PipelineChatService:
 
         return None
 
-    async def _store_cached_response(self, cache_key: str, result: Dict[str, Any]) -> None:
+    async def _store_cached_response(self, cache_key: str, result: dict[str, Any]) -> None:
         """Store query result in the cache service and in-memory cache."""
         if not self._query_cache_enabled or 'error' in result:
             return
@@ -481,7 +481,7 @@ class PipelineChatService:
 
         self._memory_cache[cache_key] = (result, now + self._query_cache_ttl)
 
-    async def clear_prompt_cache(self, prompt_id: Optional[str] = None) -> Dict[str, int]:
+    async def clear_prompt_cache(self, prompt_id: Optional[str] = None) -> dict[str, int]:
         """Clear prompt-dependent runtime caches after persona mutations."""
         prompt_entries = 0
         if hasattr(self.pipeline, "clear_prompt_cache"):
@@ -582,10 +582,10 @@ class PipelineChatService:
         thread_id: str,
         session_id: Optional[str],
         adapter_name: str,
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None,
         api_key: Optional[str] = None,
-    ) -> Tuple[List[Dict[str, str]], Optional[str]]:
+    ) -> tuple[list[dict[str, str]], Optional[str]]:
         """
         Return (context_messages, effective_session_id) for a thread request.
 
@@ -664,7 +664,7 @@ class PipelineChatService:
         assistant_message_id: Optional[str],
         session_id: Optional[str],
         accumulated_text: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Return threading metadata for the done chunk, or None if threading is not applicable."""
         if not (assistant_message_id and session_id and adapter_name):
             return None
@@ -704,7 +704,7 @@ class PipelineChatService:
         tts_voice: Optional[str],
         language: Optional[str],
         return_audio: Optional[bool],
-    ) -> Tuple[Optional[bytes], Optional[str]]:
+    ) -> tuple[Optional[bytes], Optional[str]]:
         """
         Generate a full audio blob when not using incremental sentence streaming.
         Returns (audio_data, audio_format) or (None, None) if audio is unavailable.
@@ -798,7 +798,7 @@ class PipelineChatService:
         api_key: Optional[str] = None,
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
-        file_ids: Optional[List[str]] = None,
+        file_ids: Optional[list[str]] = None,
         thread_id: Optional[str] = None,
         audio_input: Optional[str] = None,
         audio_format: Optional[str] = None,
@@ -810,7 +810,7 @@ class PipelineChatService:
         requested_model: Optional[str] = None,
         skill: Optional[str] = None,
         regenerate_of_message_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Process a chat message using the pipeline architecture.
 
@@ -1008,7 +1008,7 @@ class PipelineChatService:
         api_key: Optional[str] = None,
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
-        file_ids: Optional[List[str]] = None,
+        file_ids: Optional[list[str]] = None,
         thread_id: Optional[str] = None,
         audio_input: Optional[str] = None,
         audio_format: Optional[str] = None,
@@ -1049,7 +1049,7 @@ class PipelineChatService:
                 cached = await self._get_cached_response(stream_cache_key)
                 if cached:
                     yield f"data: {json.dumps({'response': cached.get('response', ''), 'done': False})}\n\n"
-                    done_data: Dict[str, Any] = {"done": True}
+                    done_data: dict[str, Any] = {"done": True}
                     if cached.get("sources"):
                         done_data["sources"] = cached["sources"]
                     if cached.get("metadata"):

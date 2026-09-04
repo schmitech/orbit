@@ -9,7 +9,7 @@ to the wrapped backend.
 
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from .base_storage import FileStorageBackend
 from .encryption import FileEncryptor
@@ -33,7 +33,7 @@ class EncryptedFileStorageBackend(FileStorageBackend):
         self._inner = inner
         self._encryptor = encryptor
 
-    async def put_file(self, file_data: bytes, key: str, metadata: Dict[str, Any]) -> str:
+    async def put_file(self, file_data: bytes, key: str, metadata: dict[str, Any]) -> str:
         aad = self._aad_for(key)
         encrypted_data = self._encryptor.encrypt(file_data, aad)
         encrypted_metadata = {
@@ -49,10 +49,10 @@ class EncryptedFileStorageBackend(FileStorageBackend):
     async def delete_file(self, key: str) -> bool:
         return await self._inner.delete_file(key)
 
-    async def list_files(self, prefix: str) -> List[str]:
+    async def list_files(self, prefix: str) -> list[str]:
         return await self._inner.list_files(prefix)
 
-    async def get_metadata(self, key: str) -> Dict[str, Any]:
+    async def get_metadata(self, key: str) -> dict[str, Any]:
         stored = await self._inner.get_metadata(key)
         if not stored.get(_ENCRYPTED_MARKER):
             return stored

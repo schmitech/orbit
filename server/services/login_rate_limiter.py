@@ -11,7 +11,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -35,7 +35,7 @@ class LoginRateLimitResult:
 class LoginRateLimiter:
     """Cache-backed login limiter with an in-process degraded-mode fallback."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         auth_config = config.get("auth", {}) or {}
         limit_config = auth_config.get("login_rate_limit", {}) or {}
         self.enabled = bool(limit_config.get("enabled", False))

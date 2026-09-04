@@ -14,7 +14,7 @@ import logging
 import shutil
 import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 import psutil
 import requests
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -171,7 +171,7 @@ class ServerService:
         # the single process rather than risk touching anything else.
         os.kill(pid, signal.SIGKILL)
 
-    def get_server_info(self) -> Optional[Dict[str, Any]]:
+    def get_server_info(self) -> Optional[dict[str, Any]]:
         """
         Get server information including PID via /admin/info endpoint.
         
@@ -787,7 +787,7 @@ class ServerService:
         # Start the server with new configuration
         return self.start(config_path=config_path, host=host, port=port, delete_logs=delete_logs)
     
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         """
         Get the status of the server.
         
@@ -855,7 +855,7 @@ class ServerService:
                 "message": f"Error checking server status: {e}"
             }
     
-    def get_enhanced_status(self, interval: float = 1.0) -> Dict[str, Any]:
+    def get_enhanced_status(self, interval: float = 1.0) -> dict[str, Any]:
         """
         Get enhanced status with more accurate CPU measurement.
         

@@ -16,7 +16,7 @@ import hashlib
 import time
 import logging
 import threading
-from typing import Tuple, Dict, Any
+from typing import Any
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -31,14 +31,14 @@ class InMemoryRateLimiter:
     """In-memory fixed-window rate limiter used as fallback when the cache service is unavailable."""
 
     def __init__(self, cleanup_interval: int = 300):
-        self._windows: Dict[str, Tuple[int, int]] = {}  # key -> (count, window_minute)
+        self._windows: dict[str, tuple[int, int]] = {}  # key -> (count, window_minute)
         self._lock = threading.Lock()
         self._last_cleanup = time.monotonic()
         self._cleanup_interval = cleanup_interval
 
     def is_allowed(
         self, key: str, limit: int, window_seconds: int = 60
-    ) -> Tuple[bool, int]:
+    ) -> tuple[bool, int]:
         """Check if a request is allowed and return (allowed, remaining)."""
         now = time.monotonic()
         window = int(now // window_seconds)
@@ -79,7 +79,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     and per API key. Only active when a cache service is enabled.
     """
 
-    def __init__(self, app, config: Dict[str, Any]):
+    def __init__(self, app, config: dict[str, Any]):
         """
         Initialize rate limit middleware.
         
@@ -188,7 +188,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         limit_per_minute: int,
         limit_per_hour: int,
         prefix: str
-    ) -> Tuple[bool, int, int, int]:
+    ) -> tuple[bool, int, int, int]:
         """
         Check rate limit for an identifier using a cache-backed fixed window.
 

@@ -9,7 +9,7 @@ Uses the Elasticsearch datasource from the datasource registry for connection po
 import logging
 import traceback
 import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Optional
 from elasticsearch import AsyncElasticsearch
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
@@ -32,7 +32,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
     - Elasticsearch-specific response processing
     """
 
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
         """
         Initialize Elasticsearch retriever.
 
@@ -87,8 +87,8 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
 
         logger.debug("Elasticsearch retriever initialized with datasource from registry")
 
-    async def _execute_template(self, template: Dict[str, Any],
-                                parameters: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+    async def _execute_template(self, template: dict[str, Any],
+                                parameters: dict[str, Any]) -> tuple[Any, Optional[str]]:
         """
         Execute Elasticsearch Query DSL template with parameters.
 
@@ -154,7 +154,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return [], error_msg
 
-    def _process_query_dsl_template(self, template: str, parameters: Dict[str, Any]) -> Dict:
+    def _process_query_dsl_template(self, template: str, parameters: dict[str, Any]) -> dict:
         """
         Process Elasticsearch Query DSL template with variable substitution.
 
@@ -190,7 +190,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
             # Return an empty query as fallback
             return {"query": {"match_all": {}}}
 
-    def _extract_search_results(self, response: Dict, template: Dict) -> List[Dict]:
+    def _extract_search_results(self, response: dict, template: dict) -> list[dict]:
         """
         Extract and format search hits from Elasticsearch response.
 
@@ -269,8 +269,8 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
 
         return results
 
-    def _format_http_results(self, results: Any, template: Dict,
-                            parameters: Dict, similarity: float) -> List[Dict[str, Any]]:
+    def _format_http_results(self, results: Any, template: dict,
+                            parameters: dict, similarity: float) -> list[dict[str, Any]]:
         """
         Format Elasticsearch results into context documents.
 
@@ -332,8 +332,8 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
             "confidence": similarity
         }]
 
-    def _format_elasticsearch_results(self, hits: List[Dict], full_response: Optional[Dict],
-                                     template: Dict) -> str:
+    def _format_elasticsearch_results(self, hits: list[dict], full_response: Optional[dict],
+                                     template: dict) -> str:
         """
         Format Elasticsearch results as human-readable text.
 
@@ -428,7 +428,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
 
         return '\n'.join(lines)
 
-    async def get_index_mapping(self, index: str) -> Dict:
+    async def get_index_mapping(self, index: str) -> dict:
         """
         Get index mapping for template generation.
 
@@ -449,7 +449,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
             logger.error(f"Failed to get index mapping: {e}")
             return {}
 
-    async def execute_count_query(self, query_dsl: Dict, index: str) -> int:
+    async def execute_count_query(self, query_dsl: dict, index: str) -> int:
         """
         Execute a count query to get total matching documents.
 

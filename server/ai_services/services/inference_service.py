@@ -7,7 +7,8 @@ providing a unified API for text generation regardless of the underlying provide
 
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Any, AsyncGenerator, Optional, List
+from typing import Any, Optional
+from collections.abc import AsyncGenerator
 import asyncio
 import logging
 import time
@@ -20,7 +21,7 @@ from ..base import ProviderAIService, ServiceType
 logger = logging.getLogger(__name__)
 
 # OpenAI-compatible chat message payload used by helper utilities.
-ChatMessage = Dict[str, Any]
+ChatMessage = dict[str, Any]
 
 
 @dataclass
@@ -30,9 +31,9 @@ class ToolCallingResult:
     # Final text from the model (None when the model made tool calls instead).
     text: Optional[str]
     # Parsed tool calls: [{id, name, arguments (dict)}]. None when no calls.
-    tool_calls: Optional[List[Dict[str, Any]]]
+    tool_calls: Optional[list[dict[str, Any]]]
     # OpenAI-compatible assistant message to append to the conversation history.
-    assistant_message: Dict[str, Any]
+    assistant_message: dict[str, Any]
     finish_reason: str = "stop"
 
 
@@ -69,7 +70,7 @@ class InferenceService(ProviderAIService):
     # straight into the provider SDK.
     SUPPORTS_PROMPT_CACHING: bool = False
 
-    def __init__(self, config: Dict[str, Any], provider_name: str):
+    def __init__(self, config: dict[str, Any], provider_name: str):
         """
         Initialize the inference service.
 
@@ -145,7 +146,7 @@ class InferenceService(ProviderAIService):
     async def generate_tracked(
         self,
         prompt: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         cache_prefix_len: Optional[int] = None,
         **kwargs,
     ) -> str:
@@ -165,7 +166,7 @@ class InferenceService(ProviderAIService):
     async def generate_stream_tracked(
         self,
         prompt: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         cache_prefix_len: Optional[int] = None,
         **kwargs,
     ) -> AsyncGenerator[str, None]:
@@ -264,8 +265,8 @@ class InferenceService(ProviderAIService):
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> "ToolCallingResult":
         """
@@ -291,9 +292,9 @@ class InferenceService(ProviderAIService):
 
     async def generate_with_tools_tracked(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
-        usage_sink: Optional[Dict[str, Any]] = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        usage_sink: Optional[dict[str, Any]] = None,
         cache_prefix_len: Optional[int] = None,
         **kwargs,
     ) -> "ToolCallingResult":
@@ -397,7 +398,7 @@ class InferenceResult:
         provider: str,
         tokens_used: Optional[int] = None,
         finish_reason: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[dict[str, Any]] = None
     ):
         """
         Initialize inference result.
@@ -421,7 +422,7 @@ class InferenceResult:
         """Return the response text."""
         return self.response
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             'response': self.response,
@@ -450,9 +451,9 @@ class OpenAIResponseFormatter:
 
     def build_usage(
         self,
-        usage: Optional[Dict[str, int]],
-        metadata: Optional[Dict[str, Any]]
-    ) -> Dict[str, int]:
+        usage: Optional[dict[str, int]],
+        metadata: Optional[dict[str, Any]]
+    ) -> dict[str, int]:
         """Return usage payload with sensible defaults."""
         if usage:
             return {
@@ -475,18 +476,18 @@ class OpenAIResponseFormatter:
     def build_orbit_extension(
         self,
         *,
-        sources: Optional[List[Dict[str, Any]]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        sources: Optional[list[dict[str, Any]]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         audio: Optional[str] = None,
         audio_format: Optional[str] = None,
-        threading: Optional[Dict[str, Any]] = None,
-        extra: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        threading: Optional[dict[str, Any]] = None,
+        extra: Optional[dict[str, Any]] = None
+    ) -> Optional[dict[str, Any]]:
         """
         Bundle ORBIT-specific metadata into a single extension block so clients
         can opt-in without polluting the OpenAI response schema.
         """
-        extension: Dict[str, Any] = {}
+        extension: dict[str, Any] = {}
         if sources:
             extension["sources"] = sources
         if metadata:
@@ -507,13 +508,13 @@ class OpenAIResponseFormatter:
         *,
         content: str,
         finish_reason: str = "stop",
-        usage: Optional[Dict[str, int]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        sources: Optional[List[Dict[str, Any]]] = None,
+        usage: Optional[dict[str, int]] = None,
+        metadata: Optional[dict[str, Any]] = None,
+        sources: Optional[list[dict[str, Any]]] = None,
         audio: Optional[str] = None,
         audio_format: Optional[str] = None,
-        threading: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        threading: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
         """Create a complete OpenAI-style chat completion response."""
         response = {
             "id": self.completion_id,
@@ -552,14 +553,14 @@ class OpenAIResponseFormatter:
         *,
         content: Optional[str] = None,
         finish_reason: Optional[str] = None,
-        usage: Optional[Dict[str, int]] = None,
+        usage: Optional[dict[str, int]] = None,
         role: Optional[str] = None,
-        orbit_extension: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        orbit_extension: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
         """
         Build a single streaming chunk compatible with OpenAI's SSE format.
         """
-        delta: Dict[str, Any] = {}
+        delta: dict[str, Any] = {}
         if role:
             delta["role"] = role
         if content is not None:
@@ -592,7 +593,7 @@ class OpenAIResponseFormatter:
 # Helper function for service creation
 def create_inference_service(
     provider: str,
-    config: Dict[str, Any]
+    config: dict[str, Any]
 ) -> InferenceService:
     """
     Factory function to create an inference service.

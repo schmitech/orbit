@@ -7,7 +7,7 @@ Supports multiple output formats: pipe-separated (default), markdown table, TOON
 import csv
 import io
 import logging
-from typing import List, Any, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +46,8 @@ class TableRenderer:
 
     @staticmethod
     def render(
-        columns: List[str],
-        rows: List[List[Any]],
+        columns: list[str],
+        rows: list[list[Any]],
         output_format: Optional[str] = None,
         **kwargs: Any,
     ) -> str:
@@ -80,7 +80,7 @@ class TableRenderer:
             return TableRenderer._render_pipe_separated(columns, rows)
 
     @staticmethod
-    def _render_pipe_separated(columns: List[str], rows: List[List[Any]]) -> str:
+    def _render_pipe_separated(columns: list[str], rows: list[list[Any]]) -> str:
         """Current default: pipe-separated columns with a dashed separator line."""
         header = " | ".join(str(c) for c in columns)
         text = header + "\n"
@@ -90,7 +90,7 @@ class TableRenderer:
         return text
 
     @staticmethod
-    def _render_markdown_table(columns: List[str], rows: List[List[Any]]) -> str:
+    def _render_markdown_table(columns: list[str], rows: list[list[Any]]) -> str:
         """Standard markdown table with | col | col | and --- separator."""
         header = "| " + " | ".join(str(c) for c in columns) + " |"
         separator = "| " + " | ".join("---" for _ in columns) + " |"
@@ -100,7 +100,7 @@ class TableRenderer:
         return "\n".join(lines) + "\n"
 
     @staticmethod
-    def _render_toon(columns: List[str], rows: List[List[Any]]) -> str:
+    def _render_toon(columns: list[str], rows: list[list[Any]]) -> str:
         """TOON format via py_toon_format. Falls back to pipe-separated if unavailable."""
         if toon_dumps is None:
             logger.debug("py_toon_format not installed, falling back to pipe-separated format")
@@ -119,7 +119,7 @@ class TableRenderer:
             return TableRenderer._render_pipe_separated(columns, rows)
 
     @staticmethod
-    def _render_csv(columns: List[str], rows: List[List[Any]]) -> str:
+    def _render_csv(columns: list[str], rows: list[list[Any]]) -> str:
         """CSV format output."""
         output = io.StringIO()
         writer = csv.writer(output)

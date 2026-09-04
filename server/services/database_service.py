@@ -13,7 +13,8 @@ interface regardless of the underlying database technology.
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
+from typing import Any, Optional, Union
+from collections.abc import Callable, Awaitable
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class DatabaseService(ABC):
     It provides methods for common CRUD operations, indexing, and transactions.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the database service with configuration.
 
@@ -89,7 +90,7 @@ class DatabaseService(ABC):
     async def create_index(
         self,
         collection_name: str,
-        field_name: Union[str, List[Tuple[str, int]]],
+        field_name: Union[str, list[tuple[str, int]]],
         unique: bool = False,
         sparse: bool = False,
         ttl_seconds: Optional[int] = None
@@ -113,8 +114,8 @@ class DatabaseService(ABC):
     async def find_one(
         self,
         collection_name: str,
-        query: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        query: dict[str, Any]
+    ) -> Optional[dict[str, Any]]:
         """
         Find a single document/record in a collection/table.
 
@@ -131,8 +132,8 @@ class DatabaseService(ABC):
     async def find_one_strict(
         self,
         collection_name: str,
-        query: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        query: dict[str, Any]
+    ) -> Optional[dict[str, Any]]:
         """
         Like find_one(), but raises DatabaseOperationError on a query failure
         instead of swallowing it to None. A None return here means the document
@@ -156,11 +157,11 @@ class DatabaseService(ABC):
     async def find_many(
         self,
         collection_name: str,
-        query: Dict[str, Any],
+        query: dict[str, Any],
         limit: int = 100,
-        sort: Optional[List[Tuple[str, int]]] = None,
+        sort: Optional[list[tuple[str, int]]] = None,
         skip: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Find multiple documents/records in a collection/table.
 
@@ -180,7 +181,7 @@ class DatabaseService(ABC):
     async def insert_one(
         self,
         collection_name: str,
-        document: Dict[str, Any]
+        document: dict[str, Any]
     ) -> Optional[Any]:
         """
         Insert a document/record into a collection/table.
@@ -198,8 +199,8 @@ class DatabaseService(ABC):
     async def update_one(
         self,
         collection_name: str,
-        query: Dict[str, Any],
-        update: Dict[str, Any]
+        query: dict[str, Any],
+        update: dict[str, Any]
     ) -> bool:
         """
         Update a document/record in a collection/table.
@@ -231,7 +232,7 @@ class DatabaseService(ABC):
     async def delete_one(
         self,
         collection_name: str,
-        query: Dict[str, Any]
+        query: dict[str, Any]
     ) -> bool:
         """
         Delete a document/record from a collection/table.
@@ -249,7 +250,7 @@ class DatabaseService(ABC):
     async def delete_many(
         self,
         collection_name: str,
-        query: Dict[str, Any]
+        query: dict[str, Any]
     ) -> int:
         """
         Delete multiple documents/records from a collection/table.
@@ -266,7 +267,7 @@ class DatabaseService(ABC):
     async def count(
         self,
         collection_name: str,
-        query: Dict[str, Any]
+        query: dict[str, Any]
     ) -> int:
         """
         Count documents/records matching a query.
@@ -319,7 +320,7 @@ class DatabaseService(ABC):
         pass
 
 
-def create_database_service(config: Dict[str, Any]) -> DatabaseService:
+def create_database_service(config: dict[str, Any]) -> DatabaseService:
     """
     Factory method to create the appropriate database service based on configuration.
 

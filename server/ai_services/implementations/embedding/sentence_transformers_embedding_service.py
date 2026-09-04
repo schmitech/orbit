@@ -12,7 +12,7 @@ Supported models:
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import Any
 import asyncio
 
 from ...providers import SentenceTransformersBaseService
@@ -34,7 +34,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
     6. Optional L2 normalization
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Sentence Transformers embedding service.
 
@@ -51,7 +51,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
         self.dimensions = self._get_dimensions()
         self.batch_size = self._get_batch_size(default=32)
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str) -> list[float]:
         """
         Generate embeddings for a single query text.
 
@@ -74,7 +74,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
         else:
             return await self._embed_query_remote(text)
 
-    async def _embed_query_local(self, text: str) -> List[float]:
+    async def _embed_query_local(self, text: str) -> list[float]:
         """
         Generate embeddings using local model.
 
@@ -110,7 +110,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
         # Use retry handler for robustness
         return await self.retry_handler.execute_with_retry(_embed)
 
-    async def _embed_query_remote(self, text: str) -> List[float]:
+    async def _embed_query_remote(self, text: str) -> list[float]:
         """
         Generate embeddings using Hugging Face Inference API.
 
@@ -156,7 +156,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
 
         return await self.retry_handler.execute_with_retry(_embed)
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for multiple documents with batch processing.
 
@@ -181,7 +181,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
         else:
             return await self._embed_documents_remote(texts)
 
-    async def _embed_documents_local(self, texts: List[str]) -> List[List[float]]:
+    async def _embed_documents_local(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for multiple documents using local model.
 
@@ -235,7 +235,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
 
         return all_embeddings
 
-    async def _embed_documents_remote(self, texts: List[str]) -> List[List[float]]:
+    async def _embed_documents_remote(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for multiple documents using remote API.
 
@@ -315,7 +315,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
             self.dimensions = fallback
             return fallback
 
-    def _normalize_embedding(self, embedding: List[float]) -> List[float]:
+    def _normalize_embedding(self, embedding: list[float]) -> list[float]:
         """
         L2 normalize an embedding vector.
 

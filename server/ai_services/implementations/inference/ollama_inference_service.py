@@ -7,7 +7,8 @@ ollama_utils for maximum compatibility.
 """
 
 import logging
-from typing import Dict, Any, AsyncGenerator, List
+from typing import Any
+from collections.abc import AsyncGenerator
 import json
 import uuid
 
@@ -32,7 +33,7 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
     Simplified with automatic handling of Ollama-specific functionality.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Ollama inference service.
 
@@ -54,7 +55,7 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
         # Falls back to the provider-agnostic 'effort' key when 'think' isn't set.
         self.think = provider_config.get('think', provider_config.get('effort', False))
 
-    def _resolve_think(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_think(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the think value for the current request, popping both the
         native ``think`` kwarg and the provider-agnostic ``effort`` override
@@ -70,8 +71,8 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
 
     @staticmethod
     def _normalize_messages_for_ollama(
-        messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Convert OpenAI-format loop history into Ollama /api/chat message format.
 
@@ -83,11 +84,11 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
           the shape Ollama expects (vs OpenAI's JSON-string arguments).
         - All other messages pass through unchanged.
         """
-        ollama_messages: List[Dict[str, Any]] = []
+        ollama_messages: list[dict[str, Any]] = []
         for msg in messages:
             role = msg.get("role")
             if role == "tool":
-                tool_msg: Dict[str, Any] = {
+                tool_msg: dict[str, Any] = {
                     "role": "tool",
                     "content": msg.get("content", ""),
                 }
@@ -120,8 +121,8 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         """
@@ -192,7 +193,7 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
         # Ollama returns arguments as dicts and omits call ids — normalise to
         # OpenAI format so the MCPAgentStep loop works unchanged.
         tool_calls_result = None
-        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": content}
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": content}
 
         if raw_tool_calls:
             normalized = []

@@ -3,14 +3,14 @@ Factory functions for creating store instances with configuration.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from config.config_manager import load_config
 from .base.store_manager import StoreManager
 
 logger = logging.getLogger(__name__)
 
 
-def create_store_manager(config: Optional[Dict[str, Any]] = None) -> StoreManager:
+def create_store_manager(config: Optional[dict[str, Any]] = None) -> StoreManager:
     """
     Create a StoreManager instance with loaded configuration.
     

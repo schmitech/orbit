@@ -10,7 +10,7 @@ This service provides TTS-only functionality (no STT).
 Requires: pip install TTS
 """
 
-from typing import Dict, Any, Optional, Union
+from typing import Any, Optional, Union
 from io import BytesIO
 import asyncio
 import logging
@@ -53,7 +53,7 @@ class CoquiAudioService(AudioService):
     - Audio translation
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Coqui TTS audio service."""
         # Initialize via AudioService base class
         AudioService.__init__(self, config, "coqui")
@@ -121,7 +121,7 @@ class CoquiAudioService(AudioService):
             f"device: {self.device}, language: {self.language}"
         )
 
-    def _extract_provider_config(self) -> Dict[str, Any]:
+    def _extract_provider_config(self) -> dict[str, Any]:
         """
         Extract provider-specific configuration from the config dictionary.
 
@@ -488,7 +488,7 @@ class CoquiAudioService(AudioService):
             "Use WhisperAudioService for local translation."
         )
 
-    def _get_timeout_config(self) -> Dict[str, int]:
+    def _get_timeout_config(self) -> dict[str, int]:
         """Get timeout configuration."""
         provider_config = self._extract_provider_config()
         timeout_config = provider_config.get('timeout', {})
@@ -497,7 +497,7 @@ class CoquiAudioService(AudioService):
             'total': timeout_config.get('total', 120000)
         }
 
-    def _get_retry_config(self) -> Dict[str, Any]:
+    def _get_retry_config(self) -> dict[str, Any]:
         """Get retry configuration."""
         provider_config = self._extract_provider_config()
         retry_config = provider_config.get('retry', {})

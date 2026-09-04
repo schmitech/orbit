@@ -9,7 +9,7 @@ Compare with: server/embeddings/ollama.py (old implementation)
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import Any
 import asyncio
 
 from ...providers import OllamaBaseService
@@ -33,7 +33,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
     New implementation: ~100 lines focused only on embedding logic
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Ollama embedding service.
 
@@ -50,7 +50,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
         self.dimensions = self._get_dimensions()  # From OllamaBaseService
         self.batch_size = self._get_batch_size(default=5)
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str) -> list[float]:
         """
         Generate embeddings for a single query text with retry logic.
 
@@ -102,7 +102,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
         # Use Ollama's retry handler
         return await self.execute_with_retry(_embed)
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for multiple documents with retry logic.
 
@@ -204,7 +204,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
             self.dimensions = fallback
             return fallback
 
-    def _resize_embedding(self, embedding: List[float], target_size: int) -> List[float]:
+    def _resize_embedding(self, embedding: list[float], target_size: int) -> list[float]:
         """
         Resize an embedding vector to match the target dimensions.
 

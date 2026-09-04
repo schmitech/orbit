@@ -13,7 +13,7 @@ import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -29,18 +29,18 @@ class AdminAuditRecord:
     status_code: int
     success: bool
     ip: str
-    ip_metadata: Dict[str, Any] = field(default_factory=dict)
+    ip_metadata: dict[str, Any] = field(default_factory=dict)
     actor_type: str = "anonymous"   # user | api_key | anonymous
     actor_id: Optional[str] = None
     actor_username: Optional[str] = None
     resource_id: Optional[str] = None
     user_agent: Optional[str] = None
     error_message: Optional[str] = None
-    request_summary: Optional[Dict[str, Any]] = None
+    request_summary: Optional[dict[str, Any]] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Nested representation (for MongoDB / Elasticsearch)."""
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "timestamp": self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else self.timestamp,
             "event_type": self.event_type,
             "action": self.action,
@@ -67,7 +67,7 @@ class AdminAuditRecord:
             result["request_summary"] = self.request_summary
         return result
 
-    def to_flat_dict(self) -> Dict[str, Any]:
+    def to_flat_dict(self) -> dict[str, Any]:
         """Flattened representation (for SQLite)."""
         return {
             "timestamp": self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else self.timestamp,
@@ -101,7 +101,7 @@ class AdminAuditStorageStrategy(ABC):
     a separate collection/table (default: `audit_admin_logs`).
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
         self._initialized = False
 
@@ -116,12 +116,12 @@ class AdminAuditStorageStrategy(ABC):
     @abstractmethod
     async def query(
         self,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = "timestamp",
         sort_order: int = -1,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         ...
 
     @abstractmethod

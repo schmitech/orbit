@@ -37,7 +37,7 @@ import sys
 import time
 import uuid
 from datetime import datetime
-from typing import Dict, Optional, List
+from typing import Optional
 from dataclasses import dataclass, field
 
 try:
@@ -81,7 +81,7 @@ class SimulationStats:
     total_response_time_ms: float = 0
     total_throttle_delay_ms: float = 0
     max_throttle_delay_ms: int = 0
-    results: List[RequestResult] = field(default_factory=list)
+    results: list[RequestResult] = field(default_factory=list)
 
     @property
     def avg_response_time_ms(self) -> float:
@@ -119,7 +119,7 @@ class RateLimitSimulator:
         self.stats = SimulationStats()
         self.session_id = str(uuid.uuid4())
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         """Build request headers."""
         headers = {
             "Content-Type": "application/json",

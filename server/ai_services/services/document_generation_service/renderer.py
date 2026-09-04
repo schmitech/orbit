@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from .pdf import PDFRenderer
 from .docx import DocxRenderer
@@ -7,7 +7,7 @@ from .pptx import PptxRenderer
 from .md import MarkdownRenderer
 from .csv import CSVRenderer
 
-MIME_TYPES: Dict[str, str] = {
+MIME_TYPES: dict[str, str] = {
     "pdf":  "application/pdf",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -33,10 +33,10 @@ class DocumentRenderer:
     to override colours, fonts, margins, and other layout defaults.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
-        self._cfg: Dict[str, Any] = config or {}
+    def __init__(self, config: Optional[dict[str, Any]] = None) -> None:
+        self._cfg: dict[str, Any] = config or {}
 
-    def render(self, spec: Dict[str, Any], fmt: str) -> bytes:
+    def render(self, spec: dict[str, Any], fmt: str) -> bytes:
         fmt = fmt.lower()
         renderer_cls = _RENDERERS.get(fmt)
         if renderer_cls is None:

@@ -18,7 +18,7 @@ Handler selection is automatic based on adapter type:
 """
 
 import logging
-from typing import Optional, Any, Dict
+from typing import Optional, Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Query, HTTPException
 
 from routes.auth_helpers import resolve_authenticated_user_ws, require_authenticated_user_ws, WS_AUTH_CLOSED
@@ -46,7 +46,7 @@ def get_config(request: Request):
     return config
 
 
-async def validate_adapter(adapter_name: str, request: Request) -> Dict[str, Any]:
+async def validate_adapter(adapter_name: str, request: Request) -> dict[str, Any]:
     """
     Validate that the adapter exists and supports real-time audio.
 

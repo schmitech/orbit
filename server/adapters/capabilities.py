@@ -9,7 +9,8 @@ pipeline steps query adapter capabilities to determine behavior.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Callable
+from typing import Any, Optional
+from collections.abc import Callable
 from enum import Enum
 
 
@@ -54,8 +55,8 @@ class AdapterCapabilities:
     supports_charts: bool = False  # Emits chart-formatting instructions (see prompt_builder.build_chart_instruction)
 
     # Additional parameters to pass to get_relevant_context()
-    required_parameters: List[str] = field(default_factory=list)
-    optional_parameters: List[str] = field(default_factory=list)
+    required_parameters: list[str] = field(default_factory=list)
+    optional_parameters: list[str] = field(default_factory=list)
 
     # Execution conditions
     skip_when_no_files: bool = False  # Skip retrieval when file_ids is empty
@@ -63,17 +64,17 @@ class AdapterCapabilities:
     # Context formatting options
     context_format: Optional[str] = None  # "markdown_table", "toon", "csv", or None (pipe-separated default)
     context_max_tokens: Optional[int] = None  # Token budget for context trimming
-    numeric_precision: Dict[str, Any] = field(default_factory=dict)  # e.g. {"decimal_places": 2}
+    numeric_precision: dict[str, Any] = field(default_factory=dict)  # e.g. {"decimal_places": 2}
 
     # Skills available to this adapter (skill names that can be invoked via skill= in requests)
-    available_skills: List[str] = field(default_factory=list)
+    available_skills: list[str] = field(default_factory=list)
 
     # Skills ORBIT may AUTO-route to via intent detection, independent of
     # available_skills. Lets you allow auto-routing while forbidding explicit
     # user invocation (set available_skills: [] and list them here instead).
     # When empty/absent, the router falls back to available_skills.
     # See docs/adapters/auto-skill-intent-detection.md
-    auto_routable_skills: List[str] = field(default_factory=list)
+    auto_routable_skills: list[str] = field(default_factory=list)
 
     # Web search: when True, the adapter's inference call enables the provider's
     # native web search (Gemini google_search grounding, OpenAI web search)
@@ -88,7 +89,7 @@ class AdapterCapabilities:
     # Allowlist of MCP server names exposed to this adapter's tool-calling
     # loop. Shared by both mcp_tools (opportunistic) and the "mcp-agent"
     # skill adapter. None/absent = all enabled servers.
-    mcp_servers: Optional[List[str]] = None
+    mcp_servers: Optional[list[str]] = None
 
     # Allowlist of tool-skill names (SKILL.md documents, see
     # services/tool_skill_service.py) this adapter may surface/load. None/absent
@@ -99,7 +100,7 @@ class AdapterCapabilities:
     # right default for a trusted single-tenant deployment, a wider blast
     # radius in a multi-tenant one where the skill author and adapter owner
     # may not share a trust boundary (docs/roadmap/mcp-tool-skills.md §2.7).
-    tool_skills: Optional[List[str]] = None
+    tool_skills: Optional[list[str]] = None
 
     # Skill exposure: when True, this adapter is published as an invokable skill
     expose_as_skill: bool = False
@@ -115,14 +116,14 @@ class AdapterCapabilities:
     # Optional phrase overrides used by the skill-intent embedding pre-filter.
     # Only meaningful on a *skill* adapter (expose_as_skill: true); augments the
     # skill_description when matching a query against this skill.
-    routing_examples: List[str] = field(default_factory=list)
+    routing_examples: list[str] = field(default_factory=list)
 
     # Custom behavior hooks (for advanced use cases)
     custom_should_execute: Optional[Callable[[Any], bool]] = None
-    custom_format_context: Optional[Callable[[list, Optional[Dict]], str]] = None
+    custom_format_context: Optional[Callable[[list, Optional[dict]], str]] = None
 
     @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> 'AdapterCapabilities':
+    def from_config(cls, config: dict[str, Any]) -> 'AdapterCapabilities':
         """
         Create capabilities from adapter configuration.
 
@@ -258,7 +259,7 @@ class AdapterCapabilities:
             return False
         return True
 
-    def build_retriever_kwargs(self, context: Any) -> Dict[str, Any]:
+    def build_retriever_kwargs(self, context: Any) -> dict[str, Any]:
         """
         Build keyword arguments for get_relevant_context() based on capabilities.
 
@@ -309,7 +310,7 @@ class AdapterCapabilityRegistry:
     """
 
     def __init__(self):
-        self._capabilities: Dict[str, AdapterCapabilities] = {}
+        self._capabilities: dict[str, AdapterCapabilities] = {}
 
     def register(self, adapter_name: str, capabilities: AdapterCapabilities) -> None:
         """Register capabilities for an adapter."""
@@ -319,7 +320,7 @@ class AdapterCapabilityRegistry:
         """Get capabilities for an adapter."""
         return self._capabilities.get(adapter_name)
 
-    def register_from_config(self, adapter_name: str, config: Dict[str, Any]) -> None:
+    def register_from_config(self, adapter_name: str, config: dict[str, Any]) -> None:
         """Register capabilities from adapter configuration."""
         capabilities = AdapterCapabilities.from_config(config)
         self.register(adapter_name, capabilities)
@@ -340,7 +341,7 @@ class AdapterCapabilityRegistry:
         """
         self._capabilities.clear()
 
-    def get_all_adapter_names(self) -> List[str]:
+    def get_all_adapter_names(self) -> list[str]:
         """Get list of all registered adapter names."""
         return list(self._capabilities.keys())
 

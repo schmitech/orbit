@@ -11,7 +11,7 @@ These providers use the same API structure as OpenAI but with different:
 - Some minor parameter variations
 """
 
-from typing import Dict, Any
+from typing import Any
 import asyncio
 from openai import AsyncOpenAI
 import httpx
@@ -97,7 +97,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         service_type: ServiceType,
         provider_name: str
     ):
@@ -374,7 +374,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         provider_config = self._extract_provider_config()
         return provider_config.get('top_p', default)
 
-    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_reasoning_effort(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the reasoning effort level for the current request, popping it
         out of ``kwargs`` so it never leaks into the raw chat.completions params.

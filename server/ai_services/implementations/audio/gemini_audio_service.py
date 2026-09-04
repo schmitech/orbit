@@ -11,7 +11,7 @@ Requirements:
 """
 
 import logging
-from typing import Dict, Any, Optional, Union
+from typing import Any, Optional, Union
 import asyncio
 import wave
 from io import BytesIO
@@ -64,7 +64,7 @@ class GeminiAudioService(AudioService, GoogleBaseService):
         'schedar', 'sulafat', 'vindemiatrix', 'zubenelgenubi'
     }
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Gemini audio service."""
         GoogleBaseService.__init__(self, config, ServiceType.AUDIO, "gemini")
 

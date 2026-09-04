@@ -24,7 +24,7 @@ import sys
 import sqlite3
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -46,7 +46,7 @@ class DatabaseVacuum:
         # Load configuration
         self.config = self._load_config()
 
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         """Load configuration from config.yaml"""
         config_paths = [
             Path(__file__).parent.parent.parent.parent / 'config' / 'config.yaml',
@@ -137,7 +137,7 @@ class DatabaseVacuum:
             self.conn.close()
             self.conn = None
 
-    def get_database_stats(self) -> Dict[str, Any]:
+    def get_database_stats(self) -> dict[str, Any]:
         """Get statistics about the database"""
         try:
             stats = {}
@@ -257,7 +257,7 @@ class DatabaseVacuum:
             logger.error(f"Error vacuuming database: {e}")
             return False
 
-    def print_stats(self, stats: Dict[str, Any], label: str = "Current"):
+    def print_stats(self, stats: dict[str, Any], label: str = "Current"):
         """Print database statistics"""
         print("\n" + "=" * 60)
         print(f"{label} Database Statistics")

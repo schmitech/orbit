@@ -3,7 +3,8 @@
 import logging
 import re
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Optional
+from collections.abc import Callable
 
 from ..domain import DomainConfig, FieldConfig
 from .base import DomainStrategy
@@ -22,7 +23,7 @@ class GenericDomainStrategy(DomainStrategy):
         else:
             self.domain_config = DomainConfig(domain_config or {})
 
-        self.semantic_extractors: Dict[str, Callable[[str, Dict[str, Any]], Optional[Any]]] = {}
+        self.semantic_extractors: dict[str, Callable[[str, dict[str, Any]], Optional[Any]]] = {}
         self._build_semantic_extractors()
 
     def get_domain_names(self) -> list:
@@ -41,7 +42,7 @@ class GenericDomainStrategy(DomainStrategy):
                 seen.add(name)
         return ordered
 
-    def calculate_domain_boost(self, template_info: Dict, query: str, domain_config: Dict) -> float:
+    def calculate_domain_boost(self, template_info: dict, query: str, domain_config: dict) -> float:
         """Calculate boost based on vocabulary matching and semantic tags."""
         boost = 0.0
         template = template_info.get('template', {})
@@ -80,7 +81,7 @@ class GenericDomainStrategy(DomainStrategy):
 
         return boost
 
-    def get_pattern_matchers(self) -> Dict[str, Any]:
+    def get_pattern_matchers(self) -> dict[str, Any]:
         """Return semantic extractors that operate as pattern matchers."""
         # Also include vocabulary-based matchers
         matchers = dict(self.semantic_extractors)
@@ -114,7 +115,7 @@ class GenericDomainStrategy(DomainStrategy):
         query_lower = query.lower()
         return any(verb.lower() in query_lower for verb in action_verbs)
 
-    def extract_domain_parameters(self, query: str, param: Dict, domain_config: Any) -> Optional[Any]:
+    def extract_domain_parameters(self, query: str, param: dict, domain_config: Any) -> Optional[Any]:
         if not param:
             return None
 
@@ -153,7 +154,7 @@ class GenericDomainStrategy(DomainStrategy):
 
         return None
 
-    def get_semantic_extractors(self) -> Dict[str, Callable[[str, Dict[str, Any]], Optional[Any]]]:
+    def get_semantic_extractors(self) -> dict[str, Callable[[str, dict[str, Any]], Optional[Any]]]:
         return self.semantic_extractors
 
     def get_summary_field_priority(self, field_name: str, field_config: Any) -> int:
@@ -234,7 +235,7 @@ class GenericDomainStrategy(DomainStrategy):
         value_str = match.group(1) if match.groups() else match.group(0)
         return self._parse_value(value_str, param_type)
 
-    def _extract_with_hints(self, query: str, hints: Dict[str, Any], param_type: str) -> Optional[Any]:
+    def _extract_with_hints(self, query: str, hints: dict[str, Any], param_type: str) -> Optional[Any]:
         query_lower = query.lower()
 
         for regex_pattern in hints.get("regex_patterns", []):
@@ -312,7 +313,7 @@ class GenericDomainStrategy(DomainStrategy):
                 results.extend(matches)
         return results
 
-    def _create_pattern_extractor(self, config: Dict[str, Any]) -> Optional[Callable[[str, Dict[str, Any]], Optional[Any]]]:
+    def _create_pattern_extractor(self, config: dict[str, Any]) -> Optional[Callable[[str, dict[str, Any]], Optional[Any]]]:
         if not isinstance(config, dict):
             return None
 
@@ -327,7 +328,7 @@ class GenericDomainStrategy(DomainStrategy):
             except re.error:
                 logger.debug("Invalid semantic regex '%s' skipped", pattern)
 
-        def extractor(query: str, param: Dict[str, Any]) -> Optional[Any]:
+        def extractor(query: str, param: dict[str, Any]) -> Optional[Any]:
             param_type = param.get("type") or param.get("data_type", "string")
 
             for regex in compiled_regex:
@@ -403,7 +404,7 @@ class GenericDomainStrategy(DomainStrategy):
                 continue
         return None
 
-    def _get_builtin_extractors(self) -> Dict[str, Callable[[str, Dict[str, Any]], Optional[Any]]]:
+    def _get_builtin_extractors(self) -> dict[str, Callable[[str, dict[str, Any]], Optional[Any]]]:
         """Return built-in semantic extractors for common types."""
         return {
             # Identifier patterns
@@ -438,7 +439,7 @@ class GenericDomainStrategy(DomainStrategy):
             "percentage": self._extract_percentage,
         }
 
-    def _extract_identifier(self, query: str, param: Dict[str, Any]) -> Optional[Any]:
+    def _extract_identifier(self, query: str, param: dict[str, Any]) -> Optional[Any]:
         """Extract generic identifier (numeric ID)."""
         param_name = param.get('name', '').lower()
         param_type = param.get('type') or param.get('data_type', 'string')
@@ -464,7 +465,7 @@ class GenericDomainStrategy(DomainStrategy):
                 return value
         return None
 
-    def _extract_order_identifier(self, query: str, param: Dict[str, Any]) -> Optional[Any]:
+    def _extract_order_identifier(self, query: str, param: dict[str, Any]) -> Optional[Any]:
         """Extract order-specific identifiers."""
         param_type = param.get('type') or param.get('data_type', 'string')
 
@@ -491,7 +492,7 @@ class GenericDomainStrategy(DomainStrategy):
                 return value
         return None
 
-    def _extract_customer_identifier(self, query: str, param: Dict[str, Any]) -> Optional[Any]:
+    def _extract_customer_identifier(self, query: str, param: dict[str, Any]) -> Optional[Any]:
         """Extract customer-specific identifiers."""
         param_type = param.get('type') or param.get('data_type', 'string')
 
@@ -513,7 +514,7 @@ class GenericDomainStrategy(DomainStrategy):
                 return value
         return None
 
-    def _extract_monetary_amount(self, query: str, param: Dict[str, Any]) -> Optional[Any]:
+    def _extract_monetary_amount(self, query: str, param: dict[str, Any]) -> Optional[Any]:
         """Extract monetary amounts."""
         param_type = param.get('type') or param.get('data_type', 'string')
 
@@ -535,7 +536,7 @@ class GenericDomainStrategy(DomainStrategy):
                     continue
         return None
 
-    def _extract_time_period_days(self, query: str, param: Dict[str, Any]) -> Optional[int]:
+    def _extract_time_period_days(self, query: str, param: dict[str, Any]) -> Optional[int]:
         """Extract time periods in days."""
         # Specific day patterns
         days_patterns = [
@@ -574,7 +575,7 @@ class GenericDomainStrategy(DomainStrategy):
 
         return None
 
-    def _extract_date_value(self, query: str, param: Dict[str, Any]) -> Optional[str]:
+    def _extract_date_value(self, query: str, param: dict[str, Any]) -> Optional[str]:
         """Extract specific date values."""
         # Look for explicit date formats
         date_patterns = [
@@ -604,7 +605,7 @@ class GenericDomainStrategy(DomainStrategy):
 
         return None
 
-    def _extract_date_range(self, query: str, param: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    def _extract_date_range(self, query: str, param: dict[str, Any]) -> Optional[dict[str, str]]:
         """Extract date ranges."""
         # Look for "from DATE to DATE" patterns
         range_pattern = r'(?:from|between)\s+(.*?)\s+(?:to|and|through)\s+(.*?)(?:\s|$)'
@@ -626,7 +627,7 @@ class GenericDomainStrategy(DomainStrategy):
 
         return None
 
-    def _extract_person_name(self, query: str, param: Dict[str, Any]) -> Optional[str]:
+    def _extract_person_name(self, query: str, param: dict[str, Any]) -> Optional[str]:
         """Extract person names."""
         # Check for quoted names first
         quoted = re.search(r'["\']([^"\'\']+)["\']', query)
@@ -658,7 +659,7 @@ class GenericDomainStrategy(DomainStrategy):
 
         return None
 
-    def _extract_email(self, query: str, param: Dict[str, Any]) -> Optional[str]:
+    def _extract_email(self, query: str, param: dict[str, Any]) -> Optional[str]:
         """Extract email addresses."""
         email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
         match = re.search(email_pattern, query)
@@ -666,7 +667,7 @@ class GenericDomainStrategy(DomainStrategy):
             return match.group(0)
         return None
 
-    def _extract_phone(self, query: str, param: Dict[str, Any]) -> Optional[str]:
+    def _extract_phone(self, query: str, param: dict[str, Any]) -> Optional[str]:
         """Extract phone numbers."""
         phone_patterns = [
             r'\b(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})\b',  # 123-456-7890
@@ -683,7 +684,7 @@ class GenericDomainStrategy(DomainStrategy):
                 return match.group(1)
         return None
 
-    def _extract_city(self, query: str, param: Dict[str, Any]) -> Optional[str]:
+    def _extract_city(self, query: str, param: dict[str, Any]) -> Optional[str]:
         """Extract city names."""
         # Look for city indicators
         city_patterns = [
@@ -699,7 +700,7 @@ class GenericDomainStrategy(DomainStrategy):
 
         return None
 
-    def _extract_country(self, query: str, param: Dict[str, Any]) -> Optional[str]:
+    def _extract_country(self, query: str, param: dict[str, Any]) -> Optional[str]:
         """Extract country names."""
         # This would ideally use a country list
         # For now, just look for capitalized words after "country" or common patterns
@@ -715,7 +716,7 @@ class GenericDomainStrategy(DomainStrategy):
 
         return None
 
-    def _extract_status_value(self, query: str, param: Dict[str, Any]) -> Optional[str]:
+    def _extract_status_value(self, query: str, param: dict[str, Any]) -> Optional[str]:
         """Extract status values based on field configuration."""
         # Get entity and field info
         entity_name = param.get('entity')
@@ -739,12 +740,12 @@ class GenericDomainStrategy(DomainStrategy):
 
         return None
 
-    def _extract_enum_value(self, query: str, param: Dict[str, Any]) -> Optional[str]:
+    def _extract_enum_value(self, query: str, param: dict[str, Any]) -> Optional[str]:
         """Extract enum values from configured options."""
         # Similar to status but more generic
         return self._extract_status_value(query, param)
 
-    def _extract_quantity(self, query: str, param: Dict[str, Any]) -> Optional[Any]:
+    def _extract_quantity(self, query: str, param: dict[str, Any]) -> Optional[Any]:
         """Extract quantity values."""
         param_type = param.get('type') or param.get('data_type', 'string')
 
@@ -766,7 +767,7 @@ class GenericDomainStrategy(DomainStrategy):
                 return value
         return None
 
-    def _extract_percentage(self, query: str, param: Dict[str, Any]) -> Optional[float]:
+    def _extract_percentage(self, query: str, param: dict[str, Any]) -> Optional[float]:
         """Extract percentage values."""
         patterns = [
             r'(\d+(?:\.\d+)?)\s*%',  # 50%, 12.5%

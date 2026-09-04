@@ -6,7 +6,7 @@ model layers from disk so multi-billion-parameter models can run on a single
 consumer GPU (or CPU) at the cost of generation speed.
 """
 
-from typing import Dict, Any
+from typing import Any
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from ..base import ProviderAIService, ServiceType
@@ -24,7 +24,7 @@ class AirLLMBaseService(ProviderAIService):
     layers to run large models under tight memory budgets.
     """
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "airllm"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "airllm"):
         if service_type:
             super().__init__(config, service_type, provider_name)
         else:
@@ -64,7 +64,7 @@ class AirLLMBaseService(ProviderAIService):
 
             logger.info(f"Loading AirLLM model: {self.model}")
 
-            kwargs: Dict[str, Any] = {
+            kwargs: dict[str, Any] = {
                 "max_seq_len": self.max_seq_len,
                 "delete_original": self.delete_original,
                 "profiling_mode": self.profiling_mode,

@@ -5,7 +5,7 @@ FAISS store implementation for vector operations.
 import logging
 import os
 import json
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 
 try:
     import faiss
@@ -32,7 +32,7 @@ class FaissStore(BaseVectorStore):
         self.embedding_dim = self.config.connection_params.get('dimension', 768) # Should be set by embedding provider
 
         # Multi-collection support: collection_name -> {index, metadata}
-        self._collections: Dict[str, Dict[str, Any]] = {}
+        self._collections: dict[str, dict[str, Any]] = {}
 
         if not os.path.exists(self.persist_directory):
             os.makedirs(self.persist_directory)
@@ -130,7 +130,7 @@ class FaissStore(BaseVectorStore):
             json.dump(collection['metadata'], f)
         logger.debug(f"Saved metadata for collection '{collection_name}'")
 
-    async def add_vectors(self, vectors: List[List[float]], ids: List[str], metadata: Optional[List[Dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[List[str]] = None) -> bool:
+    async def add_vectors(self, vectors: list[list[float]], ids: list[str], metadata: Optional[list[dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[list[str]] = None) -> bool:
         if not vectors:
             return True
 
@@ -172,7 +172,7 @@ class FaissStore(BaseVectorStore):
         logger.debug(f"Added {len(vectors)} vectors to FAISS collection '{collection_name}'")
         return True
 
-    async def search_vectors(self, query_vector: List[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    async def search_vectors(self, query_vector: list[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
         collection_name = collection_name or self._default_collection
 
         # Check if collection exists
@@ -216,7 +216,7 @@ class FaissStore(BaseVectorStore):
 
         return results
 
-    async def get_vector(self, vector_id: str, collection_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_vector(self, vector_id: str, collection_name: Optional[str] = None) -> Optional[dict[str, Any]]:
         collection_name = collection_name or self._default_collection
 
         if collection_name not in self._collections:
@@ -234,7 +234,7 @@ class FaissStore(BaseVectorStore):
             }
         return None
 
-    async def update_vector(self, vector_id: str, vector: Optional[List[float]] = None, metadata: Optional[Dict[str, Any]] = None, collection_name: Optional[str] = None) -> bool:
+    async def update_vector(self, vector_id: str, vector: Optional[list[float]] = None, metadata: Optional[dict[str, Any]] = None, collection_name: Optional[str] = None) -> bool:
         logger.warning("FAISS does not support efficient updates. Re-adding the vector.")
         await self.delete_vector(vector_id, collection_name)
 
@@ -303,13 +303,13 @@ class FaissStore(BaseVectorStore):
             logger.error(f"Error deleting collection files: {e}")
             return False
 
-    async def list_collections(self) -> List[str]:
+    async def list_collections(self) -> list[str]:
         return list(self._collections.keys())
 
     async def collection_exists(self, collection_name: str) -> bool:
         return collection_name in self._collections
 
-    async def get_collection_info(self, collection_name: str) -> Dict[str, Any]:
+    async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
         if collection_name not in self._collections:
             return {"error": "Collection not found", "name": collection_name}
 

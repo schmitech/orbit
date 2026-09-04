@@ -8,7 +8,7 @@ Compare with: server/embeddings/cohere.py (old implementation)
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import Any
 
 from ...providers import CohereBaseService
 from ...providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
@@ -34,7 +34,7 @@ class CohereEmbeddingService(UsageReportingMixin, EmbeddingService, CohereBaseSe
     - Retry logic
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Cohere embedding service.
 
@@ -50,7 +50,7 @@ class CohereEmbeddingService(UsageReportingMixin, EmbeddingService, CohereBaseSe
         self.input_type = self._get_input_type("search_document")
         self.truncate = self._get_truncate("NONE")
 
-    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> list[float]:
         """
         Generate embeddings for a single query text.
 
@@ -83,7 +83,7 @@ class CohereEmbeddingService(UsageReportingMixin, EmbeddingService, CohereBaseSe
             self._handle_cohere_error(e, "embedding query")
             raise
 
-    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         """
         Generate embeddings for multiple documents.
 

@@ -5,7 +5,7 @@ This module provides a base class for TensorRT-LLM services that supports:
 2. API mode: Connect to a running trtllm-serve server via OpenAI-compatible API
 """
 
-from typing import Dict, Any
+from typing import Any
 import os
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -26,7 +26,7 @@ class TensorRTBaseService(ProviderAIService):
     2. Direct mode: Loads models directly using TensorRT-LLM's LLM class (requires GPU)
     """
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "tensorrt"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "tensorrt"):
         """
         Initialize the TensorRT-LLM base service.
 
@@ -58,7 +58,7 @@ class TensorRTBaseService(ProviderAIService):
         retry_config = self._get_retry_config()
         self.retry_handler = RetryHandler(**retry_config)
 
-    def _setup_api_mode(self, tensorrt_config: Dict[str, Any]) -> None:
+    def _setup_api_mode(self, tensorrt_config: dict[str, Any]) -> None:
         """Setup for API mode (OpenAI-compatible trtllm-serve server)."""
         host = tensorrt_config.get("host", "localhost")
         port = tensorrt_config.get("port", 8000)
@@ -78,7 +78,7 @@ class TensorRTBaseService(ProviderAIService):
 
         logger.debug(f"Configured TensorRT-LLM in API mode at {self.base_url}")
 
-    def _setup_direct_mode(self, tensorrt_config: Dict[str, Any]) -> None:
+    def _setup_direct_mode(self, tensorrt_config: dict[str, Any]) -> None:
         """Setup for direct mode (in-process model loading with TensorRT-LLM)."""
         # Model configuration
         self.model = tensorrt_config.get("model") or tensorrt_config.get("model_path")

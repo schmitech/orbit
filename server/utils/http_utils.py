@@ -8,13 +8,12 @@ including session management and cleanup.
 
 import asyncio
 import logging
-from typing import Set
 import aiohttp
 
 logger = logging.getLogger(__name__)
 
 # Global set to track all aiohttp sessions
-_aiohttp_sessions: Set[aiohttp.ClientSession] = set()
+_aiohttp_sessions: set[aiohttp.ClientSession] = set()
 
 def track_aiohttp_session(session: aiohttp.ClientSession) -> None:
     """

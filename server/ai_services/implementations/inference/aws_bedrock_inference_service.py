@@ -8,7 +8,8 @@ Compare with: server/inference/pipeline/providers/aws_provider.py (old implement
 """
 
 import json
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
 from ...providers import AWSBaseService
@@ -38,7 +39,7 @@ class AWSBedrockInferenceService(InferenceService, AWSBaseService):
     - Meta Llama models
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the AWS Bedrock inference service.
 

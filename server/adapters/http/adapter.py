@@ -7,7 +7,7 @@ Base class for template-driven adapters (HttpAdapter, IntentAdapter, Elasticsear
 import yaml
 import logging
 import json
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Optional, Union
 import os
 from pathlib import Path
 
@@ -33,11 +33,11 @@ class HttpAdapter(DocumentAdapter):
 
     def __init__(self,
                  domain_config_path: Optional[str] = None,
-                 template_library_path: Optional[Union[str, List[str]]] = None,
+                 template_library_path: Optional[Union[str, list[str]]] = None,
                  base_url: Optional[str] = None,
-                 auth_config: Optional[Dict[str, Any]] = None,
+                 auth_config: Optional[dict[str, Any]] = None,
                  confidence_threshold: float = 0.1,
-                 config: Dict[str, Any] = None,
+                 config: dict[str, Any] = None,
                  **_kwargs):
         """
         Initialize the HTTP adapter.
@@ -83,7 +83,7 @@ class HttpAdapter(DocumentAdapter):
             template_count = len(self.template_library.get('templates', {}))
             logger.debug(f"Loaded {template_count} templates")
 
-    def _load_yaml_config(self, path: str, config_type: str) -> Optional[Dict[str, Any]]:
+    def _load_yaml_config(self, path: str, config_type: str) -> Optional[dict[str, Any]]:
         """
         Load a YAML configuration file.
 
@@ -126,7 +126,7 @@ class HttpAdapter(DocumentAdapter):
             logger.error(f"Error loading {config_type}: {str(e)}")
             return None
 
-    def _validate_and_hash_templates(self, library: Dict[str, Any], *, path: str, source_text: str) -> None:
+    def _validate_and_hash_templates(self, library: dict[str, Any], *, path: str, source_text: str) -> None:
         """
         Run schema validation over a loaded template library (`template_validation`
         config knob: "warn" (default, log and keep) or "strict", raises and fails
@@ -149,7 +149,7 @@ class HttpAdapter(DocumentAdapter):
                         {k: v for k, v in template.items() if k != '_content_hash'}
                     )
 
-    def _load_multiple_template_libraries(self, paths: List[str]) -> Dict[str, Any]:
+    def _load_multiple_template_libraries(self, paths: list[str]) -> dict[str, Any]:
         """
         Load and merge multiple template library files.
 
@@ -179,15 +179,15 @@ class HttpAdapter(DocumentAdapter):
         logger.debug(f"Loaded {total_loaded} total HTTP templates from {len(paths)} files")
         return merged_library
 
-    def get_domain_config(self) -> Optional[Dict[str, Any]]:
+    def get_domain_config(self) -> Optional[dict[str, Any]]:
         """Get the loaded domain configuration."""
         return self.domain_config
 
-    def get_template_library(self) -> Optional[Dict[str, Any]]:
+    def get_template_library(self) -> Optional[dict[str, Any]]:
         """Get the loaded template library."""
         return self.template_library
 
-    def get_template_by_id(self, template_id: str) -> Optional[Dict[str, Any]]:
+    def get_template_by_id(self, template_id: str) -> Optional[dict[str, Any]]:
         """
         Get a specific template by ID.
 
@@ -233,7 +233,7 @@ class HttpAdapter(DocumentAdapter):
 
         return None
 
-    def get_all_templates(self) -> List[Dict[str, Any]]:
+    def get_all_templates(self) -> list[dict[str, Any]]:
         """
         Get all templates from the library.
 
@@ -267,7 +267,7 @@ class HttpAdapter(DocumentAdapter):
 
         return all_templates
 
-    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def format_document(self, raw_doc: str, metadata: dict[str, Any]) -> dict[str, Any]:
         """
         Format HTTP response into a structured document.
 
@@ -315,7 +315,7 @@ class HttpAdapter(DocumentAdapter):
 
         return item
 
-    def _format_single_result(self, result: Dict[str, Any]) -> str:
+    def _format_single_result(self, result: dict[str, Any]) -> str:
         """Format a single result into readable text."""
         lines = []
         for key, value in result.items():
@@ -337,7 +337,7 @@ class HttpAdapter(DocumentAdapter):
             return formatted[:MAX_FORMATTED_VALUE_LENGTH - 3] + "..."
         return formatted
 
-    def _format_multiple_results(self, results: List[Dict[str, Any]]) -> str:
+    def _format_multiple_results(self, results: list[dict[str, Any]]) -> str:
         """Format multiple results into readable text."""
         if not results:
             return "No results"
@@ -355,7 +355,7 @@ class HttpAdapter(DocumentAdapter):
 
         return '\n'.join(lines)
 
-    def extract_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
+    def extract_direct_answer(self, context: list[dict[str, Any]]) -> Optional[str]:
         """
         Extract a direct answer from the HTTP results if available.
 
@@ -377,8 +377,8 @@ class HttpAdapter(DocumentAdapter):
         return None
 
     def apply_domain_specific_filtering(self,
-                                       context_items: List[Dict[str, Any]],
-                                       _query: str) -> List[Dict[str, Any]]:
+                                       context_items: list[dict[str, Any]],
+                                       _query: str) -> list[dict[str, Any]]:
         """
         Apply HTTP-specific filtering/ranking.
 

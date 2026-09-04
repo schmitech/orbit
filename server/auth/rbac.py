@@ -12,10 +12,10 @@ of each role's permissions. The "admin" role holds the wildcard "*", which
 grants every permission.
 """
 
-from typing import Dict, Iterable, List, Set
+from collections.abc import Iterable
 
 # Every permission string recognized by the system.
-ALL_PERMISSIONS: Set[str] = {
+ALL_PERMISSIONS: set[str] = {
     "users.manage",
     "apikeys.manage",
     "adapters.manage",
@@ -34,7 +34,7 @@ WILDCARD = "*"
 
 # Role -> permissions granted. "user" is the least-privileged default role
 # and grants no admin permissions.
-ROLE_PERMISSIONS: Dict[str, Set[str]] = {
+ROLE_PERMISSIONS: dict[str, set[str]] = {
     "admin": {WILDCARD},
     "operator": {
         "config.manage",
@@ -67,18 +67,18 @@ def is_valid_role(role: str) -> bool:
     return role in ROLE_PERMISSIONS
 
 
-def get_role_names() -> List[str]:
+def get_role_names() -> list[str]:
     """List all registered role names."""
     return list(ROLE_PERMISSIONS.keys())
 
 
-def permissions_for_roles(roles: Iterable[str]) -> Set[str]:
+def permissions_for_roles(roles: Iterable[str]) -> set[str]:
     """Compute the union of permissions granted by a set of roles.
 
     Unknown role names are ignored (they grant nothing). If any held role
     grants the wildcard, the result is every registered permission.
     """
-    granted: Set[str] = set()
+    granted: set[str] = set()
     for role in roles:
         granted |= ROLE_PERMISSIONS.get(role, set())
 

@@ -5,7 +5,7 @@ Store manager for managing vector store instances and their lifecycle.
 import logging
 import os
 import warnings
-from typing import Dict, Any, Optional, List, Type
+from typing import Any, Optional
 import asyncio
 from datetime import datetime, UTC
 import yaml
@@ -29,8 +29,8 @@ class StoreManager:
         Args:
             config_path: Path to the stores configuration file
         """
-        self._stores: Dict[str, BaseStore] = {}
-        self._store_classes: Dict[str, Type[BaseStore]] = {}
+        self._stores: dict[str, BaseStore] = {}
+        self._store_classes: dict[str, type[BaseStore]] = {}
         self._lock = asyncio.Lock()
         self._config = {}
 
@@ -181,7 +181,7 @@ class StoreManager:
     async def create_store(self, 
                           name: str,
                           store_type: str = 'chroma',
-                          config: Optional[Dict[str, Any]] = None) -> BaseStore:
+                          config: Optional[dict[str, Any]] = None) -> BaseStore:
         """
         Create and initialize a new store instance.
         
@@ -222,7 +222,7 @@ class StoreManager:
     def _create_store_config(self,
                            name: str,
                            store_type: str,
-                           override_config: Optional[Dict[str, Any]] = None) -> StoreConfig:
+                           override_config: Optional[dict[str, Any]] = None) -> StoreConfig:
         """
         Create store configuration from loaded config and overrides.
 
@@ -287,7 +287,7 @@ class StoreManager:
     async def get_or_create_store(self, 
                                  name: str,
                                  store_type: str = 'chroma',
-                                 config: Optional[Dict[str, Any]] = None) -> BaseStore:
+                                 config: Optional[dict[str, Any]] = None) -> BaseStore:
         """
         Get existing store or create new one if it doesn't exist.
         
@@ -323,7 +323,7 @@ class StoreManager:
                 return True
             return False
     
-    async def list_stores(self) -> List[Dict[str, Any]]:
+    async def list_stores(self) -> list[dict[str, Any]]:
         """
         List all managed stores with their status.
         
@@ -344,7 +344,7 @@ class StoreManager:
             })
         return stores_info
     
-    async def health_check_all(self) -> Dict[str, bool]:
+    async def health_check_all(self) -> dict[str, bool]:
         """
         Perform health check on all stores.
         
@@ -390,7 +390,7 @@ class StoreManager:
         
         logger.info("StoreManager shutdown complete")
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get statistics about managed stores.
 
@@ -409,7 +409,7 @@ class StoreManager:
 
         return stats
 
-    def get_available_store_types(self) -> List[str]:
+    def get_available_store_types(self) -> list[str]:
         """
         Get list of available (enabled and registered) store types.
 

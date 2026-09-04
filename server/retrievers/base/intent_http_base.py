@@ -10,7 +10,7 @@ import traceback
 import json
 import asyncio
 import httpx
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Optional
 from abc import abstractmethod
 from datetime import datetime
 from pathlib import Path
@@ -41,7 +41,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
     - _process_http_template: Process template-specific HTTP configurations
     """
 
-    def __init__(self, config: Dict[str, Any], domain_adapter=None,
+    def __init__(self, config: dict[str, Any], domain_adapter=None,
                  datasource: Any = None, **kwargs):
         """
         Initialize Intent HTTP retriever.
@@ -123,7 +123,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
         self.template_reranker = None
         self.template_processor: Optional[TemplateProcessor] = None
 
-    def _get_store_config(self) -> Dict[str, Any]:
+    def _get_store_config(self) -> dict[str, Any]:
         """Get store configuration from stores.yaml based on store_name."""
         if not self.store_manager or not self.store_manager._config:
             raise ValueError(f"Store manager not initialized. Cannot retrieve store configuration for '{self.store_name}'")
@@ -237,7 +237,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
 
         logger.info(f"HTTP client initialized for base URL: {self.base_url}")
 
-    def _build_auth_headers(self, template: Optional[Dict] = None) -> Dict[str, str]:
+    def _build_auth_headers(self, template: Optional[dict] = None) -> dict[str, str]:
         """
         Build authentication headers based on configuration.
 
@@ -642,7 +642,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
             logger.error(f"Error loading templates: {e}")
             logger.error(traceback.format_exc())
 
-    async def reload_templates(self) -> Dict[str, Any]:
+    async def reload_templates(self) -> dict[str, Any]:
         """
         Reload templates from YAML files and re-index in vector store.
 
@@ -696,7 +696,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
             logger.error(traceback.format_exc())
             raise
 
-    def _create_embedding_text(self, template: Dict[str, Any]) -> str:
+    def _create_embedding_text(self, template: dict[str, Any]) -> str:
         """Create text for embedding from template."""
         tags = template.get('tags', [])
         string_tags = [tag for tag in tags if isinstance(tag, str)]
@@ -728,7 +728,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
 
         return ' '.join(filter(None, parts))
 
-    def _create_example_embedding_texts(self, template: Dict[str, Any]) -> List[Tuple[str, str]]:
+    def _create_example_embedding_texts(self, template: dict[str, Any]) -> list[tuple[str, str]]:
         """
         Create per-example embedding texts for a template.
 
@@ -767,7 +767,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
 
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
                                    collection_name: Optional[str] = None,
-                                   **kwargs) -> List[Dict[str, Any]]:
+                                   **kwargs) -> list[dict[str, Any]]:
         """Process a natural language query using intent-based HTTP translation,
         then record match-outcome metrics and misses for observability."""
         result = await self._get_relevant_context_impl(
@@ -778,7 +778,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
 
     async def _get_relevant_context_impl(self, query: str, api_key: Optional[str] = None,
                                    collection_name: Optional[str] = None,
-                                   **kwargs) -> List[Dict[str, Any]]:
+                                   **kwargs) -> list[dict[str, Any]]:
         """Process a natural language query using intent-based HTTP translation."""
         cancel_event = kwargs.pop('cancel_event', None)
 
@@ -975,7 +975,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
 
     async def _find_best_templates(
         self, query: str, usage_sink=None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Find best matching templates for the query."""
         try:
             if not self.template_store:
@@ -1084,7 +1084,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
             logger.error(traceback.format_exc())
             return []
 
-    def _rescue_by_nl_example(self, query: str, templates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _rescue_by_nl_example(self, query: str, templates: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Inject templates with a very close nl_example match that vector search missed."""
         try:
             existing_ids = {t['template'].get('id') for t in templates}
@@ -1134,7 +1134,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
 
         return templates
 
-    async def _extract_parameters(self, query: str, template: Dict[str, Any]) -> Dict[str, Any]:
+    async def _extract_parameters(self, query: str, template: dict[str, Any]) -> dict[str, Any]:
         """Extract parameters from the query using LLM."""
         try:
             parameters = {}
@@ -1194,8 +1194,8 @@ JSON:"""
             return {}
 
     @abstractmethod
-    async def _execute_template(self, template: Dict[str, Any],
-                               parameters: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+    async def _execute_template(self, template: dict[str, Any],
+                               parameters: dict[str, Any]) -> tuple[Any, Optional[str]]:
         """
         Execute HTTP template with parameters.
 
@@ -1204,8 +1204,8 @@ JSON:"""
         pass
 
     @abstractmethod
-    def _format_http_results(self, results: Any, template: Dict,
-                            parameters: Dict, similarity: float) -> List[Dict[str, Any]]:
+    def _format_http_results(self, results: Any, template: dict,
+                            parameters: dict, similarity: float) -> list[dict[str, Any]]:
         """
         Format HTTP results into context documents.
 

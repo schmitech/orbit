@@ -10,7 +10,8 @@ Compare with: server/inference/pipeline/providers/vllm_provider.py (old implemen
 import json
 import logging
 import asyncio
-from typing import Dict, Any, AsyncGenerator, List
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...providers.vllm_base import VLLMBaseService
 from ...services import InferenceService, ToolCallingResult
@@ -32,7 +33,7 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
     Reduction: ~50%
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the vLLM inference service."""
         # Cooperative initialization - VLLMBaseService handles mode detection
         super().__init__(config, "vllm")
@@ -50,7 +51,7 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
         self.presence_penalty = provider_config.get("presence_penalty", 0.0)
         self.frequency_penalty = provider_config.get("frequency_penalty", 0.0)
 
-    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_reasoning_effort(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the reasoning effort level for the current request, popping it
         out of ``kwargs`` so it never leaks into the raw chat.completions params.
@@ -77,8 +78,8 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         """
@@ -104,7 +105,7 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
 
         reasoning_effort = self._resolve_reasoning_effort(kwargs)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": kwargs.pop("temperature", self.temperature),
@@ -130,7 +131,7 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
         choice = response.choices[0]
         msg = choice.message
 
-        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": msg.content}
         tool_calls_result = None
 
         if msg.tool_calls:

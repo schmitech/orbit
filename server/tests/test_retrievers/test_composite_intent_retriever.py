@@ -11,7 +11,7 @@ Tests the composite retriever's ability to:
 import pytest
 import sys
 import os
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # Add the server directory to path
@@ -28,16 +28,16 @@ class MockTemplateStore:
     per-example vector indexing. The composite retriever must deduplicate these.
     """
 
-    def __init__(self, templates: List[Dict[str, Any]], per_example_indexing: bool = True):
+    def __init__(self, templates: list[dict[str, Any]], per_example_indexing: bool = True):
         self.templates = templates
         self.per_example_indexing = per_example_indexing
 
     async def search_similar_templates(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         limit: int = 5,
         threshold: float = 0.0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Return mock search results with per-example IDs when enabled."""
         results = []
         for template in self.templates:
@@ -64,7 +64,7 @@ class MockTemplateStore:
         results.sort(key=lambda x: x['score'], reverse=True)
         return results[:limit]
     
-    async def get_statistics(self) -> Dict[str, Any]:
+    async def get_statistics(self) -> dict[str, Any]:
         return {
             'total_templates': len(self.templates),
             'collection_name': 'mock_collection'
@@ -74,20 +74,20 @@ class MockTemplateStore:
 class MockDomainAdapter:
     """Mock domain adapter for testing."""
     
-    def __init__(self, templates: Dict[str, Dict[str, Any]]):
+    def __init__(self, templates: dict[str, dict[str, Any]]):
         self.templates = templates
     
-    def get_template_by_id(self, template_id: str) -> Optional[Dict[str, Any]]:
+    def get_template_by_id(self, template_id: str) -> Optional[dict[str, Any]]:
         return self.templates.get(template_id)
     
-    def get_domain_config(self) -> Dict[str, Any]:
+    def get_domain_config(self) -> dict[str, Any]:
         return {'domain_name': 'test'}
 
 
 class MockChildAdapter:
     """Mock child intent adapter for testing."""
     
-    def __init__(self, name: str, templates: List[Dict[str, Any]]):
+    def __init__(self, name: str, templates: list[dict[str, Any]]):
         self.name = name
         self._templates = {t['id']: t for t in templates}
         self.template_store = MockTemplateStore(templates)
@@ -101,7 +101,7 @@ class MockChildAdapter:
         api_key: Optional[str] = None,
         collection_name: Optional[str] = None,
         **kwargs
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         self.get_relevant_context_called = True
         self.last_query = query
         return [{
@@ -117,7 +117,7 @@ class MockChildAdapter:
 class MockAdapterManager:
     """Mock adapter manager for testing."""
     
-    def __init__(self, adapters: Dict[str, MockChildAdapter]):
+    def __init__(self, adapters: dict[str, MockChildAdapter]):
         self.adapters = adapters
     
     async def get_adapter(self, adapter_name: str) -> Optional[MockChildAdapter]:
@@ -131,11 +131,11 @@ class MockEmbeddingClient:
         self.dimension = dimension
         self.initialized = True
     
-    async def embed_query(self, query: str) -> List[float]:
+    async def embed_query(self, query: str) -> list[float]:
         # Return a mock embedding
         return [0.1] * self.dimension
 
-    async def embed_documents(self, documents: List[str]) -> List[List[float]]:
+    async def embed_documents(self, documents: list[str]) -> list[list[float]]:
         return [[0.1] * self.dimension for _ in documents]
     
     async def initialize(self):

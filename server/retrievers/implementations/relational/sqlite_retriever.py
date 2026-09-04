@@ -4,7 +4,7 @@ Uses the datasource registry pattern for connection management.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -17,7 +17,7 @@ class SQLiteRetriever(BaseSQLDatabaseRetriever):
     Connection is obtained from the datasource registry.
     """
 
-    def __init__(self, config: Dict[str, Any], datasource: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], datasource: Any = None, **kwargs):
         """
         Initialize SQLite retriever.
 
@@ -53,7 +53,7 @@ class SQLiteRetriever(BaseSQLDatabaseRetriever):
         """SQLite test query."""
         return "SELECT 1 as test"
     
-    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """Execute SQLite query and return raw results."""
         cursor = None
         try:
@@ -115,7 +115,7 @@ class SQLiteRetriever(BaseSQLDatabaseRetriever):
             logger.error(f"Error verifying SQLite database structure: {e}")
             raise
 
-    def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
+    def _get_search_query(self, query: str, collection_name: str) -> dict[str, Any]:
         """Generate SQLite-optimized search query."""
         # Check if FTS is available (simplified version)
         use_fts = self.datasource_config.get('use_fts', False)

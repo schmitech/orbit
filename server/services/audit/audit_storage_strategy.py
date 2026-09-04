@@ -9,7 +9,7 @@ to allow switching between Elasticsearch, SQLite, and MongoDB for audit log stor
 import gzip
 import base64
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 from datetime import datetime
 from dataclasses import dataclass, field
 
@@ -82,8 +82,8 @@ class AuditRecord:
     provider: str
     blocked: bool
     ip: str
-    ip_metadata: Dict[str, Any] = field(default_factory=dict)
-    api_key: Optional[Dict[str, Any]] = None
+    ip_metadata: dict[str, Any] = field(default_factory=dict)
+    api_key: Optional[dict[str, Any]] = None
     session_id: Optional[str] = None
     user_id: Optional[str] = None
     adapter_name: Optional[str] = None  # Name of the adapter used for this request
@@ -110,7 +110,7 @@ class AuditRecord:
     # (record_usage/record_media_generation_usage), not inferred here.
     call_type: Optional[str] = None
 
-    def to_dict(self, compress: bool = False) -> Dict[str, Any]:
+    def to_dict(self, compress: bool = False) -> dict[str, Any]:
         """
         Convert to dictionary representation.
 
@@ -175,7 +175,7 @@ class AuditRecord:
 
         return result
 
-    def to_flat_dict(self, compress: bool = False) -> Dict[str, Any]:
+    def to_flat_dict(self, compress: bool = False) -> dict[str, Any]:
         """
         Convert to flattened dictionary for SQLite storage.
         Nested objects (ip_metadata, api_key) are flattened to individual columns.
@@ -269,7 +269,7 @@ class AuditStorageStrategy(ABC):
     storage backends (Elasticsearch, SQLite, MongoDB).
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the audit storage strategy.
 
@@ -307,12 +307,12 @@ class AuditStorageStrategy(ABC):
     @abstractmethod
     async def query(
         self,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
         sort_order: int = -1
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Query audit records with filters.
 
@@ -334,9 +334,9 @@ class AuditStorageStrategy(ABC):
         until: str,
         bucket: str = "day",
         group_by: str = "model",
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         limit_groups: int = 10,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Aggregate token usage/cost over a time window for the Observability page.
 

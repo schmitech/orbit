@@ -1,6 +1,6 @@
 import logging
 import warnings
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 
 from ..base.base_vector_store import BaseVectorStore
 from ..base.base_store import StoreConfig, StoreStatus
@@ -50,7 +50,7 @@ class MarqoStore(BaseVectorStore):
         except Exception:
             return False
 
-    async def add_vectors(self, vectors: List[List[float]], ids: List[str], metadata: Optional[List[Dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[List[str]] = None) -> bool:
+    async def add_vectors(self, vectors: list[list[float]], ids: list[str], metadata: Optional[list[dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[list[str]] = None) -> bool:
         collection_name = collection_name or self._default_collection
 
         marqo_documents = []
@@ -90,7 +90,7 @@ class MarqoStore(BaseVectorStore):
             logger.error(f"Error adding documents to Marqo: {e}")
             return False
 
-    async def search_vectors(self, query_vector: List[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    async def search_vectors(self, query_vector: list[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
         """
         Marqo doesn't support direct vector search, so we use text-based search instead.
         This is a limitation - for true vector search, use ChromaDB, Qdrant, or Pinecone.
@@ -112,7 +112,7 @@ class MarqoStore(BaseVectorStore):
             logger.info(f"Marqo index {collection_name} may already exist or error: {e}")
             return True
 
-    async def get_vector(self, vector_id: str, collection_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_vector(self, vector_id: str, collection_name: Optional[str] = None) -> Optional[dict[str, Any]]:
         collection_name = collection_name or self._default_collection
         try:
             doc = self._client.index(collection_name).get_document(vector_id)
@@ -120,7 +120,7 @@ class MarqoStore(BaseVectorStore):
         except Exception:
             return None
 
-    async def update_vector(self, vector_id: str, vector: Optional[List[float]] = None, metadata: Optional[Dict[str, Any]] = None, collection_name: Optional[str] = None) -> bool:
+    async def update_vector(self, vector_id: str, vector: Optional[list[float]] = None, metadata: Optional[dict[str, Any]] = None, collection_name: Optional[str] = None) -> bool:
         collection_name = collection_name or self._default_collection
         doc = {"_id": vector_id}
         if metadata:
@@ -152,7 +152,7 @@ class MarqoStore(BaseVectorStore):
             logger.error(f"Error deleting Marqo index: {e}")
             return False
 
-    async def list_collections(self) -> List[str]:
+    async def list_collections(self) -> list[str]:
         return [index.index_name for index in self._client.get_indexes()]
 
     async def collection_exists(self, collection_name: str) -> bool:
@@ -162,7 +162,7 @@ class MarqoStore(BaseVectorStore):
         except Exception:
             return False
 
-    async def get_collection_info(self, collection_name: str) -> Dict[str, Any]:
+    async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
         try:
             stats = self._client.index(collection_name).get_stats()
             return {"name": collection_name, "count": stats['numberOfDocuments']}

@@ -21,7 +21,7 @@ import time
 import os
 import yaml
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Optional
 from dataclasses import dataclass, field
 
 from .base_retriever import BaseRetriever
@@ -36,7 +36,7 @@ class TemplateMatch:
     template_id: str
     source_adapter: str
     similarity_score: float
-    template_data: Dict[str, Any]
+    template_data: dict[str, Any]
     embedding_text: str = ""
 
     # Multi-stage scoring fields (populated during enhanced selection)
@@ -45,7 +45,7 @@ class TemplateMatch:
     combined_score: Optional[float] = None
 
     # Scoring metadata
-    scoring_details: Dict[str, Any] = field(default_factory=dict)
+    scoring_details: dict[str, Any] = field(default_factory=dict)
 
 
 class CompositeIntentRetriever(BaseRetriever):
@@ -64,7 +64,7 @@ class CompositeIntentRetriever(BaseRetriever):
     - A get_relevant_context() method for query execution
     """
     
-    def __init__(self, config: Dict[str, Any], domain_adapter=None,
+    def __init__(self, config: dict[str, Any], domain_adapter=None,
                  adapter_manager=None, **kwargs):
         """
         Initialize Composite Intent Retriever.
@@ -81,7 +81,7 @@ class CompositeIntentRetriever(BaseRetriever):
         self.composite_config = config.get('adapter_config', {})
 
         # Child adapter names to search across
-        self.child_adapter_names: List[str] = self.composite_config.get('child_adapters', [])
+        self.child_adapter_names: list[str] = self.composite_config.get('child_adapters', [])
         if not self.child_adapter_names:
             raise ValueError("child_adapters is required in adapter configuration")
 
@@ -95,7 +95,7 @@ class CompositeIntentRetriever(BaseRetriever):
         self.adapter_manager = adapter_manager
 
         # Cache of resolved child adapters (populated during initialization)
-        self._child_adapters: Dict[str, Any] = {}
+        self._child_adapters: dict[str, Any] = {}
 
         # Shared embedding client for consistent scoring
         self.embedding_client = None
@@ -106,13 +106,13 @@ class CompositeIntentRetriever(BaseRetriever):
 
         # Reranking service (initialized lazily)
         self._reranker = None
-        self._rerank_cache: Dict[str, Tuple[float, List[Dict]]] = {}  # query -> (timestamp, results)
+        self._rerank_cache: dict[str, tuple[float, list[dict]]] = {}  # query -> (timestamp, results)
         self._max_rerank_cache_size = 1000
 
         # Cross-adapter template configuration
         cross_adapter_config = self.composite_config.get('cross_adapter_templates', {})
         self.cross_adapter_enabled = cross_adapter_config.get('enabled', False)
-        self.cross_adapter_template_paths: List[str] = cross_adapter_config.get('template_library_path', [])
+        self.cross_adapter_template_paths: list[str] = cross_adapter_config.get('template_library_path', [])
         if isinstance(self.cross_adapter_template_paths, str):
             self.cross_adapter_template_paths = [self.cross_adapter_template_paths]
         self.cross_adapter_collection_name = cross_adapter_config.get(
@@ -128,7 +128,7 @@ class CompositeIntentRetriever(BaseRetriever):
 
         # Cross-adapter template store and cache (populated during initialization)
         self._cross_adapter_template_store = None
-        self._cross_adapter_templates: Dict[str, Dict[str, Any]] = {}
+        self._cross_adapter_templates: dict[str, dict[str, Any]] = {}
 
         logger.debug(f"CompositeIntentRetriever configured with {len(self.child_adapter_names)} child adapters: {self.child_adapter_names}")
         if self.cross_adapter_enabled:
@@ -136,7 +136,7 @@ class CompositeIntentRetriever(BaseRetriever):
         if self.multistage_enabled:
             logger.debug(f"Multi-stage selection enabled: reranking={self.reranking_enabled}, string_similarity={self.string_similarity_enabled}")
 
-    def _init_multi_stage_config(self, config: Dict[str, Any]) -> None:
+    def _init_multi_stage_config(self, config: dict[str, Any]) -> None:
         """Initialize multi-stage selection configuration from composite_retrieval section."""
         composite_retrieval = config.get('composite_retrieval', {})
 
@@ -486,7 +486,7 @@ class CompositeIntentRetriever(BaseRetriever):
             logger.error(traceback.format_exc())
             self.cross_adapter_enabled = False
 
-    async def reload_templates(self) -> Dict[str, Any]:
+    async def reload_templates(self) -> dict[str, Any]:
         """
         Reload cross-adapter templates from YAML files and rebuild embeddings.
 
@@ -547,7 +547,7 @@ class CompositeIntentRetriever(BaseRetriever):
             logger.error(traceback.format_exc())
             raise
 
-    def _load_cross_adapter_yaml(self, path: str) -> Optional[List[Dict[str, Any]]]:
+    def _load_cross_adapter_yaml(self, path: str) -> Optional[list[dict[str, Any]]]:
         """Load cross-adapter templates from a YAML file."""
         try:
             if not os.path.isabs(path):
@@ -581,8 +581,8 @@ class CompositeIntentRetriever(BaseRetriever):
 
     async def _search_cross_adapter_templates(
         self,
-        query_embedding: List[float]
-    ) -> List[TemplateMatch]:
+        query_embedding: list[float]
+    ) -> list[TemplateMatch]:
         """
         Search cross-adapter template store for matching templates.
 
@@ -607,7 +607,7 @@ class CompositeIntentRetriever(BaseRetriever):
                 return matches
 
             # Deduplicate per-example vectors (same pattern as child adapter search)
-            seen: Dict[str, Dict[str, Any]] = {}
+            seen: dict[str, dict[str, Any]] = {}
             for result in search_results:
                 raw_tid = result.get('template_id', '')
                 base_tid = raw_tid.rsplit('::', 1)[0] if '::' in raw_tid else raw_tid
@@ -646,7 +646,7 @@ class CompositeIntentRetriever(BaseRetriever):
         best_match: TemplateMatch,
         api_key: Optional[str] = None,
         **kwargs
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Execute a cross-adapter query by routing to multiple child adapters in parallel.
 
@@ -671,7 +671,7 @@ class CompositeIntentRetriever(BaseRetriever):
         )
 
         # Execute queries in parallel across target adapters
-        async def query_adapter(target: Dict[str, Any]) -> Tuple[str, str, Optional[List[Dict[str, Any]]], Optional[str]]:
+        async def query_adapter(target: dict[str, Any]) -> tuple[str, str, Optional[list[dict[str, Any]]], Optional[str]]:
             """Returns (adapter_name, label, results, error)"""
             adapter_name = target['adapter']
             label = target.get('label', adapter_name)
@@ -699,8 +699,8 @@ class CompositeIntentRetriever(BaseRetriever):
         adapter_results = await asyncio.gather(*tasks)
 
         # Collect successful and failed results
-        successful_results: List[Tuple[str, str, List[Dict[str, Any]]]] = []
-        failed_adapters: List[Dict[str, str]] = []
+        successful_results: list[tuple[str, str, list[dict[str, Any]]]] = []
+        failed_adapters: list[dict[str, str]] = []
 
         for adapter_name, label, results, error in adapter_results:
             if error:
@@ -743,11 +743,11 @@ class CompositeIntentRetriever(BaseRetriever):
 
     def _merge_cross_adapter_results(
         self,
-        successful_results: List[Tuple[str, str, List[Dict[str, Any]]]],
+        successful_results: list[tuple[str, str, list[dict[str, Any]]]],
         merge_strategy: str,
         best_match: TemplateMatch,
-        failed_adapters: List[Dict[str, str]]
-    ) -> List[Dict[str, Any]]:
+        failed_adapters: list[dict[str, str]]
+    ) -> list[dict[str, Any]]:
         """
         Merge results from multiple adapters according to the merge strategy.
 
@@ -782,9 +782,9 @@ class CompositeIntentRetriever(BaseRetriever):
 
     def _merge_side_by_side(
         self,
-        successful_results: List[Tuple[str, str, List[Dict[str, Any]]]],
-        routing_metadata: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        successful_results: list[tuple[str, str, list[dict[str, Any]]]],
+        routing_metadata: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """
         Side-by-side merge: each adapter's results are kept as separate items,
         annotated with source label. The LLM presentation layer handles comparison formatting.
@@ -806,9 +806,9 @@ class CompositeIntentRetriever(BaseRetriever):
 
     def _merge_labeled_concat(
         self,
-        successful_results: List[Tuple[str, str, List[Dict[str, Any]]]],
-        routing_metadata: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        successful_results: list[tuple[str, str, list[dict[str, Any]]]],
+        routing_metadata: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """
         Labeled concatenation: all result content is concatenated with source labels prepended.
         Each adapter's content is clearly marked with its label for comparison.
@@ -952,9 +952,9 @@ class CompositeIntentRetriever(BaseRetriever):
     async def _rerank_candidates(
         self,
         query: str,
-        candidates: List[TemplateMatch],
+        candidates: list[TemplateMatch],
         usage_sink=None,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Rerank candidates using the configured reranker.
 
@@ -1018,7 +1018,7 @@ class CompositeIntentRetriever(BaseRetriever):
             )
 
             # Build score map
-            score_map: Dict[str, float] = {}
+            score_map: dict[str, float] = {}
             for result in rerank_results:
                 idx = result.get('index', 0)
                 score = result.get('score', 0.0)
@@ -1055,9 +1055,9 @@ class CompositeIntentRetriever(BaseRetriever):
     async def _calculate_combined_scores(
         self,
         query: str,
-        matches: List[TemplateMatch],
+        matches: list[TemplateMatch],
         usage_sink=None,
-    ) -> List[TemplateMatch]:
+    ) -> list[TemplateMatch]:
         """
         Calculate combined scores for all matches using multi-stage scoring.
 
@@ -1081,7 +1081,7 @@ class CompositeIntentRetriever(BaseRetriever):
         candidates = matches[:self.reranking_top_candidates]
 
         # Get rerank scores
-        rerank_scores: Dict[str, float] = {}
+        rerank_scores: dict[str, float] = {}
         if self.reranking_enabled:
             rerank_scores = await self._rerank_candidates(
                 query, candidates, usage_sink=usage_sink
@@ -1175,8 +1175,8 @@ class CompositeIntentRetriever(BaseRetriever):
         self,
         adapter_name: str,
         adapter: Any,
-        query_embedding: List[float]
-    ) -> List[TemplateMatch]:
+        query_embedding: list[float]
+    ) -> list[TemplateMatch]:
         """
         Search a single child adapter's template store.
 
@@ -1206,7 +1206,7 @@ class CompositeIntentRetriever(BaseRetriever):
             # multiple vectors per template with IDs like "template_id::ex0".
             # Strip the "::exN" suffix and keep the highest-scoring hit per
             # base template, mirroring IntentSQLRetriever._find_best_templates.
-            seen: Dict[str, Dict[str, Any]] = {}
+            seen: dict[str, dict[str, Any]] = {}
             for result in search_results:
                 raw_tid = result.get('template_id', '')
                 base_tid = raw_tid.rsplit('::', 1)[0] if '::' in raw_tid else raw_tid
@@ -1248,7 +1248,7 @@ class CompositeIntentRetriever(BaseRetriever):
     
     async def _search_all_template_stores(
         self, query: str, usage_sink=None
-    ) -> List[TemplateMatch]:
+    ) -> list[TemplateMatch]:
         """
         Search all child adapters' template stores for matching templates.
 
@@ -1280,11 +1280,11 @@ class CompositeIntentRetriever(BaseRetriever):
         
         logger.debug(f"Generated query embedding with {len(query_embedding)} dimensions")
         
-        all_matches: List[TemplateMatch] = []
+        all_matches: list[TemplateMatch] = []
         
         if self.parallel_search:
             # Search all template stores in parallel
-            async def search_with_timeout(adapter_name: str, adapter: Any) -> List[TemplateMatch]:
+            async def search_with_timeout(adapter_name: str, adapter: Any) -> list[TemplateMatch]:
                 try:
                     return await asyncio.wait_for(
                         self._search_single_template_store(adapter_name, adapter, query_embedding),
@@ -1328,7 +1328,7 @@ class CompositeIntentRetriever(BaseRetriever):
 
         return all_matches
     
-    def _select_best_match(self, matches: List[TemplateMatch]) -> Optional[TemplateMatch]:
+    def _select_best_match(self, matches: list[TemplateMatch]) -> Optional[TemplateMatch]:
         """
         Select the best matching template from all matches.
 
@@ -1384,7 +1384,7 @@ class CompositeIntentRetriever(BaseRetriever):
         api_key: Optional[str] = None,
         collection_name: Optional[str] = None,
         **kwargs
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Route the query to the best matching child adapter, then record
         composite-level match-outcome metrics and misses for observability.
 
@@ -1405,7 +1405,7 @@ class CompositeIntentRetriever(BaseRetriever):
         api_key: Optional[str] = None,
         collection_name: Optional[str] = None,
         **kwargs
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Process a query by routing to the best matching child adapter.
 

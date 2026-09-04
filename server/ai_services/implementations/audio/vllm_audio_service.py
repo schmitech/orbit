@@ -8,7 +8,8 @@ Compare with: server/ai_services/implementations/vllm_inference_service.py
 """
 
 import logging
-from typing import AsyncIterator, Dict, Any, Optional, Union, List
+from typing import Any, Optional, Union
+from collections.abc import AsyncIterator
 from io import BytesIO
 import base64
 import asyncio
@@ -53,7 +54,7 @@ class VLLMAudioService(AudioService):
     Uses vLLM's OpenAI-compatible API for audio model inference.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the vLLM audio service."""
         # Initialize via AudioService base class
         AudioService.__init__(self, config, "vllm")
@@ -169,7 +170,7 @@ class VLLMAudioService(AudioService):
                 f"to enable parallel audio generation (currently missing, causing sequential processing)"
             )
 
-    def _extract_provider_config(self) -> Dict[str, Any]:
+    def _extract_provider_config(self) -> dict[str, Any]:
         """
         Extract provider-specific configuration from the config dictionary.
 
@@ -276,7 +277,7 @@ class VLLMAudioService(AudioService):
         else:
             raise ValueError(f"Token not in expected format: '{last_token}'")
 
-    def _extract_audio_tokens(self, response_text: str) -> List[str]:
+    def _extract_audio_tokens(self, response_text: str) -> list[str]:
         """
         Extract audio tokens from model response.
 
@@ -291,7 +292,7 @@ class VLLMAudioService(AudioService):
         tokens = re.findall(pattern, response_text)
         return tokens
 
-    def _convert_tokens_to_audio(self, tokens: List[str]) -> bytes:
+    def _convert_tokens_to_audio(self, tokens: list[str]) -> bytes:
         """
         Convert audio tokens to audio bytes using SNAC decoder.
 
@@ -699,7 +700,7 @@ class VLLMAudioService(AudioService):
         tokens_per_yield = frames_per_yield * 7
 
         token_pattern = re.compile(r'<custom_token_\d+>')
-        accumulated_tokens: List[str] = []
+        accumulated_tokens: list[str] = []
         yielded_wav_header = False
 
         async with self._request_semaphore:
@@ -976,7 +977,7 @@ class VLLMAudioService(AudioService):
             except Exception:
                 raise
 
-    def _get_timeout_config(self) -> Dict[str, int]:
+    def _get_timeout_config(self) -> dict[str, int]:
         """Get timeout configuration."""
         provider_config = self._extract_provider_config()
         timeout_config = provider_config.get('timeout', {})
@@ -985,7 +986,7 @@ class VLLMAudioService(AudioService):
             'total': timeout_config.get('total', 120000)  # Longer for audio processing
         }
 
-    def _get_retry_config(self) -> Dict[str, Any]:
+    def _get_retry_config(self) -> dict[str, Any]:
         """Get retry configuration."""
         provider_config = self._extract_provider_config()
         retry_config = provider_config.get('retry', {})

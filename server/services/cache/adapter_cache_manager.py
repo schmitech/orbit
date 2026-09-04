@@ -7,7 +7,7 @@ Provides thread-safe caching and lifecycle management for adapter instances.
 import asyncio
 import logging
 import threading
-from typing import Any, Dict, Optional, Set
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +25,9 @@ class AdapterCacheManager:
 
     def __init__(self):
         """Initialize the adapter cache manager."""
-        self._cache: Dict[str, Any] = {}
+        self._cache: dict[str, Any] = {}
         self._cache_lock = threading.Lock()
-        self._initializing: Set[str] = set()
+        self._initializing: set[str] = set()
 
     def get(self, adapter_name: str) -> Optional[Any]:
         """

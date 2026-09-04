@@ -13,7 +13,7 @@ Supported providers return various category taxonomies:
 """
 
 from abc import abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 import time
 
 from ..base import ProviderAIService, ServiceType
@@ -24,7 +24,7 @@ class ModerationResult:
     def __init__(
         self,
         is_flagged: bool = False,
-        categories: Dict[str, float] = None,
+        categories: dict[str, float] = None,
         provider: str = None,
         model: str = None,
         error: Optional[str] = None
@@ -36,7 +36,7 @@ class ModerationResult:
         self.error = error
         self.timestamp = time.time()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert the result to a dictionary"""
         return {
             "is_flagged": self.is_flagged,
@@ -66,7 +66,7 @@ class ModerationService(ProviderAIService):
         - Category thresholds
     """
 
-    def __init__(self, config: Dict[str, Any], provider_name: str):
+    def __init__(self, config: dict[str, Any], provider_name: str):
         """
         Initialize the moderation service.
 
@@ -96,7 +96,7 @@ class ModerationService(ProviderAIService):
         """
         pass
 
-    async def moderate_batch(self, contents: List[str]) -> List[ModerationResult]:
+    async def moderate_batch(self, contents: list[str]) -> list[ModerationResult]:
         """
         Moderate multiple content items in a batch.
 
@@ -126,7 +126,7 @@ class ModerationService(ProviderAIService):
 # Helper function for service creation
 def create_moderation_service(
     provider: str,
-    config: Dict[str, Any]
+    config: dict[str, Any]
 ) -> ModerationService:
     """
     Factory function to create a moderation service.

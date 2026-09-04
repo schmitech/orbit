@@ -6,7 +6,8 @@ the new unified AI services architecture.
 """
 
 import json
-from typing import Dict, Any, AsyncGenerator, List
+from typing import Any
+from collections.abc import AsyncGenerator
 from urllib.parse import urlparse
 
 from ...base import ServiceType
@@ -32,7 +33,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
     # cached-prefix reads; see cache_prefix_len handling in generate()/generate_stream().
     SUPPORTS_PROMPT_CACHING = True
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Anthropic inference service.
 
@@ -112,7 +113,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
         return "".join(text_parts), citations
 
     @staticmethod
-    def _format_citations(citations: List[Any]) -> str:
+    def _format_citations(citations: list[Any]) -> str:
         """Format web_search_result_location citations as a markdown source list."""
         seen_urls = set()
         lines = []
@@ -160,8 +161,8 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using the Anthropic Messages API."""
@@ -183,7 +184,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
         # Convert messages (handles tool_calls and tool result turns)
         system_content, anthropic_messages = self._convert_messages_for_tools(messages)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": self.model,
             "messages": anthropic_messages,
             "max_tokens": kwargs.pop("max_tokens", self.max_tokens),
@@ -237,7 +238,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
             ]
 
         # Normalize to OpenAI-format assistant message for the loop
-        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": text}
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": text}
         if tool_calls_result:
             assistant_msg["tool_calls"] = [
                 {
@@ -259,7 +260,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
         )
 
     def _convert_messages_for_tools(
-        self, messages: List[Dict[str, Any]]
+        self, messages: list[dict[str, Any]]
     ):
         """
         Convert an OpenAI-format message list (including tool-call history) to

@@ -6,7 +6,7 @@ buffering streaming responses (SSE, WebSocket).
 """
 
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from starlette.middleware.gzip import GZipResponder
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -35,7 +35,7 @@ class SelectiveGZipMiddleware:
         self,
         app: ASGIApp,
         minimum_size: int = 2048,
-        excluded_paths: Optional[List[str]] = None,
+        excluded_paths: Optional[list[str]] = None,
         compresslevel: int = 6
     ):
         """

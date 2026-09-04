@@ -9,7 +9,7 @@ Configuration is read from config.yaml under files.processing.csv
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class CSVProcessor(FileProcessor):
     Requires: pandas
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, Any]] = None):
         """
         Initialize CSV processor with optional configuration.
 
@@ -59,7 +59,7 @@ class CSVProcessor(FileProcessor):
         super().__init__()
         self._load_config(config)
 
-    def _load_config(self, config: Optional[Dict[str, Any]] = None):
+    def _load_config(self, config: Optional[dict[str, Any]] = None):
         """Load settings from config or use defaults."""
         csv_config = {}
         if config:
@@ -96,7 +96,7 @@ class CSVProcessor(FileProcessor):
             return s
         return s[:max_len - 3] + "..."
 
-    def _get_column_type_info(self, series: "pd.Series") -> Dict[str, Any]:
+    def _get_column_type_info(self, series: "pd.Series") -> dict[str, Any]:
         """Get type and statistics for a column."""
         info = {
             "dtype": str(series.dtype),
@@ -130,7 +130,7 @@ class CSVProcessor(FileProcessor):
 
         return info
 
-    def _format_column_info(self, col_name: str, col_info: Dict[str, Any]) -> str:
+    def _format_column_info(self, col_name: str, col_info: dict[str, Any]) -> str:
         """Format column information as a compact string."""
         parts = [f"  {col_name}"]
 
@@ -160,7 +160,7 @@ class CSVProcessor(FileProcessor):
 
         return " ".join(parts)
 
-    def _format_row_compact(self, row: "pd.Series", columns: List[str]) -> str:
+    def _format_row_compact(self, row: "pd.Series", columns: list[str]) -> str:
         """Format a row compactly."""
         parts = []
         for col in columns:
@@ -251,7 +251,7 @@ class CSVProcessor(FileProcessor):
         logger.debug(f"CSVProcessor extracted {len(result)} chars from {filename or 'unknown'}")
         return result
 
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
         """Extract metadata from CSV."""
         metadata = await super().extract_metadata(file_data, filename)
 

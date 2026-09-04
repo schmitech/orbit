@@ -7,7 +7,7 @@ moderation, reranking, vision, and audio services.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, TypeVar, Generic
+from typing import Any, Optional, TypeVar, Generic
 import logging
 import sys
 from enum import Enum
@@ -47,7 +47,7 @@ class AIService(ABC, Generic[T]):
         initialized: Whether the service has been initialized
     """
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType):
         """
         Initialize the AI service.
 
@@ -109,7 +109,7 @@ class ProviderAIService(AIService[T]):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         service_type: ServiceType,
         provider_name: str
     ):
@@ -128,9 +128,9 @@ class ProviderAIService(AIService[T]):
         self.model: Optional[str] = None
         self.endpoint: Optional[str] = None
         self.client: Optional[Any] = None
-        self._provider_config_cache: Optional[Dict[str, Any]] = None
+        self._provider_config_cache: Optional[dict[str, Any]] = None
 
-    def _extract_provider_config(self) -> Dict[str, Any]:
+    def _extract_provider_config(self) -> dict[str, Any]:
         """
         Extract provider-specific configuration from the config dictionary.
 
@@ -152,7 +152,7 @@ class ProviderAIService(AIService[T]):
         self._provider_config_cache = self._compute_provider_config()
         return self._provider_config_cache
 
-    def _compute_provider_config(self) -> Dict[str, Any]:
+    def _compute_provider_config(self) -> dict[str, Any]:
         # Some service types' config section name doesn't match the naive
         # plural of their ServiceType.value (e.g. reranking -> 'rerankers',
         # not 'rerankings'); such services set config_section_key to point
@@ -275,7 +275,7 @@ class ProviderAIService(AIService[T]):
         # Use default endpoint
         return default_endpoint
 
-    def _get_timeout_config(self) -> Dict[str, int]:
+    def _get_timeout_config(self) -> dict[str, int]:
         """
         Get timeout configuration from provider config.
 
@@ -291,7 +291,7 @@ class ProviderAIService(AIService[T]):
             'warmup': timeout_config.get('warmup', 45000)     # 45s default
         }
 
-    def _get_retry_config(self) -> Dict[str, Any]:
+    def _get_retry_config(self) -> dict[str, Any]:
         """
         Get retry configuration from provider config.
 

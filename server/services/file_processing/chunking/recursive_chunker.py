@@ -6,7 +6,7 @@ Handles complex document structures better than simple chunking.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union, Literal
+from typing import Any, Optional, Union, Literal
 from dataclasses import dataclass
 
 from .base_chunker import TextChunker, Chunk
@@ -27,7 +27,7 @@ class RecursiveLevel:
         regex: If set, split on every match of this pattern instead of literal
             delimiters (e.g. markdown header lines)
     """
-    delimiters: Optional[List[str]] = None
+    delimiters: Optional[list[str]] = None
     include_delim: Optional[Literal["prev", "next"]] = "prev"
     whitespace: bool = False
     regex: Optional[str] = None
@@ -45,7 +45,7 @@ class RecursiveRules:
         ])
     """
     
-    def __init__(self, levels: Optional[List[RecursiveLevel]] = None):
+    def __init__(self, levels: Optional[list[RecursiveLevel]] = None):
         """
         Initialize recursive rules.
         
@@ -117,7 +117,7 @@ class RecursiveChunker(TextChunker):
         self.min_characters_per_chunk = min_characters_per_chunk
         self.rules = rules if rules is not None else RecursiveRules.default()
     
-    def _split_text(self, text: str, level: RecursiveLevel) -> List[str]:
+    def _split_text(self, text: str, level: RecursiveLevel) -> list[str]:
         """
         Split text using the given recursive level.
 
@@ -167,7 +167,7 @@ class RecursiveChunker(TextChunker):
             # Final fallback: character-based split
             return [text[i:i + self.chunk_size] for i in range(0, len(text), self.chunk_size)]
     
-    def _merge_splits(self, splits: List[str], token_counts: List[int]) -> List[str]:
+    def _merge_splits(self, splits: list[str], token_counts: list[int]) -> list[str]:
         """
         Merge short splits into larger chunks respecting chunk_size.
 
@@ -219,7 +219,7 @@ class RecursiveChunker(TextChunker):
         text: str,
         level: int = 0,
         file_id: str = "",
-    ) -> List[Chunk]:
+    ) -> list[Chunk]:
         """
         Recursively chunk text.
         
@@ -294,7 +294,7 @@ class RecursiveChunker(TextChunker):
         
         return chunks
     
-    def chunk_text(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    def chunk_text(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """
         Chunk text using recursive strategy.
         

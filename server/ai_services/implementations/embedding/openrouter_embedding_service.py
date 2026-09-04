@@ -10,7 +10,7 @@ API Documentation: https://openrouter.ai/docs/features/embeddings
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 
 from openai import AsyncOpenAI
 
@@ -31,7 +31,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
     embedding models from OpenAI, Cohere, and others.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the OpenRouter embedding service."""
         super().__init__(config, "openrouter")
 
@@ -109,7 +109,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
         self.initialized = False
         logger.debug("Closed OpenRouter embedding service")
 
-    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> list[float]:
         """
         Generate embeddings for a single query text.
 
@@ -138,7 +138,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
             logger.error(f"OpenRouter embedding error: {str(e)}")
             raise
 
-    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         """
         Generate embeddings for multiple documents.
 

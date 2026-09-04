@@ -4,7 +4,7 @@ Significantly reduced code duplication.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 import psycopg
 from psycopg.rows import dict_row
 
@@ -20,7 +20,7 @@ class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
     Demonstrates significant code reduction while maintaining functionality.
     """
     
-    def __init__(self, config: Dict[str, Any], connection: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], connection: Any = None, **kwargs):
         """Initialize PostgreSQL retriever."""
         super().__init__(config=config, connection=connection, **kwargs)
         
@@ -80,7 +80,7 @@ class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
         """PostgreSQL test query."""
         return "SELECT 1 as test"
     
-    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """Execute PostgreSQL query and return raw results."""
         cursor = None
         try:
@@ -154,7 +154,7 @@ class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
             logger.error(f"Error verifying PostgreSQL database structure: {e}")
             raise
     
-    def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
+    def _get_search_query(self, query: str, collection_name: str) -> dict[str, Any]:
         """Generate PostgreSQL-optimized search query."""
         if self.use_full_text_search:
             query_tokens = self._tokenize_text(query)

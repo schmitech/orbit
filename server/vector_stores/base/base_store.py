@@ -5,7 +5,7 @@ Base store class providing common interface for vector storage backends.
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, Any
+from typing import Any
 from dataclasses import dataclass
 import asyncio
 from datetime import datetime, timezone
@@ -35,14 +35,14 @@ class StoreStatus(Enum):
 class StoreConfig:
     """Configuration for a vector store instance."""
     name: str
-    connection_params: Dict[str, Any]
+    connection_params: dict[str, Any]
     pool_size: int = 5
     timeout: int = 30
     retry_attempts: int = 3
     retry_delay: float = 1.0
     ephemeral: bool = False  # If True, data is temporary
     auto_cleanup: bool = True  # Auto cleanup on close
-    metadata: Dict[str, Any] = None
+    metadata: dict[str, Any] = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -149,7 +149,7 @@ class BaseStore(ABC):
         self._last_accessed = datetime.now(timezone.utc)
         self._operation_count += 1
     
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """
         Get statistics about the store.
         

@@ -6,7 +6,7 @@ consolidating common functionality like API key management, client initializatio
 and error handling.
 """
 
-from typing import Dict, Any
+from typing import Any
 from anthropic import AsyncAnthropic
 import logging
 
@@ -31,7 +31,7 @@ class AnthropicBaseService(ProviderAIService):
 
     DEFAULT_BASE_URL = "https://api.anthropic.com"
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "anthropic"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "anthropic"):
         """
         Initialize the anthropic base service.
 
@@ -246,7 +246,7 @@ class AnthropicBaseService(ProviderAIService):
         provider_config = self._extract_provider_config()
         return provider_config.get('effort', default)
 
-    def _resolve_effort(self, kwargs: Dict[str, Any]) -> str:
+    def _resolve_effort(self, kwargs: dict[str, Any]) -> str:
         """
         Resolve the effort level for the current request, popping it out of
         ``kwargs`` so it never leaks into the raw Messages API params.

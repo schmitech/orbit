@@ -7,7 +7,7 @@ that can be injected into LLM prompts for temporal context.
 
 import logging
 from datetime import datetime, timezone as dt_timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 from functools import lru_cache
 
 # Define logger first (before any imports that might fail)
@@ -228,7 +228,7 @@ class ClockService:
 
         return self.instruction_template.format(time=time_str)
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """
         Check the health of the clock service.
 

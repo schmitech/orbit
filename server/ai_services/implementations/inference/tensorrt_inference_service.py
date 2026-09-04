@@ -7,7 +7,8 @@ and direct mode (in-process model loading with TensorRT-LLM engine).
 
 import logging
 import asyncio
-from typing import Dict, Any, AsyncGenerator, List
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...providers.tensorrt_base import TensorRTBaseService
 from ...services import InferenceService
@@ -25,7 +26,7 @@ class TensorRTInferenceService(InferenceService, TensorRTBaseService):
     2. Direct mode: Loads models directly using TensorRT-LLM's LLM class (requires GPU)
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the TensorRT-LLM inference service."""
         # Cooperative initialization - TensorRTBaseService handles mode detection
         super().__init__(config, "tensorrt")
@@ -229,7 +230,7 @@ class TensorRTInferenceService(InferenceService, TensorRTBaseService):
                 yield result[i:i + chunk_size]
                 await asyncio.sleep(0.01)  # Small delay for streaming effect
 
-    async def batch_generate(self, prompts: List[str], **kwargs) -> List[str]:
+    async def batch_generate(self, prompts: list[str], **kwargs) -> list[str]:
         """
         Generate responses for multiple prompts (batch processing).
 
@@ -256,7 +257,7 @@ class TensorRTInferenceService(InferenceService, TensorRTBaseService):
             # Direct mode: TensorRT-LLM handles batching natively
             return await self._batch_generate_direct(prompts, **kwargs)
 
-    async def _batch_generate_direct(self, prompts: List[str], **kwargs) -> List[str]:
+    async def _batch_generate_direct(self, prompts: list[str], **kwargs) -> list[str]:
         """Batch generate using TensorRT-LLM's native batching."""
         if not self.trt_engine:
             raise ValueError("TensorRT-LLM engine not initialized")

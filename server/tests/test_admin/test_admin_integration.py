@@ -11,10 +11,8 @@ Prerequisites:
 3. MongoDB must be available and configured
 4. Admin user must exist and be accessible
 
-Expected Server Warnings:
-- "Login attempt for non-existent user: test" - This is EXPECTED and intentional.
-  The test uses fake credentials to detect if authentication is enabled.
-  These warnings indicate the auth system is working correctly by rejecting invalid logins.
+Authentication is performed with the configured bootstrap-admin credentials.
+The suite reuses that valid session token so it stays within the login rate limit.
 """
 
 import asyncio
@@ -115,7 +113,7 @@ def get_server_url() -> str:
 SERVER_URL = get_server_url()
 logger.info(f"Using server URL: {SERVER_URL}")
 DEFAULT_USERNAME = "admin"
-DEFAULT_PASSWORD = "admin123"
+DEFAULT_PASSWORD = "ChangeMe!2026"
 
 # Check environment variable for password
 env_password = os.getenv('ORBIT_DEFAULT_ADMIN_PASSWORD')
@@ -123,7 +121,9 @@ if env_password:
     DEFAULT_PASSWORD = env_password
     logger.info(f"Using admin password from environment variable: {DEFAULT_PASSWORD[:3]}***")
 else:
-    logger.info("Using default admin password: admin123")
+    logger.info("Using default admin password: ChangeMe!2026")
+
+_ADMIN_TOKEN: Optional[str] = None
 
 
 class AdminTester:
@@ -157,48 +157,20 @@ class AdminTester:
         """
         Check if authentication is enabled on the server.
 
-        NOTE: This intentionally sends invalid credentials ("test"/"test") to detect
-        if auth is enabled. The server warnings about "non-existent user: test" are
-        EXPECTED and indicate the auth system is working correctly.
+        The integration environment has authentication enabled. Avoid invalid
+        login probes because they consume the shared IP rate-limit bucket.
         """
-        try:
-            # Try to access the login endpoint with fake credentials to see if auth is enabled
-            # Expected server warning: "Login attempt for non-existent user: test"
-            async with self.session.post(
-                f"{self.base_url}/auth/login",
-                json={"username": "test", "password": "test"},
-                headers={"Content-Type": "application/json"},
-                timeout=5
-            ) as response:
-                if response.status == 401:
-                    # Auth service is available, just wrong credentials
-                    logger.info("✓ Authentication is enabled on server")
-                    return True
-                elif response.status == 404:
-                    # Auth endpoints not found - auth is disabled
-                    logger.info("✓ Authentication is disabled on server")
-                    return False
-                elif response.status == 503:
-                    # Auth service not available
-                    logger.info("✓ Authentication service not available (may be disabled)")
-                    return False
-                else:
-                    logger.info(f"Authentication status unclear (got {response.status}), assuming enabled")
-                    return True
-        except Exception as e:
-            logger.error(f"Error checking auth status: {str(e)}")
-            # Assume auth is enabled if we can't determine
-            return True
+        # Do not probe with invalid credentials: each probe consumes the shared
+        # IP login-rate-limit bucket and can block this integration suite.
+        return True
 
     async def authenticate(self) -> bool:
         """Authenticate and get a token (only if auth is enabled)"""
         logger.info("=== Checking Authentication Status ===")
         
-        # First check if auth is enabled
-        auth_enabled = await self.check_auth_enabled()
-        
-        if not auth_enabled:
-            logger.info("✓ Authentication is disabled - proceeding without token")
+        global _ADMIN_TOKEN
+        if _ADMIN_TOKEN:
+            self.token = _ADMIN_TOKEN
             return True
         
         logger.info("=== Authenticating for Admin Tests ===")
@@ -219,6 +191,7 @@ class AdminTester:
                     result = await response.json()
                     self.token = result.get("token")
                     if self.token:
+                        _ADMIN_TOKEN = self.token
                         logger.info(f"✓ Authentication successful. Token: {self.token[:8]}...")
                         return True
                     else:

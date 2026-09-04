@@ -7,7 +7,7 @@ Handles feedback submission, retrieval, and toggle logic.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 from datetime import datetime, UTC
 from utils.id_utils import generate_id
 
@@ -23,7 +23,7 @@ MAX_COMMENT_LENGTH = 2000
 class FeedbackService:
     """Service for managing user feedback on chat responses"""
 
-    def __init__(self, config: Dict[str, Any], database_service=None):
+    def __init__(self, config: dict[str, Any], database_service=None):
         """
         Initialize the feedback service.
 
@@ -84,7 +84,7 @@ class FeedbackService:
         user_id: Optional[str] = None,
         adapter_name: Optional[str] = None,
         comment: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Submit or toggle feedback for a message, optionally with a free-text comment.
 
@@ -200,7 +200,7 @@ class FeedbackService:
         self,
         message_id: str,
         session_id: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """
         Get feedback for a specific message.
 
@@ -219,7 +219,7 @@ class FeedbackService:
             {"message_id": message_id, "session_id": session_id}
         )
 
-    async def get_session_feedback(self, session_id: str) -> List[Dict[str, Any]]:
+    async def get_session_feedback(self, session_id: str) -> list[dict[str, Any]]:
         """
         Get all feedback for a session.
 

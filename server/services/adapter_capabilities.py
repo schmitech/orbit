@@ -1,9 +1,9 @@
 """Helpers for interpreting adapter capability configuration."""
 
-from typing import Any, Dict
+from typing import Any
 
 
-def uses_retrieval_services(adapter_config: Dict[str, Any]) -> bool:
+def uses_retrieval_services(adapter_config: dict[str, Any]) -> bool:
     capabilities = adapter_config.get('capabilities') or {}
 
     retrieval_behavior = capabilities.get('retrieval_behavior')

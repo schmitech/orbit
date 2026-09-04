@@ -7,7 +7,8 @@ Responses API at /v1/responses.  The base URL is configured via FUGU_BASE_URL.
 
 import json
 import logging
-from typing import Dict, Any, AsyncGenerator, List
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from openai import RateLimitError
 
@@ -26,7 +27,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
     Fugu-specific reasoning_effort and the Responses API.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         OpenAICompatibleBaseService.__init__(self, config, ServiceType.INFERENCE, "fugu")
         InferenceService.__init__(self, config, "fugu")
 
@@ -34,7 +35,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
         self.max_tokens = self._get_max_tokens(default=4096)
         self.top_p = self._get_top_p(default=1.0)
 
-    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_reasoning_effort(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the reasoning effort level for the current request, popping it
         out of ``kwargs`` so it never leaks into the raw chat.completions params.
@@ -73,8 +74,8 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation via the Fugu chat completions API."""
@@ -83,7 +84,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
 
         reasoning_effort = self._resolve_reasoning_effort(kwargs)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": kwargs.pop("temperature", self.temperature),
@@ -105,7 +106,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
         choice = response.choices[0]
         msg = choice.message
 
-        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": msg.content}
         tool_calls_result = None
 
         if msg.tool_calls:
@@ -220,7 +221,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
 
     def _build_responses_api_params(
         self, messages: list, stream: bool = False, **kwargs
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build parameters for the Fugu Responses API (/v1/responses)."""
         instructions_parts = []
         input_items = []
@@ -233,7 +234,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
             else:
                 input_items.append({"role": role, "content": content})
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": self.model,
             "input": input_items,
             "tools": [{"type": "web_search"}],

@@ -7,7 +7,7 @@ warning injection, conversation storage, and logging.
 
 import logging
 import re
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from utils.text_utils import fix_text_formatting, mask_api_key
 from .conversation_history_handler import ConversationHistoryHandler
@@ -80,7 +80,7 @@ class ResponseProcessor:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         conversation_handler: ConversationHistoryHandler,
         logger_service,
         audit_service=None
@@ -172,7 +172,7 @@ class ResponseProcessor:
         user_id: Optional[str] = None,
         adapter_name: Optional[str] = None,
         model: Optional[str] = None,
-        usage: Optional[Dict[str, Any]] = None
+        usage: Optional[dict[str, Any]] = None
     ) -> None:
         """
         Log conversation asynchronously.
@@ -243,9 +243,9 @@ class ResponseProcessor:
         retrieved_docs: Optional[list] = None,
         model: Optional[str] = None,
         regenerate_of_message_id: Optional[str] = None,
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None,
-        usage: Optional[Dict[str, Any]] = None,
+        usage: Optional[dict[str, Any]] = None,
         audit_adapter_name: Optional[str] = None,
         sources: Optional[list] = None,
     ) -> tuple[str, Optional[str]]:
@@ -376,7 +376,7 @@ class ResponseProcessor:
         self,
         response: str,
         sources: list,
-        metadata: Dict[str, Any],
+        metadata: dict[str, Any],
         processing_time: float,
         audio_data: Optional[bytes] = None,
         audio_format: Optional[str] = None,
@@ -397,7 +397,7 @@ class ResponseProcessor:
         generated_audio_url: Optional[str] = None,
         generated_audio_format: Optional[str] = None,
         generated_audio_revised_prompt: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Build the final result dictionary.
 

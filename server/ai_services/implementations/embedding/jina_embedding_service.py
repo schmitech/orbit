@@ -9,7 +9,7 @@ Compare with: server/embeddings/jina.py (old implementation)
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import Any
 import asyncio
 
 from ...providers.jina_base import JinaBaseService
@@ -34,7 +34,7 @@ class JinaEmbeddingService(UsageReportingMixin, EmbeddingService, JinaBaseServic
     New implementation: ~120 lines focused only on embedding logic
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Jina embedding service.
 
@@ -52,7 +52,7 @@ class JinaEmbeddingService(UsageReportingMixin, EmbeddingService, JinaBaseServic
         self.dimensions = self._get_dimensions() or 1024
         self.batch_size = self._get_batch_size(default=10)
 
-    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> list[float]:
         """
         Generate embeddings for a single query text.
 
@@ -106,7 +106,7 @@ class JinaEmbeddingService(UsageReportingMixin, EmbeddingService, JinaBaseServic
             self._handle_jina_error(e, "embedding query")
             raise
 
-    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         """
         Generate embeddings for multiple documents.
 
@@ -142,7 +142,7 @@ class JinaEmbeddingService(UsageReportingMixin, EmbeddingService, JinaBaseServic
 
         return all_embeddings
 
-    async def _embed_batch(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def _embed_batch(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         """
         Generate embeddings for a batch of texts.
 

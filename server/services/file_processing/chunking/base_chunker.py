@@ -7,7 +7,7 @@ Abstract base class for text chunking strategies.
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Optional, Union
 
 from .utils import get_tokenizer, TokenizerProtocol
 
@@ -31,8 +31,8 @@ class Chunk:
     file_id: str
     text: str
     chunk_index: int
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    embedding: List[float] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    embedding: list[float] = field(default_factory=list)
     
     def __repr__(self) -> str:
         return f"Chunk(chunk_id={self.chunk_id[:8]}..., chunk_index={self.chunk_index}, len={len(self.text)})"
@@ -78,7 +78,7 @@ class TextChunker(ABC):
         """
         return self._tokenizer.count_tokens(text)
     
-    def count_tokens_batch(self, texts: List[str]) -> List[int]:
+    def count_tokens_batch(self, texts: list[str]) -> list[int]:
         """
         Count tokens for multiple texts.
         
@@ -93,7 +93,7 @@ class TextChunker(ABC):
         return [self.count_tokens(text) for text in texts]
     
     @abstractmethod
-    def chunk_text(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    def chunk_text(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """
         Chunk text into smaller pieces.
         

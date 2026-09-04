@@ -14,7 +14,7 @@ automatic retry logic, and easier maintenance.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
 from .pipeline.pipeline import InferencePipeline, InferencePipelineBuilder
 from .pipeline.service_container import ServiceContainer
 from .pipeline.providers import UnifiedProviderFactory as ProviderFactory
@@ -29,7 +29,7 @@ class PipelineFactory:
     provider implementations, avoiding legacy compatibility layers.
     """
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the pipeline factory.
         

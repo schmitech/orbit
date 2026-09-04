@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from .tool_definitions import ToolResult, ToolResultStatus
 
@@ -168,7 +168,7 @@ class ResponseSynthesizer:
         tool_result: ToolResult,
         tool_description: str = "",
         synthesized_response: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Format tool results as context items for the pipeline.
         

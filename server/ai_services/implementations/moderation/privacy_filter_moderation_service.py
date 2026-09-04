@@ -14,7 +14,7 @@ composes with the safety/guardrail configuration like any other moderator.
 
 import asyncio
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from ...providers import TransformersBaseService
 from ...services import ModerationService, ModerationResult
@@ -54,7 +54,7 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
         device: "auto", "cpu", "cuda", or "mps" (default: auto)
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the privacy filter moderation service.
 
@@ -116,7 +116,7 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
             logger.error(f"Error loading privacy filter model: {e}")
             raise
 
-    def _spans_to_result(self, spans: List[Dict[str, Any]]) -> ModerationResult:
+    def _spans_to_result(self, spans: list[dict[str, Any]]) -> ModerationResult:
         """
         Convert pipeline output spans into a ModerationResult.
 
@@ -128,7 +128,7 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
             ModerationResult with pii.<category> scores; flagged when any
             configured category is detected at or above the threshold
         """
-        categories: Dict[str, float] = {}
+        categories: dict[str, float] = {}
         is_flagged = False
 
         for span in spans:
@@ -189,7 +189,7 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
                 error=f"Moderation check failed (allowed): {str(e)}"
             )
 
-    async def moderate_batch(self, contents: List[str]) -> List[ModerationResult]:
+    async def moderate_batch(self, contents: list[str]) -> list[ModerationResult]:
         """
         Moderate multiple content items in a single pipeline call.
 

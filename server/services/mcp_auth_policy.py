@@ -20,7 +20,7 @@ a reload that *removes* the requirement does not attempt to remount.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from routes.auth_helpers import normalize_adapter_auth_override
 from utils import is_true_value
@@ -28,7 +28,7 @@ from utils import is_true_value
 logger = logging.getLogger(__name__)
 
 
-def adapters_requiring_auth_list(config: Dict[str, Any]) -> list:
+def adapters_requiring_auth_list(config: dict[str, Any]) -> list:
     # Uses the same tri-state normalization as request-time enforcement
     # (is_authenticated_user_required), so a string-valued override from env
     # substitution (requires_authenticated_user: ${REQUIRE_USER}) is
@@ -42,7 +42,7 @@ def adapters_requiring_auth_list(config: Dict[str, Any]) -> list:
     ]
 
 
-def apply_mcp_auth_policy(app_state: Any, config: Optional[Dict[str, Any]]) -> None:
+def apply_mcp_auth_policy(app_state: Any, config: Optional[dict[str, Any]]) -> None:
     """
     Disable the /mcp mount if `config` now requires an authenticated user,
     globally or on any adapter. No-op if the mount is already gone (either

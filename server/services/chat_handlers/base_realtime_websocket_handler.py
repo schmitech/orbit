@@ -16,7 +16,7 @@ import asyncio
 import json
 import logging
 import uuid
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 from inference.pipeline.base import ProcessingContext
@@ -41,8 +41,8 @@ class BaseRealtimeWebSocketHandler:
         self,
         websocket: WebSocket,
         adapter_name: str,
-        adapter_config: Dict[str, Any],
-        config: Dict[str, Any],
+        adapter_config: dict[str, Any],
+        config: dict[str, Any],
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
         prompt_service: Optional[Any] = None,
@@ -74,8 +74,8 @@ class BaseRealtimeWebSocketHandler:
         # Usage summed across every response.done/usageMetadata event this
         # session receives — flushed as ONE audit record on disconnect, not
         # per-turn (a session can produce hundreds of turns).
-        self._usage_accumulator: Dict[str, Any] = {}
-        self._embedding_usage_accumulator: Dict[str, Any] = {}
+        self._usage_accumulator: dict[str, Any] = {}
+        self._embedding_usage_accumulator: dict[str, Any] = {}
 
         self.is_connected = False
         self._client_task: Optional[asyncio.Task] = None
@@ -134,7 +134,7 @@ class BaseRealtimeWebSocketHandler:
             )
         return instructions
 
-    async def _send_client(self, message: Dict[str, Any]) -> None:
+    async def _send_client(self, message: dict[str, Any]) -> None:
         if self.websocket.client_state != WebSocketState.CONNECTED:
             self.is_connected = False
             return
@@ -161,7 +161,7 @@ class BaseRealtimeWebSocketHandler:
         self._pending_user_message = ""
         self._pending_assistant_text = ""
 
-    async def _persist_turn(self) -> Tuple[Optional[Any], Optional[Any]]:
+    async def _persist_turn(self) -> tuple[Optional[Any], Optional[Any]]:
         """Persist the completed turn to chat_history, the same way normal
         passthrough/retriever chat does via ConversationHistoryHandler — so a
         voice conversation shows up in history and can be cleared through the
@@ -218,7 +218,7 @@ class BaseRealtimeWebSocketHandler:
                 acc[key] = (acc.get(key) or 0) + value
         acc["total_tokens"] = (acc.get("prompt_tokens") or 0) + (acc.get("completion_tokens") or 0)
 
-    def _accumulate_embedding_usage(self, usage_sink: Dict[str, Any]) -> None:
+    def _accumulate_embedding_usage(self, usage_sink: dict[str, Any]) -> None:
         """Add one grounding lookup's embedding usage to the session total."""
         if not usage_sink or not usage_sink.get("reported"):
             return
@@ -251,7 +251,7 @@ class BaseRealtimeWebSocketHandler:
         model = acc.get("model") or (embedding_usage or {}).get("model")
         prompt_tokens = acc.get("prompt_tokens")
         completion_tokens = acc.get("completion_tokens")
-        usage: Dict[str, Any] = {
+        usage: dict[str, Any] = {
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "total_tokens": acc.get("total_tokens"),

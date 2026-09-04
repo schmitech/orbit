@@ -12,7 +12,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 from services.chat_handlers.base_realtime_websocket_handler import BaseRealtimeWebSocketHandler
@@ -32,7 +32,7 @@ except ImportError:  # pragma: no cover
 REALTIME_WS_URL = "wss://api.openai.com/v1/realtime"
 
 
-def _resolve_openai_api_key(config: Dict[str, Any]) -> Optional[str]:
+def _resolve_openai_api_key(config: dict[str, Any]) -> Optional[str]:
     key = os.environ.get("OPENAI_API_KEY")
     if key:
         return key
@@ -70,8 +70,8 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
         self,
         websocket: WebSocket,
         adapter_name: str,
-        adapter_config: Dict[str, Any],
-        config: Dict[str, Any],
+        adapter_config: dict[str, Any],
+        config: dict[str, Any],
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
         prompt_service: Optional[Any] = None,
@@ -99,7 +99,7 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
             audit_service=audit_service,
             pricing_service=pricing_service,
         )
-        self._assistant_transcript_prefixes: Dict[str, str] = {}
+        self._assistant_transcript_prefixes: dict[str, str] = {}
         self._finalized_transcript_keys: set[str] = set()
 
         cfg = adapter_config.get("config") or {}
@@ -127,10 +127,10 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
         self._response_in_progress = False
         self._discarding_response = False
 
-    async def _build_session_update(self) -> Dict[str, Any]:
+    async def _build_session_update(self) -> dict[str, Any]:
         pcm_format = {"type": "audio/pcm", "rate": 24000}
         instructions = await self._resolve_realtime_instructions()
-        audio: Dict[str, Any] = {
+        audio: dict[str, Any] = {
             "input": {
                 "format": pcm_format,
                 "turn_detection": {
@@ -150,7 +150,7 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
         if self._enable_input_transcription:
             audio["input"]["transcription"] = {"model": self._transcription_model}
 
-        session: Dict[str, Any] = {
+        session: dict[str, Any] = {
             "type": "realtime",
             "model": self._realtime_model,
             "instructions": instructions,
@@ -241,7 +241,7 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
             else:
                 logger.debug("Unknown client message type: %s", mtype)
 
-    async def _map_openai_event(self, event: Dict[str, Any]) -> None:
+    async def _map_openai_event(self, event: dict[str, Any]) -> None:
         etype = event.get("type")
         if etype == "response.created":
             self._response_in_progress = True
@@ -366,11 +366,11 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
             await self._handle_function_call(event)
 
     @staticmethod
-    def _transcript_key(event: Dict[str, Any]) -> str:
+    def _transcript_key(event: dict[str, Any]) -> str:
         return ":".join(str(event.get(key, "")) for key in ("response_id", "item_id", "output_index", "content_index"))
 
     async def _send_missing_transcript_suffix(
-        self, event: Dict[str, Any], *, mark_final: bool = False
+        self, event: dict[str, Any], *, mark_final: bool = False
     ) -> None:
         """Forward any final transcript portion that did not arrive as a delta."""
         transcript = event.get("transcript")
@@ -391,7 +391,7 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
         if mark_final:
             self._finalized_transcript_keys.add(key)
 
-    async def _reconcile_response_transcripts(self, response: Dict[str, Any]) -> None:
+    async def _reconcile_response_transcripts(self, response: dict[str, Any]) -> None:
         """Use the completed response as a final transcript source.
 
         Some Realtime responses finish with the transcript only inside
@@ -419,7 +419,7 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
         self._assistant_transcript_prefixes.clear()
         self._finalized_transcript_keys.clear()
 
-    async def _handle_function_call(self, event: Dict[str, Any]) -> None:
+    async def _handle_function_call(self, event: dict[str, Any]) -> None:
         if not self._grounding:
             return
         call_id = event.get("call_id")

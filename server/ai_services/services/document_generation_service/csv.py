@@ -1,6 +1,6 @@
 import csv
 import io
-from typing import Dict, Any
+from typing import Any
 
 from .base import BaseRenderer
 
@@ -15,7 +15,7 @@ class CSVRenderer(BaseRenderer):
     separator blocks.
     """
 
-    def render(self, spec: Dict[str, Any]) -> bytes:
+    def render(self, spec: dict[str, Any]) -> bytes:
         sections_with_tables = [
             s for s in spec.get("sections", [])
             if s.get("table") and len(s["table"]) > 0

@@ -11,7 +11,7 @@ import pytest_asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock
-from typing import List, Dict, Any
+from typing import Any
 from dataclasses import dataclass, field
 
 # Add server directory to Python path
@@ -45,24 +45,24 @@ class MockProcessingContext:
     adapter_name: str = ""
     system_prompt_id: str = None
     inference_provider: str = None
-    context_messages: List[Dict[str, str]] = field(default_factory=list)
-    retrieved_docs: List[Dict[str, Any]] = field(default_factory=list)
+    context_messages: list[dict[str, str]] = field(default_factory=list)
+    retrieved_docs: list[dict[str, Any]] = field(default_factory=list)
     formatted_context: str = ""
     full_prompt: str = ""
-    messages: List[Dict[str, str]] = None
+    messages: list[dict[str, str]] = None
     response: str = ""
-    sources: List[Dict[str, Any]] = field(default_factory=list)
+    sources: list[dict[str, Any]] = field(default_factory=list)
     tokens: int = 0
     processing_time: float = 0.0
     is_blocked: bool = False
     error: str = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    config: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any] = field(default_factory=dict)
     user_id: str = None
     session_id: str = None
     api_key: str = None
     timezone: str = None
-    file_ids: List[str] = field(default_factory=list)
+    file_ids: list[str] = field(default_factory=list)
 
     def has_error(self) -> bool:
         return self.is_blocked or self.error is not None

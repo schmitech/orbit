@@ -16,7 +16,7 @@ Features:
 """
 
 import logging
-from typing import List, Optional
+from typing import Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -351,7 +351,7 @@ class StringSimilarity:
     @staticmethod
     def find_best_match(
         query: str,
-        candidates: List[str],
+        candidates: list[str],
         algorithm: str = "jaro_winkler",
         min_threshold: float = 0.0,
         case_sensitive: bool = False
@@ -391,12 +391,12 @@ class StringSimilarity:
     @staticmethod
     def find_all_matches(
         query: str,
-        candidates: List[str],
+        candidates: list[str],
         algorithm: str = "jaro_winkler",
         min_threshold: float = 0.3,
         case_sensitive: bool = False,
         limit: Optional[int] = None
-    ) -> List[SimilarityResult]:
+    ) -> list[SimilarityResult]:
         """
         Find all matching candidates above a threshold, sorted by score.
 
@@ -446,7 +446,7 @@ def levenshtein(s1: str, s2: str) -> float:
     return StringSimilarity.levenshtein_similarity(s1.lower(), s2.lower())
 
 
-def best_match(query: str, candidates: List[str], threshold: float = 0.5) -> Optional[str]:
+def best_match(query: str, candidates: list[str], threshold: float = 0.5) -> Optional[str]:
     """Find the best matching candidate for a query."""
     result = StringSimilarity.find_best_match(query, candidates, min_threshold=threshold)
     return result.matched_text if result else None

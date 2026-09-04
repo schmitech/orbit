@@ -4,7 +4,7 @@ Qdrant store implementation for vector operations.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 
 from ..base.base_vector_store import BaseVectorStore
 from ..base.base_store import StoreConfig, StoreStatus
@@ -155,9 +155,9 @@ class QdrantStore(BaseVectorStore):
             return False
 
     async def add_vectors(self,
-                         vectors: List[List[float]],
-                         ids: List[str],
-                         metadata: Optional[List[Dict[str, Any]]] = None,
+                         vectors: list[list[float]],
+                         ids: list[str],
+                         metadata: Optional[list[dict[str, Any]]] = None,
                          collection_name: Optional[str] = None) -> bool:
         """
         Add vectors to Qdrant collection.
@@ -227,10 +227,10 @@ class QdrantStore(BaseVectorStore):
             return False
 
     async def search_vectors(self,
-                           query_vector: List[float],
+                           query_vector: list[float],
                            limit: int = 10,
                            collection_name: Optional[str] = None,
-                           filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+                           filter_metadata: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
         """
         Search for similar vectors in Qdrant.
 
@@ -337,7 +337,7 @@ class QdrantStore(BaseVectorStore):
 
     async def get_vector(self,
                         vector_id: str,
-                        collection_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                        collection_name: Optional[str] = None) -> Optional[dict[str, Any]]:
         """
         Get a specific vector by ID from Qdrant.
 
@@ -394,8 +394,8 @@ class QdrantStore(BaseVectorStore):
 
     async def update_vector(self,
                            vector_id: str,
-                           vector: Optional[List[float]] = None,
-                           metadata: Optional[Dict[str, Any]] = None,
+                           vector: Optional[list[float]] = None,
+                           metadata: Optional[dict[str, Any]] = None,
                            collection_name: Optional[str] = None) -> bool:
         """
         Update a vector and/or its metadata in Qdrant.
@@ -487,7 +487,7 @@ class QdrantStore(BaseVectorStore):
             logger.error(f"Error deleting vector from Qdrant: {e}")
             return False
 
-    async def list_collections(self) -> List[str]:
+    async def list_collections(self) -> list[str]:
         """
         List all collections in Qdrant.
 
@@ -671,7 +671,7 @@ class QdrantStore(BaseVectorStore):
             logger.error(f"Error clearing Qdrant collection: {e}")
             return False
 
-    async def get_collection_info(self, collection_name: str) -> Dict[str, Any]:
+    async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
         """
         Get information about a Qdrant collection.
 
@@ -708,10 +708,10 @@ class QdrantStore(BaseVectorStore):
             return {'error': str(e), 'name': collection_name}
 
     async def similarity_search_with_threshold(self,
-                                              query_vector: List[float],
+                                              query_vector: list[float],
                                               threshold: float,
                                               limit: int = 10,
-                                              collection_name: Optional[str] = None) -> List[Dict[str, Any]]:
+                                              collection_name: Optional[str] = None) -> list[dict[str, Any]]:
         """
         Search for similar vectors with a minimum similarity threshold.
 
@@ -729,11 +729,11 @@ class QdrantStore(BaseVectorStore):
 
     async def _execute_search_with_index_retry(self,
                                                collection_name: str,
-                                               query_vector: List[float],
+                                               query_vector: list[float],
                                                limit: int,
                                                search_filter: Any,
-                                               filter_fields: List[str],
-                                               retry_count: int = 0) -> List[Any]:
+                                               filter_fields: list[str],
+                                               retry_count: int = 0) -> list[Any]:
         """
         Execute search with automatic retry on missing index error.
 

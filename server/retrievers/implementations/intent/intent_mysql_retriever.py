@@ -4,7 +4,7 @@ Demonstrates how easy it is to add new database engines.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 try:
     import mysql.connector
@@ -24,7 +24,7 @@ class IntentMySQLRetriever(IntentSQLRetriever):
     Minimal code required for a fully functional intent retriever.
     """
     
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
         """Initialize MySQL intent retriever."""
         super().__init__(config=config, domain_adapter=domain_adapter, connection=connection, **kwargs)
         
@@ -87,7 +87,7 @@ class IntentMySQLRetriever(IntentSQLRetriever):
         """MySQL test query."""
         return "SELECT 1 as test"
     
-    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """Execute MySQL query with intent-specific handling."""
         cursor = None
         try:

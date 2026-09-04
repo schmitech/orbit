@@ -5,7 +5,8 @@ Uses the google-genai SDK (replacement for deprecated google-generativeai).
 """
 
 import json
-from typing import Dict, Any, AsyncGenerator, List, Optional, Tuple
+from typing import Any, Optional
+from collections.abc import AsyncGenerator
 import asyncio
 import logging
 
@@ -28,7 +29,7 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
     - Native code generation
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Gemini inference service."""
         GoogleBaseService.__init__(self, config, ServiceType.INFERENCE, "gemini")
 
@@ -98,7 +99,7 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
         )
         return model_name.startswith(supported_prefixes)
 
-    def _resolve_thinking_level(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_thinking_level(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the thinking level for the current request.
 
@@ -122,8 +123,8 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
 
     @staticmethod
     def _extract_system_and_contents(
-        messages: List[Dict[str, Any]],
-    ) -> Tuple[Optional[str], List[Dict[str, Any]]]:
+        messages: list[dict[str, Any]],
+    ) -> tuple[Optional[str], list[dict[str, Any]]]:
         """Split an OpenAI-format messages list into a Gemini system instruction and contents.
 
         Gemini requires:
@@ -198,8 +199,8 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using the Gemini API."""
@@ -231,7 +232,7 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
 
         client = self._get_client()
 
-        config_kwargs: Dict[str, Any] = {
+        config_kwargs: dict[str, Any] = {
             "temperature": kwargs.get("temperature", self.temperature),
             "max_output_tokens": kwargs.get("max_tokens", self.max_tokens),
             "system_instruction": system_instruction,
@@ -305,7 +306,7 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
         # the next round. Thinking models (gemini-3.1-pro-preview and similar)
         # embed a thought_signature in function_call Parts; reconstructing the
         # parts from the OpenAI format drops it and causes a 400 on round 2+.
-        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": text}
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": text}
         if tool_calls_result:
             assistant_msg["tool_calls"] = [
                 {
@@ -330,8 +331,8 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
 
     @staticmethod
     def _extract_system_and_contents_for_tools(
-        messages: List[Dict[str, Any]],
-    ) -> Tuple[Optional[str], List[Dict[str, Any]]]:
+        messages: list[dict[str, Any]],
+    ) -> tuple[Optional[str], list[dict[str, Any]]]:
         """Convert OpenAI messages (including tool history) to Gemini contents format."""
         system_instruction = None
         contents = []
@@ -385,7 +386,7 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
         return system_instruction, contents
 
     @staticmethod
-    def _strip_schema_meta(schema: Dict[str, Any]) -> Dict[str, Any]:
+    def _strip_schema_meta(schema: dict[str, Any]) -> dict[str, Any]:
         """
         Remove JSON Schema meta-fields that Gemini's FunctionDeclaration rejects.
 

@@ -3,7 +3,8 @@
 import os
 import asyncio
 import logging
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 from ...base import ServiceType, ProviderAIService
 from ...errors import sanitize_provider_error
 from ...services import InferenceService
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 class BitNetInferenceService(InferenceService, BitNetBaseService):
     """BitNet inference service using 1.58-bit quantized models."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         # Initialize via ProviderAIService first
         ProviderAIService.__init__(self, config, ServiceType.INFERENCE, "bitnet")
         

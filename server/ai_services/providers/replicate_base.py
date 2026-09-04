@@ -1,7 +1,7 @@
 """Replicate base class for Replicate AI services."""
 
 import logging
-from typing import Dict, Any
+from typing import Any
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
 from ..errors import raise_sanitized
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class ReplicateBaseService(ProviderAIService):
     """Base class for Replicate services."""
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "replicate"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "replicate"):
         """
         Initialize the replicate base service.
 

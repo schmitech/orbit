@@ -1,6 +1,7 @@
 """NVIDIA NIM inference service (OpenAI-compatible API)."""
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 from ...base import ServiceType
 from ...providers import NVIDIABaseService
 from ...services import InferenceService
@@ -8,7 +9,7 @@ from ...services import InferenceService
 class NVIDIAInferenceService(InferenceService, NVIDIABaseService):
     """NVIDIA NIM inference service. Old: ~212 lines, New: ~70 lines, Reduction: 67%"""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         NVIDIABaseService.__init__(self, config, ServiceType.INFERENCE)
         InferenceService.__init__(self, config, "nvidia")
         self.temperature = self._get_temperature(default=0.7)
@@ -52,7 +53,7 @@ class NVIDIAInferenceService(InferenceService, NVIDIABaseService):
             self._handle_nvidia_error(e, "streaming")
             yield f"Error: {str(e)}"
 
-    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_reasoning_effort(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the reasoning effort level for the current request, popping it
         out of ``kwargs`` so it never leaks into the raw chat.completions params.

@@ -6,7 +6,7 @@ Shared utilities for sentence splitting and tokenization.
 
 import logging
 import re
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 # Protocol is available in typing from Python 3.8+, but use typing_extensions for compatibility
 try:
@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 class TokenizerProtocol(Protocol):
     """Protocol for tokenizer interface."""
     
-    def encode(self, text: str) -> List[int]:
+    def encode(self, text: str) -> list[int]:
         """Encode text to token IDs."""
         ...
     
-    def decode(self, token_ids: List[int]) -> str:
+    def decode(self, token_ids: list[int]) -> str:
         """Decode token IDs to text."""
         ...
     
@@ -36,11 +36,11 @@ class TokenizerProtocol(Protocol):
 class SimpleTokenizer:
     """Simple character-based tokenizer as fallback."""
     
-    def encode(self, text: str) -> List[int]:
+    def encode(self, text: str) -> list[int]:
         """Encode text as character codes."""
         return [ord(c) for c in text]
     
-    def decode(self, token_ids: List[int]) -> str:
+    def decode(self, token_ids: list[int]) -> str:
         """Decode character codes to text."""
         return ''.join(chr(t) for t in token_ids)
     
@@ -48,7 +48,7 @@ class SimpleTokenizer:
         """Count characters as tokens."""
         return len(text)
     
-    def count_tokens_batch(self, texts: List[str]) -> List[int]:
+    def count_tokens_batch(self, texts: list[str]) -> list[int]:
         """Count tokens for multiple texts."""
         return [self.count_tokens(text) for text in texts]
 
@@ -91,10 +91,10 @@ def get_tokenizer(tokenizer: Optional[Union[str, TokenizerProtocol]] = None) -> 
 
 def split_sentences(
     text: str,
-    delimiters: Optional[List[str]] = None,
+    delimiters: Optional[list[str]] = None,
     include_delim: Optional[str] = "prev",
     min_characters_per_sentence: int = 12
-) -> List[str]:
+) -> list[str]:
     """
     Split text into sentences.
     
@@ -134,10 +134,10 @@ def split_sentences(
 
 def _split_sentences_python(
     text: str,
-    delimiters: List[str],
+    delimiters: list[str],
     include_delim: Optional[str],
     min_characters_per_sentence: int
-) -> List[str]:
+) -> list[str]:
     """Python fallback for sentence splitting."""
     sep = "✄"
     t = text
@@ -182,7 +182,7 @@ def split_by_regex(
     pattern: str,
     include_delim: Optional[str] = "next",
     min_characters_per_segment: int = 1
-) -> List[str]:
+) -> list[str]:
     """
     Split text at every regex match, unlike split_sentences which only matches
     literal delimiter strings.

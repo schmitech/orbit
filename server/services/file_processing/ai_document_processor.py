@@ -12,7 +12,7 @@ resolved from config/ocr.yaml.
 
 import logging
 import mimetypes
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from .base_processor import FileProcessor
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class AIDocumentProcessor(FileProcessor):
     """Universal processor that extracts text via an AI/LLM OCR service."""
 
-    def __init__(self, enabled: bool = True, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, enabled: bool = True, config: Optional[dict[str, Any]] = None):
         """
         Initialize the AI document processor.
 
@@ -48,7 +48,7 @@ class AIDocumentProcessor(FileProcessor):
         # FileProcessor.extract_text() only returns a bare str, so callers that
         # want usage (_extract_content) read this instance attribute right
         # after calling it, rather than widening that shared return contract.
-        self.last_usage: Optional[Dict[str, Any]] = None
+        self.last_usage: Optional[dict[str, Any]] = None
         # The OCR service's actually-resolved model (may differ from
         # model_override, which is usually unset) — set by extract_text(),
         # read by _extract_content() for pricing.
@@ -83,7 +83,7 @@ class AIDocumentProcessor(FileProcessor):
         # splat **kwargs straight through, so an unrecognized kwarg would
         # break the request.
         if getattr(service, "SUPPORTS_USAGE_REPORTING", False):
-            usage_sink: Dict[str, Any] = {}
+            usage_sink: dict[str, Any] = {}
             result = await service.extract_document(file_data, mime_type, filename, usage_sink=usage_sink)
             if usage_sink.get("reported"):
                 self.last_usage = usage_sink
@@ -101,7 +101,7 @@ class AIDocumentProcessor(FileProcessor):
 
         return result.get('text', '')
 
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
         """Metadata for AI-OCR extraction (page count computed locally, no extra API call)."""
         metadata = await super().extract_metadata(file_data, filename)
         mime_type = self._detect_mime_type(file_data, filename)

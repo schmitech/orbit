@@ -6,7 +6,7 @@ providing a unified API regardless of the underlying provider (Gemini, etc.).
 """
 
 from abc import abstractmethod
-from typing import Dict, Any
+from typing import Any
 
 from ..base import ProviderAIService, ServiceType
 
@@ -24,11 +24,11 @@ class VideoGenerationService(ProviderAIService):
 
     service_type = ServiceType.VIDEO_GENERATION
 
-    def __init__(self, config: Dict[str, Any], provider_name: str):
+    def __init__(self, config: dict[str, Any], provider_name: str):
         super().__init__(config, ServiceType.VIDEO_GENERATION, provider_name)
 
     @abstractmethod
-    async def generate_video(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_video(self, prompt: str, **kwargs) -> dict[str, Any]:
         """
         Generate a video from a text prompt.
 

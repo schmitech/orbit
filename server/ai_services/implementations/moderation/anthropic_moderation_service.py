@@ -6,7 +6,7 @@ the new unified AI services architecture with expanded safety categories.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Any
 import asyncio
 import json
 
@@ -51,7 +51,7 @@ class AnthropicModerationService(ModerationService, AnthropicBaseService):
     Uses Claude to classify content safety with structured JSON output.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Anthropic moderation service.
 
@@ -260,7 +260,7 @@ Respond with only the JSON object."""
             error=f"Failed to parse response (allowed): {response_text[:100]}"
         )
 
-    async def moderate_batch(self, contents: List[str]) -> List[ModerationResult]:
+    async def moderate_batch(self, contents: list[str]) -> list[ModerationResult]:
         """
         Moderate multiple content items in a batch.
 

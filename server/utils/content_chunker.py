@@ -26,7 +26,7 @@ KEY DIFFERENCES:
 import re
 import hashlib
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +39,10 @@ class MarkdownSection:
         self.title = title
         self.content = content  # Content including the header
         self.start_pos = start_pos
-        self.children: List[MarkdownSection] = []
+        self.children: list[MarkdownSection] = []
         self.parent: Optional[MarkdownSection] = None
 
-    def get_hierarchy_path(self) -> List[str]:
+    def get_hierarchy_path(self) -> list[str]:
         """Get the hierarchical path from root to this section."""
         path = []
         current = self
@@ -100,7 +100,7 @@ class ContentChunker:
         estimated_tokens = len(content) // 3
         return estimated_tokens > self.max_chunk_tokens
 
-    def chunk_markdown(self, content: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def chunk_markdown(self, content: str, metadata: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Chunk markdown content into semantic sections.
 
@@ -154,7 +154,7 @@ class ContentChunker:
 
         return chunks
 
-    def _parse_markdown_structure(self, content: str) -> List[MarkdownSection]:
+    def _parse_markdown_structure(self, content: str) -> list[MarkdownSection]:
         """
         Parse markdown content into hierarchical sections.
 
@@ -221,8 +221,8 @@ class ContentChunker:
         return sections
 
     def _create_chunks_from_sections(self,
-                                    sections: List[MarkdownSection],
-                                    metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+                                    sections: list[MarkdownSection],
+                                    metadata: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Create chunks from parsed sections, respecting token limits.
 
@@ -285,7 +285,7 @@ class ContentChunker:
 
         return chunks
 
-    def _flatten_sections(self, sections: List[MarkdownSection]) -> List[MarkdownSection]:
+    def _flatten_sections(self, sections: list[MarkdownSection]) -> list[MarkdownSection]:
         """Flatten hierarchical sections into a list (depth-first)."""
         flat = []
         for section in sections:
@@ -294,7 +294,7 @@ class ContentChunker:
                 flat.extend(self._flatten_sections(section.children))
         return flat
 
-    def _split_large_section(self, section: MarkdownSection) -> List[Dict[str, Any]]:
+    def _split_large_section(self, section: MarkdownSection) -> list[dict[str, Any]]:
         """
         Split a large section that exceeds max chunk size into smaller chunks.
 
@@ -349,8 +349,8 @@ class ContentChunker:
 
     def _create_chunk_dict(self,
                           content: str,
-                          sections: List[MarkdownSection],
-                          token_count: int) -> Dict[str, Any]:
+                          sections: list[MarkdownSection],
+                          token_count: int) -> dict[str, Any]:
         """Create a chunk dictionary from content and sections."""
         # Get section title (first section in the chunk)
         section_title = sections[0].title if sections else "Content"
@@ -367,7 +367,7 @@ class ContentChunker:
             "overlap_with_next": False
         }
 
-    def _add_chunk_overlap(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _add_chunk_overlap(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Add overlap between consecutive chunks.
 
@@ -414,10 +414,10 @@ class ChunkCache:
 
     def __init__(self, max_size: int = 100):
         self.max_size = max_size
-        self.cache: Dict[str, List[Dict[str, Any]]] = {}
-        self.access_order: List[str] = []
+        self.cache: dict[str, list[dict[str, Any]]] = {}
+        self.access_order: list[str] = []
 
-    def get(self, content_hash: str) -> Optional[List[Dict[str, Any]]]:
+    def get(self, content_hash: str) -> Optional[list[dict[str, Any]]]:
         """Get cached chunks by content hash."""
         if content_hash in self.cache:
             # Update access order (LRU)
@@ -426,7 +426,7 @@ class ChunkCache:
             return self.cache[content_hash]
         return None
 
-    def put(self, content_hash: str, chunks: List[Dict[str, Any]]):
+    def put(self, content_hash: str, chunks: list[dict[str, Any]]):
         """Store chunks in cache."""
         # Evict oldest if cache is full
         if len(self.cache) >= self.max_size and content_hash not in self.cache:

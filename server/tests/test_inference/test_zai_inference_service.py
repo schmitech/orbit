@@ -9,7 +9,7 @@ import pytest
 import os
 import sys
 from unittest.mock import Mock, AsyncMock, patch
-from typing import Dict, Any
+from typing import Any
 
 # Get the absolute path to the server directory (parent of tests)
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,7 +23,7 @@ class TestZaiInferenceService:
     """Test cases for Z.AI inference service."""
 
     @pytest.fixture
-    def mock_config(self) -> Dict[str, Any]:
+    def mock_config(self) -> dict[str, Any]:
         """Create a mock configuration for testing."""
         return {
             "inference": {

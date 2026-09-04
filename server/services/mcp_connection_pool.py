@@ -15,7 +15,8 @@ tears down a one-shot connection per call instead of keeping any idle.
 
 import asyncio
 import time
-from typing import Any, Awaitable, Callable, List, Optional
+from typing import Any, Optional
+from collections.abc import Awaitable, Callable
 
 from services.cache_backends.base import CircuitBreaker
 
@@ -50,7 +51,7 @@ class ServerConnectionPool:
         self.idle_timeout = idle_timeout
         self._breaker_recovery_timeout = breaker_recovery_timeout
         self.breaker = CircuitBreaker(max_failures=1, recovery_timeout=breaker_recovery_timeout)
-        self._idle: List[MCPConnection] = []
+        self._idle: list[MCPConnection] = []
         # Membership set for O(1) discard on release/drain, not iteration order.
         self._all: set = set()
         self._semaphore = asyncio.Semaphore(max(pool_size, 1))

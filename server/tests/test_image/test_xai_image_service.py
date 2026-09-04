@@ -2,7 +2,7 @@
 
 import os
 import sys
-from typing import Dict, Any
+from typing import Any
 from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
@@ -28,7 +28,7 @@ class TestXAIImageRegistration:
         registry_module._services_registered = False
 
     def test_register_xai_image_provider(self):
-        config: Dict[str, Any] = {
+        config: dict[str, Any] = {
             "image": {"enabled": True},
             "image_generation": {
                 "xai": {"enabled": True, "model": "grok-imagine-image", "api_key": "test-key"},

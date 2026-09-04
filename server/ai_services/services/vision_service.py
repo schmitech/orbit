@@ -6,7 +6,7 @@ providing a unified API for image understanding regardless of the underlying pro
 """
 
 from abc import abstractmethod
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Optional, Union
 from PIL import Image
 import base64
 from io import BytesIO
@@ -38,7 +38,7 @@ class VisionService(ProviderAIService):
     # Class attribute for service type
     service_type = ServiceType.VISION
 
-    def __init__(self, config: Dict[str, Any], provider_name: str):
+    def __init__(self, config: dict[str, Any], provider_name: str):
         """
         Initialize the vision service.
 
@@ -127,7 +127,7 @@ class VisionService(ProviderAIService):
     async def detect_objects(
         self, 
         image: Union[str, bytes, Image.Image]
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Detect objects in image.
 
@@ -259,10 +259,10 @@ class VisionResult:
         self,
         content: str,
         extracted_text: Optional[str] = None,
-        detected_objects: Optional[List[Dict[str, Any]]] = None,
+        detected_objects: Optional[list[dict[str, Any]]] = None,
         description: Optional[str] = None,
         provider: str = "",
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[dict[str, Any]] = None
     ):
         """
         Initialize vision result.
@@ -286,7 +286,7 @@ class VisionResult:
         """Return the content text."""
         return self.content
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             'content': self.content,
@@ -301,7 +301,7 @@ class VisionResult:
 # Helper function for service creation
 def create_vision_service(
     provider: str,
-    config: Dict[str, Any]
+    config: dict[str, Any]
 ) -> VisionService:
     """
     Factory function to create a vision service.

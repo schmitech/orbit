@@ -6,7 +6,7 @@ or speaches-compatible servers for speech-to-text and text-to-speech.
 """
 
 import logging
-from typing import Dict, Any, Optional, Union
+from typing import Any, Optional, Union
 import base64
 
 from ...base import ServiceType
@@ -29,7 +29,7 @@ class OllamaAudioService(AudioService, OllamaBaseService):
     Uses Ollama's API for audio processing with local models.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Ollama audio service."""
         # Initialize via OllamaBaseService
         OllamaBaseService.__init__(self, config, ServiceType.AUDIO, "ollama")

@@ -5,7 +5,7 @@ Handles WebVTT subtitle files using webvtt-py.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ class VTTProcessor(FileProcessor):
             logger.error(f"Error processing VTT: {e}")
             raise
 
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> Dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
         """Extract metadata from VTT file."""
         metadata = await super().extract_metadata(file_data, filename)
 

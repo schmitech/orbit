@@ -7,7 +7,7 @@ composite retriever routes to.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from adapters.base import DocumentAdapter
 from adapters.registry import ADAPTER_REGISTRY
@@ -24,7 +24,7 @@ class CompositeAdapter(DocumentAdapter):
     but delegates actual work to the child adapters.
     """
 
-    def __init__(self, config: Dict[str, Any] = None, **kwargs):
+    def __init__(self, config: dict[str, Any] = None, **kwargs):
         """
         Initialize the composite adapter.
 
@@ -35,7 +35,7 @@ class CompositeAdapter(DocumentAdapter):
         super().__init__(config=config, **kwargs)
         logger.debug("CompositeAdapter initialized")
 
-    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def format_document(self, raw_doc: str, metadata: dict[str, Any]) -> dict[str, Any]:
         """
         Format document - passthrough since child adapters handle formatting.
 
@@ -52,7 +52,7 @@ class CompositeAdapter(DocumentAdapter):
             "confidence": metadata.get('confidence', 1.0)
         }
 
-    def extract_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
+    def extract_direct_answer(self, context: list[dict[str, Any]]) -> Optional[str]:
         """
         Extract direct answer - delegates to child adapter results.
 
@@ -73,9 +73,9 @@ class CompositeAdapter(DocumentAdapter):
 
     def apply_domain_specific_filtering(
         self,
-        context_items: List[Dict[str, Any]],
+        context_items: list[dict[str, Any]],
         query: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Apply filtering - passthrough since child adapters handle filtering.
 

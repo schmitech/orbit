@@ -1,6 +1,7 @@
 """Replicate inference service."""
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 from ...base import ServiceType
 from ...providers import ReplicateBaseService
 from ...services import InferenceService
@@ -8,7 +9,7 @@ from ...services import InferenceService
 class ReplicateInferenceService(InferenceService, ReplicateBaseService):
     """Replicate inference service. Old: ~213 lines, New: ~65 lines, Reduction: 69%"""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         ReplicateBaseService.__init__(self, config, ServiceType.INFERENCE)
         InferenceService.__init__(self, config, "replicate")
         self.temperature = self._get_temperature(default=0.7)

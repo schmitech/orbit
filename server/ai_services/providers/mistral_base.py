@@ -6,7 +6,7 @@ consolidating common functionality like API key management, client initializatio
 and error handling.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 import logging
 
 from ..base import ProviderAIService, ServiceType
@@ -37,7 +37,7 @@ class MistralBaseService(ProviderAIService):
 
     DEFAULT_BASE_URL = "https://api.mistral.ai"
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "mistral"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "mistral"):
         """
         Initialize the Mistral base service.
 

@@ -8,7 +8,7 @@ must be managed through the server API endpoints.
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from bin.orbit.utils.exceptions import ConfigurationError
 
@@ -53,7 +53,7 @@ class ConfigService:
         self.config_dir.mkdir(exist_ok=True, mode=0o700)
         DEFAULT_LOG_DIR.mkdir(exist_ok=True, mode=0o700)
     
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self) -> dict[str, Any]:
         """Load CLI configuration from file with caching."""
         current_time = time.time()
         
@@ -77,7 +77,7 @@ class ConfigService:
         self._last_config_load = current_time
         return config
     
-    def save_config(self, config: Dict[str, Any]) -> None:
+    def save_config(self, config: dict[str, Any]) -> None:
         """Save configuration to file and invalidate cache."""
         try:
             with open(self.config_file, 'w') as f:
@@ -88,7 +88,7 @@ class ConfigService:
         except Exception as e:
             raise ConfigurationError(f"Failed to save configuration: {e}")
     
-    def get_default_config(self) -> Dict[str, Any]:
+    def get_default_config(self) -> dict[str, Any]:
         """Get default CLI configuration."""
         return {
             "server": {

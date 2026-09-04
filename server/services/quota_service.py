@@ -10,7 +10,7 @@ resets.
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Optional
 import threading
 import hashlib
 
@@ -39,10 +39,10 @@ class QuotaService:
     """
 
     # Singleton pattern implementation
-    _instances: Dict[str, 'QuotaService'] = {}
+    _instances: dict[str, 'QuotaService'] = {}
     _lock = threading.Lock()
 
-    def __new__(cls, config: Dict[str, Any], database_service=None, cache_service=None):
+    def __new__(cls, config: dict[str, Any], database_service=None, cache_service=None):
         """Create or return existing QuotaService instance based on configuration"""
         cache_key = cls._create_cache_key(config)
 
@@ -56,7 +56,7 @@ class QuotaService:
             return cls._instances[cache_key]
 
     @classmethod
-    def _create_cache_key(cls, config: Dict[str, Any]) -> str:
+    def _create_cache_key(cls, config: dict[str, Any]) -> str:
         """Create a cache key based on configuration"""
         throttle_config = config.get('security', {}).get('throttling', {})
         from services.cache_backends import get_provider_config
@@ -79,7 +79,7 @@ class QuotaService:
             cls._instances.clear()
             logger.debug("Cleared QuotaService cache")
 
-    def __init__(self, config: Dict[str, Any], database_service=None, cache_service=None):
+    def __init__(self, config: dict[str, Any], database_service=None, cache_service=None):
         """
         Initialize the Quota Service.
 
@@ -115,9 +115,9 @@ class QuotaService:
         self.sync_interval = self.throttle_config.get('usage_sync_interval_seconds', 60)
 
         # Quota cache (in-memory cache for quota configs)
-        self._quota_cache: Dict[str, Dict[str, Any]] = {}
+        self._quota_cache: dict[str, dict[str, Any]] = {}
         self._cache_ttl = 300  # 5 minutes cache for quota configs
-        self._cache_timestamps: Dict[str, float] = {}
+        self._cache_timestamps: dict[str, float] = {}
 
         # Mark as initialized
         self._singleton_initialized = True
@@ -208,7 +208,7 @@ class QuotaService:
             next_month = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
         return next_month.timestamp()
 
-    async def get_quota_config(self, api_key: str) -> Dict[str, Any]:
+    async def get_quota_config(self, api_key: str) -> dict[str, Any]:
         """
         Get quota configuration for an API key.
 
@@ -256,7 +256,7 @@ class QuotaService:
 
         return quota_config
 
-    async def increment_usage(self, api_key: str) -> Tuple[int, int, int, int]:
+    async def increment_usage(self, api_key: str) -> tuple[int, int, int, int]:
         """
         Atomically increment usage counters for an API key.
 
@@ -309,7 +309,7 @@ class QuotaService:
         api_key: str,
         daily_limit: Optional[int],
         monthly_limit: Optional[int]
-    ) -> Tuple[int, int, int, int, Optional[str]]:
+    ) -> tuple[int, int, int, int, Optional[str]]:
         """
         Atomically reject over-limit requests or increment usage for accepted ones.
 
@@ -371,7 +371,7 @@ class QuotaService:
             logger.warning(f"Failed to check quota usage: {e}")
             return (0, 0, 86400, 2592000, None)
 
-    async def get_usage(self, api_key: str) -> Dict[str, Any]:
+    async def get_usage(self, api_key: str) -> dict[str, Any]:
         """
         Get current usage statistics for an API key without incrementing.
 
@@ -510,7 +510,7 @@ class QuotaService:
             logger.error(f"Failed to reset usage: {e}")
             return False
 
-    async def get_quota_and_usage(self, api_key: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    async def get_quota_and_usage(self, api_key: str) -> tuple[dict[str, Any], dict[str, Any]]:
         """
         Get both quota configuration and current usage for an API key.
 
@@ -526,9 +526,9 @@ class QuotaService:
 
     def calculate_remaining(
         self,
-        quota_config: Dict[str, Any],
-        usage_stats: Dict[str, Any]
-    ) -> Tuple[Optional[int], Optional[int]]:
+        quota_config: dict[str, Any],
+        usage_stats: dict[str, Any]
+    ) -> tuple[Optional[int], Optional[int]]:
         """
         Calculate remaining quota.
 

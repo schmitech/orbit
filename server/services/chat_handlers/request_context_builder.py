@@ -7,7 +7,7 @@ eliminating duplication between streaming and non-streaming paths.
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 
 from bson import ObjectId
 
@@ -21,7 +21,7 @@ class RequestContextBuilder:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         adapter_manager=None
     ):
         """
@@ -34,7 +34,7 @@ class RequestContextBuilder:
         self.config = config
         self.adapter_manager = adapter_manager
 
-    def get_adapter_config(self, adapter_name: str) -> Dict[str, Any]:
+    def get_adapter_config(self, adapter_name: str) -> dict[str, Any]:
         """
         Get configuration for a specific adapter.
 
@@ -88,7 +88,7 @@ class RequestContextBuilder:
         self,
         adapter_name: str,
         requested_model: Optional[str],
-    ) -> tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
+    ) -> tuple[Optional[str], Optional[str], Optional[dict[str, Any]]]:
         """
         Resolve a client-requested model name against the adapter's allowed_models list.
 
@@ -160,7 +160,7 @@ class RequestContextBuilder:
         self,
         adapter_name: str,
         requested_model: Optional[str],
-    ) -> tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
+    ) -> tuple[Optional[str], Optional[str], Optional[dict[str, Any]]]:
         """
         Resolve a client-requested model name against the adapter's allowed_image_models list.
 
@@ -221,7 +221,7 @@ class RequestContextBuilder:
         self,
         adapter_name: str,
         requested_model: Optional[str],
-    ) -> tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
+    ) -> tuple[Optional[str], Optional[str], Optional[dict[str, Any]]]:
         """
         Resolve a client-requested model name against the adapter's allowed_video_models list.
 
@@ -282,7 +282,7 @@ class RequestContextBuilder:
         self,
         adapter_name: str,
         requested_model: Optional[str],
-    ) -> tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
+    ) -> tuple[Optional[str], Optional[str], Optional[dict[str, Any]]]:
         """
         Resolve a client-requested model name against the adapter's allowed_audio_models list.
 
@@ -343,7 +343,7 @@ class RequestContextBuilder:
         self,
         adapter_name: str,
         requested_provider: Optional[str],
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """
         Resolve a client-requested search backend name against the adapter's
         allowed_search_providers list.
@@ -427,12 +427,12 @@ class RequestContextBuilder:
         self,
         message: str,
         adapter_name: str,
-        context_messages: List[Dict[str, str]],
+        context_messages: list[dict[str, str]],
         system_prompt_id: Optional[ObjectId] = None,
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
         api_key: Optional[str] = None,
-        file_ids: Optional[List[str]] = None,
+        file_ids: Optional[list[str]] = None,
         thread_id: Optional[str] = None,
         audio_input: Optional[str] = None,
         audio_format: Optional[str] = None,

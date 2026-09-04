@@ -6,7 +6,8 @@ package or load models in-process.
 """
 
 import json
-from typing import Any, AsyncGenerator, Dict, List
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
 from ...providers import OpenAICompatibleBaseService
@@ -16,7 +17,7 @@ from ...services import InferenceService, ToolCallingResult
 class SGLangInferenceService(InferenceService, OpenAICompatibleBaseService):
     """Text inference through a running SGLang OpenAI-compatible server."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         OpenAICompatibleBaseService.__init__(self, config, ServiceType.INFERENCE, "sglang")
         InferenceService.__init__(self, config, "sglang")
 
@@ -43,11 +44,11 @@ class SGLangInferenceService(InferenceService, OpenAICompatibleBaseService):
         port = provider_config.get("port", 30000)
         return f"http://{host}:{port}/v1"
 
-    def _build_messages(self, prompt: str, messages: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def _build_messages(self, prompt: str, messages: list[dict[str, Any]] = None) -> list[dict[str, Any]]:
         return messages if messages is not None else [{"role": "user", "content": prompt}]
 
-    def _build_params(self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any], *, stream: bool = False) -> Dict[str, Any]:
-        params: Dict[str, Any] = {
+    def _build_params(self, messages: list[dict[str, Any]], kwargs: dict[str, Any], *, stream: bool = False) -> dict[str, Any]:
+        params: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": kwargs.pop("temperature", self.temperature),
@@ -98,14 +99,14 @@ class SGLangInferenceService(InferenceService, OpenAICompatibleBaseService):
             self._handle_openai_compatible_error(error, "streaming generation")
             raise
 
-    async def batch_generate(self, prompts: List[str], **kwargs) -> List[str]:
+    async def batch_generate(self, prompts: list[str], **kwargs) -> list[str]:
         """Generate each API request in order, matching vLLM's remote-mode behavior."""
         return [await self.generate(prompt, **kwargs) for prompt in prompts]
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         if not self.initialized:
@@ -122,7 +123,7 @@ class SGLangInferenceService(InferenceService, OpenAICompatibleBaseService):
 
         choice = response.choices[0]
         message = choice.message
-        assistant_message: Dict[str, Any] = {"role": "assistant", "content": message.content}
+        assistant_message: dict[str, Any] = {"role": "assistant", "content": message.content}
         tool_calls_result = None
         if message.tool_calls:
             assistant_message["tool_calls"] = [

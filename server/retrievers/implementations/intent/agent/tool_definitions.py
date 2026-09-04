@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -34,7 +34,7 @@ class ToolParameter(BaseModel):
     required: bool = Field(default=False, description="Whether parameter is required")
     description: str = Field(default="", description="Human-readable description")
     default: Optional[Any] = Field(default=None, description="Default value if not provided")
-    enum: Optional[List[Any]] = Field(default=None, description="Allowed values")
+    enum: Optional[list[Any]] = Field(default=None, description="Allowed values")
     min: Optional[Union[int, float]] = Field(default=None, description="Minimum value for numbers")
     max: Optional[Union[int, float]] = Field(default=None, description="Maximum value for numbers")
     example: Optional[Any] = Field(default=None, description="Example value")
@@ -66,9 +66,9 @@ class ToolParameter(BaseModel):
                 return ParameterType.STRING
         return ParameterType.STRING
 
-    def to_openai_schema(self) -> Dict[str, Any]:
+    def to_openai_schema(self) -> dict[str, Any]:
         """Convert to OpenAI function calling parameter schema."""
-        schema: Dict[str, Any] = {
+        schema: dict[str, Any] = {
             "type": self.type.value,
             "description": self.description or self.name,
         }
@@ -100,9 +100,9 @@ class ToolExecutionConfig(BaseModel):
     # HTTP execution fields (reuses parent HTTP logic)
     http_method: Optional[str] = Field(default="GET", description="HTTP method")
     endpoint_template: Optional[str] = Field(default=None, description="URL endpoint template")
-    headers: Optional[Dict[str, str]] = Field(default=None, description="Request headers")
-    query_params: Optional[Dict[str, str]] = Field(default=None, description="Query parameters")
-    body_template: Optional[Dict[str, Any]] = Field(default=None, description="Request body template")
+    headers: Optional[dict[str, str]] = Field(default=None, description="Request headers")
+    query_params: Optional[dict[str, str]] = Field(default=None, description="Query parameters")
+    body_template: Optional[dict[str, Any]] = Field(default=None, description="Request body template")
 
     @field_validator('type', mode='before')
     @classmethod
@@ -124,9 +124,9 @@ class FunctionSchema(BaseModel):
     
     name: str = Field(..., description="Function name")
     description: str = Field(default="", description="Function description")
-    parameters: List[ToolParameter] = Field(default_factory=list, description="Function parameters")
+    parameters: list[ToolParameter] = Field(default_factory=list, description="Function parameters")
 
-    def to_openai_schema(self) -> Dict[str, Any]:
+    def to_openai_schema(self) -> dict[str, Any]:
         """Convert to OpenAI function calling schema format."""
         properties = {}
         required = []
@@ -159,12 +159,12 @@ class ToolDefinition(BaseModel):
     tool_type: str = Field(default="function", description="Type identifier (function)")
     function_schema: FunctionSchema = Field(..., description="Function schema")
     execution: ToolExecutionConfig = Field(..., description="Execution configuration")
-    nl_examples: List[str] = Field(default_factory=list, description="Natural language examples")
-    tags: List[str] = Field(default_factory=list, description="Tags for categorization")
-    semantic_tags: Optional[Dict[str, Any]] = Field(default=None, description="Semantic metadata")
+    nl_examples: list[str] = Field(default_factory=list, description="Natural language examples")
+    tags: list[str] = Field(default_factory=list, description="Tags for categorization")
+    semantic_tags: Optional[dict[str, Any]] = Field(default=None, description="Semantic metadata")
 
     @classmethod
-    def from_template(cls, template: Dict[str, Any]) -> "ToolDefinition":
+    def from_template(cls, template: dict[str, Any]) -> "ToolDefinition":
         """Create ToolDefinition from a YAML template dictionary."""
         # Parse function_schema
         func_schema_data = template.get('function_schema', {})
@@ -193,7 +193,7 @@ class ToolDefinition(BaseModel):
             semantic_tags=template.get('semantic_tags'),
         )
 
-    def to_openai_tool(self) -> Dict[str, Any]:
+    def to_openai_tool(self) -> dict[str, Any]:
         """Convert to OpenAI tool format for function calling."""
         return self.function_schema.to_openai_schema()
 
@@ -234,7 +234,7 @@ class ToolResult(BaseModel):
             tool_id=tool_id,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "status": self.status.value,

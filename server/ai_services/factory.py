@@ -7,7 +7,7 @@ moderation, reranking, vision, audio) and providers (OpenAI, Anthropic,
 Ollama, Cohere, Mistral, etc.).
 """
 
-from typing import Dict, Any, Type, Optional, Tuple
+from typing import Any, Optional
 import logging
 import sys
 
@@ -33,17 +33,17 @@ class AIServiceFactory:
     """
 
     # Registry mapping (service_type, provider) -> service_class
-    _service_registry: Dict[Tuple[ServiceType, str], Type[AIService]] = {}
+    _service_registry: dict[tuple[ServiceType, str], type[AIService]] = {}
 
     # Cache for singleton instances
-    _service_cache: Dict[Tuple[ServiceType, str], AIService] = {}
+    _service_cache: dict[tuple[ServiceType, str], AIService] = {}
 
     @classmethod
     def register_service(
         cls,
         service_type: ServiceType,
         provider: str,
-        service_class: Type[AIService]
+        service_class: type[AIService]
     ) -> None:
         """
         Register a service implementation.
@@ -79,7 +79,7 @@ class AIServiceFactory:
         cls,
         service_type: ServiceType,
         provider: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         use_cache: bool = True
     ) -> AIService:
         """
@@ -152,7 +152,7 @@ class AIServiceFactory:
         cls,
         service_type: ServiceType,
         provider: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         use_cache: bool = True
     ) -> Optional[AIService]:
         """
@@ -295,7 +295,7 @@ class AIServiceFactory:
         return key in cls._service_registry
 
     @classmethod
-    def list_available_services(cls) -> Dict[str, list]:
+    def list_available_services(cls) -> dict[str, list]:
         """
         List all available services grouped by service type.
 
@@ -311,7 +311,7 @@ class AIServiceFactory:
                 ...
             }
         """
-        services: Dict[str, list] = {}
+        services: dict[str, list] = {}
 
         for service_type, provider in cls._service_registry.keys():
             type_name = service_type.value
@@ -326,7 +326,7 @@ class AIServiceFactory:
         cls,
         service_type: ServiceType,
         provider: str
-    ) -> Optional[Type[AIService]]:
+    ) -> Optional[type[AIService]]:
         """
         Get the service class for a given type/provider.
 

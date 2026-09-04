@@ -5,7 +5,8 @@ Cerebras provides ultra-fast inference via an OpenAI-compatible API at
 https://api.cerebras.ai/v1. Known for very low latency on supported models.
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...providers import OpenAICompatibleBaseService
 from ...providers.usage_reporting import UsageReportingMixin
@@ -15,7 +16,7 @@ from ...services import InferenceService
 class CerebrasInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibleBaseService):
     """Cerebras inference service using unified architecture."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         InferenceService.__init__(self, config, "cerebras")
 
         self.temperature = self._get_temperature(default=0.7)

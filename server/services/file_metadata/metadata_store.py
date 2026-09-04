@@ -9,7 +9,7 @@ configured via internal_services.backend in config.yaml.
 
 import logging
 import json
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from datetime import datetime, UTC
 
 from services.database_service import create_database_service, DatabaseService
@@ -34,14 +34,14 @@ class FileMetadataStore:
     _instance: Optional['FileMetadataStore'] = None
     _db_service: Optional[DatabaseService] = None
 
-    def __new__(cls, config: Dict[str, Any] = None):
+    def __new__(cls, config: dict[str, Any] = None):
         """Singleton pattern to share database connection."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: dict[str, Any] = None):
         """
         Initialize metadata store.
 
@@ -87,7 +87,7 @@ class FileMetadataStore:
         file_size: int,
         storage_key: str,
         storage_type: str = 'vector',
-        metadata: Dict[str, Any] = None
+        metadata: dict[str, Any] = None
     ) -> bool:
         """
         Record a new file upload.
@@ -205,7 +205,7 @@ class FileMetadataStore:
         chunk_index: int,
         vector_store_id: str = None,
         collection_name: str = None,
-        metadata: Dict[str, Any] = None
+        metadata: dict[str, Any] = None
     ) -> bool:
         """
         Record a file chunk.
@@ -247,7 +247,7 @@ class FileMetadataStore:
             logger.error(f"Error recording chunk: {e}")
             return False
 
-    async def get_file_info(self, file_id: str) -> Optional[Dict[str, Any]]:
+    async def get_file_info(self, file_id: str) -> Optional[dict[str, Any]]:
         """
         Get file information.
 
@@ -274,7 +274,7 @@ class FileMetadataStore:
             logger.error(f"Error getting file info: {e}")
             return None
 
-    async def list_files(self, api_key: str) -> List[Dict[str, Any]]:
+    async def list_files(self, api_key: str) -> list[dict[str, Any]]:
         """
         List all files for an API key.
 
@@ -300,7 +300,7 @@ class FileMetadataStore:
             logger.error(f"Error listing files: {e}")
             return []
 
-    async def get_generated_file_ids_for_session(self, session_id: str, api_key: str) -> List[str]:
+    async def get_generated_file_ids_for_session(self, session_id: str, api_key: str) -> list[str]:
         """Return IDs of all server-persisted generated images for a conversation session."""
         await self._ensure_initialized()
         try:
@@ -354,7 +354,7 @@ class FileMetadataStore:
             logger.error(f"Error deleting file: {e}")
             return False
 
-    async def get_file_chunks(self, file_id: str) -> List[Dict[str, Any]]:
+    async def get_file_chunks(self, file_id: str) -> list[dict[str, Any]]:
         """
         Get all chunks for a file.
 
@@ -380,7 +380,7 @@ class FileMetadataStore:
             logger.error(f"Error getting file chunks: {e}")
             return []
 
-    async def get_chunk_info(self, chunk_id: str) -> Optional[Dict[str, Any]]:
+    async def get_chunk_info(self, chunk_id: str) -> Optional[dict[str, Any]]:
         """
         Get chunk information by chunk_id.
 
@@ -432,7 +432,7 @@ class FileMetadataStore:
             logger.error(f"Error deleting file chunks: {e}")
             return False
 
-    async def update_file_metadata(self, file_id: str, metadata: Dict[str, Any]) -> bool:
+    async def update_file_metadata(self, file_id: str, metadata: dict[str, Any]) -> bool:
         """
         Merge fields into the file's metadata JSON field.
 
@@ -501,7 +501,7 @@ class FileMetadataStore:
             logger.error(f"Error vacuuming database: {e}")
             return False
 
-    async def get_database_stats(self) -> Dict[str, Any]:
+    async def get_database_stats(self) -> dict[str, Any]:
         """
         Get statistics about the database.
 
@@ -526,7 +526,7 @@ class FileMetadataStore:
             logger.error(f"Error getting database stats: {e}")
             return {}
 
-    def _convert_to_legacy_format(self, doc: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_to_legacy_format(self, doc: dict[str, Any]) -> dict[str, Any]:
         """
         Convert database document to legacy format expected by consumers.
 
@@ -550,7 +550,7 @@ class FileMetadataStore:
 
         return result
 
-    def _convert_chunk_to_legacy_format(self, doc: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_chunk_to_legacy_format(self, doc: dict[str, Any]) -> dict[str, Any]:
         """
         Convert chunk document to legacy format expected by consumers.
 

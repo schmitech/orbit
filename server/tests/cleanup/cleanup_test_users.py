@@ -32,7 +32,7 @@ import os
 import sqlite3
 import yaml
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -70,7 +70,7 @@ class DirectTestUserCleanup:
         # Load configuration
         self.config = self._load_config()
     
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         """Load configuration from config.yaml"""
         config_paths = [
             Path(__file__).parent.parent.parent.parent / 'config' / 'config.yaml',
@@ -178,7 +178,7 @@ class DirectTestUserCleanup:
             logger.error(f"✗ Failed to connect to MongoDB: {e}")
             return False
     
-    def get_test_users_mongodb(self) -> List[Dict[str, Any]]:
+    def get_test_users_mongodb(self) -> list[dict[str, Any]]:
         """Get all test users from MongoDB"""
         if self.mongo_db is None:
             logger.error("Not connected to MongoDB")
@@ -225,7 +225,7 @@ class DirectTestUserCleanup:
             logger.error(f"Error getting test users from MongoDB: {e}")
             return []
     
-    def get_test_users_sqlite(self) -> List[Dict[str, Any]]:
+    def get_test_users_sqlite(self) -> list[dict[str, Any]]:
         """Get all test users from SQLite"""
         if self.sqlite_conn is None:
             logger.error("Not connected to SQLite")
@@ -278,7 +278,7 @@ class DirectTestUserCleanup:
             logger.error(f"Error getting test users from SQLite: {e}")
             return []
     
-    def get_test_users(self) -> List[Dict[str, Any]]:
+    def get_test_users(self) -> list[dict[str, Any]]:
         """Get all test users from all configured databases"""
         test_users = []
         
@@ -368,7 +368,7 @@ class DirectTestUserCleanup:
                 self.sqlite_conn.rollback()
             return False
     
-    def delete_user(self, user: Dict[str, Any]) -> bool:
+    def delete_user(self, user: dict[str, Any]) -> bool:
         """Delete a user from the appropriate database"""
         user_id = user.get('_id') or user.get('id')
         username = user.get('username')
@@ -382,7 +382,7 @@ class DirectTestUserCleanup:
             logger.warning(f"Unknown database type: {db_type}")
             return False
     
-    def get_test_api_keys_mongodb(self) -> List[Dict[str, Any]]:
+    def get_test_api_keys_mongodb(self) -> list[dict[str, Any]]:
         """Get all test API keys from MongoDB"""
         if self.mongo_db is None:
             return []
@@ -435,7 +435,7 @@ class DirectTestUserCleanup:
             logger.error(f"Error getting test API keys from MongoDB: {e}")
             return []
     
-    def get_test_api_keys_sqlite(self) -> List[Dict[str, Any]]:
+    def get_test_api_keys_sqlite(self) -> list[dict[str, Any]]:
         """Get all test API keys from SQLite"""
         if self.sqlite_conn is None:
             return []
@@ -494,7 +494,7 @@ class DirectTestUserCleanup:
             logger.error(f"Error getting test API keys from SQLite: {e}")
             return []
     
-    def get_test_api_keys(self) -> List[Dict[str, Any]]:
+    def get_test_api_keys(self) -> list[dict[str, Any]]:
         """Get all test API keys from all configured databases"""
         test_keys = []
         
@@ -551,7 +551,7 @@ class DirectTestUserCleanup:
                 self.sqlite_conn.rollback()
             return False
     
-    def delete_api_key(self, key: Dict[str, Any]) -> bool:
+    def delete_api_key(self, key: dict[str, Any]) -> bool:
         """Delete an API key from the appropriate database"""
         key_id = key.get('_id') or key.get('id')
         client_name = key.get('client_name')
@@ -565,7 +565,7 @@ class DirectTestUserCleanup:
             logger.warning(f"Unknown database type: {db_type}")
             return False
     
-    def get_test_system_prompts_mongodb(self) -> List[Dict[str, Any]]:
+    def get_test_system_prompts_mongodb(self) -> list[dict[str, Any]]:
         """Get all test system prompts from MongoDB"""
         if self.mongo_db is None:
             return []
@@ -592,7 +592,7 @@ class DirectTestUserCleanup:
             logger.error(f"Error getting test system prompts from MongoDB: {e}")
             return []
     
-    def get_test_system_prompts_sqlite(self) -> List[Dict[str, Any]]:
+    def get_test_system_prompts_sqlite(self) -> list[dict[str, Any]]:
         """Get all test system prompts from SQLite"""
         if self.sqlite_conn is None:
             return []
@@ -623,7 +623,7 @@ class DirectTestUserCleanup:
             logger.error(f"Error getting test system prompts from SQLite: {e}")
             return []
     
-    def get_test_system_prompts(self) -> List[Dict[str, Any]]:
+    def get_test_system_prompts(self) -> list[dict[str, Any]]:
         """Get all test system prompts from all configured databases"""
         test_prompts = []
         
@@ -680,7 +680,7 @@ class DirectTestUserCleanup:
                 self.sqlite_conn.rollback()
             return False
     
-    def delete_system_prompt(self, prompt: Dict[str, Any]) -> bool:
+    def delete_system_prompt(self, prompt: dict[str, Any]) -> bool:
         """Delete a system prompt from the appropriate database"""
         prompt_id = prompt.get('_id') or prompt.get('id')
         name = prompt.get('name')

@@ -14,7 +14,7 @@ never see this kwarg.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class UsageReportingMixin:
     SUPPORTS_USAGE_REPORTING = True
 
     @staticmethod
-    def _take_usage_sink(kwargs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _take_usage_sink(kwargs: dict[str, Any]) -> Optional[dict[str, Any]]:
         """Pop the usage_sink kwarg. Must be the first line of a migrated generate()."""
         return kwargs.pop("usage_sink", None)
 
@@ -65,7 +65,7 @@ class UsageReportingMixin:
 
     def _report_usage(
         self,
-        sink: Optional[Dict[str, Any]],
+        sink: Optional[dict[str, Any]],
         prompt_tokens: Optional[int],
         completion_tokens: Optional[int],
         reasoning_tokens: Optional[int] = None,
@@ -104,7 +104,7 @@ class UsageReportingMixin:
 
     def _report_media_usage(
         self,
-        sink: Optional[Dict[str, Any]],
+        sink: Optional[dict[str, Any]],
         unit: str,
         quantity: Optional[float],
     ) -> None:
@@ -127,8 +127,8 @@ class UsageReportingMixin:
 
 
 def accumulate_usage_sink(
-    target: Optional[Dict[str, Any]],
-    source: Optional[Dict[str, Any]],
+    target: Optional[dict[str, Any]],
+    source: Optional[dict[str, Any]],
 ) -> None:
     """
     Sum a per-call usage_sink into a caller-owned accumulator, for callers

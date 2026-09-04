@@ -1,7 +1,7 @@
 """NVIDIA NIM base class for NVIDIA AI services."""
 
 import logging
-from typing import Dict, Any
+from typing import Any
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
 from ..errors import raise_sanitized
@@ -13,7 +13,7 @@ class NVIDIABaseService(ProviderAIService):
 
     DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "nvidia"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "nvidia"):
         """
         Initialize the nvidia base service.
 

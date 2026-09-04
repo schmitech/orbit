@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from fastapi import Request
 
@@ -19,7 +19,7 @@ def _get_header(request: Request, name: str) -> Optional[str]:
     return headers.get(name.title())
 
 
-def parse_trusted_networks(proxies: List[str]) -> List[Any]:
+def parse_trusted_networks(proxies: list[str]) -> list[Any]:
     """Parse IP/CIDR strings into network objects for proxy trust validation."""
     networks = []
     for proxy in proxies:
@@ -41,8 +41,8 @@ def is_local_ip(ip: str) -> bool:
 def extract_ip(
     request: Request,
     trust_proxy: bool = False,
-    trusted_networks: Optional[List[Any]] = None,
-) -> Tuple[str, Dict[str, Any]]:
+    trusted_networks: Optional[list[Any]] = None,
+) -> tuple[str, dict[str, Any]]:
     """Return (ip_address, ip_metadata) for a request.
 
     Proxy headers are only honored when trust_proxy=True and the direct

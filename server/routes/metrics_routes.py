@@ -7,7 +7,7 @@ Login/logout/export/dashboard UI routes have moved to admin_panel_routes.py.
 
 import asyncio
 import logging
-from typing import Dict, Any
+from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Request
 from fastapi.responses import Response
 
@@ -74,7 +74,7 @@ def create_metrics_router() -> APIRouter:
             thread_pool_manager = getattr(websocket.app.state, 'thread_pool_manager', None)
 
             # Helper to extract stats from a ThreadPoolExecutor
-            def _stats_from_executor(executor) -> Dict[str, Any]:
+            def _stats_from_executor(executor) -> dict[str, Any]:
                 try:
                     max_workers = getattr(executor, '_max_workers', None)
                     threads = getattr(executor, '_threads', None)
@@ -117,7 +117,7 @@ def create_metrics_router() -> APIRouter:
                 if disconnected.is_set():
                     break
 
-                data: Dict[str, Any] = {}
+                data: dict[str, Any] = {}
 
                 # Get metrics data
                 if metrics_service:
@@ -148,7 +148,7 @@ def create_metrics_router() -> APIRouter:
                     data['adapters'] = {}
 
                 # Get thread pool statistics
-                pools: Dict[str, Any] = {}
+                pools: dict[str, Any] = {}
                 if thread_pool_manager:
                     try:
                         pool_stats = thread_pool_manager.get_pool_stats()

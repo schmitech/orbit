@@ -7,7 +7,7 @@ configuration for all AI services.
 
 import os
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 import re
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ class ConfigResolver:
         return re.sub(pattern, replace_env_var, value)
 
     @staticmethod
-    def resolve_dict(config: Dict[str, Any]) -> Dict[str, Any]:
+    def resolve_dict(config: dict[str, Any]) -> dict[str, Any]:
         """
         Recursively resolve all values in a configuration dictionary.
 
@@ -95,8 +95,8 @@ class ConfigValidator:
 
     @staticmethod
     def validate_required_fields(
-        config: Dict[str, Any],
-        required_fields: List[str],
+        config: dict[str, Any],
+        required_fields: list[str],
         config_name: str = "configuration"
     ) -> bool:
         """
@@ -189,7 +189,7 @@ class EndpointManager:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         provider: str,
         service_type: str
     ):
@@ -327,7 +327,7 @@ class EndpointManager:
         # Return service type default
         return defaults.get(self.service_type, '/v1/endpoint')
 
-    def get_all_endpoints(self) -> Dict[str, str]:
+    def get_all_endpoints(self) -> dict[str, str]:
         """
         Get all configured endpoints for this service.
 
@@ -350,7 +350,7 @@ class ConfigMerger:
     """
 
     @staticmethod
-    def merge_configs(*configs: Dict[str, Any]) -> Dict[str, Any]:
+    def merge_configs(*configs: dict[str, Any]) -> dict[str, Any]:
         """
         Merge multiple configuration dictionaries.
 
@@ -370,7 +370,7 @@ class ConfigMerger:
         return merged
 
     @staticmethod
-    def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
         """
         Deep merge two dictionaries.
 

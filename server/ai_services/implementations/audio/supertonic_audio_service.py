@@ -13,7 +13,7 @@ This service provides TTS-only functionality (no STT).
 Requires: pip install supertonic
 """
 
-from typing import Dict, Any, Optional, Union
+from typing import Any, Optional, Union
 from io import BytesIO
 import asyncio
 import logging
@@ -54,7 +54,7 @@ class SupertonicAudioService(AudioService):
     - Speech-to-text (use WhisperAudioService instead)
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         AudioService.__init__(self, config, "supertonic")
 
         provider_config = self._extract_provider_config()
@@ -287,7 +287,7 @@ class SupertonicAudioService(AudioService):
     # Config helpers
     # ------------------------------------------------------------------
 
-    def _get_timeout_config(self) -> Dict[str, int]:
+    def _get_timeout_config(self) -> dict[str, int]:
         provider_config = self._extract_provider_config()
         t = provider_config.get("timeout", {})
         return {
@@ -295,7 +295,7 @@ class SupertonicAudioService(AudioService):
             "total": t.get("total", 120000),
         }
 
-    def _get_retry_config(self) -> Dict[str, Any]:
+    def _get_retry_config(self) -> dict[str, Any]:
         provider_config = self._extract_provider_config()
         r = provider_config.get("retry", {})
         return {

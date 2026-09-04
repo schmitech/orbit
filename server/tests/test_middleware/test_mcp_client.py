@@ -34,9 +34,9 @@ import json
 import time
 import uuid
 import requests
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
-def create_chat_request(message: str, stream: bool = True) -> Dict[str, Any]:
+def create_chat_request(message: str, stream: bool = True) -> dict[str, Any]:
     """
     Create a RESTful chat request with the given message.
     

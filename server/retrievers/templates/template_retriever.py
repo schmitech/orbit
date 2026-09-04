@@ -12,7 +12,7 @@ Usage:
 
 import logging
 import traceback
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from fastapi import HTTPException
 
 from ..base.base_retriever import BaseRetriever
@@ -24,7 +24,7 @@ class TemplateRetriever(BaseRetriever):
     """Template implementation of the BaseRetriever interface"""
 
     def __init__(self, 
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 embeddings: Optional[Any] = None,
                 **kwargs):
         """
@@ -101,7 +101,7 @@ class TemplateRetriever(BaseRetriever):
                            query: str, 
                            api_key: Optional[str] = None, 
                            collection_name: Optional[str] = None,
-                           **kwargs) -> List[Dict[str, Any]]:
+                           **kwargs) -> list[dict[str, Any]]:
         """
         Retrieve and filter relevant context from the datasource.
         

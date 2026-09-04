@@ -6,7 +6,7 @@ Updated to work with the new BaseSQLDatabaseRetriever architecture.
 import logging
 import re
 import traceback
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from ..relational.sqlite_retriever import SQLiteRetriever
 from ...base.base_retriever import RetrieverFactory
 
@@ -22,7 +22,7 @@ class QASSQLRetriever(SQLiteRetriever):
     """
 
     def __init__(self,
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 domain_adapter=None,
                 datasource: Any = None,
                 **kwargs):
@@ -129,7 +129,7 @@ class QASSQLRetriever(SQLiteRetriever):
             
             logger.debug(f"Using QA search fields: {self.default_search_fields}")
 
-    def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
+    def _get_search_query(self, query: str, collection_name: str) -> dict[str, Any]:
         """
         Generate QA-optimized search query.
         
@@ -200,7 +200,7 @@ class QASSQLRetriever(SQLiteRetriever):
         # Fallback to parent implementation for generic searches
         return super()._get_search_query(query, collection_name)
 
-    async def _search_by_tokens(self, query_tokens: List[str]) -> List[Dict[str, Any]]:
+    async def _search_by_tokens(self, query_tokens: list[str]) -> list[dict[str, Any]]:
         """
         QA-specific token-based search optimization.
         
@@ -292,7 +292,7 @@ class QASSQLRetriever(SQLiteRetriever):
                                  query: str, 
                                  api_key: Optional[str] = None, 
                                  collection_name: Optional[str] = None,
-                                 **kwargs) -> List[Dict[str, Any]]:
+                                 **kwargs) -> list[dict[str, Any]]:
         """
         QA-specialized context retrieval with enhanced processing.
         

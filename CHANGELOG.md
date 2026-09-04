@@ -7,6 +7,9 @@
 - **Authentication Audit Coverage (Authentication Phase 4)**: Failed local and dashboard password logins now emit redacted `auth.login.failed` events, while durable lockout denials emit `auth.login.locked_out` and successful dashboard logins denied for insufficient permissions emit `auth.dashboard.login.denied`. Audit summaries accept the fixed failure reason taxonomy only from trusted handler context, bound dashboard identities to the supported username length, and never record passwords, hashes, tokens, or account-existence details. Password changes now use the canonical `auth.password.changed` event name.
 - **Session Monitoring (Authentication Phase 5)**: Sessions now record the source IP, user agent, and throttled last-activity time captured at login and refreshed on token validation. A new `sessions.manage` permission lets an administrator list and revoke any user's active sessions; every authenticated user can already list and revoke their own without it. Session revocation is recorded in the audit ledger as `auth.session.revoke`.
 
+### Technical Improvements
+- **Python Typing Modernization**: Replaced deprecated `typing.Dict/List/Tuple/Set/Type` generics with built-in PEP 585 equivalents and moved remaining deprecated imports (e.g. `Callable`) to `collections.abc` across the server and CLI codebases, resolving all `UP006`/`UP035` Ruff findings.
+
 ## [2.17.3] - 2026-09-02
 
 ### Security

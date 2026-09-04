@@ -8,7 +8,7 @@ import traceback
 import asyncio
 import re
 import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Optional
 
 from .base_sql_database import BaseSQLDatabaseRetriever
 from .intent_domain_components import IntentDomainComponentsMixin, record_intent_telemetry
@@ -28,7 +28,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
     Combines intent functionality with database operations.
     """
     
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, datasource: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, datasource: Any = None, **kwargs):
         """
         Initialize Intent SQL retriever.
 
@@ -113,7 +113,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         self.template_reranker = None
         self.template_processor: Optional[TemplateProcessor] = None
     
-    def _get_store_config(self) -> Dict[str, Any]:
+    def _get_store_config(self) -> dict[str, Any]:
         """Get store configuration from stores.yaml based on store_name."""
         if not self.store_manager or not self.store_manager._config:
             raise ValueError(f"Store manager not initialized. Cannot retrieve store configuration for '{self.store_name}'")
@@ -577,7 +577,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             logger.error(f"Error loading templates: {e}")
             logger.error(traceback.format_exc())
 
-    async def reload_templates(self) -> Dict[str, Any]:
+    async def reload_templates(self) -> dict[str, Any]:
         """
         Reload templates from YAML files and re-index in vector store.
 
@@ -628,7 +628,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             logger.error(traceback.format_exc())
             raise
 
-    def _create_embedding_text(self, template: Dict[str, Any]) -> str:
+    def _create_embedding_text(self, template: dict[str, Any]) -> str:
         """Create text for embedding from template."""
         # Extract only string tags (ignore dict tags which contain function metadata)
         tags = template.get('tags', [])
@@ -661,7 +661,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         
         return ' '.join(filter(None, parts))
 
-    def _create_example_embedding_texts(self, template: Dict[str, Any]) -> List[Tuple[str, str]]:
+    def _create_example_embedding_texts(self, template: dict[str, Any]) -> list[tuple[str, str]]:
         """
         Create per-example embedding texts for a template.
 
@@ -698,7 +698,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
 
         return texts
 
-    def _create_template_metadata(self, template: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_template_metadata(self, template: dict[str, Any]) -> dict[str, Any]:
         """Create metadata for ChromaDB storage."""
         metadata = {
             'template_id': template.get('id', ''),
@@ -714,7 +714,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         return metadata
     
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
-                                 collection_name: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]:
+                                 collection_name: Optional[str] = None, **kwargs) -> list[dict[str, Any]]:
         """Process a natural language query using intent-based SQL translation,
         then record match-outcome metrics and misses for observability."""
         result = await self._get_relevant_context_impl(
@@ -724,7 +724,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         return result
 
     async def _get_relevant_context_impl(self, query: str, api_key: Optional[str] = None,
-                                 collection_name: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]:
+                                 collection_name: Optional[str] = None, **kwargs) -> list[dict[str, Any]]:
         """Process a natural language query using intent-based SQL translation."""
         cancel_event = kwargs.pop('cancel_event', None)
         session_id = kwargs.get('session_id')
@@ -883,9 +883,9 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             }]
 
     def _format_execution_response(
-        self, template: Dict[str, Any], parameters: Dict[str, Any],
-        results: List[Dict[str, Any]], similarity: float,
-    ) -> Optional[List[Dict[str, Any]]]:
+        self, template: dict[str, Any], parameters: dict[str, Any],
+        results: list[dict[str, Any]], similarity: float,
+    ) -> Optional[list[dict[str, Any]]]:
         """Format a successfully-executed template's results for the LLM context.
         Returns None when there's nothing to show (caller should try the next candidate,
         or in the clarification-resume path, fall back to a generic message)."""
@@ -981,7 +981,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
     def _clarification_adapter_key(self) -> str:
         return getattr(self, "audit_adapter_name", None) or self.__class__.__name__
 
-    async def _extract_parameters_for_template(self, query: str, template: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _extract_parameters_for_template(self, query: str, template: dict[str, Any]) -> Optional[dict[str, Any]]:
         """Extract parameters for one template. Returns None when the extractor's own
         validation rejects the result (fresh-match loop treats that like a missing template)."""
         if self.parameter_extractor:
@@ -993,7 +993,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             return parameters
         return await self._extract_parameters(query, template)
 
-    def _missing_required_params(self, template: Dict[str, Any], parameters: Dict[str, Any]) -> List[str]:
+    def _missing_required_params(self, template: dict[str, Any], parameters: dict[str, Any]) -> list[str]:
         return [
             p['name'] for p in template.get('parameters', [])
             if p.get('required', False)
@@ -1001,8 +1001,8 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         ]
 
     def _build_disambiguation_response(
-        self, templates: List[Dict[str, Any]], session_id: Optional[str],
-    ) -> List[Dict[str, Any]]:
+        self, templates: list[dict[str, Any]], session_id: Optional[str],
+    ) -> list[dict[str, Any]]:
         top_candidates = templates[:3]
         candidates = [
             {
@@ -1034,10 +1034,10 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         }]
 
     def _build_slot_fill_clarification(
-        self, template: Dict[str, Any], parameters: Dict[str, Any],
-        missing_required: List[str], similarity: float, session_id: Optional[str],
+        self, template: dict[str, Any], parameters: dict[str, Any],
+        missing_required: list[str], similarity: float, session_id: Optional[str],
         round_num: int = 1,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         missing_specs = [p for p in template.get('parameters', []) if p['name'] in missing_required]
         prompts = [p.get('description') or p['name'] for p in missing_specs] or missing_required
         question = "I can help with that — could you tell me: " + "; ".join(prompts) + "?"
@@ -1073,7 +1073,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             "confidence": similarity,
         }]
 
-    def _match_disambiguation_choice(self, query: str, candidate_ids: List[str]) -> Optional[str]:
+    def _match_disambiguation_choice(self, query: str, candidate_ids: list[str]) -> Optional[str]:
         """Best-effort match of a follow-up answer ("1", "the second one", or a
         template id/keyword) to one of the offered candidates."""
         text = (query or "").strip().lower()
@@ -1094,8 +1094,8 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         return None
 
     async def _resume_pending_clarification(
-        self, query: str, pending: Dict[str, Any], session_id: str,
-    ) -> Optional[List[Dict[str, Any]]]:
+        self, query: str, pending: dict[str, Any], session_id: str,
+    ) -> Optional[list[dict[str, Any]]]:
         """Resume a disambiguation/slot-fill question from a prior turn. Returns None to
         fall through to fresh matching (e.g. the pinned template no longer exists)."""
         kind = pending.get("kind")
@@ -1165,7 +1165,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
     
     async def _find_best_templates(
         self, query: str, usage_sink=None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Find best matching templates for the query."""
         try:
             if not self.template_store:
@@ -1302,7 +1302,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             logger.error(traceback.format_exc())
             return []
 
-    def _rescue_by_nl_example(self, query: str, templates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _rescue_by_nl_example(self, query: str, templates: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Inject templates with a very close nl_example match that vector search missed."""
         try:
             existing_ids = {t['template'].get('id') for t in templates}
@@ -1352,7 +1352,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
 
         return templates
 
-    async def _extract_parameters(self, query: str, template: Dict[str, Any]) -> Dict[str, Any]:
+    async def _extract_parameters(self, query: str, template: dict[str, Any]) -> dict[str, Any]:
         """Extract parameters from the query using LLM."""
         try:
             parameters = {}
@@ -1411,7 +1411,7 @@ JSON:"""
             logger.error(f"Error extracting parameters: {e}")
             return {}
     
-    async def _execute_template(self, template: Dict[str, Any], parameters: Dict[str, Any]) -> Tuple[List[Dict], Optional[str]]:
+    async def _execute_template(self, template: dict[str, Any], parameters: dict[str, Any]) -> tuple[list[dict], Optional[str]]:
         """Execute SQL template with parameters."""
         try:
             sql_template = template.get('sql_template', template.get('sql', ''))
@@ -1541,7 +1541,7 @@ JSON:"""
             logger.error(f"Error executing template: {error_msg}")
             return [], error_msg
     
-    def _process_sql_template(self, sql_template: str, parameters: Dict[str, Any]) -> str:
+    def _process_sql_template(self, sql_template: str, parameters: dict[str, Any]) -> str:
         """Process SQL template with parameter substitution."""
         try:
             if self.template_processor:
@@ -1577,8 +1577,8 @@ JSON:"""
             logger.warning(f"Error processing SQL template: {e}")
             return sql_template
     
-    def _format_sql_results(self, results: List[Dict], template: Dict, parameters: Dict, similarity: float,
-                           original_count: int = None, was_truncated: bool = False) -> List[Dict[str, Any]]:
+    def _format_sql_results(self, results: list[dict], template: dict, parameters: dict, similarity: float,
+                           original_count: int = None, was_truncated: bool = False) -> list[dict[str, Any]]:
         """Format SQL results into context documents."""
         if not results:
             return [{

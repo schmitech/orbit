@@ -14,7 +14,7 @@ import os
 import re
 import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from urllib.parse import urlsplit
 from fastapi import APIRouter, Request, HTTPException, Body
 
@@ -38,7 +38,7 @@ def _get_mcp_config_path(request: Request) -> Path:
     return config_path.parent / "mcp_clients.yaml"
 
 
-def _mcp_overridable() -> Dict[str, Any]:
+def _mcp_overridable() -> dict[str, Any]:
     """The settings a server may override, read from the runtime's own table so
     the panel can never drift from what MCPClientManager actually honors."""
     from services.mcp_client_service import MCPClientManager
@@ -48,7 +48,7 @@ def _mcp_overridable() -> Dict[str, Any]:
 # Accepted range per numeric setting. Served to the admin panel so the inputs
 # and this validation cannot disagree, and enforced here because the panel is
 # not the only thing that can call these endpoints.
-_MCP_SETTING_BOUNDS: Dict[str, tuple] = {
+_MCP_SETTING_BOUNDS: dict[str, tuple] = {
     "tool_timeout": (1, 600),
     "discovery_timeout": (1, 120),
     "discovery_retry_interval": (0, 3600),
@@ -59,7 +59,7 @@ _MCP_SETTING_BOUNDS: Dict[str, tuple] = {
 }
 
 
-def _validate_mcp_settings(settings: Any, overridable: Dict[str, Any]) -> None:
+def _validate_mcp_settings(settings: Any, overridable: dict[str, Any]) -> None:
     """Reject unknown keys, wrong types, and out-of-range values.
 
     A null value is allowed: it deletes a per-server override so the server
@@ -237,7 +237,7 @@ def _validate_mcp_headers(headers: Any) -> None:
             )
 
 
-def _validate_new_mcp_server(body: Any, block: Dict[str, Any]) -> Dict[str, Any]:
+def _validate_new_mcp_server(body: Any, block: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize the payload accepted by POST /mcp/servers."""
     if not isinstance(body, dict):
         raise HTTPException(status_code=422, detail="Request body must be an object")
@@ -270,7 +270,7 @@ def _validate_new_mcp_server(body: Any, block: Dict[str, Any]) -> Dict[str, Any]
     return entry
 
 
-def _validate_mcp_connection(entry: Dict[str, Any], connection: Any) -> None:
+def _validate_mcp_connection(entry: dict[str, Any], connection: Any) -> None:
     """Reject connection edits for transports/fields that don't support them.
 
     url may not be cleared, since a server with no endpoint can never be
@@ -313,7 +313,7 @@ def _validate_mcp_connection(entry: Dict[str, Any], connection: Any) -> None:
         _validate_mcp_headers(connection["headers"])
 
 
-def _mcp_endpoint_label(server: Dict[str, Any]) -> str:
+def _mcp_endpoint_label(server: dict[str, Any]) -> str:
     """One-line human description of where a server lives."""
     transport = server.get("transport", "stdio")
     if transport == "stdio":
@@ -348,7 +348,7 @@ def _serialize_mcp_tools(tools: list) -> list:
     return serialized
 
 
-def _read_mcp_config(request: Request) -> tuple[Path, str, Dict[str, Any]]:
+def _read_mcp_config(request: Request) -> tuple[Path, str, dict[str, Any]]:
     """Return (path, raw_text, parsed mcp_clients block)."""
     path = _get_mcp_config_path(request)
     if not path.is_file():
@@ -446,7 +446,7 @@ async def list_mcp_servers(request: Request):
     }
 
 
-async def _reload_mcp_clients(request: Request, server_name: Optional[str] = None) -> Dict[str, Any]:
+async def _reload_mcp_clients(request: Request, server_name: Optional[str] = None) -> dict[str, Any]:
     """Re-read config from disk and apply the change.
 
     Reuses reload_adapters_config so mcp_clients.yaml's ${VAR} references
@@ -505,7 +505,7 @@ async def _reload_mcp_clients(request: Request, server_name: Optional[str] = Non
             except Exception as exc:
                 logger.warning("MCP tool discovery failed after reload: %s", exc)
 
-    servers: Dict[str, Any] = {}
+    servers: dict[str, Any] = {}
     if manager is not None:
         for name in manager._server_configs:
             servers[name] = {
@@ -573,7 +573,7 @@ async def discover_mcp_tools(request: Request, server: Optional[str] = None):
     except Exception as exc:
         logger.warning("MCP tool discovery failed: %s", exc)
 
-    servers: Dict[str, Any] = {}
+    servers: dict[str, Any] = {}
     names = [server] if server is not None else list(manager._server_configs)
     for name in names:
         servers[name] = {
@@ -604,7 +604,7 @@ def _last_key_line(lines: list, start: int, end: int, indent: str) -> int:
     return insert_at
 
 
-def _patch_yaml_scalars(lines: list, start: int, end: int, values: Dict[str, Any], indent: str) -> list:
+def _patch_yaml_scalars(lines: list, start: int, end: int, values: dict[str, Any], indent: str) -> list:
     """Set or insert `key: value` scalar lines within lines[start:end].
 
     Keys mapped to None are removed, which is how an override reverts to
@@ -673,7 +673,7 @@ def _find_block_header(lines: list, start: int, end: int, key: str, indent: str)
     return header, body_end
 
 
-def _patch_yaml_map(lines: list, start: int, end: int, key: str, target_map: Dict[str, str], indent: str) -> list:
+def _patch_yaml_map(lines: list, start: int, end: int, key: str, target_map: dict[str, str], indent: str) -> list:
     """Replace a nested `key:` block (env/headers) with `target_map` in full.
 
     `target_map` is the complete desired map, not a diff: any subkey
@@ -764,7 +764,7 @@ def _patch_yaml_list(lines: list, start: int, end: int, key: str, values: Any, i
     return lines
 
 
-def _insert_mcp_server(lines: list, entry: Dict[str, Any]) -> list:
+def _insert_mcp_server(lines: list, entry: dict[str, Any]) -> list:
     """Insert a newly validated server before the commented example catalogue."""
     servers_line = next((i for i, line in enumerate(lines) if line.lstrip().startswith("servers:")), -1)
     if servers_line < 0:
@@ -940,7 +940,7 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
     list_fields = {k: connection[k] for k in ("args",) if k in connection}
     scalar_connection = {k: v for k, v in connection.items() if k not in map_fields and k not in list_fields}
 
-    values: Dict[str, Any] = dict(settings)
+    values: dict[str, Any] = dict(settings)
     values.update(scalar_connection)
     if "enabled" in body:
         values["enabled"] = bool(body["enabled"])
@@ -1009,7 +1009,7 @@ async def update_mcp_defaults(request: Request, body: dict = Body(...)):
             end = i
             break
 
-    values: Dict[str, Any] = dict(settings)
+    values: dict[str, Any] = dict(settings)
     if "enabled" in body:
         values["enabled"] = bool(body["enabled"])
 

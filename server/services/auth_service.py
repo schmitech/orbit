@@ -13,7 +13,7 @@ import secrets
 import base64
 import logging
 import re
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Any, Optional
 from datetime import datetime, timedelta, UTC
 
 from services.database_service import (
@@ -39,7 +39,7 @@ class AuthService:
     USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
     _SESSION_LAST_SEEN_THROTTLE_SECONDS = 60
 
-    def __init__(self, config: Dict[str, Any], database_service: Optional[DatabaseService] = None):
+    def __init__(self, config: dict[str, Any], database_service: Optional[DatabaseService] = None):
         """Initialize the authentication service with configuration"""
         self.config = config
 
@@ -66,7 +66,7 @@ class AuthService:
         
         # Default admin configuration
         self.default_admin_username = config.get('auth', {}).get('default_admin_username', 'admin')
-        self.default_admin_password = config.get('auth', {}).get('default_admin_password', 'admin123')
+        self.default_admin_password = config.get('auth', {}).get('default_admin_password', 'ChangeMe!2026')
         self.password_policy = config.get('auth', {}).get('password_policy', {}) or {}
         self.account_lockout_policy = self.normalize_account_lockout_policy(
             config.get('auth', {}).get('account_lockout')
@@ -221,7 +221,7 @@ class AuthService:
                 len(external),
             )
 
-    def _hash_password(self, password: str, salt: Optional[bytes] = None) -> Tuple[bytes, bytes]:
+    def _hash_password(self, password: str, salt: Optional[bytes] = None) -> tuple[bytes, bytes]:
         """
         Hash a password using PBKDF2-SHA256
         
@@ -260,8 +260,8 @@ class AuthService:
 
     @classmethod
     def normalize_password_policy(
-        cls, policy: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        cls, policy: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
         """Return the public, type-normalized form of a password policy."""
         policy = policy or {}
         min_length = policy.get("min_length", cls.PASSWORD_MIN_LENGTH)
@@ -291,7 +291,7 @@ class AuthService:
 
     @classmethod
     def validate_password(
-        cls, password: str, policy: Optional[Dict[str, Any]] = None
+        cls, password: str, policy: Optional[dict[str, Any]] = None
     ) -> Optional[str]:
         """Validate a password, applying an optional configured complexity policy."""
         if password is None:
@@ -363,7 +363,7 @@ class AuthService:
         return self._encode_password(salt, hash_bytes)
 
     @staticmethod
-    def normalize_account_lockout_policy(policy: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def normalize_account_lockout_policy(policy: Optional[dict[str, Any]]) -> dict[str, Any]:
         """Return a safe, type-normalized account-lockout policy.
 
         Lockout is deliberately disabled when the configuration block is absent,
@@ -404,14 +404,14 @@ class AuthService:
                 return None
         return None
 
-    def _is_account_locked(self, user: Dict[str, Any], now: datetime) -> bool:
+    def _is_account_locked(self, user: dict[str, Any], now: datetime) -> bool:
         """Return whether an active durable lockout applies to this local user."""
         if not self.account_lockout_policy["enabled"] or user.get("provider"):
             return False
         locked_until = self._as_utc_datetime(user.get("locked_until"))
         return bool(locked_until and locked_until > now)
 
-    async def _record_failed_login(self, user: Dict[str, Any], now: datetime) -> None:
+    async def _record_failed_login(self, user: dict[str, Any], now: datetime) -> None:
         """Persist a failed local-password attempt and lock the account if needed."""
         if not self.account_lockout_policy["enabled"] or user.get("provider"):
             return
@@ -428,7 +428,7 @@ class AuthService:
         if not updated:
             logger.error("Could not record failed login for local user: %s", user["username"])
 
-    async def _reset_failed_logins(self, user: Dict[str, Any]) -> None:
+    async def _reset_failed_logins(self, user: dict[str, Any]) -> None:
         """Clear durable lockout state after a successful local-password login."""
         if not self.account_lockout_policy["enabled"] or user.get("provider"):
             return
@@ -443,7 +443,7 @@ class AuthService:
         )
 
     @staticmethod
-    def _resolve_roles(user: Dict[str, Any]) -> List[str]:
+    def _resolve_roles(user: dict[str, Any]) -> list[str]:
         """Resolve a user's role list, falling back to the legacy single `role` field."""
         roles = user.get("roles")
         if roles:
@@ -451,7 +451,7 @@ class AuthService:
         return [user.get("role", "user")]
 
     @staticmethod
-    def _user_info(user: Dict[str, Any]) -> Dict[str, Any]:
+    def _user_info(user: dict[str, Any]) -> dict[str, Any]:
         """Build the auth-context user dict (no password, no timestamps)."""
         roles = AuthService._resolve_roles(user)
         return {
@@ -466,7 +466,7 @@ class AuthService:
         }
 
     @staticmethod
-    def _user_record(user: Dict[str, Any]) -> Dict[str, Any]:
+    def _user_record(user: dict[str, Any]) -> dict[str, Any]:
         """Build the full user record dict (no password)."""
         return {
             "id": str(user["_id"]),
@@ -544,7 +544,7 @@ class AuthService:
         except Exception as e:
             logger.error(f"Unexpected error backfilling user roles: {str(e)}")
 
-    async def _is_blacklisted(self, user: Dict[str, Any]) -> bool:
+    async def _is_blacklisted(self, user: dict[str, Any]) -> bool:
         """Return whether a resolved user matches an active blacklist rule.
 
         Evaluated at every point that turns a credential into an identity, so a
@@ -563,7 +563,7 @@ class AuthService:
             return True
         return False
 
-    async def _is_cleared(self, user: Dict[str, Any]) -> bool:
+    async def _is_cleared(self, user: dict[str, Any]) -> bool:
         """Return whether an external user is pre-cleared by the identity allowlist.
 
         Local password users carry no ``provider`` and are never gated, so the
@@ -580,7 +580,7 @@ class AuthService:
         )
         return False
 
-    async def verify_credentials(self, username: str, password: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    async def verify_credentials(self, username: str, password: str) -> tuple[bool, Optional[dict[str, Any]]]:
         """
         Verify username/password without creating a session token.
         """
@@ -627,10 +627,10 @@ class AuthService:
         self,
         username: str,
         password: str,
-        failure_context: Optional[Dict[str, Any]] = None,
+        failure_context: Optional[dict[str, Any]] = None,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-    ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+    ) -> tuple[bool, Optional[str], Optional[dict[str, Any]]]:
         """
         Authenticate a user and create a session
 
@@ -731,7 +731,7 @@ class AuthService:
 
     async def create_session(
         self,
-        user: Dict[str, Any],
+        user: dict[str, Any],
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
     ) -> str:
@@ -766,7 +766,7 @@ class AuthService:
         """Set a user's single role. Used to promote allowlisted SSO users to admin."""
         return await self.set_roles(user_id, [role])
 
-    async def set_roles(self, user_id: str, roles: List[str]) -> bool:
+    async def set_roles(self, user_id: str, roles: list[str]) -> bool:
         """Set a user's role list. The first role is also stored as the legacy
         `role` field for display/backward compatibility."""
         if not roles or any(not is_valid_role(role) for role in roles):
@@ -807,7 +807,7 @@ class AuthService:
             return dt.replace(tzinfo=UTC)
         return dt
     
-    async def validate_token(self, token: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    async def validate_token(self, token: str) -> tuple[bool, Optional[dict[str, Any]]]:
         """
         Validate a session token
         
@@ -905,7 +905,7 @@ class AuthService:
             logger.error(f"Unexpected error validating token: {str(e)}")
             return False, None
 
-    async def _touch_session_last_seen(self, session: Dict[str, Any], now: datetime) -> None:
+    async def _touch_session_last_seen(self, session: dict[str, Any], now: datetime) -> None:
         """Refresh a session's ``last_seen_at``, throttled to avoid a write on
         every authenticated request. Best-effort: a failure here must never
         fail token validation."""
@@ -957,7 +957,7 @@ class AuthService:
             logger.error(f"Unexpected error during logout: {str(e)}")
             return False
 
-    async def list_sessions(self, user_id: str) -> List[Dict[str, Any]]:
+    async def list_sessions(self, user_id: str) -> list[dict[str, Any]]:
         """List a user's active sessions, newest first.
 
         Returns session dicts shaped for the API layer (string id, no token),
@@ -1023,7 +1023,7 @@ class AuthService:
             for session in sessions
         ]
 
-    async def revoke_session(self, session_id: str, requesting_user: Dict[str, Any]) -> bool:
+    async def revoke_session(self, session_id: str, requesting_user: dict[str, Any]) -> bool:
         """Revoke one session by id.
 
         Allowed when the session belongs to the requesting user, or when the
@@ -1136,7 +1136,7 @@ class AuthService:
             return False
     
     async def create_user(
-        self, username: str, password: str, role: str = "user", roles: Optional[List[str]] = None
+        self, username: str, password: str, role: str = "user", roles: Optional[list[str]] = None
     ) -> Optional[str]:
         """
         Create a new user
@@ -1206,7 +1206,7 @@ class AuthService:
 
     async def _find_or_create_external_user(
         self, provider: str, external_id: str, email: Optional[str], role: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Look up a JIT-provisioned external user, creating one on first sight.
 
         The stored username is ``"{provider}:{external_id}"`` which is unique per
@@ -1294,7 +1294,7 @@ class AuthService:
 
     async def provision_sso_user(
         self, provider: str, external_id: str, email: Optional[str], is_admin: bool
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Provision (or fetch) an SSO user and reconcile admin role.
 
         Called by the admin-panel SSO callback after the id_token is validated
@@ -1317,7 +1317,7 @@ class AuthService:
                 user["roles"] = ["admin"]
         return user
 
-    async def list_users(self, filter_query: Optional[Dict[str, Any]] = None, limit: int = 100, offset: int = 0) -> list:
+    async def list_users(self, filter_query: Optional[dict[str, Any]] = None, limit: int = 100, offset: int = 0) -> list:
         """
         List all users with optional filtering and pagination
         
@@ -1354,7 +1354,7 @@ class AuthService:
             logger.error(f"Unexpected error listing users: {str(e)}")
             return []
     
-    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+    async def get_user_by_id(self, user_id: str) -> Optional[dict[str, Any]]:
         """
         Get a single user by ID with full details
         
@@ -1391,7 +1391,7 @@ class AuthService:
             logger.error(f"Unexpected error getting user by ID: {str(e)}")
             return None
     
-    async def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+    async def get_user_by_username(self, username: str) -> Optional[dict[str, Any]]:
         """
         Get a single user by username with efficient database lookup
         

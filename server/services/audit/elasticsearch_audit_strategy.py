@@ -8,7 +8,7 @@ Implementation of AuditStorageStrategy for Elasticsearch backend.
 import os
 import asyncio
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 
 from elasticsearch import AsyncElasticsearch
 from elasticsearch.exceptions import ApiError
@@ -53,7 +53,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
     Elasticsearch implementation of audit storage.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Elasticsearch audit strategy.
 
@@ -191,7 +191,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             raise
 
     @staticmethod
-    def _usage_mapping_properties() -> Dict[str, Any]:
+    def _usage_mapping_properties() -> dict[str, Any]:
         """Explicit mapping for the token-usage/cost fields.
 
         Applied on both index creation and (via put_mapping) on an existing
@@ -350,12 +350,12 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
 
     async def query(
         self,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
         sort_order: int = -1
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Query audit records from Elasticsearch.
 
@@ -465,7 +465,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
     # filterable, so it is deliberately excluded here.
     _FILTERABLE_DIMENSIONS = {"provider", "adapter_name", "model", "call_type", "api_key"}
 
-    async def _fetch_api_key_masked_to_id_map(self) -> Dict[str, str]:
+    async def _fetch_api_key_masked_to_id_map(self) -> dict[str, str]:
         """Map every masked key that has EVER written an id-bearing row
         (anywhere in the index, not just the current query's window) to
         that id. Used to resolve legacy rows (masked value only) onto the
@@ -490,7 +490,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             logger.warning(f"Failed to build api_key masked-value-to-id map, falling back to masked-only: {e}")
             return {}
 
-        masked_to_id: Dict[str, str] = {}
+        masked_to_id: dict[str, str] = {}
         for bucket in response.get("aggregations", {}).get("by_masked", {}).get("buckets", []):
             id_buckets = bucket.get("resolved_id", {}).get("buckets", [])
             if id_buckets:
@@ -498,7 +498,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         return masked_to_id
 
     @staticmethod
-    def _api_key_terms_script(masked_to_id: Dict[str, str]) -> Dict[str, Any]:
+    def _api_key_terms_script(masked_to_id: dict[str, str]) -> dict[str, Any]:
         """Painless script for the "groups" terms agg when group_by ==
         "api_key": prefer this doc's own stable id; else resolve its masked
         key through `masked_to_id` (built from the whole index, so a legacy
@@ -526,9 +526,9 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         until: str,
         bucket: str = "day",
         group_by: str = "model",
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         limit_groups: int = 10,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Elasticsearch implementation: date_histogram + terms aggs, size 0."""
         if not self._initialized or not self._es_client:
             raise NotImplementedError("Elasticsearch client not available for aggregation")
@@ -539,7 +539,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         # wouldn't be reachable by that id.
         needs_api_key_resolution = group_by == "api_key" or "api_key" in (filters or {})
         masked_to_id = await self._fetch_api_key_masked_to_id_map() if needs_api_key_resolution else {}
-        id_to_masked: Dict[str, List[str]] = {}
+        id_to_masked: dict[str, list[str]] = {}
         for masked, key_id in masked_to_id.items():
             id_to_masked.setdefault(key_id, []).append(masked)
 
@@ -622,7 +622,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             for bucket_doc in es_aggs.get("series", {}).get("buckets", [])
         ]
 
-        groups: List[Dict[str, Any]] = []
+        groups: list[dict[str, Any]] = []
         if group_by == "api_key" or group_column:
             for bucket_doc in es_aggs.get("groups", {}).get("buckets", []):
                 cost = bucket_doc.get("cost_usd", {}).get("value") or 0.0

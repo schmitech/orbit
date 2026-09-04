@@ -5,7 +5,7 @@ Manages resource cleanup when adapter configurations change.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from ai_services.factory import AIServiceFactory, ServiceType
 from embeddings.base import EmbeddingServiceFactory
@@ -33,7 +33,7 @@ class DependencyCacheCleaner:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         provider_cache,
         embedding_cache,
         reranker_cache,
@@ -64,8 +64,8 @@ class DependencyCacheCleaner:
     async def clear_adapter_dependencies(
         self,
         adapter_name: str,
-        adapter_config: Optional[Dict[str, Any]] = None
-    ) -> List[str]:
+        adapter_config: Optional[dict[str, Any]] = None
+    ) -> list[str]:
         """
         Clear all provider/embedding/reranker caches for an adapter.
 
@@ -148,7 +148,7 @@ class DependencyCacheCleaner:
 
         return cleared_caches
 
-    async def _clear_provider_cache(self, adapter_config: Dict[str, Any]) -> List[str]:
+    async def _clear_provider_cache(self, adapter_config: dict[str, Any]) -> list[str]:
         """
         Clear provider cache entries for an adapter configuration.
 
@@ -194,7 +194,7 @@ class DependencyCacheCleaner:
 
         return cleared
 
-    async def _clear_embedding_cache(self, adapter_config: Dict[str, Any]) -> List[str]:
+    async def _clear_embedding_cache(self, adapter_config: dict[str, Any]) -> list[str]:
         """
         Clear embedding cache entries for an adapter configuration.
 
@@ -247,7 +247,7 @@ class DependencyCacheCleaner:
 
         return cleared
 
-    async def _clear_reranker_cache(self, adapter_config: Dict[str, Any]) -> List[str]:
+    async def _clear_reranker_cache(self, adapter_config: dict[str, Any]) -> list[str]:
         """
         Clear reranker cache entries for an adapter configuration.
 
@@ -289,7 +289,7 @@ class DependencyCacheCleaner:
 
         return cleared
 
-    async def _clear_vision_cache(self, adapter_config: Dict[str, Any]) -> List[str]:
+    async def _clear_vision_cache(self, adapter_config: dict[str, Any]) -> list[str]:
         """
         Clear vision cache entries for an adapter configuration.
 
@@ -325,7 +325,7 @@ class DependencyCacheCleaner:
 
         return cleared
 
-    async def _clear_audio_cache(self, adapter_config: Dict[str, Any]) -> List[str]:
+    async def _clear_audio_cache(self, adapter_config: dict[str, Any]) -> list[str]:
         """
         Clear audio cache entries for an adapter configuration.
 
@@ -354,7 +354,7 @@ class DependencyCacheCleaner:
 
         return cleared
 
-    async def _clear_stt_cache(self, adapter_config: Dict[str, Any]) -> List[str]:
+    async def _clear_stt_cache(self, adapter_config: dict[str, Any]) -> list[str]:
         """
         Clear STT (Speech-to-Text) cache entries for an adapter configuration.
 
@@ -371,7 +371,7 @@ class DependencyCacheCleaner:
             log_label='audio/STT',
         )
 
-    async def _clear_tts_cache(self, adapter_config: Dict[str, Any]) -> List[str]:
+    async def _clear_tts_cache(self, adapter_config: dict[str, Any]) -> list[str]:
         """
         Clear TTS (Text-to-Speech) cache entries for an adapter configuration.
 
@@ -390,11 +390,11 @@ class DependencyCacheCleaner:
 
     async def _clear_audio_variant_cache(
         self,
-        adapter_config: Dict[str, Any],
+        adapter_config: dict[str, Any],
         provider_key: str,
         prefix: str,
         log_label: str,
-    ) -> List[str]:
+    ) -> list[str]:
         cleared = []
         old_provider = adapter_config.get(provider_key)
 
@@ -412,7 +412,7 @@ class DependencyCacheCleaner:
 
         return cleared
 
-    async def _clear_store_cache(self, adapter_name: str, adapter_config: Dict[str, Any]) -> List[str]:
+    async def _clear_store_cache(self, adapter_name: str, adapter_config: dict[str, Any]) -> list[str]:
         """
         Clear vector store cache entries when store_name or vector_store changes.
 
@@ -469,7 +469,7 @@ class DependencyCacheCleaner:
 
         return cleared
 
-    async def _clear_datasource_cache(self, adapter_name: str, adapter_config: Dict[str, Any]) -> List[str]:
+    async def _clear_datasource_cache(self, adapter_name: str, adapter_config: dict[str, Any]) -> list[str]:
         """
         Clear datasource cache entries when datasource or database config changes.
 
@@ -509,7 +509,7 @@ class DependencyCacheCleaner:
 
         return cleared
 
-    def update_config(self, config: Dict[str, Any]) -> None:
+    def update_config(self, config: dict[str, Any]) -> None:
         """
         Update the configuration reference.
 

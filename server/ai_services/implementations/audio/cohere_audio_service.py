@@ -8,7 +8,7 @@ Supported formats: FLAC, MP3, MPEG, MPGA, OGG, WAV (≤25 MB)
 
 import os
 from io import BytesIO
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 import httpx
 
@@ -33,7 +33,7 @@ class CohereAudioService(AudioService):
         "wav": "audio/wav",
     }
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "cohere")
 
         provider_config = self._extract_provider_config()
@@ -179,7 +179,7 @@ class CohereAudioService(AudioService):
     def _prepare_file(
         self,
         audio: Union[str, bytes],
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
     ):
         """Return (audio_bytes, filename, mime_type)."""
         filename = kwargs.pop("filename", None)

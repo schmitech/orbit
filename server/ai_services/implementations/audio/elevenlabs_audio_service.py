@@ -5,7 +5,8 @@ This implementation provides high-quality text-to-speech using ElevenLabs API.
 ElevenLabs is known for natural-sounding voices and multilingual support.
 """
 
-from typing import AsyncIterator, Dict, Any, Optional, Union
+from typing import Any, Optional, Union
+from collections.abc import AsyncIterator
 import aiohttp
 import logging
 
@@ -28,7 +29,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
     Note: ElevenLabs is primarily a TTS service. STT is not supported.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the ElevenLabs audio service."""
         # Initialize base class
         ProviderAIService.__init__(self, config, ServiceType.AUDIO, "elevenlabs")
@@ -301,7 +302,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
             logger.error(f"ElevenLabs connection verification failed: {str(e)}")
             return False
 
-    async def list_voices(self) -> Dict[str, Any]:
+    async def list_voices(self) -> dict[str, Any]:
         """
         List available voices from ElevenLabs.
 
@@ -325,7 +326,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
             logger.error(f"Failed to list ElevenLabs voices: {str(e)}")
             raise
 
-    async def get_voice_info(self, voice_id: str) -> Dict[str, Any]:
+    async def get_voice_info(self, voice_id: str) -> dict[str, Any]:
         """
         Get information about a specific voice.
 

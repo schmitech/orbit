@@ -8,7 +8,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import List, AsyncGenerator
+from collections.abc import AsyncGenerator
 from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
@@ -25,7 +25,7 @@ class InferencePipeline:
     from input validation through response generation and validation.
     """
     
-    def __init__(self, steps: List[PipelineStep], container: ServiceContainer):
+    def __init__(self, steps: list[PipelineStep], container: ServiceContainer):
         """
         Initialize the inference pipeline.
         
@@ -433,7 +433,7 @@ class InferencePipelineBuilder:
         return InferencePipeline(steps, container)
 
     @staticmethod
-    def build_custom_pipeline(container: ServiceContainer, step_classes: List[type]) -> InferencePipeline:
+    def build_custom_pipeline(container: ServiceContainer, step_classes: list[type]) -> InferencePipeline:
         """
         Build a custom pipeline with specified steps.
         

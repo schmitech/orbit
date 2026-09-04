@@ -1,6 +1,6 @@
 """Shimmy base class."""
 
-from typing import Dict, Any
+from typing import Any
 import logging
 from openai import AsyncOpenAI
 import httpx
@@ -20,7 +20,7 @@ class ShimmyBaseService(ProviderAIService):
     It only supports API mode (no direct model loading).
     """
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "shimmy"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "shimmy"):
         """
         Initialize the Shimmy base service.
         

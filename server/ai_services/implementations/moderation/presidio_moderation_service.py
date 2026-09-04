@@ -25,7 +25,7 @@ policy from config/guardrails.yaml (which blocks by default).
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from ...connection import ConnectionManager
 from ...services import ModerationService, ModerationResult
@@ -71,7 +71,7 @@ class PresidioModerationService(ModerationService):
             minimum 1)
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Presidio moderation service.
 
@@ -151,7 +151,7 @@ class PresidioModerationService(ModerationService):
         self.initialized = True
         return True
 
-    async def _fetch_supported_entities(self) -> Optional[List[str]]:
+    async def _fetch_supported_entities(self) -> Optional[list[str]]:
         """Return the analyzer's supported entity types, or None if unavailable."""
         try:
             session = await self.connection_manager.get_session()
@@ -196,7 +196,7 @@ class PresidioModerationService(ModerationService):
         await self.connection_manager.close()
         self.initialized = False
 
-    def _results_to_result(self, results: List[Dict[str, Any]]) -> ModerationResult:
+    def _results_to_result(self, results: list[dict[str, Any]]) -> ModerationResult:
         """
         Convert analyzer results into a ModerationResult.
 
@@ -207,7 +207,7 @@ class PresidioModerationService(ModerationService):
             ModerationResult with pii.<entity> scores; flagged when a configured
             entity is detected at or above the score threshold
         """
-        categories: Dict[str, float] = {}
+        categories: dict[str, float] = {}
         is_flagged = False
 
         for entry in results:
@@ -236,7 +236,7 @@ class PresidioModerationService(ModerationService):
             model=self.model
         )
 
-    async def _analyze(self, content: str) -> List[Dict[str, Any]]:
+    async def _analyze(self, content: str) -> list[dict[str, Any]]:
         """
         Call the analyzer's /analyze endpoint.
 
@@ -285,7 +285,7 @@ class PresidioModerationService(ModerationService):
         results = await self._analyze(content)
         return self._results_to_result(results)
 
-    async def moderate_batch(self, contents: List[str]) -> List[ModerationResult]:
+    async def moderate_batch(self, contents: list[str]) -> list[ModerationResult]:
         """
         Moderate multiple content items concurrently.
 

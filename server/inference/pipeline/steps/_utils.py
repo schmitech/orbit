@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from utils.generation_memory import generation_memory_key
 
@@ -36,7 +36,7 @@ NO_INFERENCE_PROVIDER_ADAPTER_TYPES = frozenset({
 
 def add_usage_component(
     context,
-    usage_sink: Optional[Dict[str, Any]],
+    usage_sink: Optional[dict[str, Any]],
     source: str,
 ) -> None:
     """Attach independently priceable usage to the current request."""
@@ -52,9 +52,9 @@ def add_usage_component(
 
 
 def summarize_embedding_usage(
-    usage_sink: Optional[Dict[str, Any]],
+    usage_sink: Optional[dict[str, Any]],
     pricing_service=None,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """Build an embedding-only audit usage payload from a tracked sink."""
     if not usage_sink or not usage_sink.get("reported"):
         return None
@@ -62,7 +62,7 @@ def summarize_embedding_usage(
     items = [dict(item) for item in (usage_sink.get("line_items") or [usage_sink])]
     prompt_tokens = sum(item.get("prompt_tokens") or 0 for item in items)
     last = items[-1]
-    usage: Dict[str, Any] = {
+    usage: dict[str, Any] = {
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -114,7 +114,7 @@ def summarize_embedding_usage(
     return usage
 
 
-def extract_reranking_usage(container, context) -> Optional[Dict[str, Any]]:
+def extract_reranking_usage(container, context) -> Optional[dict[str, Any]]:
     """Detach reranking usage into its own audit event."""
     components = context.metadata.get("_usage_components", [])
     reranking = [item for item in components if item and item.get("source") == "reranking"]
@@ -137,7 +137,7 @@ def extract_reranking_usage(container, context) -> Optional[Dict[str, Any]]:
     unit_items = [item for item in reported_items if item.get("usage_unit") is not None]
     reported = bool(reported_items)
     units = {item.get("usage_unit") for item in unit_items}
-    usage: Dict[str, Any] = {
+    usage: dict[str, Any] = {
         "provider": last.get("provider"), "model": last.get("model"),
         "prompt_tokens": sum(item.get("prompt_tokens") or 0 for item in token_items) if token_items else None,
         "completion_tokens": sum(item.get("completion_tokens") or 0 for item in token_items) if token_items else None,
@@ -175,7 +175,7 @@ def extract_reranking_usage(container, context) -> Optional[Dict[str, Any]]:
     return usage
 
 
-def extract_embedding_usage(container, context) -> Optional[Dict[str, Any]]:
+def extract_embedding_usage(container, context) -> Optional[dict[str, Any]]:
     """Detach tracked embedding components and prepare their audit event.
 
     Embeddings are independently billable API calls.  Keep them separate from
@@ -245,7 +245,7 @@ def get_adapter_type(container, adapter_name: str) -> Optional[str]:
     return None
 
 
-def get_rewrite_prompt_config(container, kind: str) -> Dict[str, Any]:
+def get_rewrite_prompt_config(container, kind: str) -> dict[str, Any]:
     """Return the externalized rewrite-prompt config for a generation kind.
 
     Loaded once at server startup from config/rewriters-prompts.yaml (imported by
@@ -257,7 +257,7 @@ def get_rewrite_prompt_config(container, kind: str) -> Dict[str, Any]:
     return config.get('rewriters', {}).get(kind, {}) or {}
 
 
-async def get_generation_memory(container, adapter_name: str, session_id: Optional[str]) -> Optional[Dict[str, Any]]:
+async def get_generation_memory(container, adapter_name: str, session_id: Optional[str]) -> Optional[dict[str, Any]]:
     """Return the last stored generation memory (effective prompt/spec) for this
     adapter+session, so a follow-up like "add another dog" can be merged with
     what was actually generated last turn instead of re-running the rewrite LLM
@@ -288,10 +288,10 @@ async def get_generation_memory(container, adapter_name: str, session_id: Option
 def record_usage(
     container,
     context,
-    usage_sink: Dict[str, Any],
+    usage_sink: dict[str, Any],
     provider: Optional[str],
     model: Optional[str],
-    extra: Optional[Dict[str, Any]] = None,
+    extra: Optional[dict[str, Any]] = None,
 ) -> None:
     """
     Turn a raw usage_sink (filled by generate_tracked/generate_stream_tracked/
@@ -485,9 +485,9 @@ def record_media_generation_usage(
     provider: Optional[str],
     model: Optional[str],
     call_type: str,
-    token_usage: Optional[Dict[str, Any]] = None,
-    media_usage: Optional[Dict[str, Any]] = None,
-    rewrite_sink: Optional[Dict[str, Any]] = None,
+    token_usage: Optional[dict[str, Any]] = None,
+    media_usage: Optional[dict[str, Any]] = None,
+    rewrite_sink: Optional[dict[str, Any]] = None,
 ) -> None:
     """
     Record usage/cost for an image/video/audio-generation pipeline step,
@@ -511,7 +511,7 @@ def record_media_generation_usage(
     reranking_usage = extract_reranking_usage(container, context)
     pricing_service = container.get('pricing_service') if container.has('pricing_service') else None
 
-    usage: Dict[str, Any] = {
+    usage: dict[str, Any] = {
         "prompt_tokens": None, "completion_tokens": None, "total_tokens": None,
         "reasoning_tokens": None, "provider": provider, "model": model,
         "cost_usd": None, "input_rate_per_1m": None, "output_rate_per_1m": None,
@@ -595,7 +595,7 @@ def record_media_generation_usage(
 
 
 async def store_generation_memory(
-    container, adapter_name: str, session_id: Optional[str], memory: Dict[str, Any]
+    container, adapter_name: str, session_id: Optional[str], memory: dict[str, Any]
 ) -> None:
     """Store this turn's effective generation prompt/spec for future follow-ups."""
     if not session_id or not adapter_name or not container.has('thread_dataset_service'):

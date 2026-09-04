@@ -9,7 +9,8 @@ This avoids Cohere SDK-specific quirks with message formatting, streaming,
 and response handling by using the standard OpenAI chat completions interface.
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...providers import OpenAICompatibleBaseService
 from ...providers.usage_reporting import UsageReportingMixin
@@ -24,7 +25,7 @@ class CohereInferenceService(UsageReportingMixin, InferenceService, OpenAICompat
     identical to how Groq, Mistral, and other providers work.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Cohere inference service."""
         InferenceService.__init__(self, config, "cohere")
 

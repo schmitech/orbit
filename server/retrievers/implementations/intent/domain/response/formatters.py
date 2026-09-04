@@ -3,7 +3,7 @@ Formatting helpers for response generation
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from datetime import datetime, date
 from ...domain import DomainConfig, FieldConfig
 
@@ -20,7 +20,7 @@ class ResponseFormatter:
         self.domain_config = domain_config
         self.domain_strategy = domain_strategy
 
-    def format_results(self, results: List[Dict], template: Dict) -> List[Dict]:
+    def format_results(self, results: list[dict], template: dict) -> list[dict]:
         """Format results according to domain field configurations"""
         formatted = []
 
@@ -30,7 +30,7 @@ class ResponseFormatter:
 
         return formatted
 
-    def _format_single_result(self, result: Dict) -> Dict:
+    def _format_single_result(self, result: dict) -> dict:
         """Format a single result row"""
         formatted_result = {}
 
@@ -184,7 +184,7 @@ class ResponseFormatter:
 
         return str(value)
 
-    def format_table_data(self, results: List[Dict], columns: Optional[List[str]] = None) -> Dict[str, Any]:
+    def format_table_data(self, results: list[dict], columns: Optional[list[str]] = None) -> dict[str, Any]:
         """Format results for table display"""
         if not results:
             return {"rows": [], "columns": []}
@@ -221,7 +221,7 @@ class ResponseFormatter:
             "rows": formatted_rows
         }
 
-    def format_summary_data(self, results: List[Dict], summary_fields: Optional[List[str]] = None) -> str:
+    def format_summary_data(self, results: list[dict], summary_fields: Optional[list[str]] = None) -> str:
         """Format results for summary display"""
         if not results:
             return "No results to summarize."
@@ -256,7 +256,7 @@ class ResponseFormatter:
 
         return "\n".join(summaries)
 
-    def _get_summary_fields(self, sample_result: Dict) -> List[str]:
+    def _get_summary_fields(self, sample_result: dict) -> list[str]:
         """Determine which fields are most important for summary using domain strategy and semantic metadata"""
         field_priorities = []
 

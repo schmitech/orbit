@@ -6,7 +6,7 @@ Speech-to-Text and Text-to-Speech APIs.
 """
 
 import logging
-from typing import Dict, Any, Optional, Union
+from typing import Any, Optional, Union
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
@@ -26,7 +26,7 @@ class GoogleAudioService(AudioService, GoogleBaseService):
     - Audio translation
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Google audio service."""
         # Initialize via GoogleBaseService first
         GoogleBaseService.__init__(self, config, ServiceType.AUDIO, "google")

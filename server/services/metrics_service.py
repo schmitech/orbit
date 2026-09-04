@@ -8,7 +8,7 @@ import time
 import os
 import psutil
 import asyncio
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from datetime import datetime
 from collections import deque
 from prometheus_client import (
@@ -51,7 +51,7 @@ def get_metrics_service_instance() -> "MetricsService | None":
 class MetricsService:
     """Service for collecting and exposing Prometheus metrics"""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
         
         # Get monitoring configuration with defaults
@@ -267,7 +267,7 @@ class MetricsService:
         self.response_times = deque(maxlen=100)
 
         # Per-endpoint tracking for latency breakdown (bounded)
-        self.endpoint_stats: Dict[str, Dict[str, Any]] = {}
+        self.endpoint_stats: dict[str, dict[str, Any]] = {}
         self._max_tracked_endpoints = 200
 
         # Start background metrics collection
@@ -325,7 +325,7 @@ class MetricsService:
                 pass
             logger.info("Stopped metrics collection task")
     
-    def _calculate_percentile(self, data: List[float], percentile: float) -> float:
+    def _calculate_percentile(self, data: list[float], percentile: float) -> float:
         """Calculate percentile from a list of values"""
         if not data:
             return 0.0
@@ -474,7 +474,7 @@ class MetricsService:
         state_map = {'closed': 0, 'open': 1, 'half-open': 2}
         self.adapter_circuit_state.labels(adapter=adapter).set(state_map.get(state, -1))
     
-    def update_thread_pool_metrics(self, pool_stats: Dict[str, Any]):
+    def update_thread_pool_metrics(self, pool_stats: dict[str, Any]):
         """Update thread pool metrics"""
         if not self.enabled:
             return
@@ -523,7 +523,7 @@ class MetricsService:
             return b"# Prometheus metrics disabled\n"
         return generate_latest(self.registry)
     
-    def get_dashboard_metrics(self) -> Dict[str, Any]:
+    def get_dashboard_metrics(self) -> dict[str, Any]:
         """Get metrics formatted for dashboard display"""
         uptime_seconds = time.time() - self._start_time
         uptime_str = self._format_uptime(uptime_seconds)

@@ -7,7 +7,7 @@ via Google AI Studio API key.
 
 import asyncio
 import os
-from typing import Dict, Any
+from typing import Any
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
@@ -22,7 +22,7 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
     Supported models: imagen-3.0-generate-001, imagen-3.0-fast-generate-001
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         GoogleBaseService.__init__(self, config, ServiceType.IMAGE_GENERATION, "gemini")
         provider_config = self._extract_provider_config()
         self.number_of_images = provider_config.get("number_of_images", 1)
@@ -55,7 +55,7 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
     def _is_gemini_model(self, model: str) -> bool:
         return model.startswith("gemini-")
 
-    async def generate_image(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_image(self, prompt: str, **kwargs) -> dict[str, Any]:
         """Generate an image using Google Gemini or Imagen."""
         if not self.initialized:
             await self.initialize()

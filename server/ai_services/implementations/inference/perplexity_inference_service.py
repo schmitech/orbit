@@ -7,7 +7,8 @@ the new unified AI services architecture with OpenAI-compatible base class.
 Compare with: server/inference/pipeline/providers/perplexity_provider.py (old implementation)
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
 from ...providers import OpenAICompatibleBaseService
@@ -26,7 +27,7 @@ class PerplexityInferenceService(UsageReportingMixin, InferenceService, OpenAICo
     Reduction: ~45%
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Perplexity inference service."""
         OpenAICompatibleBaseService.__init__(self, config, ServiceType.INFERENCE, "perplexity")
         InferenceService.__init__(self, config, "perplexity")

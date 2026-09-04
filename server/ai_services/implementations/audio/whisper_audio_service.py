@@ -19,7 +19,7 @@ import mimetypes
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any, Optional, Union
+from typing import Any, Optional, Union
 
 try:
     import whisper
@@ -57,7 +57,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
     - large-v3: Best quality (~10GB VRAM)
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Whisper audio service."""
         if not WHISPER_AVAILABLE:
             raise ImportError(
@@ -86,7 +86,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
                 f"- model={self.model_size}, device={self.device}, task={self.task}"
             )
 
-    def _extract_provider_config(self) -> Dict[str, Any]:
+    def _extract_provider_config(self) -> dict[str, Any]:
         """Extract Whisper-specific configuration from config."""
         # Check for whisper-specific config
         if 'whisper' in self.config:

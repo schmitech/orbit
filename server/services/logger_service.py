@@ -7,7 +7,7 @@ import json
 import logging
 import ipaddress
 import asyncio
-from typing import Dict, Any, Union, List, Optional, TypedDict
+from typing import Any, Union, Optional, TypedDict
 from datetime import datetime
 
 from elasticsearch import AsyncElasticsearch
@@ -34,7 +34,7 @@ class IPMetadata(TypedDict):
 class LoggerService:
     """Logger service for handling logs to file and Elasticsearch."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
         self.es_client: Optional[AsyncElasticsearch] = None
         self._has_logged_es_disabled = False  # Add flag to track if we've logged ES disabled message
@@ -166,7 +166,7 @@ class LoggerService:
             self.config["internal_services"]["elasticsearch"]["enabled"] = False
             self.es_client = None
 
-    def _format_ip_address(self, ip: Optional[Union[str, List[str]]]) -> IPMetadata:
+    def _format_ip_address(self, ip: Optional[Union[str, list[str]]]) -> IPMetadata:
         """
         Convert a raw IP value (or list thereof) into structured IP metadata.
         """
@@ -288,7 +288,7 @@ class LoggerService:
 
     async def _log_to_elasticsearch(
         self,
-        log_data: Dict[str, Any],
+        log_data: dict[str, Any],
         timestamp: datetime,
         query: str,
         response: str,

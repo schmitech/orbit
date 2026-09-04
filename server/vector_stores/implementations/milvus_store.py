@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 
 try:
     from pymilvus import MilvusClient, DataType
@@ -47,7 +47,7 @@ class MilvusStore(BaseVectorStore):
         except Exception:
             return False
 
-    async def add_vectors(self, vectors: List[List[float]], ids: List[str], metadata: Optional[List[Dict[str, Any]]] = None, collection_name: Optional[str] = None) -> bool:
+    async def add_vectors(self, vectors: list[list[float]], ids: list[str], metadata: Optional[list[dict[str, Any]]] = None, collection_name: Optional[str] = None) -> bool:
         collection_name = collection_name or self._default_collection
         
         data = []
@@ -64,7 +64,7 @@ class MilvusStore(BaseVectorStore):
             logger.error(f"Error adding vectors to Milvus: {e}")
             return False
 
-    async def search_vectors(self, query_vector: List[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    async def search_vectors(self, query_vector: list[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
         collection_name = collection_name or self._default_collection
         
         filter_expr = ""
@@ -123,13 +123,13 @@ class MilvusStore(BaseVectorStore):
             logger.error(f"Error deleting Milvus collection: {e}")
             return False
 
-    async def list_collections(self) -> List[str]:
+    async def list_collections(self) -> list[str]:
         return self._client.list_collections()
 
     async def collection_exists(self, collection_name: str) -> bool:
         return self._client.has_collection(collection_name)
 
-    async def get_collection_info(self, collection_name: str) -> Dict[str, Any]:
+    async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
         try:
             stats = self._client.get_collection_stats(collection_name)
             return {"name": collection_name, "count": stats['row_count']}
@@ -137,11 +137,11 @@ class MilvusStore(BaseVectorStore):
             logger.error(f"Error getting collection info from Milvus: {e}")
             return {}
 
-    async def get_vector(self, vector_id: str, collection_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_vector(self, vector_id: str, collection_name: Optional[str] = None) -> Optional[dict[str, Any]]:
         logger.warning("get_vector is not efficiently implemented for MilvusStore.")
         return None
 
-    async def update_vector(self, vector_id: str, vector: Optional[List[float]] = None, metadata: Optional[Dict[str, Any]] = None, collection_name: Optional[str] = None) -> bool:
+    async def update_vector(self, vector_id: str, vector: Optional[list[float]] = None, metadata: Optional[dict[str, Any]] = None, collection_name: Optional[str] = None) -> bool:
         logger.warning("update_vector is not efficiently implemented for MilvusStore.")
         return False
 

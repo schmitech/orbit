@@ -7,7 +7,7 @@ well as third-party vision/OCR models hosted in the Foundry Model Catalog
 (e.g. Mistral OCR deployments).
 """
 
-from typing import Dict, Any, Optional, Union, List
+from typing import Any, Optional, Union
 from PIL import Image
 
 from ...base import ServiceType
@@ -25,7 +25,7 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
     AzureBaseService) instead of a raw model id.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         # Only AzureBaseService.__init__ is called (not VisionService's) —
         # AzureBaseService's cooperative super().__init__() already reaches
         # ProviderAIService.__init__ with ServiceType.VISION, and
@@ -63,7 +63,7 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
 
         return "max_tokens"
 
-    def _resolve_token_value(self, token_param: str, kwargs: Dict[str, Any]) -> int:
+    def _resolve_token_value(self, token_param: str, kwargs: dict[str, Any]) -> int:
         """Determine the token limit value while respecting caller overrides, and
         strip every token-parameter variant out of kwargs so callers passing
         e.g. max_completion_tokens never collide with the key set below."""
@@ -134,7 +134,7 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
         self,
         image: Union[str, bytes, Image.Image],
         prompt: str = "Analyze this image in detail. Describe what you see, including any text, objects, and overall context.",
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Analyze image content with detailed response."""
         if not self.initialized:
@@ -187,7 +187,7 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
     async def describe_image(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Generate description of image."""
         return await self.analyze_image(
@@ -199,7 +199,7 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
     async def extract_text_from_image(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Extract text from image using OCR."""
         return await self.analyze_image(
@@ -211,8 +211,8 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
     async def detect_objects(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """Detect objects in image (inferred from a descriptive prompt — no structured detection API)."""
         description = await self.analyze_image(
             image,
@@ -236,7 +236,7 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
         self,
         image: Union[str, bytes, Image.Image],
         text_prompt: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """Perform multimodal inference with image and text."""

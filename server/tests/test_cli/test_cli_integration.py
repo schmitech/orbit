@@ -26,7 +26,7 @@ import json
 import logging
 import time
 import pytest
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Any, Union
 import os
 from pathlib import Path
 import tempfile
@@ -55,7 +55,7 @@ class CLITester:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cleanup()
     
-    def run_command(self, command: List[str], timeout: int = 30) -> Dict[str, Any]:
+    def run_command(self, command: list[str], timeout: int = 30) -> dict[str, Any]:
         """Run a CLI command and return result"""
         full_command = ["python", str(ORBIT_CLI)] + command
         logger.info(f"Running: {' '.join(full_command)}")
@@ -104,7 +104,7 @@ class CLITester:
                 "success": False
             }
     
-    def extract_json_from_output(self, output: str) -> Optional[Union[Dict[str, Any], List[Any]]]:
+    def extract_json_from_output(self, output: str) -> Optional[Union[dict[str, Any], list[Any]]]:
         """Extract JSON from CLI output that may contain additional text"""
         try:
             # The CLI outputs JSON followed by additional text
@@ -165,7 +165,7 @@ class CLITester:
             self.temp_files.append(f.name)
             return f.name
     
-    def _check_error_in_output(self, result: Dict[str, Any], error_patterns: List[str]) -> bool:
+    def _check_error_in_output(self, result: dict[str, Any], error_patterns: list[str]) -> bool:
         """
         Check if any of the error patterns are found in either stdout or stderr.
         

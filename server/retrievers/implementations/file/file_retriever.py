@@ -7,7 +7,7 @@ Supports semantic search over chunked document content.
 
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from retrievers.base.abstract_vector_retriever import AbstractVectorRetriever
 from services.file_metadata.metadata_store import FileMetadataStore
@@ -25,7 +25,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
     for semantic search and Q&A over uploaded documents.
     """
     
-    def __init__(self, config: Dict[str, Any] = None, datasource=None, domain_adapter=None, **kwargs):
+    def __init__(self, config: dict[str, Any] = None, datasource=None, domain_adapter=None, **kwargs):
         """
         Initialize file retriever.
 
@@ -122,9 +122,9 @@ class FileVectorRetriever(AbstractVectorRetriever):
         logger.debug("FileVectorRetriever initialized")
     
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
-                                  file_ids: Optional[List[str]] = None,
+                                  file_ids: Optional[list[str]] = None,
                                   collection_name: Optional[str] = None,
-                                  **kwargs) -> List[Dict[str, Any]]:
+                                  **kwargs) -> list[dict[str, Any]]:
         """
         Retrieve relevant context from uploaded files.
 
@@ -211,8 +211,8 @@ class FileVectorRetriever(AbstractVectorRetriever):
         return formatted_results
     
     
-    async def _get_collections_multiple(self, file_ids: Optional[List[str]], api_key: Optional[str],
-                                       collection_name: Optional[str]) -> List[str]:
+    async def _get_collections_multiple(self, file_ids: Optional[list[str]], api_key: Optional[str],
+                                       collection_name: Optional[str]) -> list[str]:
         """
         Get list of collections to search for multiple file IDs.
 
@@ -352,9 +352,9 @@ class FileVectorRetriever(AbstractVectorRetriever):
 
         return []
     
-    async def _search_collection(self, collection_name: str, query_embedding: List[float],
-                                 file_ids: Optional[List[str]] = None,
-                                 limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def _search_collection(self, collection_name: str, query_embedding: list[float],
+                                 file_ids: Optional[list[str]] = None,
+                                 limit: Optional[int] = None) -> list[dict[str, Any]]:
         """Search a specific collection for relevant chunks.
 
         Args:
@@ -422,7 +422,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
         decrypted = self._encryptor.decrypt(bytes.fromhex(envelope['payload']), aad)
         return json.loads(decrypted.decode('utf-8'))
 
-    def _format_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _format_results(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Format search results with file metadata."""
         formatted = []
 
@@ -473,7 +473,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
     async def index_file_chunks(
         self,
         file_id: str,
-        chunks: List,
+        chunks: list,
         collection_name: str,
         encryptor: Optional[FileEncryptor] = None,
         usage_sink=None,
@@ -577,7 +577,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
             logger.error(f"Error indexing file chunks: {e}")
             return False
     
-    async def get_chunk(self, chunk_id: str) -> Optional[Dict[str, Any]]:
+    async def get_chunk(self, chunk_id: str) -> Optional[dict[str, Any]]:
         """Retrieve a specific chunk by ID."""
         # This would query the vector store for a specific chunk
         # For now, return None as this requires vector store ID lookup
@@ -679,7 +679,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
         # Note: File adapter doesn't use traditional datasources (datasource: "none" in adapter config)
         return "files"  # Match the global config section name
 
-    def _get_datasource_config(self) -> Dict[str, Any]:
+    def _get_datasource_config(self) -> dict[str, Any]:
         """
         Override to get file adapter configuration from the correct location.
 
@@ -703,7 +703,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
 
         return {}
     
-    async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
+    async def vector_search(self, query_embedding: list[float], top_k: int) -> list[dict[str, Any]]:
         """
         Perform vector similarity search.
         

@@ -11,7 +11,7 @@ import logging
 import secrets
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pathlib import Path
@@ -58,7 +58,7 @@ ADMIN_DIR = Path(__file__).parent.parent / "admin"
 
 _admin_panel_html_cache: Optional[str] = None
 _admin_panel_template_mtime: Optional[float] = None
-_admin_panel_static_versions: Dict[str, str] = {}
+_admin_panel_static_versions: dict[str, str] = {}
 
 
 def _admin_asset_version(path: Path) -> str:
@@ -107,7 +107,7 @@ def _load_admin_panel_template() -> str:
         _admin_panel_html_cache is None
         or _admin_panel_template_mtime != current_mtime
     )
-    new_versions: Dict[str, str] = {}
+    new_versions: dict[str, str] = {}
     for placeholder, path in static_files.items():
         version = _admin_asset_version(path)
         new_versions[placeholder] = version
@@ -167,9 +167,9 @@ def _feedback_rate(positive: int, total: int) -> Optional[float]:
     return round((positive / total) * 100, 1) if total else None
 
 
-async def _feedback_records(database_service, query: Dict[str, Any], limit: int = 10000) -> List[Dict[str, Any]]:
+async def _feedback_records(database_service, query: dict[str, Any], limit: int = 10000) -> list[dict[str, Any]]:
     """Read feedback in bounded pages so analytics works across all DB backends."""
-    records: List[Dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
     page_size = 1000
     while len(records) < limit:
         batch = await database_service.find_many(
@@ -191,7 +191,7 @@ def create_admin_panel_router() -> APIRouter:
 
     # ----- Login -----
 
-    def _sso_providers(request: Request) -> Optional[Dict[str, str]]:
+    def _sso_providers(request: Request) -> Optional[dict[str, str]]:
         """Enabled SSO provider -> label, for rendering login buttons."""
         sso = get_sso_service(request)
         return sso.provider_labels() if sso else None
@@ -510,8 +510,8 @@ def create_admin_panel_router() -> APIRouter:
         unique_sessions = {str(item.get("session_id")) for item in records if item.get("session_id")}
         unique_users = {str(item.get("user_id")) for item in records if item.get("user_id")}
 
-        trend_map: Dict[str, Dict[str, int]] = defaultdict(lambda: {"positive": 0, "negative": 0})
-        adapter_map: Dict[str, Dict[str, int]] = defaultdict(
+        trend_map: dict[str, dict[str, int]] = defaultdict(lambda: {"positive": 0, "negative": 0})
+        adapter_map: dict[str, dict[str, int]] = defaultdict(
             lambda: {"positive": 0, "negative": 0, "comments": 0}
         )
         for item in records:
@@ -560,7 +560,7 @@ def create_admin_panel_router() -> APIRouter:
         chat_history_service = getattr(request.app.state, "chat_history_service", None)
         chat_collection = getattr(chat_history_service, "collection_name", "chat_history")
         recent_negative = []
-        user_cache: Dict[str, Optional[str]] = {}
+        user_cache: dict[str, Optional[str]] = {}
         negative_records = [item for item in records if item.get("feedback_type") == "down"][:25]
         auth_service = getattr(request.app.state, "auth_service", None)
         users_collection = getattr(auth_service, "users_collection_name", "users")
@@ -705,7 +705,7 @@ def create_admin_panel_router() -> APIRouter:
         if not metrics_service or not metrics_service.is_enabled():
             raise HTTPException(status_code=503, detail="Metrics service not available")
 
-        snapshot: Dict[str, Any] = {
+        snapshot: dict[str, Any] = {
             'exported_at': datetime.now(timezone.utc).isoformat(),
             'metrics': metrics_service.get_dashboard_metrics(),
         }

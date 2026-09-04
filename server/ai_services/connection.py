@@ -8,7 +8,8 @@ and timeout handling for all AI services.
 import aiohttp
 import asyncio
 import logging
-from typing import Dict, Any, Optional, Callable, TypeVar, Awaitable
+from typing import Any, Optional, TypeVar
+from collections.abc import Callable, Awaitable
 from functools import wraps
 import time
 
@@ -30,7 +31,7 @@ class ConnectionManager:
         base_url: str,
         api_key: Optional[str] = None,
         timeout_ms: int = 30000,
-        headers: Optional[Dict[str, str]] = None
+        headers: Optional[dict[str, str]] = None
     ):
         """
         Initialize the connection manager.
@@ -250,7 +251,7 @@ class ConnectionVerifier:
     async def verify_api_key(
         self,
         test_endpoint: str,
-        payload: Optional[Dict[str, Any]] = None
+        payload: Optional[dict[str, Any]] = None
     ) -> bool:
         """
         Verify API key by making a test request.

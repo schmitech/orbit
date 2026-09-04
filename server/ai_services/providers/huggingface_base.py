@@ -1,7 +1,7 @@
 """Hugging Face base class."""
 
 import logging
-from typing import Dict, Any
+from typing import Any
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
 from ..errors import raise_sanitized
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class HuggingFaceBaseService(ProviderAIService):
     """Base class for Hugging Face services."""
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "huggingface"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "huggingface"):
         """
         Initialize the huggingface base service.
 
@@ -42,7 +42,7 @@ class HuggingFaceBaseService(ProviderAIService):
 
         from huggingface_hub import AsyncInferenceClient
 
-        client_kwargs: Dict[str, Any] = {
+        client_kwargs: dict[str, Any] = {
             "model": self.model,
             "token": self.api_key,
             "provider": self.hf_provider,

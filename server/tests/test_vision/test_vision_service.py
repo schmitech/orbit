@@ -13,7 +13,7 @@ This module tests the vision service functionality including:
 import pytest
 import sys
 import os
-from typing import Dict, Any
+from typing import Any
 from unittest.mock import patch, MagicMock, AsyncMock
 from io import BytesIO
 from PIL import Image
@@ -46,7 +46,7 @@ class TestVisionServiceRegistration:
         registry_module._services_registered = False
 
     @pytest.fixture
-    def enabled_providers_config(self) -> Dict[str, Any]:
+    def enabled_providers_config(self) -> dict[str, Any]:
         """Create a config with all vision providers enabled."""
         return {
             "visions": {
@@ -75,7 +75,7 @@ class TestVisionServiceRegistration:
         }
 
     @pytest.fixture
-    def partial_enabled_config(self) -> Dict[str, Any]:
+    def partial_enabled_config(self) -> dict[str, Any]:
         """Create a config with only some vision providers enabled."""
         return {
             "visions": {

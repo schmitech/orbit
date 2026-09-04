@@ -5,7 +5,7 @@ Datasource Registry for managing datasource implementations with automatic disco
 import logging
 import importlib
 import pkgutil
-from typing import Dict, Any, Optional, Type, List
+from typing import Any, Optional
 from .base.base_datasource import BaseDatasource
 
 # Configure logging
@@ -25,49 +25,49 @@ class DatasourceRegistry:
 
     def __init__(self):
         """Initialize the datasource registry."""
-        self._registry: Dict[str, Type[BaseDatasource]] = {}
+        self._registry: dict[str, type[BaseDatasource]] = {}
         self._discovered = False
 
         # Datasource pooling: cache instances to share between adapters
-        self._datasource_pool: Dict[str, BaseDatasource] = {}
-        self._datasource_references: Dict[str, int] = {}  # Reference counting
+        self._datasource_pool: dict[str, BaseDatasource] = {}
+        self._datasource_references: dict[str, int] = {}  # Reference counting
 
         import threading
         self._pool_lock = threading.Lock()
-        
+
     def _discover_implementations(self) -> None:
         """Auto-discover datasource implementations from the implementations package."""
         if self._discovered:
             return
-            
+
         logger.debug("Starting auto-discovery of datasource implementations...")
-        
+
         try:
             # Import the implementations package
             from . import implementations
-            
+
             # Walk through all modules in the implementations package
             for importer, modname, ispkg in pkgutil.walk_packages(
-                implementations.__path__, 
+                implementations.__path__,
                 implementations.__name__ + "."
             ):
                 try:
                     # Import the module
                     module = importlib.import_module(modname)
-                    
+
                     # Look for classes that inherit from BaseDatasource
                     for attr_name in dir(module):
                         attr = getattr(module, attr_name)
-                        if (isinstance(attr, type) and 
-                            issubclass(attr, BaseDatasource) and 
+                        if (isinstance(attr, type) and
+                            issubclass(attr, BaseDatasource) and
                             attr != BaseDatasource):
-                            
+
                             # Get the datasource name by creating a temporary instance
                             try:
                                 # Create a minimal instance to access the property
                                 temp_instance = attr({}, None)
                                 datasource_name_value = temp_instance.datasource_name
-                                
+
                                 if datasource_name_value:
                                     self._registry[datasource_name_value] = attr
                                     logger.debug(f"Discovered datasource implementation: {datasource_name_value} -> {attr.__name__}")
@@ -75,69 +75,69 @@ class DatasourceRegistry:
                                     logger.warning(f"Class {attr.__name__} has empty datasource_name")
                             except Exception as e:
                                 logger.warning(f"Class {attr.__name__} couldn't be instantiated to get datasource_name: {e}")
-                                
+
                 except Exception as e:
                     logger.warning(f"Failed to import module {modname}: {e}")
-                    
+
         except Exception as e:
             logger.error(f"Failed to discover datasource implementations: {e}")
-            
+
         self._discovered = True
         logger.debug(f"Datasource discovery completed. Found {len(self._registry)} implementations: {list(self._registry.keys())}")
-    
-    def register(self, datasource_name: str, implementation: Type[BaseDatasource]) -> None:
+
+    def register(self, datasource_name: str, implementation: type[BaseDatasource]) -> None:
         """
         Manually register a datasource implementation.
-        
+
         Args:
             datasource_name: Name of the datasource (e.g., 'mysql', 'mongodb')
             implementation: Class that implements BaseDatasource
         """
         if not issubclass(implementation, BaseDatasource):
             raise ValueError("Implementation must inherit from BaseDatasource")
-            
+
         self._registry[datasource_name] = implementation
         logger.info(f"Manually registered datasource: {datasource_name} -> {implementation.__name__}")
-    
-    def get_implementation(self, datasource_name: str) -> Optional[Type[BaseDatasource]]:
+
+    def get_implementation(self, datasource_name: str) -> Optional[type[BaseDatasource]]:
         """
         Get a datasource implementation by name.
-        
+
         Args:
             datasource_name: Name of the datasource
-            
+
         Returns:
             The implementation class or None if not found
         """
         if not self._discovered:
             self._discover_implementations()
-            
+
         return self._registry.get(datasource_name)
-    
-    def list_available(self) -> List[str]:
+
+    def list_available(self) -> list[str]:
         """
         List all available datasource implementations.
-        
+
         Returns:
             List of datasource names
         """
         if not self._discovered:
             self._discover_implementations()
-            
+
         return list(self._registry.keys())
-    
-    def create_datasource(self, 
-                         datasource_name: str, 
-                         config: Dict[str, Any], 
+
+    def create_datasource(self,
+                         datasource_name: str,
+                         config: dict[str, Any],
                          logger: Optional[logging.Logger] = None) -> Optional[BaseDatasource]:
         """
         Create a datasource instance.
-        
+
         Args:
             datasource_name: Name of the datasource to create
             config: Configuration dictionary
             logger: Logger instance
-            
+
         Returns:
             Datasource instance or None if not found
         """
@@ -146,13 +146,13 @@ class DatasourceRegistry:
         if not implementation:
             log.error(f"Datasource implementation not found: {datasource_name}")
             return None
-            
+
         try:
             return implementation(config, logger)
         except Exception as e:
             log.error(f"Failed to create datasource {datasource_name}: {e}")
             return None
-    
+
     def is_available(self, datasource_name: str) -> bool:
         """
         Check if a datasource implementation is available.
@@ -165,7 +165,7 @@ class DatasourceRegistry:
         """
         return self.get_implementation(datasource_name) is not None
 
-    def _generate_cache_key(self, datasource_name: str, config: Dict[str, Any]) -> str:
+    def _generate_cache_key(self, datasource_name: str, config: dict[str, Any]) -> str:
         """
         Generate a cache key for datasource pooling based on connection parameters.
 
@@ -235,7 +235,7 @@ class DatasourceRegistry:
             return f"{datasource_name}:{host}:{port}"
 
         elif datasource_name in ['qdrant']:
-            # Qdrant: cache key includes host and port
+            # Qdrant: cache key includes host and por
             url = datasource_config.get('url')
             if url:
                 return f"{datasource_name}:url:{url}"
@@ -297,7 +297,7 @@ class DatasourceRegistry:
 
     def get_or_create_datasource(self,
                                  datasource_name: str,
-                                 config: Dict[str, Any],
+                                 config: dict[str, Any],
                                  logger_instance: Optional[logging.Logger] = None) -> Optional[BaseDatasource]:
         """
         Get a cached datasource or create a new one with reference counting.
@@ -320,7 +320,7 @@ class DatasourceRegistry:
             # Check if we have a cached datasource
             if cache_key in self._datasource_pool:
                 datasource = self._datasource_pool[cache_key]
-                # Increment reference count
+                # Increment reference coun
                 self._datasource_references[cache_key] = self._datasource_references.get(cache_key, 0) + 1
 
                 if logger_instance:
@@ -359,7 +359,7 @@ class DatasourceRegistry:
 
     def release_datasource(self,
                           datasource_name: str,
-                          config: Dict[str, Any],
+                          config: dict[str, Any],
                           logger_instance: Optional[logging.Logger] = None) -> None:
         """
         Release a datasource reference. Closes the datasource when reference count reaches 0.
@@ -382,7 +382,7 @@ class DatasourceRegistry:
                     logger_instance.warning(f"Attempted to release non-existent datasource: {cache_key}")
                 return
 
-            # Decrement reference count
+            # Decrement reference coun
             self._datasource_references[cache_key] = self._datasource_references.get(cache_key, 1) - 1
 
             if self._datasource_references[cache_key] <= 0:
@@ -405,7 +405,7 @@ class DatasourceRegistry:
                             try:
                                 asyncio.run(datasource.close())
                             except RuntimeError:
-                                # Nested loop or shutting down — best effort
+                                # Nested loop or shutting down — best effor
                                 if logger_instance:
                                     logger_instance.warning(
                                         f"Could not close datasource {cache_key} — no event loop available"
@@ -425,7 +425,7 @@ class DatasourceRegistry:
                         f"refs: {self._datasource_references[cache_key]})"
                     )
 
-    async def invalidate_datasource(self, datasource_name: str, config: Dict[str, Any], database_override: Optional[str] = None) -> Optional[str]:
+    async def invalidate_datasource(self, datasource_name: str, config: dict[str, Any], database_override: Optional[str] = None) -> Optional[str]:
         """
         Safely release a datasource from the pool, resolving database override if present,
         and return the generated cache key if it was in the pool.
@@ -451,7 +451,7 @@ class DatasourceRegistry:
             return cache_key
         return None
 
-    def get_pool_stats(self) -> Dict[str, Any]:
+    def get_pool_stats(self) -> dict[str, Any]:
         """
         Get statistics about the datasource pool.
 
@@ -506,17 +506,17 @@ def get_registry() -> DatasourceRegistry:
     return _registry
 
 
-def create_datasource(datasource_name: str, 
-                     config: Dict[str, Any], 
+def create_datasource(datasource_name: str,
+                     config: dict[str, Any],
                      logger: Optional[logging.Logger] = None) -> Optional[BaseDatasource]:
     """
     Create a datasource instance using the global registry.
-    
+
     Args:
         datasource_name: Name of the datasource to create
         config: Configuration dictionary
         logger: Logger instance
-        
+
     Returns:
         Datasource instance or None if not found
     """

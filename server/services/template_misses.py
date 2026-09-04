@@ -15,7 +15,7 @@ in-memory window proves too small in practice.
 import time
 from collections import deque
 from threading import Lock
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 _MAX_ENTRIES = 500
 
@@ -29,7 +29,7 @@ def record_miss(
     adapter: str,
     query: str,
     reason: str,
-    candidates: List[Dict[str, Any]],
+    candidates: list[dict[str, Any]],
     threshold: float,
 ) -> str:
     """Record an unmatched or below-threshold query. Returns the miss id."""
@@ -49,7 +49,7 @@ def record_miss(
     return miss_id
 
 
-def list_misses(adapter: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+def list_misses(adapter: Optional[str] = None, limit: int = 100) -> list[dict[str, Any]]:
     with _lock:
         items = list(_misses)
     if adapter:
@@ -75,7 +75,7 @@ def record_feedback(
         })
 
 
-def list_feedback(adapter: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+def list_feedback(adapter: Optional[str] = None, limit: int = 100) -> list[dict[str, Any]]:
     with _lock:
         items = list(_feedback)
     if adapter:

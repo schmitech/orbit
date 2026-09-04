@@ -7,7 +7,7 @@ vector stores and embedding-based similarity search.
 
 import logging
 import hashlib
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any, Optional
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -79,9 +79,9 @@ class ChunkManager:
             logger.debug(f"Collection initialization: {e}")
 
     async def store_chunks(self,
-                          chunks: List[Dict[str, Any]],
+                          chunks: list[dict[str, Any]],
                           source_url: str,
-                          metadata: Dict[str, Any],
+                          metadata: dict[str, Any],
                           usage_sink=None) -> bool:
         """
         Store chunks in the vector store with embeddings.
@@ -202,7 +202,7 @@ class ChunkManager:
                              source_url: Optional[str] = None,
                              top_k: int = 3,
                              min_score: Optional[float] = None,
-                             usage_sink=None) -> List[Dict[str, Any]]:
+                             usage_sink=None) -> list[dict[str, Any]]:
         """
         Retrieve relevant chunks based on query similarity.
 
@@ -361,7 +361,7 @@ class ChunkManager:
 
         return True
 
-    def _prepare_chunks_for_embedding(self, chunks: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[str]]:
+    def _prepare_chunks_for_embedding(self, chunks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
         """
         Validate and prepare chunks for embedding.
 
@@ -422,7 +422,7 @@ class ChunkManager:
         logger.info(f"Prepared {len(validated_chunks)} chunks for embedding (from {len(chunks)} original chunks)")
         return validated_chunks, chunk_texts
 
-    def _recursive_split_chunk(self, content: str, original_chunk: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any]]]:
+    def _recursive_split_chunk(self, content: str, original_chunk: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
         """
         Recursively split a chunk that's too large for embedding.
         
@@ -542,7 +542,7 @@ class ChunkManager:
         
         return pieces
 
-    def _split_by_char_limit(self, text: str, char_limit: int) -> List[str]:
+    def _split_by_char_limit(self, text: str, char_limit: int) -> list[str]:
         """
         Split text by character limit as last resort.
         
@@ -574,8 +574,8 @@ class ChunkManager:
         return pieces
 
     async def _embed_chunks_safely(
-        self, chunk_texts: List[str], usage_sink=None
-    ) -> List[List[float]]:
+        self, chunk_texts: list[str], usage_sink=None
+    ) -> list[list[float]]:
         """
         Safely embed chunks with error handling.
 
@@ -609,8 +609,8 @@ class ChunkManager:
             raise
 
     async def _embed_chunks_individually(
-        self, chunk_texts: List[str], usage_sink=None
-    ) -> Tuple[List[List[float]], List[int]]:
+        self, chunk_texts: list[str], usage_sink=None
+    ) -> tuple[list[list[float]], list[int]]:
         """
         Embed chunks one at a time after batch embedding fails.
 

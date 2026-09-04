@@ -9,7 +9,7 @@ server/tests/conftest.py):
 
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import pytest
 import yaml
@@ -23,11 +23,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 CONFIG_ADAPTERS = _REPO_ROOT / "config" / "adapters"
 
 
-def _default_answers(spec: AdapterSpec, variant: Optional[str] = None) -> Dict[str, Any]:
+def _default_answers(spec: AdapterSpec, variant: Optional[str] = None) -> dict[str, Any]:
     """Simulate a wizard run where every question is left at its (variant-aware) default."""
     if spec.variant_field and variant is None:
         variant = spec.variant_values()[0]
-    answers: Dict[str, Any] = {}
+    answers: dict[str, Any] = {}
     for q in spec.questions:
         if spec.variant_field and q.field == spec.variant_field:
             answers[q.field] = variant

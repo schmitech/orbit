@@ -8,7 +8,7 @@ Caches retrievers based on configuration to ensure proper reuse across requests.
 import logging
 import hashlib
 import json
-from typing import Dict, Any
+from typing import Any
 from retrievers.implementations.file.file_retriever import FileVectorRetriever
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class RetrieverCache:
     """
 
     _instance = None
-    _cache: Dict[str, FileVectorRetriever] = {}
+    _cache: dict[str, FileVectorRetriever] = {}
 
     def __new__(cls):
         if cls._instance is None:
@@ -31,7 +31,7 @@ class RetrieverCache:
             cls._cache = {}
         return cls._instance
 
-    def _get_cache_key(self, config: Dict[str, Any]) -> str:
+    def _get_cache_key(self, config: dict[str, Any]) -> str:
         """
         Generate a cache key based on relevant configuration parameters.
 
@@ -57,7 +57,7 @@ class RetrieverCache:
 
         return cache_key
 
-    async def get_retriever(self, config: Dict[str, Any]) -> FileVectorRetriever:
+    async def get_retriever(self, config: dict[str, Any]) -> FileVectorRetriever:
         """
         Get or create a FileVectorRetriever instance.
 
@@ -94,7 +94,7 @@ class RetrieverCache:
         logger.info(f"Clearing retriever cache ({len(self._cache)} instances)")
         self._cache.clear()
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         """
         Get cache statistics.
 

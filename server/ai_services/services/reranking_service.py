@@ -6,7 +6,7 @@ providing a unified API regardless of the underlying provider.
 """
 
 from abc import abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 
 from ..base import ProviderAIService, ServiceType
 from ..providers.usage_reporting import UsageReportingMixin, accumulate_usage_sink
@@ -50,7 +50,7 @@ class RerankingService(ProviderAIService, UsageReportingMixin):
         provider_config = self._extract_provider_config()
         return provider_config.get('batch_size', default)
 
-    def __init__(self, config: Dict[str, Any], provider_name: str):
+    def __init__(self, config: dict[str, Any], provider_name: str):
         """
         Initialize the reranking service.
 
@@ -66,9 +66,9 @@ class RerankingService(ProviderAIService, UsageReportingMixin):
     async def rerank(
         self,
         query: str,
-        documents: List[str],
+        documents: list[str],
         top_n: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Rerank documents based on their relevance to the query.
 
@@ -98,9 +98,9 @@ class RerankingService(ProviderAIService, UsageReportingMixin):
         pass
 
     async def rerank_tracked(
-        self, query: str, documents: List[str], top_n: Optional[int] = None,
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        self, query: str, documents: list[str], top_n: Optional[int] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """Rerank and populate a caller-owned usage sink when supported."""
         if usage_sink is not None:
             usage_sink["attempted"] = True
@@ -109,7 +109,7 @@ class RerankingService(ProviderAIService, UsageReportingMixin):
             usage_sink.setdefault("reported", False)
         if not self.SUPPORTS_USAGE_REPORTING:
             return await self.rerank(query, documents, top_n)
-        local_usage: Dict[str, Any] = {}
+        local_usage: dict[str, Any] = {}
         result = await self.rerank(query, documents, top_n, usage_sink=local_usage)
         accumulate_usage_sink(usage_sink, local_usage)
         return result
@@ -127,10 +127,10 @@ class RerankingService(ProviderAIService, UsageReportingMixin):
     async def rerank_with_scores(
         self,
         query: str,
-        documents: List[str],
+        documents: list[str],
         top_n: Optional[int] = None,
         min_score: Optional[float] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Rerank documents and filter by minimum score.
 
@@ -169,11 +169,11 @@ class RerankingResult:
 
     def __init__(
         self,
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
         query: str,
         model: str,
         provider: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[dict[str, Any]] = None
     ):
         """
         Initialize reranking result.
@@ -195,11 +195,11 @@ class RerankingResult:
         """Return number of results."""
         return len(self.results)
 
-    def __getitem__(self, index: int) -> Dict[str, Any]:
+    def __getitem__(self, index: int) -> dict[str, Any]:
         """Get result by index."""
         return self.results[index]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             'results': self.results,
@@ -209,7 +209,7 @@ class RerankingResult:
             'metadata': self.metadata
         }
 
-    def get_top_documents(self, n: int) -> List[str]:
+    def get_top_documents(self, n: int) -> list[str]:
         """
         Get top n document texts.
 
@@ -221,7 +221,7 @@ class RerankingResult:
         """
         return [r['text'] for r in self.results[:n]]
 
-    def get_scores(self) -> List[float]:
+    def get_scores(self) -> list[float]:
         """
         Get all scores.
 
@@ -234,7 +234,7 @@ class RerankingResult:
 # Helper function for service creation
 def create_reranking_service(
     provider: str,
-    config: Dict[str, Any]
+    config: dict[str, Any]
 ) -> RerankingService:
     """
     Factory function to create a reranking service.

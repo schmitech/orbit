@@ -12,7 +12,7 @@ This module tests the xAI/Grok speech-to-text provider:
 
 import os
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -29,7 +29,7 @@ from ai_services.registry import register_audio_services
 
 def _response(
     status_code: int = 200,
-    json: Optional[Dict[str, Any]] = None,
+    json: Optional[dict[str, Any]] = None,
 ) -> httpx.Response:
     return httpx.Response(
         status_code,
@@ -38,7 +38,7 @@ def _response(
     )
 
 
-def _field_values(parts: List[Tuple[str, Any]], name: str) -> List[str]:
+def _field_values(parts: list[tuple[str, Any]], name: str) -> list[str]:
     return [part[1][1] for part in parts if part[0] == name and part[1][0] is None]
 
 
@@ -56,7 +56,7 @@ class TestXAIAudioRegistration:
         registry_module._services_registered = False
 
     def test_register_xai_audio_provider(self):
-        config: Dict[str, Any] = {
+        config: dict[str, Any] = {
             "tts": {"enabled": False},
             "stt": {"enabled": True},
             "tts_providers": {"xai": {"enabled": False}},

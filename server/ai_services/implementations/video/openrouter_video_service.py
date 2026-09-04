@@ -9,7 +9,7 @@ https://openrouter.ai/docs/api/api-reference/video-generation/submit-a-video-gen
 import asyncio
 import logging
 import time
-from typing import Dict, Any
+from typing import Any
 
 from openrouter import OpenRouter
 from openrouter.utils.retries import BackoffStrategy, RetryConfig
@@ -37,7 +37,7 @@ class OpenRouterVideoService(VideoGenerationService):
 
     DEFAULT_VIDEO_MODEL = "google/veo-3.1"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "openrouter")
         provider_config = self._extract_provider_config()
 
@@ -100,7 +100,7 @@ class OpenRouterVideoService(VideoGenerationService):
             logger.error(f"OpenRouter video generation connection verification failed: {e}")
             return False
 
-    async def generate_video(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_video(self, prompt: str, **kwargs) -> dict[str, Any]:
         if not self.initialized:
             if not await self.initialize():
                 raise ValueError("Failed to initialize OpenRouter video generation service")
@@ -133,7 +133,7 @@ class OpenRouterVideoService(VideoGenerationService):
         except Exception as e:
             raise ValueError(f"OpenRouter video submission failed: {e}") from e
 
-        async def _finish() -> Dict[str, Any]:
+        async def _finish() -> dict[str, Any]:
             completed = await self._poll_until_done(job.id)
 
             if completed.status != "completed":

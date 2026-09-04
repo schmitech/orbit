@@ -7,7 +7,7 @@ import logging
 import os
 import json
 import asyncio
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from decimal import Decimal
 from datetime import datetime, date
 import uuid
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class SQLConnectionMixin:
     """Mixin for handling database connections with environment variable support."""
     
-    def get_config_value(self, config: Dict[str, Any], key: str, default: Any = None) -> Any:
+    def get_config_value(self, config: dict[str, Any], key: str, default: Any = None) -> Any:
         """
         Get configuration value with environment variable resolution.
         
@@ -56,7 +56,7 @@ class SQLConnectionMixin:
         
         return value
     
-    def extract_connection_params(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def extract_connection_params(self, config: dict[str, Any]) -> dict[str, Any]:
         """
         Extract common database connection parameters.
         
@@ -104,7 +104,7 @@ class SQLConnectionMixin:
 class SQLTypeConversionMixin:
     """Mixin for handling database type conversions."""
     
-    def convert_row_types(self, row: Dict[str, Any]) -> Dict[str, Any]:
+    def convert_row_types(self, row: dict[str, Any]) -> dict[str, Any]:
         """
         Convert database-specific types to standard Python types.
         
@@ -148,7 +148,7 @@ class SQLTypeConversionMixin:
 class SQLQueryExecutionMixin:
     """Mixin for handling query execution and result processing."""
     
-    def dump_results_to_file(self, results: List[Dict[str, Any]], prefix: str = "query_results"):
+    def dump_results_to_file(self, results: list[dict[str, Any]], prefix: str = "query_results"):
         """
         Dump query results to a timestamped JSON file for debugging.
         Only executes when log level is DEBUG.
@@ -174,7 +174,7 @@ class SQLQueryExecutionMixin:
         except Exception as e:
             logger.error(f"Failed to dump query results: {e}")
     
-    async def execute_query_with_retry(self, query: str, params: Any = None, max_retries: int = 3) -> List[Dict[str, Any]]:
+    async def execute_query_with_retry(self, query: str, params: Any = None, max_retries: int = 3) -> list[dict[str, Any]]:
         """
         Execute query with retry logic for transient failures.
         
@@ -208,7 +208,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
     Uses the datasource registry pattern - connection is obtained from the datasource instance.
     """
 
-    def __init__(self, config: Dict[str, Any], datasource: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], datasource: Any = None, **kwargs):
         """
         Initialize base SQL database retriever.
 
@@ -271,7 +271,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
         """
         pass
     
-    async def execute_query(self, query: str, params: Optional[Any] = None) -> List[Dict[str, Any]]:
+    async def execute_query(self, query: str, params: Optional[Any] = None) -> list[dict[str, Any]]:
         """
         Execute query with common error handling and type conversion.
         Can be overridden by specific implementations if needed.
@@ -337,7 +337,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
             raise
     
     @abstractmethod
-    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """
         Execute raw query and return database-specific results.
         Must be implemented by specific database types.

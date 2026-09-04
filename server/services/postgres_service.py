@@ -17,7 +17,8 @@ import logging
 import threading
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
+from typing import Any, Optional, Union
+from collections.abc import Callable, Awaitable
 from datetime import datetime
 
 from services.database_service import DatabaseDuplicateKeyError, DatabaseOperationError, DatabaseService
@@ -74,10 +75,10 @@ def _is_concurrent_ddl_race(exc: Exception) -> bool:
 class PostgresService(DatabaseService):
     """Service for handling PostgreSQL database operations with singleton pattern"""
 
-    _instances: Dict[str, 'PostgresService'] = {}
+    _instances: dict[str, 'PostgresService'] = {}
     _lock = threading.Lock()
 
-    def __new__(cls, config: Dict[str, Any]):
+    def __new__(cls, config: dict[str, Any]):
         """
         Implement singleton pattern for Postgres service.
         Returns existing instance if configuration matches.
@@ -95,7 +96,7 @@ class PostgresService(DatabaseService):
             return cls._instances[cache_key]
 
     @classmethod
-    def _create_cache_key(cls, config: Dict[str, Any]) -> str:
+    def _create_cache_key(cls, config: dict[str, Any]) -> str:
         """Create a cache key based on Postgres connection configuration."""
         postgres_config = config.get('internal_services', {}).get('backend', {}).get('postgres', {})
 
@@ -105,7 +106,7 @@ class PostgresService(DatabaseService):
 
         return f"postgres:{host}:{port}:{database}"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Postgres service with configuration"""
         # Prevent re-initialization of singleton instances
         if hasattr(self, '_initialized') and self._initialized:
@@ -644,7 +645,7 @@ class PostgresService(DatabaseService):
                 self.connection.commit()
             return cursor
 
-    def _execute_sql_fetchone(self, sql: str, params: tuple) -> Optional[Dict[str, Any]]:
+    def _execute_sql_fetchone(self, sql: str, params: tuple) -> Optional[dict[str, Any]]:
         """Execute SQL and fetch one result (runs in thread) - thread-safe"""
         with self._db_lock:
             cursor = self.connection.cursor()
@@ -656,7 +657,7 @@ class PostgresService(DatabaseService):
                 return dict(row)
             return None
 
-    def _execute_sql_fetchall(self, sql: str, params: tuple) -> List[Dict[str, Any]]:
+    def _execute_sql_fetchall(self, sql: str, params: tuple) -> list[dict[str, Any]]:
         """Execute SQL and fetch all results (runs in thread) - thread-safe"""
         with self._db_lock:
             cursor = self.connection.cursor()
@@ -680,7 +681,7 @@ class PostgresService(DatabaseService):
                 self.connection.commit()
             return exists
 
-    def _create_table_from_document(self, table_name: str, document: Dict[str, Any]) -> None:
+    def _create_table_from_document(self, table_name: str, document: dict[str, Any]) -> None:
         """
         Dynamically create a table based on the document structure (runs in thread)
 
@@ -718,7 +719,7 @@ class PostgresService(DatabaseService):
 
         logger.debug(f"Auto-created table: {table_name}")
 
-    async def _ensure_table_exists(self, table_name: str, document: Dict[str, Any]) -> None:
+    async def _ensure_table_exists(self, table_name: str, document: dict[str, Any]) -> None:
         """Ensure a table exists, create it if not"""
         loop = asyncio.get_running_loop()
 
@@ -777,7 +778,7 @@ class PostgresService(DatabaseService):
     async def create_index(
         self,
         collection_name: str,
-        field_name: Union[str, List[Tuple[str, int]]],
+        field_name: Union[str, list[tuple[str, int]]],
         unique: bool = False,
         sparse: bool = False,
         ttl_seconds: Optional[int] = None
@@ -850,8 +851,8 @@ class PostgresService(DatabaseService):
     def _convert_query_to_sql(
         self,
         collection_name: str,
-        query: Dict[str, Any]
-    ) -> Tuple[str, tuple]:
+        query: dict[str, Any]
+    ) -> tuple[str, tuple]:
         """
         Convert MongoDB-style query to SQL WHERE clause
 
@@ -922,8 +923,8 @@ class PostgresService(DatabaseService):
     def _convert_document_for_insert(
         self,
         collection_name: str,
-        document: Dict[str, Any]
-    ) -> Tuple[str, str, tuple]:
+        document: dict[str, Any]
+    ) -> tuple[str, str, tuple]:
         """
         Convert a document for SQL INSERT
 
@@ -970,8 +971,8 @@ class PostgresService(DatabaseService):
     async def find_one(
         self,
         collection_name: str,
-        query: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        query: dict[str, Any]
+    ) -> Optional[dict[str, Any]]:
         """Find a single record in a table"""
         if not self._initialized:
             await self.initialize()
@@ -1004,8 +1005,8 @@ class PostgresService(DatabaseService):
     async def find_one_strict(
         self,
         collection_name: str,
-        query: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        query: dict[str, Any]
+    ) -> Optional[dict[str, Any]]:
         if not self._initialized:
             await self.initialize()
 
@@ -1037,11 +1038,11 @@ class PostgresService(DatabaseService):
     async def find_many(
         self,
         collection_name: str,
-        query: Dict[str, Any],
+        query: dict[str, Any],
         limit: int = 100,
-        sort: Optional[List[Tuple[str, int]]] = None,
+        sort: Optional[list[tuple[str, int]]] = None,
         skip: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Find multiple records in a table"""
         if not self._initialized:
             await self.initialize()
@@ -1079,7 +1080,7 @@ class PostgresService(DatabaseService):
     async def insert_one(
         self,
         collection_name: str,
-        document: Dict[str, Any]
+        document: dict[str, Any]
     ) -> Optional[str]:
         """Insert a record into a table"""
         if not self._initialized:
@@ -1125,8 +1126,8 @@ class PostgresService(DatabaseService):
     async def update_one(
         self,
         collection_name: str,
-        query: Dict[str, Any],
-        update: Dict[str, Any]
+        query: dict[str, Any],
+        update: dict[str, Any]
     ) -> bool:
         """Update a record in a table"""
         if not self._initialized:
@@ -1225,7 +1226,7 @@ class PostgresService(DatabaseService):
     async def delete_one(
         self,
         collection_name: str,
-        query: Dict[str, Any]
+        query: dict[str, Any]
     ) -> bool:
         """Delete a record from a table"""
         if not self._initialized:
@@ -1261,7 +1262,7 @@ class PostgresService(DatabaseService):
     async def delete_many(
         self,
         collection_name: str,
-        query: Dict[str, Any]
+        query: dict[str, Any]
     ) -> int:
         """Delete multiple records from a table"""
         if not self._initialized:
@@ -1291,7 +1292,7 @@ class PostgresService(DatabaseService):
                 logger.error(f"Error deleting documents from {collection_name}: {str(e)}")
                 return 0
 
-    async def count(self, collection_name: str, query: Dict[str, Any]) -> int:
+    async def count(self, collection_name: str, query: dict[str, Any]) -> int:
         """Count records matching a query."""
         if not self._initialized:
             await self.initialize()
@@ -1415,8 +1416,8 @@ class PostgresService(DatabaseService):
     def _convert_row_to_document(
         self,
         collection_name: str,
-        row: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        row: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Convert a Postgres row to a document (MongoDB-style)
 
@@ -1496,13 +1497,13 @@ class PostgresService(DatabaseService):
             logger.debug("Cleared all Postgres service instances from cache")
 
     @classmethod
-    def get_cached_instances(cls) -> Dict[str, 'PostgresService']:
+    def get_cached_instances(cls) -> dict[str, 'PostgresService']:
         """Get all currently cached Postgres service instances. Useful for debugging."""
         with cls._lock:
             return cls._instances.copy()
 
     @classmethod
-    def get_cache_stats(cls) -> Dict[str, Any]:
+    def get_cache_stats(cls) -> dict[str, Any]:
         """Get statistics about cached Postgres services."""
         with cls._lock:
             return {

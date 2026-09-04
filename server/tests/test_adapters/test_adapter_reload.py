@@ -27,7 +27,7 @@ import logging
 import yaml
 import shutil
 import pytest
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any
 from pathlib import Path
 import time
 from datetime import datetime
@@ -185,7 +185,7 @@ class AdapterReloadTester:
             logger.error(f"✗ Authentication error: {str(e)}")
             return False
 
-    async def reload_adapter(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+    async def reload_adapter(self, adapter_name: Optional[str] = None) -> dict[str, Any]:
         """Call the reload adapter endpoint"""
         url = f"{self.base_url}/admin/reload-adapters"
         if adapter_name:
@@ -206,7 +206,7 @@ class AdapterReloadTester:
             logger.error(f"Reload error: {str(e)}")
             raise
 
-    def get_recent_logs(self, lines: int = 50, since_time: Optional[float] = None) -> List[str]:
+    def get_recent_logs(self, lines: int = 50, since_time: Optional[float] = None) -> list[str]:
         """Get recent log lines from server logs"""
         if not self.server_log_path.exists():
             return []
@@ -230,7 +230,7 @@ class AdapterReloadTester:
 
         return all_lines[-lines:]
 
-    def search_logs(self, pattern: str, since_time: Optional[float] = None) -> List[str]:
+    def search_logs(self, pattern: str, since_time: Optional[float] = None) -> list[str]:
         """Search for pattern in recent logs"""
         logs = self.get_recent_logs(lines=200, since_time=since_time)
         return [line for line in logs if pattern in line]

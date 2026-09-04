@@ -20,7 +20,7 @@ import aiohttp
 import pytest
 import logging
 import yaml
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 from pathlib import Path
 import os
 
@@ -58,7 +58,9 @@ logger.info(f"Using server URL: {SERVER_URL}")
 
 # Default credentials
 DEFAULT_USERNAME = "admin"
-DEFAULT_PASSWORD = os.getenv('ORBIT_DEFAULT_ADMIN_PASSWORD', 'admin123')
+DEFAULT_PASSWORD = os.getenv('ORBIT_DEFAULT_ADMIN_PASSWORD', 'ChangeMe!2026')
+
+_ADMIN_TOKEN: Optional[str] = None
 
 
 class TemplateReloadTester:
@@ -86,27 +88,14 @@ class TemplateReloadTester:
 
     async def check_auth_enabled(self) -> bool:
         """Check if authentication is enabled"""
-        try:
-            async with self.session.post(
-                f"{self.base_url}/auth/login",
-                json={"username": "test", "password": "test"},
-                headers={"Content-Type": "application/json"},
-                timeout=5
-            ) as response:
-                if response.status == 401:
-                    return True
-                elif response.status in [404, 503]:
-                    return False
-                return True
-        except Exception:
-            return True
+        # Invalid login probes consume the shared IP rate-limit bucket.
+        return True
 
     async def authenticate(self) -> bool:
         """Authenticate if needed"""
-        auth_enabled = await self.check_auth_enabled()
-
-        if not auth_enabled:
-            logger.info("Authentication disabled - proceeding without token")
+        global _ADMIN_TOKEN
+        if _ADMIN_TOKEN:
+            self.token = _ADMIN_TOKEN
             return True
 
         try:
@@ -120,6 +109,7 @@ class TemplateReloadTester:
                     result = await response.json()
                     self.token = result.get("token")
                     if self.token:
+                        _ADMIN_TOKEN = self.token
                         logger.info(f"Authenticated: {self.token[:8]}...")
                         return True
                 logger.error(f"Authentication failed: {response.status}")
@@ -128,7 +118,7 @@ class TemplateReloadTester:
             logger.error(f"Authentication error: {str(e)}")
             return False
 
-    async def reload_templates(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+    async def reload_templates(self, adapter_name: Optional[str] = None) -> dict[str, Any]:
         """Call the reload templates endpoint"""
         url = f"{self.base_url}/admin/reload-templates"
         if adapter_name:

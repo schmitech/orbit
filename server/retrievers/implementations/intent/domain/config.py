@@ -3,7 +3,7 @@ Domain configuration helper for centralized access to domain metadata.
 """
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Any, Optional
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -21,15 +21,15 @@ class FieldConfig:
     sortable: bool = False
     aggregatable: bool = False
     description: Optional[str] = None
-    validation_rules: Dict[str, Any] = field(default_factory=dict)
+    validation_rules: dict[str, Any] = field(default_factory=dict)
     # Semantic metadata for domain-agnostic extraction and prioritization
     semantic_type: Optional[str] = None
     summary_priority: Optional[int] = None
     extraction_pattern: Optional[str] = None
-    extraction_hints: Optional[Dict[str, Any]] = field(default_factory=dict)
+    extraction_hints: Optional[dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, field_name: str, config: Dict[str, Any]) -> 'FieldConfig':
+    def from_dict(cls, field_name: str, config: dict[str, Any]) -> 'FieldConfig':
         """Create FieldConfig from dictionary"""
         return cls(
             name=field_name,
@@ -59,16 +59,16 @@ class EntityConfig:
     description: Optional[str] = None
     primary_key: Optional[str] = None
     display_name_field: Optional[str] = None
-    relationships: Dict[str, Dict] = field(default_factory=dict)
-    searchable_fields: List[str] = field(default_factory=list)
-    common_filters: List[str] = field(default_factory=list)
+    relationships: dict[str, dict] = field(default_factory=dict)
+    searchable_fields: list[str] = field(default_factory=list)
+    common_filters: list[str] = field(default_factory=list)
     default_sort_field: Optional[str] = None
     default_sort_order: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    fields: Dict[str, FieldConfig] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    fields: dict[str, FieldConfig] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, entity_name: str, config: Dict[str, Any], fields_config: Dict[str, Any]) -> 'EntityConfig':
+    def from_dict(cls, entity_name: str, config: dict[str, Any], fields_config: dict[str, Any]) -> 'EntityConfig':
         """Create EntityConfig from dictionary"""
         entity = cls(
             name=entity_name,
@@ -113,7 +113,7 @@ class DomainConfig:
     Provides unified access to domain metadata currently queried in multiple modules.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, Any]] = None):
         """Initialize domain configuration"""
         self.config = config or {}
         self.domain_name = self.config.get('domain_name', 'unknown')
@@ -124,7 +124,7 @@ class DomainConfig:
         self.semantic_types = self.config.get('semantic_types', {})
 
         # Parse entities and fields
-        self.entities: Dict[str, EntityConfig] = {}
+        self.entities: dict[str, EntityConfig] = {}
         self._parse_entities()
 
         # Cache vocabulary
@@ -144,7 +144,7 @@ class DomainConfig:
         entities = self.config.get('entities', {})
         fields = self.config.get('fields', {})
 
-        self.entity_order: List[str] = []
+        self.entity_order: list[str] = []
         for entity_name, entity_data in entities.items():
             self.entities[entity_name] = EntityConfig.from_dict(
                 entity_name, entity_data, fields
@@ -162,7 +162,7 @@ class DomainConfig:
             return entity.fields.get(field_name)
         return None
 
-    def get_searchable_fields(self, entity_name: Optional[str] = None) -> List[FieldConfig]:
+    def get_searchable_fields(self, entity_name: Optional[str] = None) -> list[FieldConfig]:
         """Get all searchable fields, optionally filtered by entity"""
         searchable = []
 
@@ -176,7 +176,7 @@ class DomainConfig:
 
         return searchable
 
-    def get_filterable_fields(self, entity_name: Optional[str] = None) -> List[FieldConfig]:
+    def get_filterable_fields(self, entity_name: Optional[str] = None) -> list[FieldConfig]:
         """Get all filterable fields, optionally filtered by entity"""
         filterable = []
 
@@ -190,27 +190,27 @@ class DomainConfig:
 
         return filterable
 
-    def get_entity_synonyms(self, entity_name: str) -> List[str]:
+    def get_entity_synonyms(self, entity_name: str) -> list[str]:
         """Get synonyms for an entity"""
         return self.entity_synonyms.get(entity_name, [])
 
-    def get_field_synonyms(self, field_name: str) -> List[str]:
+    def get_field_synonyms(self, field_name: str) -> list[str]:
         """Get synonyms for a field"""
         return self.field_synonyms.get(field_name, [])
 
-    def get_metric(self, metric_name: str) -> Optional[Dict[str, Any]]:
+    def get_metric(self, metric_name: str) -> Optional[dict[str, Any]]:
         """Get metric configuration"""
         return self.metrics.get(metric_name)
 
-    def get_aggregation(self, aggregation_name: str) -> Optional[Dict[str, Any]]:
+    def get_aggregation(self, aggregation_name: str) -> Optional[dict[str, Any]]:
         """Get aggregation configuration"""
         return self.aggregations.get(aggregation_name)
 
-    def get_business_rule(self, rule_name: str) -> Optional[Dict[str, Any]]:
+    def get_business_rule(self, rule_name: str) -> Optional[dict[str, Any]]:
         """Get business rule configuration"""
         return self.business_rules.get(rule_name)
 
-    def get_entities_by_type(self, entity_type: str) -> List[EntityConfig]:
+    def get_entities_by_type(self, entity_type: str) -> list[EntityConfig]:
         """Return entities matching the requested entity_type"""
         return [entity for entity in self.entities.values() if entity.entity_type == entity_type]
 
@@ -225,7 +225,7 @@ class DomainConfig:
             return self.entities.get(self.entity_order[0])
         return None
 
-    def get_secondary_entities(self) -> List[EntityConfig]:
+    def get_secondary_entities(self) -> list[EntityConfig]:
         """Return non-primary entities"""
         primary = self.get_primary_entity()
         secondary = []
@@ -271,7 +271,7 @@ class DomainConfig:
 
         return None
 
-    def get_fields_by_semantic_type(self, semantic_type: str) -> List[FieldConfig]:
+    def get_fields_by_semantic_type(self, semantic_type: str) -> list[FieldConfig]:
         """Get all fields with a specific semantic type"""
         fields = []
         for entity in self.entities.values():
@@ -280,6 +280,6 @@ class DomainConfig:
                     fields.append(f)
         return fields
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert back to dictionary format for compatibility"""
         return self.config

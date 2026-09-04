@@ -6,7 +6,7 @@ while reusing the core HTTP domain management capabilities.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Optional, Union
 
 from adapters.http.adapter import HttpAdapter
 from adapters.factory import DocumentAdapterFactory
@@ -31,11 +31,11 @@ class ElasticsearchAdapter(HttpAdapter):
 
     def __init__(self,
                  domain_config_path: Optional[str] = None,
-                 template_library_path: Optional[Union[str, List[str]]] = None,
+                 template_library_path: Optional[Union[str, list[str]]] = None,
                  base_url: Optional[str] = None,
-                 auth_config: Optional[Dict[str, Any]] = None,
+                 auth_config: Optional[dict[str, Any]] = None,
                  confidence_threshold: float = 0.1,
-                 config: Dict[str, Any] = None,
+                 config: dict[str, Any] = None,
                  **kwargs):
         """
         Initialize the Elasticsearch adapter.
@@ -65,7 +65,7 @@ class ElasticsearchAdapter(HttpAdapter):
 
         logger.debug(f"ElasticsearchAdapter initialized for index pattern: {self.index_pattern}")
 
-    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def format_document(self, raw_doc: str, metadata: dict[str, Any]) -> dict[str, Any]:
         """
         Format Elasticsearch response into a structured document.
 
@@ -117,7 +117,7 @@ class ElasticsearchAdapter(HttpAdapter):
 
         return item
 
-    def _format_elasticsearch_response(self, es_response: Dict[str, Any]) -> str:
+    def _format_elasticsearch_response(self, es_response: dict[str, Any]) -> str:
         """
         Format an Elasticsearch response into readable text.
 
@@ -165,7 +165,7 @@ class ElasticsearchAdapter(HttpAdapter):
 
         return '\n'.join(lines)
 
-    def get_elasticsearch_config(self) -> Dict[str, Any]:
+    def get_elasticsearch_config(self) -> dict[str, Any]:
         """
         Get Elasticsearch-specific configuration from domain config.
 

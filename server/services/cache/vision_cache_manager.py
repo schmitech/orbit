@@ -6,7 +6,7 @@ Provides thread-safe caching and lifecycle management for vision services.
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .service_cache_manager import ServiceCacheManager
 
@@ -26,7 +26,7 @@ class VisionCacheManager(ServiceCacheManager):
 
     service_label = "vision service"
 
-    def __init__(self, config: Dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
+    def __init__(self, config: dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
         """
         Initialize the vision cache manager.
 

@@ -9,7 +9,7 @@ Uses the existing SQLiteService/DatabaseService interface for storage operations
 import asyncio
 import logging
 from contextlib import nullcontext as _NullContext
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from .audit_storage_strategy import AuditStorageStrategy, AuditRecord, decompress_text
 from utils.id_utils import generate_id
@@ -25,7 +25,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
     audit_logs table with flattened structure for nested objects.
     """
 
-    def __init__(self, config: Dict[str, Any], database_service=None):
+    def __init__(self, config: dict[str, Any], database_service=None):
         """
         Initialize the SQLite audit strategy.
 
@@ -155,12 +155,12 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
 
     async def query(
         self,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
         sort_order: int = -1
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Query audit records from SQLite.
 
@@ -250,9 +250,9 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         until: str,
         bucket: str = "day",
         group_by: str = "model",
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         limit_groups: int = 10,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """SQLite implementation: SUM/COUNT via raw SQL, no full-row transfer."""
         if not self._initialized:
             await self.initialize()
@@ -270,7 +270,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         group_column = self._resolve_dimension_field(group_by)
 
         where_clauses = ["timestamp >= ?", "timestamp < ?"]
-        params: List[Any] = [since, until]
+        params: list[Any] = [since, until]
         for key, value in (filters or {}).items():
             if key not in self._FILTERABLE_DIMENSIONS:
                 continue
@@ -279,7 +279,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             params.append(value)
         where_sql = " AND ".join(where_clauses)
 
-        def run() -> Dict[str, Any]:
+        def run() -> dict[str, Any]:
             with db_lock if db_lock is not None else _NullContext():
                 cursor = connection.cursor()
 
@@ -321,7 +321,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
                     for row in cursor.fetchall()
                 ]
 
-                groups: List[Dict[str, Any]] = []
+                groups: list[dict[str, Any]] = []
                 if group_column:
                     cursor.execute(
                         f"""
@@ -372,7 +372,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
 
         self._initialized = False
 
-    def _unflatten_record(self, flat_record: Dict[str, Any]) -> Dict[str, Any]:
+    def _unflatten_record(self, flat_record: dict[str, Any]) -> dict[str, Any]:
         """
         Convert a flat SQLite record back to nested format.
 

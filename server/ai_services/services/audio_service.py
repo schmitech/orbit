@@ -7,7 +7,8 @@ regardless of the underlying provider.
 """
 
 from abc import abstractmethod
-from typing import AsyncIterator, Dict, Any, Optional, Union
+from typing import Any, Optional, Union
+from collections.abc import AsyncIterator
 
 from ..base import ProviderAIService, ServiceType
 
@@ -35,7 +36,7 @@ class AudioService(ProviderAIService):
     # Class attribute for service type
     service_type = ServiceType.AUDIO
 
-    def __init__(self, config: Dict[str, Any], provider_name: str):
+    def __init__(self, config: dict[str, Any], provider_name: str):
         """
         Initialize the audio service.
 
@@ -45,10 +46,10 @@ class AudioService(ProviderAIService):
         """
         super().__init__(config, ServiceType.AUDIO, provider_name)
 
-    def _compute_provider_config(self) -> Dict[str, Any]:
+    def _compute_provider_config(self) -> dict[str, Any]:
         # Audio config is split across tts_providers and stt_providers keys.
         # Merge both, with TTS taking precedence over STT.
-        merged: Dict[str, Any] = {}
+        merged: dict[str, Any] = {}
         stt_cfg = self.config.get('stt_providers', {})
         if self.provider_name in stt_cfg:
             merged.update(stt_cfg[self.provider_name])
@@ -285,7 +286,7 @@ class AudioResult:
         language: Optional[str] = None,
         format: Optional[str] = None,
         provider: str = "",
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[dict[str, Any]] = None
     ):
         """
         Initialize audio result.
@@ -309,7 +310,7 @@ class AudioResult:
         """Return the text content if available."""
         return self.text or ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         result = {
             'provider': self.provider,
@@ -330,7 +331,7 @@ class AudioResult:
 # Helper function for service creation
 def create_audio_service(
     provider: str,
-    config: Dict[str, Any]
+    config: dict[str, Any]
 ) -> AudioService:
     """
     Factory function to create an audio service.

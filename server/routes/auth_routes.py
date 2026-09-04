@@ -10,7 +10,7 @@ This module contains authentication-related endpoints for:
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -50,7 +50,7 @@ def validate_password_or_400(password: str, auth_service: AuthService) -> None:
 
 @auth_router.get("/password-policy")
 async def get_password_policy(
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """Return the active, non-sensitive local-password rules for the admin UI."""
@@ -67,28 +67,28 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     token: str
-    user: Dict[str, Any]
+    user: dict[str, Any]
 
 
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=1, max_length=AuthService.USERNAME_MAX_LENGTH)
     password: str = Field(min_length=1, max_length=AuthService.PASSWORD_MAX_LENGTH)
     role: str = "user"
-    roles: Optional[List[str]] = None
+    roles: Optional[list[str]] = None
 
 
 class RegisterResponse(BaseModel):
     id: str
     username: str
     role: str
-    roles: List[str]
+    roles: list[str]
 
 
 class UserResponse(BaseModel):
     id: str
     username: str
     role: str
-    roles: List[str] = []
+    roles: list[str] = []
     active: bool
     created_at: Optional[str] = None
     last_login: Optional[str] = None
@@ -100,7 +100,7 @@ class UserByUsernameResponse(BaseModel):
     id: str
     username: str
     role: str
-    roles: List[str] = []
+    roles: list[str] = []
     active: bool
 
 
@@ -119,7 +119,7 @@ class DeactivateUserRequest(BaseModel):
 
 
 class SetRolesRequest(BaseModel):
-    roles: List[str]
+    roles: list[str]
 
 
 class SessionResponse(BaseModel):
@@ -186,7 +186,7 @@ async def login(
 
         logger.info(f"Login attempt for user: {login_request.username}")
         
-        failure_context: Dict[str, Any] = {}
+        failure_context: dict[str, Any] = {}
         success, token, user_info = await auth_service.authenticate_user(
             login_request.username,
             login_request.password,
@@ -238,7 +238,7 @@ async def login(
 
 @auth_router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service = Depends(get_auth_service)
 ):
     """
@@ -311,7 +311,7 @@ async def list_roles():
     return {"roles": get_role_names()}
 
 
-@auth_router.get("/users", response_model=List[UserResponse], dependencies=[Depends(require_permission("users.manage"))])
+@auth_router.get("/users", response_model=list[UserResponse], dependencies=[Depends(require_permission("users.manage"))])
 async def list_users(
     role: Optional[str] = None,
     active_only: bool = False,
@@ -434,7 +434,7 @@ async def get_user_by_username(
 @auth_router.post("/register", response_model=RegisterResponse)
 async def register_user(
     request: RegisterRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service = Depends(get_auth_service)
 ):
     """
@@ -506,7 +506,7 @@ async def register_user(
 
 @auth_router.post("/logout")
 async def logout(
-    user_and_token: tuple[Dict[str, Any], str] = Depends(get_current_user_with_token),
+    user_and_token: tuple[dict[str, Any], str] = Depends(get_current_user_with_token),
     auth_service = Depends(get_auth_service)
 ):
     """
@@ -544,7 +544,7 @@ async def logout(
 @auth_router.delete("/users/{user_id}")
 async def delete_user(
     user_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service = Depends(get_auth_service)
 ):
     """
@@ -600,7 +600,7 @@ async def delete_user(
 async def set_user_roles(
     user_id: str,
     request: SetRolesRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service = Depends(get_auth_service)
 ):
     """Replace a user's role assignment (users.manage permission required)."""
@@ -633,7 +633,7 @@ async def set_user_roles(
 @auth_router.post("/change-password")
 async def change_password(
     request: ChangePasswordRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service = Depends(get_auth_service)
 ):
     """
@@ -680,7 +680,7 @@ async def change_password(
 @auth_router.post("/reset-password")
 async def reset_user_password(
     request: ResetPasswordRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service = Depends(get_auth_service)
 ):
     """
@@ -740,7 +740,7 @@ async def reset_user_password(
 @auth_router.post("/users/{user_id}/deactivate")
 async def deactivate_user(
     user_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service = Depends(get_auth_service)
 ):
     """
@@ -795,7 +795,7 @@ async def deactivate_user(
 @auth_router.post("/users/{user_id}/activate")
 async def activate_user(
     user_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service = Depends(get_auth_service)
 ):
     """
@@ -852,7 +852,7 @@ def _require_blacklist(auth_service):
     return blacklist
 
 
-def _publish_rule_audit_context(request: Request, rule: Dict[str, Any]) -> None:
+def _publish_rule_audit_context(request: Request, rule: dict[str, Any]) -> None:
     """Hand the audit middleware the values that were actually persisted.
 
     The submitted pattern is not canonical - the service trims and lowercases it
@@ -872,7 +872,7 @@ def _publish_rule_audit_context(request: Request, rule: Dict[str, Any]) -> None:
 
 
 def _validate_rule_or_400(
-    request: "BlacklistRuleRequest", current_user: Dict[str, Any]
+    request: "BlacklistRuleRequest", current_user: dict[str, Any]
 ) -> str:
     """Validate a submitted rule and return its normalized pattern.
 
@@ -904,7 +904,7 @@ def _validate_rule_or_400(
     return normalized
 
 
-def _serialize_rule(rule: Dict[str, Any]) -> BlacklistRuleResponse:
+def _serialize_rule(rule: dict[str, Any]) -> BlacklistRuleResponse:
     created_at = rule.get("created_at")
     if created_at is not None:
         created_at = (
@@ -924,7 +924,7 @@ def _serialize_rule(rule: Dict[str, Any]) -> BlacklistRuleResponse:
 
 @auth_router.get(
     "/blacklist",
-    response_model=List[BlacklistRuleResponse],
+    response_model=list[BlacklistRuleResponse],
     dependencies=[Depends(require_permission("users.manage"))],
 )
 async def list_blacklist_rules(auth_service=Depends(get_auth_service)):
@@ -946,7 +946,7 @@ async def list_blacklist_rules(auth_service=Depends(get_auth_service)):
 async def create_blacklist_rule(
     request: BlacklistRuleRequest,
     http_request: Request,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service=Depends(get_auth_service),
 ):
     """Block an identity pattern and revoke any matching live sessions.
@@ -983,7 +983,7 @@ async def update_blacklist_rule(
     rule_id: str,
     request: BlacklistRuleRequest,
     http_request: Request,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service=Depends(get_auth_service),
 ):
     """Edit an existing rule, re-revoking sessions for whoever it now matches.
@@ -1074,7 +1074,7 @@ def _validate_allowlist_rule_or_400(request: "BlacklistRuleRequest") -> str:
 
 
 async def _guard_own_clearance(
-    allowlist, current_user: Dict[str, Any], rules: List[Dict[str, Any]]
+    allowlist, current_user: dict[str, Any], rules: list[dict[str, Any]]
 ) -> None:
     """Refuse a mutation that would revoke the caller's own clearance.
 
@@ -1094,7 +1094,7 @@ async def _guard_own_clearance(
     )
 
 
-async def _revoke_uncleared(allowlist, rules: List[Dict[str, Any]]) -> Dict[str, int]:
+async def _revoke_uncleared(allowlist, rules: list[dict[str, Any]]) -> dict[str, int]:
     """Revoke sessions of external users the given rule set no longer clears."""
     uncleared = await allowlist.find_uncleared_users(rules)
     return {
@@ -1105,7 +1105,7 @@ async def _revoke_uncleared(allowlist, rules: List[Dict[str, Any]]) -> Dict[str,
 
 @auth_router.get(
     "/allowlist",
-    response_model=List[BlacklistRuleResponse],
+    response_model=list[BlacklistRuleResponse],
     dependencies=[Depends(require_permission("users.manage"))],
 )
 async def list_allowlist_rules(auth_service=Depends(get_auth_service)):
@@ -1126,7 +1126,7 @@ async def list_allowlist_rules(auth_service=Depends(get_auth_service)):
 async def create_allowlist_rule(
     request: BlacklistRuleRequest,
     http_request: Request,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service=Depends(get_auth_service),
 ):
     """Pre-clear an identity pattern for external login.
@@ -1169,7 +1169,7 @@ async def update_allowlist_rule(
     rule_id: str,
     request: BlacklistRuleRequest,
     http_request: Request,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service=Depends(get_auth_service),
 ):
     """Edit an allowlist rule, revoking sessions it no longer covers.
@@ -1219,7 +1219,7 @@ async def update_allowlist_rule(
 )
 async def delete_allowlist_rule(
     rule_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service=Depends(get_auth_service),
 ):
     """Remove an allowlist rule and revoke the sessions it was clearing.
@@ -1245,7 +1245,7 @@ async def delete_allowlist_rule(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-def _serialize_session(session: Dict[str, Any]) -> SessionResponse:
+def _serialize_session(session: dict[str, Any]) -> SessionResponse:
     def _iso(value: Any) -> Optional[str]:
         if value is None:
             return None
@@ -1261,9 +1261,9 @@ def _serialize_session(session: Dict[str, Any]) -> SessionResponse:
     )
 
 
-@auth_router.get("/sessions", response_model=List[SessionResponse])
+@auth_router.get("/sessions", response_model=list[SessionResponse])
 async def list_my_sessions(
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service=Depends(get_auth_service),
 ):
     """List the caller's own active sessions. No special permission required,
@@ -1289,7 +1289,7 @@ async def list_my_sessions(
 @auth_router.delete("/sessions/{session_id}")
 async def revoke_my_session(
     session_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service=Depends(get_auth_service),
 ):
     """Revoke one of the caller's own sessions (e.g. sign out another device)."""
@@ -1313,7 +1313,7 @@ async def revoke_my_session(
 
 @auth_router.get(
     "/users/{user_id}/sessions",
-    response_model=List[SessionResponse],
+    response_model=list[SessionResponse],
     dependencies=[Depends(require_permission("sessions.manage"))],
 )
 async def list_user_sessions(user_id: str, auth_service=Depends(get_auth_service)):
@@ -1333,7 +1333,7 @@ async def list_user_sessions(user_id: str, auth_service=Depends(get_auth_service
 async def revoke_user_session(
     user_id: str,
     session_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     auth_service=Depends(get_auth_service),
 ):
     """Revoke another user's session (sessions.manage permission required)."""

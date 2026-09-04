@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, Optional
+from collections.abc import AsyncGenerator
 
 from ollama import AsyncClient
 
@@ -45,7 +46,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
         "seed",
     )
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "ollama_cloud")
 
         provider_config = self._extract_provider_config()
@@ -60,7 +61,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
         # Override inherited defaults with provider configuration
         self.temperature = provider_config.get("temperature", self.temperature)
 
-        self._default_options: Dict[str, Any] = {
+        self._default_options: dict[str, Any] = {
             "temperature": self.temperature,
             "top_p": self.top_p,
         }
@@ -74,7 +75,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
         if "num_predict" not in self._default_options and self.max_tokens:
             self._default_options["num_predict"] = self.max_tokens
 
-        self._stop_sequences: List[str] = provider_config.get("stop", [])
+        self._stop_sequences: list[str] = provider_config.get("stop", [])
 
         # Think mode (shows reasoning in <think> tags) - matches local Ollama behavior.
         # bool to toggle, or "low"/"medium"/"high" for models with graduated
@@ -84,7 +85,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
 
         self.client: Optional[AsyncClient] = None
 
-    def _resolve_think(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_think(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the think value for the current request, popping both the
         native ``think`` kwarg and the provider-agnostic ``effort`` override
@@ -285,8 +286,8 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         """
@@ -310,7 +311,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
 
         options = self._build_options(dict(kwargs))
 
-        chat_kwargs: Dict[str, Any] = {
+        chat_kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": ollama_messages,
             "options": options,
@@ -353,7 +354,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
         raw_tool_calls = (getattr(message, "tool_calls", None) or []) if message is not None else []
 
         tool_calls_result = None
-        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": content}
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": content}
 
         if raw_tool_calls:
             normalized = []
@@ -385,7 +386,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
             finish_reason="tool_calls" if tool_calls_result else "stop",
         )
 
-    def _build_options(self, overrides: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_options(self, overrides: dict[str, Any]) -> dict[str, Any]:
         """Merge default generation options with caller overrides."""
         options = dict(self._default_options)
 
@@ -411,7 +412,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
         return {k: v for k, v in options.items() if v is not None}
 
     @staticmethod
-    def _prepare_messages(prompt: str, messages: Optional[List[Dict[str, str]]]) -> List[Dict[str, str]]:
+    def _prepare_messages(prompt: str, messages: Optional[list[dict[str, str]]]) -> list[dict[str, str]]:
         if messages is None:
             return [{"role": "user", "content": prompt}]
         return messages

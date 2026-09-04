@@ -17,7 +17,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -265,7 +265,7 @@ class AutocompleteService:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         adapter_manager=None,
         cache_service=None
     ):
@@ -301,8 +301,8 @@ class AutocompleteService:
         self.max_candidates = fuzzy_config.get('max_candidates', 100)
 
         # In-memory cache fallback: adapter_name -> (timestamp, nl_examples)
-        self._memory_cache: Dict[str, tuple] = {}
-        self._adapter_fetch_locks: Dict[str, asyncio.Lock] = {}
+        self._memory_cache: dict[str, tuple] = {}
+        self._adapter_fetch_locks: dict[str, asyncio.Lock] = {}
 
         # Check if a cache service is available when distributed caching is requested
         cache_available = cache_service is not None and getattr(cache_service, 'enabled', False)
@@ -332,7 +332,7 @@ class AutocompleteService:
         """Generate cache key for an adapter's nl_examples."""
         return f"{self.cache_key_prefix}{adapter_name}"
 
-    async def _get_cached_examples(self, adapter_name: str) -> Optional[List[str]]:
+    async def _get_cached_examples(self, adapter_name: str) -> Optional[list[str]]:
         """
         Get cached nl_examples from the cache service or memory cache.
 
@@ -366,7 +366,7 @@ class AutocompleteService:
 
         return None
 
-    async def _set_cached_examples(self, adapter_name: str, examples: List[str]) -> None:
+    async def _set_cached_examples(self, adapter_name: str, examples: list[str]) -> None:
         """
         Cache nl_examples in the cache service and/or memory cache.
 
@@ -396,7 +396,7 @@ class AutocompleteService:
         adapter_name: str,
         limit: int = 5,
         include_skill_examples: bool = True
-    ) -> List[AutocompleteSuggestion]:
+    ) -> list[AutocompleteSuggestion]:
         """
         Get autocomplete suggestions for a query prefix.
 
@@ -471,7 +471,7 @@ class AutocompleteService:
             logger.warning(f"[Autocomplete] Error getting suggestions: {e}")
             return []
 
-    async def _get_adapter_nl_examples(self, adapter_name: str) -> List[str]:
+    async def _get_adapter_nl_examples(self, adapter_name: str) -> list[str]:
         """
         Fetch and cache nl_examples from an adapter's templates.
 
@@ -503,9 +503,9 @@ class AutocompleteService:
 
             return await self._fetch_adapter_examples(adapter_name)
 
-    async def _fetch_adapter_examples(self, adapter_name: str) -> List[str]:
+    async def _fetch_adapter_examples(self, adapter_name: str) -> list[str]:
         """Fetch and cache adapter examples with best-effort distributed coordination."""
-        examples: List[str] = []
+        examples: list[str] = []
         lock_key: Optional[str] = None
         distributed_lock_acquired = False
 
@@ -599,7 +599,7 @@ class AutocompleteService:
         adapter_name: str,
         attempts: int = 10,
         interval_seconds: float = 0.1
-    ) -> Optional[List[str]]:
+    ) -> Optional[list[str]]:
         """Wait briefly for another process to populate the cache."""
         for _ in range(attempts):
             await asyncio.sleep(interval_seconds)
@@ -611,7 +611,7 @@ class AutocompleteService:
                 return cached
         return None
 
-    def _extract_examples_from_adapter(self, adapter) -> List[str]:
+    def _extract_examples_from_adapter(self, adapter) -> list[str]:
         """
         Extract nl_examples from a single adapter's templates.
 
@@ -649,7 +649,7 @@ class AutocompleteService:
 
         return self._deduplicate_preserving_order(examples)
 
-    async def _get_composite_examples(self, adapter) -> List[str]:
+    async def _get_composite_examples(self, adapter) -> list[str]:
         """
         Aggregate nl_examples from a composite adapter's children.
 
@@ -705,7 +705,7 @@ class AutocompleteService:
         # Deduplicate while preserving order
         return self._deduplicate_preserving_order(all_examples)
 
-    async def _get_skill_routing_examples(self, adapter_name: str) -> List[str]:
+    async def _get_skill_routing_examples(self, adapter_name: str) -> list[str]:
         """
         Collect skill-routing example phrases reachable from this adapter.
 
@@ -731,7 +731,7 @@ class AutocompleteService:
             if not allowed:
                 return []
 
-            examples: List[str] = []
+            examples: list[str] = []
             for skill in self.adapter_manager.get_all_skills():
                 if skill['name'] not in allowed or not skill.get('enabled', True):
                     continue
@@ -759,9 +759,9 @@ class AutocompleteService:
             logger.warning(f"[Autocomplete] Error fetching skill routing_examples for {adapter_name}: {e}")
             return []
 
-    def _sanitize_examples(self, examples: List[Any], source: str) -> List[str]:
+    def _sanitize_examples(self, examples: list[Any], source: str) -> list[str]:
         """Normalize template examples and discard malformed entries."""
-        sanitized: List[str] = []
+        sanitized: list[str] = []
         for example in examples:
             if not isinstance(example, str):
                 logger.warning(
@@ -777,7 +777,7 @@ class AutocompleteService:
 
         return sanitized
 
-    def _deduplicate_preserving_order(self, examples: List[str]) -> List[str]:
+    def _deduplicate_preserving_order(self, examples: list[str]) -> list[str]:
         """Deduplicate strings while preserving the original order."""
         return list(dict.fromkeys(examples))
 
@@ -833,10 +833,10 @@ class AutocompleteService:
 
     def _filter_and_rank(
         self,
-        examples: List[str],
+        examples: list[str],
         query: str,
         limit: int
-    ) -> List[AutocompleteSuggestion]:
+    ) -> list[AutocompleteSuggestion]:
         """
         Filter examples by query match and rank by relevance.
 

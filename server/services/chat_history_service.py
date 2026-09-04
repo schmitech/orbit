@@ -11,7 +11,8 @@ import asyncio
 import functools
 import hashlib
 import random
-from typing import Dict, Any, Optional, List, Tuple, Callable, TypeVar, Awaitable
+from typing import Any, Optional, TypeVar
+from collections.abc import Callable, Awaitable
 from datetime import datetime, timedelta, UTC
 
 from services.database_service import (
@@ -97,7 +98,7 @@ class ChatHistoryService:
         'huggingface': 'max_length',
     }
 
-    def __init__(self, config: Dict[str, Any], database_service=None, thread_dataset_service=None, adapter_manager=None):
+    def __init__(self, config: dict[str, Any], database_service=None, thread_dataset_service=None, adapter_manager=None):
         """
         Initialize the Chat History Service
 
@@ -118,7 +119,7 @@ class ChatHistoryService:
         self.database_service = database_service
         self.api_key_service = None
         self.adapter_manager = adapter_manager
-        self._adapter_token_budgets: Dict[Any, int] = {}  # keyed by adapter_name or (adapter_name, overrides)
+        self._adapter_token_budgets: dict[Any, int] = {}  # keyed by adapter_name or (adapter_name, overrides)
 
         # Initialize thread dataset service for proper dataset deletion
         if thread_dataset_service is None:
@@ -155,7 +156,7 @@ class ChatHistoryService:
         self._session_token_counts = {}  # session_id -> total token count
 
         # Per-session locks for thread-safe cleanup operations
-        self._session_locks: Dict[str, asyncio.Lock] = {}
+        self._session_locks: dict[str, asyncio.Lock] = {}
         self._locks_lock = asyncio.Lock()  # Lock for managing session locks
 
         self._initialized = False
@@ -190,7 +191,7 @@ class ChatHistoryService:
         """
         return max(1, len(content) // 3)
     
-    def _resolve_preset_config(self, provider: str, provider_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _resolve_preset_config(self, provider: str, provider_config: dict[str, Any]) -> dict[str, Any]:
         """Merge preset values into provider_config when a use_preset reference is present.
 
         Some providers (e.g. llama_cpp) store the actual context/token settings in a
@@ -208,7 +209,7 @@ class ChatHistoryService:
         # Preset values are the base; explicit inference.yaml keys override them
         return {**preset, **{k: v for k, v in provider_config.items() if k != 'use_preset'}}
 
-    def _calculate_max_token_budget(self, adapter_config: Optional[Dict[str, Any]] = None) -> int:
+    def _calculate_max_token_budget(self, adapter_config: Optional[dict[str, Any]] = None) -> int:
         """
         Calculate the maximum token budget for conversation history.
 
@@ -292,7 +293,7 @@ class ChatHistoryService:
     def _get_token_budget_for_adapter(
         self,
         adapter_name: Optional[str],
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None,
     ) -> int:
         """
@@ -348,7 +349,7 @@ class ChatHistoryService:
         self._adapter_token_budgets[cache_key] = budget
         return budget
 
-    def _get_context_window_size(self, provider: str, provider_config: Dict[str, Any]) -> int:
+    def _get_context_window_size(self, provider: str, provider_config: dict[str, Any]) -> int:
         """
         Extract context window size from provider configuration.
         
@@ -697,7 +698,7 @@ class ChatHistoryService:
         content: str,
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         idempotency_key: Optional[str] = None
     ) -> Optional[Any]:
         """
@@ -907,12 +908,12 @@ class ChatHistoryService:
         assistant_response: str,
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         regenerate_of_message_id: Optional[str] = None,
         adapter_name: Optional[str] = None,
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None
-    ) -> Tuple[Optional[Any], Optional[Any]]:
+    ) -> tuple[Optional[Any], Optional[Any]]:
         """
         Add a complete conversation turn (user message + assistant response).
 
@@ -1016,7 +1017,7 @@ class ChatHistoryService:
         self,
         session_id: str,
         adapter_name: Optional[str] = None,
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None,
     ) -> int:
         """
@@ -1159,7 +1160,7 @@ class ChatHistoryService:
         limit: Optional[int] = None,
         include_metadata: bool = False,
         before_timestamp: Optional[datetime] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get conversation history for a session with retry logic
         
@@ -1240,7 +1241,7 @@ class ChatHistoryService:
         limit: int = 10,
         offset: int = 0,
         include_summary: bool = True
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get list of sessions for a user
 
@@ -1353,7 +1354,7 @@ class ChatHistoryService:
         session_id: str,
         api_key: Optional[str] = None,
         delete_files: bool = False
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """
         Delete threads, datasets, thread messages, and optionally files for a session.
 
@@ -1604,7 +1605,7 @@ class ChatHistoryService:
         api_key: str,
         user_id: Optional[str] = None,
         api_key_service=None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Clear conversation history for a specific session with mandatory API key validation.
 
@@ -1721,7 +1722,7 @@ class ChatHistoryService:
                 "deleted_count": 0
             }
     
-    async def get_session_stats(self, session_id: str) -> Dict[str, Any]:
+    async def get_session_stats(self, session_id: str) -> dict[str, Any]:
         """
         Get statistics for a session
 
@@ -1776,7 +1777,7 @@ class ChatHistoryService:
         self,
         session_id: str,
         adapter_name: Optional[str] = None,
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None,
     ) -> int:
         """
@@ -1808,9 +1809,9 @@ class ChatHistoryService:
         self,
         session_id: str,
         adapter_name: Optional[str] = None,
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None,
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """
         Get current token usage and max budget for a session.
 
@@ -1893,9 +1894,9 @@ class ChatHistoryService:
         session_id: str,
         max_tokens: Optional[int] = None,
         adapter_name: Optional[str] = None,
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None,
-    ) -> Tuple[List[Dict[str, str]], int]:
+    ) -> tuple[list[dict[str, str]], int]:
         """
         Get conversation messages formatted for LLM context using rolling window query.
 
@@ -2004,7 +2005,7 @@ class ChatHistoryService:
             logger.error(f"Error getting context messages: {str(e)}")
             return [], 0
     
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """
         Check health of the service
 
@@ -2029,7 +2030,7 @@ class ChatHistoryService:
                 "error": str(e)
             }
     
-    async def get_metrics(self) -> Dict[str, Any]:
+    async def get_metrics(self) -> dict[str, Any]:
         """
         Get service metrics for monitoring
 

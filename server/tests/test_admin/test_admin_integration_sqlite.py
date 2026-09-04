@@ -131,7 +131,7 @@ SERVER_URL = get_server_url()
 logger.info(f"Using server URL: {SERVER_URL}")
 logger.info("NOTE: This test validates SQLite backend functionality")
 DEFAULT_USERNAME = "admin"
-DEFAULT_PASSWORD = "admin123"
+DEFAULT_PASSWORD = "ChangeMe!2026"
 
 # Check environment variable for password
 env_password = os.getenv('ORBIT_DEFAULT_ADMIN_PASSWORD')
@@ -139,7 +139,9 @@ if env_password:
     DEFAULT_PASSWORD = env_password
     logger.info(f"Using admin password from environment variable: {DEFAULT_PASSWORD[:3]}***")
 else:
-    logger.info("Using default admin password: admin123")
+    logger.info("Using default admin password: ChangeMe!2026")
+
+_ADMIN_TOKEN: Optional[str] = None
 
 
 class AdminTesterSQLite:
@@ -170,38 +172,16 @@ class AdminTesterSQLite:
 
     async def check_auth_enabled(self) -> bool:
         """Check if authentication is enabled on the server"""
-        try:
-            async with self.session.post(
-                f"{self.base_url}/auth/login",
-                json={"username": "test", "password": "test"},
-                headers={"Content-Type": "application/json"},
-                timeout=5
-            ) as response:
-                if response.status == 401:
-                    logger.info("✓ Authentication is enabled on server")
-                    return True
-                elif response.status == 404:
-                    logger.info("✓ Authentication is disabled on server")
-                    return False
-                elif response.status == 503:
-                    logger.info("✓ Authentication service not available (may be disabled)")
-                    return False
-                else:
-                    logger.info(f"Authentication status unclear (got {response.status}), assuming enabled")
-                    return True
-        except Exception as e:
-            logger.error(f"Error checking auth status: {str(e)}")
-            return True
+        # Invalid login probes consume the shared IP rate-limit bucket.
+        return True
 
     async def authenticate(self) -> bool:
         """Authenticate and get a token (only if auth is enabled)"""
         logger.info("=== Checking Authentication Status (SQLite Backend) ===")
 
-        # First check if auth is enabled
-        auth_enabled = await self.check_auth_enabled()
-
-        if not auth_enabled:
-            logger.info("✓ Authentication is disabled - proceeding without token")
+        global _ADMIN_TOKEN
+        if _ADMIN_TOKEN:
+            self.token = _ADMIN_TOKEN
             return True
 
         logger.info("=== Authenticating for Admin Tests ===")
@@ -222,6 +202,7 @@ class AdminTesterSQLite:
                     result = await response.json()
                     self.token = result.get("token")
                     if self.token:
+                        _ADMIN_TOKEN = self.token
                         logger.info(f"✓ Authentication successful with SQLite backend. Token: {self.token[:8]}...")
                         return True
                     else:

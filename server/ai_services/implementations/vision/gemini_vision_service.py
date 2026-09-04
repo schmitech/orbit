@@ -4,7 +4,7 @@ Gemini vision service implementation using unified architecture.
 Uses the google-genai SDK (replacement for deprecated google-generativeai).
 """
 
-from typing import Dict, Any, Optional, Union, List
+from typing import Any, Optional, Union
 from PIL import Image
 from io import BytesIO
 import asyncio
@@ -29,7 +29,7 @@ class GeminiVisionService(UsageReportingMixin, VisionService, GoogleBaseService)
     - Multimodal inference (image + text)
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Gemini vision service."""
         GoogleBaseService.__init__(self, config, ServiceType.VISION, "gemini")
 
@@ -54,7 +54,7 @@ class GeminiVisionService(UsageReportingMixin, VisionService, GoogleBaseService)
         self,
         image: Union[str, bytes, Image.Image],
         prompt: str = "Analyze this image in detail. Describe what you see, including any text, objects, and overall context.",
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Analyze image content with detailed response."""
         if not self.initialized:
@@ -94,7 +94,7 @@ class GeminiVisionService(UsageReportingMixin, VisionService, GoogleBaseService)
     async def describe_image(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Generate description of image."""
         return await self.analyze_image(
@@ -106,7 +106,7 @@ class GeminiVisionService(UsageReportingMixin, VisionService, GoogleBaseService)
     async def extract_text_from_image(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> str:
         """Extract text from image using OCR."""
         return await self.analyze_image(
@@ -118,8 +118,8 @@ class GeminiVisionService(UsageReportingMixin, VisionService, GoogleBaseService)
     async def detect_objects(
         self,
         image: Union[str, bytes, Image.Image],
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """Detect objects in image."""
         description = await self.analyze_image(
             image,
@@ -145,7 +145,7 @@ class GeminiVisionService(UsageReportingMixin, VisionService, GoogleBaseService)
         self,
         image: Union[str, bytes, Image.Image],
         text_prompt: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         **kwargs
     ) -> str:
         """Perform multimodal inference with image and text."""

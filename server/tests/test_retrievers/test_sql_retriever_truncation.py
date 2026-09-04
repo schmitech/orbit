@@ -5,7 +5,7 @@ Tests for SQL retriever result truncation and metadata tracking
 import pytest
 import sys
 import os
-from typing import Dict, Any, List
+from typing import Any
 from unittest.mock import Mock, AsyncMock
 
 # Add the server directory to path
@@ -17,18 +17,18 @@ from retrievers.base.sql_retriever import AbstractSQLRetriever
 class MockSQLRetriever(AbstractSQLRetriever):
     """Mock SQL retriever for testing truncation behavior"""
 
-    def __init__(self, config: Dict[str, Any], datasource: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], datasource: Any = None, **kwargs):
         super().__init__(config=config, datasource=datasource, **kwargs)
         self.mock_results = []
 
     def _get_datasource_name(self) -> str:
         return "mock_sql"
 
-    async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:
+    async def execute_query(self, sql: str, params: list[Any] = None) -> list[dict[str, Any]]:
         """Return mock results"""
         return self.mock_results
 
-    def set_mock_results(self, results: List[Dict[str, Any]]):
+    def set_mock_results(self, results: list[dict[str, Any]]):
         """Set the mock results that will be returned"""
         self.mock_results = results
 
@@ -79,7 +79,7 @@ def mock_datasource():
     return datasource
 
 
-def create_mock_rows(count: int) -> List[Dict[str, Any]]:
+def create_mock_rows(count: int) -> list[dict[str, Any]]:
     """Generate mock SQL result rows"""
     return [
         {

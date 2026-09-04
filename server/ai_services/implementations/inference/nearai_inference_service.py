@@ -5,7 +5,8 @@ NEAR AI Cloud provides TEE-backed private inference via an OpenAI-compatible
 API at https://cloud-api.near.ai/v1.
 """
 
-from typing import Dict, Any, AsyncGenerator, List
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...providers import OpenAICompatibleBaseService
 from ...services import InferenceService
@@ -16,14 +17,14 @@ class NearAIInferenceService(InferenceService, OpenAICompatibleBaseService):
 
     UNSUPPORTED_PARAMS = {"store", "reasoning_effort", "strict"}
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         InferenceService.__init__(self, config, "nearai")
 
         self.temperature = self._get_temperature(default=0.7)
         self.max_tokens = self._get_max_tokens(default=1024)
         self.top_p = self._get_top_p(default=0.8)
 
-    def _prepare_kwargs(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def _prepare_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         prepared = dict(kwargs)
 
         if "max_completion_tokens" in prepared and "max_tokens" not in prepared:
@@ -36,13 +37,13 @@ class NearAIInferenceService(InferenceService, OpenAICompatibleBaseService):
 
         return prepared
 
-    def _normalize_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _normalize_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [
             {**message, "role": "system"} if message.get("role") == "developer" else message
             for message in messages
         ]
 
-    def _messages_from_prompt(self, prompt: str) -> List[Dict[str, Any]]:
+    def _messages_from_prompt(self, prompt: str) -> list[dict[str, Any]]:
         if "\nUser:" in prompt and "Assistant:" in prompt:
             parts = prompt.split("\nUser:", 1)
             if len(parts) == 2:

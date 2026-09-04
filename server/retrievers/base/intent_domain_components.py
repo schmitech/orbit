@@ -1,6 +1,6 @@
 """Shared domain-aware component wiring for intent retrievers."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
 from retrievers.implementations.intent.domain.response import DomainResponseGenerator
@@ -24,7 +24,7 @@ _ERROR_TO_OUTCOME = {
 }
 
 
-def record_intent_telemetry(retriever: Any, query: str, result: List[Dict[str, Any]]) -> None:
+def record_intent_telemetry(retriever: Any, query: str, result: list[dict[str, Any]]) -> None:
     """Report the outcome of one get_relevant_context() call to metrics and,
     for no-match/below-threshold/param-failure outcomes, the misses store.
 

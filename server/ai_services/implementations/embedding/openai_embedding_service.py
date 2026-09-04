@@ -8,7 +8,7 @@ of code consolidation and reusability.
 Compare with: server/embeddings/openai.py (old implementation)
 """
 
-from typing import List, Dict, Any
+from typing import Any
 import asyncio
 import logging
 
@@ -34,7 +34,7 @@ class OpenAIEmbeddingService(UsageReportingMixin, EmbeddingService, OpenAIBaseSe
     New implementation: ~80 lines focused only on embedding logic
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the OpenAI embedding service.
 
@@ -51,7 +51,7 @@ class OpenAIEmbeddingService(UsageReportingMixin, EmbeddingService, OpenAIBaseSe
         self.dimensions = self._get_dimensions_config() or 1536
         self.batch_size = self._get_batch_size(default=10)
 
-    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> list[float]:
         """
         Generate embeddings for a single query text.
 
@@ -90,7 +90,7 @@ class OpenAIEmbeddingService(UsageReportingMixin, EmbeddingService, OpenAIBaseSe
             self._handle_openai_error(e, "embedding query")
             raise
 
-    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         """
         Generate embeddings for multiple documents.
 
@@ -126,7 +126,7 @@ class OpenAIEmbeddingService(UsageReportingMixin, EmbeddingService, OpenAIBaseSe
 
         return all_embeddings
 
-    async def _embed_batch(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def _embed_batch(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         """
         Generate embeddings for a batch of texts.
 

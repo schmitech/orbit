@@ -7,7 +7,7 @@ These dependencies are used to protect routes and extract user information.
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 from fastapi import Request, HTTPException, Header, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -31,7 +31,7 @@ async def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     auth_service = Depends(get_auth_service)
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """
     Get the current authenticated user from bearer token.
 
@@ -76,7 +76,7 @@ async def get_current_user_with_token(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     auth_service = Depends(get_auth_service)
-) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
+) -> tuple[Optional[dict[str, Any]], Optional[str]]:
     """
     Get the current authenticated user and their token.
 
@@ -116,8 +116,8 @@ async def get_current_user_with_token(
 
 
 async def require_admin(
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
-) -> Dict[str, Any]:
+    current_user: Optional[dict[str, Any]] = Depends(get_current_user)
+) -> dict[str, Any]:
     """
     Require an authenticated admin user.
     
@@ -159,8 +159,8 @@ def require_permission(*permissions: str):
     conversation transcripts).
     """
     async def _dependency(
-        current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
-    ) -> Dict[str, Any]:
+        current_user: Optional[dict[str, Any]] = Depends(get_current_user)
+    ) -> dict[str, Any]:
         if not current_user:
             raise HTTPException(
                 status_code=401,
@@ -188,7 +188,7 @@ def permission_or_api_key(*permissions: str):
     """
     async def _dependency(
         request: Request,
-        current_user: Optional[Dict[str, Any]] = Depends(get_optional_user),
+        current_user: Optional[dict[str, Any]] = Depends(get_optional_user),
         x_api_key: Optional[str] = Header(None, alias="X-API-Key")
     ) -> bool:
         if current_user and all(has_permission(current_user, perm) for perm in permissions):
@@ -220,7 +220,7 @@ async def get_optional_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     auth_service = Depends(get_auth_service)
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """
     Get the current user if authenticated, but don't require it.
 

@@ -42,7 +42,7 @@ fallback, rule validation, and CRUD - is inherited unchanged.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from services.user_blacklist_service import (
     BlacklistRuleError,
@@ -69,7 +69,7 @@ class UserAllowlistService(UserBlacklistService):
     CONFIG_KEY = "allowlist"
     LABEL = "allowlist"
 
-    def __init__(self, config: Dict[str, Any], database_service):
+    def __init__(self, config: dict[str, Any], database_service):
         super().__init__(config, database_service)
 
         providers_config = (config.get("auth", {}) or {}).get("providers", {}) or {}
@@ -159,7 +159,7 @@ class UserAllowlistService(UserBlacklistService):
         )
         return rule is not None
 
-    async def is_user_cleared(self, user: Dict[str, Any]) -> bool:
+    async def is_user_cleared(self, user: dict[str, Any]) -> bool:
         """:meth:`is_cleared` over a user record (row or auth-context dict).
 
         Local password users have no ``provider`` and are never gated.
@@ -174,7 +174,7 @@ class UserAllowlistService(UserBlacklistService):
         )
 
     async def clears_under(
-        self, rules: list, user: Dict[str, Any]
+        self, rules: list, user: dict[str, Any]
     ) -> bool:
         """Whether ``user`` would still be cleared given exactly ``rules``.
 

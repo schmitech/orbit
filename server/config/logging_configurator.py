@@ -14,7 +14,7 @@ import os
 import time
 import logging
 import logging.handlers
-from typing import Dict, Any
+from typing import Any
 from pythonjsonlogger import jsonlogger
 from utils import is_true_value
 
@@ -75,7 +75,7 @@ class LoggingConfigurator:
         return logging.getLogger(__name__)
     
     @staticmethod
-    def setup_full_logging(config: Dict[str, Any]) -> logging.Logger:
+    def setup_full_logging(config: dict[str, Any]) -> logging.Logger:
         """
         Configure logging based on the application configuration.
         
@@ -189,8 +189,8 @@ class LoggingConfigurator:
         # Map each matching filename to the PID it belongs to (not just a
         # startswith check - "worker123" is a substring-prefix of
         # "worker1234", and family membership must be exact).
-        name_pids: Dict[str, int] = {}
-        pid_liveness: Dict[int, bool] = {}
+        name_pids: dict[str, int] = {}
+        pid_liveness: dict[int, bool] = {}
         for name in entries:
             if not name.startswith(prefix):
                 continue
@@ -219,7 +219,7 @@ class LoggingConfigurator:
         # written file was touched, not when the process died - a worker
         # that logged nothing for hours before crashing shouldn't get a
         # fresh 24h grace period starting from "now."
-        last_written: Dict[int, float] = {}
+        last_written: dict[int, float] = {}
         for name, pid in name_pids.items():
             if pid not in dead_pids:
                 continue
@@ -257,7 +257,7 @@ class LoggingConfigurator:
     @staticmethod
     def _setup_file_logging(
         root_logger: logging.Logger,
-        file_config: Dict[str, Any],
+        file_config: dict[str, Any],
         json_formatter: logging.Formatter,
         text_formatter: logging.Formatter,
         log_level: int
@@ -331,7 +331,7 @@ class LoggingConfigurator:
         root_logger.addHandler(file_handler)
     
     @staticmethod
-    def _configure_specific_loggers(log_config: Dict[str, Any]) -> None:
+    def _configure_specific_loggers(log_config: dict[str, Any]) -> None:
         """
         Configure specific loggers with custom settings.
 

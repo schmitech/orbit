@@ -5,7 +5,7 @@ Tests for the BaseRetriever class and factory
 import pytest
 import sys
 import os
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from unittest.mock import patch, MagicMock, AsyncMock
 
 # Add the server directory to path to fix import issues
@@ -17,7 +17,7 @@ from retrievers.base.base_retriever import BaseRetriever, RetrieverFactory
 class MockRetriever(BaseRetriever):
     """Test implementation of BaseRetriever for testing"""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the test retriever with configuration"""
         super().__init__(config)
         # Get configuration values
@@ -46,7 +46,7 @@ class MockRetriever(BaseRetriever):
                                   query: str, 
                                   api_key: Optional[str] = None,
                                   collection_name: Optional[str] = None,
-                                  **kwargs) -> List[Dict[str, Any]]:
+                                  **kwargs) -> list[dict[str, Any]]:
         # Call parent to handle collection resolution
         await super().get_relevant_context(query, api_key, collection_name, **kwargs)
         
@@ -60,7 +60,7 @@ class MockRetriever(BaseRetriever):
             }
         ]
 
-    def get_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
+    def get_direct_answer(self, context: list[dict[str, Any]]) -> Optional[str]:
         """Override to properly check confidence threshold"""
         if not context:
             return None

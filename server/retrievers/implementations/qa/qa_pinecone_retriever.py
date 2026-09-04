@@ -5,7 +5,7 @@ QA-specialized Pinecone retriever using the base class
 
 import logging
 import traceback
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Optional
 
 from .qa_vector_base import QAVectorRetrieverBase
 from ...base.base_retriever import RetrieverFactory
@@ -24,7 +24,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
     """
 
     def __init__(self,
-                 config: Dict[str, Any],
+                 config: dict[str, Any],
                  embeddings: Optional[Any] = None,
                  domain_adapter=None,
                  collection: Any = None,
@@ -91,7 +91,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
         return score * self.score_scaling_factor
 
     async def query_vector_database(self,
-                                  query_embedding: List[float],
+                                  query_embedding: list[float],
                                   collection_name: str,
                                   max_results: int) -> Any:
         """Query Pinecone index."""
@@ -168,7 +168,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
                 logger.debug(traceback.format_exc())
             return []
 
-    def extract_document_data(self, result: Any) -> Tuple[str, Dict[str, Any], float]:
+    def extract_document_data(self, result: Any) -> tuple[str, dict[str, Any], float]:
         """Extract document, metadata, and score from Pinecone result."""
         # Pinecone returns objects with attributes, not dicts
         # Access metadata and score as attributes
@@ -216,7 +216,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
 
         return bool(self.pinecone_client and self.index_name)
 
-    def _add_database_specific_metadata(self, context_item: Dict, result: Any, score: float):
+    def _add_database_specific_metadata(self, context_item: dict, result: Any, score: float):
         """Add Pinecone-specific metadata."""
         context_item["metadata"]["score"] = score
         context_item["metadata"]["score_scaling_factor"] = self.score_scaling_factor

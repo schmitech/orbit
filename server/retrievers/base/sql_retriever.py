@@ -1,5 +1,5 @@
 """
-Enhanced SQL retriever abstract class with domain adapter support
+Enhanced SQL retriever abstract class with domain adapter suppor
 """
 
 import logging
@@ -7,7 +7,7 @@ import re
 import string
 import traceback
 from abc import abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from difflib import SequenceMatcher
 
 from .base_retriever import BaseRetriever
@@ -27,7 +27,7 @@ class AbstractSQLRetriever(BaseRetriever):
     """
 
     def __init__(self,
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 datasource: Any = None,
                 domain_adapter=None,
                 **kwargs):
@@ -53,17 +53,17 @@ class AbstractSQLRetriever(BaseRetriever):
 
         # Connection will be obtained from datasource when needed
         self._connection = None
-        
+
         # Adapter granularity strategy settings
         self.query_timeout = self.datasource_config.get('query_timeout', 5000)  # Default 5 seconds
         self.approved_by_admin = self.datasource_config.get('approved_by_admin', False)
         self.security_filter = self.datasource_config.get('security_filter', None)
         self.allowed_columns = self.datasource_config.get('allowed_columns', [])
-        
+
         # Query monitoring and safety
         self.enable_query_monitoring = self.datasource_config.get('enable_query_monitoring', True)
         self.max_query_complexity = self.datasource_config.get('max_query_complexity', 'medium')
-        
+
         # Define standard stopwords for tokenization
         self.stopwords = {
             'the', 'a', 'an', 'and', 'is', 'are', 'in', 'on', 'at', 'to', 'for',
@@ -101,16 +101,16 @@ class AbstractSQLRetriever(BaseRetriever):
                 await self._datasource.initialize()
             self._datasource_initialized = True
             logger.debug(f"Datasource initialized for {self._get_datasource_name()}")
-    
 
-        
-    def _tokenize_text(self, text: str) -> List[str]:
+
+
+    def _tokenize_text(self, text: str) -> list[str]:
         """
         Tokenize text for better matching.
-        
+
         Args:
             text: Text to tokenize
-            
+
         Returns:
             List of tokens
         """
@@ -118,30 +118,30 @@ class AbstractSQLRetriever(BaseRetriever):
         if hasattr(self.domain_adapter, 'get_search_tokens'):
             tokens = self.domain_adapter.get_search_tokens(text)
             return list(tokens)
-        
+
         # Default tokenization
         # Convert to lowercase
         text = text.lower()
-        
+
         # Remove punctuation
         text = text.translate(str.maketrans('', '', string.punctuation))
-        
+
         # Split into tokens
         tokens = text.split()
-        
+
         # Remove stopwords and short tokens
         filtered_tokens = [token for token in tokens if token not in self.stopwords and len(token) > 1]
-        
+
         return filtered_tokens
-        
+
     def _calculate_similarity(self, query: str, text: str) -> float:
         """
         Calculate similarity between query and text.
-        
+
         Args:
             query: The user's query
-            text: The text to compare against
-            
+            text: The text to compare agains
+
         Returns:
             Similarity score between 0 and 1
         """
@@ -150,7 +150,7 @@ class AbstractSQLRetriever(BaseRetriever):
 
     # Abstract methods that concrete implementations must provide
     @abstractmethod
-    async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:
+    async def execute_query(self, sql: str, params: list[Any] = None) -> list[dict[str, Any]]:
         """
         Execute SQL query and return results.
         This method must be implemented by specific SQL database providers.
@@ -185,40 +185,40 @@ class AbstractSQLRetriever(BaseRetriever):
             await self._datasource.close()
             self._datasource_initialized = False
             logger.debug(f"Datasource closed for {self._get_datasource_name()}")
-    
 
-    
-    def _apply_safety_measures(self, search_config: Dict[str, Any], 
-                              query: str, collection_name: str) -> Dict[str, Any]:
+
+
+    def _apply_safety_measures(self, search_config: dict[str, Any],
+                              query: str, collection_name: str) -> dict[str, Any]:
         """
         Apply safety measures to search configuration.
-        
+
         Args:
             search_config: Original search configuration
             query: User query
             collection_name: Table name
-            
+
         Returns:
             Modified search configuration with safety measures
         """
         sql_query = search_config.get("sql", "")
-        
+
         # Apply security filters if configured
         if self.security_filter:
             sql_query = self._apply_security_filter(sql_query, collection_name)
             search_config["sql"] = sql_query
-        
+
         # Apply column restrictions if configured
         if self.allowed_columns:
             sql_query = self._apply_column_restrictions(sql_query, collection_name)
             search_config["sql"] = sql_query
-        
+
         # Ensure query timeout is applied
         if "timeout" not in search_config:
-            search_config["timeout"] = self.query_timeout
-        
+            search_config["timeout"] = self.query_timeou
+
         return search_config
-    
+
     def _apply_security_filter(self, sql_query: str, collection_name: str) -> str:
         """Apply security filter to SQL query."""
         if not self.security_filter:
@@ -233,7 +233,7 @@ class AbstractSQLRetriever(BaseRetriever):
             return re.sub(r'\bLIMIT\b', f"WHERE {self.security_filter} LIMIT", sql_query, count=1, flags=re.IGNORECASE)
         else:
             return f"{sql_query} WHERE {self.security_filter}"
-    
+
     def _apply_column_restrictions(self, sql_query: str, collection_name: str) -> str:
         """Apply column restrictions to SQL query."""
         if not self.allowed_columns:
@@ -245,32 +245,32 @@ class AbstractSQLRetriever(BaseRetriever):
             return re.sub(r'SELECT\s+\*', f"SELECT {allowed_cols}", sql_query, count=1, flags=re.IGNORECASE)
 
         return sql_query
-    
+
     def _monitor_query_execution(self, sql_query: str, execution_time: float, row_count: int):
         """Monitor query execution for performance and security."""
         if not self.enable_query_monitoring:
             return
-            
+
         # Log slow queries (2s threshold to catch issues before statement_timeout)
         if execution_time > 2.0:
             logger.warning(f"Slow query detected: {sql_query} ({execution_time:.2f}s)")
-        
+
         # Log large result sets
         if row_count > 1000:
             logger.warning(f"Large result set: {sql_query} ({row_count} rows)")
-        
+
         # Log successful query with basic stats
         logger.debug(f"Query executed: {execution_time:.2f}s, {row_count} rows")
-    
-    def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
+
+    def _get_search_query(self, query: str, collection_name: str) -> dict[str, Any]:
         """
         Get domain-specific SQL search query with granularity strategy validation.
         Can be overridden by subclasses for database-specific optimization.
-        
+
         Args:
             query: User query
             collection_name: Table name
-            
+
         Returns:
             Dict with SQL query, parameters, and fields
         """
@@ -286,18 +286,18 @@ class AbstractSQLRetriever(BaseRetriever):
                 "params": [self.max_results],
                 "fields": self.default_search_fields
             }
-        
+
         # Apply safety measures
         if self.enable_query_monitoring:
             search_config = self._apply_safety_measures(search_config, query, collection_name)
-        
+
         return search_config
-    
+
     async def get_relevant_context(self,
                            query: str,
                            api_key: Optional[str] = None,
                            collection_name: Optional[str] = None,
-                           **kwargs) -> List[Dict[str, Any]]:
+                           **kwargs) -> list[dict[str, Any]]:
         """
         Retrieve and filter relevant context from SQL database.
 
@@ -331,21 +331,21 @@ class AbstractSQLRetriever(BaseRetriever):
 
             logger.debug(f"Search query: {sql_query}")
             logger.debug(f"Search params: {params}")
-            
+
             # 2. Execute the query with timing and monitoring
             import time
             start_time = time.time()
             rows = await self.execute_query(sql_query, params)
             execution_time = time.time() - start_time
-            
+
             # Monitor query execution
             self._monitor_query_execution(sql_query, execution_time, len(rows))
 
             logger.debug(f"Retrieved {len(rows)} initial rows from database")
-            
+
             # 3. Process and filter results
             results = []
-            
+
             for row in rows:
                 # Calculate similarity to improve relevance
                 main_text = ""
@@ -362,13 +362,13 @@ class AbstractSQLRetriever(BaseRetriever):
                         if field != "id" and isinstance(value, str) and value:
                             main_text = value
                             break
-                
+
                 # Calculate string similarity
                 similarity = self._calculate_similarity(query, main_text)
-                
+
                 # Only include results that meet threshold
                 if similarity >= self.relevance_threshold:
-                    # Extract raw document
+                    # Extract raw documen
                     raw_doc = ""
                     if "content" in row:
                         raw_doc = row["content"]
@@ -380,27 +380,27 @@ class AbstractSQLRetriever(BaseRetriever):
                         for field, value in row.items():
                             if isinstance(value, str) and len(value) > len(longest):
                                 longest = value
-                        raw_doc = longest
-                    
+                        raw_doc = longes
+
                     # Create metadata from all fields
                     metadata = {}
                     for field, value in row.items():
                         metadata[field] = value
-                    
-                    # Use domain adapter to format the document
+
+                    # Use domain adapter to format the documen
                     context_item = self.format_document(raw_doc, metadata)
-                    
+
                     # Add confidence score
                     context_item["confidence"] = similarity
-                    
+
                     # Add source info
                     if "metadata" not in context_item:
                         context_item["metadata"] = {}
                     context_item["metadata"]["source"] = self._get_datasource_name()
                     context_item["metadata"]["collection"] = self.collection
-                    
+
                     results.append(context_item)
-            
+
             # 4. Apply domain-specific filtering
             results = self.apply_domain_filtering(results, query)
 
@@ -420,7 +420,7 @@ class AbstractSQLRetriever(BaseRetriever):
             for result in results:
                 if "metadata" not in result:
                     result["metadata"] = {}
-                result["metadata"]["total_available"] = original_count
+                result["metadata"]["total_available"] = original_coun
                 result["metadata"]["truncated"] = was_truncated
                 result["metadata"]["result_count"] = len(results)
 
@@ -430,7 +430,7 @@ class AbstractSQLRetriever(BaseRetriever):
                 logger.debug(f"Top confidence score: {results[0].get('confidence', 0)}")
 
             return results
-                
+
         except Exception as e:
             logger.error(f"Error retrieving context: {str(e)}")
             logger.error(traceback.format_exc())

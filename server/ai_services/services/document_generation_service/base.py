@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -7,8 +7,8 @@ logger = logging.getLogger(__name__)
 class BaseRenderer:
     """Shared config helpers and cross-format utilities."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
-        self._cfg: Dict[str, Any] = config or {}
+    def __init__(self, config: Optional[dict[str, Any]] = None) -> None:
+        self._cfg: dict[str, Any] = config or {}
 
     def _get(self, fmt: str, *keys, default=None):
         """Safe nested lookup: self._cfg[fmt][keys[0]][keys[1]]..."""
@@ -26,7 +26,7 @@ class BaseRenderer:
     def _meta(self, key: str, default: str = "") -> str:
         return self._cfg.get("metadata", {}).get(key, default)
 
-    def _build_meta_line(self, spec: Dict[str, Any]) -> str:
+    def _build_meta_line(self, spec: dict[str, Any]) -> str:
         meta = spec.get("metadata", {})
         parts = []
         configured_author = self._meta("author", "")

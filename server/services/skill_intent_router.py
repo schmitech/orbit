@@ -32,14 +32,14 @@ See ``docs/adapters/auto-skill-intent-detection.md``.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-def _cosine(v1: List[float], v2: List[float]) -> float:
+def _cosine(v1: list[float], v2: list[float]) -> float:
     """Cosine similarity between two vectors; 0.0 when either is a zero vector."""
     a = np.asarray(v1, dtype=float)
     b = np.asarray(v2, dtype=float)
@@ -62,7 +62,7 @@ class SkillIntentRouter:
         "fetch",
     }
 
-    def __init__(self, config: Dict[str, Any], adapter_manager):
+    def __init__(self, config: dict[str, Any], adapter_manager):
         self.config = config or {}
         self.adapter_manager = adapter_manager
 
@@ -76,10 +76,10 @@ class SkillIntentRouter:
 
         # Embedding clients cached per provider (an adapter may override the
         # global embedding provider, so more than one can be in play).
-        self._embedding_clients: Dict[str, Any] = {}
+        self._embedding_clients: dict[str, Any] = {}
         # Phrase-embedding cache keyed by (provider, frozenset of candidate skill
         # names): embeddings differ by provider, so the provider is part of the key.
-        self._phrase_cache: Dict[tuple, Dict[str, List[List[float]]]] = {}
+        self._phrase_cache: dict[tuple, dict[str, list[list[float]]]] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -88,9 +88,9 @@ class SkillIntentRouter:
     async def detect(
         self,
         message: str,
-        context_messages: Optional[List[Dict[str, Any]]],
+        context_messages: Optional[list[dict[str, Any]]],
         adapter_name: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
     ) -> Optional[str]:
         """Return the inferred skill name for this turn, or ``None``.
 
@@ -125,7 +125,7 @@ class SkillIntentRouter:
     # Candidate resolution
     # ------------------------------------------------------------------
 
-    def _candidate_skills(self, adapter_name: str) -> List[Dict[str, Any]]:
+    def _candidate_skills(self, adapter_name: str) -> list[dict[str, Any]]:
         """Routable skills the adapter is allowed to use, with their match phrases.
 
         Candidate source is ``auto_routable_skills`` when set, otherwise
@@ -139,7 +139,7 @@ class SkillIntentRouter:
             return []
         available_set = set(available)
 
-        candidates: List[Dict[str, Any]] = []
+        candidates: list[dict[str, Any]] = []
         for skill in self.adapter_manager.get_all_skills():
             name = skill.get("name")
             if not name or name not in available_set:
@@ -171,11 +171,11 @@ class SkillIntentRouter:
 
     def _phrases_for(
         self, skill_name: str, description: str, backing_adapter_name: Optional[str]
-    ) -> List[str]:
+    ) -> list[str]:
         """Phrase set embedded for the pre-filter: name + description + optional overrides."""
         cfg = self.adapter_manager.get_adapter_config(backing_adapter_name) or {}
         overrides = (cfg.get("capabilities", {}) or {}).get("routing_examples") or []
-        phrases: List[str] = [skill_name]
+        phrases: list[str] = [skill_name]
         if description:
             phrases.append(description)
         phrases.extend(str(p) for p in overrides if p)
@@ -188,10 +188,10 @@ class SkillIntentRouter:
     async def _prefilter(
         self,
         message: str,
-        candidates: List[Dict[str, Any]],
+        candidates: list[dict[str, Any]],
         adapter_name: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         provider = self._resolve_embedding_provider(adapter_name)
         if not provider:
             logger.warning(
@@ -221,7 +221,7 @@ class SkillIntentRouter:
         else:
             query_vec = await client.embed_query(message)
 
-        scored: List[tuple] = []
+        scored: list[tuple] = []
         for cand in candidates:
             vecs = phrase_index.get(cand["name"]) or []
             best = max((_cosine(query_vec, v) for v in vecs), default=0.0)
@@ -234,10 +234,10 @@ class SkillIntentRouter:
     async def _build_phrase_index(
         self,
         client,
-        candidates: List[Dict[str, Any]],
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, List[List[float]]]:
-        index: Dict[str, List[List[float]]] = {}
+        candidates: list[dict[str, Any]],
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> dict[str, list[list[float]]]:
+        index: dict[str, list[list[float]]] = {}
         for cand in candidates:
             phrases = cand["phrases"]
             if not phrases:
@@ -283,8 +283,8 @@ class SkillIntentRouter:
     async def _confirm(
         self,
         message: str,
-        context_messages: Optional[List[Dict[str, Any]]],
-        candidates: List[Dict[str, Any]],
+        context_messages: Optional[list[dict[str, Any]]],
+        candidates: list[dict[str, Any]],
         adapter_name: str,
     ) -> Optional[str]:
         provider = await self._resolve_confirm_provider(adapter_name)
@@ -313,8 +313,8 @@ class SkillIntentRouter:
     def _build_confirm_prompt(
         self,
         message: str,
-        context_messages: Optional[List[Dict[str, Any]]],
-        candidates: List[Dict[str, Any]],
+        context_messages: Optional[list[dict[str, Any]]],
+        candidates: list[dict[str, Any]],
     ) -> str:
         history = ""
         if context_messages:
@@ -347,7 +347,7 @@ class SkillIntentRouter:
         )
 
     def _parse_choice(
-        self, raw: Optional[str], candidates: List[Dict[str, Any]]
+        self, raw: Optional[str], candidates: list[dict[str, Any]]
     ) -> Optional[str]:
         if not raw:
             return None

@@ -6,7 +6,7 @@ providing a unified API regardless of the underlying provider.
 """
 
 from abc import abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 import logging
 
 from ..base import ProviderAIService, ServiceType
@@ -37,7 +37,7 @@ class EmbeddingService(ProviderAIService):
     service_type = ServiceType.EMBEDDING
     SUPPORTS_USAGE_REPORTING = False
 
-    def __init__(self, config: Dict[str, Any], provider_name: str):
+    def __init__(self, config: dict[str, Any], provider_name: str):
         """
         Initialize the embedding service.
 
@@ -50,7 +50,7 @@ class EmbeddingService(ProviderAIService):
         self.batch_size: int = self._get_batch_size()
 
     @abstractmethod
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str) -> list[float]:
         """
         Generate embeddings for a single query text.
 
@@ -76,7 +76,7 @@ class EmbeddingService(ProviderAIService):
         pass
 
     @abstractmethod
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for multiple documents.
 
@@ -105,8 +105,8 @@ class EmbeddingService(ProviderAIService):
     async def embed_query_tracked(
         self,
         text: str,
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[float]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[float]:
         """Embed one query and report provider usage when the service supports it."""
         if self.SUPPORTS_USAGE_REPORTING:
             return await self.embed_query(text, usage_sink=usage_sink)
@@ -114,9 +114,9 @@ class EmbeddingService(ProviderAIService):
 
     async def embed_documents_tracked(
         self,
-        texts: List[str],
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[List[float]]:
+        texts: list[str],
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[list[float]]:
         """Embed documents and report accumulated provider usage when supported."""
         if self.SUPPORTS_USAGE_REPORTING:
             return await self.embed_documents(texts, usage_sink=usage_sink)
@@ -205,8 +205,8 @@ class EmbeddingService(ProviderAIService):
     async def embed_query_with_fallback(
         self,
         text: str,
-        fallback_value: Optional[List[float]] = None
-    ) -> List[float]:
+        fallback_value: Optional[list[float]] = None
+    ) -> list[float]:
         """
         Embed a query with optional fallback on error.
 
@@ -235,9 +235,9 @@ class EmbeddingService(ProviderAIService):
 
     async def embed_documents_with_retry(
         self,
-        texts: List[str],
+        texts: list[str],
         retry_failed: bool = True
-    ) -> List[List[float]]:
+    ) -> list[list[float]]:
         """
         Embed documents with automatic retry for failed items.
 
@@ -290,11 +290,11 @@ class EmbeddingResult:
 
     def __init__(
         self,
-        embeddings: List[List[float]],
+        embeddings: list[list[float]],
         dimensions: int,
         model: str,
         provider: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[dict[str, Any]] = None
     ):
         """
         Initialize embedding result.
@@ -316,11 +316,11 @@ class EmbeddingResult:
         """Return number of embeddings."""
         return len(self.embeddings)
 
-    def __getitem__(self, index: int) -> List[float]:
+    def __getitem__(self, index: int) -> list[float]:
         """Get embedding by index."""
         return self.embeddings[index]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             'embeddings': self.embeddings,
@@ -334,7 +334,7 @@ class EmbeddingResult:
 # Helper function for service creation
 def create_embedding_service(
     provider: str,
-    config: Dict[str, Any]
+    config: dict[str, Any]
 ) -> EmbeddingService:
     """
     Factory function to create an embedding service.

@@ -14,7 +14,7 @@ the chat-completions route 404s with ``api_not_supported`` for this model.
 
 import base64
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from ...errors import raise_sanitized
 from ...services import OcrService
@@ -35,7 +35,7 @@ class AzureMistralOcrService(OcrService):
 
     DEFAULT_API_VERSION = "2024-05-01-preview"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "azure_mistral")
         self._setup_azure_mistral_config()
 
@@ -108,7 +108,7 @@ class AzureMistralOcrService(OcrService):
         file_data: bytes,
         mime_type: str,
         filename: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Extract markdown from a PDF or image via Azure's Mistral OCR endpoint."""
         if not self.initialized:
             await self.initialize()

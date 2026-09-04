@@ -5,7 +5,7 @@ This module defines the core interfaces and base classes for all adapters in the
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 import logging
 
 # Configure logging
@@ -23,7 +23,7 @@ class DocumentAdapter(ABC):
     - Applying domain-specific filtering and ranking
     """
 
-    def __init__(self, config: Dict[str, Any] = None, **kwargs):
+    def __init__(self, config: dict[str, Any] = None, **kwargs):
         """
         Initialize the document adapter.
 
@@ -34,7 +34,7 @@ class DocumentAdapter(ABC):
         self.config = config or {}
 
     @abstractmethod
-    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def format_document(self, raw_doc: str, metadata: dict[str, Any]) -> dict[str, Any]:
         """
         Format raw document and metadata for a specific domain.
 
@@ -48,7 +48,7 @@ class DocumentAdapter(ABC):
         pass
 
     @abstractmethod
-    def extract_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
+    def extract_direct_answer(self, context: list[dict[str, Any]]) -> Optional[str]:
         """
         Extract a direct answer from context items if applicable to this domain.
 
@@ -62,8 +62,8 @@ class DocumentAdapter(ABC):
 
     @abstractmethod
     def apply_domain_specific_filtering(self,
-                                       context_items: List[Dict[str, Any]],
-                                       query: str) -> List[Dict[str, Any]]:
+                                       context_items: list[dict[str, Any]],
+                                       query: str) -> list[dict[str, Any]]:
         """
         Apply domain-specific filtering or ranking to context items.
 
@@ -77,8 +77,8 @@ class DocumentAdapter(ABC):
         pass
 
     def apply_domain_filtering(self,
-                               context_items: List[Dict[str, Any]],
-                               query: str) -> List[Dict[str, Any]]:
+                               context_items: list[dict[str, Any]],
+                               query: str) -> list[dict[str, Any]]:
         """
         Compatibility method for retrievers that use the shorter method name.
 

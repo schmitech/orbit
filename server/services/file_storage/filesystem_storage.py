@@ -10,7 +10,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any
 from .base_storage import FileStorageBackend
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class FilesystemStorage(FileStorageBackend):
         file_path = self._get_file_path(key)
         return file_path.parent / f"{file_path.name}.metadata.json"
     
-    async def put_file(self, file_data: bytes, key: str, metadata: Dict[str, Any]) -> str:
+    async def put_file(self, file_data: bytes, key: str, metadata: dict[str, Any]) -> str:
         """
         Store a file with metadata atomically.
         
@@ -159,7 +159,7 @@ class FilesystemStorage(FileStorageBackend):
         
         return deleted
     
-    async def list_files(self, prefix: str) -> List[str]:
+    async def list_files(self, prefix: str) -> list[str]:
         """List files with given prefix."""
         prefix_path = self._get_file_path(prefix)
         
@@ -177,7 +177,7 @@ class FilesystemStorage(FileStorageBackend):
         logger.debug(f"Listed {len(files)} files with prefix {prefix}")
         return files
     
-    async def get_metadata(self, key: str) -> Dict[str, Any]:
+    async def get_metadata(self, key: str) -> dict[str, Any]:
         """Get file metadata from sidecar."""
         metadata_path = self._get_metadata_path(key)
         

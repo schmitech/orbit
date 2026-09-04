@@ -11,7 +11,7 @@ API Documentation:
 
 import base64
 import os
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 from openrouter import OpenRouter
 from openrouter.components.sttinputaudio import STTInputAudio
@@ -63,7 +63,7 @@ class OpenRouterAudioService(UsageReportingMixin, AudioService):
 
     SUPPORTED_FORMATS = {"wav", "mp3", "flac", "m4a", "ogg", "webm", "aac"}
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "openrouter")
 
         provider_config = self._extract_provider_config()
@@ -133,7 +133,7 @@ class OpenRouterAudioService(UsageReportingMixin, AudioService):
         self,
         audio: Union[str, bytes],
         language: Optional[str] = None,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         **kwargs,
     ) -> str:
         if not self.initialized:
@@ -186,7 +186,7 @@ class OpenRouterAudioService(UsageReportingMixin, AudioService):
         self,
         audio: Union[str, bytes],
         language: Optional[str] = None,
-        usage_sink: Optional[Dict[str, Any]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
         **kwargs,
     ) -> str:
         return await self.speech_to_text(audio, language, usage_sink=usage_sink, **kwargs)

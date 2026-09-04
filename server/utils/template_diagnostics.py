@@ -9,7 +9,7 @@ and reports detailed diagnostics at each step.
 import logging
 import time
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ def _get_retriever_type_name(retriever) -> str:
     return type(retriever).__name__
 
 
-def _detect_query_type(template: Dict[str, Any]) -> str:
+def _detect_query_type(template: dict[str, Any]) -> str:
     """Detect the query type from template keys."""
     if template.get('sql_template') or template.get('sql'):
         return "sql"
@@ -36,7 +36,7 @@ def _detect_query_type(template: Dict[str, Any]) -> str:
     return "unknown"
 
 
-def _extract_query_template(template: Dict[str, Any]) -> Optional[str]:
+def _extract_query_template(template: dict[str, Any]) -> Optional[str]:
     """Extract the raw query template string from a template dict."""
     for key in ('sql_template', 'sql', 'graphql_template', 'mongodb_query',
                 'endpoint_template', 'query_template'):
@@ -46,7 +46,7 @@ def _extract_query_template(template: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _serialize_template_candidate(tmpl_info: Dict[str, Any], include_template: bool = False) -> Dict[str, Any]:
+def _serialize_template_candidate(tmpl_info: dict[str, Any], include_template: bool = False) -> dict[str, Any]:
     """Serialize a template match for the response."""
     template = tmpl_info.get('template', {})
     entry = {
@@ -78,10 +78,10 @@ def _serialize_template_candidate(tmpl_info: Dict[str, Any], include_template: b
 # New diagnostic collectors
 # ---------------------------------------------------------------------------
 
-async def _collect_vector_store_info(retriever) -> Optional[Dict[str, Any]]:
+async def _collect_vector_store_info(retriever) -> Optional[dict[str, Any]]:
     """Collect vector store and embedding health info."""
     try:
-        info: Dict[str, Any] = {}
+        info: dict[str, Any] = {}
         template_store = getattr(retriever, 'template_store', None)
         if template_store:
             stats = await template_store.get_statistics()
@@ -114,7 +114,7 @@ async def _collect_vector_store_info(retriever) -> Optional[Dict[str, Any]]:
         return {"error": str(e)}
 
 
-def _collect_template_inventory(retriever) -> Optional[Dict[str, Any]]:
+def _collect_template_inventory(retriever) -> Optional[dict[str, Any]]:
     """List all loaded templates with summary info."""
     try:
         domain_adapter = getattr(retriever, 'domain_adapter', None)
@@ -140,7 +140,7 @@ def _collect_template_inventory(retriever) -> Optional[Dict[str, Any]]:
         return {"error": str(e)}
 
 
-def _collect_domain_info(retriever) -> Optional[Dict[str, Any]]:
+def _collect_domain_info(retriever) -> Optional[dict[str, Any]]:
     """Collect domain config summary: entities, synonyms, fields."""
     try:
         domain_adapter = getattr(retriever, 'domain_adapter', None)
@@ -185,7 +185,7 @@ def _collect_domain_info(retriever) -> Optional[Dict[str, Any]]:
         return {"error": str(e)}
 
 
-def _collect_semantic_analysis(query: str, template: Dict[str, Any], retriever=None) -> Dict[str, Any]:
+def _collect_semantic_analysis(query: str, template: dict[str, Any], retriever=None) -> dict[str, Any]:
     """Analyse how query words align with the selected template's semantic tags."""
     query_words = query.lower().split()
     tags = template.get('semantic_tags', {})
@@ -229,7 +229,7 @@ def _collect_semantic_analysis(query: str, template: Dict[str, Any], retriever=N
     }
 
 
-def _collect_extraction_trace(retriever, query: str, template: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _collect_extraction_trace(retriever, query: str, template: dict[str, Any]) -> Optional[dict[str, Any]]:
     """
     Build a detailed per-parameter extraction trace that mirrors the
     DomainParameterExtractor.extract_parameters() resolution journey.
@@ -250,7 +250,7 @@ def _collect_extraction_trace(retriever, query: str, template: Dict[str, Any]) -
         validator = getattr(extractor, 'validator', None)
 
         # --- Global info ---
-        trace: Dict[str, Any] = {
+        trace: dict[str, Any] = {
             "patterns_available": len(patterns),
             "pattern_regexes": {},
         }
@@ -262,7 +262,7 @@ def _collect_extraction_trace(retriever, query: str, template: Dict[str, Any]) -
             trace["pattern_regexes"] = {k: p.pattern for k, p in patterns.items()}
 
         # --- First pass: bulk pattern scan ---
-        first_pass_matches: Dict[str, Any] = {}
+        first_pass_matches: dict[str, Any] = {}
         if value_extractor:
             try:
                 first_pass_matches = value_extractor.extract_all_values(query) or {}
@@ -284,7 +284,7 @@ def _collect_extraction_trace(retriever, query: str, template: Dict[str, Any]) -
             required = param.get('required', False)
             default = param.get('default')
 
-            pt: Dict[str, Any] = {
+            pt: dict[str, Any] = {
                 "name": param_name,
                 "type": param_type,
                 "entity": entity,
@@ -388,10 +388,10 @@ def _collect_extraction_trace(retriever, query: str, template: Dict[str, Any]) -
 
 async def _try_all_templates(
     retriever,
-    eligible_templates: List[Dict[str, Any]],
+    eligible_templates: list[dict[str, Any]],
     query: str,
     execute: bool,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Try each eligible template (like get_relevant_context does) and record the outcome.
     Stops at first success if execute=True, otherwise records extraction outcome for all.
@@ -401,7 +401,7 @@ async def _try_all_templates(
         template = tmpl_info['template']
         similarity = tmpl_info.get('similarity', 0)
         tid = template.get('id', '?')
-        entry: Dict[str, Any] = {
+        entry: dict[str, Any] = {
             "template_id": tid,
             "similarity": round(similarity, 4),
         }
@@ -470,7 +470,7 @@ async def diagnose_template_query(
     execute: bool = True,
     include_all_candidates: bool = False,
     verbose: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run diagnostic pipeline on an intent retriever and return detailed results.
 
@@ -523,8 +523,8 @@ async def _diagnose_intent(
     execute: bool,
     include_all_candidates: bool,
     verbose: bool,
-    result: Dict[str, Any],
-) -> Dict[str, Any]:
+    result: dict[str, Any],
+) -> dict[str, Any]:
     """Diagnose a single intent retriever (SQL or HTTP based)."""
     total_start = time.monotonic()
 
@@ -645,7 +645,7 @@ async def _diagnose_intent(
         extract_ms = round((time.monotonic() - t0) * 1000, 1)
         result["timing"]["parameter_extraction_ms"] = extract_ms
 
-        extraction_result: Dict[str, Any] = {
+        extraction_result: dict[str, Any] = {
             "extracted": parameters,
             "method": method,
             "validation_errors": validation_errors if validation_errors else [],
@@ -719,8 +719,8 @@ async def _diagnose_composite(
     execute: bool,
     include_all_candidates: bool,
     verbose: bool,
-    result: Dict[str, Any],
-) -> Dict[str, Any]:
+    result: dict[str, Any],
+) -> dict[str, Any]:
     """Diagnose a composite intent retriever."""
     total_start = time.monotonic()
 
@@ -854,9 +854,9 @@ async def _diagnose_composite(
     return result
 
 
-def _render_query(retriever, template: Dict[str, Any], parameters: Dict[str, Any], query_type: str) -> Dict[str, Any]:
+def _render_query(retriever, template: dict[str, Any], parameters: dict[str, Any], query_type: str) -> dict[str, Any]:
     """Render the query from a template and parameters."""
-    rendered: Dict[str, Any] = {"type": query_type}
+    rendered: dict[str, Any] = {"type": query_type}
 
     if query_type == "sql":
         sql_template = template.get('sql_template', template.get('sql', ''))

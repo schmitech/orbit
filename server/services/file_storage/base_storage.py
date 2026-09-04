@@ -7,7 +7,7 @@ Supports pluggable storage backends (filesystem, S3, MinIO, etc.).
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class FileStorageBackend(ABC):
     """
     
     @abstractmethod
-    async def put_file(self, file_data: bytes, key: str, metadata: Dict[str, Any]) -> str:
+    async def put_file(self, file_data: bytes, key: str, metadata: dict[str, Any]) -> str:
         """
         Store a file with metadata.
         
@@ -66,7 +66,7 @@ class FileStorageBackend(ABC):
         pass
     
     @abstractmethod
-    async def list_files(self, prefix: str) -> List[str]:
+    async def list_files(self, prefix: str) -> list[str]:
         """
         List files with a given prefix.
         
@@ -79,7 +79,7 @@ class FileStorageBackend(ABC):
         pass
     
     @abstractmethod
-    async def get_metadata(self, key: str) -> Dict[str, Any]:
+    async def get_metadata(self, key: str) -> dict[str, Any]:
         """
         Get file metadata.
         

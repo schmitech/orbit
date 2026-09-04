@@ -21,7 +21,7 @@ import base64
 import hashlib
 import logging
 import secrets
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 from urllib.parse import urlencode
 
 import httpx
@@ -44,7 +44,7 @@ DEFAULT_SCOPES = "openid profile email"
 class AdminSSOService:
     """Drives browser SSO for the admin panel across the ``entra``/``auth0`` providers."""
 
-    def __init__(self, providers_config: Dict[str, Any]):
+    def __init__(self, providers_config: dict[str, Any]):
         if not _PYJWT_AVAILABLE:
             raise RuntimeError(
                 "auth.providers.admin_sso is enabled but PyJWT is not installed. "
@@ -70,7 +70,7 @@ class AdminSSOService:
                 self._admin_emails.add(entry.lower())
 
         # provider_name -> metadata
-        self._providers: Dict[str, Dict[str, Any]] = {}
+        self._providers: dict[str, dict[str, Any]] = {}
 
         entra = providers_config.get('entra', {})
         if entra.get('enabled') and entra.get('tenant_id') and entra.get('client_id'):
@@ -94,11 +94,11 @@ class AdminSSOService:
 
     def _build(
         self,
-        cfg: Dict[str, Any],
-        ep: Dict[str, str],
+        cfg: dict[str, Any],
+        ep: dict[str, str],
         label: str,
         verified_email_default: bool,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         require_verified = cfg.get('require_verified_email')
         if require_verified is None:
             require_verified = verified_email_default
@@ -121,7 +121,7 @@ class AdminSSOService:
     def provider_enabled(self, provider: str) -> bool:
         return provider in self._providers
 
-    def provider_labels(self) -> Dict[str, str]:
+    def provider_labels(self) -> dict[str, str]:
         """Enabled provider -> display label, for rendering login buttons."""
         return {name: entry["label"] for name, entry in self._providers.items()}
 
@@ -132,7 +132,7 @@ class AdminSSOService:
 
     def build_authorize_url(
         self, provider: str, redirect_uri: str
-    ) -> Tuple[str, str, str, str]:
+    ) -> tuple[str, str, str, str]:
         """Return (authorize_url, state, code_verifier, nonce) for a login redirect."""
         entry = self._providers[provider]
         state = secrets.token_urlsafe(24)
@@ -157,7 +157,7 @@ class AdminSSOService:
 
     async def exchange_code(
         self, provider: str, code: str, code_verifier: str, redirect_uri: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Exchange an authorization code for tokens. Returns None on failure."""
         entry = self._providers[provider]
         data = {
@@ -184,7 +184,7 @@ class AdminSSOService:
 
     async def validate_id_token(
         self, provider: str, id_token: str, nonce: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Validate an id_token (audience == client_id) and the nonce. Fails closed."""
         entry = self._providers[provider]
         try:
@@ -200,7 +200,7 @@ class AdminSSOService:
             return None
         return claims
 
-    def _verify_id_token_sync(self, id_token: str, entry: Dict[str, Any]) -> Dict[str, Any]:
+    def _verify_id_token_sync(self, id_token: str, entry: dict[str, Any]) -> dict[str, Any]:
         signing_key = entry["jwks_client"].get_signing_key_from_jwt(id_token)
         return jwt.decode(
             id_token,

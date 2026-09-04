@@ -10,7 +10,7 @@ import logging
 import uuid
 import hashlib
 import weakref
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from datetime import datetime, UTC
 
 from services.file_processing.processor_registry import FileProcessorRegistry
@@ -66,7 +66,7 @@ class FileProcessingService:
     - Metadata tracking
     """
     
-    def __init__(self, config: Dict[str, Any], app_state=None):
+    def __init__(self, config: dict[str, Any], app_state=None):
         """
         Initialize file processing service.
 
@@ -231,7 +231,7 @@ class FileProcessingService:
         """Initialize storage backend (filesystem, s3/minio, or azure)."""
         return create_storage_backend(self.config)
 
-    def _init_file_encryptor(self, files_config: Dict[str, Any]) -> Optional[FileEncryptor]:
+    def _init_file_encryptor(self, files_config: dict[str, Any]) -> Optional[FileEncryptor]:
         """
         Initialize the shared FileEncryptor if files.encryption.enabled is true.
 
@@ -450,7 +450,7 @@ class FileProcessingService:
         self._scan_for_dangerous_content(file_data, detected_type)
         return detected_type
 
-    def _get_live_config(self) -> Dict[str, Any]:
+    def _get_live_config(self) -> dict[str, Any]:
         """
         Return the current full application config, preferring the hot-reloaded
         config held by the adapter manager over the startup snapshot.
@@ -477,7 +477,7 @@ class FileProcessingService:
         filename: str,
         provider: Optional[str],
         model: Optional[str],
-        usage: Optional[Dict[str, Any]],
+        usage: Optional[dict[str, Any]],
         call_type: str,
     ) -> None:
         """
@@ -499,7 +499,7 @@ class FileProcessingService:
             return
         pricing_service = getattr(self.app_state, 'pricing_service', None) if self.app_state else None
 
-        usage_dict: Dict[str, Any] = {
+        usage_dict: dict[str, Any] = {
             "prompt_tokens": usage.get("prompt_tokens"),
             "completion_tokens": usage.get("completion_tokens"),
             "total_tokens": usage.get("total_tokens"),
@@ -730,7 +730,7 @@ class FileProcessingService:
             )
         return self.encrypted_storage
 
-    def _select_storage_for_read(self, file_info: Dict[str, Any]) -> FileStorageBackend:
+    def _select_storage_for_read(self, file_info: dict[str, Any]) -> FileStorageBackend:
         """
         Pick the storage backend to use for reading back a previously-stored
         file, based on the persisted 'encrypted' flag recorded at upload time
@@ -753,7 +753,7 @@ class FileProcessingService:
             )
         return self.encrypted_storage
 
-    def _encrypt_chunk_metadata(self, chunks: List[Chunk], requires_encryption: bool) -> None:
+    def _encrypt_chunk_metadata(self, chunks: list[Chunk], requires_encryption: bool) -> None:
         """
         Envelope-encrypt each chunk's metadata dict in place (mirrors
         EncryptedFileStorageBackend's sidecar envelope: {"encrypted": True,
@@ -995,7 +995,7 @@ class FileProcessingService:
         transcription_language: Optional[str] = None,
         current_user_id: Optional[str] = None,
         current_user_email: Optional[str] = None
-    ) -> tuple[str, Dict[str, Any]]:
+    ) -> tuple[str, dict[str, Any]]:
         """Extract content from audio file using audio services for transcription."""
         import asyncio
         from ai_services import AIServiceFactory, ServiceType
@@ -1033,7 +1033,7 @@ class FileProcessingService:
             # opted into UsageReportingMixin (currently just OpenAI) — most audio
             # services splat **kwargs straight through, so an unrecognized kwarg
             # on an un-migrated provider would break the request.
-            usage_sink: Dict[str, Any] = {}
+            usage_sink: dict[str, Any] = {}
             supports_usage = getattr(audio_service, "SUPPORTS_USAGE_REPORTING", False)
             try:
                 if supports_usage:
@@ -1104,7 +1104,7 @@ class FileProcessingService:
         mime_type: str,
         api_key: str,
         current_user_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Process an uploaded file through the complete pipeline.
 
@@ -1250,7 +1250,7 @@ class FileProcessingService:
         vision_prompt: Optional[str] = None,
         current_user_id: Optional[str] = None,
         current_user_email: Optional[str] = None
-    ) -> tuple[str, Dict[str, Any]]:
+    ) -> tuple[str, dict[str, Any]]:
         """Extract text and metadata from file."""
         # Check if this is an image file. When the AI OCR processor is the active
         # priority processor, let images fall through to it (via the registry)
@@ -1318,7 +1318,7 @@ class FileProcessingService:
         vision_prompt: Optional[str] = None,
         current_user_id: Optional[str] = None,
         current_user_email: Optional[str] = None
-    ) -> tuple[str, Dict[str, Any]]:
+    ) -> tuple[str, dict[str, Any]]:
         """Extract content from image using vision services."""
         import asyncio
 
@@ -1349,8 +1349,8 @@ class FileProcessingService:
             # on an un-migrated provider would break the request. Two concurrent
             # calls happen here, each needs its own sink (summed after).
             supports_usage = getattr(vision_service, "SUPPORTS_USAGE_REPORTING", False)
-            usage_sink_1: Dict[str, Any] = {}
-            usage_sink_2: Dict[str, Any] = {}
+            usage_sink_1: dict[str, Any] = {}
+            usage_sink_2: dict[str, Any] = {}
 
             # Use custom prompt if provided, otherwise use default describe_image
             try:
@@ -1388,7 +1388,7 @@ class FileProcessingService:
             logger.info(f"Vision processing completed for {filename}")
 
             from ai_services.providers.usage_reporting import accumulate_usage_sink
-            usage_sink: Dict[str, Any] = {}
+            usage_sink: dict[str, Any] = {}
             accumulate_usage_sink(usage_sink, usage_sink_1)
             accumulate_usage_sink(usage_sink, usage_sink_2)
             await self._log_extraction_usage(
@@ -1422,7 +1422,7 @@ class FileProcessingService:
             logger.error(f"Failed to process image {filename}: {e}")
             raise
     
-    async def _chunk_content(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
+    async def _chunk_content(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """
         Chunk text content using the configured chunking strategy.
         
@@ -1449,7 +1449,7 @@ class FileProcessingService:
         
         return chunks
     
-    async def _get_adapter_config_for_api_key(self, api_key: str, current_user_id: Optional[str] = None, current_user_email: Optional[str] = None) -> Dict[str, Any]:
+    async def _get_adapter_config_for_api_key(self, api_key: str, current_user_id: Optional[str] = None, current_user_email: Optional[str] = None) -> dict[str, Any]:
         """
         Get the adapter configuration for a given API key.
 
@@ -1543,7 +1543,7 @@ class FileProcessingService:
         self,
         file_id: str,
         api_key: str,
-        chunks: List[Chunk],
+        chunks: list[Chunk],
         requires_encryption: bool = False,
         filename: Optional[str] = None,
     ) -> Optional[tuple]:
@@ -1603,7 +1603,7 @@ class FileProcessingService:
             logger.debug(f"Creating collection with provider-aware naming: {collection_name}")
 
             # Index chunks
-            embedding_usage: Dict[str, Any] = {}
+            embedding_usage: dict[str, Any] = {}
             success = await retriever.index_file_chunks(
                 file_id=file_id,
                 chunks=chunks,
@@ -1769,10 +1769,10 @@ class FileProcessingService:
             current_user_id=current_user_id,
         )
 
-    async def list_files(self, api_key: str) -> List[Dict[str, Any]]:
+    async def list_files(self, api_key: str) -> list[dict[str, Any]]:
         """List all files for an API key."""
         return await self.metadata_store.list_files(api_key)
 
-    async def get_generated_file_ids_for_session(self, session_id: str, api_key: str) -> List[str]:
+    async def get_generated_file_ids_for_session(self, session_id: str, api_key: str) -> list[str]:
         """Return IDs of all server-persisted generated images for a conversation session."""
         return await self.metadata_store.get_generated_file_ids_for_session(session_id, api_key)

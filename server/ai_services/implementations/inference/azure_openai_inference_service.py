@@ -8,7 +8,8 @@ Compare with: server/inference/pipeline/providers/azure_provider.py (old impleme
 """
 
 import json
-from typing import Dict, Any, AsyncGenerator, List
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
 from ...providers import AzureBaseService
@@ -38,7 +39,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
     - Data residency options
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Azure OpenAI inference service.
 
@@ -169,8 +170,8 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using Azure AI Inference."""
@@ -178,7 +179,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
         if not self.initialized:
             await self.initialize()
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "messages": messages,
             "model": self.deployment,
             "max_completion_tokens": kwargs.pop("max_tokens", self.max_tokens),
@@ -206,7 +207,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
         choice = response.choices[0]
         msg = choice.message
 
-        assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content}
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": msg.content}
         tool_calls_result = None
 
         if msg.tool_calls:

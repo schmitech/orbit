@@ -6,7 +6,7 @@ Provides endpoints for uploading, querying, and managing files.
 
 import logging
 import mimetypes
-from typing import List, Optional, Dict, Any
+from typing import Optional, Any
 from fastapi import APIRouter, UploadFile, File, HTTPException, Header, Depends, Request, BackgroundTasks, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -72,7 +72,7 @@ class QueryResponse(BaseModel):
     """Response model for query results."""
     file_id: str
     filename: str
-    results: List[Dict[str, Any]]
+    results: list[dict[str, Any]]
 
 
 def create_file_router() -> APIRouter:
@@ -362,7 +362,7 @@ def create_file_router() -> APIRouter:
         return FastAPIResponse(content=file_bytes, media_type=mime_type)
 
 
-    @router.get("/api/files", response_model=List[FileInfoResponse])
+    @router.get("/api/files", response_model=list[FileInfoResponse])
     async def list_files(
         request: Request,
         x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
@@ -712,7 +712,7 @@ def create_file_router() -> APIRouter:
             
             # Query the vector store
             max_results = query_request.max_results or 10
-            embedding_usage: Dict[str, Any] = {}
+            embedding_usage: dict[str, Any] = {}
             try:
                 results = await retriever.get_relevant_context(
                     query=query_request.query,

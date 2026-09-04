@@ -7,7 +7,7 @@ single and streaming audio generation.
 
 import logging
 import re
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Optional
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class AudioHandler:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         adapter_manager=None
     ):
         """
@@ -424,7 +424,7 @@ class AudioHandler:
         adapter_name: str,
         tts_voice: Optional[str] = None,
         language: Optional[str] = None
-    ) -> Tuple[Optional[bytes], Optional[str]]:
+    ) -> tuple[Optional[bytes], Optional[str]]:
         """
         Generate audio from text using the adapter's audio provider.
 

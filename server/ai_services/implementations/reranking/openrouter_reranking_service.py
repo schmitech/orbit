@@ -8,7 +8,7 @@ API Documentation: https://openrouter.ai/docs/api/api-reference/rerank/submit-a-
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 import aiohttp
 
 from ...services import RerankingService
@@ -23,7 +23,7 @@ class OpenRouterRerankingService(RerankingService):
 
     SUPPORTS_USAGE_REPORTING = True
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "openrouter")
 
         provider_config = self._extract_provider_config()
@@ -56,11 +56,11 @@ class OpenRouterRerankingService(RerankingService):
     async def rerank(
         self,
         query: str,
-        documents: List[str],
+        documents: list[str],
         top_n: Optional[int] = None,
         _skip_init_check: bool = False,
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """
         Rerank documents using OpenRouter's Rerank API.
 

@@ -6,7 +6,7 @@ Provides utilities for comparing configurations and identifying specific changes
 
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class ConfigChangeDetector:
     ]
 
     @staticmethod
-    def configs_differ(old_config: Dict[str, Any], new_config: Dict[str, Any]) -> bool:
+    def configs_differ(old_config: dict[str, Any], new_config: dict[str, Any]) -> bool:
         """
         Compare configs reliably using JSON serialization.
 
@@ -57,7 +57,7 @@ class ConfigChangeDetector:
             return old_config != new_config
 
     @staticmethod
-    def detect_changes(old_config: Dict[str, Any], new_config: Dict[str, Any]) -> List[str]:
+    def detect_changes(old_config: dict[str, Any], new_config: dict[str, Any]) -> list[str]:
         """
         Detect what specific configuration values changed between old and new config.
 
@@ -106,7 +106,7 @@ class ConfigChangeDetector:
         return changes
 
     @staticmethod
-    def get_affected_services(old_config: Dict[str, Any], new_config: Dict[str, Any]) -> Dict[str, bool]:
+    def get_affected_services(old_config: dict[str, Any], new_config: dict[str, Any]) -> dict[str, bool]:
         """
         Determine which services are affected by the configuration change.
 

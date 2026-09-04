@@ -6,7 +6,7 @@ consolidating common functionality like API key management, client initializatio
 and error handling.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 import warnings
 import logging
 
@@ -35,7 +35,7 @@ class CohereBaseService(ProviderAIService):
 
     DEFAULT_BASE_URL = "https://api.cohere.ai"
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "cohere"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "cohere"):
         """
         Initialize the Cohere base service.
 

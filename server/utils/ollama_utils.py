@@ -8,7 +8,8 @@ including embeddings, inference, moderation, and reranking.
 import logging
 import asyncio
 import aiohttp
-from typing import Dict, Any, Optional, Callable, TypeVar
+from typing import Any, Optional, TypeVar
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ T = TypeVar('T')
 class OllamaConfig:
     """Configuration parser for Ollama services."""
     
-    def __init__(self, config: Dict[str, Any], service_type: str = ""):
+    def __init__(self, config: dict[str, Any], service_type: str = ""):
         """
         Initialize Ollama configuration.
         
@@ -81,10 +82,10 @@ class OllamaConfig:
     
     def _resolve_inference_preset(
         self,
-        config: Dict[str, Any],
-        service_config: Dict[str, Any],
+        config: dict[str, Any],
+        service_config: dict[str, Any],
         service_type: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Resolve inference.ollama.use_preset when config_manager has not already done it."""
         if service_type != 'inference':
             return service_config
@@ -488,7 +489,7 @@ class OllamaConnectionVerifier:
 class OllamaBaseService:
     """Base class for Ollama services with common functionality."""
     
-    def __init__(self, config: Dict[str, Any], service_type: str = ""):
+    def __init__(self, config: dict[str, Any], service_type: str = ""):
         """
         Initialize base Ollama service.
         

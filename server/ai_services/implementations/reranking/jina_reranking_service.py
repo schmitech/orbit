@@ -6,7 +6,7 @@ high-quality relevance scoring.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from ...providers import JinaBaseService
 from ...services import RerankingService
@@ -35,7 +35,7 @@ class JinaRerankingService(RerankingService, JinaBaseService):
     """
     SUPPORTS_USAGE_REPORTING = True
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Jina AI reranking service.
 
@@ -81,11 +81,11 @@ class JinaRerankingService(RerankingService, JinaBaseService):
     async def rerank(
         self,
         query: str,
-        documents: List[str],
+        documents: list[str],
         top_n: Optional[int] = None,
         _skip_init_check: bool = False,
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """
         Rerank documents using Jina AI's Reranker API.
 

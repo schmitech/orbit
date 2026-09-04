@@ -3,7 +3,7 @@ Template embedding storage system for managing SQL template embeddings.
 """
 
 import logging
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Optional
 import hashlib
 import json
 
@@ -28,7 +28,7 @@ class TemplateEmbeddingStore:
                  store_name: str = "template_embeddings",
                  store_type: str = "chroma",
                  collection_name: str = "sql_templates",
-                 config: Optional[Dict[str, Any]] = None,
+                 config: Optional[dict[str, Any]] = None,
                  store_manager = None):
         """
         Initialize the template embedding store.
@@ -50,7 +50,7 @@ class TemplateEmbeddingStore:
         self._vector_store: Optional[BaseVectorStore] = None
         
         # Template cache
-        self._template_cache: Dict[str, Dict[str, Any]] = {}
+        self._template_cache: dict[str, dict[str, Any]] = {}
         
         # Embedding dimension (will be set when first template is added)
         self._embedding_dimension: Optional[int] = None
@@ -116,8 +116,8 @@ class TemplateEmbeddingStore:
     
     async def add_template(self, 
                           template_id: str,
-                          template_data: Dict[str, Any],
-                          embedding: List[float]) -> bool:
+                          template_data: dict[str, Any],
+                          embedding: list[float]) -> bool:
         """
         Add a template with its embedding to the store.
         
@@ -175,7 +175,7 @@ class TemplateEmbeddingStore:
             return False
     
     async def batch_add_templates(self, 
-                                 templates: List[Tuple[str, Dict[str, Any], List[float]]]) -> Dict[str, bool]:
+                                 templates: list[tuple[str, dict[str, Any], list[float]]]) -> dict[str, bool]:
         """
         Add multiple templates in batch.
         
@@ -238,10 +238,10 @@ class TemplateEmbeddingStore:
             return {t[0]: False for t in templates}
     
     async def search_similar_templates(self, 
-                                      query_embedding: List[float],
+                                      query_embedding: list[float],
                                       limit: int = 5,
                                       threshold: float = 0.5,
-                                      filter_category: Optional[str] = None) -> List[Dict[str, Any]]:
+                                      filter_category: Optional[str] = None) -> list[dict[str, Any]]:
         """
         Search for similar templates based on embedding similarity.
         
@@ -292,7 +292,7 @@ class TemplateEmbeddingStore:
             logger.error(f"Error searching similar templates: {e}")
             return []
     
-    async def get_template_by_id(self, template_id: str) -> Optional[Dict[str, Any]]:
+    async def get_template_by_id(self, template_id: str) -> Optional[dict[str, Any]]:
         """
         Get a specific template by ID.
         
@@ -345,8 +345,8 @@ class TemplateEmbeddingStore:
     
     async def update_template(self, 
                             template_id: str,
-                            template_data: Optional[Dict[str, Any]] = None,
-                            embedding: Optional[List[float]] = None) -> bool:
+                            template_data: Optional[dict[str, Any]] = None,
+                            embedding: Optional[list[float]] = None) -> bool:
         """
         Update a template's data and/or embedding.
         
@@ -457,7 +457,7 @@ class TemplateEmbeddingStore:
             logger.error(f"Error clearing templates: {e}")
             return False
     
-    async def get_statistics(self) -> Dict[str, Any]:
+    async def get_statistics(self) -> dict[str, Any]:
         """
         Get statistics about the template store.
         

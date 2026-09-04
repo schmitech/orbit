@@ -2,7 +2,8 @@ import asyncio
 import logging
 import time
 from functools import partial
-from typing import Dict, Optional, Any, Callable
+from typing import Optional, Any
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, Future
 from contextlib import contextmanager
 
@@ -17,7 +18,7 @@ class ThreadPoolManager:
     each optimized for specific workload types (I/O, CPU, inference, etc.).
     """
     
-    def __init__(self, config: Dict[str, Any], logger: Optional[logging.Logger] = None):
+    def __init__(self, config: dict[str, Any], logger: Optional[logging.Logger] = None):
         """
         Initialize the ThreadPoolManager with configuration.
         
@@ -27,12 +28,12 @@ class ThreadPoolManager:
         """
         self.config = config
         self.logger = logger or logging.getLogger(__name__)
-        self._pools: Dict[str, ThreadPoolExecutor] = {}
+        self._pools: dict[str, ThreadPoolExecutor] = {}
         self._default_pool_size = 10
 
         # Task tracking for debugging
         self._task_counter = 0
-        self._active_tasks: Dict[int, Dict[str, Any]] = {}
+        self._active_tasks: dict[int, dict[str, Any]] = {}
         
         # Initialize all thread pools
         self._initialize_pools()
@@ -188,7 +189,7 @@ class ThreadPoolManager:
         
         yield submit_task
     
-    def _get_pool_info(self, pool: ThreadPoolExecutor) -> Dict[str, Any]:
+    def _get_pool_info(self, pool: ThreadPoolExecutor) -> dict[str, Any]:
         """Get information about a specific pool."""
         return {
             'max_workers': pool._max_workers,
@@ -196,7 +197,7 @@ class ThreadPoolManager:
             'queued': pool._work_queue.qsize() if hasattr(pool._work_queue, 'qsize') else 0
         }
     
-    def get_pool_stats(self) -> Dict[str, Dict[str, Any]]:
+    def get_pool_stats(self) -> dict[str, dict[str, Any]]:
         """
         Get statistics for all thread pools.
         

@@ -20,7 +20,7 @@ import time
 import statistics
 import csv
 from datetime import datetime, UTC
-from typing import Dict, List, Any, Optional
+from typing import Any, Optional
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,7 +47,7 @@ class PerformanceMetrics:
     """Collects and analyzes performance metrics."""
     
     def __init__(self):
-        self.results: List[TestResult] = []
+        self.results: list[TestResult] = []
         self.start_time = time.time()
         self.lock = threading.Lock()
     
@@ -56,7 +56,7 @@ class PerformanceMetrics:
         with self.lock:
             self.results.append(result)
     
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Generate a summary of all test results."""
         if not self.results:
             return {}
@@ -100,7 +100,7 @@ class PerformanceMetrics:
 
         return summary
     
-    def _percentile(self, data: List[float], percentile: int) -> float:
+    def _percentile(self, data: list[float], percentile: int) -> float:
         """Calculate the nth percentile of a dataset."""
         if not data:
             return 0.0
@@ -480,7 +480,7 @@ async def main():
         print(f"\n🏁 Performance test completed in {end_time - start_time:.2f}s")
 
 
-def generate_html_report(summary: Dict[str, Any], args: argparse.Namespace, timestamp: str) -> str:
+def generate_html_report(summary: dict[str, Any], args: argparse.Namespace, timestamp: str) -> str:
     """Generate an HTML report for the performance test."""
     
     html = f"""

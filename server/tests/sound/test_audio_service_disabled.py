@@ -12,7 +12,7 @@ This module tests that:
 import pytest
 import sys
 import os
-from typing import Dict, Any
+from typing import Any
 from unittest.mock import patch, MagicMock, AsyncMock
 import logging
 
@@ -46,7 +46,7 @@ class TestAudioServiceDisabled:
         registry_module._services_registered = False
 
     @pytest.fixture
-    def audio_disabled_config(self) -> Dict[str, Any]:
+    def audio_disabled_config(self) -> dict[str, Any]:
         """Create a config with audio globally disabled."""
         return {
             "sound": {  # AdapterLoader audio_provider path checks legacy sound.enabled
@@ -94,7 +94,7 @@ class TestAudioServiceDisabled:
         }
 
     @pytest.fixture
-    def audio_enabled_config(self) -> Dict[str, Any]:
+    def audio_enabled_config(self) -> dict[str, Any]:
         """Create a config with audio globally enabled."""
         return {
             "tts": {
@@ -299,7 +299,7 @@ class TestAudioCacheManagerDisabled:
     """Test audio cache manager behavior when audio is disabled."""
 
     @pytest.fixture
-    def audio_disabled_config(self) -> Dict[str, Any]:
+    def audio_disabled_config(self) -> dict[str, Any]:
         """Create a config with audio globally disabled."""
         return {
             "sound": {  # AdapterLoader audio_provider path still checks legacy sound.enabled
@@ -369,7 +369,7 @@ class TestAdapterLoaderAudioDisabled:
     """Test adapter loader behavior when audio is disabled."""
 
     @pytest.fixture
-    def audio_disabled_config(self) -> Dict[str, Any]:
+    def audio_disabled_config(self) -> dict[str, Any]:
         """Create a config with audio globally disabled."""
         return {
             "sound": {

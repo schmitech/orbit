@@ -12,7 +12,7 @@ absent) 'model'/'inference_provider' fields.
 """
 
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 # Reported for the 'supertonic' TTS provider when it has no local model_dir configured
 # (auto-download mode) — mirrors SupertonicAudioService's own default.
@@ -26,8 +26,8 @@ _PROVIDER_FIELD_BY_TYPE = {
 
 
 def resolve_generation_provider_and_model(
-    adapter_config: Dict[str, Any], config: Dict[str, Any]
-) -> Tuple[Optional[str], Optional[str]]:
+    adapter_config: dict[str, Any], config: dict[str, Any]
+) -> tuple[Optional[str], Optional[str]]:
     """Return (provider, model) for image/video/audio adapters, or (None, None) if not applicable."""
     adapter_type = adapter_config.get('type')
     if adapter_type not in _PROVIDER_FIELD_BY_TYPE:
@@ -61,7 +61,7 @@ def resolve_generation_provider_and_model(
     return provider, model
 
 
-def resolve_generation_model(adapter_config: Dict[str, Any], config: Dict[str, Any]) -> Optional[str]:
+def resolve_generation_model(adapter_config: dict[str, Any], config: dict[str, Any]) -> Optional[str]:
     """Return the real generation model for image/video/audio adapters, or None if not applicable."""
     _, model = resolve_generation_provider_and_model(adapter_config, config)
     return model

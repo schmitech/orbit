@@ -13,7 +13,8 @@ dropping something on save.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Optional
+from collections.abc import Callable
 
 import yaml
 
@@ -26,7 +27,7 @@ from .validator import validate_answers
 _BASE_KEYS = ("type", "datasource", "adapter", "implementation")
 
 
-def _base_tuple(spec: AdapterSpec, variant: Optional[str]) -> Tuple[Any, ...]:
+def _base_tuple(spec: AdapterSpec, variant: Optional[str]) -> tuple[Any, ...]:
     fixed = dict(spec.fixed)
     if variant is not None:
         fixed.update(spec.variants[variant].get("fixed", {}))
@@ -36,21 +37,21 @@ def _base_tuple(spec: AdapterSpec, variant: Optional[str]) -> Tuple[Any, ...]:
 # Specs whose variants can't be told apart by the base tuple alone (every
 # variant renders the same type/datasource/adapter/implementation) need an
 # explicit resolver that reads the one field the template does vary.
-def _resolve_variant_doc_generator(entry: Dict[str, Any]) -> Optional[str]:
+def _resolve_variant_doc_generator(entry: dict[str, Any]) -> Optional[str]:
     return entry.get("document_format")
 
 
-def _resolve_variant_web_search_external(entry: Dict[str, Any]) -> Optional[str]:
+def _resolve_variant_web_search_external(entry: dict[str, Any]) -> Optional[str]:
     return (entry.get("web_search") or {}).get("provider")
 
 
-_VARIANT_RESOLVERS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
+_VARIANT_RESOLVERS: dict[str, Callable[[dict[str, Any]], Optional[str]]] = {
     "doc-generator": _resolve_variant_doc_generator,
     "web-search-external": _resolve_variant_web_search_external,
 }
 
 
-def detect_spec_and_variant(entry: Dict[str, Any]) -> Optional[Tuple[AdapterSpec, Optional[str]]]:
+def detect_spec_and_variant(entry: dict[str, Any]) -> Optional[tuple[AdapterSpec, Optional[str]]]:
     """Best guess at the (spec, variant) that would render this entry.
 
     Returns None when no spec's fixed tuple matches, or when more than one
@@ -92,14 +93,14 @@ def detect_spec_and_variant(entry: Dict[str, Any]) -> Optional[Tuple[AdapterSpec
 # Field overrides for answers that land somewhere other than entry[field],
 # entry["capabilities"][field], or entry["config"][field] (the three spots
 # extract_answers checks by default).
-def _media_provider_override(entry: Dict[str, Any], spec: AdapterSpec, variant: Optional[str]) -> Any:
+def _media_provider_override(entry: dict[str, Any], spec: AdapterSpec, variant: Optional[str]) -> Any:
     if not variant:
         return None
     provider_field = spec.variants[variant].get("fixed", {}).get("provider_field")
     return entry.get(provider_field) if provider_field else None
 
 
-_FIELD_OVERRIDES: Dict[Tuple[str, str], Callable[[Dict[str, Any], AdapterSpec, Optional[str]], Any]] = {
+_FIELD_OVERRIDES: dict[tuple[str, str], Callable[[dict[str, Any], AdapterSpec, Optional[str]], Any]] = {
     ("media-generator", "media_provider"): _media_provider_override,
     ("web-search-external", "result_count"): lambda e, s, v: (e.get("web_search") or {}).get("result_count"),
     ("web-search-external", "api_key"): lambda e, s, v: (e.get("web_search") or {}).get("api_key"),
@@ -108,11 +109,11 @@ _FIELD_OVERRIDES: Dict[Tuple[str, str], Callable[[Dict[str, Any], AdapterSpec, O
 }
 
 
-def extract_answers(spec: AdapterSpec, variant: Optional[str], entry: Dict[str, Any]) -> Dict[str, Any]:
+def extract_answers(spec: AdapterSpec, variant: Optional[str], entry: dict[str, Any]) -> dict[str, Any]:
     """Recover an `answers` dict for `spec` from an already-rendered entry."""
     capabilities = entry.get("capabilities") or {}
     config = entry.get("config") or {}
-    answers: Dict[str, Any] = {}
+    answers: dict[str, Any] = {}
 
     for q in spec.questions:
         override = _FIELD_OVERRIDES.get((spec.key, q.field))
@@ -150,7 +151,7 @@ def extract_answers(spec: AdapterSpec, variant: Optional[str], entry: Dict[str, 
     return answers
 
 
-def detect_editable_spec(entry: Dict[str, Any]) -> Dict[str, Any]:
+def detect_editable_spec(entry: dict[str, Any]) -> dict[str, Any]:
     """Full round-trip check: detect spec/variant, extract answers, re-render,
     and confirm the re-render matches the entry on disk before calling it safe
     to edit through the form.

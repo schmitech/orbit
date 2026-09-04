@@ -13,7 +13,7 @@ import requests
 import yaml
 import os
 import sys
-from typing import Dict, Any
+from typing import Any
 from requests.exceptions import ReadTimeout, ConnectionError
 
 # Get the absolute path to the server directory (parent of tests)
@@ -28,7 +28,7 @@ sys.path.append(server_dir)
 DEFAULT_TIMEOUT = 120  # Increased timeout for local Ollama
 
 @pytest.fixture
-def config() -> Dict[str, Any]:
+def config() -> dict[str, Any]:
     """Load and return the configuration"""
     # Use the server's config loading function to handle the modular config structure
     try:
@@ -64,7 +64,7 @@ def config() -> Dict[str, Any]:
     return base_config
 
 @pytest.fixture
-def ollama_config(config: Dict[str, Any]) -> Dict[str, Any]:
+def ollama_config(config: dict[str, Any]) -> dict[str, Any]:
     """Extract and return Ollama configuration, resolving presets if needed"""
     ollama_config = config.get('inference', {}).get('ollama', {})
     if not ollama_config:
@@ -101,14 +101,14 @@ def test_query() -> str:
     """Return a test query"""
     return "What is the cost of the Beginner English fee for service course?"
 
-def test_config_loading(ollama_config: Dict[str, Any]):
+def test_config_loading(ollama_config: dict[str, Any]):
     """Test that the configuration is loaded correctly"""
     assert ollama_config, "Ollama configuration should not be empty"
     assert "model" in ollama_config, "Model should be specified in config"
     assert "base_url" in ollama_config, "Base URL should be specified in config"
     assert ollama_config["base_url"], "Base URL should not be empty"
 
-def test_ollama_connection(ollama_config: Dict[str, Any]):
+def test_ollama_connection(ollama_config: dict[str, Any]):
     """Test that Ollama service is accessible"""
     try:
         response = requests.get(
@@ -121,7 +121,7 @@ def test_ollama_connection(ollama_config: Dict[str, Any]):
     except ReadTimeout as e:
         pytest.fail(f"Connection to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
 
-def test_ollama_response(ollama_config: Dict[str, Any], test_query: str):
+def test_ollama_response(ollama_config: dict[str, Any], test_query: str):
     """Test that Ollama generates a valid response"""
     model = ollama_config["model"]
     
@@ -190,7 +190,7 @@ def test_ollama_response(ollama_config: Dict[str, Any], test_query: str):
     except ReadTimeout as e:
         pytest.fail(f"Request to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
 
-def test_ollama_error_handling(ollama_config: Dict[str, Any]):
+def test_ollama_error_handling(ollama_config: dict[str, Any]):
     """Test error handling with invalid requests"""
     # Determine which API to test based on a real model in config
     real_model = ollama_config["model"]

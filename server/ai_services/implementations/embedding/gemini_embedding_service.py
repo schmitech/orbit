@@ -4,7 +4,7 @@ Gemini embedding service implementation using unified architecture.
 Uses the google-genai SDK for embedding via client.models.embed_content().
 """
 
-from typing import List, Dict, Any
+from typing import Any
 import asyncio
 import logging
 
@@ -22,7 +22,7 @@ class GeminiEmbeddingService(EmbeddingService, GoogleBaseService):
     Uses Google's gemini-embedding-2-preview model via the google-genai SDK.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Gemini embedding service."""
         GoogleBaseService.__init__(self, config, ServiceType.EMBEDDING, "gemini")
 
@@ -49,7 +49,7 @@ class GeminiEmbeddingService(EmbeddingService, GoogleBaseService):
             self._genai_client = genai.Client()
         return self._genai_client
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str) -> list[float]:
         """Generate embeddings for a single query text."""
         await self._ensure_initialized("Gemini embedding service")
 
@@ -77,7 +77,7 @@ class GeminiEmbeddingService(EmbeddingService, GoogleBaseService):
             self._handle_google_error(e, "embedding query")
             raise
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple documents with batching."""
         await self._ensure_initialized("Gemini embedding service")
 

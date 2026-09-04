@@ -5,7 +5,8 @@ Lazy Loader Utility
 A utility class for lazy loading of resources.
 """
 
-from typing import Any, Callable, Dict
+from typing import Any
+from collections.abc import Callable
 import logging
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ class AdapterRegistry:
     
     def __init__(self):
         """Initialize an empty adapter registry."""
-        self._adapters: Dict[str, LazyLoader] = {}
+        self._adapters: dict[str, LazyLoader] = {}
         
     def register(self, adapter_type: str, factory_func: Callable[[], Any]) -> None:
         """

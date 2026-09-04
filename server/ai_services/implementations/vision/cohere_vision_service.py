@@ -4,7 +4,7 @@ Cohere vision service implementation using unified architecture.
 This implementation provides vision capabilities using Cohere's multimodal models.
 """
 
-from typing import Dict, Any, Union, List
+from typing import Any, Union
 from PIL import Image
 from io import BytesIO
 import base64
@@ -28,7 +28,7 @@ class CohereVisionService(VisionService, CohereBaseService):
     - Multimodal inference (image + text)
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Cohere vision service."""
         # Initialize via CohereBaseService first
         CohereBaseService.__init__(self, config, ServiceType.VISION, "cohere")
@@ -203,7 +203,7 @@ class CohereVisionService(VisionService, CohereBaseService):
     async def detect_objects(
         self,
         image: Union[str, bytes, Image.Image]
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Detect objects in image."""
         description = await self.analyze_image(
             image,

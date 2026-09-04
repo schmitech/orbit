@@ -3,7 +3,7 @@ xAI (Grok) image generation service using the xAI SDK.
 """
 
 import base64
-from typing import Dict, Any
+from typing import Any
 from urllib.parse import urlparse
 
 from ...connection import RetryHandler
@@ -16,7 +16,7 @@ class XAIImageService(ImageGenerationService):
     DEFAULT_API_BASE = "https://api.x.ai/v1"
     DEFAULT_IMAGE_MODEL = "grok-imagine-image"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "xai")
         provider_config = self._extract_provider_config()
 
@@ -81,7 +81,7 @@ class XAIImageService(ImageGenerationService):
             self.logger.error(f"xAI image generation connection verification failed: {e}")
             return False
 
-    async def generate_image(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_image(self, prompt: str, **kwargs) -> dict[str, Any]:
         if not self.initialized:
             if not await self.initialize():
                 raise ValueError("Failed to initialize xAI image generation service")
@@ -89,7 +89,7 @@ class XAIImageService(ImageGenerationService):
         model = kwargs.get("model") or self.model
         self._validate_model(model)
 
-        async def _generate() -> Dict[str, Any]:
+        async def _generate() -> dict[str, Any]:
             image_format = "base64"
             n = kwargs.get("n", self.n)
             aspect_ratio = kwargs.get("aspect_ratio", self.aspect_ratio)

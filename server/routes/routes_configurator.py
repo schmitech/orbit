@@ -11,7 +11,7 @@ This module handles all route setup and configuration, including:
 import json
 import uuid
 import logging
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Any
 from fastapi import FastAPI, Request, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
@@ -41,7 +41,7 @@ class RouteConfigurator:
     - Providing extensible endpoint registration
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+    def __init__(self, config: dict[str, Any], logger: logging.Logger):
         """
         Initialize the RouteConfigurator.
         
@@ -100,7 +100,7 @@ class RouteConfigurator:
         
         logger.info("Routes configured successfully")
     
-    def _create_dependencies(self) -> Dict[str, Any]:
+    def _create_dependencies(self) -> dict[str, Any]:
         """Create and return all FastAPI dependencies."""
         return {
             'get_chat_service': self._create_chat_service_dependency(),
@@ -377,7 +377,7 @@ class RouteConfigurator:
             if is_health and not require_for_health:
                 return "default", None
 
-            def _enforce_identity(adapter_config: Optional[Dict[str, Any]]) -> None:
+            def _enforce_identity(adapter_config: Optional[dict[str, Any]]) -> None:
                 if current_user or not is_authenticated_user_required(config, adapter_config):
                     return
                 raise HTTPException(
@@ -430,14 +430,14 @@ class RouteConfigurator:
         async def favicon():
             return Response(status_code=204)
     
-    def _configure_chat_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
+    def _configure_chat_endpoint(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
         """Configure the main chat endpoint."""
         class ChatRequest(BaseModel):
-            messages: List[Dict[str, str]]
+            messages: list[dict[str, str]]
             stream: bool = False
             model: Optional[str] = None  # Optional runtime model override (must be in adapter's allowed_models)
             skill: Optional[str] = None  # Optional skill name to invoke (must be in adapter's available_skills)
-            file_ids: Optional[List[str]] = None  # Optional list of file IDs for file context
+            file_ids: Optional[list[str]] = None  # Optional list of file IDs for file context
             thread_id: Optional[str] = None  # Optional thread ID for follow-up questions
             # Audio input parameters (for STT)
             audio_input: Optional[str] = None  # Base64-encoded audio data for STT
@@ -457,7 +457,7 @@ class RouteConfigurator:
 
         class OpenAIChatCompletionRequest(BaseModel):
             model: Optional[str] = None
-            messages: List[Dict[str, Any]]
+            messages: list[dict[str, Any]]
             stream: bool = False
             temperature: Optional[float] = None
             max_tokens: Optional[int] = None
@@ -467,7 +467,7 @@ class RouteConfigurator:
             class Config:
                 extra = "allow"
 
-        def _prepare_chat_parameters(chat_request: Any) -> Tuple[str, Dict[str, Any]]:
+        def _prepare_chat_parameters(chat_request: Any) -> tuple[str, dict[str, Any]]:
             """Extract the last user message and shared kwargs for chat processing."""
             messages = getattr(chat_request, "messages", None) or []
             user_messages = [m for m in messages if m.get("role") == "user"]
@@ -734,7 +734,7 @@ class RouteConfigurator:
                 threading=result.get("threading")
             )
 
-    def _configure_stop_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
+    def _configure_stop_endpoint(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
         """Configure the stop streaming endpoint."""
 
         class StopStreamRequest(BaseModel):
@@ -747,7 +747,7 @@ class RouteConfigurator:
             request: Request,
             stop_request: StopStreamRequest,
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """
             Stop an active streaming request.
 
@@ -780,12 +780,12 @@ class RouteConfigurator:
                     "request_id": stop_request.request_id
                 }
 
-    def _configure_autocomplete_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
+    def _configure_autocomplete_endpoint(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
         """Configure the autocomplete suggestions endpoint."""
         from fastapi import Query
 
         class AutocompleteResponse(BaseModel):
-            suggestions: List[Dict[str, str]]
+            suggestions: list[dict[str, str]]
             query: str
 
         @app.get("/v1/autocomplete", operation_id="autocomplete", response_model=AutocompleteResponse)
@@ -856,7 +856,7 @@ class RouteConfigurator:
                 # Return empty suggestions rather than error - autocomplete is non-critical
                 return AutocompleteResponse(suggestions=[], query=q)
 
-    def _configure_health_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
+    def _configure_health_endpoint(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
         """Configure the health check endpoint."""
         @app.get("/health")
         async def health_check(
@@ -866,7 +866,7 @@ class RouteConfigurator:
             health = await health_service.get_health_status()
             return health
     
-    def _configure_thread_endpoints(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
+    def _configure_thread_endpoints(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
         """Configure thread management endpoints."""
         
         class CreateThreadRequest(BaseModel):
@@ -973,7 +973,7 @@ class RouteConfigurator:
                 logger.error(f"Failed to create thread: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to create thread: {str(e)}")
         
-        async def _authorized_thread(request: Request, thread_service, thread_id: str) -> Dict[str, Any]:
+        async def _authorized_thread(request: Request, thread_service, thread_id: str) -> dict[str, Any]:
             """
             Load a thread, or raise 404/403.
 
@@ -1057,7 +1057,7 @@ class RouteConfigurator:
                 raise HTTPException(status_code=404, detail="Thread not found")
             return {"status": "success", "message": "Thread deleted", "thread_id": thread_id}
     
-    def _configure_feedback_endpoints(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
+    def _configure_feedback_endpoints(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
         """Configure feedback endpoints."""
 
         from services.feedback_service import MAX_COMMENT_LENGTH

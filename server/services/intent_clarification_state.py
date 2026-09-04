@@ -16,15 +16,15 @@ introducing a durable store for it.
 """
 
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 _MAX_ENTRIES = 1000
 _DEFAULT_TTL_SECONDS = 300.0
 
-_pending: Dict[Tuple[str, str], Dict[str, Any]] = {}
+_pending: dict[tuple[str, str], dict[str, Any]] = {}
 
 
-def store_pending(adapter: str, session_id: str, payload: Dict[str, Any], ttl: float = _DEFAULT_TTL_SECONDS) -> None:
+def store_pending(adapter: str, session_id: str, payload: dict[str, Any], ttl: float = _DEFAULT_TTL_SECONDS) -> None:
     """Stash a pending clarification for this adapter/session, replacing any prior one."""
     if not session_id:
         return
@@ -33,7 +33,7 @@ def store_pending(adapter: str, session_id: str, payload: Dict[str, Any], ttl: f
         _pending.pop(next(iter(_pending)))
 
 
-def pop_pending(adapter: str, session_id: str) -> Optional[Dict[str, Any]]:
+def pop_pending(adapter: str, session_id: str) -> Optional[dict[str, Any]]:
     """Retrieve and clear the pending clarification for this adapter/session, if any and unexpired."""
     if not session_id:
         return None

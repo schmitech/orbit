@@ -6,7 +6,7 @@ designed for content safety classification using the MLCommons taxonomy.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Any
 import asyncio
 
 from ...providers import OllamaBaseService
@@ -49,7 +49,7 @@ class OllamaModerationService(ModerationService, OllamaBaseService):
     provides more accurate classification than general-purpose LLMs.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Ollama moderation service.
 
@@ -81,7 +81,7 @@ class OllamaModerationService(ModerationService, OllamaBaseService):
         """
         return await OllamaBaseService.initialize(self)
 
-    def _parse_llama_guard_response(self, response_text: str) -> tuple[bool, Dict[str, float]]:
+    def _parse_llama_guard_response(self, response_text: str) -> tuple[bool, dict[str, float]]:
         """
         Parse Llama Guard 3's response format.
 
@@ -237,7 +237,7 @@ Provide your safety assessment for 'User' in the above conversation:
                 error=f"Moderation check failed (allowed): {str(e)}"
             )
 
-    async def moderate_batch(self, contents: List[str]) -> List[ModerationResult]:
+    async def moderate_batch(self, contents: list[str]) -> list[ModerationResult]:
         """
         Moderate multiple content items in a batch.
 

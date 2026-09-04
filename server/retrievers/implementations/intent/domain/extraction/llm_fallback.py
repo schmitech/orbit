@@ -4,7 +4,7 @@ LLM fallback for parameter extraction when pattern matching fails
 
 import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 from ...domain import DomainConfig
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class LLMFallback:
         self.inference_client = inference_client
         self.domain_config = domain_config
 
-    async def extract_with_llm(self, user_query: str, parameter: Dict[str, Any],
+    async def extract_with_llm(self, user_query: str, parameter: dict[str, Any],
                                 template_description: str) -> Optional[Any]:
         """Use LLM to extract a parameter value when patterns fail"""
         prompt = self._build_extraction_prompt(user_query, parameter, template_description)
@@ -35,7 +35,7 @@ class LLMFallback:
             logger.error("LLM extraction failed: %s", e)
             return None
 
-    def _build_extraction_prompt(self, user_query: str, parameter: Dict[str, Any],
+    def _build_extraction_prompt(self, user_query: str, parameter: dict[str, Any],
                                   template_description: str) -> str:
         """Build prompt for LLM extraction"""
         param_name = parameter['name']
@@ -70,7 +70,7 @@ Response:"""
 
         return prompt
 
-    def _get_domain_context(self, parameter: Dict[str, Any]) -> str:
+    def _get_domain_context(self, parameter: dict[str, Any]) -> str:
         """Get domain-specific context for the parameter"""
         context_parts = []
 
@@ -115,7 +115,7 @@ Response:"""
             text = text[1:-1]
         return text.strip()
 
-    def _parse_llm_response(self, response: str, parameter: Dict[str, Any]) -> Optional[Any]:
+    def _parse_llm_response(self, response: str, parameter: dict[str, Any]) -> Optional[Any]:
         """Parse LLM response to extract parameter value"""
         response = self._strip_markdown(response)
 
@@ -155,8 +155,8 @@ Response:"""
             logger.debug("Failed to parse LLM response %r: %s", response, e)
             return response if param_type == "string" else None
 
-    async def extract_multiple(self, user_query: str, parameters: List[Dict[str, Any]],
-                                template_description: str) -> Dict[str, Any]:
+    async def extract_multiple(self, user_query: str, parameters: list[dict[str, Any]],
+                                template_description: str) -> dict[str, Any]:
         """Extract multiple parameters using LLM in a single call"""
         prompt = self._build_batch_extraction_prompt(user_query, parameters, template_description)
 
@@ -172,7 +172,7 @@ Response:"""
             logger.error("Batch LLM extraction failed: %s", e)
             return {}
 
-    def _build_batch_extraction_prompt(self, user_query: str, parameters: List[Dict[str, Any]],
+    def _build_batch_extraction_prompt(self, user_query: str, parameters: list[dict[str, Any]],
                                         template_description: str) -> str:
         """Build prompt for extracting multiple parameters"""
         param_descriptions = []
@@ -205,7 +205,7 @@ Response:"""
 
         return prompt
 
-    def _parse_batch_response(self, response: str, parameters: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _parse_batch_response(self, response: str, parameters: list[dict[str, Any]]) -> dict[str, Any]:
         """Parse batch LLM response"""
         try:
             # Try to extract JSON from response

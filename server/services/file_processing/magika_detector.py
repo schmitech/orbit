@@ -5,7 +5,7 @@ Magika-backed upload inspection helpers.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Optional
 
 
 GENERIC_TEXT_LABEL = "txt"
@@ -87,7 +87,7 @@ class MagikaDetector:
         )
 
 
-LABEL_TO_CANONICAL_TYPE: Dict[str, str] = {
+LABEL_TO_CANONICAL_TYPE: dict[str, str] = {
     "aac": "audio/aac",
     "bmp": "image/bmp",
     "c": "text/x-csrc",
@@ -136,7 +136,7 @@ LABEL_TO_CANONICAL_TYPE: Dict[str, str] = {
 }
 
 
-MIME_TO_CANONICAL_TYPE: Dict[str, str] = {
+MIME_TO_CANONICAL_TYPE: dict[str, str] = {
     "application/javascript": "application/javascript",
     "application/json": "application/json",
     "application/pdf": "application/pdf",

@@ -5,7 +5,7 @@ Similar to IntentPostgreSQLRetriever but for SQLite databases.
 
 import logging
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 try:
     import sqlite3
@@ -28,7 +28,7 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
     Inherits all intent functionality and SQLite connection handling.
     """
 
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
         """Initialize SQLite intent retriever."""
         super().__init__(config=config, domain_adapter=domain_adapter, connection=connection, **kwargs)
 
@@ -127,7 +127,7 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
         except Exception:
             return False
 
-    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """Execute SQLite query with intent-specific handling."""
         cursor = None
         try:

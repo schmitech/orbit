@@ -4,7 +4,7 @@ Health service for checking the status of components
 
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from models.schema import HealthStatus
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class HealthService:
     """Handles health check functionality"""
     
-    def __init__(self, config: Dict[str, Any], datasource_client: Optional[Any] = None, llm_client: Optional[Any] = None):
+    def __init__(self, config: dict[str, Any], datasource_client: Optional[Any] = None, llm_client: Optional[Any] = None):
         self.config = config
         self._last_status = None
         self._last_check_time = 0

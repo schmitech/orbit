@@ -13,7 +13,7 @@ Refactored to use specialized components for better maintainability:
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 
 from .cache import (
@@ -46,7 +46,7 @@ class DynamicAdapterManager:
 
     """
 
-    def __init__(self, config: Dict[str, Any], app_state=None):
+    def __init__(self, config: dict[str, Any], app_state=None):
         """
         Initialize the Dynamic Adapter Manager.
 
@@ -218,7 +218,7 @@ class DynamicAdapterManager:
                     finally:
                         self.adapter_cache.release_initialization(adapter_name)
 
-    def _resolve_inference_provider(self, adapter_config: Dict[str, Any], default: str = 'default') -> str:
+    def _resolve_inference_provider(self, adapter_config: dict[str, Any], default: str = 'default') -> str:
         """
         Resolve the inference provider an adapter actually relies on.
 
@@ -232,7 +232,7 @@ class DynamicAdapterManager:
             or self.config.get('general', {}).get('inference_provider', default)
         )
 
-    def _build_adapter_info_parts(self, adapter_config: Dict[str, Any]) -> list:
+    def _build_adapter_info_parts(self, adapter_config: dict[str, Any]) -> list:
         """Build common adapter info parts shared by log and preload messages."""
         inference_provider = self._resolve_inference_provider(adapter_config)
         model_override = adapter_config.get('model')
@@ -264,7 +264,7 @@ class DynamicAdapterManager:
             parts.append(f"store: {store_name}")
         return parts
 
-    def _log_adapter_loaded(self, adapter_name: str, adapter_config: Dict[str, Any]) -> None:
+    def _log_adapter_loaded(self, adapter_name: str, adapter_config: dict[str, Any]) -> None:
         """Log detailed information about a loaded adapter."""
         parts = self._build_adapter_info_parts(adapter_config)
         if adapter_config.get('database'):
@@ -300,7 +300,7 @@ class DynamicAdapterManager:
         provider_name: str,
         adapter_name: str = None,
         explicit_model_override: Optional[str] = None,
-        explicit_param_overrides: Optional[Dict[str, Any]] = None,
+        explicit_param_overrides: Optional[dict[str, Any]] = None,
     ) -> Any:
         """
         Get an inference provider instance by name, loading and caching it if necessary.
@@ -348,7 +348,7 @@ class DynamicAdapterManager:
         )
 
     @staticmethod
-    def _extract_param_overrides(adapter_config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _extract_param_overrides(adapter_config: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
         """
         Extract optional generation parameter overrides (temperature, max_tokens,
         context_window) from an adapter config. These fall back to inference.yaml
@@ -535,7 +535,7 @@ class DynamicAdapterManager:
 
         return await self.video_cache.create_service(provider_name, adapter_name)
 
-    def get_adapter_config(self, adapter_name: str) -> Optional[Dict[str, Any]]:
+    def get_adapter_config(self, adapter_name: str) -> Optional[dict[str, Any]]:
         """
         Get the configuration for a specific adapter.
 
@@ -578,7 +578,7 @@ class DynamicAdapterManager:
         except Exception as e:
             logger.error(f"Failed to preload adapter {adapter_name}: {str(e)}")
 
-    async def preload_all_adapters(self, timeout_per_adapter: float = 30.0) -> Dict[str, Any]:
+    async def preload_all_adapters(self, timeout_per_adapter: float = 30.0) -> dict[str, Any]:
         """
         Preload all adapters in parallel with timeout protection.
 
@@ -663,11 +663,11 @@ class DynamicAdapterManager:
 
         return preload_results
 
-    def _build_preload_success_message(self, adapter_name: str, adapter_config: Dict[str, Any]) -> str:
+    def _build_preload_success_message(self, adapter_name: str, adapter_config: dict[str, Any]) -> str:
         """Build success message for adapter preloading."""
         return f"Preloaded successfully ({', '.join(self._build_adapter_info_parts(adapter_config))})"
 
-    def _build_preload_error_result(self, adapter_name: str, error: ValueError) -> Dict[str, Any]:
+    def _build_preload_error_result(self, adapter_name: str, error: ValueError) -> dict[str, Any]:
         """Build error result for adapter preloading."""
         if "No service registered for inference with provider" in str(error):
             adapter_config = self.get_adapter_config(adapter_name) or {}
@@ -707,7 +707,7 @@ class DynamicAdapterManager:
         await self.adapter_cache.clear()
         logger.info("Cleared all adapters from cache")
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """
         Perform health check on the adapter manager.
 
@@ -745,7 +745,7 @@ class DynamicAdapterManager:
             "datasource_pool": datasource_stats
         }
 
-    async def reload_adapter_configs(self, config: Dict[str, Any], adapter_name: Optional[str] = None) -> Dict[str, Any]:
+    async def reload_adapter_configs(self, config: dict[str, Any], adapter_name: Optional[str] = None) -> dict[str, Any]:
         """
         Reload adapter configurations from new config and perform hot-swap.
 
@@ -776,7 +776,7 @@ class DynamicAdapterManager:
         finally:
             self.dependency_cleaner.update_config(config)
 
-    async def reload_templates(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+    async def reload_templates(self, adapter_name: Optional[str] = None) -> dict[str, Any]:
         """
         Reload templates for intent adapters.
 
@@ -907,7 +907,7 @@ class AdapterProxy:
                                    query: str,
                                    adapter_name: str,
                                    api_key: Optional[str] = None,
-                                   **kwargs) -> list[Dict[str, Any]]:
+                                   **kwargs) -> list[dict[str, Any]]:
         """
         Get relevant context using the specified adapter.
 

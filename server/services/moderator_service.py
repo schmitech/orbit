@@ -12,7 +12,7 @@ across different client components.
 import asyncio
 import aiohttp
 import logging
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Optional
 
 # Import from new AI services architecture
 from ai_services.factory import AIServiceFactory
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class ModeratorService:
     """Handles safety verification of user queries using LLM-based guardrails or content moderation API"""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the ModeratorService
         
@@ -112,7 +112,7 @@ class ModeratorService:
             model = getattr(self, 'model', 'unknown')
             logger.debug(f"ModeratorService initialized with provider {provider}, model {model}, enabled={self.enabled}, mode={self.safety_mode}")
 
-    def _fallback_to_alternative_moderator(self, config: Dict[str, Any], safety_config: Dict[str, Any]):
+    def _fallback_to_alternative_moderator(self, config: dict[str, Any], safety_config: dict[str, Any]):
         """
         Try to fall back to an alternative moderator when the primary one fails.
 
@@ -155,7 +155,7 @@ class ModeratorService:
         logger.warning("No alternative moderators available, falling back to inference provider")
         self._fallback_to_inference_provider(config, safety_config)
 
-    def _fallback_to_inference_provider(self, config: Dict[str, Any], safety_config: Dict[str, Any]):
+    def _fallback_to_inference_provider(self, config: dict[str, Any], safety_config: dict[str, Any]):
         """
         Fall back to using the general inference provider for safety checks.
         
@@ -178,7 +178,7 @@ class ModeratorService:
         logger.info(f"Safety service using model: {self.model}")
         logger.info(f"Safety service using base URL: {self.base_url}")
 
-    def _load_safety_prompt(self, safety_config: Dict[str, Any]) -> str:
+    def _load_safety_prompt(self, safety_config: dict[str, Any]) -> str:
         """
         Load the safety prompt from file or use default.
         
@@ -268,7 +268,7 @@ Query: """
         is_safe, _ = await self.check_safety(query)
         return is_safe
 
-    async def check_safety(self, query: str) -> Tuple[bool, Optional[str]]:
+    async def check_safety(self, query: str) -> tuple[bool, Optional[str]]:
         """
         Perform a safety verification check on the user query.
         Supports multilingual queries.
@@ -298,7 +298,7 @@ Query: """
         # Otherwise use the configured LLM-based safety check.
         return await self._check_safety_with_llm(query)
     
-    async def _check_safety_with_moderator(self, query: str) -> Tuple[bool, Optional[str]]:
+    async def _check_safety_with_moderator(self, query: str) -> tuple[bool, Optional[str]]:
         """
         Check query safety using a dedicated content moderator.
         
@@ -442,7 +442,7 @@ Query: """
                     logger.warning("🚫 MODERATION FAILED: Blocking query after multiple failed attempts")
                     return False, "I cannot assist with that request due to a service issue. Please try again later."
     
-    async def _check_safety_with_llm(self, query: str) -> Tuple[bool, Optional[str]]:
+    async def _check_safety_with_llm(self, query: str) -> tuple[bool, Optional[str]]:
         """
         Legacy method to check safety using LLM-based verification.
         
@@ -533,7 +533,7 @@ Query: """
                     logger.warning("🚫 Blocking query after error")
                     return False, "I cannot assist with that type of request."
     
-    async def _process_safety_response(self, model_response: str) -> Tuple[bool, Optional[str]]:
+    async def _process_safety_response(self, model_response: str) -> tuple[bool, Optional[str]]:
             """
             Process the LLM response to determine if the query is safe.
             

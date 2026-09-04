@@ -22,7 +22,7 @@ examples/intent-templates/ (not from documentation), so it reflects what
 templates actually look like today, not an idealized shape.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -37,12 +37,12 @@ class ParameterSpec(BaseModel):
     required: bool = False
     default: Optional[Any] = None
     description: Optional[str] = None
-    allowed_values: Optional[List[Any]] = None
+    allowed_values: Optional[list[Any]] = None
     min: Optional[float] = None
     max: Optional[float] = None
     max_length: Optional[int] = None
     pattern: Optional[str] = None
-    aliases: Optional[List[str]] = None
+    aliases: Optional[list[str]] = None
     example: Optional[Any] = None
     location: Optional[str] = None  # HTTP-family: "path" | "query" | "body" | "header"
     format: Optional[str] = None
@@ -59,25 +59,25 @@ class TemplateSpec(BaseModel):
     id: str
     version: str = "0.0.0"
     description: str = ""
-    nl_examples: List[str] = Field(default_factory=list)
-    tags: List[Any] = Field(default_factory=list)
-    semantic_tags: Optional[Dict[str, Any]] = None
+    nl_examples: list[str] = Field(default_factory=list)
+    tags: list[Any] = Field(default_factory=list)
+    semantic_tags: Optional[dict[str, Any]] = None
     semantic_type: Optional[str] = None
     category: Optional[str] = None
     complexity: Optional[str] = None
     approved: bool = False
 
     # Parameters
-    parameters: List[ParameterSpec] = Field(default_factory=list)
+    parameters: list[ParameterSpec] = Field(default_factory=list)
 
     # Result shaping
     result_format: Optional[str] = None
-    response_mapping: Optional[Dict[str, Any]] = None
-    display_fields: Optional[List[Any]] = None
+    response_mapping: Optional[dict[str, Any]] = None
+    display_fields: Optional[list[Any]] = None
 
     # Cross-adapter composite templates
     cross_adapter: Optional[bool] = None
-    target_adapters: Optional[List[Union[str, Dict[str, Any]]]] = None
+    target_adapters: Optional[list[Union[str, dict[str, Any]]]] = None
     merge_strategy: Optional[str] = None
     partial_results: Optional[bool] = None
 
@@ -96,9 +96,9 @@ class TemplateSpec(BaseModel):
     endpoint: Optional[str] = None
     endpoint_template: Optional[str] = None
     endpoint_type: Optional[str] = None
-    headers: Optional[Dict[str, Any]] = None
-    query_params: Optional[Dict[str, Any]] = None
-    request_body: Optional[Union[str, Dict[str, Any]]] = None
+    headers: Optional[dict[str, Any]] = None
+    query_params: Optional[dict[str, Any]] = None
+    request_body: Optional[Union[str, dict[str, Any]]] = None
     timeout: Optional[float] = None
 
     # MongoDB
@@ -117,12 +117,12 @@ class TemplateSpec(BaseModel):
     graphql_template: Optional[str] = None
 
     # Firecrawl / web
-    url_mapping: Optional[Dict[str, Any]] = None
-    formats: Optional[List[str]] = None
+    url_mapping: Optional[dict[str, Any]] = None
+    formats: Optional[list[str]] = None
 
     # Agent / tool-calling
     tool_type: Optional[str] = None
-    function_schema: Optional[Dict[str, Any]] = None
+    function_schema: Optional[dict[str, Any]] = None
     execution: Optional[Any] = None
 
     @field_validator("semantic_tags", mode="before")
@@ -131,7 +131,7 @@ class TemplateSpec(BaseModel):
         """Normalize a list of single-key mappings into one merged dict — a
         drift some templates exhibit instead of a single semantic_tags dict."""
         if isinstance(value, list):
-            merged: Dict[str, Any] = {}
+            merged: dict[str, Any] = {}
             for item in value:
                 if isinstance(item, dict):
                     merged.update(item)

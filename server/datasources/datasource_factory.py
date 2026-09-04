@@ -7,7 +7,7 @@ ChromaDB, SQLite, PostgreSQL, Oracle, MySQL, MariaDB, SQL Server, MongoDB, and C
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 from .registry import get_registry
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class DatasourceFactory:
     registry for actual datasource creation and management.
     """
     
-    def __init__(self, config: Dict[str, Any], logger):
+    def __init__(self, config: dict[str, Any], logger):
         """
         Initialize the DatasourceFactory.
         

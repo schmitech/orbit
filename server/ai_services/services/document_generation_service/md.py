@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Any
 
 from .base import BaseRenderer
 
@@ -6,8 +6,8 @@ from .base import BaseRenderer
 class MarkdownRenderer(BaseRenderer):
     """Render a document spec to Markdown bytes."""
 
-    def render(self, spec: Dict[str, Any]) -> bytes:
-        lines: List[str] = []
+    def render(self, spec: dict[str, Any]) -> bytes:
+        lines: list[str] = []
 
         title = spec.get("title", "Document")
         lines.append(f"# {title}")
@@ -37,7 +37,7 @@ class MarkdownRenderer(BaseRenderer):
         return "\n".join(lines).encode("utf-8")
 
     @staticmethod
-    def _render_table(table_data) -> List[str]:
+    def _render_table(table_data) -> list[str]:
         normalized = MarkdownRenderer._normalize_table_rows(table_data)
         if not normalized:
             return []
@@ -49,7 +49,7 @@ class MarkdownRenderer(BaseRenderer):
             for c in range(col_count)
         ]
 
-        def _row_line(row: List[str]) -> str:
+        def _row_line(row: list[str]) -> str:
             cells = [str(cell).ljust(widths[c]) for c, cell in enumerate(row)]
             return "| " + " | ".join(cells) + " |"
 

@@ -4,7 +4,7 @@ AWS Athena Intent Retriever using the unified base classes.
 
 import logging
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from retrievers.base.intent_sql_base import IntentSQLRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -17,7 +17,7 @@ class IntentAthenaRetriever(IntentSQLRetriever):
     Athena-specific intent retriever using the unified SQL intent base.
     """
 
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
         """Initialize Athena intent retriever."""
         super().__init__(config=config, domain_adapter=domain_adapter, connection=connection, **kwargs)
 
@@ -66,7 +66,7 @@ class IntentAthenaRetriever(IntentSQLRetriever):
         except Exception:
             return False
 
-    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """
         Execute Athena query with parameter-format normalization.
         PyAthena supports `%(name)s` style best, so normalize `:name` and `?`.
@@ -137,7 +137,7 @@ class IntentAthenaRetriever(IntentSQLRetriever):
         Escapes:
         - `%` in SQL string literals like `LIKE '%cloud%'`
         """
-        out: List[str] = []
+        out: list[str] = []
         i = 0
         n = len(query)
 

@@ -6,7 +6,8 @@ No authentication is required; the api_key config value is a placeholder
 that the local server ignores (conventional value: "lm-studio").
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...providers import OpenAICompatibleBaseService
 from ...services import InferenceService
@@ -15,7 +16,7 @@ from ...services import InferenceService
 class LMStudioInferenceService(InferenceService, OpenAICompatibleBaseService):
     """LM Studio inference service using unified architecture."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         InferenceService.__init__(self, config, "lmstudio")
 
         self.temperature = self._get_temperature(default=0.7)

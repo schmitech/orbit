@@ -4,7 +4,8 @@ Uses the huggingface_hub AsyncInferenceClient chat_completion API,
 which mirrors the OpenAI chat completions interface.
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 import logging
 
 from ...base import ServiceType
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class HuggingFaceInferenceService(InferenceService, HuggingFaceBaseService):
     """Hugging Face inference service using the chat completions API."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         HuggingFaceBaseService.__init__(self, config, ServiceType.INFERENCE)
         InferenceService.__init__(self, config, "huggingface")
         self.temperature = self._get_temperature(default=0.7)

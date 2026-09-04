@@ -4,7 +4,7 @@ Test NEAR AI Cloud inference service implementation.
 
 import os
 import sys
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -19,7 +19,7 @@ class TestNearAIInferenceService:
     """Test cases for NEAR AI Cloud inference service."""
 
     @pytest.fixture
-    def mock_config(self) -> Dict[str, Any]:
+    def mock_config(self) -> dict[str, Any]:
         return {
             "inference": {
                 "nearai": {

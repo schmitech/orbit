@@ -5,7 +5,7 @@ This module provides a unified base class for Google Cloud-based services,
 consolidating common functionality like credential management and client initialization.
 """
 
-from typing import Dict, Any
+from typing import Any
 import logging
 
 from ..base import ProviderAIService, ServiceType
@@ -29,7 +29,7 @@ class GoogleBaseService(ProviderAIService):
 
     DEFAULT_LOCATION = "us-central1"
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType, provider_name: str):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType, provider_name: str):
         """
         Initialize the Google base service.
 

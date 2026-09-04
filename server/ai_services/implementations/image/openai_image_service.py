@@ -3,7 +3,7 @@ OpenAI image generation service (DALL-E 2/3, GPT-Image-1).
 """
 
 import base64
-from typing import Dict, Any
+from typing import Any
 
 from ...base import ServiceType
 from ...providers import OpenAIBaseService
@@ -18,7 +18,7 @@ class OpenAIImageService(ImageGenerationService, OpenAIBaseService):
     explicit b64_json response_format to avoid expiring URLs.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         OpenAIBaseService.__init__(self, config, ServiceType.IMAGE_GENERATION, "openai")
         provider_config = self._extract_provider_config()
         self.size = provider_config.get("size", "1024x1024")
@@ -29,7 +29,7 @@ class OpenAIImageService(ImageGenerationService, OpenAIBaseService):
         self.background = provider_config.get("background")
         self.moderation = provider_config.get("moderation")
 
-    async def generate_image(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_image(self, prompt: str, **kwargs) -> dict[str, Any]:
         """Generate an image using the OpenAI Images API."""
         if not self.initialized:
             await self.initialize()
@@ -46,7 +46,7 @@ class OpenAIImageService(ImageGenerationService, OpenAIBaseService):
         is_gpt_image = model_lower.startswith("gpt-image")
         is_dalle = model_lower.startswith("dall-e")
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": model,
             "prompt": prompt,
             "n": 1,

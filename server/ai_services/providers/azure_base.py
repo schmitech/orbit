@@ -6,7 +6,7 @@ consolidating common functionality like credential management, client initializa
 and error handling for Azure services.
 """
 
-from typing import Dict, Any
+from typing import Any
 import logging
 
 from ..base import ProviderAIService, ServiceType
@@ -30,7 +30,7 @@ class AzureBaseService(ProviderAIService):
     """
 
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "azure"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "azure"):
         """
         Initialize the azure base service.
 

@@ -9,7 +9,7 @@ vision-backed providers rasterize pages first.
 """
 
 from abc import abstractmethod
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from ..base import ProviderAIService, ServiceType
 
@@ -26,7 +26,7 @@ class OcrService(ProviderAIService):
     # Class attribute for service type
     service_type = ServiceType.OCR
 
-    def __init__(self, config: Dict[str, Any], provider_name: str):
+    def __init__(self, config: dict[str, Any], provider_name: str):
         """
         Initialize the OCR service.
 
@@ -42,7 +42,7 @@ class OcrService(ProviderAIService):
         file_data: bytes,
         mime_type: str,
         filename: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Extract text from a document (PDF or image) as markdown.
 
@@ -62,7 +62,7 @@ class OcrService(ProviderAIService):
 # Helper function for service creation
 def create_ocr_service(
     provider: str,
-    config: Dict[str, Any]
+    config: dict[str, Any]
 ) -> OcrService:
     """
     Factory function to create an OCR service.

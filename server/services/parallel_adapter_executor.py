@@ -10,7 +10,8 @@ import time
 import logging
 import random
 import threading
-from typing import Dict, Any, List, Optional, Callable
+from typing import Any, Optional
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
@@ -37,18 +38,18 @@ class CircuitBreakerStats:
     total_failures: int = 0
     total_successes: int = 0
     timeout_calls: int = 0
-    
+
     # Time-series data for memory leak prevention
-    call_history: List[Dict[str, Any]] = field(default_factory=list)
-    state_transitions: List[Dict[str, Any]] = field(default_factory=list)
-    
+    call_history: list[dict[str, Any]] = field(default_factory=list)
+    state_transitions: list[dict[str, Any]] = field(default_factory=list)
+
     # Max history size to cap list growth between cleanups (0 = unlimited)
     max_history_size: int = 10000
     max_transitions_size: int = 1000
-    
+
     # Thread safety lock (not serialized)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
-    
+
     def add_call_record(self, timestamp: float, success: bool, execution_time: float = 0.0):
         """Add a call record to history (thread-safe)"""
         with self._lock:
@@ -61,7 +62,7 @@ class CircuitBreakerStats:
             if self.max_history_size > 0 and len(self.call_history) > self.max_history_size:
                 # Remove oldest records (keep most recent)
                 self.call_history = self.call_history[-self.max_history_size:]
-    
+
     def add_state_transition(self, timestamp: float, from_state: str, to_state: str, reason: str = ""):
         """Add a state transition record (thread-safe)"""
         with self._lock:
@@ -75,23 +76,23 @@ class CircuitBreakerStats:
             if self.max_transitions_size > 0 and len(self.state_transitions) > self.max_transitions_size:
                 # Remove oldest transitions (keep most recent)
                 self.state_transitions = self.state_transitions[-self.max_transitions_size:]
-    
+
     def cleanup_old_records(self, cutoff_time: float):
         """Remove records older than cutoff_time (thread-safe)"""
         with self._lock:
             # Clean up call history in-place to reduce memory spike
             self.call_history[:] = [
-                record for record in self.call_history 
+                record for record in self.call_history
                 if record['timestamp'] >= cutoff_time
             ]
-            
+
             # Clean up state transitions in-place
             self.state_transitions[:] = [
-                transition for transition in self.state_transitions 
+                transition for transition in self.state_transitions
                 if transition['timestamp'] >= cutoff_time
             ]
-    
-    def get_history_sizes(self) -> Dict[str, int]:
+
+    def get_history_sizes(self) -> dict[str, int]:
         """Get current history sizes (thread-safe)"""
         with self._lock:
             return {
@@ -108,7 +109,7 @@ class AdapterExecutionContext:
     trace_id: Optional[str] = None
     session_id: Optional[str] = None
     correlation_id: Optional[str] = None
-    
+
     def get_log_prefix(self) -> str:
         """Get a consistent log prefix for this context"""
         parts = [f"[{self.request_id}]"]
@@ -133,44 +134,44 @@ class AdapterResult:
 
 class CircuitBreakerEventHandler(ABC):
     """Abstract base class for circuit breaker event handlers"""
-    
+
     @abstractmethod
-    async def on_circuit_open(self, adapter_name: str, stats: Dict[str, Any], reason: str = ""):
+    async def on_circuit_open(self, adapter_name: str, stats: dict[str, Any], reason: str = ""):
         """Called when circuit opens"""
         pass
-    
+
     @abstractmethod
-    async def on_circuit_close(self, adapter_name: str, stats: Dict[str, Any]):
+    async def on_circuit_close(self, adapter_name: str, stats: dict[str, Any]):
         """Called when circuit closes"""
         pass
-    
+
     @abstractmethod
-    async def on_circuit_half_open(self, adapter_name: str, stats: Dict[str, Any]):
+    async def on_circuit_half_open(self, adapter_name: str, stats: dict[str, Any]):
         """Called when circuit transitions to half-open"""
         pass
-    
+
     @abstractmethod
-    async def on_circuit_reset(self, adapter_name: str, stats: Dict[str, Any]):
+    async def on_circuit_reset(self, adapter_name: str, stats: dict[str, Any]):
         """Called when circuit is reset"""
         pass
 
 
 class DefaultCircuitBreakerEventHandler(CircuitBreakerEventHandler):
     """Default event handler that logs events"""
-    
-    async def on_circuit_open(self, adapter_name: str, stats: Dict[str, Any], reason: str = ""):
+
+    async def on_circuit_open(self, adapter_name: str, stats: dict[str, Any], reason: str = ""):
         """Log circuit open event"""
         logger.warning(f"Circuit breaker OPENED for adapter: {adapter_name} - {reason}")
-    
-    async def on_circuit_close(self, adapter_name: str, stats: Dict[str, Any]):
+
+    async def on_circuit_close(self, adapter_name: str, stats: dict[str, Any]):
         """Log circuit close event"""
         logger.info(f"Circuit breaker CLOSED for adapter: {adapter_name}")
-    
-    async def on_circuit_half_open(self, adapter_name: str, stats: Dict[str, Any]):
+
+    async def on_circuit_half_open(self, adapter_name: str, stats: dict[str, Any]):
         """Log circuit half-open event"""
         logger.info(f"Circuit breaker HALF-OPEN for adapter: {adapter_name}")
-    
-    async def on_circuit_reset(self, adapter_name: str, stats: Dict[str, Any]):
+
+    async def on_circuit_reset(self, adapter_name: str, stats: dict[str, Any]):
         """Log circuit reset event"""
         logger.info(f"Circuit breaker RESET for adapter: {adapter_name}")
 
@@ -194,29 +195,29 @@ class MonitoringCircuitBreakerEventHandler(CircuitBreakerEventHandler):
         except Exception as e:
             logger.error(f"Circuit breaker {label} callback failed for {kwargs.get('adapter_name', '?')}: {e}")
 
-    async def on_circuit_open(self, adapter_name: str, stats: Dict[str, Any], reason: str = ""):
+    async def on_circuit_open(self, adapter_name: str, stats: dict[str, Any], reason: str = ""):
         logger.warning(f"Circuit breaker OPENED for adapter: {adapter_name} - {reason}")
         base = dict(event_type="circuit_open", adapter_name=adapter_name, stats=stats)
         await self._call_callback("alert", self.alert_callback, **base, reason=reason)
         await self._call_callback("dashboard", self.dashboard_callback, **base)
         await self._call_callback("metrics", self.metrics_callback, **base)
 
-    async def on_circuit_close(self, adapter_name: str, stats: Dict[str, Any]):
+    async def on_circuit_close(self, adapter_name: str, stats: dict[str, Any]):
         logger.info(f"Circuit breaker CLOSED for adapter: {adapter_name}")
         base = dict(event_type="circuit_close", adapter_name=adapter_name, stats=stats)
         await self._call_callback("dashboard", self.dashboard_callback, **base)
         await self._call_callback("metrics", self.metrics_callback, **base)
 
-    async def on_circuit_half_open(self, adapter_name: str, stats: Dict[str, Any]):
+    async def on_circuit_half_open(self, adapter_name: str, stats: dict[str, Any]):
         logger.info(f"Circuit breaker HALF-OPEN for adapter: {adapter_name}")
         await self._call_callback("dashboard", self.dashboard_callback,
                                   event_type="circuit_half_open", adapter_name=adapter_name, stats=stats)
 
-    async def on_circuit_reset(self, adapter_name: str, stats: Dict[str, Any]):
+    async def on_circuit_reset(self, adapter_name: str, stats: dict[str, Any]):
         logger.info(f"Circuit breaker RESET for adapter: {adapter_name}")
         await self._call_callback("dashboard", self.dashboard_callback,
                                   event_type="circuit_reset", adapter_name=adapter_name, stats=stats)
-    
+
 class SimpleCircuitBreaker:
     """Simplified circuit breaker for a single adapter"""
 
@@ -229,9 +230,9 @@ class SimpleCircuitBreaker:
                  max_half_open_calls: int = 1):
         self.adapter_name = adapter_name
         self.failure_threshold = failure_threshold
-        self.base_recovery_timeout = recovery_timeout
+        self.base_recovery_timeout = recovery_timeou
         self.success_threshold = success_threshold
-        self.max_recovery_timeout = max_recovery_timeout
+        self.max_recovery_timeout = max_recovery_timeou
         self.enable_exponential_backoff = enable_exponential_backoff
 
         # Memory leak prevention settings
@@ -246,7 +247,7 @@ class SimpleCircuitBreaker:
 
         # Exponential backoff tracking
         self.recovery_attempts = 0
-        self.current_recovery_timeout = recovery_timeout
+        self.current_recovery_timeout = recovery_timeou
 
         # Half-open probe gating
         self.max_half_open_calls = max_half_open_calls
@@ -261,16 +262,16 @@ class SimpleCircuitBreaker:
             max_transitions_size=max_transitions_size
         )
         self._state_changed_at = time.time()
-    
+
     def _calculate_recovery_timeout(self) -> float:
         """Calculate recovery timeout with exponential backoff and jitter"""
         if not self.enable_exponential_backoff:
-            return self.base_recovery_timeout
+            return self.base_recovery_timeou
 
         # Exponential backoff with jitter
         backoff = min(
             self.base_recovery_timeout * (2 ** self.recovery_attempts),
-            self.max_recovery_timeout
+            self.max_recovery_timeou
         )
         # Add jitter to prevent thundering herd (0-10% of backoff)
         jitter = random.uniform(0, backoff * 0.1)
@@ -337,7 +338,7 @@ class SimpleCircuitBreaker:
     def can_execute(self) -> bool:
         """Check if the circuit allows execution (not open)"""
         return not self.is_open()
-    
+
     def record_success(self, *args, **kwargs):
         """Record a successful call (accepts optional args for compatibility)"""
         current_time = time.time()
@@ -392,7 +393,7 @@ class SimpleCircuitBreaker:
             elif self.state == CircuitState.HALF_OPEN:
                 self._half_open_probes = max(0, self._half_open_probes - 1)
                 self._open_circuit()
-    
+
     def _open_circuit(self):
         """Open the circuit. Must be called while holding self._lock."""
         current_time = time.time()
@@ -432,7 +433,7 @@ class SimpleCircuitBreaker:
 
         # Reset exponential backoff when circuit closes successfully
         self.recovery_attempts = 0
-        self.current_recovery_timeout = self.base_recovery_timeout
+        self.current_recovery_timeout = self.base_recovery_timeou
 
         logger.info(f"Circuit breaker CLOSED for adapter: {self.adapter_name} "
                     f"(recovery_attempts reset to 0)")
@@ -457,8 +458,8 @@ class SimpleCircuitBreaker:
 
         status = self.get_status()
         self._emit_event(lambda: self.event_handler.on_circuit_half_open(self.adapter_name, status))
-    
-    def get_status(self) -> Dict[str, Any]:
+
+    def get_status(self) -> dict[str, Any]:
         """Get circuit breaker status (thread-safe)"""
         with self._lock:
             success_rate = 0.0
@@ -490,10 +491,10 @@ class SimpleCircuitBreaker:
                     "recovery_attempts": self.recovery_attempts,
                     "current_timeout": self.current_recovery_timeout,
                     "base_timeout": self.base_recovery_timeout,
-                    "max_timeout": self.max_recovery_timeout
+                    "max_timeout": self.max_recovery_timeou
                 }
             }
-    
+
     def _run_cleanup(self) -> tuple:
         """Prune records older than retention_period. Returns (removed_calls, removed_transitions).
 
@@ -525,7 +526,7 @@ class SimpleCircuitBreaker:
         removed_calls, removed_transitions = self._run_cleanup()
         logger.info(f"Circuit breaker forced cleanup for {self.adapter_name}: "
                     f"removed {removed_calls} call records, {removed_transitions} transition records")
-    
+
     def reset(self):
         """Reset the circuit breaker stats and state"""
         with self._lock:
@@ -538,7 +539,7 @@ class SimpleCircuitBreaker:
 
             # Reset exponential backoff state
             self.recovery_attempts = 0
-            self.current_recovery_timeout = self.base_recovery_timeout
+            self.current_recovery_timeout = self.base_recovery_timeou
 
             # Reset half-open probe counter
             self._half_open_probes = 0
@@ -555,18 +556,18 @@ class SimpleCircuitBreaker:
 class ParallelAdapterExecutor:
     """
     Simplified parallel adapter executor with circuit breaker protection.
-    
+
     This executor:
     - Runs adapters truly in parallel using asyncio
     - Applies circuit breaker pattern to each adapter
     - Handles timeouts properly
     - Provides simple, debuggable code
     """
-    
-    def __init__(self, adapter_manager, config: Dict[str, Any]):
+
+    def __init__(self, adapter_manager, config: dict[str, Any]):
         self.adapter_manager = adapter_manager
         self.config = config
-        
+
         # Circuit breaker configuration
         ft_config = config.get('fault_tolerance', {})
         cb_config = ft_config.get('circuit_breaker', {})
@@ -576,47 +577,47 @@ class ParallelAdapterExecutor:
         self.success_threshold = ft_config.get('success_threshold', cb_config.get('success_threshold', 3))
         # Use execution.timeout if available, else fallback
         self.operation_timeout = exec_config.get('timeout', ft_config.get('operation_timeout', 30.0))
-        
+
         # Memory leak prevention global defaults (from circuit_breaker config)
-        self.cleanup_interval = cb_config.get('cleanup_interval', 3600.0)  # 1 hour default
-        self.retention_period = cb_config.get('retention_period', 86400.0)  # 24 hours default
+        self.cleanup_interval = cb_config.get('cleanup_interval', 3600.0)  # 1 hour defaul
+        self.retention_period = cb_config.get('retention_period', 86400.0)  # 24 hours defaul
         self.max_history_size = cb_config.get('max_history_size', 10000)  # Max call history records
         self.max_transitions_size = cb_config.get('max_transitions_size', 1000)  # Max state transitions
-        
+
         # Execution configuration
         self.max_concurrent = exec_config.get('max_concurrent_adapters', ft_config.get('max_concurrent_adapters', 10))
         self.execution_strategy = exec_config.get('strategy', ft_config.get('adapter_selection_strategy', 'all'))
-        
+
         # Circuit breakers for each adapter
-        self.circuit_breakers: Dict[str, SimpleCircuitBreaker] = {}
-        
+        self.circuit_breakers: dict[str, SimpleCircuitBreaker] = {}
+
         # Thread pool for CPU-bound operations
         self.thread_pool = ThreadPoolExecutor(max_workers=self.max_concurrent)
-        
+
         # Graceful shutdown handling
         self._shutdown_event = asyncio.Event()
         self._active_requests = set()
         self._shutdown_timeout = exec_config.get('shutdown_timeout', 30.0)
-        
+
         logger.debug(f"ParallelAdapterExecutor initialized with timeout={self.operation_timeout}s")
-    
+
     @property
     def timeout(self):
-        return self.operation_timeout
-    
+        return self.operation_timeou
+
     @timeout.setter
     def timeout(self, value):
         self.operation_timeout = value
-    
+
     @property
     def strategy(self):
         return self.execution_strategy
-    
+
     @strategy.setter
     def strategy(self, value):
         self.execution_strategy = value
-    
-    def _combine_results(self, results: List[AdapterResult]) -> List[Dict[str, Any]]:
+
+    def _combine_results(self, results: list[AdapterResult]) -> list[dict[str, Any]]:
         """Combine successful adapter results into a single list with metadata."""
         combined = []
         for result in results:
@@ -625,7 +626,7 @@ class ParallelAdapterExecutor:
                     item = dict(item)
                     item["adapter_name"] = result.adapter_name
                     item["execution_time"] = result.execution_time
-                    
+
                     # Add context information if available
                     if result.context:
                         item["request_id"] = result.context.request_id
@@ -637,15 +638,15 @@ class ParallelAdapterExecutor:
                             item["session_id"] = result.context.session_id
                         if result.context.correlation_id:
                             item["correlation_id"] = result.context.correlation_id
-                    
+
                     combined.append(item)
         return combined
-    
-    def get_circuit_breaker_states(self) -> Dict[str, Any]:
+
+    def get_circuit_breaker_states(self) -> dict[str, Any]:
         """Get the state of all circuit breakers."""
         return {name: cb.get_status() for name, cb in self.circuit_breakers.items()}
-    
-    def get_health_status(self) -> Dict[str, Any]:
+
+    def get_health_status(self) -> dict[str, Any]:
         """Get overall health status of the executor."""
         total = len(self.circuit_breakers)
         healthy = sum(1 for cb in self.circuit_breakers.values() if cb.state == CircuitState.CLOSED)
@@ -658,26 +659,26 @@ class ParallelAdapterExecutor:
                 "is_shutting_down": self.is_shutting_down(),
                 "active_request_count": self.get_active_request_count(),
                 "active_requests": self.get_active_requests(),
-                "shutdown_timeout": self._shutdown_timeout
+                "shutdown_timeout": self._shutdown_timeou
             }
         }
-    
-    def _get_adapter_config(self, adapter_name: str) -> Dict[str, Any]:
+
+    def _get_adapter_config(self, adapter_name: str) -> dict[str, Any]:
         """Get adapter-specific configuration"""
         adapter_configs = self.config.get('adapters', [])
         return next((a for a in adapter_configs if a['name'] == adapter_name), {})
-    
-    def _get_adapter_fault_tolerance_config(self, adapter_name: str) -> Dict[str, Any]:
+
+    def _get_adapter_fault_tolerance_config(self, adapter_name: str) -> dict[str, Any]:
         """Get adapter-specific fault tolerance configuration"""
         adapter_config = self._get_adapter_config(adapter_name)
         return adapter_config.get('fault_tolerance', {})
-    
+
     def _get_circuit_breaker(self, adapter_name: str) -> SimpleCircuitBreaker:
         """Get or create circuit breaker for adapter with adapter-specific settings"""
         if adapter_name not in self.circuit_breakers:
             # Get adapter-specific fault tolerance config
             ft_config = self._get_adapter_fault_tolerance_config(adapter_name)
-            
+
             # Use adapter-specific settings with fallback to global
             failure_threshold = ft_config.get('failure_threshold', self.failure_threshold)
             recovery_timeout = ft_config.get('recovery_timeout', self.recovery_timeout)
@@ -719,29 +720,29 @@ class ParallelAdapterExecutor:
                 max_half_open_calls,
             )
         return self.circuit_breakers[adapter_name]
-    
-    def _create_event_handler(self, event_handler_config: Dict[str, Any]) -> Optional[CircuitBreakerEventHandler]:
+
+    def _create_event_handler(self, event_handler_config: dict[str, Any]) -> Optional[CircuitBreakerEventHandler]:
         """Create event handler based on configuration"""
         if not event_handler_config:
             return None
-        
+
         handler_type = event_handler_config.get('type', 'default')
-        
+
         if handler_type == 'default':
             return DefaultCircuitBreakerEventHandler()
-        
+
         elif handler_type == 'monitoring':
             # Create monitoring event handler with callbacks
             alert_callback = event_handler_config.get('alert_callback')
             dashboard_callback = event_handler_config.get('dashboard_callback')
             metrics_callback = event_handler_config.get('metrics_callback')
-            
+
             return MonitoringCircuitBreakerEventHandler(
                 alert_callback=alert_callback,
                 dashboard_callback=dashboard_callback,
                 metrics_callback=metrics_callback
             )
-        
+
         elif handler_type == 'custom':
             # Allow custom event handler class
             custom_class = event_handler_config.get('class')
@@ -755,17 +756,17 @@ class ParallelAdapterExecutor:
                 except Exception as e:
                     logger.error(f"Failed to create custom event handler {custom_class}: {e}")
                     return DefaultCircuitBreakerEventHandler()
-        
+
         else:
             logger.warning(f"Unknown event handler type: {handler_type}, using default")
             return DefaultCircuitBreakerEventHandler()
-    
-    async def execute_adapters(self, query: str, adapter_names: List[str], 
+
+    async def execute_adapters(self, query: str, adapter_names: list[str],
                              context: Optional[AdapterExecutionContext] = None,
-                             api_key: Optional[str] = None, **kwargs) -> List[AdapterResult]:
+                             api_key: Optional[str] = None, **kwargs) -> list[AdapterResult]:
         """
         Execute multiple adapters in parallel with circuit breaker protection.
-        
+
         This is the main entry point that ensures true parallel execution.
         """
         # Create default context if none provided
@@ -775,9 +776,9 @@ class ParallelAdapterExecutor:
                 request_id=str(uuid.uuid4()),
                 api_key=api_key
             )
-        
+
         log_prefix = context.get_log_prefix()
-        
+
         # Check for shutdown before starting execution
         if self._shutdown_event.is_set():
             logger.warning(f"{log_prefix} Rejecting request - executor is shutting down")
@@ -787,22 +788,22 @@ class ParallelAdapterExecutor:
                 data=None,
                 error=RuntimeError("Executor is shutting down"),
                 execution_time=0.0,
-                context=context
+                context=contex
             ) for adapter_name in adapter_names]
-        
-        # Track active request
+
+        # Track active reques
         self._active_requests.add(context.request_id)
         try:
             if not adapter_names:
                 logger.warning(f"{log_prefix} No adapter names provided")
                 return []
-            
+
             logger.info(f"{log_prefix} Executing {len(adapter_names)} adapters: {adapter_names}")
-            
+
             # Filter out adapters with open circuits
             available_adapters = []
             circuit_open_results = []
-            
+
             for adapter_name in adapter_names:
                 cb = self._get_circuit_breaker(adapter_name)
                 if not cb.is_open():
@@ -816,13 +817,13 @@ class ParallelAdapterExecutor:
                         data=None,
                         error=Exception(f"Circuit is open for adapter {adapter_name}"),
                         execution_time=0.0,
-                        context=context
+                        context=contex
                     ))
-            
+
             if not available_adapters:
                 logger.warning(f"{log_prefix} All circuits are open, no adapters available")
                 return circuit_open_results
-            
+
             # Enforce max_concurrent batching
             results = circuit_open_results.copy()  # Start with circuit-open results
             for i in range(0, len(available_adapters), self.max_concurrent):
@@ -831,22 +832,22 @@ class ParallelAdapterExecutor:
                 tasks = [asyncio.create_task(self._execute_single_adapter(adapter_name, query, context, api_key, **kwargs)) for adapter_name in batch]
                 batch_results = await asyncio.gather(*tasks)
                 results.extend(batch_results)
-            
+
             successful_count = sum(1 for r in results if r.success)
             logger.info(f"{log_prefix} Completed execution: {successful_count}/{len(results)} adapters successful")
-            
+
             return results
-            
+
         finally:
             # Always remove from active requests
             self._active_requests.discard(context.request_id)
-    
+
     async def _execute_single_adapter(self, adapter_name: str, query: str,
                                     context: AdapterExecutionContext,
                                     api_key: Optional[str] = None, **kwargs) -> AdapterResult:
         """Execute a single adapter with timeout and circuit breaker protection"""
         log_prefix = context.get_log_prefix()
-        
+
         cb = self._get_circuit_breaker(adapter_name)
         if cb.is_open():
             logger.debug(f"{log_prefix} Circuit is open for adapter {adapter_name}")
@@ -856,7 +857,7 @@ class ParallelAdapterExecutor:
                 data=None,
                 error=Exception(f"Circuit is open for adapter {adapter_name}"),
                 execution_time=0.0,
-                context=context
+                context=contex
             )
 
         if not cb._claim_half_open_slot():
@@ -872,57 +873,57 @@ class ParallelAdapterExecutor:
                 data=None,
                 error=Exception(message),
                 execution_time=0.0,
-                context=context
+                context=contex
             )
 
-        # Get adapter-specific timeout
+        # Get adapter-specific timeou
         ft_config = self._get_adapter_fault_tolerance_config(adapter_name)
         adapter_timeout = ft_config.get('operation_timeout', self.operation_timeout)
-        
+
         logger.debug(f"{log_prefix} Starting execution of adapter {adapter_name} (timeout: {adapter_timeout}s)")
         start_time = time.time()
-        
+
         try:
             # Apply timeout to the entire operation
             adapter = await asyncio.wait_for(
                 self._get_adapter_with_timeout(adapter_name),
                 timeout=adapter_timeout * 0.3  # 30% of time for initialization
             )
-            
-            # Execute the query with remaining timeout
+
+            # Execute the query with remaining timeou
             remaining_timeout = adapter_timeout * 0.7  # 70% for execution
             result = await asyncio.wait_for(
                 self._execute_adapter_query(adapter, query, context, api_key, **kwargs),
-                timeout=remaining_timeout
+                timeout=remaining_timeou
             )
-            
+
             # Record success
             execution_time = time.time() - start_time
             cb.record_success(execution_time=execution_time)
-            
+
             logger.debug(f"{log_prefix} Adapter {adapter_name} completed successfully in {execution_time:.2f}s")
-            
+
             return AdapterResult(
                 adapter_name=adapter_name,
                 success=True,
                 data=result,
                 execution_time=execution_time,
-                context=context
+                context=contex
             )
-            
+
         except asyncio.TimeoutError:
             execution_time = time.time() - start_time
             cb.record_failure(execution_time=execution_time)
             with cb._lock:
                 cb.stats.timeout_calls += 1
             logger.warning(f"{log_prefix} Timeout for adapter {adapter_name} after {execution_time:.2f}s (timeout: {adapter_timeout}s)")
-            
+
             return AdapterResult(
                 adapter_name=adapter_name,
                 success=False,
                 error=Exception(f"Timeout for adapter {adapter_name}"),
                 execution_time=execution_time,
-                context=context
+                context=contex
             )
         except asyncio.CancelledError:
             cb._release_half_open_slot()
@@ -932,15 +933,15 @@ class ParallelAdapterExecutor:
             execution_time = time.time() - start_time
             cb.record_failure(execution_time=execution_time)
             logger.error(f"{log_prefix} Error in adapter {adapter_name}: {str(e)}")
-            
+
             return AdapterResult(
                 adapter_name=adapter_name,
                 success=False,
                 error=e,
                 execution_time=execution_time,
-                context=context
+                context=contex
             )
-    
+
     async def _get_adapter_with_timeout(self, adapter_name: str):
         """Get adapter with proper timeout handling"""
         # If the adapter manager's get_adapter is synchronous, run it in executor
@@ -954,8 +955,8 @@ class ParallelAdapterExecutor:
                 self.adapter_manager.get_adapter,
                 adapter_name
             )
-    
-    async def _execute_adapter_query(self, adapter, query: str, context: AdapterExecutionContext, 
+
+    async def _execute_adapter_query(self, adapter, query: str, context: AdapterExecutionContext,
                                    api_key: Optional[str], **kwargs):
         """Execute adapter query with proper async handling and context propagation"""
         # Add context information to kwargs for adapter consumption
@@ -965,7 +966,7 @@ class ParallelAdapterExecutor:
         adapter_kwargs['user_id'] = context.user_id
         adapter_kwargs['session_id'] = context.session_id
         adapter_kwargs['correlation_id'] = context.correlation_id
-        
+
         if asyncio.iscoroutinefunction(adapter.get_relevant_context):
             return await adapter.get_relevant_context(query=query, api_key=api_key, **adapter_kwargs)
         else:
@@ -975,13 +976,13 @@ class ParallelAdapterExecutor:
                 self.thread_pool,
                 functools.partial(adapter.get_relevant_context, query=query, api_key=api_key, **adapter_kwargs)
             )
-    
-    async def _execute_all_strategy(self, tasks: List[asyncio.Task], 
-                                  adapter_names: List[str]) -> List[AdapterResult]:
+
+    async def _execute_all_strategy(self, tasks: list[asyncio.Task],
+                                  adapter_names: list[str]) -> list[AdapterResult]:
         """Execute all adapters and return all results"""
         # Wait for all tasks to complete
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Process results
         adapter_results = []
         for i, result in enumerate(results):
@@ -994,48 +995,48 @@ class ParallelAdapterExecutor:
                     success=False,
                     error=result if isinstance(result, Exception) else Exception(str(result))
                 ))
-        
+
         return adapter_results
-    
-    async def _execute_first_success_strategy(self, tasks: List[asyncio.Task],
-                                            adapter_names: List[str]) -> List[AdapterResult]:
+
+    async def _execute_first_success_strategy(self, tasks: list[asyncio.Task],
+                                            adapter_names: list[str]) -> list[AdapterResult]:
         """Return as soon as one adapter succeeds"""
         results = []
-        
+
         # Use asyncio.as_completed to get results as they complete
         for future in asyncio.as_completed(tasks):
             try:
                 result = await future
                 results.append(result)
-                
+
                 if result.success:
                     # Cancel remaining tasks
                     for task in tasks:
                         if not task.done():
                             task.cancel()
-                    
+
                     # Wait for cancellations to complete
                     await asyncio.gather(*tasks, return_exceptions=True)
-                    
+
                     return results
-                    
+
             except Exception as e:
                 logger.error(f"Error in first_success strategy: {e}")
-        
+
         return results
-    
-    async def _execute_best_effort_strategy(self, tasks: List[asyncio.Task],
-                                          adapter_names: List[str]) -> List[AdapterResult]:
+
+    async def _execute_best_effort_strategy(self, tasks: list[asyncio.Task],
+                                          adapter_names: list[str]) -> list[AdapterResult]:
         """Return whatever completes within a reasonable time"""
-        # Wait for a shorter timeout
+        # Wait for a shorter timeou
         timeout = self.operation_timeout * 0.8
-        
+
         try:
-            # Wait for all tasks with timeout
+            # Wait for all tasks with timeou
             done, pending = await asyncio.wait(tasks, timeout=timeout, return_when=asyncio.ALL_COMPLETED)
-            
+
             results = []
-            
+
             # Process completed tasks
             for task in done:
                 try:
@@ -1043,31 +1044,31 @@ class ParallelAdapterExecutor:
                     results.append(result)
                 except Exception as e:
                     logger.error(f"Error processing task result: {e}")
-            
+
             # Cancel pending tasks
             for task in pending:
                 task.cancel()
-                
+
             return results
-            
+
         except Exception as e:
             logger.error(f"Error in best_effort strategy: {e}")
             return []
-    
-    def get_circuit_breaker_status(self) -> Dict[str, Any]:
+
+    def get_circuit_breaker_status(self) -> dict[str, Any]:
         """Get status of all circuit breakers"""
         # Ensure circuit breakers are initialized for all adapters
         if not self.circuit_breakers and hasattr(self.adapter_manager, 'get_available_adapters'):
             # Initialize circuit breakers for all available adapters
             for adapter_name in self.adapter_manager.get_available_adapters():
                 self._get_circuit_breaker(adapter_name)
-        
+
         return {
             name: cb.get_status()
             for name, cb in self.circuit_breakers.items()
         }
-    
-    def get_adapter_configuration_info(self) -> Dict[str, Any]:
+
+    def get_adapter_configuration_info(self) -> dict[str, Any]:
         """Get adapter-specific configuration information for monitoring"""
         adapter_info = {}
         for adapter_name in self.circuit_breakers.keys():
@@ -1087,37 +1088,37 @@ class ParallelAdapterExecutor:
                 }
             }
         return adapter_info
-    
+
     def reset_circuit_breaker(self, adapter_name: str):
         """Reset a specific circuit breaker, clearing all stats/history and emitting a reset event."""
         if adapter_name in self.circuit_breakers:
             self.circuit_breakers[adapter_name].reset()
             logger.info(f"Reset circuit breaker for adapter: {adapter_name}")
-    
+
     def force_cleanup_all_circuit_breakers(self):
         """Force cleanup of all circuit breakers"""
         for cb in self.circuit_breakers.values():
             cb.force_cleanup()
         logger.info(f"Forced cleanup of {len(self.circuit_breakers)} circuit breakers")
-    
-    def get_memory_usage_summary(self) -> Dict[str, Any]:
+
+    def get_memory_usage_summary(self) -> dict[str, Any]:
         """Get memory usage summary for all circuit breakers (thread-safe)"""
         total_call_history = 0
         total_transitions = 0
         memory_by_adapter = {}
-        
+
         # Estimate ~250 bytes per record (dict overhead, strings, floats)
         BYTES_PER_RECORD = 250
-        
+
         for adapter_name, cb in self.circuit_breakers.items():
             # Use thread-safe accessor
             sizes = cb.stats.get_history_sizes()
             call_history_size = sizes['call_history_size']
             transitions_size = sizes['state_transitions_size']
-            
+
             total_call_history += call_history_size
             total_transitions += transitions_size
-            
+
             memory_by_adapter[adapter_name] = {
                 "call_history_size": call_history_size,
                 "state_transitions_size": transitions_size,
@@ -1127,62 +1128,62 @@ class ParallelAdapterExecutor:
                 "cleanup_interval": cb.cleanup_interval,
                 "retention_period": cb.retention_period
             }
-        
+
         return {
             "total_call_history_records": total_call_history,
             "total_state_transition_records": total_transitions,
             "total_memory_usage_estimate": (total_call_history + total_transitions) * BYTES_PER_RECORD,
             "by_adapter": memory_by_adapter
         }
-    
+
     async def cleanup(self):
         """Cleanup resources with graceful shutdown handling"""
         logger.info("Starting graceful shutdown of ParallelAdapterExecutor")
-        
+
         # Signal shutdown to prevent new requests
         self._shutdown_event.set()
         logger.info("Shutdown signal sent - rejecting new requests")
-        
-        # Wait for active requests to complete with timeout
+
+        # Wait for active requests to complete with timeou
         if self._active_requests:
             logger.info(f"Waiting for {len(self._active_requests)} active requests to complete")
             wait_time = 0
             check_interval = 0.1  # Check every 100ms
-            
+
             while self._active_requests and wait_time < self._shutdown_timeout:
                 await asyncio.sleep(check_interval)
                 wait_time += check_interval
-                
+
                 # Log progress every 5 seconds
                 if int(wait_time) % 5 == 0 and self._active_requests:
                     logger.info(f"Still waiting for {len(self._active_requests)} requests (waited {wait_time:.1f}s)")
-            
+
             if self._active_requests:
                 logger.warning(f"Shutdown timeout reached - {len(self._active_requests)} requests still active: {list(self._active_requests)}")
             else:
                 logger.info("All active requests completed successfully")
         else:
             logger.info("No active requests to wait for")
-        
+
         # Shutdown thread pool - cancel pending work to avoid blocking the event loop
         logger.info("Shutting down thread pool")
         self.thread_pool.shutdown(wait=False, cancel_futures=True)
-        
+
         # Reset circuit breakers
         logger.info("Resetting circuit breakers")
         for adapter_name in list(self.circuit_breakers.keys()):
             self.circuit_breakers[adapter_name].reset()
-        
+
         logger.info("ParallelAdapterExecutor cleanup completed")
-    
+
     def is_shutting_down(self) -> bool:
         """Check if the executor is in shutdown mode"""
         return self._shutdown_event.is_set()
-    
+
     def get_active_request_count(self) -> int:
         """Get the number of currently active requests"""
         return len(self._active_requests)
-    
-    def get_active_requests(self) -> List[str]:
+
+    def get_active_requests(self) -> list[str]:
         """Get list of currently active request IDs"""
         return list(self._active_requests)

@@ -6,7 +6,7 @@ the common infrastructure (client setup, connection lifecycle, error handling)
 lives in one place.
 """
 
-from typing import Dict, Any
+from typing import Any
 import logging
 
 from ..base import ServiceType
@@ -41,7 +41,7 @@ class OpenAIBaseService(OpenAICompatibleBaseService):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         service_type: ServiceType = None,
         provider_name: str = "openai"
     ):

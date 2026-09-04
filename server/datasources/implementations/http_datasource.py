@@ -8,7 +8,7 @@ registry pattern and eliminate warnings.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from ..base.base_datasource import BaseDatasource
 
@@ -23,7 +23,7 @@ class HTTPDatasource(BaseDatasource):
     configuration. This datasource exists for registry pattern consistency only.
     """
 
-    def __init__(self, config: Dict[str, Any], logger_instance: Optional[logging.Logger] = None):
+    def __init__(self, config: dict[str, Any], logger_instance: Optional[logging.Logger] = None):
         """
         Initialize HTTP datasource placeholder.
 

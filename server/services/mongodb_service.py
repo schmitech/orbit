@@ -13,7 +13,8 @@ import logging
 import motor.motor_asyncio
 import pymongo.errors
 import threading
-from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
+from typing import Any, Optional, Union
+from collections.abc import Callable, Awaitable
 from fastapi import HTTPException
 from datetime import datetime
 from bson import ObjectId
@@ -26,10 +27,10 @@ logger = logging.getLogger(__name__)
 class MongoDBService(DatabaseService):
     """Service for handling MongoDB connections and operations with singleton pattern"""
     
-    _instances: Dict[str, 'MongoDBService'] = {}
+    _instances: dict[str, 'MongoDBService'] = {}
     _lock = threading.Lock()
     
-    def __new__(cls, config: Dict[str, Any]):
+    def __new__(cls, config: dict[str, Any]):
         """
         Implement singleton pattern for MongoDB service.
         Returns existing instance if configuration matches.
@@ -48,7 +49,7 @@ class MongoDBService(DatabaseService):
             return cls._instances[cache_key]
     
     @classmethod
-    def _create_cache_key(cls, config: Dict[str, Any]) -> str:
+    def _create_cache_key(cls, config: dict[str, Any]) -> str:
         """Create a cache key based on MongoDB configuration."""
         mongodb_config = config.get('internal_services', {}).get('mongodb', {})
         
@@ -59,7 +60,7 @@ class MongoDBService(DatabaseService):
         
         return f"mongodb:{host}:{port}:{database}"
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the MongoDB service with configuration"""
         # Prevent re-initialization of singleton instances
         if hasattr(self, '_initialized') and self._initialized:
@@ -140,7 +141,7 @@ class MongoDBService(DatabaseService):
         self._collections[collection_name] = collection
         return collection
     
-    async def create_index(self, collection_name: str, field_name: Union[str, List[Tuple[str, int]]], unique: bool = False, sparse: bool = False, ttl_seconds: Optional[int] = None) -> str:
+    async def create_index(self, collection_name: str, field_name: Union[str, list[tuple[str, int]]], unique: bool = False, sparse: bool = False, ttl_seconds: Optional[int] = None) -> str:
         """
         Create an index on a collection field
         
@@ -186,7 +187,7 @@ class MongoDBService(DatabaseService):
         logger.debug(f"Created {desc}index on {collection_name}.{field_name}")
         return index_name
     
-    def _convert_string_ids_to_objectid(self, query: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_string_ids_to_objectid(self, query: dict[str, Any]) -> dict[str, Any]:
         """
         Convert string IDs to ObjectId in queries for MongoDB compatibility
 
@@ -306,7 +307,7 @@ class MongoDBService(DatabaseService):
         else:
             return data
 
-    async def find_one(self, collection_name: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def find_one(self, collection_name: str, query: dict[str, Any]) -> Optional[dict[str, Any]]:
         """
         Find a single document in a collection
 
@@ -331,7 +332,7 @@ class MongoDBService(DatabaseService):
             logger.error(f"Error finding document in {collection_name}: {str(e)}")
             return None
 
-    async def find_one_strict(self, collection_name: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def find_one_strict(self, collection_name: str, query: dict[str, Any]) -> Optional[dict[str, Any]]:
         if not self._initialized:
             await self.initialize()
 
@@ -347,11 +348,11 @@ class MongoDBService(DatabaseService):
     async def find_many(
         self,
         collection_name: str,
-        query: Dict[str, Any],
+        query: dict[str, Any],
         limit: int = 100,
-        sort: Optional[List[Tuple[str, int]]] = None,
+        sort: Optional[list[tuple[str, int]]] = None,
         skip: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Find multiple documents in a collection
 
@@ -388,7 +389,7 @@ class MongoDBService(DatabaseService):
             logger.error(f"Error finding documents in {collection_name}: {str(e)}")
             return []
     
-    async def insert_one(self, collection_name: str, document: Dict[str, Any]) -> Optional[str]:
+    async def insert_one(self, collection_name: str, document: dict[str, Any]) -> Optional[str]:
         """
         Insert a document into a collection
 
@@ -420,7 +421,7 @@ class MongoDBService(DatabaseService):
             logger.error(f"Document that failed: {str(document)[:500]}...")  # Log first 500 chars for debugging
             return None
     
-    async def update_one(self, collection_name: str, query: Dict[str, Any], update: Dict[str, Any]) -> bool:
+    async def update_one(self, collection_name: str, query: dict[str, Any], update: dict[str, Any]) -> bool:
         """
         Update a document in a collection
         
@@ -496,7 +497,7 @@ class MongoDBService(DatabaseService):
             logger.error(f"Error recording failed login attempt: {str(e)}")
             return False
     
-    async def delete_one(self, collection_name: str, query: Dict[str, Any]) -> bool:
+    async def delete_one(self, collection_name: str, query: dict[str, Any]) -> bool:
         """
         Delete a document from a collection
         
@@ -520,7 +521,7 @@ class MongoDBService(DatabaseService):
             logger.error(f"Error deleting document from {collection_name}: {str(e)}")
             return False
     
-    async def delete_many(self, collection_name: str, query: Dict[str, Any]) -> int:
+    async def delete_many(self, collection_name: str, query: dict[str, Any]) -> int:
         """
         Delete multiple documents from a collection
         
@@ -544,7 +545,7 @@ class MongoDBService(DatabaseService):
             logger.error(f"Error deleting documents from {collection_name}: {str(e)}")
             return 0
 
-    async def count(self, collection_name: str, query: Dict[str, Any]) -> int:
+    async def count(self, collection_name: str, query: dict[str, Any]) -> int:
         """Count documents matching a query."""
         if not self._initialized:
             await self.initialize()
@@ -633,9 +634,9 @@ class MongoDBService(DatabaseService):
     async def aggregate_with_transaction(
         self,
         collection_name: str,
-        pipeline: List[Dict[str, Any]],
+        pipeline: list[dict[str, Any]],
         session: Any
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Execute an aggregation pipeline within a transaction
 
@@ -659,7 +660,7 @@ class MongoDBService(DatabaseService):
     async def delete_many_with_transaction(
         self,
         collection_name: str,
-        query: Dict[str, Any],
+        query: dict[str, Any],
         session: Any
     ) -> int:
         """
@@ -696,13 +697,13 @@ class MongoDBService(DatabaseService):
             logger.debug("Cleared all MongoDB service instances from cache")
     
     @classmethod
-    def get_cached_instances(cls) -> Dict[str, 'MongoDBService']:
+    def get_cached_instances(cls) -> dict[str, 'MongoDBService']:
         """Get all currently cached MongoDB service instances. Useful for debugging."""
         with cls._lock:
             return cls._instances.copy()
     
     @classmethod
-    def get_cache_stats(cls) -> Dict[str, Any]:
+    def get_cache_stats(cls) -> dict[str, Any]:
         """Get statistics about cached MongoDB services."""
         with cls._lock:
             return {

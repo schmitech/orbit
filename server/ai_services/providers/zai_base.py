@@ -6,7 +6,7 @@ This module provides a unified base class for all Z.AI-based services
 like API key management, client initialization, and error handling.
 """
 
-from typing import Dict, Any
+from typing import Any
 from zai import ZaiClient
 import logging
 
@@ -31,7 +31,7 @@ class ZaiBaseService(ProviderAIService):
 
     DEFAULT_BASE_URL = "https://api.z.ai/api/paas/v4/"
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "zai"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "zai"):
         """
         Initialize the Z.AI base service.
 

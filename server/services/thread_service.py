@@ -8,7 +8,7 @@ Handles thread creation, lifecycle, and dataset linking.
 
 import logging
 import json
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Optional
 from datetime import datetime, timedelta, UTC
 from utils.id_utils import generate_id, id_to_string
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class ThreadService:
     """Service for managing conversation threads"""
 
-    def __init__(self, config: Dict[str, Any], database_service=None, dataset_service=None):
+    def __init__(self, config: dict[str, Any], database_service=None, dataset_service=None):
         """
         Initialize the thread service.
 
@@ -85,10 +85,10 @@ class ThreadService:
         parent_message_id: str,
         parent_session_id: str,
         adapter_name: str,
-        query_context: Dict[str, Any],
+        query_context: dict[str, Any],
         raw_results: list,
         owner_api_key_hash: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create a new conversation thread from a parent message.
 
@@ -171,7 +171,7 @@ class ThreadService:
             logger.error(f"Failed to create thread: {e}")
             raise
 
-    async def get_thread(self, thread_id: str) -> Optional[Dict[str, Any]]:
+    async def get_thread(self, thread_id: str) -> Optional[dict[str, Any]]:
         """
         Get thread information by thread ID.
 
@@ -227,7 +227,7 @@ class ThreadService:
             logger.error(f"Failed to get thread {thread_id}: {e}")
             return None
 
-    async def get_thread_dataset(self, thread_id: str) -> Optional[Tuple[Dict[str, Any], list]]:
+    async def get_thread_dataset(self, thread_id: str) -> Optional[tuple[dict[str, Any], list]]:
         """
         Get the stored dataset for a thread.
 
@@ -260,7 +260,7 @@ class ThreadService:
             logger.error(f"Failed to get thread dataset for {thread_id}: {e}")
             return None
 
-    async def delete_thread(self, thread_id: str) -> Dict[str, Any]:
+    async def delete_thread(self, thread_id: str) -> dict[str, Any]:
         """
         Delete a thread and its associated dataset.
 

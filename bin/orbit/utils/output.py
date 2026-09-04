@@ -3,7 +3,7 @@ Output formatting utilities for the ORBIT CLI.
 """
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from rich.console import Console
 from rich.table import Table
 
@@ -46,7 +46,7 @@ class OutputFormatter:
         else:
             print(f"ℹ {message}")
     
-    def format_table(self, data: List[Dict[str, Any]], headers: List[str]) -> None:
+    def format_table(self, data: list[dict[str, Any]], headers: list[str]) -> None:
         """Format data as a rich table."""
         table = Table(show_header=True, header_style="bold magenta")
         
@@ -62,7 +62,7 @@ class OutputFormatter:
         """Format data as JSON."""
         print(json.dumps(data, indent=2))
     
-    def format_output(self, data: Any, headers: Optional[List[str]] = None) -> None:
+    def format_output(self, data: Any, headers: Optional[list[str]] = None) -> None:
         """Format output based on configured format."""
         if self.format == "json":
             self.format_json(data)

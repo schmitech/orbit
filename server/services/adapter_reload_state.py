@@ -29,7 +29,7 @@ which keeps this correct under races without needing atomic increments.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +202,7 @@ async def poll_and_apply_reloads(app_state: Any, interval_seconds: float = _POLL
 
     await ensure_initialized(app_state)
 
-    last_seen: Dict[str, int] = {}
+    last_seen: dict[str, int] = {}
     for kind in _KINDS:
         generation = await get_generation(app_state, kind)
         last_seen[kind] = generation if generation is not None else 0

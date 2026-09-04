@@ -9,7 +9,7 @@ Compare with: server/embeddings/llama_cpp.py (old implementation)
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import Any
 import asyncio
 
 from ...providers.llama_cpp_base import LlamaCppBaseService
@@ -36,7 +36,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
     New implementation: ~150 lines focused only on embedding logic
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the llama.cpp embedding service.
 
@@ -52,7 +52,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
         self.dimensions = self._get_dimensions()
         self.batch_size = self._get_batch_size(default=8)
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str) -> list[float]:
         """
         Generate embeddings for a single query text.
 
@@ -75,7 +75,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
             self._handle_llama_cpp_error(e, "embedding query")
             raise
 
-    async def _embed_query_api(self, text: str) -> List[float]:
+    async def _embed_query_api(self, text: str) -> list[float]:
         """
         Generate embeddings using API mode (OpenAI-compatible server).
 
@@ -91,7 +91,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
         )
         return response.data[0].embedding
 
-    async def _embed_query_direct(self, text: str) -> List[float]:
+    async def _embed_query_direct(self, text: str) -> list[float]:
         """
         Generate embeddings using direct mode (GGUF model).
 
@@ -109,7 +109,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
         )
         return embedding
 
-    def _generate_embedding(self, text: str) -> List[float]:
+    def _generate_embedding(self, text: str) -> list[float]:
         """
         Generate embedding for a single text using llama.cpp.
         This runs in a separate thread.
@@ -135,7 +135,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
             logger.error(f"Error in llama.cpp _generate_embedding: {str(e)}")
             raise
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for multiple documents.
 
@@ -158,7 +158,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
             self._handle_llama_cpp_error(e, "batch embedding")
             raise
 
-    async def _embed_documents_api(self, texts: List[str]) -> List[List[float]]:
+    async def _embed_documents_api(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings using API mode (OpenAI-compatible server).
 
@@ -190,7 +190,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
 
         return all_embeddings
 
-    async def _embed_documents_direct(self, texts: List[str]) -> List[List[float]]:
+    async def _embed_documents_direct(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings using direct mode (GGUF model).
 
@@ -220,7 +220,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
 
         return all_embeddings
 
-    def _generate_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def _generate_batch_embeddings(self, texts: list[str]) -> list[list[float]]:
         """
         Generate embeddings for a batch of texts.
         This runs in a separate thread.

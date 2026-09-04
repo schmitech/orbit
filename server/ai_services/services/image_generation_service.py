@@ -6,7 +6,7 @@ providing a unified API regardless of the underlying provider (OpenAI, Gemini, e
 """
 
 from abc import abstractmethod
-from typing import Dict, Any
+from typing import Any
 
 from ..base import ProviderAIService, ServiceType
 
@@ -23,11 +23,11 @@ class ImageGenerationService(ProviderAIService):
 
     service_type = ServiceType.IMAGE_GENERATION
 
-    def __init__(self, config: Dict[str, Any], provider_name: str):
+    def __init__(self, config: dict[str, Any], provider_name: str):
         super().__init__(config, ServiceType.IMAGE_GENERATION, provider_name)
 
     @abstractmethod
-    async def generate_image(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_image(self, prompt: str, **kwargs) -> dict[str, Any]:
         """
         Generate an image from a text prompt.
 

@@ -18,12 +18,12 @@ import logging
 import threading
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
-def is_cache_master_enabled(config: Dict[str, Any]) -> bool:
+def is_cache_master_enabled(config: dict[str, Any]) -> bool:
     """Master switch: internal_services.cache.enabled. Defaults to True (current behavior)."""
     from utils.config_utils import is_true_value
 
@@ -144,11 +144,11 @@ class CacheProvider(ABC):
         ...
 
     @abstractmethod
-    async def mget(self, *keys: str) -> List[Optional[str]]:
+    async def mget(self, *keys: str) -> list[Optional[str]]:
         ...
 
     @abstractmethod
-    async def mset(self, mapping: Dict[str, str]) -> bool:
+    async def mset(self, mapping: dict[str, str]) -> bool:
         ...
 
     @abstractmethod
@@ -163,9 +163,9 @@ class CacheProvider(ABC):
 
     async def check_and_increment(
         self,
-        checks: List[Tuple[str, str, int, Optional[int]]],
+        checks: list[tuple[str, str, int, Optional[int]]],
         amount: int = 1,
-    ) -> Tuple[Dict[str, int], Optional[str]]:
+    ) -> tuple[dict[str, int], Optional[str]]:
         """
         Check multiple counters against per-counter limits and increment ALL of them
         only if none would exceed its limit (a check with limit=None never blocks).
@@ -188,7 +188,7 @@ class CacheProvider(ABC):
         that support real multi-key transactions (see RedisCacheProvider,
         SqliteCacheProvider) for strict atomic enforcement.
         """
-        current_counts: Dict[str, int] = {}
+        current_counts: dict[str, int] = {}
         exceeded_name: Optional[str] = None
         for name, key, _ttl, limit in checks:
             current_str = await self.get(key)
@@ -200,7 +200,7 @@ class CacheProvider(ABC):
         if exceeded_name is not None:
             return current_counts, exceeded_name
 
-        new_counts: Dict[str, int] = {}
+        new_counts: dict[str, int] = {}
         for name, key, ttl, _limit in checks:
             new_counts[name] = await self.increment_with_ttl(key, ttl, amount)
         return new_counts, None
@@ -214,11 +214,11 @@ class CacheProvider(ABC):
         ...
 
     @abstractmethod
-    def get_health_stats(self) -> Dict[str, Any]:
+    def get_health_stats(self) -> dict[str, Any]:
         """Provider-specific health/connection stats for monitoring endpoints."""
         ...
 
-    async def clear_all_application_cache(self) -> Dict[str, int]:
+    async def clear_all_application_cache(self) -> dict[str, int]:
         """Clear all application-related cache keys, e.g. on startup to avoid orphaned data."""
         results = {}
         total_cleared = 0
@@ -239,7 +239,7 @@ class CacheProvider(ABC):
 
         return results
 
-    async def store_json(self, key: str, data: Dict[str, Any], ttl: Optional[int] = None) -> bool:
+    async def store_json(self, key: str, data: dict[str, Any], ttl: Optional[int] = None) -> bool:
         """Store JSON-serializable data under a key."""
         try:
             json_data = json.dumps(data)
@@ -248,7 +248,7 @@ class CacheProvider(ABC):
             logger.error(f"Error storing JSON data: {str(e)}")
             return False
 
-    async def get_json(self, key: str) -> Optional[Dict[str, Any]]:
+    async def get_json(self, key: str) -> Optional[dict[str, Any]]:
         """Retrieve and parse JSON data stored under a key."""
         try:
             data = await self.get(key)

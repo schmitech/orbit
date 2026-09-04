@@ -10,7 +10,7 @@ import logging
 import traceback
 import json
 import httpx
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Optional
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -34,7 +34,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
     - Response mapping for nested GraphQL responses
     """
 
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
         """
         Initialize GraphQL retriever.
 
@@ -55,7 +55,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
         self.retry_delay = self.intent_config.get('retry_delay', 1.0)
 
         # Cache for introspected schema
-        self._schema_cache: Optional[Dict] = None
+        self._schema_cache: Optional[dict] = None
 
         logger.debug(f"GraphQL Retriever initialized with base_url: {self.base_url}, endpoint: {self.graphql_endpoint}")
 
@@ -68,8 +68,8 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
         """
         return "graphql_api"
 
-    async def _execute_template(self, template: Dict[str, Any],
-                                parameters: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+    async def _execute_template(self, template: dict[str, Any],
+                                parameters: dict[str, Any]) -> tuple[Any, Optional[str]]:
         """
         Execute GraphQL template with parameters.
 
@@ -131,8 +131,8 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return [], error_msg
 
-    def _build_graphql_variables(self, template: Dict[str, Any],
-                                  parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_graphql_variables(self, template: dict[str, Any],
+                                  parameters: dict[str, Any]) -> dict[str, Any]:
         """
         Build GraphQL variables from extracted parameters.
 
@@ -205,7 +205,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
             logger.warning(f"Failed to coerce value '{value}' to GraphQL type '{graphql_type}': {e}")
             return value
 
-    async def _execute_graphql_request(self, request_body: Dict[str, Any],
+    async def _execute_graphql_request(self, request_body: dict[str, Any],
                                         timeout: int = 30) -> httpx.Response:
         """
         Execute GraphQL request with retry logic.
@@ -257,7 +257,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
         raise Exception("GraphQL request failed after all retries")
 
     def _parse_graphql_response(self, response: httpx.Response,
-                                 template: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+                                 template: dict[str, Any]) -> tuple[list[dict[str, Any]], Optional[str]]:
         """
         Parse GraphQL response, handling errors and extracting data.
 
@@ -322,7 +322,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return [], f"Response parsing error: {e}"
 
-    def _extract_items_from_response(self, data: Any, path: str) -> List[Dict[str, Any]]:
+    def _extract_items_from_response(self, data: Any, path: str) -> list[dict[str, Any]]:
         """
         Extract items from GraphQL response data using a path expression.
 
@@ -363,7 +363,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
             logger.error(f"Error extracting items from path '{path}': {e}")
             return []
 
-    def _map_response_fields(self, items: List[Dict], field_mapping: List[Dict]) -> List[Dict]:
+    def _map_response_fields(self, items: list[dict], field_mapping: list[dict]) -> list[dict]:
         """
         Map response fields according to field mapping configuration.
 
@@ -396,7 +396,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
 
         return mapped_items
 
-    def _extract_field_value(self, item: Dict, path: str) -> Any:
+    def _extract_field_value(self, item: dict, path: str) -> Any:
         """
         Extract field value from item using simple path.
 
@@ -428,8 +428,8 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
         except Exception:
             return None
 
-    def _format_http_results(self, results: Any, template: Dict,
-                            parameters: Dict, similarity: float) -> List[Dict[str, Any]]:
+    def _format_http_results(self, results: Any, template: dict,
+                            parameters: dict, similarity: float) -> list[dict[str, Any]]:
         """
         Format GraphQL results into context documents.
 
@@ -477,7 +477,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
             "confidence": similarity
         }]
 
-    def _format_graphql_results(self, results: List[Dict], template: Dict) -> str:
+    def _format_graphql_results(self, results: list[dict], template: dict) -> str:
         """
         Format GraphQL results as human-readable text.
 
@@ -549,7 +549,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
 
         return '\n'.join(lines)
 
-    async def introspect_schema(self) -> Optional[Dict]:
+    async def introspect_schema(self) -> Optional[dict]:
         """
         Fetch GraphQL schema via introspection query.
 
@@ -614,7 +614,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
             logger.warning(f"Schema introspection failed: {e}")
             return None
 
-    async def validate_template_against_schema(self, template: Dict[str, Any]) -> List[str]:
+    async def validate_template_against_schema(self, template: dict[str, Any]) -> list[str]:
         """
         Validate a template against the introspected schema.
 

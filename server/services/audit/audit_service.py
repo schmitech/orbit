@@ -11,7 +11,7 @@ of the storage backend based on configuration.
 
 import logging
 import ipaddress
-from typing import Dict, Any, Optional, List, Union
+from typing import Any, Optional, Union
 from datetime import datetime
 
 from .audit_storage_strategy import AuditStorageStrategy, AuditRecord
@@ -45,7 +45,7 @@ class AuditService:
     configured in internal_services.backend.type (sqlite, mongodb, or postgres).
     """
 
-    def __init__(self, config: Dict[str, Any], database_service=None, api_key_service=None):
+    def __init__(self, config: dict[str, Any], database_service=None, api_key_service=None):
         """
         Initialize the audit service.
 
@@ -219,7 +219,7 @@ class AuditService:
                 logger.error(f"Failed to initialize admin audit storage: {e}")
                 self._admin_strategy = None
 
-    def _format_ip_address(self, ip: Optional[Union[str, List[str]]]) -> Dict[str, Any]:
+    def _format_ip_address(self, ip: Optional[Union[str, list[str]]]) -> dict[str, Any]:
         """
         Convert a raw IP value (or list thereof) into structured IP metadata.
 
@@ -339,7 +339,7 @@ class AuditService:
         user_id: Optional[str] = None,
         adapter_name: Optional[str] = None,
         model: Optional[str] = None,
-        usage: Optional[Dict[str, Any]] = None
+        usage: Optional[dict[str, Any]] = None
     ) -> None:
         """
         Log a conversation interaction to the configured audit backend.
@@ -425,12 +425,12 @@ class AuditService:
 
     async def query_audit_logs(
         self,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
         sort_order: int = -1
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Query audit logs with optional filters.
 
@@ -474,9 +474,9 @@ class AuditService:
         until: str,
         bucket: str = "day",
         group_by: str = "model",
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         limit_groups: int = 10,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Aggregate token usage/cost for the Observability page. Always returns
         the zeroed skeleton (never raises) when audit is disabled or the
@@ -516,12 +516,12 @@ class AuditService:
 
     async def query_admin_events(
         self,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
         sort_order: int = -1,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Query stored admin audit events."""
         if not self._admin_strategy or not self._admin_strategy.is_initialized():
             return []

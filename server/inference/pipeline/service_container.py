@@ -5,7 +5,8 @@ This module provides a service container that manages dependencies and enables
 loose coupling between components in the pipeline architecture.
 """
 
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Optional
+from collections.abc import Callable
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,8 +21,8 @@ class ServiceContainer:
     
     def __init__(self):
         """Initialize the service container."""
-        self._factories: Dict[str, Callable] = {}
-        self._singletons: Dict[str, Any] = {}
+        self._factories: dict[str, Callable] = {}
+        self._singletons: dict[str, Any] = {}
         self.logger = logging.getLogger(__name__)
     
     def register_singleton(self, name: str, instance: Any) -> None:
@@ -104,7 +105,7 @@ class ServiceContainer:
         self._singletons.clear()
         logger.debug("Cleared all services from container")
     
-    def list_services(self) -> Dict[str, str]:
+    def list_services(self) -> dict[str, str]:
         """
         List all registered services and their types.
         

@@ -7,7 +7,8 @@ the new unified AI services architecture with OpenAI-compatible base class.
 Compare with: server/inference/pipeline/providers/groq_provider.py (old implementation)
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...providers import OpenAICompatibleBaseService
 from ...providers.usage_reporting import UsageReportingMixin
@@ -32,7 +33,7 @@ class GroqInferenceService(UsageReportingMixin, InferenceService, OpenAICompatib
     Groq provides an OpenAI-compatible API at https://api.groq.com/openai/v1
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Groq inference service.
 

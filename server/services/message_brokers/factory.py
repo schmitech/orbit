@@ -9,7 +9,7 @@ Single extension point for MQ backends. To add a new provider:
 """
 
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from .base import MessageBroker
 from .rabbitmq_provider import RabbitMQBroker
@@ -21,7 +21,7 @@ _PROVIDERS = {
 }
 
 
-def get_messaging_config(config: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+def get_messaging_config(config: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Resolve the configured provider name and its messaging config section."""
     messaging = config.get('messaging', {}) or {}
     provider_name = (messaging.get('provider') or 'rabbitmq').lower()
@@ -29,7 +29,7 @@ def get_messaging_config(config: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
     return provider_name, provider_config
 
 
-def create_message_broker(config: Dict[str, Any]) -> MessageBroker:
+def create_message_broker(config: dict[str, Any]) -> MessageBroker:
     """Instantiate the configured messaging provider (messaging.provider)."""
     provider_name, _ = get_messaging_config(config)
 

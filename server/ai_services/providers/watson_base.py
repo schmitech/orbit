@@ -1,7 +1,6 @@
 """IBM Watson base class."""
 
 import logging
-from typing import Dict
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
 from ..errors import raise_sanitized
@@ -11,7 +10,7 @@ logger = logging.getLogger(__name__)
 class WatsonBaseService(ProviderAIService):
     """Base class for IBM Watson services."""
 
-    def __init__(self, config: Dict, service_type: ServiceType):
+    def __init__(self, config: dict, service_type: ServiceType):
         super().__init__(config, service_type, "watson")
         self._setup_watson_config()
 

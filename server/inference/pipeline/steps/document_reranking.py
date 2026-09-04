@@ -6,7 +6,7 @@ Runs after context retrieval and before LLM inference.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from ..base import PipelineStep, ProcessingContext
 from adapters.capabilities import (
     get_capability_registry,
@@ -164,7 +164,7 @@ class DocumentRerankingStep(PipelineStep):
             )
 
             # Perform reranking
-            reranking_usage: Dict[str, Any] = {}
+            reranking_usage: dict[str, Any] = {}
             reranked_results = await reranker_service.rerank_tracked(
                 query=context.message,
                 documents=documents,
@@ -269,7 +269,7 @@ class DocumentRerankingStep(PipelineStep):
 
         return None
 
-    def _extract_document_texts(self, documents: List[Dict[str, Any]]) -> List[str]:
+    def _extract_document_texts(self, documents: list[dict[str, Any]]) -> list[str]:
         """
         Extract text content from document dictionaries.
 
@@ -317,9 +317,9 @@ class DocumentRerankingStep(PipelineStep):
 
     def _apply_reranking_results(
         self,
-        original_docs: List[Dict[str, Any]],
-        reranked_results: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        original_docs: list[dict[str, Any]],
+        reranked_results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Apply reranking results to original documents, preserving metadata.
 
@@ -348,7 +348,7 @@ class DocumentRerankingStep(PipelineStep):
 
         return reranked_docs
 
-    def _format_context(self, documents: List[Dict[str, Any]], capabilities=None) -> str:
+    def _format_context(self, documents: list[dict[str, Any]], capabilities=None) -> str:
         """
         Format reranked documents into a context string.
 

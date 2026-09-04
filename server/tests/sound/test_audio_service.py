@@ -13,7 +13,7 @@ This module tests the audio service functionality including:
 import pytest
 import sys
 import os
-from typing import Dict, Any
+from typing import Any
 from unittest.mock import patch, MagicMock
 
 # Get the absolute path to the server directory (parent of tests)
@@ -46,7 +46,7 @@ class TestAudioServiceRegistration:
         registry_module._services_registered = False
 
     @pytest.fixture
-    def enabled_providers_config(self) -> Dict[str, Any]:
+    def enabled_providers_config(self) -> dict[str, Any]:
         """Create a config with all audio providers enabled."""
         return {
             "tts": {"enabled": True},
@@ -112,7 +112,7 @@ class TestAudioServiceRegistration:
         }
 
     @pytest.fixture
-    def partial_enabled_config(self) -> Dict[str, Any]:
+    def partial_enabled_config(self) -> dict[str, Any]:
         """Create a config with only some audio providers enabled."""
         return {
             "tts": {"enabled": True},

@@ -9,7 +9,7 @@ that can be associated with API keys.
 
 import json
 import logging
-from typing import Dict, Any, Optional, List, Union
+from typing import Any, Optional, Union
 from fastapi import HTTPException
 from datetime import datetime, UTC
 from bson import ObjectId
@@ -25,7 +25,7 @@ class PromptService:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         database_service: Optional[DatabaseService] = None,
         cache_service: Optional[CacheProvider] = None,
     ):
@@ -151,7 +151,7 @@ class PromptService:
             logger.error(f"Error creating prompt: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error creating prompt: {str(e)}")
     
-    async def get_prompt_by_id(self, prompt_id: Union[str, ObjectId]) -> Optional[Dict[str, Any]]:
+    async def get_prompt_by_id(self, prompt_id: Union[str, ObjectId]) -> Optional[dict[str, Any]]:
         """
         Get a prompt by its ID
 
@@ -275,7 +275,7 @@ class PromptService:
             logger.error(f"Error retrieving prompt: {str(e)}")
             return None
     
-    async def get_prompt_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+    async def get_prompt_by_name(self, name: str) -> Optional[dict[str, Any]]:
         """
         Get a prompt by its name
         
@@ -291,7 +291,7 @@ class PromptService:
             logger.error(f"Error retrieving prompt by name: {str(e)}")
             return None
     
-    async def list_prompts(self, name_filter: Optional[str] = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    async def list_prompts(self, name_filter: Optional[str] = None, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         """
         List all prompts with optional filtering and pagination
         
@@ -428,7 +428,7 @@ class PromptService:
             logger.error(f"Error deleting prompt: {str(e)}")
             return False
 
-    async def get_cache_stats(self, prompt_id: Optional[Union[ObjectId, str]] = None) -> Dict[str, Any]:
+    async def get_cache_stats(self, prompt_id: Optional[Union[ObjectId, str]] = None) -> dict[str, Any]:
         """
         Get cache statistics for prompts
 

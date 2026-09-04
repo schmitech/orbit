@@ -10,7 +10,7 @@ Call register_all_services() at application startup to register all available se
 import logging
 import threading
 import sys
-from typing import Dict, Any
+from typing import Any
 
 from .factory import AIServiceFactory
 from .base import ServiceType
@@ -41,7 +41,7 @@ def _register_services(
     service_type: ServiceType,
     module_path: str,
     services: list,
-    config: Dict[str, Any] = None,
+    config: dict[str, Any] = None,
     config_section: str = None,
     default_enabled: bool = True,
 ) -> None:
@@ -80,7 +80,7 @@ def register_embedding_services() -> None:
     ])
 
 
-def register_inference_services(config: Dict[str, Any] = None) -> None:
+def register_inference_services(config: dict[str, Any] = None) -> None:
     """Register inference services. With config, only enabled providers are registered."""
     _register_services(ServiceType.INFERENCE, 'ai_services.implementations.inference', [
         ("openai", "OpenAIInferenceService", "OpenAI"),
@@ -138,7 +138,7 @@ def register_moderation_services() -> None:
     ])
 
 
-def register_reranking_services(config: Dict[str, Any] = None) -> None:
+def register_reranking_services(config: dict[str, Any] = None) -> None:
     _register_services(ServiceType.RERANKING, 'ai_services.implementations.reranking', [
         ("ollama", "OllamaRerankingService", "Ollama"),
         ("cohere", "CohereRerankingService", "Cohere"),
@@ -150,7 +150,7 @@ def register_reranking_services(config: Dict[str, Any] = None) -> None:
     ], config=config, config_section='rerankers', default_enabled=True)
 
 
-def register_vision_services(config: Dict[str, Any] = None) -> None:
+def register_vision_services(config: dict[str, Any] = None) -> None:
     # Default to False — if vision.yaml is not imported, no vision services should register
     _register_services(ServiceType.VISION, 'ai_services.implementations.vision', [
         ("openai", "OpenAIVisionService", "OpenAI"),
@@ -165,7 +165,7 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
     ], config=config, config_section='visions', default_enabled=False)
 
 
-def register_ocr_services(config: Dict[str, Any] = None) -> None:
+def register_ocr_services(config: dict[str, Any] = None) -> None:
     # Default to False — if ocr.yaml is not imported, no OCR services should register
     _register_services(ServiceType.OCR, 'ai_services.implementations.ocr', [
         ("mistral", "MistralOcrService", "Mistral OCR"),
@@ -181,7 +181,7 @@ def register_ocr_services(config: Dict[str, Any] = None) -> None:
     ], config=config, config_section='ocr', default_enabled=False)
 
 
-def register_audio_services(config: Dict[str, Any] = None) -> None:
+def register_audio_services(config: dict[str, Any] = None) -> None:
     """Register audio services. Both TTS and STT must be globally disabled to skip all."""
     if config:
         # Default to False — if tts.yaml/stt.yaml are not imported, no audio services should register
@@ -226,7 +226,7 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
 
 
 
-def register_image_generation_services(config: Dict[str, Any] = None) -> None:
+def register_image_generation_services(config: dict[str, Any] = None) -> None:
     if config and not _is_enabled(config.get('image', {}).get('enabled', False)):
         logger.info("Image generation is globally disabled - skipping registration.")
         return
@@ -241,7 +241,7 @@ def register_image_generation_services(config: Dict[str, Any] = None) -> None:
     ], config=config, config_section='image_generation', default_enabled=False)
 
 
-def register_video_generation_services(config: Dict[str, Any] = None) -> None:
+def register_video_generation_services(config: dict[str, Any] = None) -> None:
     if config and not _is_enabled(config.get('video', {}).get('enabled', False)):
         logger.info("Video generation is globally disabled - skipping registration.")
         return
@@ -253,7 +253,7 @@ def register_video_generation_services(config: Dict[str, Any] = None) -> None:
     ], config=config, config_section='video_generation', default_enabled=False)
 
 
-def register_all_services(config: Dict[str, Any] = None) -> None:
+def register_all_services(config: dict[str, Any] = None) -> None:
     """
     Register all available service implementations.
 
@@ -293,7 +293,7 @@ def register_all_services(config: Dict[str, Any] = None) -> None:
         logger.debug(f"Registered services: {available}")
 
 
-def get_embedding_service_legacy(provider: str, config: Dict[str, Any]):
+def get_embedding_service_legacy(provider: str, config: dict[str, Any]):
     """
     Legacy compatibility function for getting embedding services.
 

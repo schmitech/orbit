@@ -3,7 +3,7 @@
 import os
 import sys
 import base64
-from typing import Dict, Any
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -63,7 +63,7 @@ class TestOllamaImageRegistration:
         registry_module._services_registered = False
 
     def test_register_ollama_image_provider(self):
-        config: Dict[str, Any] = {
+        config: dict[str, Any] = {
             "image": {"enabled": True},
             "image_generation": {
                 "ollama": {"enabled": True, "model": "x/z-image-turbo"},

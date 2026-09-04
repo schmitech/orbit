@@ -3,7 +3,7 @@ NVIDIA embedding service implementation using the OpenAI-compatible API.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 
 from openai import AsyncOpenAI
 
@@ -19,7 +19,7 @@ NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
     """NVIDIA embedding service using the OpenAI-compatible NIM API."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "nvidia")
 
         self.dimensions = self._get_dimensions_config()
@@ -91,7 +91,7 @@ class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
         self.initialized = False
         logger.debug("Closed NVIDIA embedding service")
 
-    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> list[float]:
         await self._ensure_initialized("NVIDIA embedding service")
 
         try:
@@ -112,7 +112,7 @@ class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
             logger.error(f"NVIDIA embedding error: {str(e)}")
             raise
 
-    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         await self._ensure_initialized("NVIDIA embedding service")
 
         if not texts:

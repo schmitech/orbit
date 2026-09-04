@@ -21,7 +21,7 @@ unrestricted key can omit this header entirely.
 import json
 import logging
 import uuid
-from typing import Dict, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 # In-memory task store — keyed by task_id.
 # Sufficient for single-process deployments; swap for Redis if needed.
-_tasks: Dict[str, dict] = {}
+_tasks: dict[str, dict] = {}
 
 
 def create_a2a_router() -> APIRouter:
@@ -137,7 +137,7 @@ async def _resolve_adapter(request: Request) -> tuple[str, Optional[str]]:
         request, header_name="x-orbit-user-authorization"
     )
 
-    def _enforce_identity(adapter_config: Optional[Dict] = None) -> None:
+    def _enforce_identity(adapter_config: Optional[dict] = None) -> None:
         if current_user or not is_authenticated_user_required(config, adapter_config):
             return
         raise HTTPException(

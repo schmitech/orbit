@@ -5,7 +5,7 @@ This module provides the base adapter for QA-specific document formatting,
 answer extraction, and filtering logic.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 import logging
 from adapters.base import DocumentAdapter
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class QADocumentAdapter(DocumentAdapter):
     """Adapter for question-answer type documents"""
 
-    def __init__(self, config: Dict[str, Any] = None, **kwargs):
+    def __init__(self, config: dict[str, Any] = None, **kwargs):
         """
         Initialize QA document adapter.
 
@@ -33,7 +33,7 @@ class QADocumentAdapter(DocumentAdapter):
 
         logger.debug(f"Initialized QA Document Adapter with confidence threshold: {self.confidence_threshold}")
 
-    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def format_document(self, raw_doc: str, metadata: dict[str, Any]) -> dict[str, Any]:
         """Format document for QA domain"""
         item = {
             "raw_document": raw_doc,
@@ -49,7 +49,7 @@ class QADocumentAdapter(DocumentAdapter):
 
         return item
 
-    def extract_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
+    def extract_direct_answer(self, context: list[dict[str, Any]]) -> Optional[str]:
         """Extract a direct answer from QA pairs"""
         if not context:
             return None
@@ -63,8 +63,8 @@ class QADocumentAdapter(DocumentAdapter):
         return None
 
     def apply_domain_specific_filtering(self,
-                                      context_items: List[Dict[str, Any]],
-                                      query: str) -> List[Dict[str, Any]]:
+                                      context_items: list[dict[str, Any]],
+                                      query: str) -> list[dict[str, Any]]:
         """Apply QA-specific filtering/ranking"""
         if not context_items:
             return []

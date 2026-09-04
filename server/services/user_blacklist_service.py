@@ -26,7 +26,7 @@ import fnmatch
 import logging
 import threading
 from datetime import datetime, UTC
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from services.database_service import (
     DatabaseService,
@@ -90,7 +90,7 @@ class UserBlacklistService:
     #: Human-readable rule-set name used in errors and log lines.
     LABEL = "blacklist"
 
-    def __init__(self, config: Dict[str, Any], database_service: DatabaseService):
+    def __init__(self, config: dict[str, Any], database_service: DatabaseService):
         self.config = config
         self.database = database_service
         self.collection_name = self.COLLECTION
@@ -118,7 +118,7 @@ class UserBlacklistService:
             self.users_collection_name = "users"
             self.sessions_collection_name = "sessions"
 
-        self._rules: List[Dict[str, Any]] = []
+        self._rules: list[dict[str, Any]] = []
         self._loaded_at: Optional[datetime] = None
         self._lock = threading.Lock()
 
@@ -138,7 +138,7 @@ class UserBlacklistService:
             age = (datetime.now(UTC) - self._loaded_at).total_seconds()
             return age < self.cache_ttl
 
-    async def _get_rules(self) -> List[Dict[str, Any]]:
+    async def _get_rules(self) -> list[dict[str, Any]]:
         """Return the cached rule set, refreshing it when stale."""
         if self._cache_is_fresh():
             with self._lock:
@@ -172,7 +172,7 @@ class UserBlacklistService:
         user_id: Optional[str] = None,
         email: Optional[str] = None,
         username: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Return the first rule blocking this identity, or None if allowed."""
         return self.match_in(
             await self._get_rules(), user_id=user_id, email=email, username=username
@@ -180,11 +180,11 @@ class UserBlacklistService:
 
     def match_in(
         self,
-        rules: List[Dict[str, Any]],
+        rules: list[dict[str, Any]],
         user_id: Optional[str] = None,
         email: Optional[str] = None,
         username: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Return the first of ``rules`` matching this identity, or None.
 
         Split out from :meth:`match_identity` so a caller can evaluate a
@@ -201,7 +201,7 @@ class UserBlacklistService:
                 return rule
         return None
 
-    async def match_user(self, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def match_user(self, user: dict[str, Any]) -> Optional[dict[str, Any]]:
         """Return the first rule blocking a user record, or None if allowed.
 
         Accepts both raw database rows (``_id``) and auth-context dicts (``id``).
@@ -213,7 +213,7 @@ class UserBlacklistService:
             username=user.get("username"),
         )
 
-    async def is_blocked(self, user: Dict[str, Any]) -> bool:
+    async def is_blocked(self, user: dict[str, Any]) -> bool:
         """Convenience predicate over :meth:`match_user`."""
         return await self.match_user(user) is not None
 
@@ -234,7 +234,7 @@ class UserBlacklistService:
             reason = reason.strip()[:MAX_REASON_LENGTH] or None
         return normalized, reason
 
-    async def get_rule(self, rule_id: str) -> Optional[Dict[str, Any]]:
+    async def get_rule(self, rule_id: str) -> Optional[dict[str, Any]]:
         """Fetch one rule by id, or None if the id is unknown or malformed."""
         try:
             rule_id_converted = await self.database.ensure_id_is_object_id(rule_id)
@@ -245,12 +245,12 @@ class UserBlacklistService:
             self.collection_name, {"_id": rule_id_converted}
         )
 
-    async def list_rules(self) -> List[Dict[str, Any]]:
+    async def list_rules(self) -> list[dict[str, Any]]:
         """Return every configured rule, newest first."""
         rules = await self.database.find_many(self.collection_name, {}, limit=1000)
         return sorted(rules, key=lambda r: str(r.get("created_at") or ""), reverse=True)
 
-    async def find_matching_users(self, pattern: str, entry_type: str) -> List[Dict[str, Any]]:
+    async def find_matching_users(self, pattern: str, entry_type: str) -> list[dict[str, Any]]:
         """Return existing user records a rule would block.
 
         Used both to revoke sessions when a rule is added and to warn an
@@ -270,7 +270,7 @@ class UserBlacklistService:
                 matched.append(user)
         return matched
 
-    async def revoke_sessions_for(self, users: List[Dict[str, Any]]) -> int:
+    async def revoke_sessions_for(self, users: list[dict[str, Any]]) -> int:
         """Delete active sessions for the given users; returns the count removed."""
         revoked = 0
         for user in users:
@@ -290,7 +290,7 @@ class UserBlacklistService:
         entry_type: str,
         reason: Optional[str] = None,
         created_by: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Persist a rule, revoke matching sessions, and invalidate the cache.
 
         Returns the stored rule with a ``revoked_sessions`` count attached.
@@ -336,7 +336,7 @@ class UserBlacklistService:
         pattern: str,
         entry_type: str,
         reason: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Edit an existing rule in place, returning it with revocation counts.
 
         Returns None if the rule id is unknown, so callers can 404.

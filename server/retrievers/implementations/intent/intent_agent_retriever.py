@@ -20,7 +20,7 @@ import json
 import logging
 import re
 import traceback
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
 from retrievers.base.intent_domain_components import record_intent_telemetry
@@ -61,7 +61,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         domain_adapter=None,
         datasource=None,
         **kwargs
@@ -97,8 +97,8 @@ class IntentAgentRetriever(IntentHTTPRetriever):
         self.response_synthesizer: Optional[ResponseSynthesizer] = None
 
         # Cache for loaded function tools
-        self._function_tools: Optional[List[ToolDefinition]] = None
-        self._function_tools_map: Optional[Dict[str, ToolDefinition]] = None
+        self._function_tools: Optional[list[ToolDefinition]] = None
+        self._function_tools_map: Optional[dict[str, ToolDefinition]] = None
 
         logger.info(
             f"IntentAgentRetriever configured with "
@@ -258,7 +258,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
             self._function_tools = []
             self._function_tools_map = {}
 
-    def _build_openai_tools(self) -> List[Dict[str, Any]]:
+    def _build_openai_tools(self) -> list[dict[str, Any]]:
         """
         Build OpenAI-compatible tool schemas for function calling.
 
@@ -276,7 +276,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
         api_key: Optional[str] = None,
         collection_name: Optional[str] = None,
         **kwargs
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get relevant context, then record match-outcome metrics and misses.
 
         This overrides IntentHTTPRetriever.get_relevant_context entirely (for
@@ -295,7 +295,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
         api_key: Optional[str] = None,
         collection_name: Optional[str] = None,
         **kwargs
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get relevant context for the query using function calling or template matching.
 
@@ -331,7 +331,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
             query, usage_sink=kwargs.get("usage_sink")
         )
 
-    async def _try_native_function_calling(self, query: str) -> Optional[List[Dict[str, Any]]]:
+    async def _try_native_function_calling(self, query: str) -> Optional[list[dict[str, Any]]]:
         """
         Try to handle the query using native function calling.
 
@@ -420,7 +420,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return None
 
-    def _parse_functiongemma_response(self, response: str) -> Optional[Dict[str, Any]]:
+    def _parse_functiongemma_response(self, response: str) -> Optional[dict[str, Any]]:
         """
         Parse FunctionGemma's custom output format.
 
@@ -504,7 +504,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
     def _build_functiongemma_prompt(
         self,
         query: str,
-        tools: List[Dict[str, Any]]
+        tools: list[dict[str, Any]]
     ) -> str:
         """
         Build a prompt in FunctionGemma's expected format.
@@ -543,8 +543,8 @@ Output format: <start_function_call>call:function_name{{param:<escape>value<esca
     async def _call_function_model(
         self,
         query: str,
-        tools: List[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        tools: list[dict[str, Any]]
+    ) -> Optional[dict[str, Any]]:
         """
         Call the function model with tools and get a function call response.
 
@@ -635,8 +635,8 @@ Output format: <start_function_call>call:function_name{{param:<escape>value<esca
     async def _prompt_based_function_calling(
         self,
         query: str,
-        tools: List[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        tools: list[dict[str, Any]]
+    ) -> Optional[dict[str, Any]]:
         """
         Fallback: Use a prompt to get the model to output a function call.
 
@@ -728,7 +728,7 @@ Response:"""
 
     async def _template_matching_flow(
         self, query: str, usage_sink=None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Handle the query using template matching (fallback flow).
 
@@ -817,8 +817,8 @@ Response:"""
     async def _extract_function_parameters(
         self,
         query: str,
-        template: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        template: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Extract function parameters from the query using LLM.
 
@@ -897,7 +897,7 @@ JSON response:"""
             logger.error(f"Error extracting function parameters: {e}")
             return {}
 
-    def _parse_json_response(self, response: str) -> Dict[str, Any]:
+    def _parse_json_response(self, response: str) -> dict[str, Any]:
         """Parse JSON from LLM response, handling various formats."""
         if not response:
             return {}
@@ -932,11 +932,11 @@ JSON response:"""
     def _format_function_results(
         self,
         results: Any,
-        template: Dict[str, Any],
-        parameters: Dict[str, Any],
+        template: dict[str, Any],
+        parameters: dict[str, Any],
         similarity: float,
         query: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Format function execution results for the pipeline.
 
@@ -991,10 +991,10 @@ JSON response:"""
     def _format_http_results(
         self,
         results: Any,
-        template: Dict[str, Any],
-        parameters: Dict[str, Any],
+        template: dict[str, Any],
+        parameters: dict[str, Any],
         similarity: float
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Format HTTP query template results into context documents.
 
@@ -1061,9 +1061,9 @@ JSON response:"""
 
     async def _execute_template(
         self,
-        template: Dict[str, Any],
-        parameters: Dict[str, Any]
-    ) -> Tuple[Any, Optional[str]]:
+        template: dict[str, Any],
+        parameters: dict[str, Any]
+    ) -> tuple[Any, Optional[str]]:
         """
         Execute a template, routing between query and function types.
 
@@ -1086,9 +1086,9 @@ JSON response:"""
 
     async def _execute_function_template(
         self,
-        template: Dict[str, Any],
-        parameters: Dict[str, Any]
-    ) -> Tuple[Any, Optional[str]]:
+        template: dict[str, Any],
+        parameters: dict[str, Any]
+    ) -> tuple[Any, Optional[str]]:
         """
         Execute a function-type template.
 
@@ -1140,9 +1140,9 @@ JSON response:"""
 
     async def _execute_http_query_template(
         self,
-        template: Dict[str, Any],
-        parameters: Dict[str, Any]
-    ) -> Tuple[Any, Optional[str]]:
+        template: dict[str, Any],
+        parameters: dict[str, Any]
+    ) -> tuple[Any, Optional[str]]:
         """
         Execute an HTTP query template (non-function type).
 
@@ -1204,9 +1204,9 @@ JSON response:"""
 
     async def _execute_http_tool(
         self,
-        template: Dict[str, Any],
-        parameters: Dict[str, Any]
-    ) -> Tuple[Any, Optional[str]]:
+        template: dict[str, Any],
+        parameters: dict[str, Any]
+    ) -> tuple[Any, Optional[str]]:
         """
         Callback for ToolExecutor to execute HTTP-based tools.
 
@@ -1225,9 +1225,9 @@ JSON response:"""
         self,
         method: str,
         endpoint: str,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        json_data: Optional[Dict[str, Any]] = None,
+        params: Optional[dict[str, Any]] = None,
+        headers: Optional[dict[str, str]] = None,
+        json_data: Optional[dict[str, Any]] = None,
         timeout: Optional[int] = None
     ) -> Any:
         """
@@ -1273,7 +1273,7 @@ JSON response:"""
     def _process_endpoint_template(
         self,
         endpoint_template: str,
-        parameters: Dict[str, Any]
+        parameters: dict[str, Any]
     ) -> str:
         """
         Process endpoint template with path parameter substitution.
@@ -1304,9 +1304,9 @@ JSON response:"""
 
     def _build_query_params(
         self,
-        template: Dict[str, Any],
-        parameters: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        template: dict[str, Any],
+        parameters: dict[str, Any]
+    ) -> dict[str, Any]:
         """Build query parameters from template and extracted parameters."""
         query_params = {}
 
@@ -1339,9 +1339,9 @@ JSON response:"""
 
     def _build_request_headers(
         self,
-        template: Dict[str, Any],
-        parameters: Dict[str, Any]
-    ) -> Dict[str, str]:
+        template: dict[str, Any],
+        parameters: dict[str, Any]
+    ) -> dict[str, str]:
         """Build request headers from template."""
         headers = {}
 
@@ -1357,9 +1357,9 @@ JSON response:"""
 
     def _build_request_body(
         self,
-        template: Dict[str, Any],
-        parameters: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        template: dict[str, Any],
+        parameters: dict[str, Any]
+    ) -> Optional[dict[str, Any]]:
         """Build request body from template and parameters."""
         body_template = template.get('body_template', template.get('request_body'))
 
@@ -1402,7 +1402,7 @@ JSON response:"""
     def _parse_response(
         self,
         response: Any,
-        template: Dict[str, Any]
+        template: dict[str, Any]
     ) -> Any:
         """
         Parse HTTP response according to template configuration.

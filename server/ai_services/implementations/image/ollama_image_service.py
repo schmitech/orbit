@@ -5,7 +5,7 @@ Uses Ollama's experimental OpenAI-compatible image generation endpoint.
 """
 
 import base64
-from typing import Dict, Any
+from typing import Any
 
 from ...base import ServiceType
 from ...providers import OllamaBaseService
@@ -15,7 +15,7 @@ from ...services import ImageGenerationService
 class OllamaImageService(ImageGenerationService, OllamaBaseService):
     """Generate images with an Ollama image model."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         OllamaBaseService.__init__(self, config, ServiceType.IMAGE_GENERATION, "ollama")
         provider_config = self._extract_provider_config()
         self.size = provider_config.get("size", "1024x1024")
@@ -23,7 +23,7 @@ class OllamaImageService(ImageGenerationService, OllamaBaseService):
         self.style = provider_config.get("style")
         self.n = provider_config.get("n", 1)
 
-    async def generate_image(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_image(self, prompt: str, **kwargs) -> dict[str, Any]:
         """Generate an image using Ollama's OpenAI-compatible images endpoint."""
         if not self.initialized:
             if not await self.initialize():
@@ -33,7 +33,7 @@ class OllamaImageService(ImageGenerationService, OllamaBaseService):
             session = await self.session_manager.get_session()
             url = self._build_images_url()
 
-            payload: Dict[str, Any] = {
+            payload: dict[str, Any] = {
                 "model": kwargs.get("model") or self.model,
                 "prompt": prompt,
                 "n": kwargs.get("n", self.n),
@@ -86,7 +86,7 @@ class OllamaImageService(ImageGenerationService, OllamaBaseService):
             base_url = f"{base_url}/v1"
         return f"{base_url}/images/generations"
 
-    def _infer_format(self, image_data: Dict[str, Any]) -> str:
+    def _infer_format(self, image_data: dict[str, Any]) -> str:
         """Infer the returned image format with a safe default."""
         mime_type = image_data.get("mime_type") or image_data.get("content_type") or ""
         if "/" in mime_type:

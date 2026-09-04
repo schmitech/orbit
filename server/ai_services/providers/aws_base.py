@@ -6,7 +6,7 @@ consolidating common functionality like credential management, client initializa
 and error handling for AWS services.
 """
 
-from typing import Dict, Any
+from typing import Any
 import logging
 import boto3
 from botocore.exceptions import ClientError
@@ -32,7 +32,7 @@ class AWSBaseService(ProviderAIService):
 
     DEFAULT_REGION = "us-east-1"
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "aws"):
+    def __init__(self, config: dict[str, Any], service_type: ServiceType = None, provider_name: str = "aws"):
         """
         Initialize the aws base service.
 

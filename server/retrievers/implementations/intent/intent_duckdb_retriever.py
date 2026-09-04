@@ -5,7 +5,7 @@ Similar to IntentSQLiteRetriever but for DuckDB databases.
 
 import logging
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 try:
     import duckdb
@@ -28,7 +28,7 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
     Inherits all intent functionality and DuckDB connection handling.
     """
 
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
         """Initialize DuckDB intent retriever."""
         super().__init__(config=config, domain_adapter=domain_adapter, connection=connection, **kwargs)
 
@@ -168,7 +168,7 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
         except Exception:
             return False
 
-    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """Execute DuckDB query with intent-specific handling."""
         try:
             # Check connection health before executing

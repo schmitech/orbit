@@ -6,7 +6,7 @@ Provides thread-safe caching and lifecycle management for audio services (TTS/ST
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .service_cache_manager import ServiceCacheManager
 
@@ -26,7 +26,7 @@ class AudioCacheManager(ServiceCacheManager):
 
     service_label = "audio service"
 
-    def __init__(self, config: Dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
+    def __init__(self, config: dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
         """
         Initialize the audio cache manager.
 
@@ -129,6 +129,6 @@ class AudioCacheManager(ServiceCacheManager):
         super()._log_create_error(provider_name, error)
 
     @staticmethod
-    def _is_disabled(section: Dict[str, Any]) -> bool:
+    def _is_disabled(section: dict[str, Any]) -> bool:
         enabled = section.get('enabled', True)
         return enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false')

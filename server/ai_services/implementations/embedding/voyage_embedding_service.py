@@ -6,7 +6,7 @@ as the Voyage reranking service.
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import Any
 import asyncio
 import aiohttp
 
@@ -27,7 +27,7 @@ class VoyageEmbeddingService(UsageReportingMixin, EmbeddingService):
     - Simple REST API via aiohttp
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the Voyage AI embedding service."""
         super().__init__(config, "voyage")
 
@@ -60,7 +60,7 @@ class VoyageEmbeddingService(UsageReportingMixin, EmbeddingService):
             logger.error(f"Failed to initialize Voyage AI embedding service: {e}")
             return False
 
-    async def embed_query(self, text: str, usage_sink=None) -> List[float]:
+    async def embed_query(self, text: str, usage_sink=None) -> list[float]:
         """Generate embeddings for a single query text."""
         await self._ensure_initialized("Voyage AI embedding service")
 
@@ -83,7 +83,7 @@ class VoyageEmbeddingService(UsageReportingMixin, EmbeddingService):
             logger.error(f"VoyageEmbeddingService.embed_query failed: {e}")
             raise
 
-    async def embed_documents(self, texts: List[str], usage_sink=None) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str], usage_sink=None) -> list[list[float]]:
         """Generate embeddings for multiple documents with batching."""
         await self._ensure_initialized("Voyage AI embedding service")
 
@@ -138,10 +138,10 @@ class VoyageEmbeddingService(UsageReportingMixin, EmbeddingService):
 
     async def _call_api(
         self,
-        texts: List[str],
+        texts: list[str],
         input_type: str = "document",
         usage_sink=None,
-    ) -> List[List[float]]:
+    ) -> list[list[float]]:
         """
         Call the Voyage AI embeddings API.
 

@@ -6,7 +6,7 @@ Compatible with Elasticsearch 9.x and OpenSearch.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from elasticsearch import AsyncElasticsearch
 
 from ..base.base_datasource import BaseDatasource
@@ -22,7 +22,7 @@ class ElasticsearchDatasource(BaseDatasource):
     connection sharing and reference counting across multiple adapters.
     """
 
-    def __init__(self, config: Dict[str, Any], logger_instance: Optional[logging.Logger] = None):
+    def __init__(self, config: dict[str, Any], logger_instance: Optional[logging.Logger] = None):
         """
         Initialize Elasticsearch datasource.
 

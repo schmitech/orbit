@@ -31,7 +31,8 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Optional
+from collections.abc import Callable
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -83,12 +84,12 @@ _CHANGED_KEYS = object()
 # These fields are published only by trusted route handlers, never copied from
 # a client request body.  Login failure reasons are a fixed server-side
 # taxonomy; accepting them from JSON would let a caller forge audit metadata.
-_CONTEXT_ONLY_SUMMARY_FIELDS: Dict[Tuple[str, str], Tuple[str, ...]] = {
+_CONTEXT_ONLY_SUMMARY_FIELDS: dict[tuple[str, str], tuple[str, ...]] = {
     ("POST", "/auth/login"): ("reason",),
     ("POST", "/admin/login"): ("reason",),
 }
 
-_ROUTE_MAP: List[Tuple[str, str, str, str, str, Optional[str], Any]] = [
+_ROUTE_MAP: list[tuple[str, str, str, str, str, Optional[str], Any]] = [
     # ---- Auth ----
     ("POST",   "/auth/login",                         "auth.login",              "LOGIN",  "session", None,               ("username",)),
     ("POST",   "/auth/logout",                        "auth.logout",             "LOGOUT", "session", None,               ()),
@@ -197,7 +198,7 @@ def _template_to_regex(template: str) -> re.Pattern:
     return re.compile(f"^{pattern}$")
 
 
-_COMPILED_ROUTES: List[Tuple[str, re.Pattern, str, str, str, Optional[str], Any, str]] = [
+_COMPILED_ROUTES: list[tuple[str, re.Pattern, str, str, str, Optional[str], Any, str]] = [
     (method, _template_to_regex(template), event_type, action, resource_type, resource_id_source, allowed, template)
     for (method, template, event_type, action, resource_type, resource_id_source, allowed) in _ROUTE_MAP
 ]
@@ -239,7 +240,7 @@ async def _read_and_replay_body(request: Request) -> bytes:
     return body
 
 
-def _parse_json_body(body_bytes: bytes, content_type: Optional[str]) -> Optional[Dict[str, Any]]:
+def _parse_json_body(body_bytes: bytes, content_type: Optional[str]) -> Optional[dict[str, Any]]:
     if not body_bytes:
         return None
     if not content_type or "application/json" not in content_type.lower():
@@ -251,7 +252,7 @@ def _parse_json_body(body_bytes: bytes, content_type: Optional[str]) -> Optional
         return None
 
 
-def _build_request_summary(body: Optional[Dict[str, Any]], allowed: Any) -> Optional[Dict[str, Any]]:
+def _build_request_summary(body: Optional[dict[str, Any]], allowed: Any) -> Optional[dict[str, Any]]:
     """Apply the per-route allowlist; secrets (passwords, raw keys) never pass through."""
     if not body:
         return None
@@ -259,7 +260,7 @@ def _build_request_summary(body: Optional[Dict[str, Any]], allowed: Any) -> Opti
         return {"changed_keys": list(body.keys())}
     if not allowed:
         return None
-    summary: Dict[str, Any] = {}
+    summary: dict[str, Any] = {}
     for field in allowed:
         if field in body and body[field] is not None:
             summary[field] = body[field]
@@ -267,11 +268,11 @@ def _build_request_summary(body: Optional[Dict[str, Any]], allowed: Any) -> Opti
 
 
 def _apply_summary_overrides(
-    summary: Optional[Dict[str, Any]],
+    summary: Optional[dict[str, Any]],
     overrides: Any,
     allowed: Any,
-    context_only: Tuple[str, ...] = (),
-) -> Optional[Dict[str, Any]]:
+    context_only: tuple[str, ...] = (),
+) -> Optional[dict[str, Any]]:
     """Merge handler-published values into the summary, allowlist-bound.
 
     Overrides go through the route's request-body allowlist plus any explicitly
@@ -313,7 +314,7 @@ def _apply_summary_overrides(
 class AdminAuditMiddleware(BaseHTTPMiddleware):
     """Captures admin/auth mutations and routes them to AuditService."""
 
-    def __init__(self, app, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, app, config: Optional[dict[str, Any]] = None):
         super().__init__(app)
         security_cfg = (config or {}).get("security", {}) or {}
         rate_cfg = security_cfg.get("rate_limiting", {}) or {}
@@ -363,7 +364,7 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
         response,
         path: str,
         method: str,
-        body_json: Optional[Dict[str, Any]],
+        body_json: Optional[dict[str, Any]],
         audit_service,
     ) -> None:
         from services.audit import AdminAuditRecord  # local import avoids cycles
@@ -375,8 +376,8 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
             resource_type = "unknown"
             resource_id_source: Optional[str] = None
             allowed: Any = ()
-            path_params: Dict[str, str] = {}
-            context_only: Tuple[str, ...] = ()
+            path_params: dict[str, str] = {}
+            context_only: tuple[str, ...] = ()
         else:
             entry, path_params = match
             _method, _regex, event_type, action, resource_type, resource_id_source, allowed, _template = entry

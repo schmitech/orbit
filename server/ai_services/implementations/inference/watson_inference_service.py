@@ -1,6 +1,7 @@
 """IBM Watson inference service."""
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 from ...base import ServiceType
 from ...providers import WatsonBaseService
 from ...services import InferenceService
@@ -8,7 +9,7 @@ from ...services import InferenceService
 class WatsonInferenceService(InferenceService, WatsonBaseService):
     """Watson inference service. Old: ~365 lines, New: ~70 lines, Reduction: 81%"""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         WatsonBaseService.__init__(self, config, ServiceType.INFERENCE)
         InferenceService.__init__(self, config, "watson")
         self.temperature = self._get_temperature(default=0.7)

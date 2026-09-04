@@ -15,7 +15,7 @@ import logging
 import traceback
 import json
 import httpx
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Optional
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
 from retrievers.base.intent_domain_components import record_intent_telemetry
@@ -41,7 +41,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
     - Error handling for invalid URLs and API failures
     """
 
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
         """
         Initialize Firecrawl retriever.
 
@@ -153,7 +153,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
                                    collection_name: Optional[str] = None,
-                                   **kwargs) -> List[Dict[str, Any]]:
+                                   **kwargs) -> list[dict[str, Any]]:
         """Process a query using intent-based Firecrawl scraping with chunking,
         then record match-outcome metrics and misses for observability.
 
@@ -169,7 +169,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
     async def _get_relevant_context_impl(self, query: str, api_key: Optional[str] = None,
                                    collection_name: Optional[str] = None,
-                                   **kwargs) -> List[Dict[str, Any]]:
+                                   **kwargs) -> list[dict[str, Any]]:
         """
         Process a natural language query using intent-based Firecrawl scraping with chunking.
 
@@ -275,8 +275,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                 "confidence": 0.0
             }]
 
-    async def _execute_template(self, template: Dict[str, Any],
-                                parameters: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+    async def _execute_template(self, template: dict[str, Any],
+                                parameters: dict[str, Any]) -> tuple[Any, Optional[str]]:
         """
         Execute Firecrawl scraping template with parameters.
 
@@ -347,7 +347,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return [], error_msg
 
-    def _build_scrape_params(self, url: str, formats: List[str], template: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_scrape_params(self, url: str, formats: list[str], template: dict[str, Any]) -> dict[str, Any]:
         """
         Build Firecrawl scrape parameters from URL, formats, and template.
 
@@ -386,7 +386,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
         return params
 
-    async def _execute_firecrawl_request(self, params: Dict[str, Any]) -> httpx.Response:
+    async def _execute_firecrawl_request(self, params: dict[str, Any]) -> httpx.Response:
         """
         Execute Firecrawl scrape request with retry logic.
 
@@ -433,7 +433,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             raise last_error
         raise Exception("Request failed after all retries")
 
-    def _parse_firecrawl_response(self, response: httpx.Response, formats: List[str]) -> List[Dict[str, Any]]:
+    def _parse_firecrawl_response(self, response: httpx.Response, formats: list[str]) -> list[dict[str, Any]]:
         """
         Parse Firecrawl API response.
 
@@ -485,9 +485,9 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return [{'error': str(e), 'raw_response': response.text[:500]}]
 
-    async def _format_http_results_async(self, results: Any, template: Dict,
-                                         parameters: Dict, similarity: float,
-                                         query: str, usage_sink=None) -> List[Dict[str, Any]]:
+    async def _format_http_results_async(self, results: Any, template: dict,
+                                         parameters: dict, similarity: float,
+                                         query: str, usage_sink=None) -> list[dict[str, Any]]:
         """
         Format Firecrawl results with chunking support (async version).
 
@@ -566,8 +566,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             "confidence": similarity
         }]
 
-    def _format_http_results(self, results: Any, template: Dict,
-                            parameters: Dict, similarity: float) -> List[Dict[str, Any]]:
+    def _format_http_results(self, results: Any, template: dict,
+                            parameters: dict, similarity: float) -> list[dict[str, Any]]:
         """
         Format Firecrawl results into context documents (sync wrapper).
 
@@ -626,8 +626,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             "confidence": similarity
         }]
 
-    async def _process_with_chunking(self, results: List[Dict], template: Dict,
-                                     parameters: Dict, query: str,
+    async def _process_with_chunking(self, results: list[dict], template: dict,
+                                     parameters: dict, query: str,
                                      source_url: str, usage_sink=None) -> str:
         """
         Process large content with chunking and ranking.
@@ -695,9 +695,9 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             total_content_size=len(markdown_content)
         )
 
-    def _format_chunked_results(self, chunks: List[Dict[str, Any]],
+    def _format_chunked_results(self, chunks: list[dict[str, Any]],
                                 source_url: str,
-                                page_metadata: Dict[str, Any],
+                                page_metadata: dict[str, Any],
                                 total_content_size: int) -> str:
         """
         Format chunked results for display.
@@ -751,7 +751,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
         return '\n'.join(lines)
 
-    def _format_firecrawl_results(self, results: List[Dict], template: Dict) -> str:
+    def _format_firecrawl_results(self, results: list[dict], template: dict) -> str:
         """
         Format Firecrawl results as human-readable text.
 

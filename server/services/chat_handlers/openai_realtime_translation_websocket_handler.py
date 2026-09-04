@@ -17,7 +17,7 @@ import asyncio
 import json
 import logging
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 from services.chat_handlers.openai_realtime_websocket_handler import _resolve_openai_api_key
@@ -58,8 +58,8 @@ class OpenAIRealtimeTranslationWebSocketHandler:
         self,
         websocket: WebSocket,
         adapter_name: str,
-        adapter_config: Dict[str, Any],
-        config: Dict[str, Any],
+        adapter_config: dict[str, Any],
+        config: dict[str, Any],
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
         target_language: Optional[str] = None,
@@ -88,7 +88,7 @@ class OpenAIRealtimeTranslationWebSocketHandler:
         self._openai_task: Optional[asyncio.Task] = None
         self._chunk_index = 0
 
-    def _build_session_update(self) -> Dict[str, Any]:
+    def _build_session_update(self) -> dict[str, Any]:
         return {
             "type": "session.update",
             "session": {
@@ -100,7 +100,7 @@ class OpenAIRealtimeTranslationWebSocketHandler:
             },
         }
 
-    async def _send_client(self, message: Dict[str, Any]) -> None:
+    async def _send_client(self, message: dict[str, Any]) -> None:
         if self.websocket.client_state != WebSocketState.CONNECTED:
             self.is_connected = False
             return
@@ -194,7 +194,7 @@ class OpenAIRealtimeTranslationWebSocketHandler:
             else:
                 logger.debug("Unknown client message type: %s", mtype)
 
-    async def _map_openai_event(self, event: Dict[str, Any]) -> None:
+    async def _map_openai_event(self, event: dict[str, Any]) -> None:
         etype = event.get("type")
         if etype == "session.output_audio.delta":
             delta = event.get("delta")

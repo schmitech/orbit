@@ -14,12 +14,13 @@ To add a new backend:
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Optional
+from collections.abc import Awaitable, Callable
 
 from utils.config_utils import is_true_value
 
 
-def is_messaging_enabled(config: Dict[str, Any]) -> bool:
+def is_messaging_enabled(config: dict[str, Any]) -> bool:
     """Master switch: messaging.enabled. Defaults to False (opt-in surface)."""
     return is_true_value((config.get('messaging', {}) or {}).get('enabled', False))
 
@@ -34,7 +35,7 @@ class BrokerMessage:
     body: bytes
     correlation_id: Optional[str] = None
     reply_to: Optional[str] = None
-    headers: Dict[str, Any] = field(default_factory=dict)
+    headers: dict[str, Any] = field(default_factory=dict)
 
 
 # Handler invoked once per inbound message. Returning normally acks the message;
@@ -63,7 +64,7 @@ class MessageBroker(ABC):
         destination: Optional[str],
         body: bytes,
         correlation_id: Optional[str] = None,
-        headers: Optional[Dict[str, Any]] = None,
+        headers: Optional[dict[str, Any]] = None,
     ) -> None:
         """Publish a response. A None destination targets the configured results queue."""
 

@@ -16,14 +16,14 @@ approach is enough.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-def _cosine(v1: List[float], v2: List[float]) -> float:
+def _cosine(v1: list[float], v2: list[float]) -> float:
     """Cosine similarity between two vectors; 0.0 when either is a zero vector."""
     a = np.asarray(v1, dtype=float)
     b = np.asarray(v2, dtype=float)
@@ -40,11 +40,11 @@ class MCPToolSelector:
     # Shared across every instance/request in this process — tool schemas
     # rarely change, so there's no reason to re-embed them on every call.
     # Keyed by (embedding_provider, frozenset of tool names).
-    _embedding_clients: Dict[str, Any] = {}
-    _phrase_cache: Dict[tuple, Dict[str, List[float]]] = {}
+    _embedding_clients: dict[str, Any] = {}
+    _phrase_cache: dict[tuple, dict[str, list[float]]] = {}
     _warned_no_provider = False
 
-    def __init__(self, config: Dict[str, Any], adapter_manager):
+    def __init__(self, config: dict[str, Any], adapter_manager):
         self.config = config or {}
         self.adapter_manager = adapter_manager
 
@@ -60,11 +60,11 @@ class MCPToolSelector:
     async def select_tools(
         self,
         message: Optional[str],
-        tools: List[Dict[str, Any]],
+        tools: list[dict[str, Any]],
         adapter_name: Optional[str],
-        context_messages: Optional[List[Dict[str, Any]]] = None,
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        context_messages: Optional[list[dict[str, Any]]] = None,
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """
         Return the subset of `tools` relevant to this turn, in their original
         order, always including any tool already called earlier in this
@@ -94,7 +94,7 @@ class MCPToolSelector:
                 self._phrase_cache[key] = phrase_index
 
             if hasattr(client, "embed_query_tracked"):
-                local_usage: Dict[str, Any] = {}
+                local_usage: dict[str, Any] = {}
                 query_vec = await client.embed_query_tracked(message, usage_sink=local_usage)
                 from ai_services.providers.usage_reporting import accumulate_usage_sink
                 accumulate_usage_sink(usage_sink, local_usage)
@@ -108,7 +108,7 @@ class MCPToolSelector:
                 scored.append((score, tool))
             scored.sort(key=lambda item: item[0], reverse=True)
 
-            selected_names: Set[str] = {
+            selected_names: set[str] = {
                 self._tool_name(tool)
                 for score, tool in scored[: self.max_tools]
                 if score >= self.embedding_threshold
@@ -136,11 +136,11 @@ class MCPToolSelector:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _tool_name(tool: Dict[str, Any]) -> str:
+    def _tool_name(tool: dict[str, Any]) -> str:
         return tool.get("function", {}).get("name", "")
 
     @staticmethod
-    def _called_tool_names(context_messages: Optional[List[Dict[str, Any]]]) -> Set[str]:
+    def _called_tool_names(context_messages: Optional[list[dict[str, Any]]]) -> set[str]:
         """
         Tool names invoked in prior turns of this thread, so a multi-step
         task in progress never has its tools pulled out from under it.
@@ -159,7 +159,7 @@ class MCPToolSelector:
             any ordinary session follow-up, since context_messages loaded
             from storage never carries a `tool_calls` key at all.
         """
-        names: Set[str] = set()
+        names: set[str] = set()
         for msg in context_messages or []:
             for tc in (msg.get("tool_calls") or []):
                 name = (tc.get("function") or {}).get("name")
@@ -192,16 +192,16 @@ class MCPToolSelector:
     async def _build_phrase_index(
         self,
         client,
-        tools: List[Dict[str, Any]],
-        usage_sink: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, List[float]]:
+        tools: list[dict[str, Any]],
+        usage_sink: Optional[dict[str, Any]] = None,
+    ) -> dict[str, list[float]]:
         names = [self._tool_name(t) for t in tools]
         phrases = [
             f"{name}: {t.get('function', {}).get('description', '')}".strip(": ")
             for name, t in zip(names, tools)
         ]
         if hasattr(client, "embed_documents_tracked"):
-            local_usage: Dict[str, Any] = {}
+            local_usage: dict[str, Any] = {}
             vectors = await client.embed_documents_tracked(phrases, usage_sink=local_usage)
             from ai_services.providers.usage_reporting import accumulate_usage_sink
             accumulate_usage_sink(usage_sink, local_usage)

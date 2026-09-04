@@ -13,7 +13,7 @@ Run with:
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from inference.pipeline.base import ProcessingContext
 from inference.pipeline.steps.language_detection import (
@@ -37,11 +37,11 @@ def require_any_backend():
 class MockContainer:
     """Mock service container for testing."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[dict[str, Any]] = None):
         self._services = {}
         self._config = config or self._default_config()
 
-    def _default_config(self) -> Dict[str, Any]:
+    def _default_config(self) -> dict[str, Any]:
         return {
             'language_detection': {
                 'enabled': True,

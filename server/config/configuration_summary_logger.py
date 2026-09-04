@@ -10,7 +10,7 @@ This module handles logging comprehensive configuration summaries, including:
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI
 from utils import is_true_value
@@ -28,7 +28,7 @@ class ConfigurationSummaryLogger:
     - Generating documentation-ready configuration reports
     """
 
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger) -> None:
+    def __init__(self, config: dict[str, Any], logger: logging.Logger) -> None:
         """
         Initialize the ConfigurationSummaryLogger.
 
@@ -395,7 +395,7 @@ class ConfigurationSummaryLogger:
             self.logger.info(f"  Min confidence: {lang_detect_config.get('min_confidence', 0.7)}")
             self.logger.info(f"  Fallback language: {lang_detect_config.get('fallback_language', 'en')}")
 
-    def generate_configuration_report(self) -> Dict[str, Any]:
+    def generate_configuration_report(self) -> dict[str, Any]:
         """
         Generate a structured configuration report for programmatic use.
 

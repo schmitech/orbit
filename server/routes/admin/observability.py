@@ -4,7 +4,7 @@ Token usage and cost aggregation endpoint.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from fastapi import APIRouter, Request, HTTPException, Query
 
 from routes.admin._shared import (
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _label_api_key_groups(request: Request, groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def _label_api_key_groups(request: Request, groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Decorate `api_key`-grouped rows with a `label` field resolved from the
     `api_keys` collection's `client_name`.
 
@@ -37,7 +37,7 @@ async def _label_api_key_groups(request: Request, groups: List[Dict[str, Any]]) 
         return groups
 
     page_size = 500
-    active_keys: List[Dict[str, Any]] = []
+    active_keys: list[dict[str, Any]] = []
     try:
         skip = 0
         while True:
@@ -52,8 +52,8 @@ async def _label_api_key_groups(request: Request, groups: List[Dict[str, Any]]) 
         logger.warning("Failed to resolve API key labels for cost aggregation", exc_info=True)
         return groups
 
-    id_to_name: Dict[str, str] = {}
-    masked_to_names: Dict[str, list] = {}
+    id_to_name: dict[str, str] = {}
+    masked_to_names: dict[str, list] = {}
     for doc in active_keys:
         client_name = doc.get("client_name")
         doc_id = doc.get("_id")
@@ -146,7 +146,7 @@ async def get_observability_usage(
     since = since_dt.isoformat()
     until = now_local.isoformat()
 
-    filters: Dict[str, Any] = {}
+    filters: dict[str, Any] = {}
     if provider:
         filters["provider"] = provider
     if adapter_name:

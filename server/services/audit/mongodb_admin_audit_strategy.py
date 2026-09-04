@@ -7,7 +7,7 @@ collection via the shared DatabaseService abstraction.
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from .admin_audit_storage_strategy import AdminAuditRecord, AdminAuditStorageStrategy
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class MongoDBAdminAuditStrategy(AdminAuditStorageStrategy):
     """MongoDB implementation of admin audit storage."""
 
-    def __init__(self, config: Dict[str, Any], database_service=None):
+    def __init__(self, config: dict[str, Any], database_service=None):
         super().__init__(config)
         self._database_service = database_service
         self._owns_database_service = False
@@ -89,12 +89,12 @@ class MongoDBAdminAuditStrategy(AdminAuditStorageStrategy):
 
     async def query(
         self,
-        filters: Dict[str, Any],
+        filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = "timestamp",
         sort_order: int = -1,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         if not self._initialized:
             await self.initialize()
 

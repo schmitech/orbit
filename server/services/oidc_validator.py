@@ -17,7 +17,7 @@ via the ``auth-providers`` dependency profile.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover - exercised only when dependency missing
 # and AdminSSOService (browser SSO). Keeping these in one place ensures both
 # paths agree on issuer/JWKS/authorize/token URLs for a given provider config.
 
-def entra_endpoints(tenant_id: str) -> Dict[str, Any]:
+def entra_endpoints(tenant_id: str) -> dict[str, Any]:
     base = f"https://login.microsoftonline.com/{tenant_id}"
     v2_issuer = f"{base}/v2.0"
     return {
@@ -53,7 +53,7 @@ def entra_endpoints(tenant_id: str) -> Dict[str, Any]:
     }
 
 
-def auth0_endpoints(domain: str) -> Dict[str, str]:
+def auth0_endpoints(domain: str) -> dict[str, str]:
     domain = domain.rstrip('/')
     return {
         "issuer": f"https://{domain}/",
@@ -73,7 +73,7 @@ class OIDCValidator:
 
     # Providers are selected by matching the token's ``iss`` claim, so tokens
     # are always routed to the JWKS/audience of the issuer that minted them.
-    def __init__(self, providers_config: Dict[str, Any]):
+    def __init__(self, providers_config: dict[str, Any]):
         if not _PYJWT_AVAILABLE:
             raise RuntimeError(
                 "auth.providers is enabled but PyJWT is not installed. "
@@ -84,7 +84,7 @@ class OIDCValidator:
         self.default_role = providers_config.get('default_role', 'user')
 
         # provider_name -> {issuer, audiences, jwks_client}
-        self._providers: Dict[str, Dict[str, Any]] = {}
+        self._providers: dict[str, dict[str, Any]] = {}
 
         entra = providers_config.get('entra', {})
         if entra.get('enabled'):
@@ -103,7 +103,7 @@ class OIDCValidator:
         """True when at least one external provider is configured."""
         return bool(self._providers)
 
-    def _build_entra(self, cfg: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_entra(self, cfg: dict[str, Any]) -> dict[str, Any]:
         tenant_id = cfg.get('tenant_id')
         client_id = cfg.get('client_id')
         if not tenant_id or not client_id:
@@ -122,7 +122,7 @@ class OIDCValidator:
             "email_claim": cfg.get('email_claim', 'email'),
         }
 
-    def _build_auth0(self, cfg: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_auth0(self, cfg: dict[str, Any]) -> dict[str, Any]:
         domain = cfg.get('domain')
         audience = cfg.get('audience')
         if not domain or not audience:
@@ -142,7 +142,7 @@ class OIDCValidator:
             "email_claim": cfg.get('email_claim', 'email'),
         }
 
-    async def validate(self, token: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    async def validate(self, token: str) -> tuple[bool, Optional[dict[str, Any]]]:
         """Validate a provider JWT.
 
         Returns ``(True, {provider, external_id, email})`` on success, or
@@ -197,7 +197,7 @@ class OIDCValidator:
                 return name
         return None
 
-    def _verify_sync(self, token: str, provider: str) -> Dict[str, Any]:
+    def _verify_sync(self, token: str, provider: str) -> dict[str, Any]:
         """Fetch the signing key (blocking, cached) and verify the JWT.
 
         Runs inside ``asyncio.to_thread`` because PyJWKClient uses blocking

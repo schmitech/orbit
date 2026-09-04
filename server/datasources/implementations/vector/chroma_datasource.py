@@ -5,7 +5,7 @@ ChromaDB Datasource Implementation
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 from ...base.base_datasource import BaseDatasource
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class ChromaDBDatasource(BaseDatasource):
         self._initialized = True
         logger.debug("ChromaDB client initialized successfully")
     
-    def _initialize_local_client(self, chroma_config: Dict[str, Any]):
+    def _initialize_local_client(self, chroma_config: dict[str, Any]):
         """Initialize a local ChromaDB PersistentClient."""
         import chromadb
         
@@ -51,7 +51,7 @@ class ChromaDBDatasource(BaseDatasource):
         logger.debug(f"Using local ChromaDB at path: {db_path}")
         return chromadb.PersistentClient(path=str(db_path))
     
-    def _initialize_remote_client(self, chroma_config: Dict[str, Any]):
+    def _initialize_remote_client(self, chroma_config: dict[str, Any]):
         """Initialize a remote ChromaDB HttpClient."""
         import chromadb
         

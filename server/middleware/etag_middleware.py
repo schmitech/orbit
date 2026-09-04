@@ -14,7 +14,7 @@ Key Features:
 
 import hashlib
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -35,7 +35,7 @@ class ETagMiddleware(BaseHTTPMiddleware):
     of the full response body, saving bandwidth and processing time.
     """
 
-    def __init__(self, app, excluded_paths: Optional[List[str]] = None):
+    def __init__(self, app, excluded_paths: Optional[list[str]] = None):
         """
         Initialize the ETag middleware.
 

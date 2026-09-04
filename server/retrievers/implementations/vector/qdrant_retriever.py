@@ -5,7 +5,7 @@ Qdrant implementation of the AbstractVectorRetriever interface
 import logging
 import threading
 import asyncio
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from fastapi import HTTPException
 from qdrant_client import QdrantClient
@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 
 # Singleton manager for Qdrant clients to avoid redundant connections
 class QdrantClientManager:
-    _clients: Dict[str, QdrantClient] = {}
-    _locks: Dict[str, asyncio.Lock] = {}
-    _connected: Dict[str, bool] = {}
+    _clients: dict[str, QdrantClient] = {}
+    _locks: dict[str, asyncio.Lock] = {}
+    _connected: dict[str, bool] = {}
     _manager_lock = threading.Lock()
 
     @classmethod
@@ -122,7 +122,7 @@ class QdrantRetriever(AbstractVectorRetriever):
     """Qdrant implementation of the AbstractVectorRetriever interface"""
 
     def __init__(self, 
-                config: Dict[str, Any],
+                config: dict[str, Any],
                 embeddings: Optional[Any] = None,
                 domain_adapter=None,
                 **kwargs):
@@ -294,7 +294,7 @@ class QdrantRetriever(AbstractVectorRetriever):
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
-    async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
+    async def vector_search(self, query_embedding: list[float], top_k: int) -> list[dict[str, Any]]:
         """
         Perform vector similarity search in Qdrant.
         

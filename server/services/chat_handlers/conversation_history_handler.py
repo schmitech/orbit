@@ -6,7 +6,7 @@ storage, and limit checking.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 
 from services.chat_history_service import SessionOwnershipError
 from utils import is_true_value
@@ -19,7 +19,7 @@ class ConversationHistoryHandler:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         chat_history_service=None,
         adapter_manager=None
     ):
@@ -84,10 +84,10 @@ class ConversationHistoryHandler:
         self,
         session_id: Optional[str],
         adapter_name: str,
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None,
         api_key: Optional[str] = None
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """
         Get conversation context from history for the current session.
 
@@ -147,9 +147,9 @@ class ConversationHistoryHandler:
         adapter_name: str,
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         regenerate_of_message_id: Optional[str] = None,
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None
     ) -> tuple[Optional[Any], Optional[Any]]:
         """
@@ -214,7 +214,7 @@ class ConversationHistoryHandler:
         self,
         session_id: Optional[str],
         adapter_name: str,
-        runtime_param_overrides: Optional[Dict[str, Any]] = None,
+        runtime_param_overrides: Optional[dict[str, Any]] = None,
         runtime_provider: Optional[str] = None
     ) -> Optional[str]:
         """

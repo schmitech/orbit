@@ -8,7 +8,8 @@ Compare with: server/inference/pipeline/providers/openai_provider.py (old implem
 """
 
 import json
-from typing import Dict, Any, AsyncGenerator, List
+from typing import Any
+from collections.abc import AsyncGenerator
 from urllib.parse import urlparse
 
 import logging
@@ -37,7 +38,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
     Reduction: ~56%
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the OpenAI inference service.
 
@@ -262,8 +263,8 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
 
     async def generate_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
         **kwargs,
     ) -> ToolCallingResult:
         """Single round of tool-enabled generation using the Responses API."""
@@ -274,7 +275,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         kw = kwargs.copy()
         token_value = self._resolve_token_value("max_output_tokens", kw)
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": self.model,
             "input": self._messages_to_responses_input(messages),
             "max_output_tokens": token_value,
@@ -320,7 +321,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         # retaining the typed Responses output items.  The latter includes
         # reasoning items and is fed back on the next turn with the function
         # outputs, which preserves the model's reasoning context.
-        assistant_msg: Dict[str, Any] = {
+        assistant_msg: dict[str, Any] = {
             "role": "assistant",
             "content": text,
             "_openai_responses_output": output_items,
@@ -356,7 +357,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         )
 
     @staticmethod
-    def _tools_to_responses_format(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _tools_to_responses_format(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert Chat Completions function schemas to Responses tool schemas."""
         converted = []
         for tool in tools:
@@ -373,7 +374,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         return converted
 
     @classmethod
-    def _messages_to_responses_input(cls, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _messages_to_responses_input(cls, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert the MCP loop's Chat Completions history to Responses items."""
         input_items = []
         for message in messages:
@@ -401,7 +402,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         return input_items
 
     @staticmethod
-    def _response_output_to_dicts(response: Any) -> List[Dict[str, Any]]:
+    def _response_output_to_dicts(response: Any) -> list[dict[str, Any]]:
         """Return SDK response output items as plain dictionaries for replay."""
         output_items = []
         for item in getattr(response, "output", []) or []:
@@ -413,7 +414,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
                 output_items.append(dict(vars(item)))
         return output_items
 
-    def _build_web_search_params(self, messages: list, stream: bool = False, **kwargs) -> Dict[str, Any]:
+    def _build_web_search_params(self, messages: list, stream: bool = False, **kwargs) -> dict[str, Any]:
         """
         Build parameters for a web-search request via the Responses API.
 
@@ -432,7 +433,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
             else:
                 input_items.append({"role": role, "content": content})
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": self.model,
             "input": input_items,
             "tools": [{"type": "web_search"}],
@@ -455,7 +456,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         return params
 
     @staticmethod
-    def _extract_annotations(response: Any) -> List[Any]:
+    def _extract_annotations(response: Any) -> list[Any]:
         """Collect url_citation annotations from a non-streaming Responses API result."""
         annotations = []
         for item in getattr(response, "output", []) or []:
@@ -466,7 +467,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         return annotations
 
     @staticmethod
-    def _extract_web_search_urls(response: Any, limit: int = 6) -> List[str]:
+    def _extract_web_search_urls(response: Any, limit: int = 6) -> list[str]:
         """
         Fall back to the raw URLs a web_search_call visited when the message
         carries no url_citation annotations.
@@ -493,7 +494,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         return urls
 
     @staticmethod
-    def _format_url_citations(annotations: List[Any]) -> str:
+    def _format_url_citations(annotations: list[Any]) -> str:
         """Format Responses API url_citation annotations (or bare URL strings) as a markdown source list."""
         seen_urls = set()
         lines = []
@@ -545,7 +546,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
         # Default to the legacy chat.completions parameter name
         return "max_tokens"
 
-    def _resolve_token_value(self, token_param: str, kwargs: Dict[str, Any]) -> int:
+    def _resolve_token_value(self, token_param: str, kwargs: dict[str, Any]) -> int:
         """Determine the token limit value while respecting caller overrides."""
         # Pop all known token parameter variants so they don't leak into kwargs
         overrides = {
@@ -597,7 +598,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
 
         return model_name.startswith(reasoning_prefixes)
 
-    def _resolve_reasoning_effort(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_reasoning_effort(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the reasoning effort level for the current request.
 

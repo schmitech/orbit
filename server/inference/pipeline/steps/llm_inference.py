@@ -6,7 +6,7 @@ This step handles the core language model generation.
 
 import logging
 from collections import OrderedDict
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from ai_services.errors import ProviderServiceError, sanitize_provider_error
 from ..base import PipelineStep, ProcessingContext

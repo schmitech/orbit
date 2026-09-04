@@ -10,7 +10,8 @@ loop/cancellation/executor logic is implemented once.
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Optional
+from collections.abc import Callable
 
 from ai_services.providers.usage_reporting import accumulate_usage_sink
 
@@ -59,8 +60,8 @@ class ToolDispatchResult:
 
     content: str
     source_type: str = "mcp_tool_call"  # "mcp_tool_call" | "tool_skill_load" | future local kinds
-    trusted_context: List[TrustedContext] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    trusted_context: list[TrustedContext] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 async def await_or_cancel(coro, cancel_event: Optional[asyncio.Event]):
@@ -99,7 +100,7 @@ def _call_with_tools(
     provider,
     messages,
     tools,
-    usage_sink: Optional[Dict[str, Any]],
+    usage_sink: Optional[dict[str, Any]],
     cache_prefix_len: Optional[int] = None,
 ):
     """
@@ -119,15 +120,15 @@ def _call_with_tools(
 async def run_tool_calling_loop(
     provider,
     mcp_manager,
-    messages: List[Dict[str, Any]],
-    tools: List[Dict[str, Any]],
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
     max_iterations: int,
     cancel_event: Optional[asyncio.Event] = None,
     is_cancelled: Optional[Callable[[], bool]] = None,
-    usage_sink: Optional[Dict[str, Any]] = None,
+    usage_sink: Optional[dict[str, Any]] = None,
     cache_prefix_len: Optional[int] = None,
-    dispatch: Optional[Callable[[str, Dict[str, Any]], Any]] = None,
-) -> Tuple[Optional[str], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    dispatch: Optional[Callable[[str, dict[str, Any]], Any]] = None,
+) -> tuple[Optional[str], list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Execute the bounded tool-calling loop.
 
@@ -167,12 +168,12 @@ async def run_tool_calling_loop(
         mutated with all assistant/tool turns, so a caller that wants to make a
         follow-up call can reuse it instead of re-deriving conversation state.
     """
-    sources: List[Dict[str, Any]] = []
+    sources: list[dict[str, Any]] = []
     # Best answer text seen so far, returned if the caller cancels mid-loop.
     last_text: Optional[str] = None
 
     if dispatch is None:
-        async def dispatch(tool_name: str, arguments: Dict[str, Any]) -> ToolDispatchResult:
+        async def dispatch(tool_name: str, arguments: dict[str, Any]) -> ToolDispatchResult:
             content = await mcp_manager.call_tool(tool_name, arguments)
             return ToolDispatchResult(content=content, source_type="mcp_tool_call")
 
@@ -195,7 +196,7 @@ async def run_tool_calling_loop(
             len(tools),
         )
 
-        iter_sink: Optional[Dict[str, Any]] = {} if usage_sink is not None else None
+        iter_sink: Optional[dict[str, Any]] = {} if usage_sink is not None else None
         result = await await_or_cancel(
             _call_with_tools(provider, messages, tools, iter_sink, cache_prefix_len), cancel_event
         )
@@ -293,7 +294,7 @@ async def run_tool_calling_loop(
     if _cancelled():
         return last_text or "", sources, messages
     try:
-        final_iter_sink: Optional[Dict[str, Any]] = {} if usage_sink is not None else None
+        final_iter_sink: Optional[dict[str, Any]] = {} if usage_sink is not None else None
         final_result = await await_or_cancel(
             _call_with_tools(provider, messages, [], final_iter_sink, cache_prefix_len), cancel_event
         )

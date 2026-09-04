@@ -7,7 +7,7 @@ Provides thread-safe caching and lifecycle management for inference providers.
 import copy
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .service_cache_manager import ServiceCacheManager
 
@@ -27,7 +27,7 @@ class ProviderCacheManager(ServiceCacheManager):
 
     service_label = "inference provider"
 
-    def __init__(self, config: Dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
+    def __init__(self, config: dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
         """
         Initialize the provider cache manager.
 
@@ -41,7 +41,7 @@ class ProviderCacheManager(ServiceCacheManager):
         self,
         provider_name: str,
         model_override: Optional[str] = None,
-        param_overrides: Optional[Dict[str, Any]] = None,
+        param_overrides: Optional[dict[str, Any]] = None,
     ) -> str:
         """
         Build cache key for a provider with optional model/parameter overrides.
@@ -82,7 +82,7 @@ class ProviderCacheManager(ServiceCacheManager):
         provider_name: str,
         model_override: Optional[str] = None,
         adapter_name: Optional[str] = None,
-        param_overrides: Optional[Dict[str, Any]] = None,
+        param_overrides: Optional[dict[str, Any]] = None,
     ) -> Any:
         """
         Create and cache a new provider instance.
@@ -134,7 +134,7 @@ class ProviderCacheManager(ServiceCacheManager):
 
     def _apply_model_override(
         self,
-        config_for_provider: Dict[str, Any],
+        config_for_provider: dict[str, Any],
         provider_name: str,
         model_override: str,
     ) -> None:
@@ -221,9 +221,9 @@ class ProviderCacheManager(ServiceCacheManager):
 
     def _apply_param_overrides(
         self,
-        config_for_provider: Dict[str, Any],
+        config_for_provider: dict[str, Any],
         provider_name: str,
-        param_overrides: Dict[str, Any],
+        param_overrides: dict[str, Any],
     ) -> None:
         """
         Apply adapter-level generation parameter overrides (temperature, max_tokens,

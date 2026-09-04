@@ -3,7 +3,7 @@ Facade for domain-aware parameter extraction
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 from ...domain import DomainConfig
 from ...domain_strategies.registry import DomainStrategyRegistry
 from .pattern_builder import PatternBuilder
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class DomainParameterExtractor:
     """Facade class that orchestrates parameter extraction using composable services."""
 
-    def __init__(self, inference_client, domain_config: Optional[Dict[str, Any]] = None, domain_strategy=None):
+    def __init__(self, inference_client, domain_config: Optional[dict[str, Any]] = None, domain_strategy=None):
         """Initialize the domain parameter extractor"""
         # Convert dict config to DomainConfig if needed
         if isinstance(domain_config, dict):
@@ -62,7 +62,7 @@ class DomainParameterExtractor:
 
         logger.debug("Initialized DomainParameterExtractor with %d patterns", len(self.patterns))
 
-    async def extract_parameters(self, user_query: str, template: Dict) -> Dict[str, Any]:
+    async def extract_parameters(self, user_query: str, template: dict) -> dict[str, Any]:
         """Extract parameters from user query for a given template."""
         parameters = {}
         template_params = template.get('parameters', [])
@@ -181,14 +181,14 @@ class DomainParameterExtractor:
         logger.debug("Extracted parameters: %s", parameters)
         return parameters
 
-    def get_patterns_info(self) -> Dict[str, str]:
+    def get_patterns_info(self) -> dict[str, str]:
         """Get information about loaded patterns (useful for debugging)"""
         info = {}
         for key, pattern in self.patterns.items():
             info[key] = pattern.pattern
         return info
 
-    def get_domain_info(self) -> Dict[str, Any]:
+    def get_domain_info(self) -> dict[str, Any]:
         """Get domain configuration info"""
         return {
             'domain_name': self.domain_config.domain_name,
@@ -198,7 +198,7 @@ class DomainParameterExtractor:
             'filterable_fields': len(self.domain_config.get_filterable_fields())
         }
 
-    def validate_parameters(self, parameters: Dict[str, Any]) -> Dict[str, List[str]]:
+    def validate_parameters(self, parameters: dict[str, Any]) -> dict[str, list[str]]:
         """
         Validate a set of parameters.
 

@@ -7,7 +7,7 @@ the placeholder name are translated to hyphens for the lookup.
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 from .base_secrets import SecretsBackend
 
@@ -36,7 +36,7 @@ class AzureKeyVaultBackend(SecretsBackend):
             ) from e
 
         self._client = SecretClient(vault_url=vault_url, credential=DefaultAzureCredential())
-        self._cache: Dict[str, Optional[str]] = {}
+        self._cache: dict[str, Optional[str]] = {}
 
         # Fail loudly if the vault is not reachable / credentials are bad.
         try:

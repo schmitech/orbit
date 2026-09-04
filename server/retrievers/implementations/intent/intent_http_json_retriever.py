@@ -11,7 +11,7 @@ import traceback
 import json
 import re
 import httpx
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Optional
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -34,7 +34,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
     - Custom header support
     """
 
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
+    def __init__(self, config: dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
         """
         Initialize HTTP JSON retriever.
 
@@ -63,8 +63,8 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
         """
         return "http_json_api"
 
-    async def _execute_template(self, template: Dict[str, Any],
-                                parameters: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+    async def _execute_template(self, template: dict[str, Any],
+                                parameters: dict[str, Any]) -> tuple[Any, Optional[str]]:
         """
         Execute REST API template with parameters.
 
@@ -131,7 +131,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return [], error_msg
 
-    def _process_endpoint_template(self, endpoint_template: str, parameters: Dict[str, Any]) -> str:
+    def _process_endpoint_template(self, endpoint_template: str, parameters: dict[str, Any]) -> str:
         """
         Process endpoint template with path parameter substitution.
 
@@ -191,7 +191,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return endpoint_template
 
-    def _build_query_params(self, template: Dict[str, Any], parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_query_params(self, template: dict[str, Any], parameters: dict[str, Any]) -> dict[str, Any]:
         """
         Build query parameters from template and extracted parameters.
 
@@ -253,7 +253,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
 
         return query_params
 
-    def _build_request_headers(self, template: Dict[str, Any], parameters: Dict[str, Any]) -> Dict[str, str]:
+    def _build_request_headers(self, template: dict[str, Any], parameters: dict[str, Any]) -> dict[str, str]:
         """
         Build request headers from template and parameters.
 
@@ -297,7 +297,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
 
         return headers
 
-    def _build_request_body(self, template: Dict[str, Any], parameters: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _build_request_body(self, template: dict[str, Any], parameters: dict[str, Any]) -> Optional[dict[str, Any]]:
         """
         Build request body from template and parameters.
 
@@ -349,7 +349,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
 
         return None
 
-    def _substitute_dict_params(self, template_dict: Dict[str, Any], parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def _substitute_dict_params(self, template_dict: dict[str, Any], parameters: dict[str, Any]) -> dict[str, Any]:
         """
         Recursively substitute parameters in a dictionary template.
 
@@ -384,9 +384,9 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
         return result
 
     async def _execute_rest_request(self, method: str, endpoint: str,
-                                     params: Optional[Dict] = None,
-                                     headers: Optional[Dict] = None,
-                                     json_data: Optional[Dict] = None,
+                                     params: Optional[dict] = None,
+                                     headers: Optional[dict] = None,
+                                     json_data: Optional[dict] = None,
                                      timeout: int = 30) -> httpx.Response:
         """
         Execute REST API request with retry logic.
@@ -446,7 +446,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             raise last_error
         raise Exception("Request failed after all retries")
 
-    def _parse_response(self, response: httpx.Response, template: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _parse_response(self, response: httpx.Response, template: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Parse REST API response.
 
@@ -498,7 +498,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return [{'error': str(e), 'raw_response': response.text[:500]}]
 
-    def _extract_items_from_response(self, data: Any, path: str) -> List[Dict[str, Any]]:
+    def _extract_items_from_response(self, data: Any, path: str) -> list[dict[str, Any]]:
         """
         Extract items from response data using a simple path expression.
 
@@ -531,7 +531,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             logger.error(f"Error extracting items from path {path}: {e}")
             return []
 
-    def _map_response_fields(self, items: List[Dict], field_mapping: List[Dict]) -> List[Dict]:
+    def _map_response_fields(self, items: list[dict], field_mapping: list[dict]) -> list[dict]:
         """
         Map response fields according to field mapping configuration.
 
@@ -562,7 +562,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
 
         return mapped_items
 
-    def _extract_field_value(self, item: Dict, path: str) -> Any:
+    def _extract_field_value(self, item: dict, path: str) -> Any:
         """
         Extract field value from item using simple path.
 
@@ -591,8 +591,8 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
         except Exception:
             return None
 
-    def _format_http_results(self, results: Any, template: Dict,
-                            parameters: Dict, similarity: float) -> List[Dict[str, Any]]:
+    def _format_http_results(self, results: Any, template: dict,
+                            parameters: dict, similarity: float) -> list[dict[str, Any]]:
         """
         Format REST API results into context documents.
 
@@ -638,7 +638,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             "confidence": similarity
         }]
 
-    def _format_rest_results(self, results: List[Dict], template: Dict) -> str:
+    def _format_rest_results(self, results: list[dict], template: dict) -> str:
         """
         Format REST API results as human-readable text.
 

@@ -9,7 +9,7 @@ import mimetypes
 import os
 import wave
 from io import BytesIO
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
 import httpx
@@ -48,7 +48,7 @@ class XAIAudioService(AudioService):
         "alaw": "application/octet-stream",
     }
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize the xAI audio service."""
         super().__init__(config, "xai")
 
@@ -207,8 +207,8 @@ class XAIAudioService(AudioService):
     def _extract_stt_options(
         self,
         language: Optional[str],
-        kwargs: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
         """Extract xAI STT options from call-time kwargs and defaults."""
         options = {
             "language": self._normalize_language_code(language or self.language),
@@ -272,10 +272,10 @@ class XAIAudioService(AudioService):
     def _build_multipart_parts(
         self,
         audio: Union[str, bytes],
-        options: Dict[str, Any],
-    ) -> List[Tuple[str, Any]]:
+        options: dict[str, Any],
+    ) -> list[tuple[str, Any]]:
         """Build ordered multipart fields with file last, as required by xAI."""
-        parts: List[Tuple[str, Any]] = []
+        parts: list[tuple[str, Any]] = []
 
         url = options.get("url")
         if isinstance(audio, str) and self._is_url(audio):
@@ -320,7 +320,7 @@ class XAIAudioService(AudioService):
         mime_type: Optional[str],
         audio_format: Optional[str],
         sample_rate: Optional[int],
-    ) -> Tuple[bytes, str, str, Optional[str]]:
+    ) -> tuple[bytes, str, str, Optional[str]]:
         """Prepare an audio file part and raw audio metadata if needed."""
         audio_data = self._prepare_audio(audio)
 
@@ -357,7 +357,7 @@ class XAIAudioService(AudioService):
         )
         return audio_data, filename, mime_type, None
 
-    def _extract_transcript(self, result: Dict[str, Any]) -> str:
+    def _extract_transcript(self, result: dict[str, Any]) -> str:
         """Extract transcript text from an xAI STT response."""
         text = result.get("text")
         if isinstance(text, str):
@@ -377,7 +377,7 @@ class XAIAudioService(AudioService):
 
     def _append_form_field(
         self,
-        parts: List[Tuple[str, Any]],
+        parts: list[tuple[str, Any]],
         name: str,
         value: Any,
     ) -> None:
@@ -392,7 +392,7 @@ class XAIAudioService(AudioService):
 
         parts.append((name, (None, field_value)))
 
-    def _append_keyterms(self, parts: List[Tuple[str, Any]], keyterms: Any) -> None:
+    def _append_keyterms(self, parts: list[tuple[str, Any]], keyterms: Any) -> None:
         """Append xAI keyterm fields, repeating the field for multiple terms."""
         if keyterms is None:
             return

@@ -8,7 +8,7 @@ settings from the dedicated `ollama_cloud` provider configuration.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from ollama import AsyncClient
 from PIL import Image
@@ -42,7 +42,7 @@ class OllamaCloudVisionService(VisionService):
         "seed",
     )
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "ollama_cloud")
 
         provider_config = self._extract_provider_config()
@@ -57,7 +57,7 @@ class OllamaCloudVisionService(VisionService):
         self.stream = provider_config.get("stream", False)
         self.think = provider_config.get("think", False)
 
-        self._default_options: Dict[str, Any] = {
+        self._default_options: dict[str, Any] = {
             "temperature": self.temperature,
             "top_p": self.top_p,
         }
@@ -165,13 +165,13 @@ class OllamaCloudVisionService(VisionService):
             prompt="Extract all text from this image. Return only the text content, preserving line breaks and structure.",
         )
 
-    async def detect_objects(self, image: Union[str, bytes, Image.Image]) -> List[Dict[str, Any]]:
+    async def detect_objects(self, image: Union[str, bytes, Image.Image]) -> list[dict[str, Any]]:
         description = await self.analyze_image(
             image,
             prompt="List all objects, people, and items visible in this image. For each item, describe what it is and where it appears in the image.",
         )
 
-        objects: List[Dict[str, Any]] = []
+        objects: list[dict[str, Any]] = []
         for index, line in enumerate(description.splitlines()):
             if line.strip():
                 objects.append(
@@ -217,7 +217,7 @@ class OllamaCloudVisionService(VisionService):
             error_message="Ollama Cloud vision request failed",
         )
 
-    def _build_options(self, overrides: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_options(self, overrides: dict[str, Any]) -> dict[str, Any]:
         options = dict(self._default_options)
         local_overrides = dict(overrides)
 

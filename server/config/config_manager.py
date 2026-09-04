@@ -8,7 +8,7 @@ import re
 import yaml
 import logging
 import threading
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Optional
 
 # Configure logging
 logging.basicConfig(
@@ -17,11 +17,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-_config: Optional[Dict[str, Any]] = None
+_config: Optional[dict[str, Any]] = None
 _config_lock = threading.Lock()
 _reload_lock = threading.Lock()
-_resolved_presets: Dict[str, str] = {}
-_import_cache: Dict[str, Tuple[int, Dict[str, Any]]] = {}
+_resolved_presets: dict[str, str] = {}
+_import_cache: dict[str, tuple[int, dict[str, Any]]] = {}
 _ENV_VAR_RE = re.compile(r'\$\{([^}]+)\}')
 
 # Cached secrets backend (AWS Secrets Manager / Azure Key Vault / GCP Secret
@@ -32,7 +32,7 @@ _secrets_backend: Any = None
 _secrets_backend_initialized = False
 
 
-def load_config(config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def load_config(config_path: Optional[str] = None) -> Optional[dict[str, Any]]:
     """Load configuration from shared config.yaml file"""
     global _config
     with _config_lock:
@@ -56,7 +56,7 @@ def clear_config_cache() -> None:
         _secrets_backend_initialized = False
 
 
-def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[dict[str, Any]]:
     """Load and validate configuration from disk without using cached state."""
     config_paths = [
         config_path, 
@@ -134,7 +134,7 @@ def _mask_url(url: str) -> str:
         return url.split('//')[0] + '//[HOST_REDACTED]' if '//' in url else '[URL_REDACTED]'
 
 
-def _process_imports(config: Dict[str, Any], config_dir: str) -> Dict[str, Any]:
+def _process_imports(config: dict[str, Any], config_dir: str) -> dict[str, Any]:
     """Process import statements in config (e.g., import: adapters.yaml)"""
     if not isinstance(config, dict):
         return config
@@ -184,7 +184,7 @@ def _process_imports(config: Dict[str, Any], config_dir: str) -> Dict[str, Any]:
     return config
 
 
-def _load_imported_config(import_path: str) -> Dict[str, Any]:
+def _load_imported_config(import_path: str) -> dict[str, Any]:
     """Load an imported YAML file, reusing unchanged parsed imports by mtime."""
     real_import_path = os.path.realpath(import_path)
     mtime = os.stat(real_import_path).st_mtime_ns
@@ -203,7 +203,7 @@ def _load_imported_config(import_path: str) -> Dict[str, Any]:
     return imported_config
 
 
-def _merge_configs(main_config: Dict[str, Any], imported_config: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_configs(main_config: dict[str, Any], imported_config: dict[str, Any]) -> dict[str, Any]:
     """Merge imported config into main config, with main config taking precedence"""
     result = main_config.copy()
     
@@ -229,7 +229,7 @@ _REQUIRED_CONFIG_PATHS = [
 ]
 
 
-def _validate_required_config(config: Dict[str, Any]) -> None:
+def _validate_required_config(config: dict[str, Any]) -> None:
     """Raise RuntimeError if any required config value resolved to an empty string."""
     required_paths = list(_REQUIRED_CONFIG_PATHS)
     internal_services = config.get('internal_services', {})
@@ -285,7 +285,7 @@ def _validate_required_config(config: Dict[str, Any]) -> None:
     _validate_cors_config(config)
 
 
-def _validate_cors_config(config: Dict[str, Any]) -> None:
+def _validate_cors_config(config: dict[str, Any]) -> None:
     """Validate CORS combinations that Starlette rejects at request time."""
     cors = config.get('security', {}).get('cors', {})
     if cors.get('allow_credentials') and '*' in cors.get('allowed_origins', []):
@@ -295,7 +295,7 @@ def _validate_cors_config(config: Dict[str, Any]) -> None:
         )
 
 
-def _resolve_secrets_subtree(config: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_secrets_subtree(config: dict[str, Any]) -> dict[str, Any]:
     """Resolve config['secrets_management'] from plain os.environ only.
 
     This is a bootstrap pass: the connection settings that describe how to
@@ -327,7 +327,7 @@ def _resolve_secrets_subtree(config: Dict[str, Any]) -> Dict[str, Any]:
     return config
 
 
-def _get_secrets_backend(config: Dict[str, Any]):
+def _get_secrets_backend(config: dict[str, Any]):
     """Instantiate (or reuse) the configured secrets backend.
 
     Never raises: any construction failure (missing SDK, bad credentials,
@@ -350,7 +350,7 @@ def _get_secrets_backend(config: Dict[str, Any]):
     return _secrets_backend
 
 
-def _process_env_vars(config: Dict[str, Any], secrets_backend: Any = None) -> Dict[str, Any]:
+def _process_env_vars(config: dict[str, Any], secrets_backend: Any = None) -> dict[str, Any]:
     """Process environment variables in config values
 
     Supports two formats:
@@ -414,7 +414,7 @@ def _process_env_vars(config: Dict[str, Any], secrets_backend: Any = None) -> Di
     return process_dict(config)
 
 
-def reload_adapters_config(config_path: str) -> Dict[str, Any]:
+def reload_adapters_config(config_path: str) -> dict[str, Any]:
     """
     Reload the FULL configuration including adapters and all dependencies.
 
@@ -454,7 +454,7 @@ def reload_adapters_config(config_path: str) -> Dict[str, Any]:
             raise
 
 
-def reload_config(config_path: str) -> Optional[Dict[str, Any]]:
+def reload_config(config_path: str) -> Optional[dict[str, Any]]:
     """Reload the singleton config from disk atomically."""
     global _config
     with _config_lock:
@@ -468,8 +468,8 @@ def reload_config(config_path: str) -> Optional[Dict[str, Any]]:
 
 
 def _resolve_inference_preset(
-    config: Dict[str, Any], provider_key: str, presets_key: str
-) -> Dict[str, Any]:
+    config: dict[str, Any], provider_key: str, presets_key: str
+) -> dict[str, Any]:
     """
     Resolve a use_preset reference for an inference provider.
 
@@ -513,7 +513,7 @@ def was_resolved_from_preset(provider_key: str) -> Optional[str]:
     return _resolved_presets.get(provider_key)
 
 
-def _resolve_ollama_presets(config: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_ollama_presets(config: dict[str, Any]) -> dict[str, Any]:
     try:
         return _resolve_inference_preset(config, 'ollama', 'ollama_presets')
     except Exception as e:
@@ -521,7 +521,7 @@ def _resolve_ollama_presets(config: Dict[str, Any]) -> Dict[str, Any]:
         return config
 
 
-def _resolve_llama_cpp_presets(config: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_llama_cpp_presets(config: dict[str, Any]) -> dict[str, Any]:
     try:
         return _resolve_inference_preset(config, 'llama_cpp', 'llama_cpp_presets')
     except Exception as e:
@@ -529,7 +529,7 @@ def _resolve_llama_cpp_presets(config: Dict[str, Any]) -> Dict[str, Any]:
         return config
 
 
-def _resolve_azure_presets(config: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_azure_presets(config: dict[str, Any]) -> dict[str, Any]:
     try:
         return _resolve_inference_preset(config, 'azure', 'azure_presets')
     except Exception as e:

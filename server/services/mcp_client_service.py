@@ -31,7 +31,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager, AsyncExitStack
-from typing import Dict, List, Optional, Any
+from typing import Optional, Any
 
 from services.mcp_connection_pool import MCPConnection, ServerConnectionPool
 
@@ -51,7 +51,7 @@ _SAFE_ENV_KEYS = {"PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "TEMP", "TMP",
                   "LANG", "LC_ALL", "LC_CTYPE", "SHELL", "TERM"}
 
 
-def get_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClientManager"]:
+def get_mcp_client_manager(config: dict[str, Any]) -> Optional["MCPClientManager"]:
     """Return the singleton MCPClientManager, or None if MCP is not enabled."""
     global _instance
     if _instance is None:
@@ -61,7 +61,7 @@ def get_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClientManager
     return _instance
 
 
-async def reload_mcp_client_manager(config: Dict[str, Any]) -> Optional["MCPClientManager"]:
+async def reload_mcp_client_manager(config: dict[str, Any]) -> Optional["MCPClientManager"]:
     """Rebuild the singleton from `config`, returning the new manager (or None
     if MCP is now disabled).
 
@@ -101,7 +101,7 @@ class MCPClientManager:
 
     # Settings that may appear at the mcp_clients level (as defaults) and be
     # overridden per server entry: key -> (coercion, hardcoded default).
-    _OVERRIDABLE: Dict[str, Any] = {
+    _OVERRIDABLE: dict[str, Any] = {
         "tool_timeout": (int, 30),
         # Servers that are unavailable during startup remain retryable.  A
         # retry is triggered by the next request after this interval, so a
@@ -138,17 +138,17 @@ class MCPClientManager:
 
     def __init__(
         self,
-        mcp_config: Dict[str, Any],
-        runtime_config: Optional[Dict[str, Any]] = None,
+        mcp_config: dict[str, Any],
+        runtime_config: Optional[dict[str, Any]] = None,
     ):
         self._runtime_config = runtime_config
         servers_list = mcp_config.get("servers") or []
-        self._server_configs: Dict[str, Dict[str, Any]] = {
+        self._server_configs: dict[str, dict[str, Any]] = {
             s["name"]: s for s in servers_list if s.get("enabled", True)
         }
         # mcp_clients-level values act as defaults for every server; each
         # server entry may override any of them.
-        self._defaults: Dict[str, Any] = {
+        self._defaults: dict[str, Any] = {
             key: self._coerce(key, mcp_config[key])
             for key in self._OVERRIDABLE
             if key in mcp_config
@@ -156,12 +156,12 @@ class MCPClientManager:
         self._warn_unknown_server_keys()
 
         # cache: server_name -> list of OpenAI-format tool dicts
-        self._tools_cache: Dict[str, List[Dict[str, Any]]] = {}
+        self._tools_cache: dict[str, list[dict[str, Any]]] = {}
         self._cache_lock = asyncio.Lock()
         self._cache_populated = False
         # server_name -> pool of warm connections + its circuit breaker.
         # Created lazily on first discovery/connection.
-        self._pools: Dict[str, ServerConnectionPool] = {}
+        self._pools: dict[str, ServerConnectionPool] = {}
 
     def _coerce(self, key: str, value: Any, fallback: Any = _UNSET) -> Any:
         """Coerce a configured value, falling back one level down the
@@ -213,8 +213,8 @@ class MCPClientManager:
         return pool is None or pool.breaker.state == "closed"
 
     def opportunistic_servers(
-        self, allowed_servers: Optional[List[str]] = None
-    ) -> List[str]:
+        self, allowed_servers: Optional[list[str]] = None
+    ) -> list[str]:
         """Enabled servers that opted into opportunistic (non-skill) tool
         calling, intersected with the adapter's mcp_servers allowlist."""
         return [
@@ -239,7 +239,7 @@ class MCPClientManager:
         )
 
     @staticmethod
-    def servers_in_tools(tools: List[Dict[str, Any]]) -> set:
+    def servers_in_tools(tools: list[dict[str, Any]]) -> set:
         """Server names participating in a tool list, from the '<server>__<tool>'
         namespacing — lets callers resolve per-server settings from tools alone."""
         names = set()
@@ -251,9 +251,9 @@ class MCPClientManager:
 
     async def get_all_tools(
         self,
-        allowed_servers: Optional[List[str]] = None,
+        allowed_servers: Optional[list[str]] = None,
         opportunistic_only: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Return all cached tools as OpenAI-format tool dicts."""
         await self._ensure_cache_populated()
         tools = []
@@ -266,7 +266,7 @@ class MCPClientManager:
         return tools
 
     async def call_tool(
-        self, namespaced_name: str, arguments: Dict[str, Any]
+        self, namespaced_name: str, arguments: dict[str, Any]
     ) -> str:
         """
         Call a tool identified by '<server_name>__<tool_name>'.
@@ -318,7 +318,7 @@ class MCPClientManager:
         return result
 
     def _validate_arguments(
-        self, namespaced_name: str, arguments: Dict[str, Any]
+        self, namespaced_name: str, arguments: dict[str, Any]
     ) -> Optional[str]:
         """
         Check that all required parameters are present for the given tool.
@@ -361,7 +361,7 @@ class MCPClientManager:
     # Tool cache
     # ------------------------------------------------------------------
 
-    async def update_server(self, name: str, entry: Optional[Dict[str, Any]]) -> None:
+    async def update_server(self, name: str, entry: Optional[dict[str, Any]]) -> None:
         """Add, replace, or remove one server's config on this live instance.
 
         `entry=None` (or a disabled entry) removes the server: subsequent
@@ -380,7 +380,7 @@ class MCPClientManager:
         await self._drain_pool(name)
         self._warn_unknown_server_keys()
 
-    async def refresh_tool_cache(self, server_names: Optional[List[str]] = None) -> None:
+    async def refresh_tool_cache(self, server_names: Optional[list[str]] = None) -> None:
         """Discard cached schemas and re-dial servers.
 
         With server_names omitted, re-dials every enabled server. With a
@@ -502,7 +502,7 @@ class MCPClientManager:
         self._pools = {}
         await asyncio.gather(*(p.drain() for p in pools), return_exceptions=True)
 
-    async def _create_connection(self, server_config: Dict[str, Any]) -> MCPConnection:
+    async def _create_connection(self, server_config: dict[str, Any]) -> MCPConnection:
         """Build and initialize a new MCP session that stays open until its
         stack is closed (i.e. does not tear down when this call returns)."""
         from mcp.client.session import ClientSession
@@ -564,7 +564,7 @@ class MCPClientManager:
         return MCPConnection(session=session, stack=stack)
 
     @asynccontextmanager
-    async def _open_session(self, server_config: Dict[str, Any]):
+    async def _open_session(self, server_config: dict[str, Any]):
         """Async context manager that yields an initialized ClientSession for
         a single one-shot use, torn down on exit. Used directly by callers
         that opt out of pooling (pool_size: 0)."""
@@ -574,7 +574,7 @@ class MCPClientManager:
         finally:
             await conn.close()
 
-    async def _list_tools_on_server(self, server_config: Dict[str, Any]) -> list:
+    async def _list_tools_on_server(self, server_config: dict[str, Any]) -> list:
         """List tools on one server, via a pooled connection when enabled.
 
         Discovery gets one transparent retry: a just-started subprocess or a
@@ -592,7 +592,7 @@ class MCPClientManager:
         )
 
     async def _call_tool_on_server(
-        self, server_config: Dict[str, Any], tool_name: str, arguments: Dict[str, Any]
+        self, server_config: dict[str, Any], tool_name: str, arguments: dict[str, Any]
     ) -> str:
         """Call a tool, via a pooled connection when enabled. Retries once,
         transparently rebuilding the connection, if the first attempt fails."""
@@ -626,12 +626,12 @@ class MCPClientManager:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _expand_headers(server_config: Dict[str, Any]) -> Dict[str, str]:
+    def _expand_headers(server_config: dict[str, Any]) -> dict[str, str]:
         """Build request headers from server config, expanding ${VAR} references.
 
         Authentication is configured as a normal ``Authorization`` header.
         """
-        result: Dict[str, str] = {}
+        result: dict[str, str] = {}
         for k, v in (server_config.get("headers") or {}).items():
             result[k] = os.path.expandvars(str(v)) if isinstance(v, str) else str(v)
         return result
@@ -652,7 +652,7 @@ class MCPClientManager:
         return "\n".join(parts) if parts else ""
 
     @staticmethod
-    def _to_openai_tool(server_name: str, mcp_tool) -> Dict[str, Any]:
+    def _to_openai_tool(server_name: str, mcp_tool) -> dict[str, Any]:
         """Convert an mcp.types.Tool to an OpenAI function-calling tool dict."""
         namespaced = f"{server_name}__{mcp_tool.name}"
         # MCP 2 Python models renamed fields to snake_case. Retain MCP 1's

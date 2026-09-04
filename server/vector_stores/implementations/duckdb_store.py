@@ -4,7 +4,7 @@ DuckDB store implementation for analytical and relational data operations.
 
 import logging
 import os
-from typing import Dict, Any, List
+from typing import Any
 import duckdb
 
 from ..base.base_store import BaseStore, StoreConfig, StoreStatus
@@ -102,7 +102,7 @@ class DuckDBStore(BaseStore):
         except Exception:
             return False
     
-    async def query(self, sql: str) -> List[Dict[str, Any]]:
+    async def query(self, sql: str) -> list[dict[str, Any]]:
         """
         Execute a SQL query and return results.
         
@@ -183,7 +183,7 @@ class DuckDBStore(BaseStore):
             logger.error(f"Error dropping table {table_name}: {e}")
             return False
     
-    async def list_tables(self) -> List[str]:
+    async def list_tables(self) -> list[str]:
         """
         List all tables in the database.
         
@@ -300,7 +300,7 @@ class DuckDBStore(BaseStore):
             logger.error(f"Error exporting to Parquet: {e}")
             return False
     
-    async def insert_data(self, table_name: str, data: List[Dict[str, Any]]) -> bool:
+    async def insert_data(self, table_name: str, data: list[dict[str, Any]]) -> bool:
         """
         Insert data into a table.
         
@@ -351,7 +351,7 @@ class DuckDBStore(BaseStore):
             return str(value)
         return str(value)
     
-    async def get_table_info(self, table_name: str) -> Dict[str, Any]:
+    async def get_table_info(self, table_name: str) -> dict[str, Any]:
         """
         Get information about a table.
         

@@ -5,7 +5,8 @@ This is a migrated version of the Z.AI inference provider that uses
 the new unified AI services architecture.
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
 from ...providers import ZaiBaseService
@@ -21,7 +22,7 @@ class ZaiInferenceService(UsageReportingMixin, InferenceService, ZaiBaseService)
     with support for both streaming and non-streaming responses.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the Z.AI inference service.
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 from jinja2 import Environment, BaseLoader, DebugUndefined, UndefinedError
 
@@ -127,7 +127,7 @@ class Joiner:
 class TemplateProcessor:
     """Process template metadata and SQL/JSON using Jinja2 with domain configuration variables."""
 
-    def __init__(self, domain_config: Union[DomainConfig, Dict[str, Any]]):
+    def __init__(self, domain_config: Union[DomainConfig, dict[str, Any]]):
         # Check if it's a dict (needs to be converted) or already a domain config object
         if isinstance(domain_config, dict):
             self.domain_config = DomainConfig(domain_config)
@@ -179,9 +179,9 @@ class TemplateProcessor:
         """Register custom Jinja2 global functions."""
         env.globals["joiner"] = joiner_filter
 
-    def _build_base_context(self) -> Dict[str, Any]:
+    def _build_base_context(self) -> dict[str, Any]:
         """Construct reusable context derived from the domain configuration."""
-        context: Dict[str, Any] = {
+        context: dict[str, Any] = {
             "domain_name": self.domain_config.domain_name,
             "domain_type": getattr(self.domain_config, "domain_type", None),
             "entities": {},
@@ -220,16 +220,16 @@ class TemplateProcessor:
 
         return context
 
-    def get_context(self) -> Dict[str, Any]:
+    def get_context(self) -> dict[str, Any]:
         """Return a copy of the base context so callers can inspect or extend it."""
         return copy.deepcopy(self._base_context)
 
     def render_template_structure(
         self,
-        template: Dict[str, Any],
-        extra_context: Optional[Dict[str, Any]] = None,
+        template: dict[str, Any],
+        extra_context: Optional[dict[str, Any]] = None,
         preserve_unknown: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Return a copy of the template with variables substituted recursively."""
         context = self._merge_context(extra_context)
         return self._render_structure(
@@ -239,8 +239,8 @@ class TemplateProcessor:
     def render_sql(
         self,
         sql_template: str,
-        parameters: Optional[Dict[str, Any]] = None,
-        extra_context: Optional[Dict[str, Any]] = None,
+        parameters: Optional[dict[str, Any]] = None,
+        extra_context: Optional[dict[str, Any]] = None,
         preserve_unknown: bool = False,
     ) -> str:
         """Render SQL/Query DSL with domain variables and optional runtime parameters.
@@ -267,7 +267,7 @@ class TemplateProcessor:
 
     # Internal helpers -------------------------------------------------
 
-    def _merge_context(self, extra_context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _merge_context(self, extra_context: Optional[dict[str, Any]]) -> dict[str, Any]:
         base = self.get_context()
         if not extra_context:
             return base
@@ -276,7 +276,7 @@ class TemplateProcessor:
     def _render_structure(
         self,
         value: Any,
-        context: Dict[str, Any],
+        context: dict[str, Any],
         preserve_unknown: bool,
     ) -> Any:
         if isinstance(value, dict):
@@ -296,7 +296,7 @@ class TemplateProcessor:
     def _render_text(
         self,
         text: str,
-        context: Dict[str, Any],
+        context: dict[str, Any],
         preserve_unknown: bool,
     ) -> str:
         """Render a text template using Jinja2."""
@@ -335,7 +335,7 @@ class TemplateProcessor:
             raise
 
 
-def _deep_update(original: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+def _deep_update(original: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge two dictionaries."""
     for key, value in updates.items():
         if isinstance(value, dict) and isinstance(original.get(key), dict):

@@ -10,7 +10,8 @@ service connects to your own Ollama deployment and does not require an API key
 from __future__ import annotations
 
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, Optional
+from collections.abc import AsyncGenerator
 
 from ollama import AsyncClient
 
@@ -43,7 +44,7 @@ class OllamaRemoteInferenceService(InferenceService):
         "seed",
     )
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "ollama_remote")
 
         provider_config = self._extract_provider_config()
@@ -63,7 +64,7 @@ class OllamaRemoteInferenceService(InferenceService):
         # Override inherited defaults with provider configuration
         self.temperature = provider_config.get("temperature", self.temperature)
 
-        self._default_options: Dict[str, Any] = {
+        self._default_options: dict[str, Any] = {
             "temperature": self.temperature,
             "top_p": self.top_p,
         }
@@ -77,7 +78,7 @@ class OllamaRemoteInferenceService(InferenceService):
         if "num_predict" not in self._default_options and self.max_tokens:
             self._default_options["num_predict"] = self.max_tokens
 
-        self._stop_sequences: List[str] = provider_config.get("stop", [])
+        self._stop_sequences: list[str] = provider_config.get("stop", [])
 
         # Think mode (shows reasoning in <think> tags) - matches local Ollama behavior.
         # bool to toggle, or "low"/"medium"/"high" for models with graduated
@@ -87,7 +88,7 @@ class OllamaRemoteInferenceService(InferenceService):
 
         self.client: Optional[AsyncClient] = None
 
-    def _resolve_think(self, kwargs: Dict[str, Any]) -> Any:
+    def _resolve_think(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the think value for the current request, popping both the
         native ``think`` kwarg and the provider-agnostic ``effort`` override
@@ -250,7 +251,7 @@ class OllamaRemoteInferenceService(InferenceService):
                 operation="streaming generation",
             )
 
-    def _build_options(self, overrides: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_options(self, overrides: dict[str, Any]) -> dict[str, Any]:
         """Merge default generation options with caller overrides."""
         options = dict(self._default_options)
 
@@ -276,7 +277,7 @@ class OllamaRemoteInferenceService(InferenceService):
         return {k: v for k, v in options.items() if v is not None}
 
     @staticmethod
-    def _prepare_messages(prompt: str, messages: Optional[List[Dict[str, str]]]) -> List[Dict[str, str]]:
+    def _prepare_messages(prompt: str, messages: Optional[list[dict[str, str]]]) -> list[dict[str, str]]:
         if messages is None:
             return [{"role": "user", "content": prompt}]
         return messages

@@ -13,7 +13,7 @@ Each provider gets a thin subclass so the factory can instantiate it by name
 import asyncio
 import logging
 from io import BytesIO
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from ...base import ServiceType
 from ...services import OcrService
@@ -31,7 +31,7 @@ class VisionBackedOcrService(OcrService):
     # Overridden by concrete provider subclasses.
     VISION_PROVIDER: str = ""
 
-    def __init__(self, config: Dict[str, Any], provider_name: Optional[str] = None):
+    def __init__(self, config: dict[str, Any], provider_name: Optional[str] = None):
         super().__init__(config, provider_name or self.VISION_PROVIDER)
         self._vision_service = None
 
@@ -87,7 +87,7 @@ class VisionBackedOcrService(OcrService):
         file_data: bytes,
         mime_type: str,
         filename: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if not self.initialized:
             await self.initialize()
 
@@ -114,7 +114,7 @@ class VisionBackedOcrService(OcrService):
             return await self._vision_service.analyze_image(image_bytes, prompt=self.prompt)
         return await self._vision_service.extract_text_from_image(image_bytes)
 
-    def _split_image_frames(self, file_data: bytes) -> List[bytes]:
+    def _split_image_frames(self, file_data: bytes) -> list[bytes]:
         """Split a multi-frame image (e.g. multi-page TIFF, animated GIF) into
         one PNG per frame. Single-frame images are returned unchanged so the
         vision service still sees the original bytes/format."""
@@ -130,7 +130,7 @@ class VisionBackedOcrService(OcrService):
             return [file_data]
 
         total_frames = img.n_frames
-        frames: List[bytes] = []
+        frames: list[bytes] = []
         for i, frame in enumerate(ImageSequence.Iterator(img)):
             if i >= self.max_pages:
                 logger.warning(
@@ -143,7 +143,7 @@ class VisionBackedOcrService(OcrService):
             frames.append(buf.getvalue())
         return frames
 
-    def _rasterize_pdf(self, file_data: bytes) -> List[bytes]:
+    def _rasterize_pdf(self, file_data: bytes) -> list[bytes]:
         """Render PDF pages to PNG bytes (capped at max_pages)."""
         import pypdfium2 as pdfium
 
@@ -156,7 +156,7 @@ class VisionBackedOcrService(OcrService):
                     f"PDF has {len(pdf)} pages; OCR limited to first {self.max_pages} "
                     f"(files.processing.ai_document.max_pages)"
                 )
-            images: List[bytes] = []
+            images: list[bytes] = []
             for i in range(page_count):
                 bitmap = pdf[i].render(scale=scale)
                 pil_image = bitmap.to_pil()
@@ -171,47 +171,47 @@ class VisionBackedOcrService(OcrService):
 class OpenAIOcrService(VisionBackedOcrService):
     VISION_PROVIDER = "openai"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "openai")
 
 
 class AnthropicOcrService(VisionBackedOcrService):
     VISION_PROVIDER = "anthropic"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "anthropic")
 
 
 class CohereOcrService(VisionBackedOcrService):
     VISION_PROVIDER = "cohere"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "cohere")
 
 
 class OllamaOcrService(VisionBackedOcrService):
     VISION_PROVIDER = "ollama"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "ollama")
 
 
 class VLLMOcrService(VisionBackedOcrService):
     VISION_PROVIDER = "vllm"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "vllm")
 
 
 class LlamaCppOcrService(VisionBackedOcrService):
     VISION_PROVIDER = "llama_cpp"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "llama_cpp")
 
 
 class AzureOcrService(VisionBackedOcrService):
     VISION_PROVIDER = "azure"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config, "azure")

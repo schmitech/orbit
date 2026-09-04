@@ -6,7 +6,7 @@ including metrics collection, health checks, and performance tracking.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from dataclasses import dataclass, field
 from collections import defaultdict, deque
 import threading
@@ -64,8 +64,8 @@ class PipelineMonitor:
     
     def __init__(self):
         """Initialize the pipeline monitor."""
-        self.step_metrics: Dict[str, StepMetrics] = defaultdict(StepMetrics)
-        self.pipeline_metrics: Dict[str, Any] = defaultdict(int)
+        self.step_metrics: dict[str, StepMetrics] = defaultdict(StepMetrics)
+        self.pipeline_metrics: dict[str, Any] = defaultdict(int)
         self.logger = logging.getLogger(__name__)
         self._lock = threading.Lock()
     
@@ -75,7 +75,7 @@ class PipelineMonitor:
         execution_time: float,
         success: bool,
         error_message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[dict[str, Any]] = None
     ) -> None:
         """
         Record execution metrics for a pipeline step.
@@ -136,7 +136,7 @@ class PipelineMonitor:
         """
         return self.step_metrics.get(step_name)
     
-    def get_all_step_metrics(self) -> Dict[str, StepMetrics]:
+    def get_all_step_metrics(self) -> dict[str, StepMetrics]:
         """
         Get metrics for all steps.
         
@@ -145,7 +145,7 @@ class PipelineMonitor:
         """
         return dict(self.step_metrics)
     
-    def get_pipeline_metrics(self) -> Dict[str, Any]:
+    def get_pipeline_metrics(self) -> dict[str, Any]:
         """
         Get overall pipeline metrics.
         
@@ -189,7 +189,7 @@ class PipelineMonitor:
             'active_steps': len(self.step_metrics)
         }
     
-    def get_health_status(self) -> Dict[str, Any]:
+    def get_health_status(self) -> dict[str, Any]:
         """
         Get overall system health status.
         

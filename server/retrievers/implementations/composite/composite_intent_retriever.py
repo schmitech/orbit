@@ -4,7 +4,7 @@ Composite Intent Retriever Implementation
 This retriever routes queries across multiple intent adapters by:
 1. Searching all child adapters' template stores in parallel (Stage 1: Embedding)
 2. Applying multi-stage scoring if enabled:
-   - Stage 2: LLM-based reranking for semantic refinement
+   - Stage 2: LLM-based reranking for semantic refinemen
    - Stage 3: String similarity (Jaro-Winkler/Levenshtein) for lexical matching
 3. Finding the best matching template using combined scores
 4. Routing query execution to the child adapter that owns the best match
@@ -15,7 +15,7 @@ many templates with similar vocabulary across different business domains.
 
 import logging
 import traceback
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 
 from retrievers.base.intent_composite_base import CompositeIntentRetriever as BaseCompositeRetriever
 
@@ -28,7 +28,7 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
 
     This retriever is configured with a list of child intent adapter names.
     When a query is received, it:
-    1. Generates a query embedding using its own embedding client
+    1. Generates a query embedding using its own embedding clien
     2. Searches each child adapter's template store in parallel
     3. Optionally applies multi-stage scoring (reranking + string similarity)
     4. Ranks all matching templates by combined score
@@ -73,12 +73,12 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
         embedding_weight: 0.4
     ```
     """
-    
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, 
+
+    def __init__(self, config: dict[str, Any], domain_adapter=None,
                  adapter_manager=None, **kwargs):
         """
         Initialize the Composite Intent Retriever.
-        
+
         Args:
             config: Configuration dictionary containing:
                 - adapter_config.child_adapters: List of child adapter names
@@ -96,12 +96,12 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
             adapter_manager=adapter_manager,
             **kwargs
         )
-        
+
         # Additional configuration specific to this implementation
         self.verbose = self.composite_config.get('verbose', False)
-        
+
         logger.info(f"CompositeIntentRetriever initialized with child adapters: {self.child_adapter_names}")
-    
+
     async def initialize(self) -> None:
         """
         Initialize the composite retriever.
@@ -124,26 +124,26 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                     logger.warning(f"  Child adapter '{name}': Could not get stats - {e}")
             if self.cross_adapter_enabled:
                 logger.info(f"  Cross-adapter templates: {len(self._cross_adapter_templates)} templates loaded")
-    
+
     async def get_relevant_context(
-        self, 
-        query: str, 
+        self,
+        query: str,
         api_key: Optional[str] = None,
-        collection_name: Optional[str] = None, 
+        collection_name: Optional[str] = None,
         **kwargs
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Process a query by routing to the best matching child adapter.
-        
+
         This implementation adds verbose logging and additional metadata
         to the base class implementation.
-        
+
         Args:
             query: The user's natural language query
             api_key: Optional API key for child adapter access
             collection_name: Optional collection name (passed to child adapter)
             **kwargs: Additional parameters passed to child adapter
-            
+
         Returns:
             List of context items from the best matching child adapter,
             enriched with composite routing metadata
@@ -151,7 +151,7 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
         if self.verbose:
             logger.info(f"[Composite] Processing query: '{query}'")
             logger.info(f"[Composite] Searching across {len(self._child_adapters)} adapters: {list(self._child_adapters.keys())}")
-        
+
         # Use base class implementation
         results = await super().get_relevant_context(
             query=query,
@@ -159,7 +159,7 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
             collection_name=collection_name,
             **kwargs
         )
-        
+
         if self.verbose and results:
             for result in results:
                 metadata = result.get('metadata', {})
@@ -195,8 +195,8 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                             logger.info(f"[Composite] Score: {routing.get('similarity_score', 0):.3f}")
 
         return results
-    
-    async def get_routing_statistics(self) -> Dict[str, Any]:
+
+    async def get_routing_statistics(self) -> dict[str, Any]:
         """
         Get statistics about the composite routing configuration.
 
@@ -214,7 +214,7 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                 "confidence_threshold": self.confidence_threshold,
                 "max_templates_per_source": self.max_templates_per_source,
                 "parallel_search": self.parallel_search,
-                "search_timeout": self.search_timeout
+                "search_timeout": self.search_timeou
             },
             "multistage_selection": {
                 "enabled": self.multistage_enabled,
@@ -271,8 +271,8 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
         }
 
         return stats
-    
-    async def test_routing(self, query: str) -> Dict[str, Any]:
+
+    async def test_routing(self, query: str) -> dict[str, Any]:
         """
         Test query routing without executing the query.
 
@@ -298,7 +298,7 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
             if self.multistage_enabled and all_matches:
                 all_matches = await self._calculate_combined_scores(query, all_matches)
 
-            # Format matches for output
+            # Format matches for outpu
             formatted_matches = []
             for match in all_matches:
                 match_info = {
@@ -397,27 +397,27 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                 "query": query,
                 "error": str(e)
             }
-    
-    async def reload_child_adapters(self) -> Dict[str, Any]:
+
+    async def reload_child_adapters(self) -> dict[str, Any]:
         """
         Reload child adapter references from the adapter manager.
-        
+
         This is useful when child adapters have been reloaded/reconfigured
         and the composite retriever needs to pick up the changes.
-        
+
         Returns:
             Summary of reload results
         """
         previous_adapters = set(self._child_adapters.keys())
-        
+
         # Clear current cache
         self._child_adapters.clear()
-        
+
         # Re-resolve adapters
         await self._resolve_child_adapters()
-        
+
         current_adapters = set(self._child_adapters.keys())
-        
+
         return {
             "previous_adapters": list(previous_adapters),
             "current_adapters": list(current_adapters),

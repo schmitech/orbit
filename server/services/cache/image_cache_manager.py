@@ -6,7 +6,7 @@ Provides thread-safe caching and lifecycle management for image generation servi
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .service_cache_manager import ServiceCacheManager
 
@@ -18,7 +18,7 @@ class ImageGenerationCacheManager(ServiceCacheManager):
 
     service_label = "image generation service"
 
-    def __init__(self, config: Dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
+    def __init__(self, config: dict[str, Any], thread_pool: Optional[ThreadPoolExecutor] = None):
         super().__init__(config, thread_pool)
 
     def build_cache_key(self, provider_name: str) -> str:

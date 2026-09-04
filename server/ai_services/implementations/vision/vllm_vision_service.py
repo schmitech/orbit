@@ -5,7 +5,7 @@ vLLM provides an OpenAI-compatible API for multimodal models,
 so we can use OpenAICompatibleBaseService similar to the inference service.
 """
 
-from typing import Dict, Any, Union, List
+from typing import Any, Union
 from PIL import Image
 
 from ...base import ServiceType
@@ -26,7 +26,7 @@ class VLLMVisionService(VisionService, OpenAICompatibleBaseService):
     Uses vLLM's OpenAI-compatible chat API with multimodal messages for vision tasks.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize the vLLM vision service.
 
@@ -129,7 +129,7 @@ class VLLMVisionService(VisionService, OpenAICompatibleBaseService):
     async def detect_objects(
         self,
         image: Union[str, bytes, Image.Image]
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Detect objects in image.
 

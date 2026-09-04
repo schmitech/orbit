@@ -3,7 +3,7 @@ Base class for domain-specific strategies
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 
 class DomainStrategy(ABC):
@@ -15,17 +15,17 @@ class DomainStrategy(ABC):
         pass
 
     @abstractmethod
-    def calculate_domain_boost(self, template_info: Dict, query: str, domain_config: Dict) -> float:
+    def calculate_domain_boost(self, template_info: dict, query: str, domain_config: dict) -> float:
         """Calculate domain-specific boost for a template"""
         pass
 
     @abstractmethod
-    def get_pattern_matchers(self) -> Dict[str, Any]:
+    def get_pattern_matchers(self) -> dict[str, Any]:
         """Return domain-specific pattern matching functions"""
         pass
 
     @abstractmethod
-    def extract_domain_parameters(self, query: str, param: Dict, domain_config: Any) -> Optional[Any]:
+    def extract_domain_parameters(self, query: str, param: dict, domain_config: Any) -> Optional[Any]:
         """
         Extract domain-specific parameters that require special logic.
 
@@ -40,7 +40,7 @@ class DomainStrategy(ABC):
         pass
 
     @abstractmethod
-    def get_semantic_extractors(self) -> Dict[str, callable]:
+    def get_semantic_extractors(self) -> dict[str, callable]:
         """
         Return semantic type extractors for this domain.
 

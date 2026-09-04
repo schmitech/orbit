@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class GroundingConfig:
     max_rows: int = 3
 
 
-def resolve_grounding_config(adapter_config: Dict[str, Any]) -> Optional[GroundingConfig]:
+def resolve_grounding_config(adapter_config: dict[str, Any]) -> Optional[GroundingConfig]:
     """Build a GroundingConfig from adapter YAML config, or None if ungrounded."""
     cfg = adapter_config.get("config") or {}
     grounding_adapter = cfg.get("grounding_adapter")
@@ -49,7 +49,7 @@ def resolve_grounding_config(adapter_config: Dict[str, Any]) -> Optional[Groundi
     )
 
 
-def build_tool_schema(grounding: GroundingConfig) -> Dict[str, Any]:
+def build_tool_schema(grounding: GroundingConfig) -> dict[str, Any]:
     """Neutral JSON-schema function-calling tool definition.
 
     OpenAI Realtime's session.tools accepts this shape directly; a future
@@ -77,7 +77,7 @@ async def execute_grounding_lookup(
     grounding: GroundingConfig,
     query: str,
     api_key: Optional[str] = None,
-    usage_sink: Optional[Dict[str, Any]] = None,
+    usage_sink: Optional[dict[str, Any]] = None,
 ) -> str:
     """Run the grounding retriever and return a short, speakable text answer."""
     if not adapter_manager:
@@ -86,7 +86,7 @@ async def execute_grounding_lookup(
 
     try:
         adapter = await adapter_manager.get_adapter(grounding.adapter_name)
-        kwargs: Dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
         if grounding.confidence_threshold is not None:
             kwargs["confidence_threshold"] = grounding.confidence_threshold
         kwargs["usage_sink"] = usage_sink
@@ -142,13 +142,13 @@ def _format_answer(docs: list, max_chars: int, max_rows: int = 3) -> str:
     return " ".join(parts) if parts else "I don't have information about that."
 
 
-def _has_structured_table(doc: Dict[str, Any]) -> bool:
+def _has_structured_table(doc: dict[str, Any]) -> bool:
     metadata = doc.get("metadata")
     formatted = metadata.get("formatted_data") if isinstance(metadata, dict) else None
     return isinstance(formatted, dict) and isinstance(formatted.get("table"), dict)
 
 
-def _document_segments(doc: Dict[str, Any], max_rows: int) -> list[str]:
+def _document_segments(doc: dict[str, Any], max_rows: int) -> list[str]:
     """Extract voice-safe segments from one retriever result."""
     answer = doc.get("answer")
     if answer:

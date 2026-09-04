@@ -3,7 +3,7 @@ Azure OpenAI image generation service (GPT-Image-1, DALL-E 2/3 deployments).
 """
 
 import base64
-from typing import Dict, Any
+from typing import Any
 
 from ...base import ServiceType
 from ...providers import AzureBaseService
@@ -19,7 +19,7 @@ class AzureImageService(ImageGenerationService, AzureBaseService):
     instead of a raw model id.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         AzureBaseService.__init__(self, config, ServiceType.IMAGE_GENERATION, "azure")
         provider_config = self._extract_provider_config()
         self.size = provider_config.get("size", "1024x1024")
@@ -47,7 +47,7 @@ class AzureImageService(ImageGenerationService, AzureBaseService):
         # means this must also be explicit, defaulting to the newer version.
         self.dalle_version = provider_config.get("dalle_version", "dall-e-3")
 
-    async def generate_image(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_image(self, prompt: str, **kwargs) -> dict[str, Any]:
         """Generate an image using the Azure OpenAI Images API."""
         if not self.initialized:
             await self.initialize()
@@ -71,7 +71,7 @@ class AzureImageService(ImageGenerationService, AzureBaseService):
         is_gpt_image = model_family == "gpt-image"
         is_dalle = model_family == "dall-e"
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": deployment,
             "prompt": prompt,
             "n": 1,

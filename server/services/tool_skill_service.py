@@ -24,7 +24,8 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
+from collections.abc import Iterable
 
 import yaml
 from fastapi import HTTPException
@@ -78,7 +79,7 @@ class ToolSkill:
 
     name: str
     description: str
-    mcp_tools: List[str]
+    mcp_tools: list[str]
     body: str
     enabled: bool = True
     version: Optional[str] = None
@@ -121,7 +122,7 @@ def _validate_skill_fields(
     version: Any = None,
     priority: Any = 0,
     label: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Validate one skill's fields against the shared rules (name slug,
     reserved ``orbit__`` prefix, non-empty description/mcp_tools/body, body
     size cap, enabled/priority types). ``label`` is used in error/log
@@ -220,9 +221,9 @@ def select_injection_eligible(
     candidate_skills: Iterable[ToolSkill],
     max_skills: int = INJECTION_BUDGET_MAX_SKILLS,
     max_bytes: int = INJECTION_BUDGET_MAX_BYTES,
-) -> List[ToolSkill]:
+) -> list[ToolSkill]:
     """Select the priority-ordered skills that fit the shared turn budget."""
-    eligible: List[ToolSkill] = []
+    eligible: list[ToolSkill] = []
     bytes_used = 0
     for skill in candidate_skills:
         if len(eligible) >= max_skills:
@@ -302,11 +303,11 @@ class ToolSkillRegistry:
     skills configured is a valid, common state.
     """
 
-    def __init__(self, skills_dir: Path, db_skills: Optional[List[ToolSkill]] = None):
+    def __init__(self, skills_dir: Path, db_skills: Optional[list[ToolSkill]] = None):
         self.skills_dir = Path(skills_dir)
-        self._file_skills: Dict[str, ToolSkill] = {}
-        self._db_skills: Dict[str, ToolSkill] = {}
-        self._skills: Dict[str, ToolSkill] = {}
+        self._file_skills: dict[str, ToolSkill] = {}
+        self._db_skills: dict[str, ToolSkill] = {}
+        self._skills: dict[str, ToolSkill] = {}
         self._load_files()
         if db_skills:
             self.set_db_skills(db_skills)
@@ -314,7 +315,7 @@ class ToolSkillRegistry:
             self._recompute()
 
     def _load_files(self) -> None:
-        skills: Dict[str, ToolSkill] = {}
+        skills: dict[str, ToolSkill] = {}
         if self.skills_dir.is_dir():
             for skill_file in sorted(self.skills_dir.glob("*/SKILL.md")):
                 skill = _parse_skill_file(skill_file)
@@ -334,7 +335,7 @@ class ToolSkillRegistry:
         self._file_skills = skills
 
     def _recompute(self) -> None:
-        merged: Dict[str, ToolSkill] = dict(self._file_skills)
+        merged: dict[str, ToolSkill] = dict(self._file_skills)
         for name, skill in self._db_skills.items():
             if name in merged:
                 logger.info(
@@ -358,7 +359,7 @@ class ToolSkillRegistry:
         self._load_files()
         self._recompute()
 
-    def all_skills(self) -> List[ToolSkill]:
+    def all_skills(self) -> list[ToolSkill]:
         return list(self._skills.values())
 
     def get(self, name: str) -> Optional[ToolSkill]:
@@ -370,7 +371,7 @@ class ToolSkillRegistry:
         "on-disk default" (§2.6)."""
         return self._file_skills.get(name)
 
-    def matched_for(self, tool_names: Iterable[str]) -> List[ToolSkill]:
+    def matched_for(self, tool_names: Iterable[str]) -> list[ToolSkill]:
         """
         The *matched set* (docs/roadmap/mcp-tool-skills.md §2.2): every
         enabled skill whose ``mcp_tools`` glob matches at least one name in
@@ -450,7 +451,7 @@ def warn_catalog_overflow(
             continue
 
         allowed_servers = capabilities.get("mcp_servers")
-        tool_names: List[str] = []
+        tool_names: list[str] = []
         for server_name, tools in cached_by_server.items():
             if allowed_servers and server_name not in allowed_servers:
                 continue
@@ -516,7 +517,7 @@ def warn_catalog_overflow(
                 )
 
 
-def _db_doc_to_skill(doc: Dict[str, Any]) -> Optional[ToolSkill]:
+def _db_doc_to_skill(doc: dict[str, Any]) -> Optional[ToolSkill]:
     """Validate one ``tool_skills`` DB document into a ``ToolSkill``. Returns
     None (with a warning logged) on any validation failure — mirrors
     ``_parse_skill_file``'s log-and-skip behavior so one malformed DB row
@@ -587,7 +588,7 @@ class ToolSkillService:
     same separation ``PromptService`` has from its own runtime cache callers.
     """
 
-    def __init__(self, config: Dict[str, Any], database_service=None):
+    def __init__(self, config: dict[str, Any], database_service=None):
         self.config = config
         if database_service is None:
             from services.database_service import create_database_service
@@ -606,7 +607,7 @@ class ToolSkillService:
         await self.database.create_index(self.collection_name, "name", unique=True)
         logger.info("Tool Skill Service initialized successfully (collection: %s)", self.collection_name)
 
-    def _encode_doc(self, doc: Dict[str, Any]) -> Dict[str, Any]:
+    def _encode_doc(self, doc: dict[str, Any]) -> dict[str, Any]:
         """SQLite/Postgres have no native array column type — unlike
         ``users.roles``/``api_keys.allowed_*``, ``tool_skills`` is a
         dynamically-created table (no predefined schema), so this encodes
@@ -620,7 +621,7 @@ class ToolSkillService:
             encoded["mcp_tools"] = json.dumps(encoded["mcp_tools"])
         return encoded
 
-    def _decode_doc(self, doc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _decode_doc(self, doc: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
         if doc is None or self.backend_type == 'mongodb':
             return doc
         if isinstance(doc.get("mcp_tools"), str):
@@ -635,7 +636,7 @@ class ToolSkillService:
         *,
         name: str,
         description: str,
-        mcp_tools: List[str],
+        mcp_tools: list[str],
         body: str,
         enabled: bool = True,
         version: Optional[str] = None,
@@ -663,7 +664,7 @@ class ToolSkillService:
             raise HTTPException(status_code=500, detail=f"Error creating tool skill: {exc}")
         return skill_id
 
-    async def get_skill_by_id(self, skill_id: Union[str, Any]) -> Optional[Dict[str, Any]]:
+    async def get_skill_by_id(self, skill_id: Union[str, Any]) -> Optional[dict[str, Any]]:
         try:
             doc = await self.database.find_one(self.collection_name, {"_id": skill_id})
             return self._decode_doc(doc)
@@ -677,9 +678,9 @@ class ToolSkillService:
         enabled_only: bool = False,
         limit: int = 100,
         offset: int = 0,
-        sort: Optional[List[Tuple[str, int]]] = None,
-    ) -> List[Dict[str, Any]]:
-        filter_query: Dict[str, Any] = {}
+        sort: Optional[list[tuple[str, int]]] = None,
+    ) -> list[dict[str, Any]]:
+        filter_query: dict[str, Any] = {}
         if name_filter:
             filter_query["name"] = {"$regex": re.escape(name_filter), "$options": "i"}
         if enabled_only:
@@ -704,7 +705,7 @@ class ToolSkillService:
         *,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        mcp_tools: Optional[List[str]] = None,
+        mcp_tools: Optional[list[str]] = None,
         body: Optional[str] = None,
         enabled: Optional[bool] = None,
         version: Optional[str] = None,
@@ -764,7 +765,7 @@ class ToolSkillService:
     @staticmethod
     def _validate(
         *, name, description, mcp_tools, body, enabled, version, priority,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run the shared field validation, translating a ``SkillValidationError``
         into an HTTP 400 — the admin API's request-time equivalent of
         ``_parse_skill_file``'s log-and-skip for a bad file on disk."""
