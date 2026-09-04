@@ -125,6 +125,22 @@ both rule sets (deny still wins).
 }
 ```
 
+### Admin IP Rules Collection
+
+CIDR ranges permitted to reach `/admin/*` and the admin-scoped `/auth/*`
+routes, independent of identity. See
+[Admin IP Allowlisting](#admin-ip-allowlisting) below.
+
+```javascript
+{
+  "_id": ObjectId("..."),
+  "cidr": "10.0.0.0/8",
+  "reason": "Office network",
+  "created_by": "admin",
+  "created_at": ISODate("2026-09-04T12:00:00Z")
+}
+```
+
 ### Indexes
 
 - **users.username**: Unique index for fast user lookup
@@ -132,6 +148,7 @@ both rule sets (deny still wins).
 - **sessions.expires**: TTL index for automatic session cleanup
 - **user_blacklist.(entry_type, pattern)**: Unique index preventing duplicate rules
 - **user_allowlist.(entry_type, pattern)**: Unique index preventing duplicate rules
+- **admin_ip_rules.cidr**: Unique index preventing duplicate rules
 
 ## Security Features
 
@@ -359,6 +376,61 @@ For external users the stored username is `{provider}:{subject}`, so
 the ledger answers *who was granted access, and by whom*. A deletion is the
 security-relevant direction here (it withdraws access), the reverse of the
 blacklist.
+
+### Admin IP Allowlisting
+
+A defense-in-depth control, independent of identity: restricts `/admin/*`
+(the admin panel and its API surface) and the admin-scoped `/auth/*` routes
+(user management, blacklist/allowlist, session revocation, this control's own
+rules) to a configurable set of IP addresses/CIDR ranges — useful when the
+admin panel should only ever be reachable from an office network, VPN, or
+bastion, regardless of whether credentials are otherwise correct. This is
+**not** the identity allowlist above — that gates *who* may be provisioned an
+account at all; this gates *where* the admin surface can be reached from.
+
+Off by default (`auth.admin_ip_allowlist.enabled: false`), so it can't lock
+out an existing deployment on upgrade:
+
+```yaml
+auth:
+  admin_ip_allowlist:
+    enabled: false
+    mode: allowlist          # allowlist | open — same convention as auth.providers.access_control
+    default_ranges: []       # e.g. ["10.0.0.0/8", "203.0.113.4/32"]
+    cache_ttl: 30
+```
+
+The effective allowed set is the union of `default_ranges` (static config)
+and the `admin_ip_rules` database table, managed at runtime:
+
+```bash
+orbit user admin-ip list
+orbit user admin-ip add --cidr 10.0.0.0/8 --reason 'Office network'
+orbit user admin-ip remove --rule-id 507f1f77bcf86cd799439011
+```
+
+or via `GET/POST/DELETE /auth/admin-ip-rules[/{rule_id}]` (requires
+`users.manage`).
+
+**Loopback is always exempt.** Requests from `127.0.0.1`/`::1` bypass this
+control entirely, regardless of configured ranges — this is what keeps
+`orbit` CLI commands (which talk to the server over `localhost` by default)
+working no matter how narrow an operator configures the allowed ranges, and
+is the primary mitigation against misconfiguring this control into locking
+out every administrator at once, including via the CLI.
+
+**Self-lockout guard on deletion.** Adding a rule can never lock anyone out —
+it only ever widens the allowed set. Removing one can, if it's the only rule
+covering the requesting admin's own current (non-loopback) IP while
+enforcement is active: `DELETE /auth/admin-ip-rules/{rule_id}` (and
+`orbit user admin-ip remove`) refuses that removal with a 400 unless retried
+with `?force=true` (CLI: `--i-am-sure`), the same confirmation-flag pattern
+used by `orbit user allowlist seed-from-existing`.
+
+**Denials are audited.** A denied request (before it reaches routing or the
+admin-audit middleware) is recorded as `auth.admin_ip.denied`. Rule mutations
+are recorded as `auth.admin_ip.rule_create` / `auth.admin_ip.rule_delete`
+against resource type `admin_ip_rule`.
 
 ### Requiring an authenticated user
 
@@ -747,6 +819,40 @@ Revoke another user's session (requires `sessions.manage`). Returns 404 if
 the session doesn't exist or doesn't belong to `user_id`, so this endpoint
 can't be used to revoke an unrelated user's session by guessing a session id.
 Recorded in the admin audit ledger as `auth.session.revoke`.
+
+### Admin IP Rules Endpoints
+
+All three require `users.manage`. See [Admin IP Allowlisting](#admin-ip-allowlisting).
+
+#### GET /auth/admin-ip-rules
+List every admin IP allowlist rule, newest first.
+
+**Response:**
+```json
+[
+  {
+    "id": "507f1f77bcf86cd799439011",
+    "cidr": "10.0.0.0/8",
+    "reason": "Office network",
+    "created_by": "admin",
+    "created_at": "2026-09-04T12:00:00+00:00"
+  }
+]
+```
+
+#### POST /auth/admin-ip-rules
+Allow an IP address/CIDR range to reach the admin interface. Can never lock
+out the requesting administrator — adding a rule only ever widens access.
+
+**Request:**
+```json
+{ "cidr": "203.0.113.4/32", "reason": "Bastion host" }
+```
+
+#### DELETE /auth/admin-ip-rules/{rule_id}
+Remove a rule. Refused with a 400 (without `?force=true`) if it's the only
+rule covering the requesting admin's own current IP while enforcement is
+active — see the self-lockout guard above.
 
 ### Password Management Endpoints
 

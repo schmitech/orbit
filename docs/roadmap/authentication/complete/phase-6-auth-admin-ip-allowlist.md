@@ -1,5 +1,7 @@
 # Admin IP Allowlisting — Implementation Plan
 
+**Status:** Complete (2026-09-04)
+
 ## Summary
 
 Restrict access to `/admin/*` routes (the admin panel and its API surface) to

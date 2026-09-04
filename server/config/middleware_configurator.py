@@ -127,8 +127,32 @@ class MiddlewareConfigurator:
         # Configure throttle middleware (added last, executed first — delays requests before rate limiting)
         MiddlewareConfigurator._configure_throttle_middleware(app, config)
 
-        # Configure admin-audit middleware (outermost — sees all admin/auth mutations)
+        # Configure admin-audit middleware (sees all admin/auth mutations)
         MiddlewareConfigurator._configure_admin_audit_middleware(app, config)
+
+        # Configure admin IP allowlist middleware (outermost — denies gated
+        # requests before they reach audit logging or route logic)
+        MiddlewareConfigurator._configure_admin_ip_allowlist_middleware(app, config)
+
+    @staticmethod
+    def _configure_admin_ip_allowlist_middleware(app: FastAPI, config: dict[str, Any]) -> None:
+        """
+        Configure the admin IP allowlist middleware.
+
+        Always registered (unlike rate limiting/throttling, it needs no cache
+        provider) — enforcement itself stays off unless
+        auth.admin_ip_allowlist.enabled is true, checked per-request against
+        AuthService.admin_ip_allowlist so a runtime rule change or config
+        reload takes effect without restarting the middleware stack.
+        """
+        try:
+            from server.middleware.admin_ip_allowlist_middleware import AdminIpAllowlistMiddleware
+            app.add_middleware(AdminIpAllowlistMiddleware, config=config)
+            _logger.debug("Admin IP allowlist middleware configured successfully")
+        except ImportError as e:
+            _logger.warning(f"AdminIpAllowlistMiddleware not available - admin IP allowlisting disabled: {e}")
+        except Exception as e:
+            _logger.warning(f"Failed to configure admin IP allowlist middleware: {e}")
 
     @staticmethod
     def _configure_admin_audit_middleware(app: FastAPI, config: dict[str, Any]) -> None:

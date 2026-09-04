@@ -29,6 +29,8 @@ from services.user_blacklist_service import (
     matches,
     normalize_pattern,
 )
+from services.admin_ip_allowlist_service import AdminIpRuleError
+from utils.ip_utils import extract_ip, parse_trusted_networks
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +150,19 @@ class BlacklistRuleResponse(BaseModel):
     # how many of their sessions were revoked.
     matched_users: Optional[int] = None
     revoked_sessions: Optional[int] = None
+
+
+class AdminIpRuleRequest(BaseModel):
+    cidr: str = Field(min_length=1, max_length=64, description="An IP address or CIDR range, e.g. '10.0.0.0/8'")
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+class AdminIpRuleResponse(BaseModel):
+    id: str
+    cidr: str
+    reason: Optional[str] = None
+    created_by: Optional[str] = None
+    created_at: Optional[str] = None
 
 
 # Authentication Endpoints
@@ -1353,4 +1368,150 @@ async def revoke_user_session(
         raise
     except Exception as e:
         logger.error(f"Error revoking session {session_id} for user {user_id}: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# Admin IP allowlist endpoints
+#
+# These rules only ever widen who may reach /admin/* and the admin-scoped
+# /auth/* routes (see AdminIpAllowlistMiddleware) - so unlike the identity
+# blacklist/allowlist above, only deletion carries a self-lockout risk:
+# removing the one rule that currently covers the requesting admin's IP,
+# while auth.admin_ip_allowlist is enforcing, would lock them out (loopback
+# requests are always exempt regardless, so this can never happen to `orbit`
+# CLI commands run on the server itself).
+
+def _require_admin_ip_allowlist(auth_service):
+    service = getattr(auth_service, "admin_ip_allowlist", None)
+    if service is None:
+        raise HTTPException(
+            status_code=503, detail="Admin IP allowlist service is not available"
+        )
+    return service
+
+
+def _serialize_admin_ip_rule(rule: dict[str, Any]) -> AdminIpRuleResponse:
+    created_at = rule.get("created_at")
+    if created_at is not None:
+        created_at = (
+            created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at)
+        )
+    return AdminIpRuleResponse(
+        id=str(rule.get("_id") or rule.get("id")),
+        cidr=rule["cidr"],
+        reason=rule.get("reason"),
+        created_by=rule.get("created_by"),
+        created_at=created_at,
+    )
+
+
+@auth_router.get(
+    "/admin-ip-rules",
+    response_model=list[AdminIpRuleResponse],
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def list_admin_ip_rules(auth_service=Depends(get_auth_service)):
+    """List every admin IP allowlist rule, newest first."""
+    service = _require_admin_ip_allowlist(auth_service)
+    try:
+        rules = await service.list_rules()
+        return [_serialize_admin_ip_rule(rule) for rule in rules]
+    except Exception as e:
+        logger.error(f"Error listing admin IP rules: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.post(
+    "/admin-ip-rules",
+    response_model=AdminIpRuleResponse,
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def create_admin_ip_rule(
+    request: AdminIpRuleRequest,
+    http_request: Request,
+    current_user: dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Allow an IP/CIDR range to reach the admin interface. Can never lock out
+    the requesting administrator, since adding a rule only ever widens access."""
+    service = _require_admin_ip_allowlist(auth_service)
+    try:
+        rule = await service.add_rule(
+            cidr=request.cidr,
+            reason=request.reason,
+            created_by=current_user.get("username") if current_user else None,
+        )
+        http_request.state.audit_context = {
+            "resource_id": str(rule.get("_id") or "") or None,
+            "summary": {"cidr": rule.get("cidr"), "reason": rule.get("reason")},
+        }
+        return _serialize_admin_ip_rule(rule)
+    except AdminIpRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating admin IP rule: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.delete(
+    "/admin-ip-rules/{rule_id}",
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def delete_admin_ip_rule(
+    rule_id: str,
+    http_request: Request,
+    force: bool = False,
+    auth_service=Depends(get_auth_service),
+):
+    """Remove an admin IP allowlist rule.
+
+    Refused (without ``?force=true``) if the requesting admin's own current
+    IP would no longer be covered by the remaining rules while enforcement is
+    active - the self-lockout guard the roadmap plan requires for this
+    control, mirroring the confirmation flag pattern used by
+    ``orbit user allowlist seed-from-existing``.
+    """
+    service = _require_admin_ip_allowlist(auth_service)
+    try:
+        current = await service.get_rule(rule_id)
+        if not current:
+            raise HTTPException(status_code=404, detail="Admin IP rule not found")
+
+        if service.enforcing and not force:
+            # Resolve the caller's IP the same way AdminIpAllowlistMiddleware
+            # does - honoring trust_proxy_headers/trusted_proxies - so behind a
+            # trusted reverse proxy this guard sees the same forwarded client
+            # IP the middleware enforces against, not the proxy's own address
+            # (which, if the proxy is local, would read as "localhost" and
+            # skip the guard entirely).
+            rate_cfg = (auth_service.config.get("security", {}) or {}).get("rate_limiting", {}) or {}
+            requester_ip, _ = extract_ip(
+                http_request,
+                trust_proxy=rate_cfg.get("trust_proxy_headers", False),
+                trusted_networks=parse_trusted_networks(rate_cfg.get("trusted_proxies", [])),
+            )
+            remaining = await service.rules_excluding(rule_id)
+            remaining_cidrs = [r["cidr"] for r in remaining]
+            if requester_ip != "localhost" and not service.allowed_under(remaining_cidrs, requester_ip):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Removing this rule would exclude your own current IP "
+                        f"({requester_ip}) from the admin allowlist. Retry with "
+                        "?force=true to proceed anyway."
+                    ),
+                )
+
+        if not await service.delete_rule(rule_id):
+            raise HTTPException(status_code=404, detail="Admin IP rule not found")
+
+        http_request.state.audit_context = {
+            "resource_id": rule_id,
+            "summary": {"cidr": current.get("cidr")},
+        }
+        return {"status": "deleted", "id": rule_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting admin IP rule: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")

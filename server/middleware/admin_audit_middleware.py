@@ -140,6 +140,12 @@ _ROUTE_MAP: list[tuple[str, str, str, str, str, Optional[str], Any]] = [
     ("PUT",    "/auth/allowlist/{rule_id}",           "auth.allowlist.update",   "UPDATE", "allowlist_rule", "path:rule_id",  ("pattern", "entry_type", "reason")),
     ("DELETE", "/auth/allowlist/{rule_id}",           "auth.allowlist.delete",   "DELETE", "allowlist_rule", "path:rule_id",  ()),
 
+    # ---- Admin IP allowlist ----
+    # Same "context" reasoning as the identity blacklist/allowlist create above:
+    # the rule id doesn't exist until after the insert.
+    ("POST",   "/auth/admin-ip-rules",                 "auth.admin_ip.rule_create", "CREATE", "admin_ip_rule", "context",      ("cidr", "reason")),
+    ("DELETE", "/auth/admin-ip-rules/{rule_id}",        "auth.admin_ip.rule_delete", "DELETE", "admin_ip_rule", "path:rule_id", ()),
+
     # ---- API keys ----
     ("POST",   "/admin/api-keys",                                   "admin.api_key.create",     "CREATE", "api_key", None,                  ("client_name", "adapter_name", "system_prompt_id", "notes")),
     ("PUT",    "/admin/api-keys/{api_key_id}",                      "admin.api_key.update",     "UPDATE", "api_key", "path:api_key_id",     ("client_name", "adapter_name", "notes")),

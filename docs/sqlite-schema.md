@@ -10,6 +10,7 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `sessions` - Active user sessions
 - `user_blacklist` - Pattern-based identity denial rules
 - `user_allowlist` - Pattern-based pre-clearing of external identities
+- `admin_ip_rules` - CIDR ranges allowed to reach `/admin/*` and admin-scoped `/auth/*` routes
 - `api_keys` - API keys for authentication
 - `system_prompts` - System prompts for chat
 - `tool_skills` - Admin-authored procedural playbooks bound to MCP tools
@@ -199,6 +200,48 @@ inert. An empty table under `allowlist` mode denies every external login, which
 is what makes the control fail closed. Identities listed in
 `auth.providers.admin_sso.admin_users` are cleared implicitly and need no row
 here. Deny is evaluated first, so a `user_blacklist` row always wins.
+
+---
+
+### admin_ip_rules
+
+Stores CIDR ranges permitted to reach `/admin/*` and the admin-scoped
+`/auth/*` routes (user management, blacklist/allowlist, session revocation,
+this table's own management routes) — a defense-in-depth control independent
+of identity, gated by `AdminIpAllowlistMiddleware`. Not the same control as
+`user_allowlist` above, which gates *who* may be provisioned an account at
+all; this gates *where* the admin surface can be reached from.
+
+```sql
+CREATE TABLE IF NOT EXISTS admin_ip_rules (
+    id TEXT PRIMARY KEY,
+    cidr TEXT NOT NULL,
+    reason TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique rule ID (UUID)
+- `cidr` (TEXT): Normalized IP address or CIDR range (e.g. `10.0.0.0/8`, `203.0.113.4/32`)
+- `reason` (TEXT, nullable): Free-text operator note (why this range is allowed)
+- `created_by` (TEXT, nullable): Username of the administrator who added the rule
+- `created_at` (TEXT): ISO format timestamp of rule creation
+
+**Indexes:**
+- `idx_admin_ip_rules_cidr` unique on `(cidr)` — created by `AuthService.initialize()`
+  via `create_index`
+
+The effective allowed set is the union of this table and the static
+`auth.admin_ip_allowlist.default_ranges` config list, so a deployment can
+start with a config-only allowlist and grow into DB-managed rules without a
+breaking change. The control is opt-in (`auth.admin_ip_allowlist.enabled:
+false` by default) and, unlike `user_blacklist`/`user_allowlist`, an empty
+table plus empty `default_ranges` under `enabled: true` denies every non-loopback
+request outright — loopback (127.0.0.1/::1) is always exempt regardless of
+configuration, so `orbit` CLI commands run on the server itself are never
+locked out. See `docs/authentication.md`.
 
 ---
 
@@ -971,6 +1014,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.19** (2026-09-04): Admin IP allowlisting
+  - Added the `admin_ip_rules` table and its unique index `idx_admin_ip_rules_cidr` on `(cidr)` — CIDR ranges permitted to reach `/admin/*` and the admin-scoped `/auth/*` routes, enforced by the new `AdminIpAllowlistMiddleware`, gated by `auth.admin_ip_allowlist.enabled` (default `false`)
+  - Effective allowed set is the union of this table and static `auth.admin_ip_allowlist.default_ranges` config; loopback requests are always exempt so `orbit` CLI commands against the local server are never affected regardless of configuration. New routes: `GET/POST/DELETE /auth/admin-ip-rules[/{rule_id}]`, gated on `users.manage`. See `docs/roadmap/authentication/complete/phase-6-auth-admin-ip-allowlist.md`
+  - Created automatically on existing databases via `CREATE TABLE IF NOT EXISTS` / `CREATE UNIQUE INDEX IF NOT EXISTS` on startup — no manual migration needed
 - **v1.18** (2026-09-03): Session monitoring
   - Added `sessions.ip_address`, `sessions.user_agent`, and `sessions.last_seen_at`. `ip_address`/`user_agent` are captured at `create_session` time via the same `extract_ip` helper (and trusted-proxy config) already used by the rate-limit middleware; `last_seen_at` is refreshed on `validate_token`, throttled to at most once per 60 seconds
   - New `sessions.manage` RBAC permission (`server/auth/rbac.py`) lets an admin list/revoke sessions belonging to other users; every authenticated user can already list/revoke their own sessions without it, the same way `GET /auth/me` needs no elevated permission. New routes: `GET/DELETE /auth/sessions[/{session_id}]` (self-service) and `GET/DELETE /auth/users/{user_id}/sessions[/{session_id}]` (admin, gated on `sessions.manage`)

@@ -12,6 +12,7 @@ The database contains the following tables:
 - `sessions` - Active user sessions
 - `user_blacklist` - Pattern-based identity denial rules
 - `user_allowlist` - Pattern-based pre-clearing of external identities
+- `admin_ip_rules` - CIDR ranges allowed to reach `/admin/*` and admin-scoped `/auth/*` routes
 - `api_keys` - API keys for authentication
 - `system_prompts` - System prompts for chat
 - `tool_skills` - Admin-authored procedural playbooks bound to MCP tools
@@ -137,6 +138,25 @@ CREATE TABLE IF NOT EXISTS user_allowlist (
 ```
 
 **Indexes:** `idx_user_allowlist_entry_type_pattern` unique on `(entry_type, pattern)` — see [`docs/sqlite-schema.md#user_allowlist`](sqlite-schema.md#user_allowlist) for field descriptions, the deny-vs-allow semantics table, and the `auth.providers.access_control` gating.
+
+---
+
+### admin_ip_rules
+
+Stores CIDR ranges permitted to reach `/admin/*` and the admin-scoped
+`/auth/*` routes — a defense-in-depth control independent of identity.
+
+```sql
+CREATE TABLE IF NOT EXISTS admin_ip_rules (
+    id TEXT PRIMARY KEY,
+    cidr TEXT NOT NULL,
+    reason TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL
+)
+```
+
+**Indexes:** `idx_admin_ip_rules_cidr` unique on `(cidr)` — see [`docs/sqlite-schema.md#admin_ip_rules`](sqlite-schema.md#admin_ip_rules) for field descriptions and the enforcement/loopback-exemption details.
 
 ---
 
@@ -562,6 +582,10 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are 
 - Restrict database user permissions to only the schema Orbit needs; avoid using a Postgres superuser for the application connection.
 
 ## Version History
+
+- **v1.9** (2026-09-04): Admin IP allowlisting (matches SQLite v1.19)
+  - Added the `admin_ip_rules` table and its unique index `idx_admin_ip_rules_cidr` on `(cidr)`; see the SQLite v1.19 entry for details
+  - Created on existing databases via `CREATE TABLE IF NOT EXISTS` / `CREATE UNIQUE INDEX IF NOT EXISTS` on startup
 
 - **v1.8** (2026-09-03): Session monitoring (matches SQLite v1.18)
   - Added `sessions.ip_address`, `sessions.user_agent`, and `sessions.last_seen_at`. New `sessions.manage` RBAC permission and self-service/admin session list-and-revoke routes; see the SQLite v1.18 entry for details

@@ -233,6 +233,20 @@ auth:
   allowlist:
     cache_ttl: 30                   # Seconds a worker caches allowlist rules (0 = always re-read)
 
+  # Admin IP allowlisting: restricts /admin/* and the admin-scoped /auth/*
+  # routes (user management, blacklist/allowlist, session revocation) to a
+  # configurable set of IP addresses/CIDR ranges, as defense-in-depth on top
+  # of authentication and RBAC. Off by default so this can't lock out an
+  # existing deployment on upgrade. Requests from loopback (127.0.0.1/::1) are
+  # always exempt regardless of these settings, so `orbit` CLI commands run on
+  # the server itself are never blocked. Additional rules can be managed at
+  # runtime via GET/POST/DELETE /auth/admin-ip-rules or `orbit user admin-ip`.
+  admin_ip_allowlist:
+    enabled: false
+    mode: allowlist          # allowlist | open — same fail-closed convention as auth.providers.access_control
+    default_ranges: []       # e.g. ["10.0.0.0/8", "203.0.113.4/32"]
+    cache_ttl: 30
+
   # External identity providers (OIDC / OAuth2). Optional — the built-in
   # username/password auth above always works. When enabled, ORBIT validates
   # access-token JWTs presented as `Authorization: Bearer <jwt>` by clients

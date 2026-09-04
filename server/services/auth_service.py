@@ -83,6 +83,10 @@ class AuthService:
         # External-identity allowlist (pre-clearing) - built in initialize()
         self.allowlist = None
 
+        # Admin IP allowlist (where /admin and admin-scoped /auth routes may
+        # be reached from) - built in initialize()
+        self.admin_ip_allowlist = None
+
         # Initialize state
         self._initialized = False
         self.users_collection = None
@@ -134,6 +138,14 @@ class AuthService:
             unique=True,
         )
         await self._report_allowlist_posture()
+
+        # Admin IP allowlisting: gates where /admin and admin-scoped /auth
+        # routes may be reached from, independent of identity.
+        from services.admin_ip_allowlist_service import AdminIpAllowlistService
+        self.admin_ip_allowlist = AdminIpAllowlistService(self.config, self.database)
+        await self.database.create_index(
+            self.admin_ip_allowlist.collection_name, "cidr", unique=True
+        )
 
         # Set initialized flag
         self._initialized = True

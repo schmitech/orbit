@@ -197,6 +197,15 @@ class PostgresService(DatabaseService):
                     created_at TEXT NOT NULL
                 )
             ''',
+            'admin_ip_rules': '''
+                CREATE TABLE IF NOT EXISTS admin_ip_rules (
+                    id TEXT PRIMARY KEY,
+                    cidr TEXT NOT NULL,
+                    reason TEXT,
+                    created_by TEXT,
+                    created_at TEXT NOT NULL
+                )
+            ''',
             'api_keys': '''
                 CREATE TABLE IF NOT EXISTS api_keys (
                     id TEXT PRIMARY KEY,
@@ -414,6 +423,9 @@ class PostgresService(DatabaseService):
             ],
             'tool_skills': [
                 'CREATE UNIQUE INDEX IF NOT EXISTS idx_tool_skills_name ON tool_skills(name)',
+            ],
+            'admin_ip_rules': [
+                'CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_ip_rules_cidr ON admin_ip_rules(cidr)',
             ],
             'chat_history': [
                 'CREATE INDEX IF NOT EXISTS idx_chat_history_session ON chat_history(session_id, timestamp)',

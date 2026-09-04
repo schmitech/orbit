@@ -51,6 +51,11 @@ from bin.orbit.commands.allowlist import (
     AllowlistRemoveCommand,
     AllowlistSeedCommand,
 )
+from bin.orbit.commands.admin_ip import (
+    AdminIpAddCommand,
+    AdminIpListCommand,
+    AdminIpRemoveCommand,
+)
 from bin.orbit.commands.config import (
     ConfigShowCommand, ConfigEffectiveCommand, ConfigSetCommand, ConfigResetCommand
 )
@@ -493,6 +498,25 @@ Report issues at: https://github.com/schmitech/orbit/issues
              'Add a rule for each existing external user', AllowlistSeedCommand),
         ):
             sub_parser = allowlist_subparsers.add_parser(sub_name, help=sub_help)
+            sub_cmd = sub_cls(self._get_api_service(), self.formatter)
+            sub_cmd.add_arguments(sub_parser)
+            sub_parser.set_defaults(
+                func=lambda args, cmd=sub_cmd, cli=self:
+                    cli._update_command_services(cmd, args) or cmd.execute(args))
+
+        # Admin IP allowlist commands (restricting /admin and admin-scoped
+        # /auth routes to configured IP/CIDR ranges)
+        admin_ip_parser = user_subparsers.add_parser(
+            'admin-ip', help='Manage the admin IP allowlist')
+        admin_ip_subparsers = admin_ip_parser.add_subparsers(
+            dest='admin_ip_command', help='Admin IP allowlist operations', required=True)
+
+        for sub_name, sub_help, sub_cls in (
+            ('list', 'List admin IP allowlist rules', AdminIpListCommand),
+            ('add', 'Allow an IP/CIDR range', AdminIpAddCommand),
+            ('remove', 'Remove an admin IP allowlist rule', AdminIpRemoveCommand),
+        ):
+            sub_parser = admin_ip_subparsers.add_parser(sub_name, help=sub_help)
             sub_cmd = sub_cls(self._get_api_service(), self.formatter)
             sub_cmd.add_arguments(sub_parser)
             sub_parser.set_defaults(

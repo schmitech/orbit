@@ -162,6 +162,48 @@ class ApiService:
         response.raise_for_status()
         return response.json()
 
+    # Admin IP allowlist (restricting /admin and admin-scoped /auth routes to
+    # configured IP/CIDR ranges)
+    @handle_api_errors(operation_name="List admin IP rules", custom_errors={
+        403: "users.manage permission required to manage the admin IP allowlist"
+    })
+    def list_admin_ip_rules(self) -> list[dict[str, Any]]:
+        """List every admin IP allowlist rule, newest first."""
+        headers = self._get_auth_headers()
+        response = self.api_client.get("/auth/admin-ip-rules", headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    @handle_api_errors(operation_name="Add admin IP rule", custom_errors={
+        403: "users.manage permission required to manage the admin IP allowlist",
+        400: "Invalid or duplicate admin IP rule"
+    })
+    def add_admin_ip_rule(self, cidr: str, reason: Optional[str] = None) -> dict[str, Any]:
+        """Allow an IP address/CIDR range to reach the admin interface."""
+        headers = self._get_auth_headers()
+        headers["Content-Type"] = "application/json"
+        response = self.api_client.post(
+            "/auth/admin-ip-rules", headers=headers,
+            json_data={"cidr": cidr, "reason": reason},
+        )
+        response.raise_for_status()
+        return response.json()
+
+    @handle_api_errors(operation_name="Remove admin IP rule", custom_errors={
+        403: "users.manage permission required to manage the admin IP allowlist",
+        404: "Admin IP rule not found",
+        400: "This change would exclude your own current IP"
+    })
+    def delete_admin_ip_rule(self, rule_id: str, force: bool = False) -> dict[str, Any]:
+        """Remove an admin IP allowlist rule."""
+        headers = self._get_auth_headers()
+        endpoint = f"/auth/admin-ip-rules/{rule_id}"
+        if force:
+            endpoint += "?force=true"
+        response = self.api_client.delete(endpoint, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
     # User management
     @handle_api_errors(operation_name="List users", custom_errors={
         403: "Admin privileges required to list users"

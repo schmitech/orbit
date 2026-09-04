@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Security
+- **Admin IP Allowlisting (Authentication Phase 6)**: `/admin/*` and the admin-scoped `/auth/*` routes (user management, blacklist/allowlist, session revocation) can now be restricted to a configurable set of IP addresses/CIDR ranges, opt-in via `auth.admin_ip_allowlist.enabled`. Rules are managed at runtime via `GET/POST/DELETE /auth/admin-ip-rules` or `orbit user admin-ip`, unioned with static `default_ranges` config. Loopback requests are always exempt so `orbit` CLI commands against the local server are never blocked, and deleting a rule that would exclude the requesting admin's own current IP is refused without an explicit confirmation flag.
+
 ## [2.17.4] - 2026-09-04
 
 ### Security
