@@ -229,6 +229,16 @@ tool-role message—they never become system instructions. Responses record
 loads as `{"type": "tool_skill_load", "skill": "...", "version": "..."}`
 without exposing the body through an MCP result preview.
 
+Priority `0` is the default. When skills have the same priority—including when
+all skills use the default—the tie is resolved deterministically by the skill
+name in ascending, case-sensitive order (skill names are normally lowercase
+slugs). This ordering controls the catalog and loader enum, and also determines
+which skills win when the three-skill/24 KB injection budget is oversubscribed;
+the model's tool-call order does not change the result. For example, with four
+priority-`0` skills named `billing`, `crm`, `sales`, and `support`, the catalog
+lists them in that order; assuming their bodies fit the byte cap, a full budget
+admits `billing`, `crm`, and `sales`.
+
 Authoring guardrails apply equally to file- and database-backed skills: names
 are at most 64 characters, descriptions 500 characters, and each skill may
 declare at most 64 `mcp_tools` patterns of at most 256 characters each. The

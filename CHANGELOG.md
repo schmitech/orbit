@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.4] - 2026-09-04
 
 ### Security
 

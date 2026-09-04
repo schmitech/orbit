@@ -102,7 +102,7 @@ try:
 except ImportError:
     pass
 
-__version__ = "2.17.3"
+__version__ = "2.17.4"
 
 __all__ = [
     # Core base classes
