@@ -138,6 +138,19 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
       const modelOpts = configureCostTooltip(chartOptions());
       modelOpts.indexAxis = "y";
       modelOpts.plugins.legend.display = false;
+      // Bars are already sorted and capped at 10 rows, so a label per bar
+      // reads as a value list rather than clutter — no per-bar hover needed
+      // to answer "how much did the top model cost".
+      modelOpts.plugins.datalabels = {
+        display: true,
+        anchor: "end",
+        align: "end",
+        clip: false,
+        color: "#3d4f6f",
+        font: { family: "Inter, 'Segoe UI', system-ui, sans-serif", size: 11, weight: "600" },
+        formatter: (value) => obsCost(value)
+      };
+      modelOpts.layout = { padding: { right: 48 } };
       if (clickable) {
         modelOpts.onClick = (_evt, elements) => handleElementClick(elements);
         modelOpts.onHover = (evt, elements) => { evt.native.target.style.cursor = elements.length ? "pointer" : "default"; };
@@ -155,6 +168,13 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
     const providerCanvas = document.getElementById("obs-provider-chart");
     if (providerCanvas && groupRows.length) {
       const providerOpts = configureCostTooltip(chartOptions());
+      const groupTotal = groupRows.reduce((sum, row) => sum + row.cost_usd, 0);
+      providerOpts.plugins.datalabels = {
+        display: (ctx) => groupTotal > 0 && ctx.dataset.data[ctx.dataIndex] / groupTotal >= 0.06,
+        color: "#fff",
+        font: { family: "Inter, 'Segoe UI', system-ui, sans-serif", size: 11, weight: "600" },
+        formatter: (value) => groupTotal ? Math.round((value / groupTotal) * 100) + "%" : ""
+      };
       const doughnutOptions = { responsive: true, maintainAspectRatio: false, cutout: "68%", plugins: providerOpts.plugins };
       if (clickable) {
         doughnutOptions.onClick = (_evt, elements) => handleElementClick(elements);

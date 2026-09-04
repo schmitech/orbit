@@ -1,3 +1,14 @@
+// chartjs-plugin-datalabels registers itself globally on every chart and
+// defaults to display: true. Tabs like Feedback and Overview build their own
+// chart options rather than calling standardChartOptions() below, so an
+// off-switch there wouldn't reach them — the only place that covers every
+// chart is Chart.defaults itself. Callers that want on-chart labels (e.g.
+// costs.js) opt in per-chart via `plugins: { datalabels: { display: true, ... } }`.
+if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined") {
+  Chart.register(ChartDataLabels);
+  Chart.defaults.set("plugins.datalabels", { display: false });
+}
+
 /** Shared Chart.js defaults for dashboard-style visualizations. */
 export function standardChartOptions() {
   return {
