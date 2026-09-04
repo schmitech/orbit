@@ -77,6 +77,25 @@ cd orbit-release
 
 ORBIT starts at [http://localhost:3000](http://localhost:3000). Follow the tutorial to [verify the installation](docs/tutorial/before-you-start.md) and [create your first chat](docs/tutorial/first-chat.md).
 
+For a quick smoke test, the release seed includes `default-key` mapped to the
+`simple-chat` adapter:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: readme-smoke-test' \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Say hello in one sentence"}
+    ],
+    "stream": false
+  }'
+```
+
+For API-key creation, file uploads, and browser-based testing, continue with
+[Before you start](docs/tutorial/before-you-start.md).
+
 Prefer containers or a bundled chat UI? Use the [Docker quick start](docker/README.md#flavor-images-recommended-pull-and-run), or install and configure [OrbitChat](clients/orbitchat/README.md).
 
 ## How it works
@@ -114,7 +133,7 @@ For production evaluation, see the sourced [platform comparison](docs/ORBIT_CAPA
 | **Connect private data** | [Files](docs/adapters/file-adapter-guide.md) · [Vector stores](docs/vector-stores/vector_store_integration_guide.md) · [SQL](docs/sql-retriever-architecture.md) |
 | **Build agents** | [MCP tools](docs/tutorial/mcp-tool-calling.md) · [Automatic skill routing](docs/tutorial/auto-skill-routing.md) · [A2A](docs/a2a-protocol.md) |
 | **Run in production** | [Authentication](docs/authentication.md) · [Cost tracking](docs/token-usage-and-cost-tracking.md) · [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
-| **Use a client** | [OrbitChat](clients/orbitchat/) · [Node.js SDK](clients/node-api/) · [Python examples](docs/api-keys.md) |
+| **Use a client** | [OrbitChat](clients/orbitchat/) · [Node.js SDK](clients/node-api/) · [Python API example](examples/openai-compatible-api/chat_completions.py) |
 
 See the [documentation index](docs/README.md) for every guide and architecture deep dive.
 

@@ -44,6 +44,25 @@ For a full visual tour of every tab, see [Admin Panel Tour](admin-panel-tour.md)
 > 🖼️ **Screenshot placeholder:** the admin panel login screen.
 > _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
+### Test a conversation with `curl`
+
+Before installing a chat UI, you can test the running server directly with the API. The release tarball includes a `default-key` example; if you are using a git checkout, use a key you created instead.
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: my-session' \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Explain quantum computing in simple terms"}
+    ],
+    "stream": false
+  }'
+```
+
+The `X-Session-ID` header identifies the conversation, so reuse `my-session` in a later request when you want to continue it. This is the same basic request shown in the [Docker API examples](../../docker/README.md#basic-chat-request).
+
 ### Install the chat client (`orbitchat`)
 
 You'll see `orbitchat …` invocations throughout this tutorial — that's the standalone chat UI for testing adapters end-to-end. It's a separate npm package from the ORBIT server; it proxies your API requests so real API keys never reach the browser.

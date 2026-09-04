@@ -4,9 +4,28 @@
 
 Before touching any data source, let's confirm the full request path works end-to-end. The `simple-chat` adapter is pure conversational — no retrieval, no setup — so it's the fastest way to prove the server + API key + client flow is wired. Its adapter definition lives in [`config/adapters/passthrough.yaml`](../../config/adapters/passthrough.yaml).
 
-> **Already tested `default-key` from the README?** That's a pre-seeded example key mapped to `simple-chat`, meant for a quick smoke test — not for real use. This section creates your own key, tied to a persona you control, which is what you'll want for anything beyond a first look.
+> **Default installation seed:** `install/orbit.db.default` includes two ready-to-use API keys: `default-key` for `simple-chat` and `multimodal` for `simple-chat-with-files`. The matching adapter definitions are included in the default configuration. These seeded credentials are for quick smoke tests, not production use.
+
+You can inspect the available seeded keys and adapters with the CLI:
+
+```bash
+./bin/orbit.sh key list
+./bin/orbit.sh key list-adapters
+```
 
 ### 1. Create an API key
+
+The admin panel is the visual way to create a key. If you prefer the CLI, create a key and its prompt in one command:
+
+```bash
+./bin/orbit.sh key create \
+  --adapter simple-chat \
+  --name "First Chat" \
+  --prompt-name "First Chat Prompt" \
+  --prompt-text "You are a friendly assistant."
+```
+
+See [API Key Management](../server.md#api-key-management) for more key-management commands and options.
 
 Open `http://localhost:3000/admin`, sign in, then go to **Prompts / Personas**.
 
@@ -29,6 +48,23 @@ Open `http://localhost:3000/admin`, sign in, then go to **Prompts / Personas**.
 > _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
 ### 2. Chat
+
+You can test the conversation directly against the HTTP API with `curl`. This uses the seeded `default-key`; replace it with the key returned by the admin panel or CLI if you created your own.
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: default-key' \
+  -H 'X-Session-ID: my-session' \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Explain quantum computing in simple terms"}
+    ],
+    "stream": false
+  }'
+```
+
+Reuse the `X-Session-ID` value in a later request to continue the same conversation. For the browser-based option, install and launch OrbitChat with the key you created:
 
 ```bash
 ORBIT_ADAPTER_KEYS='{"simple-chat":"orbit_YOUR_KEY"}' orbitchat --open

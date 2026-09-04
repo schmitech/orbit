@@ -35,7 +35,26 @@ Then go to **API Keys** → **+ Create**:
 > 🖼️ **Screenshot placeholder:** the `intent-sql-sqlite-hr` adapter config in the Adapters tab.
 > _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
-### 4. Start chatting
+### 4. Test the query with `curl`
+
+You can test the adapter directly through the chat API before starting a browser client. Replace `orbit_YOUR_KEY` with the key created above:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: orbit_YOUR_KEY' \
+  -H 'X-Session-ID: hr-example' \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "How many employees per department?"}
+    ],
+    "stream": false
+  }'
+```
+
+The response should contain the department counts returned by the parameterized SQL template.
+
+### 5. Start chatting
 
 ```bash
 ORBIT_ADAPTER_KEYS='{"intent-sql-sqlite-hr":"orbit_YOUR_KEY"}' orbitchat --open
