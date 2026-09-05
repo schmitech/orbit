@@ -68,7 +68,48 @@ python orbit.py --url http://localhost:3000 delete --key YOUR_API_KEY
 
 # Get API key status
 python orbit.py --url http://localhost:3000 status --key YOUR_API_KEY
+
+# Create a key with a custom lifetime (default: 90 days, max: 365 days)
+python orbit.py --url http://localhost:3000 key create \
+  --adapter city --name "City Assistant" --expires-in-days 30
+
+# Create a non-expiring key (requires admin policy approval and a justification)
+python orbit.py --url http://localhost:3000 key create \
+  --adapter city --name "City Assistant" --non-expiring \
+  --justification "Approved by security team for legacy integration"
+
+# Renew a key's expiration, or grant a non-expiring exception
+python orbit.py --url http://localhost:3000 key renew --key YOUR_API_KEY --expires-in-days 90
+python orbit.py --url http://localhost:3000 key renew --key YOUR_API_KEY --non-expiring \
+  --justification "Board-approved integration key"
+
+# List expired or soon-to-expire keys
+python orbit.py --url http://localhost:3000 key list --expired
+python orbit.py --url http://localhost:3000 key list --expiring-within-days 14
 ```
+
+### API key expiration
+
+Every managed API key has a finite `expires_at`. New keys default to a 90-day
+lifetime (`api_keys.default_lifetime_days` in `config/config.yaml`) and may not
+be created with an expiration further than `api_keys.max_lifetime_days` (365)
+days out. A key is rejected the same way an unknown or disabled key is once
+`now >= expires_at` — this is checked before adapter resolution, allowlists, and
+quotas, and an expired explicit key never falls back to `api_keys.allow_default`.
+
+A key can instead be created (or renewed) as a `non_expiring_exception`, gated
+by `api_keys.allow_non_expiring_exceptions` and a required, non-empty
+justification. Every API-key record carries an `expiration_policy` of
+`managed`, `non_expiring_exception`, or `legacy_migration` (assigned
+automatically to any pre-existing key with no `expires_at`, on service start,
+per `api_keys.legacy_migration_lifetime_days`).
+
+`GET /admin/api-keys`, `/admin/api-keys/{id}/detail`, and
+`/admin/api-keys/{id}/status` all return `expires_at`, `expiration_policy`,
+`expired`, and `days_remaining`. `POST /admin/api-keys/{id}/renew` accepts an
+absolute `expires_at` or `non_expiring` + `expiration_justification` and
+records the previous/new expiration as an `admin.api_key.expiration.update`
+audit event.
 
 ### System Prompt Management
 
@@ -198,7 +239,8 @@ Replace `YOUR_API_KEY` or `YOUR_ADMIN_TOKEN` with a real value. Without valid au
 | GET | `/admin/info` | Server PID and status |
 | GET | `/admin/api-keys` | List API keys (optional: `adapter`, `active_only`, `limit`, `offset`) |
 | POST | `/admin/api-keys` | Create API key (body: `client_name`, `notes`, etc.) |
-| GET | `/admin/api-keys/{api_key}/status` | Key status |
+| GET | `/admin/api-keys/{api_key}/status` | Key status (includes `expires_at`, `expiration_policy`, `expired`, `days_remaining`) |
+| POST | `/admin/api-keys/{api_key_id}/renew` | Renew expiration, or grant a non-expiring exception |
 | PATCH | `/admin/api-keys/{old_api_key}/rename?new_api_key=...` | Rename key |
 | POST | `/admin/api-keys/deactivate` | Deactivate key (body: `{"api_key": "..."}`) |
 | DELETE | `/admin/api-keys/{api_key}` | Delete key |

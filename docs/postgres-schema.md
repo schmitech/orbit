@@ -219,13 +219,16 @@ CREATE TABLE IF NOT EXISTS api_keys (
     quota_throttle_enabled INTEGER,
     quota_throttle_priority INTEGER,
     allowed_user_ids TEXT,
-    allowed_emails TEXT
+    allowed_emails TEXT,
+    expires_at TEXT,
+    expiration_policy TEXT,
+    expiration_justification TEXT
 )
 ```
 
 **Indexes:** `idx_api_keys_api_key` on `api_key`
 
-`allowed_user_ids`, `allowed_emails`: per-user API key restrictions — see [`docs/sqlite-schema.md#api_keys`](sqlite-schema.md#api_keys) for full field details.
+`allowed_user_ids`, `allowed_emails`: per-user API key restrictions. `expires_at`/`expiration_policy`/`expiration_justification`: key lifetime enforcement (`managed`/`non_expiring_exception`/`legacy_migration`) — see [`docs/sqlite-schema.md#api_keys`](sqlite-schema.md#api_keys) for full field details.
 
 ---
 
@@ -625,6 +628,9 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are 
 
 ## Version History
 
+- **v1.10** (2026-09-05): API key expiration (matches SQLite v1.20)
+  - Added `api_keys.expires_at`, `api_keys.expiration_policy`, `api_keys.expiration_justification`; see the SQLite v1.20 entry for details
+  - Created on existing databases through the additive startup migration (`ADD COLUMN IF NOT EXISTS`); MongoDB is schemaless and needs no migration
 - **v1.9** (2026-09-04): Admin IP allowlisting (matches SQLite v1.19)
   - Added the `admin_ip_rules` table and its unique index `idx_admin_ip_rules_cidr` on `(cidr)`; see the SQLite v1.19 entry for details
   - Created on existing databases via `CREATE TABLE IF NOT EXISTS` / `CREATE UNIQUE INDEX IF NOT EXISTS` on startup

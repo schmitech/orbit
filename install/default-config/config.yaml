@@ -335,6 +335,11 @@ auth:
 api_keys:
   header_name: "X-API-Key"     # HTTP header clients send their API key in
   prefix: "orbit_"             # Prefix prepended to every generated key
+  default_lifetime_days: 90    # New keys expire this many days after creation unless overridden
+  max_lifetime_days: 365       # A caller-supplied expiration may not exceed this many days from creation
+  legacy_migration_lifetime_days: 90  # Lifetime assigned to pre-existing keys with no expiration on first startup
+  allow_non_expiring_exceptions: true # Whether an admin-justified non-expiring exception is permitted
+  expiration_warning_days: 14  # "Expiring soon" threshold surfaced in the admin panel/CLI
 
 # Loads and caches the named system prompts assigned to adapters / API keys, so
 # they aren't re-fetched from the database on every request.

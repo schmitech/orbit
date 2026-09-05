@@ -155,6 +155,7 @@ class TestCreateApiKeyLogging:
         api_key_data = SimpleNamespace(
             client_name="Test Client", notes=None, system_prompt_id=None, adapter_name="simple-chat",
             allowed_user_ids=None, allowed_emails=None,
+            expires_at=None, non_expiring=False, expiration_justification=None,
         )
 
         with caplog.at_level(logging.DEBUG, logger="routes.admin.api_keys"):

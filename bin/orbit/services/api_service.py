@@ -5,6 +5,7 @@ This service wraps the ApiClient and AuthService to provide convenient methods
 for all API operations.
 """
 
+from datetime import datetime, timedelta, UTC
 from typing import Any, Optional
 import requests
 
@@ -78,7 +79,7 @@ class ApiService:
         409: "User already exists"
     })
     def register_user(self, username: str, password: str, role: str = "user",
-                       roles: Optional[list[str]] = None) -> dict[str, Any]:
+                       roles: list[str] | None = None) -> dict[str, Any]:
         """Register a new user (users.manage permission required)."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -139,7 +140,7 @@ class ApiService:
         400: "Invalid or duplicate allowlist rule"
     })
     def add_allowlist_rule(self, pattern: str, entry_type: str,
-                           reason: Optional[str] = None) -> dict[str, Any]:
+                           reason: str | None = None) -> dict[str, Any]:
         """Pre-clear an identity pattern for external login."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -178,7 +179,7 @@ class ApiService:
         403: "users.manage permission required to manage the admin IP allowlist",
         400: "Invalid or duplicate admin IP rule"
     })
-    def add_admin_ip_rule(self, cidr: str, reason: Optional[str] = None) -> dict[str, Any]:
+    def add_admin_ip_rule(self, cidr: str, reason: str | None = None) -> dict[str, Any]:
         """Allow an IP address/CIDR range to reach the admin interface."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -208,7 +209,7 @@ class ApiService:
     @handle_api_errors(operation_name="List users", custom_errors={
         403: "Admin privileges required to list users"
     })
-    def list_users(self, role: Optional[str] = None, active_only: bool = False,
+    def list_users(self, role: str | None = None, active_only: bool = False,
                    limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         """List all users in the system."""
         headers = self._get_auth_headers()
@@ -291,11 +292,14 @@ class ApiService:
         return response.json()
     
     # API Key methods
-    def create_api_key(self, client_name: str, notes: Optional[str] = None,
-                      prompt_id: Optional[str] = None, prompt_name: Optional[str] = None,
-                      prompt_file: Optional[str] = None, adapter_name: Optional[str] = None,
-                      prompt_text: Optional[str] = None,
-                      notes_file: Optional[str] = None) -> dict[str, Any]:
+    def create_api_key(self, client_name: str, notes: str | None = None,
+                      prompt_id: str | None = None, prompt_name: str | None = None,
+                      prompt_file: str | None = None, adapter_name: str | None = None,
+                      prompt_text: str | None = None,
+                      notes_file: str | None = None,
+                      expires_in_days: int | None = None,
+                      non_expiring: bool = False,
+                      expiration_justification: str | None = None) -> dict[str, Any]:
         """Create a new API key."""
         # Resolve notes input.
         # Priority: notes > notes_file
@@ -330,7 +334,14 @@ class ApiService:
             data["notes"] = resolved_notes
         if prompt_id:
             data["system_prompt_id"] = prompt_id
-        
+        if expires_in_days is not None:
+            expires_at = datetime.now(UTC) + timedelta(days=expires_in_days)
+            data["expires_at"] = expires_at.isoformat()
+        if non_expiring:
+            data["non_expiring"] = True
+        if expiration_justification:
+            data["expiration_justification"] = expiration_justification
+
         try:
             response = self.api_client.post("/admin/api-keys", headers=headers, json_data=data)
             response.raise_for_status()
@@ -346,18 +357,70 @@ class ApiService:
         
         return api_key_result
     
-    def list_api_keys(self, active_only: bool = False, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
-        """List all API keys."""
+    def list_api_keys(self, active_only: bool = False, limit: int = 100, offset: int = 0,
+                       expired_only: bool = False, expiring_within_days: int | None = None) -> list[dict[str, Any]]:
+        """List all API keys, optionally filtered to expired or soon-to-expire keys.
+
+        expired_only and expiring_within_days are applied client-side against the
+        expires_at/expired fields the server already returns per key. Since the
+        server paginates before this filter is applied, a filtered request walks
+        every server page first so a key past the first `limit` records is never
+        silently dropped; `limit`/`offset` are then applied to the *filtered*
+        result, matching the semantics an unfiltered request gets directly from
+        the server.
+        """
         headers = self._get_auth_headers()
-        params = {}
-        if active_only:
-            params['active_only'] = 'true'
-        if limit != 100:
-            params['limit'] = str(limit)
-        if offset != 0:
-            params['offset'] = str(offset)
-        
-        response = self.api_client.get("/admin/api-keys", headers=headers, params=params)
+        filtering = expired_only or expiring_within_days is not None
+
+        def _fetch_page(page_limit: int, page_offset: int) -> list[dict[str, Any]]:
+            params = {'limit': str(page_limit), 'offset': str(page_offset)}
+            if active_only:
+                params['active_only'] = 'true'
+            response = self.api_client.get("/admin/api-keys", headers=headers, params=params)
+            response.raise_for_status()
+            return response.json()
+
+        if not filtering:
+            keys = _fetch_page(limit, offset)
+        else:
+            page_size = 1000
+            keys = []
+            page_offset = 0
+            while True:
+                page = _fetch_page(page_size, page_offset)
+                keys.extend(page)
+                if len(page) < page_size:
+                    break
+                page_offset += page_size
+
+            if expired_only:
+                keys = [k for k in keys if k.get('expired')]
+            else:
+                keys = [
+                    k for k in keys
+                    if not k.get('expired') and k.get('days_remaining') is not None
+                    and k['days_remaining'] <= expiring_within_days
+                ]
+            keys = keys[offset:offset + limit]
+
+        return keys
+
+    @handle_api_errors(operation_name="Renew API key")
+    def renew_api_key(self, api_key_id: str, expires_in_days: int | None = None,
+                       non_expiring: bool = False, expiration_justification: str | None = None) -> dict[str, Any]:
+        """Renew an API key's expiration, or grant an approved non-expiring exception."""
+        headers = self._get_auth_headers()
+        headers["Content-Type"] = "application/json"
+        data: dict[str, Any] = {}
+        if expires_in_days is not None:
+            expires_at = datetime.now(UTC) + timedelta(days=expires_in_days)
+            data["expires_at"] = expires_at.isoformat()
+        if non_expiring:
+            data["non_expiring"] = True
+        if expiration_justification:
+            data["expiration_justification"] = expiration_justification
+
+        response = self.api_client.post(f"/admin/api-keys/{api_key_id}/renew", headers=headers, json_data=data)
         response.raise_for_status()
         return response.json()
     
@@ -424,7 +487,7 @@ class ApiService:
         except NetworkError:
             raise
         except Exception as e:
-            raise OrbitError(f"API key test failed: {str(e)}")
+            raise OrbitError(f"API key test failed: {e!s}")
     
     # System Prompt methods
     def create_prompt(self, name: str, prompt_text: str, version: str = "1.0") -> dict[str, Any]:
@@ -436,7 +499,7 @@ class ApiService:
         response.raise_for_status()
         return response.json()
     
-    def list_prompts(self, name_filter: Optional[str] = None, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+    def list_prompts(self, name_filter: str | None = None, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         """List all system prompts."""
         headers = self._get_auth_headers()
         params = {}
@@ -458,7 +521,7 @@ class ApiService:
         response.raise_for_status()
         return response.json()
     
-    def update_prompt(self, prompt_id: str, prompt_text: str, version: Optional[str] = None) -> dict[str, Any]:
+    def update_prompt(self, prompt_id: str, prompt_text: str, version: str | None = None) -> dict[str, Any]:
         """Update an existing system prompt."""
         headers = self._get_auth_headers()
         headers["Content-Type"] = "application/json"
@@ -490,7 +553,7 @@ class ApiService:
         404: "Adapter not found or is disabled in configuration",
         503: "Adapter manager is not available"
     })
-    def reload_adapters(self, adapter_name: Optional[str] = None) -> dict[str, Any]:
+    def reload_adapters(self, adapter_name: str | None = None) -> dict[str, Any]:
         """Reload adapter configurations from adapters.yaml without server restart."""
         headers = self._get_auth_headers()
         params = {}
@@ -505,7 +568,7 @@ class ApiService:
         404: "Adapter not found or does not support template reloading",
         503: "Adapter manager is not available"
     })
-    def reload_templates(self, adapter_name: Optional[str] = None) -> dict[str, Any]:
+    def reload_templates(self, adapter_name: str | None = None) -> dict[str, Any]:
         """Reload intent templates from template library files without server restart."""
         headers = self._get_auth_headers()
         params = {}
@@ -565,7 +628,7 @@ class ApiService:
         except Exception as e:
             return {
                 "authenticated": False,
-                "message": f"Error checking status: {str(e)}",
+                "message": f"Error checking status: {e!s}",
                 "server_auth_enabled": auth_enabled,
                 "security": {
                     "storage_method": storage_method,

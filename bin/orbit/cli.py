@@ -34,7 +34,7 @@ from bin.orbit.commands.auth import (
 )
 from bin.orbit.commands.keys import (
     KeyCreateCommand, KeyListCommand, KeyTestCommand, KeyStatusCommand,
-    KeyRenameCommand, KeyDeactivateCommand, KeyDeleteCommand, KeyListAdaptersCommand
+    KeyRenameCommand, KeyRenewCommand, KeyDeactivateCommand, KeyDeleteCommand, KeyListAdaptersCommand
 )
 from bin.orbit.commands.prompts import (
     PromptCreateCommand, PromptListCommand, PromptGetCommand,
@@ -72,7 +72,7 @@ __author__ = "Remsy Schmilinsky"
 console = Console()
 
 
-def setup_logging(verbose: bool = False, log_file: Optional[Path] = None) -> logging.Logger:
+def setup_logging(verbose: bool = False, log_file: Path | None = None) -> logging.Logger:
     """Set up logging with rich formatting."""
     log_level = logging.DEBUG if verbose else logging.INFO
     
@@ -126,7 +126,7 @@ class OrbitCLI:
         self.api_service = None
         self.server_service = None
         
-    def _initialize_api_services(self, server_url: Optional[str] = None):
+    def _initialize_api_services(self, server_url: str | None = None):
         """Initialize API-related services."""
         if self.api_client is None or server_url:
             # If server_url is provided, use it; otherwise get from config
@@ -156,7 +156,7 @@ class OrbitCLI:
                 formatter=self.formatter
             )
     
-    def _get_api_service(self, server_url: Optional[str] = None) -> ApiService:
+    def _get_api_service(self, server_url: str | None = None) -> ApiService:
         """Get or create API service."""
         if server_url:
             # Create new instance with different server URL
@@ -170,7 +170,7 @@ class OrbitCLI:
         self._initialize_api_services(server_url)
         return self.api_service
     
-    def _get_auth_service(self, server_url: Optional[str] = None) -> AuthService:
+    def _get_auth_service(self, server_url: str | None = None) -> AuthService:
         """Get or create auth service."""
         self._initialize_api_services(server_url)
         return self.auth_service
@@ -372,6 +372,12 @@ Report issues at: https://github.com/schmitech/orbit/issues
         rename_cmd.add_arguments(rename_parser)
         rename_parser.set_defaults(func=lambda args, cmd=rename_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
         
+        # Renew command
+        renew_parser = key_subparsers.add_parser('renew', help="Renew an API key's expiration")
+        renew_cmd = KeyRenewCommand(self._get_api_service(), self.formatter)
+        renew_cmd.add_arguments(renew_parser)
+        renew_parser.set_defaults(func=lambda args, cmd=renew_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
         # Deactivate command
         deactivate_parser = key_subparsers.add_parser('deactivate', help='Deactivate an API key')
         deactivate_cmd = KeyDeactivateCommand(self._get_api_service(), self.formatter)
@@ -642,7 +648,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             logger.debug(f"AuthenticationError: {e}", exc_info=True)
             return 1
         except NetworkError as e:
-            self.formatter.error(f"Network error: {str(e)}")
+            self.formatter.error(f"Network error: {e!s}")
             self.formatter.info("Please check that the server is running and accessible")
             logger.debug(f"NetworkError: {e}", exc_info=True)
             return 1
@@ -654,7 +660,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             self.formatter.warning("\nOperation cancelled by user")
             return 130
         except Exception as e:
-            self.formatter.error(f"Unexpected error: {str(e)}")
+            self.formatter.error(f"Unexpected error: {e!s}")
             logger.error(f"Unexpected error: {e}", exc_info=True)
             return 1
 

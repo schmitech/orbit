@@ -326,7 +326,10 @@ CREATE TABLE IF NOT EXISTS api_keys (
     quota_throttle_enabled INTEGER,
     quota_throttle_priority INTEGER,
     allowed_user_ids TEXT,
-    allowed_emails TEXT
+    allowed_emails TEXT,
+    expires_at TEXT,
+    expiration_policy TEXT,
+    expiration_justification TEXT
 )
 ```
 
@@ -345,6 +348,9 @@ CREATE TABLE IF NOT EXISTS api_keys (
 - `quota_throttle_priority` (INTEGER): Optional per-key throttling priority override
 - `allowed_user_ids` (TEXT): JSON-encoded array of ORBIT `users.id` values permitted to use this key. `NULL`/empty = unrestricted (any valid key works, current behavior). Matched against the authenticated caller's internal user id, which for external Entra/Auth0 users is assigned on first JIT-provisioned login (see `users.provider`/`external_id`)
 - `allowed_emails` (TEXT): JSON-encoded array of normalized email addresses permitted to use this key before the user has logged in. A caller matching either this list or `allowed_user_ids` is authorized. Entries are lowercased and retained after login; an IdP email change will no longer match, so use user-ID restrictions for durable sensitive access.
+- `expires_at` (TEXT): ISO format UTC timestamp after which the key is rejected (`now >= expires_at`), checked before adapter resolution, allowlists, and quotas. `NULL` only for a `non_expiring_exception` policy, or a legacy row not yet visited by the startup migration. New keys default to `created_at + api_keys.default_lifetime_days` (90) and may not exceed `api_keys.max_lifetime_days` (365) from creation.
+- `expiration_policy` (TEXT): One of `managed` (normal expiring key), `non_expiring_exception` (explicit admin-approved, requires `expiration_justification`), or `legacy_migration` (assigned automatically on service start to any pre-existing row with no `expires_at`, expiring `api_keys.legacy_migration_lifetime_days` (90) after migration)
+- `expiration_justification` (TEXT): Required, non-empty justification recorded for a `non_expiring_exception`; `NULL` otherwise
 
 **Indexes:**
 - `idx_api_keys_api_key` on `api_key`
@@ -1076,6 +1082,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.20** (2026-09-05): API key expiration
+  - Added `api_keys.expires_at`, `api_keys.expiration_policy`, `api_keys.expiration_justification`. New keys default to a 90-day lifetime (`api_keys.default_lifetime_days`), capped at 365 days (`api_keys.max_lifetime_days`); a `non_expiring_exception` requires a justification and admin permission. Enforced in `validate_api_key`/`get_adapter_info` before adapter resolution, allowlists, and quotas — an expired explicit key never falls back to `api_keys.allow_default`
+  - Pre-existing rows are assigned `expiration_policy: legacy_migration` and `expires_at = migrated_at + api_keys.legacy_migration_lifetime_days` (90) by an idempotent migration run on `ApiKeyService.initialize()`, safe under concurrent workers since it only touches rows with `expires_at IS NULL`
+  - Applied to existing SQLite/PostgreSQL databases through the additive startup migration (`_migrate_table_schema`); MongoDB is schemaless and needs no migration. New admin renewal endpoint and `orbit key renew`/`orbit key list --expired`/`--expiring-within-days` CLI support. See `docs/roadmap/authentication/complete/phase-8-api-key-expiration.md`
 - **v1.19** (2026-09-04): Admin IP allowlisting
   - Added the `admin_ip_rules` table and its unique index `idx_admin_ip_rules_cidr` on `(cidr)` — CIDR ranges permitted to reach `/admin/*` and the admin-scoped `/auth/*` routes, enforced by the new `AdminIpAllowlistMiddleware`, gated by `auth.admin_ip_allowlist.enabled` (default `false`)
   - Effective allowed set is the union of this table and static `auth.admin_ip_allowlist.default_ranges` config; loopback requests are always exempt so `orbit` CLI commands against the local server are never affected regardless of configuration. New routes: `GET/POST/DELETE /auth/admin-ip-rules[/{rule_id}]`, gated on `users.manage`. See `docs/roadmap/authentication/complete/phase-6-auth-admin-ip-allowlist.md`

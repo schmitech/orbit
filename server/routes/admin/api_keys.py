@@ -9,10 +9,11 @@ from fastapi import APIRouter, Request, Depends, HTTPException, Query
 from models.schema import (
     ApiKeyCreate, ApiKeyResponse, ApiKeyUpdate, ApiKeyRename,
     ApiKeyPromptAssociate, ApiKeyQuota, ApiKeyQuotaUpdate,
-    ApiKeyUsage, ApiKeyQuotaResponse,
+    ApiKeyUsage, ApiKeyQuotaResponse, ApiKeyExpirationUpdate,
 )
 from utils.text_utils import mask_api_key
 
+from middleware.admin_audit_middleware import EXPLICIT_NULL
 from routes.auth_helpers import check_service_availability
 from routes.admin._shared import (
     _serialize_created_at, get_api_key_service, apikeys_auth,
@@ -21,6 +22,14 @@ from routes.admin._shared import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _serialize_expiration_summary(api_key_service, key_doc: dict) -> dict:
+    """Build the JSON-serializable expiration fields for a list/detail response."""
+    info = api_key_service._serialize_expiration(key_doc)
+    expires_at = info["expires_at"]
+    info["expires_at"] = expires_at.timestamp() if expires_at else None
+    return info
 
 
 # API Key Management Routes
@@ -71,6 +80,9 @@ async def create_api_key(
         allowed_user_ids=api_key_data.allowed_user_ids,
         allowed_emails=api_key_data.allowed_emails,
         adapter_manager=getattr(request.app.state, 'adapter_manager', None),
+        expires_at=api_key_data.expires_at,
+        non_expiring=api_key_data.non_expiring,
+        expiration_justification=api_key_data.expiration_justification,
     )
     
     # Log with masked API key
@@ -88,7 +100,7 @@ async def create_api_key(
 @router.get("/api-keys", dependencies=[apikeys_auth])
 async def list_api_keys(
     request: Request,
-    adapter: Optional[str] = None,
+    adapter: str | None = None,
     active_only: bool = False,
     limit: int = 100,
     offset: int = 0,
@@ -159,6 +171,7 @@ async def list_api_keys(
                 "created_at": _serialize_created_at(key.get("created_at")),
                 "allowed_user_ids": key.get("allowed_user_ids") or [],
                 "allowed_emails": key.get("allowed_emails") or [],
+                **_serialize_expiration_summary(api_key_service, key),
             }
 
             # Handle system_prompt_id if it exists
@@ -172,7 +185,7 @@ async def list_api_keys(
         return serialized_keys
         
     except Exception as e:
-        logger.error(f"Error listing API keys: {str(e)}")
+        logger.error(f"Error listing API keys: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to list API keys")
 
 
@@ -211,6 +224,7 @@ async def get_api_key_detail(
             "allowed_user_ids": key.get("allowed_user_ids") or [],
             "allowed_emails": key.get("allowed_emails") or [],
             "quota_available": bool(quota_service and quota_service.enabled),
+            **_serialize_expiration_summary(api_key_service, key),
         }
 
         if key.get("system_prompt_id"):
@@ -229,7 +243,7 @@ async def get_api_key_detail(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving API key detail for {api_key_id}: {str(e)}")
+        logger.error(f"Error retrieving API key detail for {api_key_id}: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to retrieve API key detail")
 
 
@@ -308,6 +322,48 @@ async def update_api_key(
 
     logger.info(f"Updated API key metadata for: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
     return {"status": "success", "message": "API key updated successfully"}
+
+
+@router.post("/api-keys/{api_key_id}/renew", dependencies=[apikeys_auth])
+async def renew_api_key(
+    api_key_id: str,
+    data: ApiKeyExpirationUpdate,
+    request: Request,
+):
+    """Renew an API key's expiration, or grant an approved non-expiring exception."""
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    check_service_availability(api_key_service, "API key service")
+
+    result = await api_key_service.renew_api_key(
+        api_key_id,
+        expires_at=data.expires_at,
+        non_expiring=data.non_expiring,
+        expiration_justification=data.expiration_justification,
+    )
+
+    # Publish the resolved record id (never the raw key that may have been
+    # supplied in the path) plus the canonical before/after expiration state
+    # for AdminAuditMiddleware to record — see admin_audit_middleware.py's
+    # "context" handling for the renew route.
+    # A missing prior/new expiration is a meaningful value here (a
+    # non-expiring key has none), not an absent field - EXPLICIT_NULL tells
+    # the audit middleware to record it as `null` rather than drop it.
+    request.state.audit_context = {
+        "resource_id": result["id"],
+        "summary": {
+            "previous_expires_at": result["previous_expires_at"] if result["previous_expires_at"] is not None else EXPLICIT_NULL,
+            "previous_expiration_policy": result["previous_expiration_policy"],
+            "expires_at": result["expires_at"] if result["expires_at"] is not None else EXPLICIT_NULL,
+            "expiration_policy": result["expiration_policy"],
+            "expiration_justification": result["expiration_justification"],
+        },
+    }
+
+    logger.info(
+        f"Renewed API key {mask_api_key(api_key_id, show_last=True, prefix='***')}: "
+        f"policy={result['expiration_policy']}"
+    )
+    return {"status": "success", "message": "API key renewed successfully", **result}
 
 
 @router.post("/api-keys/{api_key_id}/deactivate", dependencies=[apikeys_auth])
@@ -559,5 +615,5 @@ async def get_quota_usage_report(
         }
 
     except Exception as e:
-        logger.error(f"Error generating quota usage report: {str(e)}")
+        logger.error(f"Error generating quota usage report: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to generate usage report")

@@ -2,6 +2,7 @@
 Pydantic models for the API
 """
 
+from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field, model_validator
 
@@ -53,11 +54,14 @@ class HealthStatus(BaseModel):
 class ApiKeyCreate(BaseModel):
     """API key creation request model"""
     client_name: str
-    notes: Optional[str] = Field(default=None, max_length=2000)
-    system_prompt_id: Optional[str] = None
+    notes: str | None = Field(default=None, max_length=2000)
+    system_prompt_id: str | None = None
     adapter_name: str  # Required adapter name
-    allowed_user_ids: Optional[List[str]] = None  # Restrict to these ORBIT user ids; None/empty = unrestricted
-    allowed_emails: Optional[List[str]] = None  # Restrict to these authenticated email addresses
+    allowed_user_ids: List[str] | None = None  # Restrict to these ORBIT user ids; None/empty = unrestricted
+    allowed_emails: List[str] | None = None  # Restrict to these authenticated email addresses
+    expires_at: datetime | None = None  # Absolute expiration; defaults to now + default_lifetime_days
+    non_expiring: bool = False  # Explicit non-expiring exception; requires expiration_justification
+    expiration_justification: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode='before')
     @classmethod
@@ -66,6 +70,8 @@ class ApiKeyCreate(BaseModel):
         if isinstance(values, dict):
             if not values.get('adapter_name'):
                 raise ValueError('adapter_name must be provided')
+            if values.get('expires_at') and values.get('non_expiring'):
+                raise ValueError('expires_at and non_expiring are mutually exclusive; provide only one')
         return values
 
 
@@ -73,23 +79,46 @@ class ApiKeyResponse(BaseModel):
     """API key response model"""
     api_key: str
     client_name: str
-    notes: Optional[str] = None
+    notes: str | None = None
     created_at: float  # This expects a Unix timestamp
     active: bool = True
-    system_prompt_id: Optional[str] = None
-    adapter_name: Optional[str] = None
-    allowed_user_ids: Optional[List[str]] = None
-    allowed_emails: Optional[List[str]] = None
+    system_prompt_id: str | None = None
+    adapter_name: str | None = None
+    allowed_user_ids: List[str] | None = None
+    allowed_emails: List[str] | None = None
+    expires_at: float | None = None  # Unix timestamp, None only for a non-expiring exception
+    expiration_policy: str | None = None
+    expiration_justification: str | None = None
 
 
 class ApiKeyUpdate(BaseModel):
     """API key metadata update request model"""
     client_name: str = Field(min_length=1, max_length=100)
     adapter_name: str = Field(min_length=1)
-    system_prompt_id: Optional[str] = None
-    notes: Optional[str] = Field(default=None, max_length=2000)
-    allowed_user_ids: Optional[List[str]] = None
-    allowed_emails: Optional[List[str]] = None
+    system_prompt_id: str | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+    allowed_user_ids: List[str] | None = None
+    allowed_emails: List[str] | None = None
+
+
+class ApiKeyExpirationUpdate(BaseModel):
+    """API key renewal/expiration-update request model"""
+    expires_at: datetime | None = None  # Absolute new expiration
+    non_expiring: bool = False  # Explicit non-expiring exception; requires justification
+    expiration_justification: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode='before')
+    @classmethod
+    def validate_choice(cls, values):
+        """Require exactly one of expires_at or non_expiring"""
+        if isinstance(values, dict):
+            has_expires_at = bool(values.get('expires_at'))
+            has_non_expiring = bool(values.get('non_expiring'))
+            if not has_expires_at and not has_non_expiring:
+                raise ValueError('Either expires_at or non_expiring must be provided')
+            if has_expires_at and has_non_expiring:
+                raise ValueError('expires_at and non_expiring are mutually exclusive; provide only one')
+        return values
 
 
 class ApiKeyDeactivate(BaseModel):
@@ -104,18 +133,18 @@ class ApiKeyRename(BaseModel):
 
 class ApiKeyQuota(BaseModel):
     """Quota configuration for an API key"""
-    daily_limit: Optional[int] = Field(default=None, description="Daily request limit (None = unlimited)")
-    monthly_limit: Optional[int] = Field(default=None, description="Monthly request limit (None = unlimited)")
+    daily_limit: int | None = Field(default=None, description="Daily request limit (None = unlimited)")
+    monthly_limit: int | None = Field(default=None, description="Monthly request limit (None = unlimited)")
     throttle_enabled: bool = Field(default=True, description="Enable throttling for this key")
     throttle_priority: int = Field(default=5, ge=1, le=10, description="Priority 1-10, lower = less delay")
 
 
 class ApiKeyQuotaUpdate(BaseModel):
     """Request model for updating API key quota"""
-    daily_limit: Optional[int] = Field(default=None, description="Daily request limit (None = unlimited)")
-    monthly_limit: Optional[int] = Field(default=None, description="Monthly request limit (None = unlimited)")
-    throttle_enabled: Optional[bool] = Field(default=None, description="Enable throttling for this key")
-    throttle_priority: Optional[int] = Field(default=None, ge=1, le=10, description="Priority 1-10")
+    daily_limit: int | None = Field(default=None, description="Daily request limit (None = unlimited)")
+    monthly_limit: int | None = Field(default=None, description="Monthly request limit (None = unlimited)")
+    throttle_enabled: bool | None = Field(default=None, description="Enable throttling for this key")
+    throttle_priority: int | None = Field(default=None, ge=1, le=10, description="Priority 1-10")
 
 
 class ApiKeyUsage(BaseModel):
@@ -124,7 +153,7 @@ class ApiKeyUsage(BaseModel):
     monthly_used: int = Field(default=0, description="Requests used this month")
     daily_reset_at: float = Field(description="Unix timestamp of daily reset")
     monthly_reset_at: float = Field(description="Unix timestamp of monthly reset")
-    last_request_at: Optional[float] = Field(default=None, description="Unix timestamp of last request")
+    last_request_at: float | None = Field(default=None, description="Unix timestamp of last request")
 
 
 class ApiKeyQuotaResponse(BaseModel):
@@ -132,8 +161,8 @@ class ApiKeyQuotaResponse(BaseModel):
     api_key_masked: str = Field(description="Masked API key for display")
     quota: ApiKeyQuota = Field(description="Quota configuration")
     usage: ApiKeyUsage = Field(description="Current usage statistics")
-    daily_remaining: Optional[int] = Field(default=None, description="Requests remaining today (None if unlimited)")
-    monthly_remaining: Optional[int] = Field(default=None, description="Requests remaining this month (None if unlimited)")
+    daily_remaining: int | None = Field(default=None, description="Requests remaining today (None if unlimited)")
+    monthly_remaining: int | None = Field(default=None, description="Requests remaining this month (None if unlimited)")
     throttle_delay_ms: int = Field(default=0, description="Current throttle delay in milliseconds")
 
 
@@ -147,7 +176,7 @@ class SystemPromptCreate(BaseModel):
 class SystemPromptUpdate(BaseModel):
     """System prompt update request model"""
     prompt: str = Field(min_length=1, max_length=25000)
-    version: Optional[str] = None
+    version: str | None = None
 
 
 class SystemPromptResponse(BaseModel):
@@ -167,19 +196,19 @@ class ToolSkillCreate(BaseModel):
     mcp_tools: List[str] = Field(min_length=1, max_length=64)
     body: str = Field(min_length=1, max_length=24_576)
     enabled: bool = True
-    version: Optional[str] = Field(default=None, max_length=25, pattern=r"^\d+(?:\.\d+)*$")
+    version: str | None = Field(default=None, max_length=25, pattern=r"^\d+(?:\.\d+)*$")
     priority: int = Field(default=0, ge=-1, le=99)
 
 
 class ToolSkillUpdate(BaseModel):
     """Tool skill update request model."""
-    name: Optional[str] = Field(default=None, min_length=1, max_length=64)
-    description: Optional[str] = Field(default=None, min_length=1, max_length=500)
-    mcp_tools: Optional[List[str]] = Field(default=None, min_length=1, max_length=64)
-    body: Optional[str] = Field(default=None, min_length=1, max_length=24_576)
-    enabled: Optional[bool] = None
-    version: Optional[str] = Field(default=None, max_length=25, pattern=r"^\d+(?:\.\d+)*$")
-    priority: Optional[int] = Field(default=None, ge=-1, le=99)
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    description: str | None = Field(default=None, min_length=1, max_length=500)
+    mcp_tools: List[str] | None = Field(default=None, min_length=1, max_length=64)
+    body: str | None = Field(default=None, min_length=1, max_length=24_576)
+    enabled: bool | None = None
+    version: str | None = Field(default=None, max_length=25, pattern=r"^\d+(?:\.\d+)*$")
+    priority: int | None = Field(default=None, ge=-1, le=99)
 
 
 class ToolSkillResponse(BaseModel):
@@ -190,7 +219,7 @@ class ToolSkillResponse(BaseModel):
     mcp_tools: List[str]
     body: str
     enabled: bool
-    version: Optional[str] = None
+    version: str | None = None
     priority: int
     created_at: float
     updated_at: float
@@ -200,21 +229,21 @@ class APIError(BaseModel):
     """Standard error envelope for all API error responses."""
     code: str       # machine-readable: "SERVICE_UNAVAILABLE", "NOT_FOUND", "VALIDATION_ERROR"
     message: str    # human-readable description
-    details: Optional[Any] = None
+    details: Any | None = None
 
 
 class ApiKeyListItem(BaseModel):
     """A single API key record returned in list and detail endpoints."""
-    id: Optional[str] = None           # canonical id (same value as legacy _id)
+    id: str | None = None           # canonical id (same value as legacy _id)
     api_key: str                       # masked: "***xxxx"
-    adapter_name: Optional[str] = None
-    collection_name: Optional[str] = None  # legacy field
-    client_name: Optional[str] = None
-    notes: Optional[str] = None
+    adapter_name: str | None = None
+    collection_name: str | None = None  # legacy field
+    client_name: str | None = None
+    notes: str | None = None
     active: bool = True
-    created_at: Optional[float] = None     # Unix timestamp
-    system_prompt_id: Optional[str] = None
-    system_prompt_name: Optional[str] = None
+    created_at: float | None = None     # Unix timestamp
+    system_prompt_id: str | None = None
+    system_prompt_name: str | None = None
 
 
 class ApiKeyPromptAssociate(BaseModel):
@@ -259,9 +288,9 @@ class TemplateTestRequest(BaseModel):
 class TemplateFeedbackRequest(BaseModel):
     """Request model for recording human feedback on an intent template match/miss"""
     verdict: str = Field(description="Feedback verdict, e.g. 'correct', 'incorrect', 'no_match_expected'")
-    request_id: Optional[str] = Field(default=None, description="Request id the feedback refers to, if known")
-    template_id: Optional[str] = Field(default=None, description="Template the retriever actually matched, if any")
-    expected_template_id: Optional[str] = Field(default=None, description="Template that should have matched, for growing the eval corpus")
+    request_id: str | None = Field(default=None, description="Request id the feedback refers to, if known")
+    template_id: str | None = Field(default=None, description="Template the retriever actually matched, if any")
+    expected_template_id: str | None = Field(default=None, description="Template that should have matched, for growing the eval corpus")
 
 
 class MCPMessage(BaseModel):
@@ -307,8 +336,8 @@ class MCPJsonRpcRequest(BaseModel):
 class MCPJsonRpcResponse(BaseModel):
     """JSON-RPC 2.0 response model for Anthropic's MCP protocol"""
     jsonrpc: str = Field(default="2.0", description="JSON-RPC version")
-    result: Optional[Dict[str, Any]] = Field(default=None, description="Result object")
-    error: Optional[Dict[str, Any]] = Field(default=None, description="Error object")
+    result: Dict[str, Any] | None = Field(default=None, description="Result object")
+    error: Dict[str, Any] | None = Field(default=None, description="Error object")
     id: str = Field(description="Request identifier that this is a response to")
 
 
@@ -316,4 +345,4 @@ class MCPJsonRpcError(BaseModel):
     """JSON-RPC 2.0 error model for Anthropic's MCP protocol"""
     code: int = Field(description="Error code")
     message: str = Field(description="Error message")
-    data: Optional[Dict[str, Any]] = Field(default=None, description="Additional error data")
+    data: Dict[str, Any] | None = Field(default=None, description="Additional error data")

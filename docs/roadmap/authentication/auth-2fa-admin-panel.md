@@ -19,7 +19,7 @@ server-rendered dashboard login page. No backend routes, schema, or config
 change — this is UI work wired to endpoints that already exist and are
 already tested.
 
-**Roadmap position:** Phase 9. Hard dependency on [Phase 7](complete/phase-7-auth-2fa.md)
+**Roadmap position:** Hard dependency on [Phase 7](complete/phase-7-auth-2fa.md)
 (the backend this phase has no reason to exist without). No dependency on
 Phase 8 (API key expiration, unimplemented and unrelated).
 

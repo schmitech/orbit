@@ -226,7 +226,10 @@ class SQLiteService(DatabaseService):
                     quota_throttle_enabled INTEGER,
                     quota_throttle_priority INTEGER,
                     allowed_user_ids TEXT,
-                    allowed_emails TEXT
+                    allowed_emails TEXT,
+                    expires_at TEXT,
+                    expiration_policy TEXT,
+                    expiration_justification TEXT
                 )
             ''',
             'system_prompts': '''
@@ -520,7 +523,7 @@ class SQLiteService(DatabaseService):
                     self.connection.close()
                 except Exception:
                     pass
-            logger.error(f"Failed to initialize SQLite Service: {str(e)}")
+            logger.error(f"Failed to initialize SQLite Service: {e!s}")
             raise
 
     def _connect_db(self) -> sqlite3.Connection:
@@ -614,7 +617,7 @@ class SQLiteService(DatabaseService):
             self.connection.commit()
             return cursor
 
-    def _execute_sql_fetchone(self, sql: str, params: tuple) -> Optional[dict[str, Any]]:
+    def _execute_sql_fetchone(self, sql: str, params: tuple) -> dict[str, Any] | None:
         """Execute SQL and fetch one result (runs in thread) - thread-safe"""
         with self._db_lock:
             cursor = self.connection.cursor()
@@ -751,7 +754,7 @@ class SQLiteService(DatabaseService):
         field_name: Union[str, list[tuple[str, int]]],
         unique: bool = False,
         sparse: bool = False,
-        ttl_seconds: Optional[int] = None
+        ttl_seconds: int | None = None
     ) -> str:
         """
         Create an index on a table field
@@ -965,7 +968,7 @@ class SQLiteService(DatabaseService):
         self,
         collection_name: str,
         query: dict[str, Any]
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Find a single record in a table
 
@@ -1001,14 +1004,14 @@ class SQLiteService(DatabaseService):
             return None
 
         except Exception as e:
-            logger.error(f"Error finding document in {collection_name}: {str(e)}")
+            logger.error(f"Error finding document in {collection_name}: {e!s}")
             return None
 
     async def find_one_strict(
         self,
         collection_name: str,
         query: dict[str, Any]
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         if not self._initialized:
             await self.initialize()
 
@@ -1034,7 +1037,7 @@ class SQLiteService(DatabaseService):
             return None
 
         except Exception as e:
-            logger.error(f"Error finding document in {collection_name}: {str(e)}")
+            logger.error(f"Error finding document in {collection_name}: {e!s}")
             raise DatabaseOperationError(str(e)) from e
 
     async def find_many(
@@ -1042,7 +1045,7 @@ class SQLiteService(DatabaseService):
         collection_name: str,
         query: dict[str, Any],
         limit: int = 100,
-        sort: Optional[list[tuple[str, int]]] = None,
+        sort: list[tuple[str, int]] | None = None,
         skip: int = 0
     ) -> list[dict[str, Any]]:
         """
@@ -1089,14 +1092,14 @@ class SQLiteService(DatabaseService):
             return [self._convert_row_to_document(collection_name, row) for row in results]
 
         except Exception as e:
-            logger.error(f"Error finding documents in {collection_name}: {str(e)}")
+            logger.error(f"Error finding documents in {collection_name}: {e!s}")
             return []
 
     async def insert_one(
         self,
         collection_name: str,
         document: dict[str, Any]
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Insert a record into a table
 
@@ -1135,15 +1138,15 @@ class SQLiteService(DatabaseService):
         except sqlite3.IntegrityError as e:
             # Handle duplicate key errors
             if "UNIQUE constraint failed" in str(e):
-                logger.warning(f"Duplicate key error inserting into {collection_name}: {str(e)}")
+                logger.warning(f"Duplicate key error inserting into {collection_name}: {e!s}")
                 # Raise the abstraction-layer exception, not the raw driver error, so
                 # callers (e.g. auth_service._find_or_create_external_user) that catch
                 # DatabaseDuplicateKeyError for graceful concurrent-insert handling work.
                 raise DatabaseDuplicateKeyError(str(e)) from e
-            logger.error(f"Integrity error inserting document into {collection_name}: {str(e)}")
+            logger.error(f"Integrity error inserting document into {collection_name}: {e!s}")
             return None
         except Exception as e:
-            logger.error(f"Error inserting document into {collection_name}: {str(e)}")
+            logger.error(f"Error inserting document into {collection_name}: {e!s}")
             return None
 
     async def update_one(
@@ -1217,7 +1220,7 @@ class SQLiteService(DatabaseService):
             return cursor.rowcount > 0
 
         except Exception as e:
-            logger.error(f"Error updating document in {collection_name}: {str(e)}")
+            logger.error(f"Error updating document in {collection_name}: {e!s}")
             return False
 
     async def record_failed_login_attempt(
@@ -1257,7 +1260,7 @@ class SQLiteService(DatabaseService):
             )
             return cursor.rowcount > 0
         except Exception as e:
-            logger.error(f"Error recording failed login attempt: {str(e)}")
+            logger.error(f"Error recording failed login attempt: {e!s}")
             return False
 
     async def delete_one(
@@ -1301,7 +1304,7 @@ class SQLiteService(DatabaseService):
             return cursor.rowcount > 0
 
         except Exception as e:
-            logger.error(f"Error deleting document from {collection_name}: {str(e)}")
+            logger.error(f"Error deleting document from {collection_name}: {e!s}")
             return False
 
     async def delete_many(
@@ -1342,7 +1345,7 @@ class SQLiteService(DatabaseService):
             return cursor.rowcount
 
         except Exception as e:
-            logger.error(f"Error deleting documents from {collection_name}: {str(e)}")
+            logger.error(f"Error deleting documents from {collection_name}: {e!s}")
             return 0
 
     async def count(self, collection_name: str, query: dict[str, Any]) -> int:
@@ -1367,7 +1370,7 @@ class SQLiteService(DatabaseService):
             return row["cnt"] if row else 0
 
         except Exception as e:
-            logger.error(f"Error counting records in {collection_name}: {str(e)}")
+            logger.error(f"Error counting records in {collection_name}: {e!s}")
             return 0
 
     async def clear_collection(self, collection_name: str) -> int:
@@ -1402,7 +1405,7 @@ class SQLiteService(DatabaseService):
             return deleted_count
 
         except Exception as e:
-            logger.error(f"Error clearing table {collection_name}: {str(e)}")
+            logger.error(f"Error clearing table {collection_name}: {e!s}")
             return 0
 
     async def execute_transaction(
@@ -1503,7 +1506,7 @@ class SQLiteService(DatabaseService):
                         doc[field] = None
 
         # Convert ISO strings back to datetime objects where appropriate
-        datetime_fields = ['created_at', 'updated_at', 'last_login', 'expires', 'timestamp']
+        datetime_fields = ['created_at', 'updated_at', 'last_login', 'expires', 'timestamp', 'expires_at']
         for field in datetime_fields:
             if field in doc and doc[field]:
                 try:

@@ -81,6 +81,14 @@ _SKIP_PATHS = frozenset({
 
 _CHANGED_KEYS = object()
 
+# A handler publishing an override value of plain `None` means "remove this
+# field from the summary" (e.g. correcting a value that ended up empty). Some
+# handler-published fields need to record an explicit null as the *actual*
+# value instead - e.g. a renewal's resulting `expires_at` for a non-expiring
+# exception, or `previous_expires_at` when the key had none before. Publishing
+# this sentinel (instead of `None`) keeps the field in the summary as `null`.
+EXPLICIT_NULL = object()
+
 # These fields are published only by trusted route handlers, never copied from
 # a client request body.  Login failure reasons are a fixed server-side
 # taxonomy; accepting them from JSON would let a caller forge audit metadata.
@@ -89,9 +97,15 @@ _CONTEXT_ONLY_SUMMARY_FIELDS: dict[tuple[str, str], tuple[str, ...]] = {
     ("POST", "/admin/login"): ("reason",),
     ("POST", "/auth/login/2fa"): ("reason",),
     ("POST", "/admin/login/2fa"): ("reason",),
+    # The renewal handler resolves the raw-key-or-record-id request into a
+    # canonical record and publishes the actual before/after expiration state,
+    # since the client-submitted "expires_at"/"non_expiring" reflect the
+    # *request*, not the resolved outcome (e.g. a default lifetime applied
+    # when the caller supplied neither).
+    ("POST", "/admin/api-keys/{api_key_id}/renew"): ("previous_expires_at", "previous_expiration_policy", "expiration_policy"),
 }
 
-_ROUTE_MAP: list[tuple[str, str, str, str, str, Optional[str], Any]] = [
+_ROUTE_MAP: list[tuple[str, str, str, str, str, str | None, Any]] = [
     # ---- Auth ----
     ("POST",   "/auth/login",                         "auth.login",              "LOGIN",  "session", None,               ("username",)),
     ("POST",   "/auth/logout",                        "auth.logout",             "LOGOUT", "session", None,               ()),
@@ -171,9 +185,23 @@ _ROUTE_MAP: list[tuple[str, str, str, str, str, Optional[str], Any]] = [
     ("DELETE", "/auth/admin-ip-rules/{rule_id}",        "auth.admin_ip.rule_delete", "DELETE", "admin_ip_rule", "path:rule_id", ()),
 
     # ---- API keys ----
-    ("POST",   "/admin/api-keys",                                   "admin.api_key.create",     "CREATE", "api_key", None,                  ("client_name", "adapter_name", "system_prompt_id", "notes")),
+    ("POST",   "/admin/api-keys",                                   "admin.api_key.create",     "CREATE", "api_key", None,                  ("client_name", "adapter_name", "system_prompt_id", "notes", "expires_at", "non_expiring", "expiration_justification")),
     ("PUT",    "/admin/api-keys/{api_key_id}",                      "admin.api_key.update",     "UPDATE", "api_key", "path:api_key_id",     ("client_name", "adapter_name", "notes")),
     ("PATCH",  "/admin/api-keys/{api_key_id}/rename",               "admin.api_key.rename",     "UPDATE", "api_key", "path:api_key_id",     ("new_name",)),
+    # A renewal's request body distinguishes a normal date extension from a
+    # justified non-expiring exception ("non_expiring": true); both mutate the
+    # same resource via the same endpoint, so both are recorded under one
+    # event_type with the request fields (including the exception flag and its
+    # justification) captured in request_summary rather than split into two
+    # statically-routed event types.
+    #
+    # `api_key_id` in the path may be a raw API key (renew_api_key() accepts
+    # either), so the path value must never become the audit resource_id — it
+    # would write a live credential into durable audit storage. The resource
+    # id source is "context": the handler resolves the record and publishes
+    # its non-secret record id, plus the canonical previous/new expiration
+    # state, via request.state.audit_context.
+    ("POST",   "/admin/api-keys/{api_key_id}/renew",                "admin.api_key.expiration.update", "UPDATE", "api_key", "context", ("expires_at", "non_expiring", "expiration_justification")),
     ("POST",   "/admin/api-keys/{api_key_id}/deactivate",           "admin.api_key.deactivate", "UPDATE", "api_key", "path:api_key_id",     ()),
     ("DELETE", "/admin/api-keys/{api_key_id}",                      "admin.api_key.delete",     "DELETE", "api_key", "path:api_key_id",     ()),
     ("POST",   "/admin/api-keys/{api_key_id}/prompt",               "admin.api_key.attach_prompt", "UPDATE", "api_key", "path:api_key_id",  ("prompt_id",)),
@@ -228,7 +256,7 @@ def _template_to_regex(template: str) -> re.Pattern:
     return re.compile(f"^{pattern}$")
 
 
-_COMPILED_ROUTES: list[tuple[str, re.Pattern, str, str, str, Optional[str], Any, str]] = [
+_COMPILED_ROUTES: list[tuple[str, re.Pattern, str, str, str, str | None, Any, str]] = [
     (method, _template_to_regex(template), event_type, action, resource_type, resource_id_source, allowed, template)
     for (method, template, event_type, action, resource_type, resource_id_source, allowed) in _ROUTE_MAP
 ]
@@ -270,7 +298,7 @@ async def _read_and_replay_body(request: Request) -> bytes:
     return body
 
 
-def _parse_json_body(body_bytes: bytes, content_type: Optional[str]) -> Optional[dict[str, Any]]:
+def _parse_json_body(body_bytes: bytes, content_type: str | None) -> dict[str, Any] | None:
     if not body_bytes:
         return None
     if not content_type or "application/json" not in content_type.lower():
@@ -282,7 +310,7 @@ def _parse_json_body(body_bytes: bytes, content_type: Optional[str]) -> Optional
         return None
 
 
-def _build_request_summary(body: Optional[dict[str, Any]], allowed: Any) -> Optional[dict[str, Any]]:
+def _build_request_summary(body: dict[str, Any] | None, allowed: Any) -> dict[str, Any] | None:
     """Apply the per-route allowlist; secrets (passwords, raw keys) never pass through."""
     if not body:
         return None
@@ -298,11 +326,11 @@ def _build_request_summary(body: Optional[dict[str, Any]], allowed: Any) -> Opti
 
 
 def _apply_summary_overrides(
-    summary: Optional[dict[str, Any]],
+    summary: dict[str, Any] | None,
     overrides: Any,
     allowed: Any,
     context_only: tuple[str, ...] = (),
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Merge handler-published values into the summary, allowlist-bound.
 
     Overrides go through the route's request-body allowlist plus any explicitly
@@ -330,7 +358,9 @@ def _apply_summary_overrides(
         if field not in overrides:
             continue
         value = overrides[field]
-        if value is None:
+        if value is EXPLICIT_NULL:
+            merged[field] = None
+        elif value is None:
             merged.pop(field, None)
         else:
             merged[field] = value
@@ -344,7 +374,7 @@ def _apply_summary_overrides(
 class AdminAuditMiddleware(BaseHTTPMiddleware):
     """Captures admin/auth mutations and routes them to AuditService."""
 
-    def __init__(self, app, config: Optional[dict[str, Any]] = None):
+    def __init__(self, app, config: dict[str, Any] | None = None):
         super().__init__(app)
         security_cfg = (config or {}).get("security", {}) or {}
         rate_cfg = security_cfg.get("rate_limiting", {}) or {}
@@ -394,7 +424,7 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
         response,
         path: str,
         method: str,
-        body_json: Optional[dict[str, Any]],
+        body_json: dict[str, Any] | None,
         audit_service,
     ) -> None:
         from services.audit import AdminAuditRecord  # local import avoids cycles
@@ -404,7 +434,7 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
             event_type = "admin.unknown"
             action = method
             resource_type = "unknown"
-            resource_id_source: Optional[str] = None
+            resource_id_source: str | None = None
             allowed: Any = ()
             path_params: dict[str, str] = {}
             context_only: tuple[str, ...] = ()
@@ -424,8 +454,8 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
 
         # Resolve actor
         actor_type = "anonymous"
-        actor_id: Optional[str] = None
-        actor_username: Optional[str] = None
+        actor_id: str | None = None
+        actor_username: str | None = None
 
         current_user = getattr(request.state, "current_user", None)
         if current_user:
@@ -450,7 +480,7 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
             audit_context = {}
 
         # Resolve resource id
-        resource_id: Optional[str] = None
+        resource_id: str | None = None
         if resource_id_source:
             if resource_id_source.startswith("path:"):
                 resource_id = path_params.get(resource_id_source.split(":", 1)[1])

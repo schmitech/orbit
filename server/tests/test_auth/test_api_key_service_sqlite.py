@@ -10,7 +10,8 @@ import pytest
 import pytest_asyncio
 import sys
 import os
-from fastapi import FastAPI
+from datetime import datetime, timedelta, UTC
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 import logging
 from pathlib import Path
@@ -797,6 +798,238 @@ async def test_update_api_key_metadata_sets_allowlist(api_key_service):
 
     is_valid, _, _ = await api_key_service.validate_api_key(api_key, current_user_id="user-z")
     assert is_valid is True
+
+
+# --- API key expiration tests (Phase 8) --------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_api_key_defaults_to_90_day_expiration(api_key_service):
+    """A newly created key defaults to now + default_lifetime_days (90)."""
+    before = datetime.now(UTC)
+    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
+    after = datetime.now(UTC)
+
+    assert result["expiration_policy"] == "managed"
+    assert result["expires_at"] is not None
+    expires_at = datetime.fromtimestamp(result["expires_at"], tz=UTC)
+    assert before + timedelta(days=89) < expires_at < after + timedelta(days=91)
+
+
+@pytest.mark.asyncio
+async def test_create_api_key_rejects_over_max_lifetime(api_key_service):
+    """expires_at more than max_lifetime_days (365) in the future is rejected."""
+    too_far = datetime.now(UTC) + timedelta(days=400)
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql", expires_at=too_far)
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_create_api_key_rejects_past_expiration(api_key_service):
+    """A past expires_at is rejected."""
+    past = datetime.now(UTC) - timedelta(days=1)
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql", expires_at=past)
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_create_api_key_rejects_timezone_naive_expiration(api_key_service):
+    """A timezone-naive expires_at is rejected."""
+    naive = datetime.now() + timedelta(days=10)
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql", expires_at=naive)
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_create_api_key_non_expiring_requires_justification(api_key_service):
+    """A non-expiring exception without justification is rejected."""
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql", non_expiring=True)
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_create_api_key_non_expiring_exception_with_justification(api_key_service):
+    """A justified non-expiring exception is accepted and stores no expiration."""
+    result = await api_key_service.create_api_key(
+        client_name="c", adapter_name="qa-sql", non_expiring=True,
+        expiration_justification="Approved by security team for legacy integration",
+    )
+    assert result["expiration_policy"] == "non_expiring_exception"
+    assert result["expires_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_expired_key_is_rejected_by_validate_api_key(api_key_service):
+    """A key whose expires_at is in the past fails validation like an unknown key."""
+    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
+    api_key = result["api_key"]
+
+    # Force expiration directly (bypassing the creation-time validation).
+    key_doc = await api_key_service._resolve_key_doc(api_key)
+    await api_key_service.database.update_one(
+        api_key_service.collection_name, {"_id": str(key_doc["_id"])},
+        {"$set": {"expires_at": datetime.now(UTC) - timedelta(seconds=1)}}
+    )
+
+    is_valid, adapter_name, _ = await api_key_service.validate_api_key(api_key)
+    assert is_valid is False
+    assert adapter_name is None
+
+
+@pytest.mark.asyncio
+async def test_expired_key_valid_immediately_before_expiration(api_key_service):
+    """A key is still valid the instant before its expires_at."""
+    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
+    api_key = result["api_key"]
+
+    key_doc = await api_key_service._resolve_key_doc(api_key)
+    almost_expired = datetime.now(UTC) + timedelta(seconds=2)
+    await api_key_service.database.update_one(
+        api_key_service.collection_name, {"_id": str(key_doc["_id"])},
+        {"$set": {"expires_at": almost_expired}}
+    )
+
+    is_valid, adapter_name, _ = await api_key_service.validate_api_key(api_key)
+    assert is_valid is True
+    assert adapter_name == "qa-sql"
+
+
+@pytest.mark.asyncio
+async def test_expired_explicit_key_does_not_fall_back_to_default_adapter(api_key_service):
+    """An expired explicit key must not silently fall back to allow_default behavior."""
+    api_key_service.config.setdefault('api_keys', {})['allow_default'] = True
+    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
+    api_key = result["api_key"]
+
+    key_doc = await api_key_service._resolve_key_doc(api_key)
+    await api_key_service.database.update_one(
+        api_key_service.collection_name, {"_id": str(key_doc["_id"])},
+        {"$set": {"expires_at": datetime.now(UTC) - timedelta(seconds=1)}}
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.get_adapter_for_api_key(api_key)
+    assert exc_info.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_expired_key_independent_of_disabled_state(api_key_service):
+    """Expiration and the `active` flag are independent: disabling an expired key
+    doesn't change its rejection reason, and re-enabling doesn't revive an expired key."""
+    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
+    api_key = result["api_key"]
+    key_doc = await api_key_service._resolve_key_doc(api_key)
+    doc_id = str(key_doc["_id"])
+
+    await api_key_service.database.update_one(
+        api_key_service.collection_name, {"_id": doc_id},
+        {"$set": {"expires_at": datetime.now(UTC) - timedelta(seconds=1), "active": True}}
+    )
+    is_valid, _, _ = await api_key_service.validate_api_key(api_key)
+    assert is_valid is False
+
+    await api_key_service.deactivate_api_key_by_id(doc_id)
+    is_valid, _, _ = await api_key_service.validate_api_key(api_key)
+    assert is_valid is False
+
+
+@pytest.mark.asyncio
+async def test_get_api_key_status_reports_expiration_fields(api_key_service):
+    """Status responses expose expires_at/expiration_policy/expired/days_remaining."""
+    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
+    status = await api_key_service.get_api_key_status(result["api_key"])
+
+    assert status["expiration_policy"] == "managed"
+    assert status["expired"] is False
+    assert status["days_remaining"] is not None
+    assert 88 < status["days_remaining"] <= 90
+
+
+@pytest.mark.asyncio
+async def test_renew_api_key_extends_expiration(api_key_service):
+    """Renewal accepts a new absolute expires_at and records the previous value."""
+    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
+    key_doc = await api_key_service._resolve_key_doc(result["api_key"])
+    doc_id = str(key_doc["_id"])
+
+    new_expiry = datetime.now(UTC) + timedelta(days=200)
+    renewal = await api_key_service.renew_api_key(doc_id, expires_at=new_expiry)
+
+    assert renewal["expiration_policy"] == "managed"
+    assert renewal["previous_expires_at"] is not None
+    assert abs(renewal["expires_at"] - new_expiry.timestamp()) < 2
+
+    status = await api_key_service.get_api_key_status_by_id(doc_id)
+    assert abs(status["expires_at"].timestamp() - new_expiry.timestamp()) < 2
+
+
+@pytest.mark.asyncio
+async def test_renew_api_key_to_non_expiring_exception(api_key_service):
+    """Renewal can grant a justified non-expiring exception."""
+    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
+    key_doc = await api_key_service._resolve_key_doc(result["api_key"])
+    doc_id = str(key_doc["_id"])
+
+    renewal = await api_key_service.renew_api_key(
+        doc_id, non_expiring=True, expiration_justification="Board-approved integration key"
+    )
+    assert renewal["expiration_policy"] == "non_expiring_exception"
+    assert renewal["expires_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_renew_api_key_rejects_unjustified_non_expiring(api_key_service):
+    """Renewal to non-expiring without justification is rejected."""
+    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
+    key_doc = await api_key_service._resolve_key_doc(result["api_key"])
+
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.renew_api_key(str(key_doc["_id"]), non_expiring=True)
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_legacy_key_migration_assigns_finite_expiration(sqlite_service):
+    """A pre-existing key with no expires_at is migrated to expiration_policy=legacy_migration
+    with expires_at = now + legacy_migration_lifetime_days, on service initialize()."""
+    # Insert a legacy-shaped document directly, bypassing create_api_key (which always
+    # sets an expiration), to simulate a pre-Phase-8 record.
+    legacy_doc = {
+        "api_key": "legacy_test_key",
+        "client_name": "legacy_client",
+        "active": True,
+        "created_at": datetime.now(UTC) - timedelta(days=400),
+        "adapter_name": "qa-sql",
+    }
+    await sqlite_service.insert_one("api_keys", legacy_doc)
+
+    # The service is a process-wide singleton keyed by backend config; clear it so this
+    # test gets a fresh instance bound to `sqlite_service` instead of a cached one from
+    # another test (whose connection may already be closed).
+    ApiKeyService.clear_cache()
+    config = get_test_config()
+    service = ApiKeyService(config, sqlite_service)
+    await service.initialize()
+
+    migrated = await service.database.find_one("api_keys", {"api_key": "legacy_test_key"})
+    assert migrated["expiration_policy"] == "legacy_migration"
+    assert migrated["expires_at"] is not None
+    assert migrated["expires_at"] > datetime.now(UTC) + timedelta(days=89)
+
+
+@pytest.mark.asyncio
+async def test_legacy_key_migration_is_idempotent(api_key_service):
+    """Re-running the migration does not change an already-migrated expiration."""
+    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
+    before = (await api_key_service.get_api_key_status(result["api_key"]))["expires_at"]
+
+    await api_key_service._migrate_legacy_expirations()
+
+    after = (await api_key_service.get_api_key_status(result["api_key"]))["expires_at"]
+    assert before == after
 
 
 if __name__ == "__main__":

@@ -41,7 +41,10 @@ class KeyCreateCommand(BaseCommand):
         parser.add_argument('--prompt-name', help='Name for a new system prompt')
         parser.add_argument('--prompt-file', help='Path to file containing system prompt')
         parser.add_argument('--prompt-text', help='Prompt text as a string (alternative to --prompt-file)')
-    
+        parser.add_argument('--expires-in-days', type=int, help='Days until the key expires (default: server default_lifetime_days)')
+        parser.add_argument('--non-expiring', action='store_true', help='Request a non-expiring key (requires --justification and admin policy approval)')
+        parser.add_argument('--justification', help='Justification required when using --non-expiring')
+
     def execute(self, args: argparse.Namespace) -> int:
         try:
             # Validate that both notes and notes-file are not provided
@@ -53,7 +56,15 @@ class KeyCreateCommand(BaseCommand):
             if args.prompt_text and args.prompt_file:
                 self.formatter.error("Cannot specify both --prompt-text and --prompt-file. Use only one.")
                 return 1
-            
+
+            if args.non_expiring and not args.justification:
+                self.formatter.error("--non-expiring requires --justification.")
+                return 1
+
+            if args.non_expiring and args.expires_in_days is not None:
+                self.formatter.error("Cannot specify both --non-expiring and --expires-in-days. Use only one.")
+                return 1
+
             result = self.api_service.create_api_key(
                 client_name=args.name,
                 notes=args.notes,
@@ -63,6 +74,9 @@ class KeyCreateCommand(BaseCommand):
                 adapter_name=args.adapter,
                 prompt_text=args.prompt_text,
                 notes_file=args.notes_file,
+                expires_in_days=args.expires_in_days,
+                non_expiring=args.non_expiring,
+                expiration_justification=args.justification,
             )
             if getattr(args, 'output', None) == 'json':
                 self.formatter.format_json(result)
@@ -74,9 +88,13 @@ class KeyCreateCommand(BaseCommand):
                     console.print(f"[bold]Adapter:[/bold] {result['adapter_name']}")
                 if result.get('system_prompt_id'):
                     console.print(f"[bold]Prompt ID:[/bold] {result['system_prompt_id']}")
+                if result.get('expiration_policy') == 'non_expiring_exception':
+                    console.print("[bold]Expiration:[/bold] non-expiring (exception)")
+                elif result.get('expires_at'):
+                    console.print(f"[bold]Expires:[/bold] {datetime.fromtimestamp(result['expires_at']).strftime('%Y-%m-%d')}")
             return 0
         except Exception as e:
-            self.formatter.error(f"Failed to create API key: {str(e)}")
+            self.formatter.error(f"Failed to create API key: {e!s}")
             return 1
 
 
@@ -99,13 +117,17 @@ class KeyListCommand(BaseCommand):
         parser.add_argument('--active-only', action='store_true', help='Show only active keys')
         parser.add_argument('--limit', type=int, default=100, help='Maximum number of keys to return')
         parser.add_argument('--offset', type=int, default=0, help='Number of keys to skip for pagination')
+        parser.add_argument('--expired', action='store_true', help='Show only expired keys')
+        parser.add_argument('--expiring-within-days', type=int, help='Show only keys expiring within this many days')
         parser.add_argument('--output', choices=['table', 'json'], default='table', help='Output format (default: table)')
-    
+
     def execute(self, args: argparse.Namespace) -> int:
         result = self.api_service.list_api_keys(
             active_only=args.active_only,
             limit=args.limit,
-            offset=args.offset
+            offset=args.offset,
+            expired_only=args.expired,
+            expiring_within_days=args.expiring_within_days,
         )
         # Check for output format (from subcommand arg or parent parser)
         output_format = getattr(args, 'output', 'table')
@@ -113,7 +135,7 @@ class KeyListCommand(BaseCommand):
             self.formatter.format_json(result)
         else:
             if result:
-                headers = ['API Key', 'Client', 'Adapter', 'Active', 'Created']
+                headers = ['API Key', 'Client', 'Adapter', 'Active', 'Created', 'Expires']
                 data = []
                 for key in result:
                     created_at = key.get('created_at', 'N/A')
@@ -121,13 +143,22 @@ class KeyListCommand(BaseCommand):
                         created_at = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d')
                     elif isinstance(created_at, str):
                         created_at = created_at[:10]
-                    
+
+                    if key.get('expiration_policy') == 'non_expiring_exception':
+                        expires = 'never'
+                    elif key.get('expires_at'):
+                        expires_str = datetime.fromtimestamp(key['expires_at']).strftime('%Y-%m-%d')
+                        expires = f"{expires_str} (expired)" if key.get('expired') else expires_str
+                    else:
+                        expires = 'N/A'
+
                     data.append({
                         'API Key': key.get('api_key', 'N/A')[:20] + '...',
                         'Client': key.get('client_name', 'N/A'),
                         'Adapter': key.get('adapter_name', 'N/A'),
                         'Active': '✓' if key.get('active', True) else '✗',
-                        'Created': created_at
+                        'Created': created_at,
+                        'Expires': expires,
                     })
                 self.formatter.format_table(data, headers)
                 console.print(f"Found {len(result)} api keys")
@@ -209,6 +240,13 @@ class KeyStatusCommand(BaseCommand):
             console.print(f"[bold]Last Used:[/bold] {status['last_used']}")
         if 'system_prompt_id' in status:
             console.print(f"[bold]System Prompt:[/bold] {status['system_prompt_id']}")
+        if status.get('expiration_policy') == 'non_expiring_exception':
+            console.print("[bold]Expiration:[/bold] non-expiring (exception)")
+        elif status.get('expires_at'):
+            expires_at = status['expires_at']
+            if isinstance(expires_at, (int, float)):
+                expires_at = datetime.fromtimestamp(expires_at).strftime('%Y-%m-%d')
+            console.print(f"[bold]Expires:[/bold] {expires_at}{' (expired)' if status.get('expired') else ''}")
 
 
 class KeyRenameCommand(BaseCommand):
@@ -240,6 +278,55 @@ class KeyRenameCommand(BaseCommand):
             masked_new = f"***{args.new_key[-4:]}" if len(args.new_key) > 4 else "***"
             console.print(f"Old key: {masked_old}")
             console.print(f"New key: {masked_new}")
+        return 0
+
+
+class KeyRenewCommand(BaseCommand):
+    """Command to renew an API key's expiration."""
+
+    def __init__(self, api_service: ApiService, formatter: OutputFormatter):
+        self.api_service = api_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "key renew"
+
+    @property
+    def description(self) -> str:
+        return "Renew an API key's expiration, or grant a non-expiring exception"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument('--key', required=True, help='API key or record ID to renew')
+        parser.add_argument('--expires-in-days', type=int, help='Days from now until the key expires')
+        parser.add_argument('--non-expiring', action='store_true', help='Grant a non-expiring exception (requires --justification and admin policy approval)')
+        parser.add_argument('--justification', help='Justification required when using --non-expiring')
+
+    def execute(self, args: argparse.Namespace) -> int:
+        if args.non_expiring and not args.justification:
+            self.formatter.error("--non-expiring requires --justification.")
+            return 1
+        if not args.non_expiring and args.expires_in_days is None:
+            self.formatter.error("Specify --expires-in-days or --non-expiring.")
+            return 1
+        if args.non_expiring and args.expires_in_days is not None:
+            self.formatter.error("Cannot specify both --non-expiring and --expires-in-days. Use only one.")
+            return 1
+
+        result = self.api_service.renew_api_key(
+            args.key,
+            expires_in_days=args.expires_in_days,
+            non_expiring=args.non_expiring,
+            expiration_justification=args.justification,
+        )
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("API key renewed successfully")
+            if result.get('expiration_policy') == 'non_expiring_exception':
+                console.print("[bold]Expiration:[/bold] non-expiring (exception)")
+            elif result.get('expires_at'):
+                console.print(f"[bold]Expires:[/bold] {datetime.fromtimestamp(result['expires_at']).strftime('%Y-%m-%d')}")
         return 0
 
 

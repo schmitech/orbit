@@ -13,7 +13,7 @@ import logging
 import secrets
 import string
 from typing import Any, Optional
-from datetime import datetime, UTC
+from datetime import datetime, timedelta, UTC
 from fastapi import HTTPException
 from bson import ObjectId
 import threading
@@ -27,7 +27,7 @@ from adapters.capabilities import AdapterCapabilities
 logger = logging.getLogger(__name__)
 
 
-def _normalize_allowed_emails(allowed_emails: Optional[list]) -> Optional[list]:
+def _normalize_allowed_emails(allowed_emails: list | None) -> list | None:
     """Normalize persisted API-key email allowlist entries."""
     if not allowed_emails:
         return None
@@ -41,11 +41,29 @@ def _normalize_allowed_emails(allowed_emails: Optional[list]) -> Optional[list]:
     return normalized or None
 
 
+def _is_key_expired(key_doc: dict[str, Any], now: datetime | None = None) -> bool:
+    """Return whether an API-key record's expires_at has passed. A missing/None
+    expires_at (a non-expiring exception, or a not-yet-migrated legacy key) never
+    expires."""
+    expires_at = key_doc.get("expires_at")
+    if not expires_at:
+        return False
+    if isinstance(expires_at, str):
+        try:
+            expires_at = datetime.fromisoformat(expires_at)
+        except ValueError:
+            return False
+    now = now or datetime.now(UTC)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=UTC)
+    return now >= expires_at
+
+
 def _is_caller_allowed(
-    allowed_user_ids: Optional[list],
-    allowed_emails: Optional[list],
-    current_user_id: Optional[str],
-    current_user_email: Optional[str],
+    allowed_user_ids: list | None,
+    allowed_emails: list | None,
+    current_user_id: str | None,
+    current_user_email: str | None,
 ) -> bool:
     """Return whether a caller matches either configured API-key allowlist."""
     allowed_user_ids = allowed_user_ids or []
@@ -67,7 +85,7 @@ class ApiKeyService:
     _instances: dict[str, 'ApiKeyService'] = {}
     _lock = threading.Lock()
 
-    def __new__(cls, config: dict[str, Any], database_service: Optional[DatabaseService] = None):
+    def __new__(cls, config: dict[str, Any], database_service: DatabaseService | None = None):
         """Create or return existing API key service instance based on configuration"""
         cache_key = cls._create_cache_key(config, database_service)
         
@@ -81,7 +99,7 @@ class ApiKeyService:
             return cls._instances[cache_key]
     
     @classmethod
-    def _create_cache_key(cls, config: dict[str, Any], database_service: Optional[DatabaseService] = None) -> str:
+    def _create_cache_key(cls, config: dict[str, Any], database_service: DatabaseService | None = None) -> str:
         """Create a cache key based on database configuration and collection name"""
         # Use database configuration for the cache key
         backend_config = config.get('internal_services', {}).get('backend', {})
@@ -142,7 +160,7 @@ class ApiKeyService:
             cls._instances.clear()
             logger.debug("Cleared API key service cache")
     
-    def __init__(self, config: dict[str, Any], database_service: Optional[DatabaseService] = None):
+    def __init__(self, config: dict[str, Any], database_service: DatabaseService | None = None):
         """Initialize the API key service with configuration"""
         # Avoid re-initialization if this instance was already initialized
         if hasattr(self, '_singleton_initialized'):
@@ -183,11 +201,66 @@ class ApiKeyService:
         # Create index on api_key field for faster lookups
         await self.database.create_index(self.collection_name, "api_key", unique=True)
         logger.info("Created unique index on api_key field")
-        
+
+        await self._migrate_legacy_expirations()
+
         # Set initialized flag
         self._initialized = True
-        
+
         logger.info("API Key Service initialized successfully")
+
+    async def _migrate_legacy_expirations(self) -> None:
+        """
+        Assign a finite expiration to any API-key record predating this feature.
+
+        Idempotent and safe under concurrent workers: only records with no
+        `expiration_policy` at all are touched (a record with an explicit
+        `non_expiring_exception` policy also has `expires_at: None`, but must
+        never be reclassified as legacy), and each is updated independently,
+        so a record already migrated (by this worker or another) is simply
+        skipped.
+        """
+        try:
+            legacy_keys = await self.database.find_many(
+                self.collection_name, {"expiration_policy": None}, limit=100000, skip=0
+            )
+        except Exception as e:
+            logger.error(f"Error scanning for legacy API keys to migrate: {e!s}")
+            return
+
+        if not legacy_keys:
+            return
+
+        keys_config = self.config.get('api_keys', {})
+        migration_days = keys_config.get('legacy_migration_lifetime_days', 90)
+        now = datetime.now(UTC)
+        new_expiration = now + timedelta(days=migration_days)
+
+        migrated = 0
+        for key_doc in legacy_keys:
+            # Re-check per record: another worker may have migrated it between the
+            # scan above and this update.
+            if key_doc.get("expiration_policy"):
+                continue
+            doc_id = str(key_doc.get("_id")) if key_doc.get("_id") else None
+            if not doc_id:
+                continue
+            updated = await self.database.update_one(
+                self.collection_name,
+                {"_id": doc_id, "expiration_policy": None},
+                {"$set": {
+                    "expires_at": new_expiration,
+                    "expiration_policy": "legacy_migration",
+                }}
+            )
+            if updated:
+                migrated += 1
+
+        if migrated:
+            logger.info(
+                "Migrated %s legacy API key(s) to expiration_policy=legacy_migration, earliest expiration %s",
+                migrated, new_expiration.isoformat(),
+            )
     
     def _generate_api_key(self, length: int = 32) -> str:
         """
@@ -208,7 +281,7 @@ class ApiKeyService:
         prefix = self.config.get('api_keys', {}).get('prefix', 'api_')
         return f"{prefix}{api_key}"
     
-    def _get_adapter_config(self, adapter_name: str, adapter_manager=None) -> Optional[dict[str, Any]]:
+    def _get_adapter_config(self, adapter_name: str, adapter_manager=None) -> dict[str, Any] | None:
         """
         Get adapter configuration by name (only if enabled)
 
@@ -241,7 +314,75 @@ class ApiKeyService:
         if adapter and adapter.get('enabled', True):
             return adapter
         return None
-    
+
+    def _resolve_expiration(
+        self,
+        expires_at: datetime | None,
+        non_expiring: bool,
+        justification: str | None,
+        now: datetime | None = None,
+    ) -> tuple[datetime | None, str, str | None]:
+        """
+        Validate and resolve an expiration request for key creation/renewal.
+
+        Returns (expires_at, expiration_policy, expiration_justification).
+        Raises HTTPException(400) for a disallowed non-expiring request, an
+        empty justification, a timezone-naive/past date, or a date beyond
+        `max_lifetime_days`.
+        """
+        now = now or datetime.now(UTC)
+        keys_config = self.config.get('api_keys', {})
+        default_days = keys_config.get('default_lifetime_days', 90)
+        max_days = keys_config.get('max_lifetime_days', 365)
+        allow_non_expiring = keys_config.get('allow_non_expiring_exceptions', True)
+
+        if non_expiring and expires_at is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="expires_at and non_expiring are mutually exclusive; provide only one",
+            )
+
+        if non_expiring:
+            if not allow_non_expiring:
+                raise HTTPException(status_code=400, detail="Non-expiring API keys are not permitted by policy")
+            justification = justification.strip() if isinstance(justification, str) else None
+            if not justification:
+                raise HTTPException(status_code=400, detail="A justification is required for a non-expiring API key")
+            return None, "non_expiring_exception", justification
+
+        if expires_at is not None:
+            if expires_at.tzinfo is None:
+                raise HTTPException(status_code=400, detail="expires_at must be timezone-aware")
+            expires_at = expires_at.astimezone(UTC)
+            if expires_at <= now:
+                raise HTTPException(status_code=400, detail="expires_at must be in the future")
+            if expires_at > now + timedelta(days=max_days):
+                raise HTTPException(status_code=400, detail=f"expires_at may not exceed {max_days} days from now")
+            return expires_at, "managed", None
+
+        return now + timedelta(days=default_days), "managed", None
+
+    def _serialize_expiration(self, key_doc: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
+        """Build the expires_at/expiration_policy/expired/days_remaining fields for a key document."""
+        now = now or datetime.now(UTC)
+        expires_at = key_doc.get("expires_at")
+        if isinstance(expires_at, str):
+            try:
+                expires_at = datetime.fromisoformat(expires_at)
+            except ValueError:
+                expires_at = None
+        days_remaining = None
+        if expires_at:
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            days_remaining = (expires_at - now).total_seconds() / 86400
+        return {
+            "expires_at": expires_at,
+            "expiration_policy": key_doc.get("expiration_policy"),
+            "expired": _is_key_expired(key_doc, now),
+            "days_remaining": days_remaining,
+        }
+
     async def get_api_key_status(self, api_key: str) -> dict[str, Any]:
         """
         Get the full status of an API key
@@ -274,27 +415,28 @@ class ApiKeyService:
             
             # For adapter-based keys, prefer adapter_name
             adapter_name = key_doc.get("adapter_name")
-            
+
             return {
                 "exists": True,
                 "active": bool(key_doc.get("active")),  # Convert to boolean
                 "adapter_name": adapter_name,
                 "client_name": key_doc.get("client_name"),
                 "created_at": key_doc.get("created_at"),
-                "system_prompt": system_prompt_info
+                "system_prompt": system_prompt_info,
+                **self._serialize_expiration(key_doc),
             }
             
         except Exception as e:
-            logger.error(f"Error getting API key status: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error checking API key status: {str(e)}")
+            logger.error(f"Error getting API key status: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error checking API key status: {e!s}")
     
     async def validate_api_key(
         self,
         api_key: str,
         adapter_manager=None,
-        current_user_id: Optional[str] = None,
-        current_user_email: Optional[str] = None,
-    ) -> tuple[bool, Optional[str], Optional[ObjectId]]:
+        current_user_id: str | None = None,
+        current_user_email: str | None = None,
+    ) -> tuple[bool, str | None, ObjectId | None]:
         """
         Validate the API key and return the associated adapter name and system prompt ID
 
@@ -340,6 +482,13 @@ class ApiKeyService:
                 logger.warning(f"API key is disabled: {masked_key}")
                 return False, None, None
 
+            # Reject expired keys before any adapter/allowlist/quota resolution.
+            # No per-rejection audit write here (would flood the log); a masked
+            # warning is sufficient, lifecycle changes are audited separately.
+            if _is_key_expired(key_doc):
+                logger.warning(f"API key is expired: {masked_key}")
+                return False, None, None
+
             # Enforce the per-user allowlist, if configured.
             # An empty/absent list means the key is unrestricted.
             if not _is_caller_allowed(
@@ -373,16 +522,16 @@ class ApiKeyService:
             return False, None, None
             
         except Exception as e:
-            logger.error(f"Error validating API key: {str(e)}")
+            logger.error(f"Error validating API key: {e!s}")
             return False, None, None
     
     async def get_adapter_for_api_key(
         self,
         api_key: str,
         adapter_manager=None,
-        current_user_id: Optional[str] = None,
-        current_user_email: Optional[str] = None,
-    ) -> tuple[str, Optional[ObjectId]]:
+        current_user_id: str | None = None,
+        current_user_email: str | None = None,
+    ) -> tuple[str, ObjectId | None]:
         """
         Get the adapter name and system prompt ID for a given API key
 
@@ -422,8 +571,8 @@ class ApiKeyService:
         self,
         api_key: str,
         adapter_manager=None,
-        current_user_id: Optional[str] = None,
-        current_user_email: Optional[str] = None,
+        current_user_id: str | None = None,
+        current_user_email: str | None = None,
     ) -> dict[str, Any]:
         """
         Get adapter information for a given API key.
@@ -461,6 +610,9 @@ class ApiKeyService:
         # Check if the key is active
         if key_doc.get("active") is False:
             raise HTTPException(status_code=401, detail="API key is disabled")
+
+        if _is_key_expired(key_doc):
+            raise HTTPException(status_code=401, detail="API key has expired")
 
         # Enforce the per-user allowlist, if configured (see validate_api_key)
         if not _is_caller_allowed(
@@ -560,12 +712,15 @@ class ApiKeyService:
     async def create_api_key(
         self,
         client_name: str,
-        notes: Optional[str] = None,
-        system_prompt_id: Optional[ObjectId] = None,
-        adapter_name: Optional[str] = None,
-        allowed_user_ids: Optional[list] = None,
-        allowed_emails: Optional[list] = None,
+        notes: str | None = None,
+        system_prompt_id: ObjectId | None = None,
+        adapter_name: str | None = None,
+        allowed_user_ids: list | None = None,
+        allowed_emails: list | None = None,
         adapter_manager=None,
+        expires_at: datetime | None = None,
+        non_expiring: bool = False,
+        expiration_justification: str | None = None,
     ) -> dict[str, Any]:
         """
         Create a new API key for a specific adapter
@@ -582,6 +737,11 @@ class ApiKeyService:
             adapter_manager: Optional live adapter manager, so a newly created/hot-reloaded
                 adapter validates correctly instead of against this service's config
                 snapshot taken at startup (see _get_adapter_config).
+            expires_at: Optional absolute expiration. Defaults to now + default_lifetime_days
+                if neither this nor non_expiring is given.
+            non_expiring: Explicit admin-approved non-expiring exception. Requires
+                expiration_justification and `allow_non_expiring_exceptions` in config.
+            expiration_justification: Required justification when non_expiring is True.
 
         Returns:
             Dictionary containing the new API key and metadata
@@ -595,15 +755,19 @@ class ApiKeyService:
             adapter_config = self._get_adapter_config(adapter_name, adapter_manager=adapter_manager)
             if not adapter_config:
                 raise HTTPException(status_code=400, detail=f"Adapter '{adapter_name}' not found in configuration")
-            
+
             allowed_emails = _normalize_allowed_emails(allowed_emails)
 
             # Generate a new API key
             api_key = self._generate_api_key()
-            
+
             # Get current time with UTC timezone
             now = datetime.now(UTC)
-            
+
+            resolved_expires_at, expiration_policy, resolved_justification = self._resolve_expiration(
+                expires_at, non_expiring, expiration_justification, now
+            )
+
             # Create the document
             key_doc = {
                 "api_key": api_key,
@@ -614,6 +778,9 @@ class ApiKeyService:
                 "adapter_name": adapter_name,
                 "allowed_user_ids": allowed_user_ids or None,
                 "allowed_emails": allowed_emails,
+                "expires_at": resolved_expires_at,
+                "expiration_policy": expiration_policy,
+                "expiration_justification": resolved_justification,
             }
 
             # Add system prompt ID if provided
@@ -621,14 +788,14 @@ class ApiKeyService:
                 # Convert to string to ensure consistency across backends
                 # The database service will handle the appropriate format internally
                 key_doc["system_prompt_id"] = str(system_prompt_id)
-            
+
             # Insert into database
             await self.database.insert_one(self.collection_name, key_doc)
-            
+
             logger.debug(f"Created new API key for adapter: {adapter_name}")
             if system_prompt_id:
                 logger.debug(f"Associated with system prompt ID: {system_prompt_id}")
-            
+
             # Return the API key and metadata
             result = {
                 "api_key": api_key,
@@ -640,16 +807,19 @@ class ApiKeyService:
                 "adapter_name": adapter_name,
                 "allowed_user_ids": allowed_user_ids or None,
                 "allowed_emails": allowed_emails,
+                "expires_at": resolved_expires_at.timestamp() if resolved_expires_at else None,
+                "expiration_policy": expiration_policy,
+                "expiration_justification": resolved_justification,
             }
-            
+
             return result
             
         except HTTPException:
             # Re-raise HTTP exceptions as-is
             raise
         except Exception as e:
-            logger.error(f"Error creating API key: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to create API key: {str(e)}")
+            logger.error(f"Error creating API key: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Failed to create API key: {e!s}")
     
     async def update_api_key_system_prompt(self, api_key_or_id: str, system_prompt_id: ObjectId) -> bool:
         """
@@ -714,7 +884,7 @@ class ApiKeyService:
             return result
             
         except Exception as e:
-            logger.error(f"Error updating API key system prompt: {str(e)}")
+            logger.error(f"Error updating API key system prompt: {e!s}")
             return False
 
     async def clear_system_prompt_associations(self, system_prompt_id: str) -> int:
@@ -756,7 +926,7 @@ class ApiKeyService:
                 )
             return cleared
         except Exception as e:
-            logger.error(f"Error clearing API key prompt associations: {str(e)}")
+            logger.error(f"Error clearing API key prompt associations: {e!s}")
             return 0
 
     async def update_api_key_metadata(
@@ -764,10 +934,10 @@ class ApiKeyService:
         api_key_or_id: str,
         client_name: str,
         adapter_name: str,
-        system_prompt_id: Optional[str] = None,
-        notes: Optional[str] = None,
-        allowed_user_ids: Optional[list] = None,
-        allowed_emails: Optional[list] = None,
+        system_prompt_id: str | None = None,
+        notes: str | None = None,
+        allowed_user_ids: list | None = None,
+        allowed_emails: list | None = None,
         adapter_manager=None
     ) -> bool:
         """Update editable metadata for an API key record."""
@@ -843,8 +1013,8 @@ class ApiKeyService:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Error updating API key metadata: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error updating API key metadata: {str(e)}")
+            logger.error(f"Error updating API key metadata: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error updating API key metadata: {e!s}")
     
     async def _resolve_key_doc(self, api_key_or_id: str) -> dict:
         """
@@ -878,11 +1048,60 @@ class ApiKeyService:
                 "adapter_name": key_doc.get("adapter_name"),
                 "client_name": key_doc.get("client_name"),
                 "created_at": key_doc.get("created_at"),
-                "system_prompt": system_prompt_info
+                "system_prompt": system_prompt_info,
+                **self._serialize_expiration(key_doc),
             }
         except Exception as e:
-            logger.error(f"Error getting API key status by id: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error checking API key status: {str(e)}")
+            logger.error(f"Error getting API key status by id: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error checking API key status: {e!s}")
+
+    async def renew_api_key(
+        self,
+        api_key_or_id: str,
+        expires_at: datetime | None = None,
+        non_expiring: bool = False,
+        expiration_justification: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Renew an API key's expiration: an absolute new `expires_at`, or an approved
+        non-expiring exception with justification.
+
+        Returns a dict with the actor-facing before/after state for the caller to
+        record as an audit event: {previous_expires_at, previous_expiration_policy,
+        expires_at, expiration_policy, expiration_justification}.
+        """
+        key_doc = await self._resolve_key_doc(api_key_or_id)
+        doc_id = str(key_doc["_id"])
+
+        now = datetime.now(UTC)
+        resolved_expires_at, expiration_policy, resolved_justification = self._resolve_expiration(
+            expires_at, non_expiring, expiration_justification, now
+        )
+
+        previous_expires_at = key_doc.get("expires_at")
+        if isinstance(previous_expires_at, datetime):
+            previous_expires_at = previous_expires_at.timestamp()
+
+        updated = await self.database.update_one(
+            self.collection_name,
+            {"_id": doc_id},
+            {"$set": {
+                "expires_at": resolved_expires_at,
+                "expiration_policy": expiration_policy,
+                "expiration_justification": resolved_justification,
+            }}
+        )
+        if not updated:
+            raise HTTPException(status_code=500, detail="Failed to renew API key")
+
+        return {
+            "id": doc_id,
+            "previous_expires_at": previous_expires_at,
+            "previous_expiration_policy": key_doc.get("expiration_policy"),
+            "expires_at": resolved_expires_at.timestamp() if resolved_expires_at else None,
+            "expiration_policy": expiration_policy,
+            "expiration_justification": resolved_justification,
+        }
 
     async def rename_api_key_by_id(self, api_key_id: str, new_api_key: str) -> bool:
         """Rename an API key identified by record _id or raw key value."""
@@ -900,8 +1119,8 @@ class ApiKeyService:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Error renaming API key by id: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error renaming API key: {str(e)}")
+            logger.error(f"Error renaming API key by id: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error renaming API key: {e!s}")
 
     async def deactivate_api_key_by_id(self, api_key_id: str) -> bool:
         """Deactivate an API key identified by record _id or raw key value."""
@@ -915,8 +1134,8 @@ class ApiKeyService:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Error deactivating API key by id: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error deactivating API key: {str(e)}")
+            logger.error(f"Error deactivating API key by id: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error deactivating API key: {e!s}")
 
     async def delete_api_key_by_id(self, api_key_id: str) -> bool:
         """Delete an API key identified by record _id or raw key value."""
@@ -927,8 +1146,8 @@ class ApiKeyService:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Error deleting API key by id: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error deleting API key: {str(e)}")
+            logger.error(f"Error deleting API key by id: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error deleting API key: {e!s}")
 
     async def rename_api_key(self, old_api_key: str, new_api_key: str) -> bool:
         """
@@ -977,8 +1196,8 @@ class ApiKeyService:
             # Re-raise HTTP exceptions as-is
             raise
         except Exception as e:
-            logger.error(f"Error renaming API key: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error renaming API key: {str(e)}")
+            logger.error(f"Error renaming API key: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error renaming API key: {e!s}")
 
     async def deactivate_api_key(self, api_key: str) -> bool:
         """
@@ -997,8 +1216,8 @@ class ApiKeyService:
                 {"$set": {"active": False}}
             )
         except Exception as e:
-            logger.error(f"Error deactivating API key: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error deactivating API key: {str(e)}")
+            logger.error(f"Error deactivating API key: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error deactivating API key: {e!s}")
     
     async def delete_api_key(self, api_key: str) -> bool:
         """
@@ -1013,8 +1232,8 @@ class ApiKeyService:
         try:
             return await self.database.delete_one(self.collection_name, {"api_key": api_key})
         except Exception as e:
-            logger.error(f"Error deleting API key: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error deleting API key: {str(e)}")
+            logger.error(f"Error deleting API key: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error deleting API key: {e!s}")
     
     async def close(self) -> None:
         """Close the API key service (does not close shared database service)"""
