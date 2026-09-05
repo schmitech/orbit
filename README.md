@@ -79,9 +79,8 @@ Open the [live ORBIT sandbox](https://orbit.schmitech.ca/?utm_source=github&utm_
 2. Extract it, enter the release directory, and start ORBIT:
 
 ```bash
-mkdir orbit-release
-tar -xzf orbit-*.tar.gz -C orbit-release --strip-components=1
-cd orbit-release
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.17.5/orbit-2.17.5.tar.gz
+tar -xzf orbit-2.17.5.tar.gz && cd orbit-2.17.5
 ./install/setup.sh --profile default
 
 ollama pull gemma4:e2b

@@ -6,6 +6,7 @@ the new unified AI services architecture and integrates with existing
 ollama_utils for maximum compatibility.
 """
 
+import asyncio
 import logging
 from typing import Any
 from collections.abc import AsyncGenerator
@@ -301,7 +302,16 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
                     return data.get('response', '')
 
         # Use Ollama's retry handler
-        return await self.execute_with_retry(_generate)
+        try:
+            return await self.execute_with_retry(_generate)
+        except (TimeoutError, asyncio.TimeoutError):
+            logger.warning(
+                "Ollama request timed out (model may still be warming up): %s",
+                self.model,
+            )
+            raise ValueError(
+                f"Ollama model '{self.model}' timed out — it may still be warming up. Please retry."
+            ) from None
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """
