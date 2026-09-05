@@ -25,6 +25,7 @@ from services.database_service import (
 )
 from auth.rbac import has_permission, is_valid_role, permissions_for_roles
 from services.common_passwords import load_common_passwords
+from services.file_storage.encryption import FileEncryptionError
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,11 @@ class AuthService:
         # be reached from) - built in initialize()
         self.admin_ip_allowlist = None
 
+        # Two-factor authentication (TOTP) - built in initialize()
+        self.mfa = None
+        self.mfa_pending_collection_name = 'mfa_pending'
+        self._MFA_PENDING_TTL_SECONDS = 300
+
         # Initialize state
         self._initialized = False
         self.users_collection = None
@@ -146,6 +152,12 @@ class AuthService:
         await self.database.create_index(
             self.admin_ip_allowlist.collection_name, "cidr", unique=True
         )
+
+        # Two-factor authentication (TOTP) for local password accounts.
+        from services.mfa_service import MfaService
+        self.mfa = MfaService(self.config, self.database)
+        await self.database.create_index(self.mfa.collection_name, "user_id", unique=True)
+        await self.database.create_index(self.mfa_pending_collection_name, "token", unique=True)
 
         # Set initialized flag
         self._initialized = True
@@ -642,6 +654,7 @@ class AuthService:
         failure_context: Optional[dict[str, Any]] = None,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
+        device_token: Optional[str] = None,
     ) -> tuple[bool, Optional[str], Optional[dict[str, Any]]]:
         """
         Authenticate a user and create a session
@@ -654,9 +667,17 @@ class AuthService:
                 coarse reason class, never credentials or account existence.
             ip_address: Best-effort source IP for session monitoring.
             user_agent: Best-effort client user agent for session monitoring.
+            device_token: Optional "remember this device" token from a prior
+                completed 2FA login, letting a recognized device skip the
+                second factor.
 
         Returns:
-            Tuple of (success, token, user_info)
+            Tuple of (success, token, user_info). When the account has 2FA
+            enabled (and the device isn't remembered), success is True but
+            ``token`` is a short-lived intermediate token - not a session -
+            and ``user_info["mfa_required"]`` is True. The caller must then
+            complete the second factor via ``complete_2fa_login`` before a
+            real session exists.
         """
         try:
             def record_failure(*, locked_out: bool = False) -> None:
@@ -720,6 +741,31 @@ class AuthService:
 
             await self._reset_failed_logins(user)
 
+            if self.mfa and self.mfa.enabled:
+                roles = self._resolve_roles(user)
+                mfa_enabled_for_user = await self.mfa.is_enabled(user["_id"])
+
+                if not mfa_enabled_for_user and self.mfa.role_requires_2fa(roles):
+                    # Blocking is safer and simpler to reason about than
+                    # forcing enrollment mid-login: an admin must assist.
+                    logger.warning(
+                        f"Login blocked for {username}: role requires 2FA enrollment"
+                    )
+                    if failure_context is not None:
+                        failure_context["reason"] = "mfa_enrollment_required"
+                    return False, None, None
+
+                if mfa_enabled_for_user:
+                    device_remembered = device_token and await self.mfa.is_device_remembered(
+                        user["_id"], device_token
+                    )
+                    if not device_remembered:
+                        pending_token = await self._create_mfa_pending(user)
+                        logger.debug(f"User {username} passed password check; awaiting 2FA")
+                        return True, pending_token, {
+                            **self._user_info(user), "mfa_required": True
+                        }
+
             token = await self.create_session(user, ip_address=ip_address, user_agent=user_agent)
 
             logger.debug(f"User {username} logged in successfully")
@@ -773,6 +819,132 @@ class AuthService:
             {"$set": {"last_login": datetime.now(UTC)}}
         )
         return token
+
+    async def _create_mfa_pending(self, user: dict[str, Any]) -> str:
+        """Issue a short-lived intermediate token pending second-factor verification.
+
+        Deliberately distinct from a session token - it carries no session
+        capabilities and cannot be used to authenticate against any other
+        endpoint - so a caller who never completes the second factor never
+        ends up with a "logged in but not fully authenticated" session.
+        """
+        token = secrets.token_hex(32)
+        now = datetime.now(UTC)
+        await self._purge_expired_mfa_pending(now)
+        await self.database.insert_one(self.mfa_pending_collection_name, {
+            "token": token,
+            "user_id": user["_id"],
+            "created_at": now,
+            "expires": now + timedelta(seconds=self._MFA_PENDING_TTL_SECONDS),
+        })
+        return token
+
+    async def _purge_expired_mfa_pending(self, now: datetime) -> None:
+        """Opportunistically sweep a bounded batch of expired pending logins.
+
+        Without this, a user with valid credentials could request unlimited
+        pending tokens (each abandoned before completing 2FA) and grow this
+        table indefinitely - mirroring the same lazy-cleanup pattern used for
+        expired sessions in ``list_sessions``. Best-effort: a failure here
+        must never block issuing a new pending token.
+        """
+        try:
+            expired = await self.database.find_many(
+                self.mfa_pending_collection_name, {"expires": {"$lte": now}}, limit=100
+            )
+            for row in expired:
+                await self.database.delete_one(
+                    self.mfa_pending_collection_name, {"_id": row["_id"]}
+                )
+        except Exception as e:
+            logger.warning(f"Failed to purge expired mfa_pending rows: {str(e)}")
+
+    async def peek_mfa_pending_user_id(self, pending_token: str) -> Optional[str]:
+        """Resolve the user a pending 2FA login belongs to, without consuming it.
+
+        Used to key second-factor rate limiting by account rather than by the
+        pending token itself - a fresh token is minted on every successful
+        password check, so keying by token alone would hand an attacker who
+        already knows the password an unlimited fresh TOTP-guessing budget.
+        """
+        pending = await self.database.find_one(
+            self.mfa_pending_collection_name, {"token": pending_token}
+        )
+        if not pending:
+            return None
+        expires = self._as_utc_datetime(pending.get("expires"))
+        if not expires or expires < datetime.now(UTC):
+            return None
+        return str(pending["user_id"])
+
+    async def complete_2fa_login(
+        self,
+        pending_token: str,
+        code: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        remember_device: bool = False,
+    ) -> tuple[bool, Optional[str], Optional[dict[str, Any]], Optional[str]]:
+        """Verify the second factor for a pending login and mint a real session.
+
+        Returns (success, session_token, user_info, device_token). The
+        device_token is only populated when ``remember_device`` was requested
+        and the feature is enabled, and should be presented as the
+        ``device_token`` argument to a future ``authenticate_user`` call to
+        skip the second factor on that device.
+        """
+        try:
+            pending = await self.database.find_one(
+                self.mfa_pending_collection_name, {"token": pending_token}
+            )
+            if not pending:
+                return False, None, None, None
+
+            expires = self._as_utc_datetime(pending.get("expires"))
+            if not expires or expires < datetime.now(UTC):
+                await self.database.delete_one(
+                    self.mfa_pending_collection_name, {"token": pending_token}
+                )
+                return False, None, None, None
+
+            user = await self.database.find_one(
+                self.users_collection_name, {"_id": pending["user_id"]}
+            )
+            if not user or not user.get("active", True):
+                return False, None, None, None
+
+            if not await self.mfa.verify_code_or_recovery(user["_id"], code):
+                return False, None, None, None
+
+            await self.database.delete_one(
+                self.mfa_pending_collection_name, {"token": pending_token}
+            )
+
+            token = await self.create_session(user, ip_address=ip_address, user_agent=user_agent)
+            await self.database.update_one(
+                self.sessions_collection_name,
+                {"token": token},
+                {"$set": {"mfa_verified_until": datetime.now(UTC)}},
+            )
+
+            device_token = None
+            if remember_device:
+                device_token = await self.mfa.remember_device(user["_id"])
+
+            logger.debug(f"User {user['username']} completed 2FA login")
+            return True, token, self._user_info(user), device_token
+        except FileEncryptionError:
+            # A misconfigured/missing ORBIT_MFA_ENCRYPTION_KEY must surface as
+            # a distinct server-misconfiguration error, not be swallowed into
+            # the generic "invalid code" branch below - that would make a
+            # deployment issue indistinguishable from a wrong TOTP guess.
+            raise
+        except (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError) as e:
+            logger.error(f"Database error completing 2FA login: {str(e)}")
+            return False, None, None, None
+        except Exception as e:
+            logger.error(f"Unexpected error completing 2FA login: {str(e)}")
+            return False, None, None, None
 
     async def set_role(self, user_id: str, role: str) -> bool:
         """Set a user's single role. Used to promote allowlisted SSO users to admin."""

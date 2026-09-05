@@ -80,6 +80,8 @@ dependencies = [
     "matplotlib>=3.10.0",
     "ddgs>=9.11.3",
     "cryptography>=42.0",  # AES-256-GCM file encryption (server/services/file_storage/encryption.py)
+    "pyotp>=2.9.0",  # TOTP generation/verification for 2FA (server/services/mfa_service.py)
+    "qrcode>=8.0",  # Server-side QR code PNG rendering for 2FA enrollment (server/services/mfa_service.py)
 ]
 
 # ============================================================================

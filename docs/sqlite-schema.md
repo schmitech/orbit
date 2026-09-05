@@ -11,6 +11,8 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `user_blacklist` - Pattern-based identity denial rules
 - `user_allowlist` - Pattern-based pre-clearing of external identities
 - `admin_ip_rules` - CIDR ranges allowed to reach `/admin/*` and admin-scoped `/auth/*` routes
+- `user_mfa` - Per-user TOTP (2FA) enrollment, recovery codes, and remembered devices
+- `mfa_pending` - Short-lived intermediate tokens for a login awaiting its second factor
 - `api_keys` - API keys for authentication
 - `system_prompts` - System prompts for chat
 - `tool_skills` - Admin-authored procedural playbooks bound to MCP tools
@@ -99,7 +101,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at TEXT NOT NULL,
     ip_address TEXT,
     user_agent TEXT,
-    last_seen_at TEXT
+    last_seen_at TEXT,
+    mfa_verified_until TEXT
 )
 ```
 
@@ -113,10 +116,69 @@ CREATE TABLE IF NOT EXISTS sessions (
 - `ip_address` (TEXT, nullable): Source IP captured at login, via the same `extract_ip` helper (and trusted-proxy config) used by the rate-limit middleware. `NULL` for sessions created before v1.18 or by a caller with no request context
 - `user_agent` (TEXT, nullable): Client `User-Agent` header captured at login. `NULL` under the same conditions as `ip_address`
 - `last_seen_at` (TEXT, nullable): ISO format timestamp of the session's last successful token validation, set at creation and refreshed thereafter, throttled to at most once per 60 seconds so authenticated traffic doesn't turn into a write per request. `NULL` for sessions created before v1.18, until their first post-upgrade validation
+- `mfa_verified_until` (TEXT, nullable): ISO format timestamp recorded when this session completed a second factor. `NULL` for a session created without 2FA (2FA disabled, or the account has none enrolled)
 
 **Indexes:**
 - `idx_sessions_token` on `token`
 - `idx_sessions_expires` on `expires`
+
+---
+
+### user_mfa
+
+Per-user TOTP (2FA) enrollment state.
+
+```sql
+CREATE TABLE IF NOT EXISTS user_mfa (
+    id TEXT PRIMARY KEY,
+    user_id TEXT UNIQUE NOT NULL,
+    totp_secret_encrypted TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    recovery_codes_hashed TEXT,
+    remembered_devices TEXT,
+    created_at TEXT NOT NULL,
+    enabled_at TEXT
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique row ID (UUID)
+- `user_id` (TEXT, UNIQUE): The enrolled user
+- `totp_secret_encrypted` (TEXT): The TOTP secret, AES-256-GCM encrypted at rest (`server/services/file_storage/encryption.py`, keyed from `ORBIT_MFA_ENCRYPTION_KEY`) with the user id bound as associated data
+- `enabled` (INTEGER): Whether enrollment has been confirmed (1) or is still pending a first valid code (0)
+- `recovery_codes_hashed` (TEXT, nullable): JSON array of `{hash, consumed}` objects — one-time recovery codes, SHA-256 hashed, each usable exactly once. Populated on confirmation
+- `remembered_devices` (TEXT, nullable): JSON array of `{hash, expires_at}` objects — "remember this device" tokens (SHA-256 hashed) that let a recognized device skip the second factor until they expire
+- `created_at` (TEXT): ISO format timestamp of enrollment start
+- `enabled_at` (TEXT, nullable): ISO format timestamp of confirmation; `NULL` while pending
+
+**Indexes:**
+- `idx_user_mfa_user_id` unique on `user_id` — created by `AuthService.initialize()`
+
+---
+
+### mfa_pending
+
+Short-lived intermediate tokens for a login that has passed its password check and is awaiting its second factor.
+
+```sql
+CREATE TABLE IF NOT EXISTS mfa_pending (
+    id TEXT PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires TEXT NOT NULL
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique row ID (UUID)
+- `token` (TEXT, UNIQUE): The intermediate token returned by `POST /auth/login`, submitted back to `POST /auth/login/2fa` — carries no session capabilities
+- `user_id` (TEXT): The user awaiting second-factor verification
+- `created_at` (TEXT): ISO format timestamp of the password check
+- `expires` (TEXT): ISO format timestamp after which the pending login must be restarted (5 minutes)
+
+**Indexes:**
+- `idx_mfa_pending_token` unique on `token` — created by `AuthService.initialize()`
 
 ---
 

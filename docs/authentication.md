@@ -1410,6 +1410,105 @@ internal_services:
 > names — a rule write reporting `revoked_sessions: 0` on a renamed deployment
 > was a bug, fixed by resolving the names the same way `AuthService` does.
 
+## Two-Factor Authentication (2FA/TOTP)
+
+Local password accounts (not external Entra/Auth0 identities — 2FA for those
+is the IdP's own responsibility) can enroll optional TOTP-based two-factor
+authentication, opt-in via `auth.two_factor.enabled`:
+
+```yaml
+auth:
+  two_factor:
+    enabled: true
+    required_for_roles: ["admin"]     # roles that cannot log in without 2FA enrolled
+    issuer_name: "ORBIT"               # shown in authenticator apps
+    recovery_codes_count: 10
+    remember_device_days: 30           # 0 disables "remember this device"
+    rate_limit:
+      enabled: true
+      window_seconds: 60
+      max_attempts: 5
+```
+
+**Enrollment** (self-service, no special permission needed - the same as
+changing your own password):
+1. `POST /auth/mfa/enroll` - generates a secret and returns it plus an
+   `otpauth://` URI and a ready-to-display `qr_code_data_uri` (a
+   `data:image/png;base64,...` QR code rendered server-side via the `qrcode`
+   package - the client can just point an `<img>` tag at it, no QR library
+   needed on that end). Scannable by any standard TOTP app (Google
+   Authenticator, Authy, 1Password, etc.) since it's a standard RFC 6238
+   `otpauth://` URI; the `secret` is the manual-entry fallback.
+2. `POST /auth/mfa/confirm` with a valid 6-digit code - proves the user
+   actually captured the secret, flips `enabled` to true, and returns a set
+   of one-time recovery codes (shown exactly once - store them safely).
+3. `GET /auth/mfa/status` reports whether the caller has 2FA enabled.
+4. `POST /auth/mfa/disable` (requires the current password) turns it back off.
+
+**Login** becomes two-step once 2FA is enabled for an account:
+1. `POST /auth/login` with username/password. If the account has 2FA enabled,
+   the response's `token` is a short-lived (5 minute) intermediate token, not
+   a session, and `mfa_required` is `true`. It carries no session
+   capabilities on any other endpoint.
+2. `POST /auth/login/2fa` with that `pending_token` and a TOTP or recovery
+   code completes the login and returns a real session token. This is rate
+   limited independently of the password-login buckets (`auth.two_factor.rate_limit`),
+   since a 6-digit code has much lower entropy than a password.
+3. Optionally pass `remember_device: true` to receive a `device_token` in the
+   response - present it as the `X-Device-Token` header on a future
+   `POST /auth/login` from the same device to skip the second factor until it
+   expires (`auth.two_factor.remember_device_days`).
+
+**`required_for_roles`** blocks login entirely (403) for a user in one of
+those roles who hasn't enrolled yet, rather than forcing enrollment mid-login
+- simpler to reason about, at the cost of needing an administrator to assist
+a never-enrolled account.
+
+**Admin recovery**: an administrator with `users.manage` can reset (disable)
+a user's 2FA via `DELETE /auth/users/{user_id}/mfa` when they've lost both
+their device and recovery codes. This is a sensitive override, always
+recorded in the audit trail as `auth.mfa.admin_reset`.
+
+**At rest**: the TOTP secret is encrypted (AES-256-GCM, via the same
+primitive used for encrypted file storage) keyed from `ORBIT_MFA_ENCRYPTION_KEY`
+(a base64-encoded 32-byte key) - a TOTP secret is symmetric, so unlike a
+password hash, anyone who reads the database could otherwise generate valid
+codes forever. Recovery codes are high-entropy random strings, so they are
+hashed with SHA-256 rather than PBKDF2 (there is no meaningful
+dictionary/brute-force surface to slow down, unlike a user-chosen password).
+
+### Setup: `ORBIT_MFA_ENCRYPTION_KEY`
+
+`auth.two_factor.enabled: true` requires `ORBIT_MFA_ENCRYPTION_KEY` to be set
+in the server's environment *before* anyone enrolls - `POST /auth/mfa/enroll`
+raises `FileEncryptionError` (rather than silently storing a plaintext
+secret) if it's missing or not a valid base64-encoded 32-byte key.
+
+Generate one with the bundled script, which either prints the key or appends
+it directly to `.env`:
+
+```bash
+# Print the key
+python utils/scripts/generate_mfa_encryption_key.py
+
+# Or write it straight into .env in the project root
+python utils/scripts/generate_mfa_encryption_key.py --write-env
+```
+
+Equivalent one-liner, if you'd rather not use the script:
+
+```bash
+python -c "import secrets, base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
+```
+
+Treat this key like any other credential - back it up somewhere safe and
+never commit it. **Losing it locks out every enrolled account** (their
+secrets can no longer be decrypted, so no TOTP code will ever verify) with no
+recovery short of an admin resetting each affected user's 2FA via
+`DELETE /auth/users/{user_id}/mfa` and having them re-enroll. Rotating the
+key has the same effect - it isn't a re-encryption, it's a hard cutover, so
+only do it alongside a planned re-enrollment.
+
 ## External Identity Providers (OIDC)
 
 ORBIT can validate access tokens issued by **Microsoft Entra ID** and **Auth0** on top of the built-in username/password system. This is a **validation-only** integration: the client (e.g. `orbitchat`) performs the OAuth 2.0 Authorization Code + PKCE login and sends the resulting access token to ORBIT as `Authorization: Bearer <jwt>`. ORBIT verifies the JWT and maps it to a local user. ORBIT itself never initiates an OAuth flow — there is no CLI browser login.

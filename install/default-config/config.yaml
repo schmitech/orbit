@@ -247,6 +247,19 @@ auth:
     default_ranges: []       # e.g. ["10.0.0.0/8", "203.0.113.4/32"]
     cache_ttl: 30
 
+  # Two-factor authentication (TOTP) for local password accounts. See
+  # config/config.yaml for full documentation of this block.
+  two_factor:
+    enabled: false
+    required_for_roles: ["admin"]
+    issuer_name: "ORBIT"
+    recovery_codes_count: 10
+    remember_device_days: 30
+    rate_limit:
+      enabled: true
+      window_seconds: 60
+      max_attempts: 5
+
   # External identity providers (OIDC / OAuth2). Optional — the built-in
   # username/password auth above always works. When enabled, ORBIT validates
   # access-token JWTs presented as `Authorization: Bearer <jwt>` by clients

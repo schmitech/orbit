@@ -87,6 +87,8 @@ _CHANGED_KEYS = object()
 _CONTEXT_ONLY_SUMMARY_FIELDS: dict[tuple[str, str], tuple[str, ...]] = {
     ("POST", "/auth/login"): ("reason",),
     ("POST", "/admin/login"): ("reason",),
+    ("POST", "/auth/login/2fa"): ("reason",),
+    ("POST", "/admin/login/2fa"): ("reason",),
 }
 
 _ROUTE_MAP: list[tuple[str, str, str, str, str, Optional[str], Any]] = [
@@ -139,6 +141,28 @@ _ROUTE_MAP: list[tuple[str, str, str, str, str, Optional[str], Any]] = [
     ("POST",   "/auth/allowlist",                     "auth.allowlist.create",   "CREATE", "allowlist_rule", "context",       ("pattern", "entry_type", "reason")),
     ("PUT",    "/auth/allowlist/{rule_id}",           "auth.allowlist.update",   "UPDATE", "allowlist_rule", "path:rule_id",  ("pattern", "entry_type", "reason")),
     ("DELETE", "/auth/allowlist/{rule_id}",           "auth.allowlist.delete",   "DELETE", "allowlist_rule", "path:rule_id",  ()),
+
+    # ---- Two-factor authentication (TOTP) ----
+    # The second-factor step of login has no bearer token yet (current_user is
+    # unset), so it can't use "actor" for a resource id - the handler publishes
+    # the verified user's id via audit_context ("context") only on success,
+    # leaving it absent on a failed/expired code. Mapping these explicitly
+    # (rather than falling through to "admin.unknown") is what lets the ledger
+    # show the handler's "reason" (e.g. invalid_2fa_code) and a real actor via
+    # request.state.current_user is never set here - the username is not yet
+    # known to the audit layer for an unmapped pending token, matching how the
+    # password step avoids leaking account existence.
+    # `allowed` is deliberately empty - "reason" reaches the ledger only via
+    # _CONTEXT_ONLY_SUMMARY_FIELDS below (the handler's own classification),
+    # never from the client-submitted body, the same restriction /auth/login
+    # applies to its own "reason".
+    ("POST",   "/auth/login/2fa",                       "auth.mfa.login_verify",         "LOGIN",  "session", "context",   ()),
+    ("POST",   "/admin/login/2fa",                      "auth.dashboard.mfa.login_verify","LOGIN",  "session", "context",   ()),
+    ("POST",   "/auth/mfa/confirm",                    "auth.mfa.enroll",         "CREATE", "user",    "actor",            ()),
+    ("POST",   "/auth/mfa/disable",                    "auth.mfa.disable",        "UPDATE", "user",    "actor",            ()),
+    # A sensitive override - the requesting admin, not the affected user, is
+    # the actor, so the target is recorded via the path rather than "actor".
+    ("DELETE", "/auth/users/{user_id}/mfa",             "auth.mfa.admin_reset",    "UPDATE", "user",    "path:user_id",     ()),
 
     # ---- Admin IP allowlist ----
     # Same "context" reasoning as the identity blacklist/allowlist create above:

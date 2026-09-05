@@ -20,6 +20,7 @@ from urllib.parse import quote, urlsplit
 from routes.auth_helpers import get_admin_user, get_sso_service, render_login_html
 from auth.rbac import has_any_permission, has_permission
 from services.auth_service import AuthService
+from services.file_storage.encryption import FileEncryptionError
 from services.login_rate_limiter import (
     audit_login_rate_limit,
     get_login_rate_limiter,
@@ -242,6 +243,7 @@ def create_admin_panel_router() -> APIRouter:
             failure_context,
             ip_address=limiter.client_ip(request),
             user_agent=request.headers.get("user-agent"),
+            device_token=request.cookies.get("device_token"),
         )
         credential_failure = not success or not token or not user_info
         authorization_denied = not credential_failure and not has_any_permission(user_info)
@@ -280,6 +282,14 @@ def create_admin_panel_router() -> APIRouter:
                 status_code=401
             )
 
+        if user_info.get("mfa_required"):
+            # `token` here is the short-lived intermediate token from
+            # authenticate_user, not a session - it cannot be set as the
+            # dashboard cookie. Render the second-factor form instead.
+            return HTMLResponse(content=_render_admin_2fa_html(
+                pending_token=token, next_path=_safe_next_path(next)
+            ))
+
         destination = _safe_next_path(next)
         response = RedirectResponse(url=destination, status_code=303)
         secure_cookie = request.url.scheme == "https"
@@ -291,6 +301,119 @@ def create_admin_panel_router() -> APIRouter:
             samesite="lax",
             max_age=int(getattr(auth_service, "session_duration_hours", 12) * 3600)
         )
+        return response
+
+    def _render_admin_2fa_html(
+        pending_token: str, next_path: str, error_message: Optional[str] = None
+    ) -> str:
+        """Minimal inline second-factor form for the dashboard cookie login path.
+
+        ``next_path`` has already passed ``_safe_next_path`` (same-origin-only),
+        but that only bounds where it points - not whether it's free of quotes
+        or markup - so it (and the pending token, defense in depth) must still
+        be HTML/attribute-escaped before interpolation, the same as the main
+        login renderer escapes ``next_path``.
+        """
+        from html import escape
+        error_block = ""
+        if error_message:
+            error_block = f'<div class="login-alert" role="alert">{escape(error_message)}</div>'
+        safe_pending_token = escape(pending_token, quote=True)
+        safe_next_path = escape(next_path, quote=True)
+        return f"""
+        <!doctype html><html><head><title>Two-Factor Authentication</title></head>
+        <body>
+          <h2>Two-Factor Authentication</h2>
+          {error_block}
+          <form method="post" action="/admin/login/2fa">
+            <input type="hidden" name="pending_token" value="{safe_pending_token}">
+            <input type="hidden" name="next" value="{safe_next_path}">
+            <label>Authenticator code or recovery code
+              <input type="text" name="code" autofocus required>
+            </label>
+            <label><input type="checkbox" name="remember_device" value="true"> Remember this device</label>
+            <button type="submit">Verify</button>
+          </form>
+        </body></html>
+        """
+
+    @router.post("/admin/login/2fa")
+    async def post_admin_login_2fa(
+        request: Request,
+        pending_token: str = Form(...),
+        code: str = Form(...),
+        remember_device: Optional[str] = Form(None),
+        next: str = Form("/admin"),
+    ):
+        """Complete a dashboard login pending a second factor."""
+        auth_service = getattr(request.app.state, 'auth_service', None)
+        if not auth_service:
+            raise HTTPException(status_code=503, detail="Authentication service not available")
+
+        limiter = get_login_rate_limiter(request)
+        mfa_user_id = await auth_service.peek_mfa_pending_user_id(pending_token)
+        mfa_identity = (
+            f"{mfa_user_id}:{limiter.client_ip(request)}" if mfa_user_id else pending_token
+        )
+        mfa_result = await limiter.check_mfa(request, mfa_identity)
+        if not mfa_result.allowed:
+            return login_rate_limited_response(mfa_result)
+
+        try:
+            success, token, user_info, device_token = await auth_service.complete_2fa_login(
+                pending_token,
+                code,
+                ip_address=limiter.client_ip(request),
+                user_agent=request.headers.get("user-agent"),
+                remember_device=bool(remember_device),
+            )
+        except FileEncryptionError as e:
+            logger.error(f"2FA login failed - encryption key misconfigured: {e}")
+            return HTMLResponse(
+                content=_render_admin_2fa_html(
+                    pending_token=pending_token,
+                    next_path=_safe_next_path(next),
+                    error_message=(
+                        "Two-factor authentication is misconfigured on the server "
+                        "(missing or invalid encryption key). Contact an administrator."
+                    ),
+                ),
+                status_code=503,
+            )
+        if not success or not user_info or not has_any_permission(user_info):
+            await limiter.record_mfa_failure(request, mfa_identity)
+            request.state.audit_context = {"summary": {"reason": "invalid_2fa_code"}}
+            return HTMLResponse(
+                content=_render_admin_2fa_html(
+                    pending_token=pending_token,
+                    next_path=_safe_next_path(next),
+                    error_message="Invalid or expired two-factor code.",
+                ),
+                status_code=401,
+            )
+
+        request.state.audit_context = {"resource_id": user_info.get("id"), "summary": {}}
+        destination = _safe_next_path(next)
+        response = RedirectResponse(url=destination, status_code=303)
+        secure_cookie = request.url.scheme == "https"
+        response.set_cookie(
+            "dashboard_token",
+            token,
+            httponly=True,
+            secure=secure_cookie,
+            samesite="lax",
+            max_age=int(getattr(auth_service, "session_duration_hours", 12) * 3600)
+        )
+        if device_token:
+            remember_days = getattr(auth_service.mfa, "remember_device_days", 0) if auth_service.mfa else 0
+            response.set_cookie(
+                "device_token",
+                device_token,
+                httponly=True,
+                secure=secure_cookie,
+                samesite="lax",
+                max_age=int(remember_days * 86400),
+            )
         return response
 
     # ----- SSO (external identity providers) -----

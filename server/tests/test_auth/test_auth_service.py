@@ -93,6 +93,11 @@ if config_path.exists():
     TEST_CONFIG['auth'].pop('password_policy', None)
     TEST_CONFIG['auth']['default_admin_password'] = 'admin123'
     TEST_CONFIG['auth']['providers'] = {'enabled': False}
+    # This suite predates 2FA and exercises plain password login throughout.
+    # Isolate it from whatever a real deployment's config.yaml has configured
+    # for auth.two_factor, the same way password_policy/providers are
+    # overridden above.
+    TEST_CONFIG['auth']['two_factor'] = {'enabled': False}
     
     # Use test database path for SQLite
     if BACKEND_TYPE == 'sqlite':

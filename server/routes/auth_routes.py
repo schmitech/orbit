@@ -11,7 +11,7 @@ This module contains authentication-related endpoints for:
 
 import logging
 from typing import Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from routes.auth_dependencies import get_auth_service, get_current_user, get_current_user_with_token, require_permission
@@ -30,6 +30,8 @@ from services.user_blacklist_service import (
     normalize_pattern,
 )
 from services.admin_ip_allowlist_service import AdminIpRuleError
+from services.mfa_service import MfaError
+from services.file_storage.encryption import FileEncryptionError
 from utils.ip_utils import extract_ip, parse_trusted_networks
 
 logger = logging.getLogger(__name__)
@@ -70,6 +72,41 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     token: str
     user: dict[str, Any]
+    mfa_required: bool = False
+
+
+class Login2faRequest(BaseModel):
+    pending_token: str = Field(min_length=1)
+    code: str = Field(min_length=1, max_length=32)
+    remember_device: bool = False
+
+
+class Login2faResponse(BaseModel):
+    token: str
+    user: dict[str, Any]
+    device_token: Optional[str] = None
+
+
+class MfaEnrollResponse(BaseModel):
+    secret: str
+    otpauth_uri: str
+    qr_code_data_uri: str
+
+
+class MfaConfirmRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=32)
+
+
+class MfaConfirmResponse(BaseModel):
+    recovery_codes: list[str]
+
+
+class MfaStatusResponse(BaseModel):
+    enabled: bool
+
+
+class MfaDisableRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=AuthService.PASSWORD_MAX_LENGTH)
 
 
 class RegisterRequest(BaseModel):
@@ -170,7 +207,8 @@ class AdminIpRuleResponse(BaseModel):
 async def login(
     login_request: LoginRequest,
     request: Request,
-    auth_service = Depends(get_auth_service)
+    auth_service = Depends(get_auth_service),
+    x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
     """
     Authenticate a user and return a bearer token.
@@ -208,10 +246,11 @@ async def login(
             failure_context,
             ip_address=limiter.client_ip(request),
             user_agent=request.headers.get("user-agent"),
+            device_token=x_device_token,
         )
-        
+
         logger.info(f"Authentication result: success={success}")
-        
+
         if not success:
             # AuthService classifies the failure at the service boundary so
             # early failures (notably durable lockout) remain visible here.
@@ -231,16 +270,24 @@ async def login(
             # unambiguous as well as preserving middleware event precedence.
             request.state.auth_login_failed = True
             request.state.auth_login_locked_out = failure_context.get("locked_out", False)
+            if failure_context.get("reason") == "mfa_enrollment_required":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your role requires two-factor authentication, which is not yet "
+                    "enrolled for this account. Contact an administrator.",
+                )
             raise HTTPException(
                 status_code=401,
                 detail="Invalid username or password"
             )
-        
+
+        mfa_required = bool(user_info.get("mfa_required"))
         return LoginResponse(
             token=token,
-            user=user_info
+            user=user_info,
+            mfa_required=mfa_required,
         )
-        
+
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
@@ -249,6 +296,52 @@ async def login(
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@auth_router.post("/login/2fa", response_model=Login2faResponse)
+async def login_2fa(
+    login_2fa_request: Login2faRequest,
+    request: Request,
+    auth_service = Depends(get_auth_service),
+):
+    """Complete a login pending a second factor (TOTP code or recovery code).
+
+    Rate limited independently of the password-login buckets - a 6-digit
+    TOTP code has low enough entropy that it must be throttled on its own.
+    Keyed by the account (plus IP), not the pending token itself: a fresh
+    token is minted on every successful password check, so keying by token
+    alone would let an attacker who already knows the password request
+    unlimited fresh TOTP-guessing budgets.
+    """
+    limiter = get_login_rate_limiter(request)
+    mfa_user_id = await auth_service.peek_mfa_pending_user_id(login_2fa_request.pending_token)
+    mfa_identity = (
+        f"{mfa_user_id}:{limiter.client_ip(request)}"
+        if mfa_user_id
+        else login_2fa_request.pending_token
+    )
+    mfa_result = await limiter.check_mfa(request, mfa_identity)
+    if not mfa_result.allowed:
+        return login_rate_limited_response(mfa_result)
+
+    try:
+        success, token, user_info, device_token = await auth_service.complete_2fa_login(
+            login_2fa_request.pending_token,
+            login_2fa_request.code,
+            ip_address=limiter.client_ip(request),
+            user_agent=request.headers.get("user-agent"),
+            remember_device=login_2fa_request.remember_device,
+        )
+    except FileEncryptionError as e:
+        raise _mfa_misconfigured_response(e)
+
+    if not success:
+        await limiter.record_mfa_failure(request, mfa_identity)
+        request.state.audit_context = {"summary": {"reason": "invalid_2fa_code"}}
+        raise HTTPException(status_code=401, detail="Invalid or expired two-factor code")
+
+    request.state.audit_context = {"resource_id": user_info.get("id"), "summary": {}}
+    return Login2faResponse(token=token, user=user_info, device_token=device_token)
 
 
 @auth_router.get("/me", response_model=UserResponse)
@@ -1515,3 +1608,147 @@ async def delete_admin_ip_rule(
     except Exception as e:
         logger.error(f"Error deleting admin IP rule: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# Two-factor authentication (TOTP) endpoints
+#
+# Enrollment/verification for oneself needs no special permission, the same
+# as password changes - only the admin-reset path below is gated on
+# users.manage. External (Entra/Auth0) identities have no local password and
+# so are never offered 2FA on this surface.
+
+def _require_mfa(auth_service):
+    mfa = getattr(auth_service, "mfa", None)
+    if mfa is None:
+        raise HTTPException(status_code=503, detail="Two-factor authentication service is not available")
+    return mfa
+
+
+def _mfa_misconfigured_response(e: FileEncryptionError) -> HTTPException:
+    """Build the client-facing error for a missing/invalid ORBIT_MFA_ENCRYPTION_KEY.
+
+    The underlying FileEncryptionError text is server-configuration detail
+    (env var name, a key-generation snippet) - logged for the operator, but
+    not returned to the caller. Without this, the exception would otherwise
+    propagate as a bare 500 with no body, or (worse, on the login path) get
+    swallowed into a misleading "invalid code" response.
+    """
+    logger.error(f"2FA operation failed - encryption key misconfigured: {e}")
+    return HTTPException(
+        status_code=503,
+        detail=(
+            "Two-factor authentication is misconfigured on the server "
+            "(missing or invalid encryption key). Contact an administrator."
+        ),
+    )
+
+
+@auth_router.get("/mfa/status", response_model=MfaStatusResponse)
+async def get_mfa_status(
+    current_user: dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Report whether the caller has 2FA enabled."""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    mfa = _require_mfa(auth_service)
+    return MfaStatusResponse(enabled=await mfa.is_enabled(current_user["id"]))
+
+
+@auth_router.post("/mfa/enroll", response_model=MfaEnrollResponse)
+async def enroll_mfa(
+    current_user: dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Begin 2FA enrollment: generate a new pending secret and its QR material.
+
+    The account is not protected by 2FA until ``POST /auth/mfa/confirm``
+    succeeds with a valid code from the authenticator app.
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    mfa = _require_mfa(auth_service)
+    try:
+        result = await mfa.begin_enrollment(current_user["id"], current_user["username"])
+        return MfaEnrollResponse(**result)
+    except MfaError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileEncryptionError as e:
+        raise _mfa_misconfigured_response(e)
+
+
+@auth_router.post("/mfa/confirm", response_model=MfaConfirmResponse)
+async def confirm_mfa(
+    request: MfaConfirmRequest,
+    http_request: Request,
+    current_user: dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Confirm enrollment with a valid code, enabling 2FA and issuing recovery codes.
+
+    The recovery codes are returned exactly once here - the server stores
+    only their hashes.
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    mfa = _require_mfa(auth_service)
+    try:
+        recovery_codes = await mfa.confirm_enrollment(current_user["id"], request.code)
+    except FileEncryptionError as e:
+        raise _mfa_misconfigured_response(e)
+    if recovery_codes is None:
+        raise HTTPException(status_code=400, detail="Invalid code, or no enrollment is pending")
+    http_request.state.audit_context = {"summary": {}}
+    return MfaConfirmResponse(recovery_codes=recovery_codes)
+
+
+@auth_router.post("/mfa/disable")
+async def disable_mfa(
+    request: MfaDisableRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+    auth_service=Depends(get_auth_service),
+):
+    """Disable the caller's own 2FA. Requires the current password, since this
+    removes a security control rather than just changing one."""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    mfa = _require_mfa(auth_service)
+
+    if mfa.role_requires_2fa(current_user.get("roles", [])):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Your role requires two-factor authentication. Disabling it here "
+                "would lock you out of future logins - contact another administrator "
+                "if you need to re-enroll."
+            ),
+        )
+
+    verified, _ = await auth_service.verify_credentials(
+        current_user["username"], request.current_password
+    )
+    if not verified:
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    await mfa.admin_reset(current_user["id"])
+    return {"message": "Two-factor authentication disabled"}
+
+
+@auth_router.delete(
+    "/users/{user_id}/mfa",
+    dependencies=[Depends(require_permission("users.manage"))],
+)
+async def admin_reset_mfa(
+    user_id: str,
+    http_request: Request,
+    auth_service=Depends(get_auth_service),
+):
+    """Disable a user's 2FA (admin recovery path for a lost device + recovery codes).
+
+    A sensitive override - always audited as ``auth.mfa.admin_reset``.
+    """
+    mfa = _require_mfa(auth_service)
+    if not await mfa.admin_reset(user_id):
+        raise HTTPException(status_code=404, detail="No 2FA enrollment found for this user")
+    http_request.state.audit_context = {"resource_id": user_id, "summary": {}}
+    return {"message": "Two-factor authentication reset", "user_id": user_id}

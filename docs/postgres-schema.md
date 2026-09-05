@@ -13,6 +13,8 @@ The database contains the following tables:
 - `user_blacklist` - Pattern-based identity denial rules
 - `user_allowlist` - Pattern-based pre-clearing of external identities
 - `admin_ip_rules` - CIDR ranges allowed to reach `/admin/*` and admin-scoped `/auth/*` routes
+- `user_mfa` - Per-user TOTP (2FA) enrollment, recovery codes, and remembered devices
+- `mfa_pending` - Short-lived intermediate tokens for a login awaiting its second factor
 - `api_keys` - API keys for authentication
 - `system_prompts` - System prompts for chat
 - `tool_skills` - Admin-authored procedural playbooks bound to MCP tools
@@ -91,11 +93,12 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at TEXT NOT NULL,
     ip_address TEXT,
     user_agent TEXT,
-    last_seen_at TEXT
+    last_seen_at TEXT,
+    mfa_verified_until TEXT
 )
 ```
 
-`ip_address`/`user_agent` are captured at login; `last_seen_at` is refreshed on token validation, throttled to at most once per 60 seconds. All three are `NULL` for sessions created before v1.8.
+`ip_address`/`user_agent` are captured at login; `last_seen_at` is refreshed on token validation, throttled to at most once per 60 seconds. All three are `NULL` for sessions created before v1.8. `mfa_verified_until` is set when a session completed a second factor; `NULL` when 2FA wasn't required for the login.
 
 **Indexes:** `idx_sessions_token` on `token`; `idx_sessions_expires` on `expires`
 
@@ -157,6 +160,45 @@ CREATE TABLE IF NOT EXISTS admin_ip_rules (
 ```
 
 **Indexes:** `idx_admin_ip_rules_cidr` unique on `(cidr)` — see [`docs/sqlite-schema.md#admin_ip_rules`](sqlite-schema.md#admin_ip_rules) for field descriptions and the enforcement/loopback-exemption details.
+
+---
+
+### user_mfa
+
+Per-user TOTP (2FA) enrollment state.
+
+```sql
+CREATE TABLE IF NOT EXISTS user_mfa (
+    id TEXT PRIMARY KEY,
+    user_id TEXT UNIQUE NOT NULL,
+    totp_secret_encrypted TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    recovery_codes_hashed TEXT,
+    remembered_devices TEXT,
+    created_at TEXT NOT NULL,
+    enabled_at TEXT
+)
+```
+
+**Indexes:** `idx_user_mfa_user_id` unique on `user_id` — see [`docs/sqlite-schema.md#user_mfa`](sqlite-schema.md#user_mfa) for field descriptions.
+
+---
+
+### mfa_pending
+
+Short-lived intermediate tokens for a login awaiting its second factor.
+
+```sql
+CREATE TABLE IF NOT EXISTS mfa_pending (
+    id TEXT PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires TEXT NOT NULL
+)
+```
+
+**Indexes:** `idx_mfa_pending_token` unique on `token` — see [`docs/sqlite-schema.md#mfa_pending`](sqlite-schema.md#mfa_pending) for field descriptions.
 
 ---
 

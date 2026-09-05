@@ -11,7 +11,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -49,6 +49,11 @@ class LoginRateLimiter:
         self.lockout_after_username_limit = bool(
             limit_config.get("lockout_after_username_limit", False)
         )
+
+        mfa_limit_config = auth_config.get("two_factor", {}).get("rate_limit", {}) or {}
+        self.mfa_enabled = bool(mfa_limit_config.get("enabled", True))
+        self.mfa_window_seconds = max(1, int(mfa_limit_config.get("window_seconds", 60)))
+        self.mfa_max_attempts = max(1, int(mfa_limit_config.get("max_attempts", 5)))
 
         rate_config = (config.get("security", {}) or {}).get(
             "rate_limiting", {}
@@ -96,17 +101,43 @@ class LoginRateLimiter:
             self.max_attempts_per_username,
         )
 
-    def _window_state(self) -> tuple[int, int, int]:
+    async def check_mfa(self, request: Request, identity: str) -> LoginRateLimitResult:
+        """Check a second-factor attempt bucket without consuming an attempt.
+
+        Keyed by the pending-login token rather than username/IP, so a
+        second-factor guess doesn't share a budget with (or reveal anything
+        about) the password-login buckets above.
+        """
+        if not self.mfa_enabled:
+            window, reset, retry_after = self._window_state(self.mfa_window_seconds)
+            return LoginRateLimitResult(True, self.mfa_max_attempts, self.mfa_max_attempts, reset, retry_after, "mfa")
+        return await self._check_current_count(
+            request, "mfa", identity, self.mfa_max_attempts, window_seconds=self.mfa_window_seconds
+        )
+
+    async def record_mfa_failure(self, request: Request, identity: str) -> LoginRateLimitResult:
+        """Consume one second-factor failure for the given pending-login identity."""
+        if not self.mfa_enabled:
+            window, reset, retry_after = self._window_state(self.mfa_window_seconds)
+            return LoginRateLimitResult(True, self.mfa_max_attempts, self.mfa_max_attempts, reset, retry_after, "mfa")
+        return await self._consume(
+            request, "mfa", identity, self.mfa_max_attempts, window_seconds=self.mfa_window_seconds
+        )
+
+    def _window_state(self, window_seconds: Optional[int] = None) -> tuple[int, int, int]:
+        window_seconds = window_seconds or self.window_seconds
         now = int(time.time())
-        window = now // self.window_seconds
-        reset = (window + 1) * self.window_seconds
+        window = now // window_seconds
+        reset = (window + 1) * window_seconds
         return window, reset, max(1, reset - now)
 
     async def _check_current_count(
-        self, request: Request, bucket: str, identifier: str, limit: int
+        self, request: Request, bucket: str, identifier: str, limit: int,
+        window_seconds: Optional[int] = None,
     ) -> LoginRateLimitResult:
-        window, reset, retry_after = self._window_state()
-        if not self.enabled:
+        window_seconds = window_seconds or self.window_seconds
+        window, reset, retry_after = self._window_state(window_seconds)
+        if bucket != "mfa" and not self.enabled:
             return LoginRateLimitResult(
                 True, limit, limit, reset, retry_after, bucket
             )
@@ -135,7 +166,7 @@ class LoginRateLimiter:
                 )
 
         count = self._fallback_limiter.get_count(
-            fallback_key, self.window_seconds
+            fallback_key, window_seconds
         )
         return LoginRateLimitResult(
             count < limit,
@@ -147,11 +178,13 @@ class LoginRateLimiter:
         )
 
     async def _consume(
-        self, request: Request, bucket: str, identifier: str, limit: int
+        self, request: Request, bucket: str, identifier: str, limit: int,
+        window_seconds: Optional[int] = None,
     ) -> LoginRateLimitResult:
-        window, reset, retry_after = self._window_state()
+        window_seconds = window_seconds or self.window_seconds
+        window, reset, retry_after = self._window_state(window_seconds)
 
-        if not self.enabled:
+        if bucket != "mfa" and not self.enabled:
             return LoginRateLimitResult(
                 True, limit, limit, reset, retry_after, bucket
             )
@@ -165,7 +198,7 @@ class LoginRateLimiter:
                 if not getattr(cache_service, "initialized", False):
                     await cache_service.initialize()
                 count = await cache_service.increment_with_ttl(
-                    cache_key, self.window_seconds
+                    cache_key, window_seconds
                 )
                 if count <= 0:
                     raise RuntimeError(
@@ -186,7 +219,7 @@ class LoginRateLimiter:
                 )
 
         allowed, remaining = self._fallback_limiter.is_allowed(
-            fallback_key, limit, self.window_seconds
+            fallback_key, limit, window_seconds
         )
         return LoginRateLimitResult(
             allowed, limit, remaining, reset, retry_after, bucket

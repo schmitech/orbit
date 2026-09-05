@@ -174,7 +174,29 @@ class PostgresService(DatabaseService):
                     created_at TEXT NOT NULL,
                     ip_address TEXT,
                     user_agent TEXT,
-                    last_seen_at TEXT
+                    last_seen_at TEXT,
+                    mfa_verified_until TEXT
+                )
+            ''',
+            'user_mfa': '''
+                CREATE TABLE IF NOT EXISTS user_mfa (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT UNIQUE NOT NULL,
+                    totp_secret_encrypted TEXT NOT NULL,
+                    enabled INTEGER NOT NULL DEFAULT 0,
+                    recovery_codes_hashed TEXT,
+                    remembered_devices TEXT,
+                    created_at TEXT NOT NULL,
+                    enabled_at TEXT
+                )
+            ''',
+            'mfa_pending': '''
+                CREATE TABLE IF NOT EXISTS mfa_pending (
+                    id TEXT PRIMARY KEY,
+                    token TEXT UNIQUE NOT NULL,
+                    user_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires TEXT NOT NULL
                 )
             ''',
             'user_blacklist': '''
