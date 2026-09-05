@@ -25,22 +25,31 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white" alt="Python 3.12+" /></a>
 </p>
 
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="85%"></video>
-  <br />
-  <em>Upload PDFs, spreadsheets, and images, then query them together with context preserved across the conversation.</em>
-  <br />
-  <strong><a href="https://orbit.schmitech.ca/chat-with-files/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=multimodal_demo">Try the file and multimodal demo →</a></strong>
-</div>
-
 ## What you can build
+
+ORBIT agents can be exposed or integrated through several interfaces: ORBIT can
+act as an [MCP server](docs/mcp_protocol.md), connect to external MCP servers as
+a [tool-using client](docs/tutorial/mcp-tool-calling.md), provide an [A2A endpoint](docs/a2a-protocol.md),
+serve requests through its [REST and OpenAI-compatible APIs](docs/tutorial/http-apis.md),
+support [real-time speech-to-speech over WebSocket](clients/realtime-voice/README.md),
+be integrated asynchronously through the [message-queue interface](docs/tutorial/message-queue-async.md),
+or be called from the [Node.js client](clients/node-api/). The demos below use
+the [OrbitChat client](https://www.npmjs.com/package/orbitchat) to showcase these
+capabilities through a conversational interface.
 
 | Goal | ORBIT handles |
 | :--- | :--- |
-| **Chat with private documents** | Upload PDFs, office documents, spreadsheets, images, and audio, then retrieve relevant context across the conversation. [Try the tutorial →](docs/tutorial/chat-with-files.md) |
-| **Query databases in natural language** | Run reviewed, parameterized queries across SQL, MongoDB, Elasticsearch, and composite data sources. [Try the SQL demo →](https://orbit.schmitech.ca/intent-sql-postgres?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=sql_demo) |
-| **Build tool-using agents** | Give models scoped access to MCP servers with procedural skills, priority token budgets, and bounded tool loops. [Try the MCP agent live →](https://orbit.schmitech.ca/mcp-business-sample?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=mcp_demo) · [Read the MCP guide →](docs/adapters/mcp-agent.md) |
-| **Offer one governed AI endpoint** | Route local and cloud models with per-key access, quotas, identity controls, moderation, fallbacks, metrics, and audit logs. [Create your first key →](docs/tutorial/creating-api-keys.md) |
+| **Chat with private documents** | Upload PDFs, office documents, spreadsheets, images, and audio, then retrieve relevant context across the conversation. <a href="https://orbit.schmitech.ca/chat-with-files?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=sql_demo" target="_blank" rel="noopener noreferrer">Try the file and multimodal demo →</a> |
+| **Query databases in natural language** | Run parameterized queries across SQL, MongoDB, Elasticsearch, and composite data sources. <a href="https://orbit.schmitech.ca/intent-sql-postgres?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=sql_demo" target="_blank" rel="noopener noreferrer">Try the SQL demo →</a> |
+| **Analyze business data** | Explore sales and operational data with natural-language analytics over DuckDB. <a href="https://orbit.schmitech.ca/ecomm-analytics?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=duckdb_demo" target="_blank" rel="noopener noreferrer">Try the DuckDB analytics demo →</a> |
+| **Query HR data** | Ask natural-language questions over a SQLite HR database using reviewed intent templates. <a href="https://orbit.schmitech.ca/hr-db-chatbot?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=hr_demo" target="_blank" rel="noopener noreferrer">Try the HR SQLite demo →</a> |
+| **Query a MongoDB database** | Explore the sample MFlix movie database through natural-language intent queries. <a href="https://orbit.schmitech.ca/intent-mongodb-mflix?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=mongodb_demo" target="_blank" rel="noopener noreferrer">Try the MongoDB MFlix demo →</a> |
+| **Join data and tools across systems** | Combine billing data from SQL, support SLA data from HTTP, and live CRM context from MCP tools in one place. <a href="https://orbit.schmitech.ca/composite-customer-360?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=customer_360_demo" target="_blank" rel="noopener noreferrer">Try the Customer 360 demo →</a> |
+| **Talk to a grounded virtual assistant** | Use low-latency, natural speech-to-speech voice chat with responses grounded in knowledge sources. <a href="https://orbit.schmitech.ca/real-time-voice-chat?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=voice_demo" target="_blank" rel="noopener noreferrer">Try the real-time voice demo →</a> |
+| **Query public data** | Ask natural-language questions against the City of Paris open-data events and activities API. <a href="https://orbit.schmitech.ca/intent-http-paris-opendata?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=paris_demo" target="_blank" rel="noopener noreferrer">Try the Paris open-data demo →</a> |
+| **Build tool-using agents** | Give models scoped access to MCP servers with procedural skills, and bounded tool loops. <a href="https://orbit.schmitech.ca/mcp-business-sample?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=mcp_demo" target="_blank" rel="noopener noreferrer">Try the MCP agent live →</a> |
+
+⭐ **Finding ORBIT useful?** [Star the repository](https://github.com/schmitech/orbit) to help other developers discover it.
 
 ## Why ORBIT
 
@@ -48,11 +57,11 @@
 | :---: | :--- |
 | **Connect anything** | Bring files, SQL, NoSQL, vector stores, Elasticsearch, REST/GraphQL APIs, and MCP tools together through YAML-configured adapters. |
 | **Use any model** | Keep one API contract while routing to Ollama, llama.cpp, vLLM, OpenAI, Anthropic, Gemini, Bedrock, Microsoft Foundry, OpenRouter, and more. |
-| **Operate it safely** | Start with API keys, RBAC, SSO, identity allowlists, PII moderation, quotas, fallbacks, metrics, audit logs, and an admin panel already integrated. |
+| **Keep data under your control** | Deploy on-premises, in a private cloud, or in an air-gapped environment while choosing local, self-hosted, or hosted models. |
+| **Govern AI operations** | RBAC, OIDC/SSO, identity allowlisting, per-key quotas, audit logs, moderation, and file encryption. |
+| **Stay resilient in production** | Use provider fallbacks, retries, circuit breakers, health checks, metrics, hot adapter reloads, and an integrated admin panel for day-to-day operations. |
 
-ORBIT sits between your applications and the models, data, and tools they need. Move from a local prototype to a governed deployment without replacing the architecture.
-
-⭐ **Finding ORBIT useful?** [Star the repository](https://github.com/schmitech/orbit) to help other developers discover it.
+ORBIT sits between your applications and the models, data, and tools they need. Move from a local prototype to a governed deployment without replacing the architecture. For technical and security assessments, see [platform comparison and capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md), and [NIST SP 800-53 and OWASP Top 10 mapping](docs/security/nist-sp800-53-and-ai-security.md).
 
 ## Quick start
 
@@ -151,20 +160,6 @@ Prefer containers or a bundled chat UI? Use the [Docker quick start](docker/READ
 
 Adapters—not server code—define what ORBIT can do. Configure models, retrieval sources, voice, file handling, and multimodal behavior in YAML under `config/adapters/`, then expose them through one endpoint. Start with the [adapter overview](docs/adapters/adapters.md).
 
-## Batteries included
-
-| Area | Highlights |
-| :--- | :--- |
-| **Model gateway** | OpenAI-compatible APIs, provider switching, per-key routing, retries, and fallbacks across local and hosted models. |
-| **Retrieval** | Vector RAG, file and multimodal RAG, SQL, MongoDB, Elasticsearch, REST, GraphQL, and web search. |
-| **Agents and protocols** | MCP tool calling, procedural `SKILL.md` playbooks, bounded multi-step loops, automatic skill routing, and A2A. |
-| **Media** | Image, video, speech, PDF, Word, Excel, PowerPoint, CSV, and Markdown generation. |
-| **Security** | API keys, RBAC, Entra ID and Auth0 SSO, identity allowlists, quotas, moderation, file encryption, and cloud secret managers. |
-| **Operations** | Admin UI, health checks, metrics, audit logs, token and cost tracking, spend analytics, circuit breakers, and hot adapter reloads. |
-
-[Browse all adapters](docs/adapters/adapters.md) · [Configure providers](config/inference.yaml) · [See the full capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md)
-
-For production evaluation, see the sourced [platform comparison](docs/ORBIT_CAPABILITY_MATRIX.md) and the [NIST SP 800-53, AI RMF, and OWASP security mapping](docs/security/nist-sp800-53-and-ai-security.md). These resources support technical due diligence; they are not a certification or substitute for a deployment-specific assessment.
 
 ## Explore more
 
