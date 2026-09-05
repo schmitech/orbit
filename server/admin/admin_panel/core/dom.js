@@ -57,6 +57,55 @@ export function wrapTable(table) {
 }
 
 /**
+ * A "?" icon that reveals `helpText` in a tooltip on hover/focus. `helpId` is
+ * the id of the tooltip element; pair it with `aria-describedby` on the
+ * field it documents.
+ */
+export function helpTooltip(labelText, helpText, helpId) {
+  const helpButton = el("button", {
+    type: "button",
+    className: "help-button",
+    "aria-label": "Help for " + labelText,
+    "aria-describedby": helpId,
+  }, "?");
+  helpButton.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") helpButton.blur();
+  });
+  return el("span", { className: "help-tooltip-wrap" },
+    helpButton,
+    el("span", { id: helpId, className: "help-tooltip", role: "tooltip" }, helpText)
+  );
+}
+
+/**
+ * Wraps a label + input with a help-icon tooltip instead of a description
+ * beside/below the field. `helpId` becomes both the tooltip's id and the
+ * input's id fallback.
+ */
+export function tooltipField(labelText, input, helpText, helpId, className) {
+  input.id = input.id || helpId + "-input";
+  input.setAttribute("aria-describedby", helpId);
+  return el("div", { className: "stack tooltip-field" + (className ? " " + className : "") },
+    el("div", { className: "field-label-row" },
+      el("label", { htmlFor: input.id }, labelText),
+      helpTooltip(labelText, helpText, helpId)
+    ),
+    input
+  );
+}
+
+/** A titled group of fields, used to break a long form into scannable sections. */
+export function formSection(title, description, content) {
+  return el("section", { className: "form-section" },
+    el("div", { className: "form-section-heading" },
+      el("h3", null, title),
+      el("p", null, description)
+    ),
+    content
+  );
+}
+
+/**
  * Themed replacement for a native <select> — the browser renders a native
  * select's open popup with OS chrome that ignores page CSS entirely, so on
  * platforms with a dark system theme it shows up as an unstyled dark menu

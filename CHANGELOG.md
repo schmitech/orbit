@@ -9,6 +9,7 @@
 
 ### Admin Panel
 - **Costs Tab Data Labels**: The "Top N by cost" bar chart and "Cost share" doughnut on the Costs tab now show on-chart value/percentage labels via a vendored `chartjs-plugin-datalabels`, instead of requiring a hover to read the numbers. The plugin is registered globally with its display default disabled, so Feedback and Overview charts (which build their own chart options) are unaffected.
+- **Help-Tooltip Field Pattern**: Replaced inline field explanations/hint paragraphs across the Adapters, API Keys, Prompts, Users, and MCP tabs with a "?" help-icon tooltip beside each label, following the pattern already used on the Skills tab, which now shares the same helper (`helpTooltip`/`tooltipField`/`formSection` in `core/dom.js`) instead of a local copy. Also fixed a Skills-tab mobile layout regression from the shared `.form-section` class, restored inline (not stacked) label/icon layout for MCP's default-settings tooltips, added missing labels/tooltips for the MCP `pool_size`/`pool_idle_timeout` settings, and switched the Costs tab's "Group by" dropdown to user-friendly option labels (e.g. "Adapter" instead of `adapter_name`).
 
 ## [2.17.4] - 2026-09-04
 

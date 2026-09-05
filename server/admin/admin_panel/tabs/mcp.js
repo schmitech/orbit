@@ -50,9 +50,19 @@ export function mcpToolSkillGlobMatch(name, pattern) {
 }
 
 export function createMcpTab({
-  api, endpoints, el, clear, skeleton, refreshButton, withButton,
+  api, endpoints, el, clear, skeleton, refreshButton, withButton, helpTooltip,
   confirmAction, showError, showStatus, createSelect, getActiveTab
 }) {
+  var mcpHintIdSeq = 0;
+  function mcpSettingCopy(label, hint) {
+    if (!hint) return el("span", { className: "mcp-setting-copy" }, el("span", { className: "mcp-setting-label" }, label));
+    mcpHintIdSeq += 1;
+    var helpId = "mcp-setting-help-" + mcpHintIdSeq;
+    return el("span", { className: "mcp-setting-copy" },
+      el("span", { className: "mcp-setting-label" }, label),
+      helpTooltip(label, hint, helpId)
+    );
+  }
   var mcpData = null;      // { enabled, defaults, servers, settings }
   var mcpTools = null;     // { available, servers: { name: {reachable, tools} } }
   var mcpSelected = null;  // server name, or MCP_DEFAULTS_KEY
@@ -79,6 +89,8 @@ export function createMcpTab({
     tool_result_max_chars: { label: "Result cap", hint: "Characters of tool output kept in model context" },
     discovery_timeout: { label: "Discovery timeout", hint: "Seconds to wait when listing this server's tools", unit: "s" },
     discovery_retry_interval: { label: "Discovery retry", hint: "Seconds before retrying a server that failed", unit: "s" },
+    pool_size: { label: "Pool size", hint: "Connections kept open per server; 0 opens a fresh connection each call" },
+    pool_idle_timeout: { label: "Pool idle timeout", hint: "Seconds an idle pooled connection is kept before closing", unit: "s" },
   };
 
   var MCP_TRANSPORT_LABELS = { stdio: "Subprocess", http: "Streamable HTTP" };
@@ -610,8 +622,7 @@ export function createMcpTab({
       });
       transport.addEventListener("change", function () { draft.transport = transport.value; render(); });
       ledger.appendChild(el("div", { className: "mcp-setting-row mcp-connection-row" },
-        el("span", { className: "mcp-setting-copy" }, el("span", { className: "mcp-setting-label" }, "Transport"),
-          el("span", { className: "mcp-setting-hint" }, "How ORBIT connects to this server")),
+        mcpSettingCopy("Transport", "How ORBIT connects to this server"),
         el("span", { className: "mcp-setting-control" }, transport)
       ));
       if (draft.transport === "http") {
@@ -1232,10 +1243,7 @@ export function createMcpTab({
 
     var provenance = el("span", { className: "mcp-provenance" });
     var row = el("div", { className: "mcp-setting-row mcp-connection-row" },
-      el("span", { className: "mcp-setting-copy" },
-        el("span", { className: "mcp-setting-label" }, label),
-        el("span", { className: "mcp-setting-hint" }, hint)
-      ),
+      mcpSettingCopy(label, hint),
       el("span", { className: "mcp-setting-control" }, control),
       provenance
     );
@@ -1433,10 +1441,7 @@ export function createMcpTab({
 
     renderRows();
     var row = el("div", { className: "mcp-setting-row mcp-connection-row mcp-kv-editor" },
-      el("span", { className: "mcp-setting-copy" },
-        el("span", { className: "mcp-setting-label" }, label),
-        el("span", { className: "mcp-setting-hint" }, hint)
-      ),
+      mcpSettingCopy(label, hint),
       el("span", { className: "mcp-setting-control" }, rowsEl),
       provenance
     );
@@ -1486,10 +1491,7 @@ export function createMcpTab({
 
     var provenance = el("span", { className: "mcp-provenance" });
     var row = el("div", { className: "mcp-setting-row mcp-connection-row" },
-      el("span", { className: "mcp-setting-copy" },
-        el("span", { className: "mcp-setting-label" }, label),
-        el("span", { className: "mcp-setting-hint" }, hint)
-      ),
+      mcpSettingCopy(label, hint),
       el("span", { className: "mcp-setting-control" }, control),
       provenance
     );
@@ -1579,10 +1581,7 @@ export function createMcpTab({
 
     var provenance = el("span", { className: "mcp-provenance" });
     var row = el("div", { className: "mcp-setting-row" },
-      el("span", { className: "mcp-setting-copy" },
-        el("span", { className: "mcp-setting-label" }, meta.label),
-        el("span", { className: "mcp-setting-hint" }, meta.hint)
-      ),
+      mcpSettingCopy(meta.label, meta.hint),
       el("span", { className: "mcp-setting-control" }, control),
       provenance
     );

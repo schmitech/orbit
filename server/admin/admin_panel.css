@@ -988,25 +988,29 @@ textarea {
   gap: var(--sp-1);
 }
 
-.skill-tooltip-field {
+.skill-tooltip-field,
+.tooltip-field {
   gap: var(--sp-1);
   min-width: 0;
 }
 
-.skill-label-row {
+.skill-label-row,
+.field-label-row {
   display: flex;
   align-items: center;
   gap: var(--sp-1);
   min-height: 1.35rem;
 }
 
-.skill-help {
+.skill-help,
+.help-tooltip-wrap {
   position: relative;
   display: inline-flex;
   flex: 0 0 auto;
 }
 
-button.skill-help-button {
+button.skill-help-button,
+button.help-button {
   width: 17px;
   height: 17px;
   min-height: 17px;
@@ -1022,7 +1026,9 @@ button.skill-help-button {
 }
 
 button.skill-help-button:hover:not(:disabled),
-button.skill-help-button:focus-visible {
+button.skill-help-button:focus-visible,
+button.help-button:hover:not(:disabled),
+button.help-button:focus-visible {
   border-color: var(--brand-400);
   background: var(--brand-50);
   box-shadow: none;
@@ -1030,7 +1036,8 @@ button.skill-help-button:focus-visible {
   transform: none;
 }
 
-.skill-help-tooltip {
+.skill-help-tooltip,
+.help-tooltip {
   position: absolute;
   z-index: 40;
   top: calc(100% + var(--sp-2));
@@ -1053,33 +1060,40 @@ button.skill-help-button:focus-visible {
 }
 
 .skill-help:hover .skill-help-tooltip,
-.skill-help:focus-within .skill-help-tooltip {
+.skill-help:focus-within .skill-help-tooltip,
+.help-tooltip-wrap:hover .help-tooltip,
+.help-tooltip-wrap:focus-within .help-tooltip {
   opacity: 1;
   transform: translateY(0);
 }
 
 .skill-priority-field .skill-help-tooltip,
-.skill-enabled-field .skill-help-tooltip {
+.skill-enabled-field .skill-help-tooltip,
+.field-label-row-end .help-tooltip {
   right: 0;
   left: auto;
 }
 
-.skill-form-section {
+.skill-form-section,
+.form-section {
   display: grid;
   grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
   gap: var(--sp-5);
   padding: var(--sp-5) 0;
 }
 
-.skill-form-section:first-child {
+.skill-form-section:first-child,
+.form-section:first-child {
   padding-top: 0;
 }
 
-.skill-form-section + .skill-form-section {
+.skill-form-section + .skill-form-section,
+.form-section + .form-section {
   border-top: 1px solid var(--border-light);
 }
 
-.skill-form-section-heading h3 {
+.skill-form-section-heading h3,
+.form-section-heading h3 {
   margin: 0 0 var(--sp-1);
   padding: 0;
   border: 0;
@@ -1089,7 +1103,8 @@ button.skill-help-button:focus-visible {
   text-transform: none;
 }
 
-.skill-form-section-heading p {
+.skill-form-section-heading p,
+.form-section-heading p {
   margin: 0;
   color: var(--ink-muted);
   font-size: var(--text-xs);
@@ -1175,7 +1190,8 @@ button.skill-help-button:focus-visible {
 }
 
 @media (max-width: 680px) {
-  .skill-form-section {
+  .skill-form-section,
+  .form-section {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--sp-3);
   }
@@ -4407,8 +4423,9 @@ button.settings-nav-group-header:hover:not(:disabled) {
 }
 
 .mcp-setting-copy {
-  display: grid;
-  gap: 1px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1, 4px);
   min-width: 0;
 }
 

@@ -1,6 +1,6 @@
 export function createAdaptersTab({
   api, endpoints, el, clear, skeleton, svgIcon, iconPlus, iconSave, iconRefresh,
-  field, characterCount, withButton, createPaginator, createColumnSorter, itemsPerPage,
+  field, helpTooltip, characterCount, withButton, createPaginator, createColumnSorter, itemsPerPage,
   markSelectedRow, confirmAction, requireTypedConfirmation, showError, showStatus, waitForAdminJob,
   createSelect, getActiveTab, getCachedAdapterCapabilities, loadAdapterCapabilities
 }) {
@@ -562,9 +562,13 @@ export function createAdaptersTab({
           // the label's native focus action, which can swallow the selection.
           var id = input.id || "field-" + Math.random().toString(36).slice(2, 9);
           input.id = id;
-          var fieldParts = [el("label", { htmlFor: id }, q.prompt)];
-          if (hint) fieldParts.push(el("span", { className: "muted" }, hint));
-          fieldParts.push(wrapAnswerCombobox(q, input));
+          var labelRow = [el("label", { htmlFor: id }, q.prompt)];
+          if (hint) {
+            var helpId = id + "-help";
+            input.setAttribute("aria-describedby", helpId);
+            labelRow.push(helpTooltip(q.prompt, hint, helpId));
+          }
+          var fieldParts = [el("div", { className: "field-label-row" }, labelRow), wrapAnswerCombobox(q, input)];
           control = el("div", { className: "stack" }, fieldParts);
         } else {
           control = field(q.prompt, input, hint);
@@ -584,9 +588,12 @@ export function createAdaptersTab({
         el("span", null, q.prompt)
       );
       if (!hint) return checkboxLabel;
+      var checkboxHelpId = (input.id || "field-" + Math.random().toString(36).slice(2, 9)) + "-help";
+      input.id = input.id || checkboxHelpId.slice(0, -5);
+      input.setAttribute("aria-describedby", checkboxHelpId);
       return el("div", { className: "adapter-checkbox-question" },
         checkboxLabel,
-        el("span", { className: "muted" }, hint)
+        helpTooltip(q.prompt, hint, checkboxHelpId)
       );
     }
 

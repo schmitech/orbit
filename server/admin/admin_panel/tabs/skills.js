@@ -10,7 +10,7 @@ export function createSkillsTab({
   svgIcon, iconPlus, iconSave, iconX,
   withButton, requireTypedConfirmation, showStatus, showTableLoadError,
   bindValidationClear, setFieldReadOnly, characterCount, createMarkdownPreview,
-  onSkillsChanged,
+  onSkillsChanged, helpTooltip, tooltipField, formSection,
 }) {
   var BODY_MAX = 24 * 1024;
   var cachedSkills = null;
@@ -23,34 +23,6 @@ export function createSkillsTab({
       }
     }
     return false;
-  }
-
-  function helpTooltip(labelText, helpText, helpId) {
-    var helpButton = el("button", {
-      type: "button",
-      className: "skill-help-button",
-      "aria-label": "Help for " + labelText,
-      "aria-describedby": helpId,
-    }, "?");
-    helpButton.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") helpButton.blur();
-    });
-    return el("span", { className: "skill-help" },
-      helpButton,
-      el("span", { id: helpId, className: "skill-help-tooltip", role: "tooltip" }, helpText)
-    );
-  }
-
-  function tooltipField(labelText, input, helpText, helpId, className) {
-    input.id = input.id || helpId + "-input";
-    input.setAttribute("aria-describedby", helpId);
-    return el("div", { className: "stack skill-tooltip-field" + (className ? " " + className : "") },
-      el("div", { className: "skill-label-row" },
-        el("label", { htmlFor: input.id }, labelText),
-        helpTooltip(labelText, helpText, helpId)
-      ),
-      input
-    );
   }
 
   function priorityField(input, hintId) {
@@ -79,16 +51,6 @@ export function createSkillsTab({
       input,
       el("label", { className: "skill-enabled-title", htmlFor: input.id }, "Enabled"),
       helpTooltip("Enabled", "Makes this skill available to load.", hintId)
-    );
-  }
-
-  function formSection(title, description, content) {
-    return el("section", { className: "skill-form-section" },
-      el("div", { className: "skill-form-section-heading" },
-        el("h3", null, title),
-        el("p", null, description)
-      ),
-      content
     );
   }
 

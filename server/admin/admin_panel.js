@@ -1,6 +1,6 @@
 import { ENDPOINTS, createApi } from "./admin_panel/core/api.js";
 import { standardChartOptions as feedbackChartOptions } from "./admin_panel/core/charts.js";
-import { clear, el, wrapTable, createSelect } from "./admin_panel/core/dom.js";
+import { clear, el, wrapTable, createSelect, helpTooltip, tooltipField, formSection } from "./admin_panel/core/dom.js";
 import { renderMetricCard } from "./admin_panel/core/metrics.js";
 import { createFeedbackTab } from "./admin_panel/tabs/feedback.js";
 import { createCostsTab } from "./admin_panel/tabs/costs.js";
@@ -106,10 +106,18 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     var target = control || input;
     var id = target.id || "field-" + Math.random().toString(36).slice(2, 9);
     target.id = id;
-    var children = [el("span", null, labelText)];
-    if (hintText) children.push(el("span", { className: "muted" }, hintText));
-    children.push(input);
-    return el("label", { htmlFor: id, className: "stack" }, children);
+    if (!hintText) {
+      return el("label", { htmlFor: id, className: "stack" }, [el("span", null, labelText), input]);
+    }
+    var helpId = id + "-help";
+    target.setAttribute("aria-describedby", helpId);
+    return el("div", { className: "stack tooltip-field" },
+      el("div", { className: "field-label-row" },
+        el("label", { htmlFor: id }, labelText),
+        helpTooltip(labelText, hintText, helpId)
+      ),
+      input
+    );
   }
 
   function svgIcon(pathD, viewBox) {
@@ -1353,6 +1361,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     iconSave: ICON_SAVE,
     iconRefresh: ICON_REFRESH,
     field: field,
+    helpTooltip: helpTooltip,
     characterCount: characterCount,
     withButton: withButton,
     createSelect: createSelect,
@@ -1377,6 +1386,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     skeleton: skeleton,
     refreshButton: refreshButton,
     withButton: withButton,
+    helpTooltip: helpTooltip,
     confirmAction: confirmAction,
     showError: showError,
     showStatus: showStatus,
@@ -1403,6 +1413,9 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     showTableLoadError: showTableLoadError,
     bindValidationClear: bindValidationClear,
     setFieldReadOnly: setFieldReadOnly,
+    helpTooltip: helpTooltip,
+    tooltipField: tooltipField,
+    formSection: formSection,
     characterCount: characterCount,
     createMarkdownPreview: createMarkdownPreview,
     onSkillsChanged: function () { mcpTab.invalidatePlaybooksCache(); },

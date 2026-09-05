@@ -1,3 +1,12 @@
+const GROUP_BY_LABELS = {
+  model: "Model",
+  provider: "Provider",
+  adapter_name: "Adapter",
+  user_id: "User",
+  call_type: "Call type",
+  api_key: "API key",
+};
+
 export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshButton, formatNum, chartOptions, renderMetricCard, createSelect, getActiveTab }) {
   let charts = {};
   let selectedWindowDays = 7;
@@ -196,7 +205,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
     const groupBySelect = createSelect({
       className: "select-input",
       ariaLabel: "Group by",
-      options: ["model", "provider", "adapter_name", "user_id", "call_type", "api_key"].map((opt) => ({ value: opt, label: opt })),
+      options: ["model", "provider", "adapter_name", "user_id", "call_type", "api_key"].map((opt) => ({ value: opt, label: GROUP_BY_LABELS[opt] })),
       value: selectedGroupBy
     });
     groupBySelect.addEventListener("change", () => { selectedGroupBy = groupBySelect.value; load(); });
@@ -313,7 +322,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
           content.appendChild(el("div", { className: "charts-grid" },
             el("div", { className: "chart-card" }, el("h3", null, "Tokens over time"), el("canvas", { id: "obs-tokens-chart" })),
             el("div", { className: "chart-card" }, el("h3", null, "Cost over time"), el("canvas", { id: "obs-cost-chart" })),
-            el("div", { className: "chart-card" }, el("h3", null, "Top " + selectedGroupBy + " by cost"), el("canvas", { id: "obs-models-chart" })),
+            el("div", { className: "chart-card" }, el("h3", null, "Top " + GROUP_BY_LABELS[selectedGroupBy] + " by cost"), el("canvas", { id: "obs-models-chart" })),
             el("div", { className: "chart-card feedback-distribution-card" },
               el("h3", null, "Cost share"),
               el("div", { className: "feedback-donut-wrap cost-share-donut-wrap" }, el("canvas", { id: "obs-provider-chart" }))

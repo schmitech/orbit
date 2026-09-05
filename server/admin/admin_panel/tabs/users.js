@@ -31,7 +31,7 @@ export function createUsersTab({
     passwordPolicyHints.forEach(function (hint) { hint.textContent = description; });
     passwordPolicyInputs.forEach(function (input) {
       input.placeholder = passwordPolicy
-        ? "Meet the password requirements below"
+        ? "See the password requirements (?)"
         : "Password requirements unavailable";
     });
   }
@@ -139,15 +139,13 @@ export function createUsersTab({
     var passwordInput = el("input", {
       type: "password",
       maxlength: String(passwordMaxLength),
-      placeholder: "Meet the password requirements below",
+      placeholder: "See the password requirements (?)",
       autocomplete: "new-password",
       autocapitalize: "none",
       autocorrect: "off",
       spellcheck: "false"
     });
     passwordPolicyInputs.push(passwordInput);
-    var createPasswordHint = el("p", { className: "muted" }, describePasswordPolicy());
-    passwordPolicyHints.push(createPasswordHint);
     var roleOptions = el("div", {
       className: "role-picker-options",
       role: "group",
@@ -238,6 +236,9 @@ export function createUsersTab({
       createPanelToggle
     ));
 
+    var passwordFieldEl = passwordField("Password", passwordInput, describePasswordPolicy());
+    var passwordHintEl = passwordFieldEl.querySelector('[role="tooltip"]');
+    if (passwordHintEl) passwordPolicyHints.push(passwordHintEl);
     var form = el("div", { className: "admin-create-form" },
       el("div", { className: "stack role-picker" },
         el("span", { id: "new-user-roles-label" }, "Roles"),
@@ -246,9 +247,8 @@ export function createUsersTab({
       ),
       el("div", { className: "admin-create-form-grid user-create-grid" },
         field("Username", usernameInput),
-        passwordField("Password", passwordInput)
+        passwordFieldEl
       ),
-      createPasswordHint,
       el("div", { className: "admin-create-form-actions user-create-form-actions" }, createBtn)
     );
     createPanel.appendChild(form);
@@ -845,8 +845,6 @@ export function createUsersTab({
       spellcheck: "false"
     });
     passwordPolicyInputs.push(newPwInput);
-    var changePasswordHint = el("p", { className: "muted" }, describePasswordPolicy());
-    passwordPolicyHints.push(changePasswordHint);
     var confirmPwInput = el("input", {
       type: "password",
       placeholder: "Confirm new password",
@@ -895,11 +893,13 @@ export function createUsersTab({
       }, "Password changed successfully");
     });
 
+    var newPwFieldEl = passwordField("New Password", newPwInput, describePasswordPolicy());
+    var changePasswordHintEl = newPwFieldEl.querySelector('[role="tooltip"]');
+    if (changePasswordHintEl) passwordPolicyHints.push(changePasswordHintEl);
     panel.appendChild(el("div", { className: "admin-create-form" },
       el("p", { className: "muted" }, "Update the password for the account currently signed into the admin panel."),
       passwordField("Current Password", curPwInput),
-      passwordField("New Password", newPwInput),
-      changePasswordHint,
+      newPwFieldEl,
       passwordField("Confirm Password", confirmPwInput),
       el("div", { className: "inline-form detail-action-row" }, cancelBtn, changeBtn)
     ));
@@ -1019,15 +1019,13 @@ export function createUsersTab({
     var newPwInput = el("input", {
       type: "password",
       maxlength: String(passwordMaxLength),
-      placeholder: "Meet the password requirements below",
+      placeholder: "See the password requirements (?)",
       autocomplete: "new-password",
       autocapitalize: "none",
       autocorrect: "off",
       spellcheck: "false"
     });
     passwordPolicyInputs.push(newPwInput);
-    var resetPasswordHint = el("p", { className: "muted" }, describePasswordPolicy());
-    passwordPolicyHints.push(resetPasswordHint);
     var resetBtn = el("button", { type: "button" }, "Apply Reset");
     var resetCancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
     var resetToggle = el("button", { className: "secondary", type: "button" }, "Reset Password");
@@ -1237,9 +1235,11 @@ export function createUsersTab({
       actionRow.appendChild(deleteBtn);
       panel.appendChild(actionRow);
       panel.appendChild(roleEditor);
+      var resetPwFieldEl = passwordField("New Password", newPwInput, describePasswordPolicy());
+      var resetPasswordHintEl = resetPwFieldEl.querySelector('[role="tooltip"]');
+      if (resetPasswordHintEl) passwordPolicyHints.push(resetPasswordHintEl);
       resetPanel.appendChild(el("div", { className: "admin-create-form user-reset-form" },
-        passwordField("New Password", newPwInput),
-        resetPasswordHint,
+        resetPwFieldEl,
         el("div", { className: "inline-form detail-action-row" }, resetCancelBtn, resetBtn)
       ));
       bindValidationClear(newPwInput);
