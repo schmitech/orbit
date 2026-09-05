@@ -7,7 +7,7 @@
 
   **The self-hosted AI backend for private data and tool-using agents.**
 
-  Connect files, databases, APIs, and MCP tools to local or hosted models behind one OpenAI-compatible API—with authentication, observability, and an admin UI.
+  Connect files, databases, APIs, and MCP tools to local or hosted models behind one OpenAI-compatible API—with authentication, observability, and an admin UI built in.
 
   <p>
     <strong><a href="https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=hero">Try ORBIT live →</a></strong>
@@ -62,7 +62,7 @@ Open the [live ORBIT sandbox](https://orbit.schmitech.ca/?utm_source=github&utm_
 
 ### Run it locally
 
-**Prerequisites:** Linux or macOS, Python 3.12+, and an internet connection for dependencies. Windows users can follow the [Windows installation guide](install/windows.md).
+**Prerequisites:** Python 3.12+ and an internet connection for dependencies. The default configuration uses [Ollama](https://ollama.com/) for inference, so install Ollama as well if you use the default provider. Windows users can follow the [Windows installation guide](install/windows.md).
 
 1. Download the [ORBIT v2.17.4 tarball](https://github.com/schmitech/orbit/releases/download/v2.17.4/orbit-2.17.4.tar.gz).
 2. Extract it, enter the release directory, and start ORBIT:
@@ -72,8 +72,49 @@ mkdir orbit-release
 tar -xzf orbit-*.tar.gz -C orbit-release --strip-components=1
 cd orbit-release
 ./install/setup.sh --profile default
+
+ollama pull gemma4:e2b
+# Required for file/multimodal adapters:
+ollama pull nomic-embed-text
+
 ./bin/orbit.sh start
 ```
+
+The default setup enables Ollama in `config/inference.yaml`, selects it as the
+global provider in `config/config.yaml`, and uses the `gemma4-e2b-cpu` Ollama
+preset for the initial conversational adapter. Presets are defined in
+`config/ollama.yaml`; this preset resolves to the `gemma4:e2b` model tag.
+
+`setup.sh` does not install Ollama; install and start it separately before
+running the model pull command (run `ollama serve` in another terminal if
+Ollama is not already running).
+
+If you plan to use the retrieval adapters (file, SQL, etc.), also enable Ollama
+embeddings in `config/embeddings.yaml` and keep the model aligned with the
+download above:
+
+```yaml
+embedding:
+  provider: "ollama"
+  enabled: true
+
+embeddings:
+  ollama:
+    model: "nomic-embed-text"
+```
+
+All ORBIT behavior is managed through YAML: use `config/config.yaml` for global
+server settings, `config/inference.yaml` for provider enablement and credentials,
+`config/ollama.yaml` for Ollama presets, and the files under `config/adapters/`
+for adapter behavior.
+
+To use another provider, enable it in `config/inference.yaml`, set its
+credential in `.env`, and select it globally or on the adapter that should use it.
+
+If you prefer not to install a local model, the prebuilt Docker flavors provide
+ready-to-run Ollama, OpenAI, and Gemini setups. See the [Docker flavor quick
+start](docker/README.md#flavor-images-recommended-pull-and-run) for the exact
+commands and required credentials.
 
 ORBIT starts at [http://localhost:3000](http://localhost:3000). Follow the tutorial to [verify the installation](docs/tutorial/before-you-start.md) and [create your first chat](docs/tutorial/first-chat.md).
 

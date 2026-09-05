@@ -4,17 +4,41 @@
 
 You need three things:
 
-1. **ORBIT installed.** Follow the [Quick Start](../../README.md#-quick-start) release-tarball steps. Developing from a git clone instead? See the aside below.
-2. **An inference provider.** The shipped adapters default to **OpenAI (`gpt-5.4-mini`)**, so set `OPENAI_API_KEY` in your environment — or swap to another provider in `config/inference.yaml` (Ollama, Anthropic, Gemini, and 25+ others are supported).
+1. **ORBIT installed.** Follow the [Quick Start](../../README.md#quick-start) release-tarball steps. Developing from a git clone instead? See the aside below.
+2. **An inference provider.** The canonical installation defaults to **Ollama** in [`install/default-config/config.yaml`](../../install/default-config/config.yaml).
+
+   The default setup enables `ollama` in `config/inference.yaml`, sets
+   `general.inference_provider` to `ollama` in `config/config.yaml`, and uses the
+   `gemma4-e2b-cpu` Ollama preset. Presets are defined in
+   [`config/ollama.yaml`](../../config/ollama.yaml); this preset resolves to the
+   `gemma4:e2b` model tag.
+
+   Install and start [Ollama](https://ollama.com/). If it is not already running,
+   run `ollama serve` in another terminal, then pull the default model:
+
+   ```bash
+   ollama pull gemma4:e2b
+   ```
+
+   If you plan to use the retrieval adapters, also pull the embedding
+   model and enable Ollama embeddings in the active `config/embeddings.yaml`:
+
+   ```bash
+   ollama pull nomic-embed-text
+   ```
+
+   Set `embedding.enabled: true`; the canonical adapter uses
+   `embedding_provider: "ollama"` and `embedding_model: "nomic-embed-text"`.
+
+   Alternatively, enable another provider in `config/inference.yaml`, set its
+   credential in `.env`, and select it in `config/config.yaml` or the adapter
+   YAML. For a no-local-install option, use the prebuilt [Ollama, OpenAI, or
+   Gemini Docker flavors](../../docker/README.md#flavor-images-recommended-pull-and-run).
 3. **The server running.**
    ```bash
    ./bin/orbit.sh start
    ```
    `bin/orbit.sh` activates its own virtual environment automatically, so no manual `source venv/bin/activate` is needed. You should see `Uvicorn running on http://0.0.0.0:3000` in the logs.
-
-> **Developing from a git clone instead of the release tarball?** Run `./install/setup.sh` once to create the venv and install dependencies, then `./bin/orbit.sh start` the same way. A fresh git clone doesn't ship the pre-seeded `orbit.db` that the release tarball includes (see the API key note below) — copy `install/orbit.db.default` to `orbit.db` in the project root first if you want the same `default-key` example to work, or just create your own key in [Your first chat](first-chat.md).
-
-> **Tip:** The basic Docker image (`schmitech/orbit:basic`) includes simple chat only. For database and file adapters, use the release tarball or a git checkout.
 
 Quick health check:
 
