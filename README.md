@@ -23,12 +23,14 @@
   <a href="https://github.com/schmitech/orbit/releases/latest"><img src="https://img.shields.io/github/v/release/schmitech/orbit?label=release" alt="Latest release" /></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license" /></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white" alt="Python 3.12+" /></a>
+  <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit" alt="Last commit" /></a>
 </p>
+
+<p align="center">⭐ If ORBIT looks useful, <a href="https://github.com/schmitech/orbit">star the repo</a> — it helps others find it and tells us what to keep building.</p>
 
 ## What you can build
 
-ORBIT agents can be exposed or integrated through several interfaces: ORBIT can
-act as an [MCP server](docs/mcp_protocol.md), connect to external MCP servers as
+ORBIT can act as an [MCP server](docs/mcp_protocol.md), connect to external MCP servers as
 a [tool-using client](docs/tutorial/mcp-tool-calling.md), provide an [A2A endpoint](docs/a2a-protocol.md),
 serve requests through its [REST and OpenAI-compatible APIs](docs/tutorial/http-apis.md),
 support [real-time speech-to-speech over WebSocket](clients/realtime-voice/README.md),
