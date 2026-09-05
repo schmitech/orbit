@@ -39,15 +39,15 @@ capabilities through a conversational interface.
 
 | Goal | ORBIT handles |
 | :--- | :--- |
-| **Chat with private documents** | Upload PDFs, office documents, spreadsheets, images, and audio, then retrieve relevant context across the conversation. <a href="https://orbit.schmitech.ca/chat-with-files" target="_blank" rel="noopener noreferrer">Try the file and multimodal demo →</a> |
-| **Query databases in natural language** | Run parameterized queries across SQL, MongoDB, Elasticsearch, and composite data sources. <a href="https://orbit.schmitech.ca/intent-sql-postgres" target="_blank" rel="noopener noreferrer">Try the SQL demo →</a> |
-| **Analyze business data** | Explore sales and operational data with natural-language analytics over DuckDB. <a href="https://orbit.schmitech.ca/ecomm-analytics" target="_blank" rel="noopener noreferrer">Try the DuckDB analytics demo →</a> |
-| **Query HR data** | Ask natural-language questions over a SQLite HR database using reviewed intent templates. <a href="https://orbit.schmitech.ca/hr-db-chatbot" target="_blank" rel="noopener noreferrer">Try the HR SQLite demo →</a> |
-| **Query a MongoDB database** | Explore the sample MFlix movie database through natural-language intent queries. <a href="https://orbit.schmitech.ca/intent-mongodb-mflix" target="_blank" rel="noopener noreferrer">Try the MongoDB MFlix demo →</a> |
-| **Join data and tools across systems** | Combine billing data from SQL, support SLA data from HTTP, and live CRM context from MCP tools in one place. <a href="https://orbit.schmitech.ca/composite-customer-360" target="_blank" rel="noopener noreferrer">Try the Customer 360 demo →</a> |
-| **Talk to a grounded virtual assistant** | Use low-latency, natural speech-to-speech voice chat with responses grounded in knowledge sources. <a href="https://orbit.schmitech.ca/real-time-voice-chat" target="_blank" rel="noopener noreferrer">Try the real-time voice demo →</a> |
-| **Query public data** | Ask natural-language questions against the City of Paris open-data events and activities API. <a href="https://orbit.schmitech.ca/intent-http-paris-opendata" target="_blank" rel="noopener noreferrer">Try the Paris open-data demo →</a> |
-| **Build tool-using agents** | Give models scoped access to MCP servers with procedural skills, and bounded tool loops. <a href="https://orbit.schmitech.ca/mcp-business-sample" target="_blank" rel="noopener noreferrer">Try the MCP agent live →</a> |
+| **Chat with private documents** | Upload PDFs, office documents, spreadsheets, images, and audio, then retrieve relevant context across the conversation. [Try the file and multimodal demo →](https://orbit.schmitech.ca/chat-with-files) |
+| **Query databases in natural language** | Run parameterized queries across SQL, MongoDB, Elasticsearch, and composite data sources. [Try the SQL demo →](https://orbit.schmitech.ca/intent-sql-postgres) |
+| **Analyze business data** | Explore sales and operational data with natural-language analytics over DuckDB. [Try the DuckDB analytics demo →](https://orbit.schmitech.ca/ecomm-analytics) |
+| **Query HR data** | Ask natural-language questions over a SQLite HR database using reviewed intent templates. [Try the HR SQLite demo →](https://orbit.schmitech.ca/hr-db-chatbot) |
+| **Query a MongoDB database** | Explore the sample MFlix movie database through natural-language intent queries. [Try the MongoDB MFlix demo →](https://orbit.schmitech.ca/intent-mongodb-mflix) |
+| **Join data and tools across systems** | Combine billing data from SQL, support SLA data from HTTP, and live CRM context from MCP tools in one place. [Try the Customer 360 demo →](https://orbit.schmitech.ca/composite-customer-360) |
+| **Talk to a grounded virtual assistant** | Use low-latency, natural speech-to-speech voice chat with responses grounded in knowledge sources. [Try the real-time voice demo →](https://orbit.schmitech.ca/real-time-voice-chat) |
+| **Query public data** | Ask natural-language questions against the City of Paris open-data events and activities API. [Try the Paris open-data demo →](https://orbit.schmitech.ca/intent-http-paris-opendata) |
+| **Build tool-using agents** | Give models scoped access to MCP servers with procedural skills, and bounded tool loops. [Try the MCP agent live →](https://orbit.schmitech.ca/mcp-business-sample) |
 
 ⭐ **Finding ORBIT useful?** [Star the repository](https://github.com/schmitech/orbit) to help other developers discover it.
 
