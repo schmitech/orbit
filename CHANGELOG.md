@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.5] - 2026-09-05
 
 ### Security
 - **API Key Expiration (Authentication Phase 8)**: API keys now enforce a finite lifetime. New keys default to a 90-day expiration (`api_keys.default_lifetime_days`), capped at a 365-day maximum (`api_keys.max_lifetime_days`); expired keys are rejected on every API-key authentication path before adapter resolution, allowlists, and quotas, with no fallback to `api_keys.allow_default`. Administrators can renew a key's expiration or grant a justified non-expiring exception (`allow_non_expiring_exceptions`) via `POST /admin/api-keys/{id}/renew` or `orbit key renew`, audited without ever recording a raw key. Pre-existing keys are migrated to a finite expiration automatically and idempotently on server startup. List/detail/status responses and the CLI (`orbit key list --expired`/`--expiring-within-days`) surface `expires_at`, `expiration_policy`, and `days_remaining`. Completes the API-key portion of the NIST IA-5 authenticator-management control contribution.

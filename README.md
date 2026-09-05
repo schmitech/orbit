@@ -75,7 +75,7 @@ Open the [live ORBIT sandbox](https://orbit.schmitech.ca/?utm_source=github&utm_
 
 **Prerequisites:** Python 3.12+ and an internet connection for dependencies. The default configuration uses [Ollama](https://ollama.com/) for inference, so install Ollama as well if you use the default provider. Windows users can follow the [Windows installation guide](install/windows.md).
 
-1. Download the [ORBIT v2.17.4 tarball](https://github.com/schmitech/orbit/releases/download/v2.17.4/orbit-2.17.4.tar.gz).
+1. Download the [ORBIT v2.17.5 tarball](https://github.com/schmitech/orbit/releases/download/v2.17.5/orbit-2.17.5.tar.gz).
 2. Extract it, enter the release directory, and start ORBIT:
 
 ```bash
