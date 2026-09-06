@@ -28,6 +28,8 @@ import hashlib
 import logging
 from typing import Any, Optional
 
+from utils.embedding_budget import EmbeddingBudget, resolve_embedding_budget, split_text_to_budget
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,9 +54,9 @@ class MarkdownSection:
             current = current.parent
         return path
 
-    def estimate_tokens(self) -> int:
-        """Estimate token count (conservative: 1 token ≈ 3 chars to account for special tokens)."""
-        return len(self.content) // 3
+    def count_tokens(self, budget: EmbeddingBudget) -> int:
+        """Count tokens for this section's content using the shared budget's counter."""
+        return budget.count(self.content).count
 
 
 class ContentChunker:
@@ -71,7 +73,9 @@ class ContentChunker:
     def __init__(self,
                  max_chunk_tokens: int = 4000,
                  chunk_overlap_tokens: int = 200,
-                 min_chunk_tokens: int = 500):
+                 min_chunk_tokens: int = 500,
+                 budget: Optional[EmbeddingBudget] = None,
+                 model: Optional[str] = None):
         """
         Initialize the content chunker.
 
@@ -79,10 +83,22 @@ class ContentChunker:
             max_chunk_tokens: Maximum tokens per chunk (default: 4000)
             chunk_overlap_tokens: Overlap between chunks (default: 200)
             min_chunk_tokens: Minimum tokens for a chunk (default: 500)
+            budget: Shared EmbeddingBudget to validate against (preferred). When
+                provided, callers should pass the same instance used by the
+                ChunkManager so preparation and submission agree on one cutoff.
+            model: Embedding model identifier, used to resolve a budget when
+                one isn't supplied directly.
         """
-        self.max_chunk_tokens = max_chunk_tokens
-        self.chunk_overlap_tokens = chunk_overlap_tokens
-        self.min_chunk_tokens = min_chunk_tokens
+        self.budget = budget or resolve_embedding_budget(
+            max_embedding_tokens=max_chunk_tokens,
+            model=model,
+            chunk_target_tokens=max_chunk_tokens,
+            overlap_tokens=chunk_overlap_tokens,
+            min_chunk_tokens=min_chunk_tokens,
+        )
+        self.max_chunk_tokens = self.budget.chunk_target_tokens
+        self.chunk_overlap_tokens = self.budget.overlap_tokens
+        self.min_chunk_tokens = self.budget.min_chunk_tokens
 
         # Regex pattern to match markdown headers
         self.header_pattern = re.compile(r'^(#{1,6})\s+(.+?)$', re.MULTILINE)
@@ -97,8 +113,7 @@ class ContentChunker:
         Returns:
             True if content should be chunked
         """
-        estimated_tokens = len(content) // 3
-        return estimated_tokens > self.max_chunk_tokens
+        return self.budget.count(content).count > self.max_chunk_tokens
 
     def chunk_markdown(self, content: str, metadata: dict[str, Any]) -> list[dict[str, Any]]:
         """
@@ -116,6 +131,7 @@ class ContentChunker:
 
         # Check if chunking is needed
         if not self.should_chunk(content):
+            token_count = self.budget.count(content)
             return [{
                 "chunk_id": 0,
                 "total_chunks": 1,
@@ -123,7 +139,8 @@ class ContentChunker:
                 "section": metadata.get('title', 'Full Document'),
                 "hierarchy": [metadata.get('title', 'Document')],
                 "position": 0,
-                "token_count": len(content) // 3,
+                "token_count": token_count.count,
+                "token_count_estimated": token_count.estimated,
                 "overlap_with_prev": False,
                 "overlap_with_next": False,
                 "source_url": metadata.get('url', ''),
@@ -139,6 +156,10 @@ class ContentChunker:
         # Add overlap between chunks
         chunks = self._add_chunk_overlap(chunks)
 
+        # Revalidate every final piece against the same effective budget used
+        # during preparation, splitting further if overlap pushed a chunk over.
+        chunks = self._revalidate_chunks(chunks)
+
         # Add chunk metadata
         total_chunks = len(chunks)
         for i, chunk in enumerate(chunks):
@@ -150,9 +171,35 @@ class ContentChunker:
                 "source_hash": self._hash_content(content)
             })
 
-        logger.info(f"Chunked content into {total_chunks} chunks (original: {len(content)//3} tokens)")
+        logger.info(
+            f"Chunked content into {total_chunks} chunks "
+            f"(original: {self.budget.count(content).count} tokens, mode={self.budget.counting_mode})"
+        )
 
         return chunks
+
+    def _revalidate_chunks(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Ensure every final chunk satisfies the effective embedding budget."""
+        revalidated = []
+        for chunk in chunks:
+            content = chunk["content"]
+            if self.budget.fits(content):
+                token_count = self.budget.count(content)
+                chunk["token_count"] = token_count.count
+                chunk["token_count_estimated"] = token_count.estimated
+                revalidated.append(chunk)
+                continue
+
+            for piece in split_text_to_budget(content, self.budget):
+                piece_chunk = chunk.copy()
+                token_count = self.budget.count(piece)
+                piece_chunk.update({
+                    "content": piece,
+                    "token_count": token_count.count,
+                    "token_count_estimated": token_count.estimated,
+                })
+                revalidated.append(piece_chunk)
+        return revalidated
 
     def _parse_markdown_structure(self, content: str) -> list[MarkdownSection]:
         """
@@ -242,7 +289,7 @@ class ContentChunker:
         flat_sections = self._flatten_sections(sections)
 
         for section in flat_sections:
-            section_tokens = section.estimate_tokens()
+            section_tokens = section.count_tokens(self.budget)
 
             # If single section exceeds max, split it
             if section_tokens > self.max_chunk_tokens:
@@ -315,7 +362,7 @@ class ContentChunker:
         current_tokens = 0
 
         for para in paragraphs:
-            para_tokens = len(para) // 3
+            para_tokens = self.budget.count(para).count
 
             if current_tokens + para_tokens > self.max_chunk_tokens:
                 if current_chunk:

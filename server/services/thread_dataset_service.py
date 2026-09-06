@@ -332,9 +332,21 @@ class ThreadDatasetService:
                     return None
                 
                 # Check expiration
-                expires_at_str = document.get('expires_at')
-                if expires_at_str:
-                    expires_at = datetime.fromisoformat(expires_at_str)
+                expires_at_value = document.get('expires_at')
+                if expires_at_value:
+                    if isinstance(expires_at_value, datetime):
+                        expires_at = expires_at_value
+                    elif isinstance(expires_at_value, str):
+                        expires_at = datetime.fromisoformat(expires_at_value)
+                    else:
+                        raise TypeError(
+                            f"Unsupported expires_at value: {type(expires_at_value).__name__}"
+                        )
+
+                    # Older stored values may be timezone-naive; dataset
+                    # expiration is defined in UTC throughout this service.
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=UTC)
                     if datetime.now(UTC) > expires_at:
                         logger.debug(f"Dataset {dataset_key} has expired")
                         # Delete expired dataset

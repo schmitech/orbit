@@ -3,7 +3,9 @@
 ## [UNRELEASED]
 
 ### Bug Fixes
+- **Chunking Safeguards**: Added a shared embedding budget for Firecrawl content chunking and embedding submission, eliminating the previous mismatch between preparation and fallback limits. Budgets now clamp to known limits for provider-qualified embedding models, apply one safety margin, validate overlap after clamping, prefer model-aware token counting when available, label estimated counts explicitly, and split oversized content into validated pieces with clear failures for unsplittable inputs.
 - **MCP Tool Loop Budgets (#363)**: Added optional global `max_total_tokens` and `max_duration_seconds` budgets in `config/mcp_clients.yaml`, applied to both the explicit `mcp-agent` skill and opportunistic MCP tool loops. Reaching either soft threshold stops new tool-calling rounds and moves straight to final synthesis; token tracking works without a caller-provided usage accumulator. Both default to `null` (disabled); `0` skips tool rounds entirely. Also exposed as "Total token budget" and "Loop time budget" under the MCP admin tab's Defaults > Global loop budgets section, with matching validation on the admin API.
+- **Thread Dataset Expiration Parsing**: Fixed `ThreadDatasetService` failing to retrieve cached thread datasets with `fromisoformat: argument must be str` when the database driver returned a native `datetime` for `expires_at` instead of a string, causing spurious fallback to normal retrieval. Expiration values are now accepted as database-normalized `datetime` objects, ISO timestamp strings, or legacy timezone-naive timestamps (interpreted as UTC); an unsupported value type now raises a clear `TypeError`.
 
 ## [2.17.5] - 2026-09-05
 

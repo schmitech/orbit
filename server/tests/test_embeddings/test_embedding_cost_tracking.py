@@ -106,6 +106,7 @@ async def test_openai_query_reports_input_tokens():
         "completion_tokens": 0,
         "total_tokens": 37,
         "reasoning_tokens": None,
+        "cached_prompt_tokens": None,
         "model": "text-embedding-3-small",
         "provider": "openai",
         "reported": True,

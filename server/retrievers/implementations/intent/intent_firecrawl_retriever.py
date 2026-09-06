@@ -22,6 +22,7 @@ from retrievers.base.intent_domain_components import record_intent_telemetry
 from retrievers.base.base_retriever import RetrieverFactory
 from utils.content_chunker import ContentChunker
 from utils.chunk_manager import ChunkManager
+from utils.embedding_budget import resolve_embedding_budget
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         # Initialize chunking components (will be set up in initialize())
         self.content_chunker: Optional[ContentChunker] = None
         self.chunk_manager: Optional[ChunkManager] = None
+        self.embedding_budget = None
 
         
         logger.debug(f"Firecrawl retriever initialized with base_url: {self.base_url}")
@@ -97,12 +99,19 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
         # Initialize chunking if enabled
         if self.enable_chunking:
-            # Create content chunker
-            self.content_chunker = ContentChunker(
-                max_chunk_tokens=self.max_chunk_tokens,
-                chunk_overlap_tokens=self.chunk_overlap_tokens,
-                min_chunk_tokens=self.min_chunk_tokens
+            # One effective embedding budget shared by preparation (ContentChunker)
+            # and submission (ChunkManager), so neither applies a different cutoff.
+            embedding_model = getattr(self.embedding_client, "model", None) if self.embedding_client else None
+            self.embedding_budget = resolve_embedding_budget(
+                max_embedding_tokens=self.max_embedding_tokens,
+                model=embedding_model,
+                chunk_target_tokens=self.max_chunk_tokens,
+                overlap_tokens=self.chunk_overlap_tokens,
+                min_chunk_tokens=self.min_chunk_tokens,
             )
+
+            # Create content chunker
+            self.content_chunker = ContentChunker(budget=self.embedding_budget)
 
             # Create chunk manager with vector store and embedding client
             if self.store_manager and self.embedding_client:
@@ -127,7 +136,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                         collection_name=self.chunks_collection,
                         cache_ttl_hours=self.chunk_cache_ttl_hours,
                         min_similarity_score=self.min_chunk_similarity,
-                        max_embedding_tokens=self.max_embedding_tokens
+                        budget=self.embedding_budget
                     )
 
                     # Initialize chunk manager

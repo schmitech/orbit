@@ -10,6 +10,8 @@ import hashlib
 from typing import Any, Optional
 from datetime import datetime, timedelta
 
+from utils.embedding_budget import EmbeddingBudget, resolve_embedding_budget, split_text_to_budget
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +32,8 @@ class ChunkManager:
                  collection_name: str = "firecrawl_chunks",
                  cache_ttl_hours: int = 24,
                  min_similarity_score: float = 0.3,
-                 max_embedding_tokens: int = 7500):
+                 max_embedding_tokens: int = 7500,
+                 budget: Optional[EmbeddingBudget] = None):
         """
         Initialize the chunk manager.
 
@@ -41,13 +44,20 @@ class ChunkManager:
             cache_ttl_hours: How long to cache chunks (default: 24 hours)
             min_similarity_score: Minimum similarity score for retrieval (default: 0.3)
             max_embedding_tokens: Maximum tokens per embedding (default: 7500 with safety buffer)
+            budget: Shared EmbeddingBudget to validate against (preferred). When
+                provided, callers should pass the same instance used by the
+                ContentChunker so preparation and submission agree on one cutoff.
         """
         self.vector_store = vector_store
         self.embedding_client = embedding_client
         self.collection_name = collection_name
         self.cache_ttl_hours = cache_ttl_hours
         self.min_similarity_score = min_similarity_score
-        self.max_embedding_tokens = max_embedding_tokens
+        self.budget = budget or resolve_embedding_budget(
+            max_embedding_tokens=max_embedding_tokens,
+            model=getattr(embedding_client, "model", None),
+        )
+        self.max_embedding_tokens = self.budget.effective_max_tokens
 
         # Track which URLs have been cached
         self._cached_urls = {}
@@ -112,10 +122,14 @@ class ChunkManager:
                 logger.error("No valid chunks to embed after validation")
                 return False
 
-            # Log chunk statistics (using conservative estimate)
-            avg_tokens = sum(len(text) // 3 for text in chunk_texts) // len(chunk_texts)
-            max_tokens = max(len(text) // 3 for text in chunk_texts)
-            logger.info(f"Embedding {len(chunk_texts)} chunks: avg={avg_tokens} tokens, max={max_tokens} tokens")
+            # Log chunk statistics
+            counts = [self.budget.count(text).count for text in chunk_texts]
+            avg_tokens = sum(counts) // len(counts)
+            max_tokens = max(counts)
+            logger.info(
+                f"Embedding {len(chunk_texts)} chunks: avg={avg_tokens} tokens, max={max_tokens} tokens "
+                f"(mode={self.budget.counting_mode})"
+            )
 
             # Generate embeddings with error handling
             try:
@@ -378,200 +392,36 @@ class ChunkManager:
 
         for chunk in chunks:
             content = chunk['content']
-            # Conservative token estimate: 1 token ≈ 3 chars (accounting for special tokens)
-            # This is more accurate than 4 chars and includes safety buffer
-            estimated_tokens = len(content) // 3
 
-            # If chunk is within limits, use as-is
-            if estimated_tokens <= self.max_embedding_tokens:
+            # If chunk already satisfies the effective budget, use as-is
+            if self.budget.fits(content):
                 validated_chunks.append(chunk)
                 chunk_texts.append(content)
-            else:
-                # Chunk is too large - split it into smaller pieces
-                logger.warning(
-                    f"Chunk too large for embedding ({estimated_tokens} tokens). "
-                    f"Splitting into smaller pieces (max: {self.max_embedding_tokens} tokens)"
-                )
+                continue
 
-                # Recursively split the chunk
-                split_pieces = self._recursive_split_chunk(content, chunk)
-                
-                for piece_content, piece_chunk_data in split_pieces:
-                    # Double-check each piece is within limits
-                    piece_tokens = len(piece_content) // 3
-                    if piece_tokens > self.max_embedding_tokens:
-                        # Still too large - split further by character limit
-                        logger.warning(
-                            f"Split piece still too large ({piece_tokens} tokens). "
-                            f"Applying character-based splitting."
-                        )
-                        char_limit = self.max_embedding_tokens * 3 - 100  # Safety margin
-                        sub_pieces = self._split_by_char_limit(piece_content, char_limit)
-                        for sub_content in sub_pieces:
-                            sub_chunk = piece_chunk_data.copy()
-                            sub_chunk['content'] = sub_content.strip()
-                            sub_chunk['token_count'] = len(sub_content) // 3
-                            validated_chunks.append(sub_chunk)
-                            chunk_texts.append(sub_content.strip())
-                    else:
-                        validated_chunks.append(piece_chunk_data)
-                        chunk_texts.append(piece_content.strip())
+            # Chunk is too large - split it against the same effective budget
+            # used during preparation, so no path applies a different cutoff.
+            token_count = self.budget.count(content)
+            logger.warning(
+                f"Chunk too large for embedding ({token_count.count} tokens, "
+                f"mode={'estimated' if token_count.estimated else 'exact'}). "
+                f"Splitting into smaller pieces (effective budget: {self.budget.effective_max_tokens} tokens)"
+            )
 
-                logger.info(f"Split large chunk into {len(split_pieces)} pieces")
+            pieces = split_text_to_budget(content, self.budget)
+            for piece_content in pieces:
+                piece_token_count = self.budget.count(piece_content)
+                sub_chunk = chunk.copy()
+                sub_chunk['content'] = piece_content
+                sub_chunk['token_count'] = piece_token_count.count
+                sub_chunk['token_count_estimated'] = piece_token_count.estimated
+                validated_chunks.append(sub_chunk)
+                chunk_texts.append(piece_content)
+
+            logger.info(f"Split large chunk into {len(pieces)} pieces")
 
         logger.info(f"Prepared {len(validated_chunks)} chunks for embedding (from {len(chunks)} original chunks)")
         return validated_chunks, chunk_texts
-
-    def _recursive_split_chunk(self, content: str, original_chunk: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
-        """
-        Recursively split a chunk that's too large for embedding.
-        
-        Args:
-            content: The content to split
-            original_chunk: Original chunk metadata
-            
-        Returns:
-            List of tuples (piece_content, piece_chunk_dict)
-        """
-        pieces = []
-        piece_count = 0
-        
-        # Use a safety margin: allow max_embedding_tokens * 0.95 to account for estimation errors
-        safe_max_tokens = int(self.max_embedding_tokens * 0.95)
-        safe_max_chars = safe_max_tokens * 3
-        
-        # Split by paragraphs first
-        paragraphs = content.split('\n\n')
-        current_piece = ""
-        
-        for para in paragraphs:
-            para_chars = len(para)
-            para_tokens = para_chars // 3
-            current_chars = len(current_piece)
-            current_tokens = current_chars // 3
-            
-            # If single paragraph exceeds limit, split by sentences
-            if para_tokens > safe_max_tokens:
-                # Save current piece if it exists
-                if current_piece.strip():
-                    piece_chunk = original_chunk.copy()
-                    piece_chunk['content'] = current_piece.strip()
-                    piece_chunk['token_count'] = current_tokens
-                    piece_chunk['split_piece'] = piece_count
-                    pieces.append((current_piece.strip(), piece_chunk))
-                    piece_count += 1
-                    current_piece = ""
-                
-                # Split paragraph by sentences
-                sentences = para.split('. ')
-                for sentence in sentences:
-                    sentence_chars = len(sentence)
-                    sentence_tokens = sentence_chars // 3
-                    
-                    # If single sentence is too large, split by character limit
-                    if sentence_tokens > safe_max_tokens:
-                        # Save current piece
-                        if current_piece.strip():
-                            piece_chunk = original_chunk.copy()
-                            piece_chunk['content'] = current_piece.strip()
-                            piece_chunk['token_count'] = len(current_piece) // 3
-                            piece_chunk['split_piece'] = piece_count
-                            pieces.append((current_piece.strip(), piece_chunk))
-                            piece_count += 1
-                            current_piece = ""
-                        
-                        # Split sentence by character limit
-                        sub_pieces = self._split_by_char_limit(sentence + '. ', safe_max_chars)
-                        for sub_piece in sub_pieces:
-                            sub_chunk = original_chunk.copy()
-                            sub_chunk['content'] = sub_piece.strip()
-                            sub_chunk['token_count'] = len(sub_piece) // 3
-                            sub_chunk['split_piece'] = piece_count
-                            pieces.append((sub_piece.strip(), sub_chunk))
-                            piece_count += 1
-                    elif current_chars + sentence_chars > safe_max_chars:
-                        # Adding sentence would exceed limit - save current piece
-                        if current_piece.strip():
-                            piece_chunk = original_chunk.copy()
-                            piece_chunk['content'] = current_piece.strip()
-                            piece_chunk['token_count'] = current_tokens
-                            piece_chunk['split_piece'] = piece_count
-                            pieces.append((current_piece.strip(), piece_chunk))
-                            piece_count += 1
-                            current_piece = ""
-                        current_piece = sentence + '. '
-                    else:
-                        current_piece += sentence + '. '
-                        current_chars += sentence_chars
-                        current_tokens = current_chars // 3
-            elif current_chars + para_chars > safe_max_chars:
-                # Adding paragraph would exceed limit - save current piece
-                if current_piece.strip():
-                    piece_chunk = original_chunk.copy()
-                    piece_chunk['content'] = current_piece.strip()
-                    piece_chunk['token_count'] = current_tokens
-                    piece_chunk['split_piece'] = piece_count
-                    pieces.append((current_piece.strip(), piece_chunk))
-                    piece_count += 1
-                    current_piece = ""
-                current_piece = para + '\n\n'
-            else:
-                current_piece += para + '\n\n'
-                current_chars += para_chars
-                current_tokens = current_chars // 3
-        
-        # Add remaining piece if it exists
-        if current_piece.strip():
-            piece_tokens = len(current_piece) // 3
-            if piece_tokens > safe_max_tokens:
-                # Final piece is still too large - split by character limit
-                sub_pieces = self._split_by_char_limit(current_piece, safe_max_chars)
-                for sub_piece in sub_pieces:
-                    sub_chunk = original_chunk.copy()
-                    sub_chunk['content'] = sub_piece.strip()
-                    sub_chunk['token_count'] = len(sub_piece) // 3
-                    sub_chunk['split_piece'] = piece_count
-                    pieces.append((sub_piece.strip(), sub_chunk))
-                    piece_count += 1
-            else:
-                piece_chunk = original_chunk.copy()
-                piece_chunk['content'] = current_piece.strip()
-                piece_chunk['token_count'] = piece_tokens
-                piece_chunk['split_piece'] = piece_count
-                pieces.append((current_piece.strip(), piece_chunk))
-        
-        return pieces
-
-    def _split_by_char_limit(self, text: str, char_limit: int) -> list[str]:
-        """
-        Split text by character limit as last resort.
-        
-        Args:
-            text: Text to split
-            char_limit: Maximum characters per piece
-            
-        Returns:
-            List of text pieces
-        """
-        pieces = []
-        remaining = text
-        
-        while len(remaining) > char_limit:
-            # Try to split at word boundary near the limit
-            split_pos = char_limit
-            # Look behind the split point for a word boundary (space, newline, punctuation)
-            for i in range(split_pos, max(0, split_pos - 200), -1):
-                if remaining[i] in ' \n\t.,;:!?':
-                    split_pos = i + 1
-                    break
-            
-            pieces.append(remaining[:split_pos])
-            remaining = remaining[split_pos:].lstrip()
-        
-        if remaining:
-            pieces.append(remaining)
-        
-        return pieces
 
     async def _embed_chunks_safely(
         self, chunk_texts: list[str], usage_sink=None
@@ -626,12 +476,12 @@ class ChunkManager:
 
         for i, text in enumerate(chunk_texts):
             try:
-                # Conservative token estimate with safety margin
-                estimated_tokens = len(text) // 3
-                safe_max_tokens = int(self.max_embedding_tokens * 0.95)  # Safety margin
-                
-                if estimated_tokens > safe_max_tokens:
-                    logger.warning(f"Skipping chunk {i}: too large ({estimated_tokens} tokens, max: {safe_max_tokens})")
+                if not self.budget.fits(text):
+                    token_count = self.budget.count(text)
+                    logger.warning(
+                        f"Skipping chunk {i}: too large ({token_count.count} tokens, "
+                        f"max: {self.budget.effective_max_tokens})"
+                    )
                     failed_indices.append(i)
                     continue
 
