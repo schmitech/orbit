@@ -11,7 +11,14 @@ from typing import Any, Optional
 
 from retrievers.base.abstract_vector_retriever import AbstractVectorRetriever
 from services.file_metadata.metadata_store import FileMetadataStore
+from services.file_processing.chunking.base_chunker import Chunk
+from services.file_processing.chunking.utils import TokenInt
 from services.file_storage.encryption import FileEncryptionError, FileEncryptor
+from utils.embedding_budget import (
+    EmbeddingBudget,
+    resolve_embedding_budget,
+    split_text_to_budget,
+)
 from vector_stores.base.store_manager import StoreManager
 
 logger = logging.getLogger(__name__)
@@ -68,6 +75,17 @@ class FileVectorRetriever(AbstractVectorRetriever):
         if not self.initialized:
             await self.initialize()
     
+    def _resolve_configured_max_embedding_tokens(self) -> int:
+        """Resolve configured max_embedding_tokens, honoring 0 or other explicitly set values."""
+        for candidate in (
+            getattr(self, "max_embedding_tokens", None),
+            self.config.get('adapter_config', {}).get('max_embedding_tokens'),
+            self.config.get('files', {}).get('max_embedding_tokens'),
+        ):
+            if candidate is not None:
+                return candidate
+        return 7500
+
     async def initialize(self):
         """Initialize the retriever."""
         if self.initialized:
@@ -75,6 +93,14 @@ class FileVectorRetriever(AbstractVectorRetriever):
         
         # Initialize embeddings
         await super().initialize()
+
+        # Initialize embedding budget mirroring IntentFirecrawlRetriever
+        embedding_model = getattr(self.embeddings, "model", None) if self.embeddings else None
+        max_tokens = self._resolve_configured_max_embedding_tokens()
+        self.embedding_budget = resolve_embedding_budget(
+            max_embedding_tokens=max_tokens,
+            model=embedding_model,
+        )
 
         # Initialize store manager (only if not already set - allows test mocking)
         if self.store_manager is None:
@@ -477,6 +503,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
         collection_name: str,
         encryptor: Optional[FileEncryptor] = None,
         usage_sink=None,
+        budget: Optional[EmbeddingBudget] = None,
     ) -> bool:
         """
         Index file chunks into vector store.
@@ -489,6 +516,9 @@ class FileVectorRetriever(AbstractVectorRetriever):
                 AAD-bound to chunk_id) before being stored as the vector
                 store's document/content field. Embeddings are always
                 computed from the plaintext chunk text first.
+            usage_sink: Optional usage tracking sink
+            budget: Optional explicit EmbeddingBudget. If omitted, resolved from
+                the embedding service / model or configuration.
 
         Returns:
             True if successful
@@ -497,8 +527,77 @@ class FileVectorRetriever(AbstractVectorRetriever):
             return False
 
         try:
+            # Resolve embedding budget for self.embeddings' model if not provided
+            if budget is None:
+                budget = getattr(self, "embedding_budget", None)
+            if budget is None:
+                embedding_model = getattr(self.embeddings, "model", None) if self.embeddings else None
+                max_tokens = self._resolve_configured_max_embedding_tokens()
+                budget = resolve_embedding_budget(
+                    max_embedding_tokens=max_tokens,
+                    model=embedding_model,
+                )
+
+            # Validate every chunk text against the budget immediately before embedding,
+            # splitting via split_text_to_budget if needed and re-associating split pieces.
+            raw_validated_chunks = []
+            for chunk in chunks:
+                chunk_text = getattr(chunk, 'text', '') if hasattr(chunk, 'text') else str(chunk)
+                if budget.fits(chunk_text):
+                    raw_validated_chunks.append(chunk)
+                else:
+                    pieces = split_text_to_budget(chunk_text, budget)
+                    for sub_i, piece in enumerate(pieces):
+                        orig_id = getattr(chunk, 'chunk_id', f"{file_id}_chunk_0")
+                        orig_index = getattr(chunk, 'chunk_index', 0)
+                        sub_id = f"{orig_id}_split_{sub_i}" if len(pieces) > 1 else orig_id
+                        sub_metadata = dict(chunk.metadata) if hasattr(chunk, 'metadata') and chunk.metadata else {}
+                        piece_count = budget.count(piece)
+                        piece_token_count = TokenInt(piece_count.count, estimated=piece_count.estimated)
+                        sub_metadata.update({
+                            'parent_chunk_id': orig_id,
+                            'parent_chunk_index': orig_index,
+                            'split_index': sub_i,
+                            'split_count': len(pieces),
+                            'token_count': piece_token_count,
+                            'token_count_estimated': piece_count.estimated,
+                            'estimated': piece_count.estimated,
+                        })
+                        sub_chunk = Chunk(
+                            chunk_id=sub_id,
+                            file_id=getattr(chunk, 'file_id', file_id),
+                            text=piece,
+                            chunk_index=0,  # will be sequentially assigned below
+                            metadata=sub_metadata,
+                        )
+                        raw_validated_chunks.append(sub_chunk)
+
+            # Assign sequential, unique chunk_index values across all outgoing chunks
+            validated_chunks = []
+            for idx, chunk in enumerate(raw_validated_chunks):
+                if getattr(chunk, 'chunk_index', None) == idx and isinstance(chunk, Chunk):
+                    validated_chunks.append(chunk)
+                else:
+                    if isinstance(chunk, Chunk):
+                        validated_chunks.append(Chunk(
+                            chunk_id=chunk.chunk_id,
+                            file_id=chunk.file_id,
+                            text=chunk.text,
+                            chunk_index=idx,
+                            metadata=dict(chunk.metadata),
+                            embedding=chunk.embedding,
+                        ))
+                    else:
+                        validated_chunks.append(Chunk(
+                            chunk_id=getattr(chunk, 'chunk_id', f"{file_id}_chunk_{idx}"),
+                            file_id=getattr(chunk, 'file_id', file_id),
+                            text=getattr(chunk, 'text', str(chunk)),
+                            chunk_index=idx,
+                            metadata=dict(getattr(chunk, 'metadata', {})),
+                        ))
+
             # Generate embeddings for chunks (always from plaintext)
-            chunk_texts = [chunk.text for chunk in chunks]
+            chunk_texts = [chunk.text for chunk in validated_chunks]
             if self.embeddings and hasattr(self.embeddings, "embed_documents_tracked"):
                 local_usage = {}
                 embeddings = await self.embeddings.embed_documents_tracked(
@@ -518,7 +617,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
                 ]
 
             # Prepare data for vector store
-            ids = [chunk.chunk_id for chunk in chunks]
+            ids = [chunk.chunk_id for chunk in validated_chunks]
 
             # Only the stored document/content text is encrypted — embeddings
             # above were already computed from the original plaintext.
@@ -530,7 +629,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
 
             metadata = []
             
-            for chunk in chunks:
+            for chunk in validated_chunks:
                 metadata.append({
                     'file_id': file_id,
                     'chunk_index': chunk.chunk_index,

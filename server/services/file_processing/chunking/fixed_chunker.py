@@ -9,7 +9,7 @@ import logging
 from typing import Any, Optional, Union
 
 from .base_chunker import TextChunker, Chunk
-from .utils import TokenizerProtocol
+from .utils import TokenizerProtocol, TokenInt
 
 logger = logging.getLogger(__name__)
 
@@ -129,20 +129,24 @@ class FixedSizeChunker(TextChunker):
             token_slice = tokens[start_idx:end_idx]
             
             # Decode tokens to text
+            decode_failed = False
             try:
                 chunk_text = self.tokenizer.decode(token_slice)
             except Exception as e:
                 logger.warning(f"Token decoding failed: {e}")
-                # Fallback: use character-based estimation for this chunk
-                # Average ~4 characters per token (heuristic for English text)
-                char_start = start_idx * 4  # Approximate character position
-                estimated_chars = len(token_slice) * 4
+                decode_failed = True
+                # Fallback: use shared estimation convention (1 token ~= 3 characters)
+                char_start = start_idx * 3
+                estimated_chars = len(token_slice) * 3
                 char_end = min(char_start + estimated_chars, len(text))
                 chunk_text = text[char_start:char_end]
             
             # Generate chunk ID
             chunk_id = self._generate_chunk_id(file_id, chunk_index)
-            
+
+            is_estimated = decode_failed or getattr(self.tokenizer, "estimated", False)
+            token_int = TokenInt(len(token_slice), estimated=is_estimated)
+
             # Create chunk
             chunk = Chunk(
                 chunk_id=chunk_id,
@@ -153,7 +157,9 @@ class FixedSizeChunker(TextChunker):
                     **metadata,
                     'token_start': start_idx,
                     'token_end': end_idx,
-                    'token_count': len(token_slice),
+                    'token_count': token_int,
+                    'token_count_estimated': is_estimated,
+                    'estimated': is_estimated,
                     'strategy': 'fixed_size',
                     'mode': 'token',
                 },

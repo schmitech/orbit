@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Optional, Union
 
-from .utils import get_tokenizer, TokenizerProtocol
+from .utils import get_tokenizer, TokenizerProtocol, TokenInt
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +74,11 @@ class TextChunker(ABC):
             text: Text to count tokens for
             
         Returns:
-            Number of tokens
+            Number of tokens (as TokenInt, preserving estimated flag)
         """
-        return self._tokenizer.count_tokens(text)
+        cnt = self._tokenizer.count_tokens(text)
+        is_est = getattr(cnt, 'estimated', getattr(self._tokenizer, 'estimated', False))
+        return TokenInt(int(cnt), estimated=is_est)
     
     def count_tokens_batch(self, texts: list[str]) -> list[int]:
         """
@@ -86,10 +88,14 @@ class TextChunker(ABC):
             texts: List of texts to count tokens for
             
         Returns:
-            List of token counts
+            List of token counts (as TokenInt, preserving estimated flag)
         """
         if hasattr(self._tokenizer, 'count_tokens_batch'):
-            return self._tokenizer.count_tokens_batch(texts)
+            counts = self._tokenizer.count_tokens_batch(texts)
+            return [
+                TokenInt(int(c), estimated=getattr(c, 'estimated', getattr(self._tokenizer, 'estimated', False)))
+                for c in counts
+            ]
         return [self.count_tokens(text) for text in texts]
     
     @abstractmethod

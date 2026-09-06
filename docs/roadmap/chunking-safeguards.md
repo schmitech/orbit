@@ -213,8 +213,8 @@ Status: proposed; depends on the Phase 1 shared budget abstraction (`server/util
 
 ## Completion checklist
 
-- [ ] Phase 1: consistent budgets and explicit counting modes
-- [ ] Phase 1b (follow-up, optional; not part of the Phase 6 gate unless merged first): `FileVectorRetriever.index_file_chunks()` validates every outgoing chunk against a resolved `EmbeddingBudget`; uploaded-file chunkers' decode-failure estimates and unlabeled character-as-token counting are fixed
+- [x] Phase 1: consistent budgets and explicit counting modes
+- [x] Phase 1b (follow-up, optional; not part of the Phase 6 gate unless merged first): `FileVectorRetriever.index_file_chunks()` validates every outgoing chunk against a resolved `EmbeddingBudget`; uploaded-file chunkers' decode-failure estimates and unlabeled character-as-token counting are fixed
 - [ ] Phase 2: source preservation and bounded final chunks
 - [ ] Phase 3: document-safe, bounded embedding recovery
 - [ ] Phase 4: explicit completeness and recoverable cache state

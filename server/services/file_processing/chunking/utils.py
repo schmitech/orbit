@@ -33,22 +33,38 @@ class TokenizerProtocol(Protocol):
         ...
 
 
+class TokenInt(int):
+    """An int representing token count with an explicit estimated flag."""
+    estimated: bool
+    count: int
+
+    def __new__(cls, value: int, estimated: bool = False):
+        obj = super().__new__(cls, value)
+        obj.estimated = bool(estimated)
+        obj.count = int(value)
+        return obj
+
+    def __repr__(self) -> str:
+        return f"TokenInt({int(self)}, estimated={self.estimated})"
+
+
 class SimpleTokenizer:
     """Simple character-based tokenizer as fallback."""
-    
+    estimated: bool = True
+
     def encode(self, text: str) -> list[int]:
         """Encode text as character codes."""
         return [ord(c) for c in text]
-    
+
     def decode(self, token_ids: list[int]) -> str:
         """Decode character codes to text."""
         return ''.join(chr(t) for t in token_ids)
-    
-    def count_tokens(self, text: str) -> int:
-        """Count characters as tokens."""
-        return len(text)
-    
-    def count_tokens_batch(self, texts: list[str]) -> list[int]:
+
+    def count_tokens(self, text: str) -> TokenInt:
+        """Count characters as tokens explicitly labeled as estimated."""
+        return TokenInt(len(text), estimated=True)
+
+    def count_tokens_batch(self, texts: list[str]) -> list[TokenInt]:
         """Count tokens for multiple texts."""
         return [self.count_tokens(text) for text in texts]
 
