@@ -1064,10 +1064,31 @@ class RouteConfigurator:
 
         class FeedbackRequest(BaseModel):
             message_id: str
-            session_id: str
+            session_id: str = Field(min_length=1)
             feedback_type: str  # 'up' or 'down'
             # Optional free-text comment (thumbs-down); bounded to prevent abuse.
             comment: Optional[str] = Field(default=None, max_length=MAX_COMMENT_LENGTH)
+
+        async def authorize_feedback_session(request: Request, session_id: str) -> None:
+            api_key = self._resolve_api_key(request)
+            if not api_key:
+                # Key enforcement is disabled; standalone feedback needs no history.
+                return
+            # A valid adapter key does not authorize reading or changing another
+            # tenant's feedback, including its private free-text comments.
+            # Keyed requests require history as the source of session ownership.
+            chat_history_service = getattr(request.app.state, 'chat_history_service', None)
+            if chat_history_service is None:
+                raise HTTPException(status_code=503, detail="Chat history service is not available")
+            try:
+                authorized = await chat_history_service.authorize_session(
+                    session_id, api_key
+                )
+            except Exception:
+                logger.exception("Failed to authorize feedback session")
+                raise HTTPException(status_code=503, detail="Session authorization is not available")
+            if not authorized:
+                raise HTTPException(status_code=403, detail="Access denied")
 
         @app.post("/api/feedback", operation_id="submit_feedback")
         async def submit_feedback(
@@ -1082,6 +1103,8 @@ class RouteConfigurator:
 
             if request_body.feedback_type not in ('up', 'down'):
                 raise HTTPException(status_code=400, detail="feedback_type must be 'up' or 'down'")
+
+            await authorize_feedback_session(request, request_body.session_id)
 
             try:
                 result = await feedback_service.submit_feedback(
@@ -1107,6 +1130,7 @@ class RouteConfigurator:
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
         ):
             """Get all feedback for a session."""
+            await authorize_feedback_session(request, session_id)
             try:
                 feedbacks = await feedback_service.get_session_feedback(session_id)
                 return {"feedbacks": feedbacks}
