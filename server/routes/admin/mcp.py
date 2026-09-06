@@ -9,6 +9,7 @@ rather than round-tripping through yaml.dump, which would erase every comment.
 """
 
 import logging
+import math
 import json
 import os
 import re
@@ -56,10 +57,17 @@ _MCP_SETTING_BOUNDS: dict[str, tuple] = {
     "tool_result_max_chars": (100, 200000),
     "pool_size": (0, 20),
     "pool_idle_timeout": (0, 3600),
+    "max_total_tokens": (0, 2_147_483_647),
+    "max_duration_seconds": (0, 86400),
+}
+
+_MCP_GLOBAL_BUDGETS = {
+    "max_total_tokens": "integer",
+    "max_duration_seconds": "number",
 }
 
 
-def _validate_mcp_settings(settings: Any, overridable: dict[str, Any]) -> None:
+def _validate_mcp_settings(settings: Any, overridable: dict[str, Any], *, allow_global: bool = False) -> None:
     """Reject unknown keys, wrong types, and out-of-range values.
 
     A null value is allowed: it deletes a per-server override so the server
@@ -70,12 +78,26 @@ def _validate_mcp_settings(settings: Any, overridable: dict[str, Any]) -> None:
     if not isinstance(settings, dict):
         raise HTTPException(status_code=422, detail="'settings' must be an object")
 
-    unknown = sorted(set(settings) - set(overridable))
+    allowed = set(overridable) | (set(_MCP_GLOBAL_BUDGETS) if allow_global else set())
+    unknown = sorted(set(settings) - allowed)
     if unknown:
         raise HTTPException(status_code=422, detail=f"Unknown MCP setting(s): {', '.join(unknown)}")
 
     for key, value in settings.items():
         if value is None:
+            continue
+        if allow_global and key in _MCP_GLOBAL_BUDGETS:
+            valid_type = isinstance(value, int) if key == "max_total_tokens" else isinstance(value, (int, float))
+            if (
+                isinstance(value, bool) or not valid_type
+                or (isinstance(value, float) and not math.isfinite(value))
+                or value < 0
+            ):
+                kind = "whole number" if key == "max_total_tokens" else "finite number"
+                raise HTTPException(status_code=422, detail=f"'{key}' must be a non-negative {kind} or null")
+            low, high = _MCP_SETTING_BOUNDS[key]
+            if not low <= value <= high:
+                raise HTTPException(status_code=422, detail=f"'{key}' must be between {low} and {high}")
             continue
         _coerce, fallback = overridable[key]
         if isinstance(fallback, bool):
@@ -441,7 +463,15 @@ async def list_mcp_servers(request: Request):
             }
             for key, (_c, fallback) in overridable.items()
         ],
-        "defaults": defaults,
+        "global_settings": [
+            {
+                "key": key, "type": kind, "nullable": True, "global_only": True,
+                "min": _MCP_SETTING_BOUNDS[key][0], "max": _MCP_SETTING_BOUNDS[key][1],
+                "max_length": 10 if kind == "integer" else 16,
+            }
+            for key, kind in _MCP_GLOBAL_BUDGETS.items()
+        ],
+        "defaults": {**defaults, **{key: block.get(key) for key in _MCP_GLOBAL_BUDGETS}},
         "servers": servers,
     }
 
@@ -991,7 +1021,7 @@ async def update_mcp_defaults(request: Request, body: dict = Body(...)):
     overridable = _mcp_overridable()
 
     settings = body.get("settings") or {}
-    _validate_mcp_settings(settings, overridable)
+    _validate_mcp_settings(settings, overridable, allow_global=True)
 
     lines = content.split("\n")
     start = -1

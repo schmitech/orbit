@@ -86,6 +86,8 @@ export function createMcpTab({
     },
     tool_timeout: { label: "Tool timeout", hint: "Seconds before a tool call is abandoned", unit: "s" },
     max_tool_iterations: { label: "Max tool rounds", hint: "Tool-calling rounds allowed per request" },
+    max_total_tokens: { label: "Total token budget", hint: "Reported tokens across rounds, including tool selection. Blank disables; 0 goes straight to synthesis." },
+    max_duration_seconds: { label: "Loop time budget", hint: "Seconds since the loop started. Blank disables; 0 goes straight to synthesis.", unit: "s" },
     tool_result_max_chars: { label: "Result cap", hint: "Characters of tool output kept in model context" },
     discovery_timeout: { label: "Discovery timeout", hint: "Seconds to wait when listing this server's tools", unit: "s" },
     discovery_retry_interval: { label: "Discovery retry", hint: "Seconds before retrying a server that failed", unit: "s" },
@@ -696,7 +698,7 @@ export function createMcpTab({
       el("div", { className: "mcp-detail-title" },
         el("h2", null, "Defaults"),
         el("p", { className: "muted" },
-          "Every server inherits these values unless it sets its own."
+          "Manage global loop budgets and the defaults inherited by each server."
         )
       ),
       mcpToggle({
@@ -717,18 +719,28 @@ export function createMcpTab({
       ));
     }
 
-    detail.appendChild(el("h3", null, "Default settings"));
     var ledger = el("div", { className: "mcp-ledger" });
-    (mcpData.settings || []).forEach(function (spec) {
+    (mcpData.global_settings || []).concat(mcpData.settings || []).forEach(function (spec, index) {
+      if (index === 0 || index === (mcpData.global_settings || []).length) {
+        detail.appendChild(el("h3", null, spec.global_only ? "Global loop budgets" : "Default settings"));
+        if (spec.global_only) {
+          detail.appendChild(el("p", { className: "muted" },
+            "Apply to explicit and opportunistic tool loops. Checked before each round; active work and final synthesis may exceed these soft limits. Stalled calls are not interrupted."
+          ));
+        }
+        ledger = el("div", { className: "mcp-ledger" });
+        detail.appendChild(ledger);
+      }
       var saved = mcpData.defaults[spec.key];
+      function currentValue() {
+        return Object.prototype.hasOwnProperty.call(mcpPending, spec.key) ? mcpPending[spec.key] : saved;
+      }
       var row = mcpSettingRow(spec, {
-        value: mcpPending[spec.key] != null ? mcpPending[spec.key] : saved,
+        value: currentValue(),
         isDefaults: true,
         inheritedValue: saved,
         isOverridden: function () { return false; },
-        currentValue: function () {
-          return mcpPending[spec.key] != null ? mcpPending[spec.key] : saved;
-        },
+        currentValue: currentValue,
         onChange: function (next) {
           if (next === saved) delete mcpPending[spec.key];
           else mcpPending[spec.key] = next;
@@ -738,9 +750,10 @@ export function createMcpTab({
       mcpDetailDirty.push(row.sync);
       ledger.appendChild(row);
     });
-    detail.appendChild(ledger);
 
     detail.appendChild(mcpSaveRow(async function () {
+      var invalid = detail.querySelector("input:invalid");
+      if (invalid) { invalid.reportValidity(); return; }
       var body = { settings: {} };
       Object.keys(mcpPending).forEach(function (key) {
         if (key === "enabled") body.enabled = mcpPending[key];
@@ -1515,6 +1528,40 @@ export function createMcpTab({
         label: meta.label,
         onChange: opts.onChange,
       });
+    } else if (spec.nullable) {
+      // Number inputs ignore maxlength. Use bounded text inputs so typing
+      // and pasting obey the same cap, while retaining fractional seconds.
+      var budgetMaxLength = spec.max_length || 16;
+      var budgetMax = typeof spec.max === "number" ? spec.max : 2147483647;
+      var budgetInteger = spec.type === "integer";
+      control = el("input", {
+        type: "text",
+        inputmode: budgetInteger ? "numeric" : "decimal",
+        maxlength: String(budgetMaxLength),
+        size: String(budgetMaxLength),
+        value: opts.value == null ? "" : String(opts.value),
+        placeholder: "Disabled",
+        className: "mcp-number",
+        "aria-label": meta.label,
+        title: "Between 0 and " + budgetMax + "; blank disables; 0 skips directly to synthesis",
+      });
+      control.addEventListener("input", function () {
+        var next = control.value.replace(budgetInteger ? /\D/g : /[^\d.]/g, "");
+        if (!budgetInteger) {
+          var dot = next.indexOf(".");
+          if (dot !== -1) next = next.slice(0, dot + 1) + next.slice(dot + 1).replace(/\./g, "");
+        }
+        next = next.slice(0, budgetMaxLength);
+        if (next !== control.value) {
+          var caret = Math.max(0, control.selectionStart - (control.value.length - next.length));
+          control.value = next;
+          try { control.setSelectionRange(caret, caret); } catch (e) { /* detached */ }
+        }
+        var valid = next === "" || (Number.isFinite(Number(next)) && Number(next) <= budgetMax);
+        control.setCustomValidity(valid ? "" : meta.label + " must be between 0 and " + budgetMax + ".");
+        if (!valid) return;
+        opts.onChange(control.value === "" ? null : Number(control.value));
+      });
     } else {
       // Bounds come from the server so the input and the endpoint's own
       // validation cannot disagree.
@@ -1600,7 +1647,7 @@ export function createMcpTab({
       provenance.classList.toggle("is-override", isOverride);
 
       if (opts.isDefaults) {
-        provenance.appendChild(document.createTextNode("default"));
+        provenance.appendChild(document.createTextNode(spec.global_only ? "global" : "default"));
         return;
       }
       if (isOverride) {

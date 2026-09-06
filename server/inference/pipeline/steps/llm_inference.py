@@ -396,6 +396,7 @@ class LLMInferenceStep(PipelineStep):
 
         budget = InjectionBudget(matched_skills)
         dispatch = build_dispatch(mcp_manager, surfaced_skills, matched_skills, budget)
+        loop_config = (self.container.get_or_none('config') or {}).get('mcp_clients') or {}
 
         final_text, sources, _ = await run_tool_calling_loop(
             provider=llm_provider,
@@ -408,6 +409,8 @@ class LLMInferenceStep(PipelineStep):
             usage_sink=usage_sink,
             cache_prefix_len=context.cacheable_prefix_len,
             dispatch=dispatch,
+            max_total_tokens=loop_config.get('max_total_tokens'),
+            max_duration_seconds=loop_config.get('max_duration_seconds'),
         )
         context.response = final_text or ""
         context.sources = (context.sources or []) + sources

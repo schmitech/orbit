@@ -187,6 +187,7 @@ class MCPAgentStep(PipelineStep):
 
         budget = InjectionBudget(matched_skills)
         dispatch = build_dispatch(mcp_manager, surfaced_skills, matched_skills, budget)
+        loop_config = (self.container.get_or_none('config') or {}).get('mcp_clients') or {}
 
         final_text, sources, _ = await run_tool_calling_loop(
             provider=provider,
@@ -199,6 +200,8 @@ class MCPAgentStep(PipelineStep):
             usage_sink=usage_sink,
             cache_prefix_len=cache_prefix_len,
             dispatch=dispatch,
+            max_total_tokens=loop_config.get('max_total_tokens'),
+            max_duration_seconds=loop_config.get('max_duration_seconds'),
         )
         provider_name = usage_sink.get("provider") or getattr(context, 'runtime_provider', None)
         model_name = usage_sink.get("model") or getattr(context, 'runtime_model_name', None)

@@ -9,9 +9,11 @@ loop/cancellation/executor logic is implemented once.
 
 import asyncio
 import logging
+import math
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Optional
-from collections.abc import Callable
 
 from ai_services.providers.usage_reporting import accumulate_usage_sink
 
@@ -128,6 +130,8 @@ async def run_tool_calling_loop(
     usage_sink: Optional[dict[str, Any]] = None,
     cache_prefix_len: Optional[int] = None,
     dispatch: Optional[Callable[[str, dict[str, Any]], Any]] = None,
+    max_total_tokens: int | None = None,
+    max_duration_seconds: float | None = None,
 ) -> tuple[Optional[str], list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Execute the bounded tool-calling loop.
@@ -139,6 +143,14 @@ async def run_tool_calling_loop(
         messages: Initial OpenAI-format messages list (mutated in place).
         tools: OpenAI-format tool schemas to expose to the model.
         max_iterations: Maximum tool-calling rounds before forcing a final answer.
+        max_total_tokens: Soft cumulative reported-token threshold, including
+            any usage already in usage_sink. None disables it; zero skips
+            directly to synthesis. Tracking works without a caller-owned sink,
+            but providers that do not report usage cannot enforce this limit.
+        max_duration_seconds: Soft elapsed-time threshold starting at loop entry,
+            checked before each round. None disables it; zero skips to synthesis.
+            Neither threshold interrupts an active round or limits the final
+            synthesis call, so these are not hard token or request-time caps.
         cancel_event: Optional asyncio.Event; when set, in-flight calls are torn down.
         is_cancelled: Optional callable checked between iterations for a cheap
             fast-path cancellation check.
@@ -168,6 +180,26 @@ async def run_tool_calling_loop(
         mutated with all assistant/tool turns, so a caller that wants to make a
         follow-up call can reuse it instead of re-deriving conversation state.
     """
+    if max_total_tokens is not None and (
+        isinstance(max_total_tokens, bool)
+        or not isinstance(max_total_tokens, int)
+        or max_total_tokens < 0
+    ):
+        raise ValueError("max_total_tokens must be a non-negative integer or None")
+    if max_duration_seconds is not None and (
+        isinstance(max_duration_seconds, bool)
+        or not isinstance(max_duration_seconds, (int, float))
+        or not math.isfinite(max_duration_seconds)
+        or max_duration_seconds < 0
+    ):
+        raise ValueError("max_duration_seconds must be a finite non-negative number or None")
+    deadline = (
+        time.monotonic() + max_duration_seconds
+        if max_duration_seconds is not None else None
+    )
+    if usage_sink is None and max_total_tokens is not None:
+        usage_sink = {}
+    stop_reason = f"exhausted {max_iterations} iterations"
     sources: list[dict[str, Any]] = []
     # Best answer text seen so far, returned if the caller cancels mid-loop.
     last_text: Optional[str] = None
@@ -187,6 +219,13 @@ async def run_tool_calling_loop(
         if _cancelled():
             logger.info("MCP tool loop cancelled before iteration %d/%d", iteration + 1, max_iterations)
             return last_text or "", sources, messages
+
+        if max_total_tokens is not None and (usage_sink.get("total_tokens") or 0) >= max_total_tokens:
+            stop_reason = f"reached token budget ({max_total_tokens}) at iteration {iteration + 1}"
+            break
+        if deadline is not None and time.monotonic() >= deadline:
+            stop_reason = f"reached wall-clock budget ({max_duration_seconds}s) at iteration {iteration + 1}"
+            break
 
         logger.debug(
             "MCP tool loop iteration %d/%d, messages=%d, tools=%d",
@@ -282,11 +321,11 @@ async def run_tool_calling_loop(
                     "version": trusted.version,
                 })
 
-    # If we exhaust iterations without a final answer, synthesize from last response
+    # If a loop limit is reached without a final answer, synthesize from history.
     logger.warning(
-        "MCP tool loop exhausted %d iterations without a final answer; "
+        "MCP tool loop %s without a final answer; "
         "forcing a final text answer.",
-        max_iterations,
+        stop_reason,
     )
     # Ask the model one final time with NO tools, so it is forced to produce
     # a text answer from the accumulated history instead of requesting yet

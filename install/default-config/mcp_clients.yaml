@@ -24,6 +24,12 @@ mcp_clients:
                                      # (global only — use each server's own
                                      #  `enabled` to toggle one server)
 
+  # Global soft budgets for both explicit and opportunistic tool loops.
+  # Checked before each round; active work and final synthesis may exceed them.
+  # null disables a budget; 0 skips directly to final synthesis.
+  max_total_tokens: null           # Cumulative reported tokens, including tool selection usage
+  max_duration_seconds: null       # Elapsed loop time; does not interrupt stalled calls
+
   # ── Defaults ─────────────────────────────────────────────────────────────
   # Every setting in this block is a DEFAULT. Any entry under `servers:` may
   # redeclare any of these keys to override it for that server alone.

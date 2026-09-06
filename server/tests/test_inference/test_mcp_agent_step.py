@@ -17,6 +17,8 @@ import os
 import sys
 import types
 
+import pytest
+
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, server_dir)
 
@@ -174,6 +176,19 @@ _TOOLS = [{"type": "function", "function": {"name": "filesystem__read_file", "pa
 
 
 class TestMCPAgentLoop:
+    @pytest.mark.parametrize("setting", ["max_total_tokens", "max_duration_seconds"])
+    async def test_global_zero_budget_skips_tool_rounds(self, setting, monkeypatch):
+        provider = _FakeProvider([])
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step(provider, manager)
+        monkeypatch.setattr(step.container, "get_or_none", lambda name:
+                            {"mcp_clients": {setting: 0}} if name == "config" else None)
+        _text, sources = await step._run_agent_loop(
+            ProcessingContext(message="hi", adapter_name="mcp-agent-chat")
+        )
+        assert provider.calls == [(2, 0)]
+        assert manager.called_with == sources == []
+
     async def test_no_tool_calls_returns_text_immediately(self):
         provider = _FakeProvider([
             ToolCallingResult(

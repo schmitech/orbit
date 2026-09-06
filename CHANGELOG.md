@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Bug Fixes
+- **MCP Tool Loop Budgets (#363)**: Added optional global `max_total_tokens` and `max_duration_seconds` budgets in `config/mcp_clients.yaml`, applied to both the explicit `mcp-agent` skill and opportunistic MCP tool loops. Reaching either soft threshold stops new tool-calling rounds and moves straight to final synthesis; token tracking works without a caller-provided usage accumulator. Both default to `null` (disabled); `0` skips tool rounds entirely. Also exposed as "Total token budget" and "Loop time budget" under the MCP admin tab's Defaults > Global loop budgets section, with matching validation on the admin API.
+
 ## [2.17.5] - 2026-09-05
 
 ### Security

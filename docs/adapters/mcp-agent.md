@@ -855,6 +855,47 @@ The `sources` array appears in the final `{"done": true}` chunk.
 
 A single request may involve several tool-calling rounds, all resolved server-side within that one request/response cycle — the client never has to make a follow-up call to "continue" a chain. Each round appends the tool result to the conversation before the next model call. The loop is bounded by `max_tool_iterations` (default 5); if that limit is reached without a final answer, one last model call is made (with an empty tool list, forcing text output) to synthesize a response from the accumulated context.
 
+Optional global budgets in `mcp_clients` apply to both the explicit agent and
+opportunistic tool loops, without per-server or per-adapter overrides:
+
+```yaml
+mcp_clients:
+  max_total_tokens: 50000
+  max_duration_seconds: 60
+```
+
+Both default to `null` (disabled). Zero skips tool rounds and goes straight to
+the final synthesis call. Values must be non-negative; the token budget must
+be an integer and the duration must be finite. Budgets are checked before each
+round. The token count includes cumulative reported input and output tokens
+(including cached tokens and any tool-selection usage already accumulated).
+The elapsed-time budget starts when the tool loop begins, after discovery,
+selection, and initial message construction.
+
+These are **soft thresholds**, not hard cost or request-time caps: an active
+round completes its tool calls, and final synthesis still runs with no tools.
+Both can exceed the budgets; synthesis usage is included in reported totals.
+Token enforcement works even without a caller-provided usage accumulator, but
+cannot account for usage a provider does not report. Elapsed-time checks do
+not interrupt stalled awaits; configure provider timeouts and `tool_timeout`
+separately. Existing `tool_result_max_chars` limits individual MCP result size.
+
+**Admin panel** — these two budgets are also editable from the MCP tab's
+**Defaults** pane, under a **Global loop budgets** section (they don't appear
+in the per-server settings list, since they aren't overridable per server):
+
+| Admin panel field | Config key | What it does |
+|---|---|---|
+| Total token budget | `max_total_tokens` | Stops starting new tool-calling rounds once cumulative reported tokens (input + output, including cached and tool-selection usage) reach this value, and moves straight to final synthesis. |
+| Loop time budget | `max_duration_seconds` | Stops starting new tool-calling rounds once this many seconds have elapsed since the loop began (after discovery/selection/message construction), and moves straight to final synthesis. |
+
+Both fields are blank by default (disabled). Entering `0` skips tool rounds
+entirely and goes straight to synthesis; any other value must be a
+non-negative number (whole number for the token budget). Clearing a field
+back to blank removes the budget. As noted above, these are soft
+thresholds — an in-flight round and the final synthesis call are not
+interrupted and may push actual usage past the configured value.
+
 The model handles tool errors gracefully — if a tool call fails (access denied, network error, invalid arguments, etc.), the error message is injected into the conversation and the model can retry with corrected arguments or explain the limitation in its final answer.
 
 ### No external agent framework — plain Python loop over native tool calling

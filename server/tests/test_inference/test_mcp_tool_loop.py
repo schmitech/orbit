@@ -13,6 +13,9 @@ wrapper, kept intact to guard the extraction against regressions.
 import asyncio
 import os
 import sys
+from types import SimpleNamespace
+
+import pytest
 
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, server_dir)
@@ -135,6 +138,94 @@ def _initial_messages(message="hi"):
         {"role": "system", "content": "sys"},
         {"role": "user", "content": message},
     ]
+
+
+class TestLoopBudgets:
+    @pytest.mark.parametrize("with_sink", [True, False])
+    @pytest.mark.parametrize("limit", [100, 150])
+    async def test_token_threshold_stops_rounds_and_sums_synthesis(self, with_sink, limit):
+        rounds = 1 if limit == 100 else 2
+        provider = _FakeTrackedProvider(
+            [_tool_call_result()] * rounds,
+            usages=[{"reported": True, "total_tokens": 100}] * 3,
+        )
+        sink = {} if with_sink else None
+        manager = _FakeMCPManager()
+        text, sources, messages = await run_tool_calling_loop(
+            provider, manager, _initial_messages(), _TOOLS, max_iterations=5,
+            usage_sink=sink, max_total_tokens=limit,
+        )
+        assert text == "default-final"
+        assert [count for _, count in provider.calls] == [1] * rounds + [0]
+        assert len(manager.called_with) == rounds
+        assert len(sources) == rounds
+        assert len(messages) == 2 + rounds * 2
+        if with_sink:
+            assert sink["total_tokens"] == (rounds + 1) * 100
+            assert sink["calls"] == rounds + 1
+
+    @pytest.mark.parametrize("budget", [
+        {"max_total_tokens": 0}, {"max_duration_seconds": 0},
+    ])
+    async def test_zero_budget_goes_directly_to_synthesis(self, budget):
+        provider = _FakeProvider([])
+        manager = _FakeMCPManager()
+        text, sources, _ = await run_tool_calling_loop(
+            provider, manager, _initial_messages(), _TOOLS, max_iterations=5, **budget,
+        )
+        assert text == "default-final"
+        assert provider.calls == [(2, 0)]
+        assert manager.called_with == sources == []
+
+    async def test_existing_usage_counts_toward_budget(self):
+        provider = _FakeProvider([])
+        await run_tool_calling_loop(
+            provider, _FakeMCPManager(), _initial_messages(), _TOOLS, max_iterations=5,
+            usage_sink={"total_tokens": 100}, max_total_tokens=100,
+        )
+        assert provider.calls == [(2, 0)]
+
+    async def test_deadline_stops_next_round_but_preserves_tool_results(self, monkeypatch):
+        import inference.pipeline.mcp_tool_loop as loop
+        now = [10.0]
+        monkeypatch.setattr(loop, "time", SimpleNamespace(monotonic=lambda: now[0]))
+
+        async def dispatch(name, arguments):
+            now[0] = 15.0
+            return "completed result"
+
+        provider = _FakeProvider([_tool_call_result()])
+        text, sources, messages = await run_tool_calling_loop(
+            provider, _FakeMCPManager(), _initial_messages(), _TOOLS, max_iterations=5,
+            max_duration_seconds=5, dispatch=dispatch,
+        )
+        assert text == "default-final"
+        assert provider.calls == [(2, 1), (4, 0)]
+        assert "completed result" in messages[-1]["content"]
+        assert len(sources) == 1
+
+    async def test_unreported_usage_retains_iteration_limit(self):
+        provider = _FakeNonReportingTrackedProvider([_tool_call_result()] * 2)
+        await run_tool_calling_loop(
+            provider, _FakeMCPManager(), _initial_messages(), _TOOLS, max_iterations=2,
+            max_total_tokens=1,
+        )
+        assert [count for _, count in provider.calls] == [1, 1, 0]
+
+    @pytest.mark.parametrize("budget", [
+        {"max_total_tokens": -1}, {"max_total_tokens": 1.5},
+        {"max_total_tokens": True}, {"max_total_tokens": "100"},
+        {"max_duration_seconds": -1}, {"max_duration_seconds": float("inf")},
+        {"max_duration_seconds": float("nan")}, {"max_duration_seconds": True},
+    ])
+    async def test_invalid_budgets_fail_before_provider_call(self, budget):
+        provider = _FakeProvider([])
+        with pytest.raises(ValueError):
+            await run_tool_calling_loop(
+                provider, _FakeMCPManager(), _initial_messages(), _TOOLS,
+                max_iterations=5, **budget,
+            )
+        assert provider.calls == []
 
 
 class TestRunToolCallingLoop:

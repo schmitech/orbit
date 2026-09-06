@@ -13,6 +13,8 @@ system message.
 import os
 import sys
 
+import pytest
+
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, server_dir)
 
@@ -155,6 +157,23 @@ class TestOpportunisticMCPToolsDisabledByDefault:
 
 
 class TestOpportunisticMCPToolsEnabled:
+    @pytest.mark.parametrize("setting", ["max_total_tokens", "max_duration_seconds"])
+    async def test_global_zero_budget_skips_tool_rounds(self, setting, monkeypatch):
+        class Provider(_FakeProvider):
+            async def generate_with_tools(self, messages, tools, **kwargs):
+                assert tools == []
+                return await super().generate_with_tools(messages, tools, **kwargs)
+
+        provider = Provider(generate_with_tools_result=_final_result())
+        manager = _FakeMCPManager(_TOOLS)
+        step = _make_step(provider, manager)
+        monkeypatch.setattr(step.container, "get_or_none", lambda name:
+                            {"mcp_clients": {setting: 0}} if name == "config" else None)
+        ctx = ProcessingContext(message="hi", adapter_name="chat", mcp_tools=True)
+        assert await step._run_inline_mcp_tools(ctx, provider) is True
+        assert ctx.response == "tool-derived answer"
+        assert provider.generate_with_tools_calls == 1
+
     async def test_runs_tool_loop_inline_and_sets_sources(self):
         provider = _FakeProvider(generate_with_tools_result=_final_result())
         manager = _FakeMCPManager(_TOOLS, tool_output="doc-contents")

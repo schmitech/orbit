@@ -55,6 +55,11 @@ mcp_clients:
   max_tool_iterations: 5            # Maximum tool-calling rounds per request. When a request can
                                     # reach several servers, the most permissive one wins.
   tool_result_max_chars: 8000       # Cap on result text injected into model context (prevents context overflow)
+  # Global soft budgets for both explicit and opportunistic tool loops.
+  # Checked before each round; active work and final synthesis may exceed them.
+  # null disables a budget; 0 skips directly to final synthesis.
+  max_total_tokens: null           # Cumulative reported tokens, including tool selection usage
+  max_duration_seconds: null       # Elapsed loop time; does not interrupt stalled calls
   pool_size: 2
   pool_idle_timeout: 300
 

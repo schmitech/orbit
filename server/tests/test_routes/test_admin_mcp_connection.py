@@ -72,6 +72,52 @@ def _fake_request(config_path: Path, config=None):
     return SimpleNamespace(app=SimpleNamespace(state=state))
 
 
+class TestGlobalLoopBudgets:
+    async def test_budgets_round_trip_and_clear_without_server_overrides(self, tmp_path):
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+        with patch.object(admin_routes, "_reload_mcp_clients", new=AsyncMock(return_value={})):
+            for settings in (
+                {"max_total_tokens": 50000, "max_duration_seconds": 1.5},
+                {"max_total_tokens": 2147483647, "max_duration_seconds": 86400},
+                {"max_total_tokens": 0, "max_duration_seconds": 0},
+                {"max_total_tokens": None, "max_duration_seconds": None},
+            ):
+                await admin_routes.update_mcp_defaults(request, {"settings": settings})
+                data = await admin_routes.list_mcp_servers(request)
+                assert {spec["key"] for spec in data["global_settings"]} == set(settings)
+                assert not set(settings) & {spec["key"] for spec in data["settings"]}
+                for spec in data["global_settings"]:
+                    assert spec["max"] == admin_routes._MCP_SETTING_BOUNDS[spec["key"]][1]
+                    assert spec["max_length"] <= 16
+                for key, value in settings.items():
+                    assert data["defaults"][key] == value
+                    assert all(key not in server["overrides"] for server in data["servers"])
+                    assert all(key not in server["effective"] for server in data["servers"])
+
+    @pytest.mark.parametrize("settings", [
+        {"max_total_tokens": -1}, {"max_total_tokens": 1.5},
+        {"max_total_tokens": True}, {"max_total_tokens": "100"},
+        {"max_duration_seconds": -1}, {"max_duration_seconds": float("inf")},
+        {"max_duration_seconds": float("nan")}, {"max_duration_seconds": False},
+        {"max_total_tokens": 2147483648}, {"max_total_tokens": 10 ** 100},
+        {"max_duration_seconds": 86400.1}, {"max_duration_seconds": 1e100},
+    ])
+    async def test_invalid_budget_does_not_write(self, tmp_path, settings):
+        request = _fake_request(_write_temp_config(tmp_path))
+        with pytest.raises(HTTPException) as exc:
+            await admin_routes.update_mcp_defaults(request, {"settings": settings})
+        assert exc.value.status_code == 422
+        assert (tmp_path / "mcp_clients.yaml").read_text() == MCP_YAML
+
+    @pytest.mark.parametrize("key", ["max_total_tokens", "max_duration_seconds"])
+    async def test_budget_cannot_be_overridden_per_server(self, tmp_path, key):
+        request = _fake_request(_write_temp_config(tmp_path))
+        with pytest.raises(HTTPException) as exc:
+            await admin_routes.update_mcp_server("http-server", request, {"settings": {key: 10}})
+        assert exc.value.status_code == 422
+
+
 class TestValidateMcpConnection:
     def test_empty_connection_is_a_noop(self):
         admin_routes._validate_mcp_connection({"transport": "stdio"}, {})
