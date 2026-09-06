@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.6] - 2026-09-06
 
 ### Bug Fixes
 - **Chunking Safeguards (Phase 1)**: Added a shared embedding budget for Firecrawl content chunking and embedding submission, eliminating the previous mismatch between preparation and fallback limits. Budgets now clamp to known limits for provider-qualified embedding models, apply one safety margin, validate overlap after clamping, prefer model-aware token counting when available, label estimated counts explicitly, and split oversized content into validated pieces with clear failures for unsplittable inputs.
