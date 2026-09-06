@@ -1841,11 +1841,11 @@ Located in `bin/orbit.py`
 ✅ **Input Validation**: Pydantic models validate all inputs  
 ✅ **Error Handling**: Secure error messages, no info leakage  
 ✅ **Audit Logging**: Authentication events logged  
-✅ **Login Rate Limiting**: Cache-backed IP and username throttling with degraded-mode fallback — [implementation plan](roadmap/authentication/complete/phase-1-auth-login-rate-limiting.md)
-✅ **Password Complexity**: Configurable local password requirements and common-password rejection — [implementation plan](roadmap/authentication/complete/phase-2-auth-password-complexity.md)
-✅ **Account Lockout**: Durable, automatically-expiring lockout after consecutive failed local-password logins — [implementation plan](roadmap/authentication/complete/phase-3-auth-account-lockout.md)
-✅ **Audit Trail**: Detailed logging of authentication and session events — [implementation plan](roadmap/authentication/complete/phase-4-auth-audit-trail-coverage.md)
-✅ **Session Monitoring**: Self-service and admin listing/revocation of active sessions, with source IP/user agent/last-seen tracking — [implementation plan](roadmap/authentication/complete/phase-5-auth-session-monitoring.md)
+✅ **Login Rate Limiting**: Cache-backed IP and username throttling with degraded-mode fallback — [implementation plan](roadmap/complete/authentication/phase-1-auth-login-rate-limiting.md)
+✅ **Password Complexity**: Configurable local password requirements and common-password rejection — [implementation plan](roadmap/complete/authentication/phase-2-auth-password-complexity.md)
+✅ **Account Lockout**: Durable, automatically-expiring lockout after consecutive failed local-password logins — [implementation plan](roadmap/complete/authentication/phase-3-auth-account-lockout.md)
+✅ **Audit Trail**: Detailed logging of authentication and session events — [implementation plan](roadmap/complete/authentication/phase-4-auth-audit-trail-coverage.md)
+✅ **Session Monitoring**: Self-service and admin listing/revocation of active sessions, with source IP/user agent/last-seen tracking — [implementation plan](roadmap/complete/authentication/phase-5-auth-session-monitoring.md)
 
 ### Recommended Additional Security
 

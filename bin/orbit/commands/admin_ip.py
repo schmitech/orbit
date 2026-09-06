@@ -3,7 +3,7 @@ Admin IP allowlist commands.
 
 Manages the CIDR ranges permitted to reach `/admin/*` and the admin-scoped
 `/auth/*` routes, on top of `auth.admin_ip_allowlist.default_ranges` in
-config.yaml. See docs/roadmap/authentication/complete/phase-6-auth-admin-ip-allowlist.md.
+config.yaml. See docs/roadmap/complete/authentication/phase-6-auth-admin-ip-allowlist.md.
 """
 
 import argparse

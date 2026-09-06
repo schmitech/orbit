@@ -841,7 +841,7 @@ config reload already uses.
 
 ---
 
-## 9. Summary for the client
+## 9. Summary
 
 > ORBIT can support admin-authored `SKILL.md` playbooks associated with MCP
 > tools, letting the model discover and load detailed procedural guidance
