@@ -181,8 +181,13 @@ async def list_api_keys(
                 key_dict["system_prompt_name"] = prompt_names.get(prompt_id)
 
             serialized_keys.append(key_dict)
-        
-        return serialized_keys
+
+        expiration_warning_days = api_key_service.config.get('api_keys', {}).get('expiration_warning_days', 14)
+
+        return {
+            "keys": serialized_keys,
+            "expiration_warning_days": expiration_warning_days,
+        }
         
     except Exception as e:
         logger.error(f"Error listing API keys: {e!s}")

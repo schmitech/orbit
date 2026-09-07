@@ -61,7 +61,7 @@ class ApiKeyCreate(BaseModel):
     allowed_emails: List[str] | None = None  # Restrict to these authenticated email addresses
     expires_at: datetime | None = None  # Absolute expiration; defaults to now + default_lifetime_days
     non_expiring: bool = False  # Explicit non-expiring exception; requires expiration_justification
-    expiration_justification: str | None = Field(default=None, max_length=2000)
+    expiration_justification: str | None = Field(default=None, max_length=1000)
 
     @model_validator(mode='before')
     @classmethod
@@ -105,7 +105,7 @@ class ApiKeyExpirationUpdate(BaseModel):
     """API key renewal/expiration-update request model"""
     expires_at: datetime | None = None  # Absolute new expiration
     non_expiring: bool = False  # Explicit non-expiring exception; requires justification
-    expiration_justification: str | None = Field(default=None, max_length=2000)
+    expiration_justification: str | None = Field(default=None, max_length=1000)
 
     @model_validator(mode='before')
     @classmethod

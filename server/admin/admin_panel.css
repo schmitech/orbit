@@ -516,6 +516,13 @@ textarea {
   gap: var(--sp-3);
 }
 
+/* Author display rules (e.g. .stack's display:grid) otherwise beat the UA
+   default [hidden]{display:none}, since author styles win regardless of
+   specificity — leaving a toggled-hidden element visible. */
+[hidden] {
+  display: none !important;
+}
+
 .panel-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -593,7 +600,7 @@ label {
   color: var(--ink-secondary);
 }
 
-input,
+input:not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
   border: 1px solid var(--border);
@@ -672,13 +679,13 @@ textarea {
   box-shadow: none;
 }
 
-input:hover,
+input:not([type="checkbox"]):not([type="radio"]):hover,
 select:hover,
 textarea:hover {
   border-color: #b8c4d6;
 }
 
-input:focus,
+input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus,
 textarea:focus {
   border-color: var(--brand-500);
@@ -2032,6 +2039,150 @@ tbody tr:nth-child(even) {
 
 .detail-action-row {
   margin-top: var(--sp-3);
+}
+
+/* ============================================================
+   API key expiration controls
+   ============================================================ */
+
+.api-key-filter-grid {
+  grid-template-columns: minmax(0, 1.5fr) minmax(200px, 1fr);
+  align-items: end;
+}
+
+.expiration-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.expiration-fieldset legend {
+  font-weight: 600;
+  padding: 0 var(--sp-1);
+}
+
+.expiration-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+}
+
+label.expiration-choice-row-item {
+  align-items: center;
+  margin: 0;
+  width: auto;
+}
+
+.expiration-choice-row-item input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--brand-500);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.expiration-date-input {
+  width: auto;
+  max-width: 15rem;
+  cursor: pointer;
+  background: var(--surface);
+}
+
+/* Flatpickr theming to match the panel, plus the Done row it has no
+   built-in equivalent of (the native picker's calendar has no visible way
+   to close after choosing a time). */
+.flatpickr-calendar {
+  font-family: inherit;
+  box-shadow: var(--shadow-md, 0 4px 16px rgba(15, 29, 51, 0.12));
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.flatpickr-months .flatpickr-month,
+.flatpickr-current-month,
+.flatpickr-weekdays {
+  color: var(--ink);
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover {
+  background: var(--brand-500);
+  border-color: var(--brand-500);
+}
+
+.flatpickr-day.today {
+  border-color: var(--brand-400, var(--brand-500));
+}
+
+.flatpickr-time input:focus,
+.flatpickr-time .flatpickr-am-pm:focus {
+  background: var(--brand-50);
+}
+
+.flatpickr-done-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+
+.flatpickr-done-btn {
+  padding: var(--sp-1) var(--sp-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--brand-500);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.flatpickr-done-btn:hover {
+  background: var(--brand-600, var(--brand-500));
+}
+
+.expiration-cell {
+  white-space: nowrap;
+}
+
+.expiration-cell .monitoring-badge {
+  margin-left: var(--sp-2);
+}
+
+.expiration-secondary {
+  color: var(--ink-secondary);
+}
+
+.api-key-expiration-section {
+  margin-top: var(--sp-3);
+}
+
+.api-key-expiration-section .info-row {
+  justify-content: flex-start;
+  gap: var(--sp-4);
+}
+
+.api-key-expiration-section .info-label {
+  min-width: 8rem;
+}
+
+.api-key-renew-form {
+  margin-top: var(--sp-3);
+}
+
+@media (max-width: 680px) {
+  .expiration-cell {
+    white-space: normal;
+  }
+
+  .expiration-date-input {
+    width: 100%;
+    max-width: none;
+  }
 }
 
 .role-editor {

@@ -1263,6 +1263,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     skeleton: skeleton,
     refreshButton: refreshButton,
     field: field,
+    helpTooltip: helpTooltip,
     svgIcon: svgIcon,
     iconPlus: ICON_PLUS,
     iconEye: ICON_EYE,
@@ -1605,7 +1606,8 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
 
   async function loadAvailableKeys() {
     try {
-      cachedKeys = await api("GET", ENDPOINTS.apiKeys);
+      var result = await api("GET", ENDPOINTS.apiKeys);
+      cachedKeys = (result && result.keys) || [];
     } catch (_) {
       cachedKeys = [];
     }

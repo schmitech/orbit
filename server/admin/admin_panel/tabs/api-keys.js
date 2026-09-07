@@ -1,5 +1,173 @@
+// Fallback used only when a server response omits `expiration_warning_days`
+// (e.g. an older server). The real threshold always comes from the server.
+var DEFAULT_EXPIRATION_WARNING_DAYS = 14;
+
+// Matches the server's expiration_justification max_length (server/models/schema.py).
+var MAX_JUSTIFICATION_LENGTH = 1000;
+
+// Sanity bound for the custom-expiration input only (keeps the picker from
+// accepting nonsense like a 5-digit year); the server remains the sole
+// authority on the actual configured maximum lifetime.
+var MAX_EXPIRATION_INPUT_YEARS = 100;
+
+// Replaces the browser's native datetime-local widget (whose calendar has
+// no visible way to close after picking a time) with Flatpickr: a small,
+// self-hosted (server/admin/flatpickr.min.{js,css}, no CDN) calendar with
+// an explicit Done button. `input` is a plain readonly text input; the
+// picker keeps its value in the same "Y-m-d\THH:mm" shape the native
+// widget produced, so buildExpirationRequest()'s `new Date(dateValue)`
+// parsing is unchanged. Requires the global `flatpickr` (loaded via
+// <script> in admin_panel.html) — a no-op if it isn't present.
+function initExpirationDatePicker(input) {
+  if (typeof window === "undefined" || !window.flatpickr) return null;
+  var fp = window.flatpickr(input, {
+    enableTime: true,
+    time_24hr: true,
+    dateFormat: "Y-m-d\\TH:i",
+    closeOnSelect: false,
+    minDate: new Date(Date.now() + 60000),
+    maxDate: new Date(Date.now() + MAX_EXPIRATION_INPUT_YEARS * 365 * 24 * 60 * 60 * 1000),
+    onReady: function (selectedDates, dateStr, instance) {
+      var doneBtn = document.createElement("button");
+      doneBtn.type = "button";
+      doneBtn.className = "flatpickr-done-btn";
+      doneBtn.textContent = "Done";
+      doneBtn.addEventListener("click", function () { instance.close(); });
+      var footer = document.createElement("div");
+      footer.className = "flatpickr-done-row";
+      footer.appendChild(doneBtn);
+      instance.calendarContainer.appendChild(footer);
+    }
+  });
+  return fp;
+}
+
+// Sort sentinels: finite `expires_at` timestamps sort chronologically: a
+// non-expiring exception sorts after every finite timestamp, and a key
+// missing expiration metadata (not yet migrated) sorts last of all.
+var EXPIRATION_SORT_NON_EXPIRING = Number.MAX_SAFE_INTEGER - 1;
+var EXPIRATION_SORT_MISSING = Number.MAX_SAFE_INTEGER;
+
+// Canonical display category for a key's expiration, derived only from
+// server-supplied fields. `expired` is a server determination and always
+// wins over policy so an active-looking policy can't mask an expired key;
+// never compare `expires_at` against browser time here.
+export function expirationState(key) {
+  if (key && key.expired) return "expired";
+  var policy = key && key.expiration_policy;
+  if (policy === "non_expiring_exception") return "non_expiring";
+  if (policy === "legacy_migration") return "legacy_migration";
+  if (policy === "managed") return "managed";
+  return "missing";
+}
+
+// Stable numeric sort value: finite timestamps sort chronologically, explicit
+// non-expiring exceptions sort after all finite timestamps, and missing
+// metadata sorts last of all.
+export function expirationSortValue(key) {
+  var state = expirationState(key);
+  if (state === "non_expiring") return EXPIRATION_SORT_NON_EXPIRING;
+  if (state === "missing") return EXPIRATION_SORT_MISSING;
+  var ts = key && key.expires_at;
+  return typeof ts === "number" && isFinite(ts) ? ts : EXPIRATION_SORT_MISSING;
+}
+
+// Display label (and optional secondary text/badge tone) for a key's
+// expiration, in the list and detail views alike. `warningDays` is the
+// server-supplied `expiration_warning_days`, threaded through rather than
+// hardcoded so a deployment change is reflected without a UI change.
+export function formatExpiration(key, warningDays) {
+  var state = expirationState(key);
+  var days = typeof warningDays === "number" ? warningDays : DEFAULT_EXPIRATION_WARNING_DAYS;
+  var dateLabel = typeof key.expires_at === "number" ? new Date(key.expires_at * 1000).toLocaleString() : "";
+  if (state === "expired") {
+    return { label: "Expired " + dateLabel, badge: "error", state: state };
+  }
+  if (state === "non_expiring") {
+    // The "Exception" badge already communicates this; no need to repeat it
+    // as secondary text next to "Never" too.
+    return { label: "Never", badge: "success", state: state };
+  }
+  if (state === "missing") {
+    // No badge here: the label "Migration pending" already says it, and
+    // this state previously shared the "neutral" tone with non-expiring
+    // exceptions, which mislabeled it as "Exception" in the pill.
+    return { label: "Migration pending", badge: null, state: state };
+  }
+  // managed or legacy_migration, not expired
+  var remaining = key.days_remaining;
+  if (typeof remaining === "number" && remaining <= days) {
+    var roundedDays = Math.max(0, Math.round(remaining));
+    return {
+      label: dateLabel,
+      secondary: roundedDays + (roundedDays === 1 ? " day" : " days"),
+      badge: "warning",
+      state: state
+    };
+  }
+  return { label: dateLabel, badge: null, state: state };
+}
+
+// Access precedence (independent of expiration): Inactive, Expired, Active.
+export function accessState(key) {
+  if (key && key.active === false) return "inactive";
+  if (key && key.expired) return "expired";
+  return "active";
+}
+
+// Centralized, mutually-exclusive expiration request payload so create and
+// renew cannot accidentally diverge. `choice` is one of "default" (create
+// only — send no expiration fields), "custom", or "non_expiring".
+export function buildExpirationRequest(choice, dateValue, justification) {
+  if (choice === "default") return { ok: true, body: {} };
+  if (choice === "custom") {
+    if (!dateValue) return { ok: false, error: "Select an expiration date and time." };
+    var date = new Date(dateValue);
+    if (isNaN(date.getTime())) return { ok: false, error: "Enter a valid expiration date and time." };
+    if (date.getTime() <= Date.now()) return { ok: false, error: "Expiration must be in the future." };
+    var maxDate = new Date(Date.now() + MAX_EXPIRATION_INPUT_YEARS * 365 * 24 * 60 * 60 * 1000);
+    if (date.getTime() > maxDate.getTime()) return { ok: false, error: "Enter a valid expiration date and time." };
+    return { ok: true, body: { expires_at: date.toISOString() } };
+  }
+  if (choice === "non_expiring") {
+    var trimmed = (justification || "").trim();
+    if (!trimmed) return { ok: false, error: "A justification is required for a non-expiring key." };
+    if (trimmed.length > MAX_JUSTIFICATION_LENGTH) {
+      return { ok: false, error: "Justification must be " + MAX_JUSTIFICATION_LENGTH + " characters or fewer." };
+    }
+    return { ok: true, body: { non_expiring: true, expiration_justification: trimmed } };
+  }
+  return { ok: false, error: "Select an expiration option." };
+}
+
+// Pure paging algorithm behind loadAllKeys(): pages through server results
+// with limit=1000 and increasing offset until a short page is returned,
+// concatenating `keys` and capturing `expiration_warning_days` from the
+// first page that has it. `fetchPage(limit, offset)` is injected so this is
+// testable without a DOM or a real api() client.
+export async function collectAllKeyPages(fetchPage) {
+  var allKeys = [];
+  var warningDays = DEFAULT_EXPIRATION_WARNING_DAYS;
+  var sawWarningDays = false;
+  var limit = 1000;
+  var offset = 0;
+  while (true) {
+    var page = await fetchPage(limit, offset);
+    if (Array.isArray(page)) page = { keys: page };
+    var pageKeys = (page && page.keys) || [];
+    if (!sawWarningDays && page && typeof page.expiration_warning_days === "number") {
+      warningDays = page.expiration_warning_days;
+      sawWarningDays = true;
+    }
+    allKeys = allKeys.concat(pageKeys);
+    if (pageKeys.length < limit) break;
+    offset += limit;
+  }
+  return { keys: allKeys, expirationWarningDays: warningDays, usedFallbackWarningDays: !sawWarningDays };
+}
+
 export function createApiKeysTab({
-  api, endpoints, el, clear, wrapTable, skeleton, refreshButton, field,
+  api, endpoints, el, clear, wrapTable, skeleton, refreshButton, field, helpTooltip,
   svgIcon, iconPlus, iconEye, iconEyeOff, iconCopy, iconCheck, iconSave, iconX,
   createPaginator, createColumnSorter, itemsPerPage, markSelectedRow, syncVisibleSelection,
   syncBulkActionButton, withButton, confirmAction, requireTypedConfirmation, showStatus,
@@ -10,7 +178,101 @@ export function createApiKeysTab({
   getCachedKeys, setCachedKeys,
   loadAdaptersAndPrompts
 }) {
+  // Shared, DOM-backed expiration controls for both the create form and the
+  // detail-view renewal form. `includeDefault` is false for renewal, since
+  // the renew endpoint requires exactly one explicit choice. Returns
+  // { el, reset(), validate() } — validate() delegates to the pure
+  // buildExpirationRequest() helper so create and renew cannot diverge.
+  function createExpirationControls(options) {
+    var includeDefault = !options || options.includeDefault !== false;
+    var groupName = "exp-choice-" + Math.random().toString(36).slice(2, 9);
+    var defaultChoice = includeDefault ? "default" : "custom";
+    var choices = [];
+    if (includeDefault) choices.push({ value: "default", label: "Server default" });
+    choices.push({ value: "custom", label: "Custom expiration" });
+    choices.push({ value: "non_expiring", label: "Non-expiring exception" });
+
+    var radios = [];
+    var radioRows = choices.map(function (choice) {
+      var radio = el("input", { type: "radio", name: groupName, value: choice.value });
+      radio.checked = choice.value === defaultChoice;
+      radios.push(radio);
+      return el("label", { className: "check-row expiration-choice-row-item" }, radio, choice.label);
+    });
+
+    var dateInput = el("input", {
+      type: "text",
+      readonly: "readonly",
+      className: "expiration-date-input",
+      placeholder: "Select a date and time",
+      "aria-label": "Custom expiration date and time"
+    });
+    var dateField = field(
+      "Expiration date and time",
+      dateInput,
+      "The key stops working at this local date and time."
+    );
+    dateField.hidden = true;
+    initExpirationDatePicker(dateInput);
+
+    var justificationInput = el("textarea", {
+      rows: "3",
+      maxlength: String(MAX_JUSTIFICATION_LENGTH),
+      "aria-label": "Non-expiring justification"
+    });
+    var justificationCounter = characterCount(justificationInput, MAX_JUSTIFICATION_LENGTH);
+    var justificationField = field(
+      "Justification",
+      justificationInput,
+      "Explain why this key should never expire. Required for a non-expiring exception."
+    );
+    var justificationWrap = el("div", { className: "stack" }, justificationField, justificationCounter);
+    justificationWrap.hidden = true;
+
+    bindValidationClear(dateInput, justificationInput);
+
+    function currentChoice() {
+      var checked = radios.filter(function (r) { return r.checked; })[0];
+      return checked ? checked.value : defaultChoice;
+    }
+
+    function sync() {
+      var choice = currentChoice();
+      dateField.hidden = choice !== "custom";
+      justificationWrap.hidden = choice !== "non_expiring";
+    }
+    radios.forEach(function (r) { r.addEventListener("change", sync); });
+    sync();
+
+    function reset() {
+      radios.forEach(function (r) { r.checked = r.value === defaultChoice; });
+      dateInput._flatpickr ? dateInput._flatpickr.clear() : (dateInput.value = "");
+      justificationInput.value = "";
+      // The counter renders from input events, so clearing .value alone
+      // would leave a stale character count visible after reset.
+      justificationInput.dispatchEvent(new Event("input"));
+      sync();
+    }
+
+    function validate() {
+      return buildExpirationRequest(currentChoice(), dateInput.value, justificationInput.value);
+    }
+
+    var fieldsetEl = el("fieldset", { className: "expiration-fieldset" },
+      el("legend", null, "Expiration policy"),
+      el("div", { className: "expiration-choice-row" }, radioRows),
+      dateField,
+      justificationWrap
+    );
+
+    return { el: fieldsetEl, reset: reset, validate: validate };
+  }
+
   let selectedKey = null;
+  // Server-supplied `expiration_warning_days`, cached alongside the key list
+  // by loadAllKeys() so the list badge/filter and detail view stay in sync
+  // with the deployment's configured threshold rather than a hardcoded one.
+  let cachedExpirationWarningDays = DEFAULT_EXPIRATION_WARNING_DAYS;
 
   async function render(container) {
     var layout = el("div", { className: "tab-stacked-layout" });
@@ -18,6 +280,7 @@ export function createApiKeysTab({
     var createPanel = el("div", { className: "panel", style: "display:none" });
     var detailPanel = el("div", { className: "panel", style: "display:none" });
     var keySearchFilter = "";
+    var keyExpirationFilter = "all";
     var selectedKeyIds = new Set();
     layout.appendChild(listPanel);
     layout.appendChild(detailPanel);
@@ -64,6 +327,7 @@ export function createApiKeysTab({
     var createClearAllowedUsersBtn = clearAllowedUsersButton(createAllowedUsersSelect);
     var createAllowedEmailsInput = el("input", { type: "text", maxlength: "2000", placeholder: "alice@company.com, bob@company.com" });
     var createAllowedEmailsCounter = characterCount(createAllowedEmailsInput, 2000);
+    var createExpiration = createExpirationControls({ includeDefault: true });
     var createBtn = el("button", { type: "button" }, "Create Key");
     function openCreatePanel() {
       createPanel.style.display = "";
@@ -97,6 +361,7 @@ export function createApiKeysTab({
         "Pre-authorize email addresses (optional)", createAllowedEmailsInput,
         "Comma-separated emails for people who have not logged in yet."
       ), createAllowedEmailsCounter),
+      createExpiration.el,
       el("div", { className: "admin-create-form-actions" },
         createBtn
       )
@@ -109,7 +374,15 @@ export function createApiKeysTab({
       placeholder: "Search API keys",
       "aria-label": "Search API keys"
     });
-    listPanel.appendChild(field("Search", keySearchInput));
+    var keyExpirationFilterSelect = createSelect({
+      ariaLabel: "Filter by expiration",
+      options: [{ value: "all", label: "All keys" }, { value: "expired", label: "Expired" }, { value: "soon", label: "Expiring soon" }, { value: "non_expiring", label: "Non-expiring exceptions" }],
+      value: "all"
+    });
+    listPanel.appendChild(el("div", { className: "admin-create-form-grid api-key-filter-grid" },
+      field("Search", keySearchInput),
+      field("Expiration", keyExpirationFilterSelect)
+    ));
     var createLaunchBtn = el("button", {
       className: "secondary create-launch-btn",
       type: "button",
@@ -152,6 +425,11 @@ export function createApiKeysTab({
         showError("Select an adapter before creating the API key.");
         return;
       }
+      var expirationResult = createExpiration.validate();
+      if (!expirationResult.ok) {
+        showError(expirationResult.error);
+        return;
+      }
       withButton(createBtn, async function () {
         var body = { client_name: cn, adapter_name: adapterSelect.value };
         if (promptSelect.value) body.system_prompt_id = promptSelect.value;
@@ -161,6 +439,7 @@ export function createApiKeysTab({
         var allowedEmails = parseAllowedEmails(createAllowedEmailsInput.value);
         if (allowedEmails === null) { showError("Enter valid comma-separated email addresses."); return; }
         if (allowedEmails.length) body.allowed_emails = allowedEmails;
+        Object.assign(body, expirationResult.body);
         await api("POST", endpoints.apiKeys, body);
         clientInput.value = "";
         promptSelect.value = "";
@@ -168,6 +447,7 @@ export function createApiKeysTab({
         Array.from(createAllowedUsersSelect.options).forEach(function (o) { o.selected = false; });
         createClearAllowedUsersBtn.sync();
         createAllowedEmailsInput.value = "";
+        createExpiration.reset();
         closeCreatePanel();
         loadKeys();
       }, "API key created");
@@ -207,6 +487,14 @@ export function createApiKeysTab({
           return String(value || "").toLowerCase().includes(filter);
         });
       });
+      if (keyExpirationFilter !== "all") {
+        filteredKeys = filteredKeys.filter(function (key) {
+          if (keyExpirationFilter === "expired") return expirationState(key) === "expired";
+          if (keyExpirationFilter === "non_expiring") return expirationState(key) === "non_expiring";
+          if (keyExpirationFilter === "soon") return formatExpiration(key, cachedExpirationWarningDays).badge === "warning";
+          return true;
+        });
+      }
       keyFilteredEmpty = !!keys.length && filteredKeys.length === 0;
       selectedKeyIds.forEach(function (keyId) {
         if (!keys.some(function (key) { return key._id === keyId; })) {
@@ -222,9 +510,36 @@ export function createApiKeysTab({
       applyKeyFilter();
     });
 
+    keyExpirationFilterSelect.addEventListener("change", function () {
+      keyExpirationFilter = keyExpirationFilterSelect.value;
+      applyKeyFilter();
+    });
+
+    // The list filters/sorts/paginates client-side, so a filtered view would
+    // otherwise be incomplete past the server's default page. This pages
+    // through the full result with limit=1000 before caching it, and caches
+    // the response's expiration_warning_days alongside it.
+    async function loadAllKeys() {
+      var result = await collectAllKeyPages(function (limit, offset) {
+        return api("GET", endpoints.apiKeys + "?limit=" + limit + "&offset=" + offset);
+      });
+      if (result.usedFallbackWarningDays) {
+        console.warn("GET /admin/api-keys response is missing expiration_warning_days; falling back to " + DEFAULT_EXPIRATION_WARNING_DAYS + " days.");
+      }
+      return result;
+    }
+
     async function loadKeys() {
       try {
-        var keys = await api("GET", endpoints.apiKeys);
+        var result = await loadAllKeys();
+        var keys = result.keys;
+        cachedExpirationWarningDays = result.expirationWarningDays;
+        keyExpirationFilterSelect.setOptions([
+          { value: "all", label: "All keys" },
+          { value: "expired", label: "Expired" },
+          { value: "soon", label: "Expiring within " + cachedExpirationWarningDays + " days" },
+          { value: "non_expiring", label: "Non-expiring exceptions" }
+        ], keyExpirationFilterSelect.value);
         setCachedKeys(keys);
         applyKeyFilter();
         selectedKeyIds.forEach(function (keyId) {
@@ -316,6 +631,29 @@ export function createApiKeysTab({
     return api("GET", keyPath(keyId, "/detail"));
   }
 
+  // Maps formatExpiration()'s badge tone to the shared `.monitoring-badge`
+  // color modifier already used elsewhere in the admin panel, and to its
+  // display text.
+  var EXPIRATION_BADGE_CLASS = { error: "red", warning: "amber", success: "green" };
+  var EXPIRATION_BADGE_TEXT = { error: "Expired", warning: "Expiring soon", success: "Exception" };
+
+  function expirationCell(key) {
+    var info = formatExpiration(key, cachedExpirationWarningDays);
+    var children = [el("span", null, info.label)];
+    if (info.secondary) children.push(el("span", { className: "expiration-secondary" }, " · " + info.secondary));
+    if (info.badge) {
+      children.push(el("span", { className: "monitoring-badge " + EXPIRATION_BADGE_CLASS[info.badge] }, EXPIRATION_BADGE_TEXT[info.badge]));
+    }
+    return el("td", { className: "expiration-cell" }, children);
+  }
+
+  function accessCell(key) {
+    var state = accessState(key);
+    var label = state === "inactive" ? "Inactive" : state === "expired" ? "Expired" : "Active";
+    var className = state === "active" ? "status-active" : "status-inactive";
+    return el("td", null, el("span", { className: className }, label));
+  }
+
   function renderKeyTable(wrap, keys, rightPanel, filteredEmpty, selection, reloadKeys) {
     clear(wrap);
     if (!keys || keys.length === 0) {
@@ -353,7 +691,8 @@ export function createApiKeysTab({
       { label: "Client", key: "client", sortValue: function (k) { return k.client_name || ""; } },
       { label: "Adapter", key: "adapter", sortValue: function (k) { return k.adapter_name || "default"; } },
       { label: "Persona", key: "persona", sortValue: function (k) { return k.system_prompt_name || "None"; } },
-      { label: "Active", key: "active", sortValue: function (k) { return k.active !== false ? "Active" : "Inactive"; } },
+      { label: "Expiration", key: "expiration", sortValue: expirationSortValue },
+      { label: "Access", key: "access", sortValue: function (k) { return accessState(k); } },
     ]));
     var tbody = el("tbody");
     keys.forEach(function (k) {
@@ -381,11 +720,8 @@ export function createApiKeysTab({
         el("td", null, k.client_name || ""),
         el("td", null, k.adapter_name || "default"),
         el("td", null, k.system_prompt_name || "None"),
-        el("td", null,
-          el("span", { className: k.active !== false ? "status-active" : "status-inactive" },
-            k.active !== false ? "Active" : "Inactive"
-          )
-        )
+        expirationCell(k),
+        accessCell(k)
       );
       tr.addEventListener("click", async function () {
         selectedKey = { _id: k._id };
@@ -393,6 +729,13 @@ export function createApiKeysTab({
         clear(rightPanel);
         rightPanel.style.display = "";
         rightPanel.appendChild(el("p", { className: "muted" }, "Loading key details..."));
+        // On narrow layouts the detail panel stacks below the table, so
+        // selecting a row leaves it out of view; scroll it in once the real
+        // content is in place, but skip the jump on wide screens where the
+        // split layout already shows it.
+        function scrollDetailIntoView() {
+          rightPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
         try {
           var detail = await loadKeyDetail(k._id);
           selectedKey = detail;
@@ -400,6 +743,7 @@ export function createApiKeysTab({
             selectedKey = null;
             reloadKeys();
           });
+          scrollDetailIntoView();
         } catch (err) {
           selectedKey = null;
           clear(rightPanel);
@@ -408,6 +752,7 @@ export function createApiKeysTab({
             el("p", { className: "muted" }, err.message || "Unknown error")
           ));
           showError(err.message);
+          scrollDetailIntoView();
         }
       });
       tr.addEventListener("keydown", function (e) {
@@ -421,6 +766,129 @@ export function createApiKeysTab({
     table.appendChild(thead);
     table.appendChild(tbody);
     wrap.appendChild(wrapTable(table));
+  }
+
+  var EXPIRATION_POLICY_LABELS = {
+    managed: "Managed",
+    legacy_migration: "Legacy migration",
+    non_expiring_exception: "Non-expiring exception"
+  };
+
+  var EXPIRATION_POLICY_HELP = {
+    managed: "This key's expiration was set normally, either the server default or a date chosen at creation or renewal.",
+    legacy_migration: "This key existed before expiration was enforced. It was automatically given a one-time grace-period expiration so it doesn't stop working without warning; renew it to set a deliberate expiration.",
+    non_expiring_exception: "An admin explicitly granted this key an exception to never expire, with a recorded justification."
+  };
+
+  var STATE_HELP_TEXT = "Independent of the expiration policy: Inactive means the key was deactivated and won't work regardless of expiration; Expired means it has passed its expiration date; Non-expiring exception means it was granted an explicit exception to never expire; otherwise the key is Active.";
+
+  // Same shape as infoRow(), but the label carries a help-icon tooltip.
+  function infoRowWithHelp(label, value, helpText, helpId) {
+    var labelEl = el("span", { className: "info-label field-label-row" },
+      el("span", null, label),
+      helpTooltip(label, helpText, helpId)
+    );
+    return el("div", { className: "info-row" }, labelEl, el("span", { className: "info-value" }, String(value)));
+  }
+
+  // Combined state shown in the detail view: expiration and deactivation are
+  // independent, so an inactive key is called out even if it also has a
+  // valid expires_at, and a non-expiring exception is distinguished from a
+  // merely long-lived managed key.
+  function expirationSummaryState(key) {
+    if (key.active === false) return "Inactive";
+    if (key.expired) return "Expired";
+    if (expirationState(key) === "non_expiring") return "Non-expiring exception";
+    return "Active";
+  }
+
+  function formatDaysRemainingLabel(days) {
+    if (typeof days !== "number" || days < 0) return null;
+    if (days < 1) return "less than a day";
+    var rounded = Math.round(days);
+    return rounded + (rounded === 1 ? " day" : " days");
+  }
+
+  // Expiration summary plus the renew/change-expiration inline form. Always
+  // builds the renewal request from `keyId` (the record's non-secret _id),
+  // never from the displayed/revealed key value.
+  function renderExpirationSection(key, keyId, onRefresh) {
+    var section = el("div", { className: "api-key-expiration-section" }, el("h3", null, "Expiration"));
+    var state = expirationSummaryState(key);
+    var isNonExpiring = expirationState(key) === "non_expiring";
+    var dateLabel = isNonExpiring
+      ? "Never"
+      : (typeof key.expires_at === "number" ? new Date(key.expires_at * 1000).toLocaleString() : "Unknown (migration pending)");
+    var daysLabel = formatDaysRemainingLabel(key.days_remaining);
+
+    var summaryRows = [
+      infoRowWithHelp("State", state, STATE_HELP_TEXT, "expiration-state-help-" + keyId),
+      infoRow("Expires", dateLabel)
+    ];
+    if (daysLabel) summaryRows.push(infoRow("Days remaining", daysLabel));
+    if (key.expiration_policy) {
+      var policyHelp = EXPIRATION_POLICY_HELP[key.expiration_policy] || "How this key's expiration was set.";
+      summaryRows.push(infoRowWithHelp(
+        "Policy",
+        EXPIRATION_POLICY_LABELS[key.expiration_policy] || key.expiration_policy,
+        policyHelp,
+        "expiration-policy-help-" + keyId
+      ));
+    }
+    section.appendChild(el("div", { className: "info-grid" }, summaryRows));
+    section.appendChild(el("p", { className: "muted" }, "Renewing a key's expiration does not reactivate an inactive key."));
+
+    var renewToggle = el("button", { className: "secondary", type: "button" }, "Renew / Change Expiration");
+    var renewControls = createExpirationControls({ includeDefault: false });
+    var renewSubmitBtn = el("button", { type: "button", className: "btn btn--primary" }, "Save Expiration");
+    var renewCancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
+    var renewForm = el("div", { className: "stack api-key-renew-form", hidden: "true" },
+      renewControls.el,
+      el("div", { className: "inline-form" }, renewSubmitBtn, renewCancelBtn)
+    );
+
+    function closeRenewForm() {
+      renewForm.hidden = true;
+      renewToggle.hidden = false;
+      renewControls.reset();
+    }
+    renewToggle.addEventListener("click", function () {
+      renewForm.hidden = false;
+      renewToggle.hidden = true;
+    });
+    renewCancelBtn.addEventListener("click", closeRenewForm);
+
+    renewSubmitBtn.addEventListener("click", function () {
+      var result = renewControls.validate();
+      if (!result.ok) {
+        showError(result.error);
+        return;
+      }
+      var body = result.body;
+      if (body.non_expiring) {
+        confirmAction({
+          title: "Grant Non-Expiring Exception",
+          message: "This key will no longer expire automatically. Continue?",
+          confirmLabel: "Grant Exception",
+          onConfirm: async function () {
+            await api("POST", keyPath(keyId, "/renew"), body);
+            showStatus("API key renewed");
+            closeRenewForm();
+            onRefresh();
+          }
+        });
+        return;
+      }
+      withButton(renewSubmitBtn, async function () {
+        await api("POST", keyPath(keyId, "/renew"), body);
+        closeRenewForm();
+        onRefresh();
+      }, "API key renewed");
+    });
+
+    section.appendChild(el("div", { className: "detail-action-row" }, renewToggle));
+    section.appendChild(renewForm);
+    return section;
   }
 
   function renderKeyDetail(panel, key, onRefresh) {
@@ -690,6 +1158,8 @@ export function createApiKeysTab({
       el("div", { className: "inline-form detail-action-row api-key-edit-actions" }, editToggle, cancelBtn, saveBtn)
     ));
     setKeyEditMode(false);
+
+    panel.appendChild(renderExpirationSection(key, keyId, onRefresh));
 
     // Quota controls are relevant only while server-side throttling is active.
     // Load them automatically so managing a key does not require a second step.

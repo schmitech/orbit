@@ -22,6 +22,7 @@ export function el(tag, attrs, ...children) {
 
 export function clear(node) {
   node.querySelectorAll?.(".styled-select").forEach((select) => select.destroy?.());
+  node.querySelectorAll?.(".flatpickr-input").forEach((input) => input._flatpickr?.destroy());
   while (node.firstChild) node.removeChild(node.firstChild);
 }
 

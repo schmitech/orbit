@@ -378,7 +378,8 @@ class ApiService:
                 params['active_only'] = 'true'
             response = self.api_client.get("/admin/api-keys", headers=headers, params=params)
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            return data.get('keys', []) if isinstance(data, dict) else data
 
         if not filtering:
             keys = _fetch_page(limit, offset)
