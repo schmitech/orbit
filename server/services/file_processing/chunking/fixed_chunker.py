@@ -40,6 +40,13 @@ class FixedSizeChunker(TextChunker):
             tokenizer: Optional tokenizer for token-based chunking.
                 Only used if use_tokens=True. If None and use_tokens=True, uses character tokenizer.
         """
+        if chunk_size <= 0:
+            raise ValueError(f"chunk_size must be positive, got {chunk_size!r}")
+        if overlap < 0 or overlap >= chunk_size:
+            raise ValueError(
+                f"overlap ({overlap!r}) must be nonnegative and smaller than chunk_size ({chunk_size!r})"
+            )
+
         super().__init__(tokenizer=tokenizer if use_tokens else None)
         self.chunk_size = chunk_size
         self.overlap = overlap

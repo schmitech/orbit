@@ -40,6 +40,21 @@ def test_fixed_chunker_initialization():
     assert chunker.overlap == 20
 
 
+def test_fixed_chunker_rejects_overlap_not_smaller_than_chunk_size():
+    """overlap >= chunk_size would stall or reverse the sliding window."""
+    with pytest.raises(ValueError):
+        FixedSizeChunker(chunk_size=100, overlap=100)
+    with pytest.raises(ValueError):
+        FixedSizeChunker(chunk_size=100, overlap=150)
+
+
+def test_fixed_chunker_rejects_negative_overlap_or_nonpositive_chunk_size():
+    with pytest.raises(ValueError):
+        FixedSizeChunker(chunk_size=100, overlap=-1)
+    with pytest.raises(ValueError):
+        FixedSizeChunker(chunk_size=0, overlap=0)
+
+
 def test_fixed_chunker_default_params():
     """Test FixedSizeChunker with default parameters"""
     chunker = FixedSizeChunker()
@@ -130,6 +145,21 @@ def test_semantic_chunker_initialization():
     chunker = SemanticChunker(chunk_size=10, overlap=2)
     assert chunker.chunk_size == 10
     assert chunker.overlap == 2
+
+
+def test_semantic_chunker_rejects_overlap_not_smaller_than_chunk_size():
+    """overlap >= chunk_size (sentence counts) would stall or reverse the sliding window."""
+    with pytest.raises(ValueError):
+        SemanticChunker(chunk_size=5, overlap=5)
+    with pytest.raises(ValueError):
+        SemanticChunker(chunk_size=5, overlap=8)
+
+
+def test_semantic_chunker_rejects_negative_overlap_or_nonpositive_chunk_size():
+    with pytest.raises(ValueError):
+        SemanticChunker(chunk_size=5, overlap=-1)
+    with pytest.raises(ValueError):
+        SemanticChunker(chunk_size=0, overlap=0)
 
 
 def test_semantic_chunker_default_params():
@@ -411,6 +441,12 @@ def test_token_chunker_validation():
     
     with pytest.raises(ValueError, match="chunk_overlap must be less than chunk_size"):
         TokenChunker(chunk_size=100, overlap=150)
+
+    # Negative overlap must be rejected too: an accepted TokenChunker config
+    # is passed straight through to FixedSizeChunker's tokenizer-decode-failure
+    # fallback, which also rejects negative overlap.
+    with pytest.raises(ValueError, match="chunk_overlap must be nonnegative"):
+        TokenChunker(chunk_size=100, overlap=-1)
 
 
 def test_token_chunker_basic_chunking():

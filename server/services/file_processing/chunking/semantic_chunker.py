@@ -80,6 +80,13 @@ class SemanticChunker(TextChunker):
             tokenizer: Optional tokenizer for token-aware chunking
             chunk_size_tokens: Optional token-based chunk size (overrides chunk_size if set)
         """
+        if chunk_size <= 0:
+            raise ValueError(f"chunk_size must be positive, got {chunk_size!r}")
+        if overlap < 0 or overlap >= chunk_size:
+            raise ValueError(
+                f"overlap ({overlap!r}) must be nonnegative and smaller than chunk_size ({chunk_size!r})"
+            )
+
         super().__init__(tokenizer=tokenizer)
         self.chunk_size = chunk_size
         self.overlap = overlap

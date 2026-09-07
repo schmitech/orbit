@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Bug Fixes
+- **Chunking Safeguards (Phase 2)**: `ContentChunker` now preserves preamble text before the first heading and heading-free documents, ignores headings found inside fenced code blocks (including unclosed fences, which now extend through end-of-document), and tracks exact `source_span` character offsets so chunk coverage is byte-for-byte contiguous with the original content. Overlap is reserved within the chunk target up front and trimmed (never sacrificing new source content) if it would exceed the effective embedding budget, replacing the previous word-slicing overlap that could silently duplicate an entire previous chunk on a zero-length slice.
+
 ## [2.17.6] - 2026-09-06
 
 ### Bug Fixes
