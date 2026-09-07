@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
-from routes.auth_helpers import get_admin_user, get_sso_service, render_login_html
+from routes.auth_helpers import get_admin_user, get_sso_service, render_login_html, render_login_2fa_html
 from auth.rbac import has_any_permission, has_permission
 from services.auth_service import AuthService
 from services.file_storage.encryption import FileEncryptionError
@@ -286,7 +286,7 @@ def create_admin_panel_router() -> APIRouter:
             # `token` here is the short-lived intermediate token from
             # authenticate_user, not a session - it cannot be set as the
             # dashboard cookie. Render the second-factor form instead.
-            return HTMLResponse(content=_render_admin_2fa_html(
+            return HTMLResponse(content=render_login_2fa_html(
                 pending_token=token, next_path=_safe_next_path(next)
             ))
 
@@ -302,40 +302,6 @@ def create_admin_panel_router() -> APIRouter:
             max_age=int(getattr(auth_service, "session_duration_hours", 12) * 3600)
         )
         return response
-
-    def _render_admin_2fa_html(
-        pending_token: str, next_path: str, error_message: Optional[str] = None
-    ) -> str:
-        """Minimal inline second-factor form for the dashboard cookie login path.
-
-        ``next_path`` has already passed ``_safe_next_path`` (same-origin-only),
-        but that only bounds where it points - not whether it's free of quotes
-        or markup - so it (and the pending token, defense in depth) must still
-        be HTML/attribute-escaped before interpolation, the same as the main
-        login renderer escapes ``next_path``.
-        """
-        from html import escape
-        error_block = ""
-        if error_message:
-            error_block = f'<div class="login-alert" role="alert">{escape(error_message)}</div>'
-        safe_pending_token = escape(pending_token, quote=True)
-        safe_next_path = escape(next_path, quote=True)
-        return f"""
-        <!doctype html><html><head><title>Two-Factor Authentication</title></head>
-        <body>
-          <h2>Two-Factor Authentication</h2>
-          {error_block}
-          <form method="post" action="/admin/login/2fa">
-            <input type="hidden" name="pending_token" value="{safe_pending_token}">
-            <input type="hidden" name="next" value="{safe_next_path}">
-            <label>Authenticator code or recovery code
-              <input type="text" name="code" autofocus required>
-            </label>
-            <label><input type="checkbox" name="remember_device" value="true"> Remember this device</label>
-            <button type="submit">Verify</button>
-          </form>
-        </body></html>
-        """
 
     @router.post("/admin/login/2fa")
     async def post_admin_login_2fa(
@@ -370,7 +336,7 @@ def create_admin_panel_router() -> APIRouter:
         except FileEncryptionError as e:
             logger.error(f"2FA login failed - encryption key misconfigured: {e}")
             return HTMLResponse(
-                content=_render_admin_2fa_html(
+                content=render_login_2fa_html(
                     pending_token=pending_token,
                     next_path=_safe_next_path(next),
                     error_message=(
@@ -384,7 +350,7 @@ def create_admin_panel_router() -> APIRouter:
             await limiter.record_mfa_failure(request, mfa_identity)
             request.state.audit_context = {"summary": {"reason": "invalid_2fa_code"}}
             return HTMLResponse(
-                content=_render_admin_2fa_html(
+                content=render_login_2fa_html(
                     pending_token=pending_token,
                     next_path=_safe_next_path(next),
                     error_message="Invalid or expired two-factor code.",

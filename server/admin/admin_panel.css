@@ -1980,6 +1980,95 @@ tbody tr:nth-child(even) {
   background: var(--surface-raised);
 }
 
+.mfa-qr {
+  width: 180px;
+  height: 180px;
+  border-radius: var(--radius-md);
+  background: #fff;
+  padding: var(--sp-2);
+}
+
+/* A 6-digit code is a fixed-width token, not prose - stretching its input to
+   the panel's full measure invites someone to keep typing past it. Cap the
+   width to what the value actually needs and set it apart from a normal text
+   field (spaced, monospaced) the way a one-time-code input reads everywhere
+   else. Left-aligned, not centered: centering puts the empty-field caret in
+   the middle, which reads as though typing should start there. */
+.mfa-code-input {
+  max-width: 8.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  letter-spacing: 0.4em;
+}
+
+/* This section's action buttons sit directly under a single left-aligned
+   field, not a wide multi-column form - flex-end here would strand the
+   button under empty space instead of near what it acts on. */
+.mfa-form-actions {
+  justify-content: flex-start;
+  border-top: none;
+  padding-top: 0;
+}
+
+.mfa-form-actions button {
+  min-width: 0;
+}
+
+/* .secret-field normally reserves room for a reveal button *and* a copy
+   button (API keys); the enrollment secret only ever needs the one, so its
+   copy button sits where the reveal button would otherwise be. It also
+   defaults to the panel's full measure - a base32 secret is a fixed-length
+   token, not prose, so cap its width to what the value needs instead of
+   stranding the copy icon out at the panel's far edge. */
+.secret-field--single-action {
+  max-width: 20rem;
+  min-width: 0;
+}
+
+.secret-field--single-action code {
+  padding-right: 2.75rem;
+}
+
+.secret-field--single-action .copy-btn {
+  right: var(--sp-2);
+}
+
+/* Each code is a fixed-length token, not prose - same reasoning as the
+   manual-entry secret: cap the block to what the values need instead of
+   stretching it to the panel's full measure. */
+.mfa-recovery-codes-wrap {
+  position: relative;
+  max-width: 20rem;
+}
+
+.mfa-recovery-codes {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  padding: var(--sp-3);
+  padding-right: 2.75rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  /* Override the base `pre` rule's dark-panel styling (background #0c1929,
+     a pale blue-on-navy text color) - on this light surface that pale color
+     reads as barely-there low-contrast text. */
+  background: var(--surface-raised);
+  color: var(--ink);
+  user-select: text;
+}
+
+.mfa-recovery-codes-wrap .copy-btn {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+}
+
+/* This warns that the codes are shown exactly once - it must read clearly,
+   not fade into a routine hint the way .muted's lighter, smaller text does. */
+.mfa-recovery-warning {
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+
 .key-summary p {
   margin: var(--sp-1) 0;
   font-size: var(--text-sm);

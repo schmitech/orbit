@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Admin Panel
+- **Two-Factor Authentication Management**: Added self-service TOTP enrollment, status, recovery-code display, and password-confirmed disable controls to My Account, plus per-user status and audited 2FA reset actions for administrators with `users.manage`. Dashboard sign-in now has a styled second-factor page supporting authenticator and recovery codes, remembered devices, and inline errors. The UI reflects when 2FA is globally disabled, rejects enrollment in that state, identifies existing enrollment as unenforced, and requires explicit typed confirmation before resetting an account whose role requires 2FA because the reset will prevent that user from signing in until an administrator changes the role or configuration.
+
 ### Technical Improvements
 - **Ruff Blind-Except Hardening (in progress)**: Started resolving `BLE001` (blind-except) findings per `docs/roadmap/ruff-blind-except-hardening.md`, file-by-file rather than a repo-wide sweep. `redis_provider.py`, `chat_history_service.py`, and `auth_service.py` are done (70 of 1517 findings): a few catches were narrowed to the specific exceptions their operation can raise, the rest carry a `# noqa: BLE001` with a one-line rationale (DB/cache client boundaries, background worker loops, and best-effort cleanup paths that must not crash). No behavior change.
 - **Ruff RUF010 Cleanup**: Replaced `str(e)`/`str(x)` inside f-strings with the explicit `!s` conversion flag across `server/` and `bin/`, resolving all 751 `RUF010` findings via `ruff check --fix`. Purely mechanical, no behavior change.

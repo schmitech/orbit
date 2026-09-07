@@ -15,6 +15,8 @@ export const ENDPOINTS = {
   adapterImportFormat: "/admin/adapters/import/format",
   auditEvents: "/admin/audit/events", costsUsage: "/admin/observability/usage",
   feedbackAnalytics: "/admin/api/feedback-analytics", serverInfo: "/admin/info",
+  mfaStatus: "/auth/mfa/status", mfaEnroll: "/auth/mfa/enroll", mfaConfirm: "/auth/mfa/confirm",
+  mfaDisable: "/auth/mfa/disable",
 };
 
 export function createApi({ getAuthToken, onUnauthorized }) {

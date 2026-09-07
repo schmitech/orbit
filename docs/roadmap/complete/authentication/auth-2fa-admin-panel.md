@@ -228,4 +228,5 @@ light route-level check for the two changed server-rendered paths:
 - [Phase 7 — Two-Factor Authentication implementation plan](complete/phase-7-auth-2fa.md)
 - [Authentication guide — Two-Factor Authentication section](../../authentication.md)
 - [Manual/Integration playbook — 2FA](../../../server/tests/test_auth/playbook-mfa-totp.md)
+- [Manual playbook — 2FA admin panel UI](../../../server/tests/test_auth/playbook-mfa-admin-panel.md)
 - [Session Monitoring — the closest prior admin-panel precedent](complete/phase-5-auth-session-monitoring.md)

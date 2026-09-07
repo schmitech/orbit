@@ -30,23 +30,40 @@ ADMIN_DIR = Path(__file__).parent.parent / "admin"
 
 _login_template_cache = None
 _login_template_mtime: Optional[float] = None
+_login_2fa_template_cache = None
+_login_2fa_template_mtime: Optional[float] = None
+
+
+def _load_template(path: Path, cache: Optional[str], mtime: Optional[float]) -> tuple[str, Optional[float]]:
+    """Load a template file with simple mtime-based change detection."""
+    try:
+        current_mtime = path.stat().st_mtime
+    except FileNotFoundError:
+        logger.error("Template not found at %s", path)
+        return "<h1>Template missing</h1>", None
+
+    if cache is None or mtime != current_mtime:
+        return path.read_text(), current_mtime
+
+    return cache, mtime
 
 
 def load_login_template() -> str:
     """Load the login template with simple change detection."""
     global _login_template_cache, _login_template_mtime
-    template_path = ADMIN_DIR / "admin_login.html"
-    try:
-        current_mtime = template_path.stat().st_mtime
-    except FileNotFoundError:
-        logger.error("Login template not found at %s", template_path)
-        return "<h1>Login template missing</h1>"
-
-    if _login_template_cache is None or _login_template_mtime != current_mtime:
-        _login_template_cache = template_path.read_text()
-        _login_template_mtime = current_mtime
-
+    _login_template_cache, _login_template_mtime = _load_template(
+        ADMIN_DIR / "admin_login.html", _login_template_cache, _login_template_mtime
+    )
     return _login_template_cache
+
+
+def load_login_2fa_template() -> str:
+    """Load the dashboard-login second-factor template with simple change detection."""
+    global _login_2fa_template_cache, _login_2fa_template_mtime
+    _login_2fa_template_cache, _login_2fa_template_mtime = _load_template(
+        ADMIN_DIR / "admin_login_2fa.html", _login_2fa_template_cache, _login_2fa_template_mtime
+    )
+    return _login_2fa_template_cache
 
 
 def _render_sso_block(next_path: str, sso_providers: Optional[dict[str, str]]) -> str:
@@ -88,6 +105,34 @@ def render_login_html(
         .replace("{{NEXT_PATH}}", html.escape(next_path, quote=True))
         .replace("{{ERROR_BLOCK}}", error_block)
         .replace("{{SSO_BLOCK}}", _render_sso_block(next_path, sso_providers))
+    )
+
+
+def render_login_2fa_html(
+    pending_token: str,
+    next_path: str,
+    error_message: Optional[str] = None,
+) -> str:
+    """Render the dashboard-login second-factor page.
+
+    ``next_path`` has already passed ``_safe_next_path`` (same-origin-only)
+    by the time it reaches here, but that only bounds where it points - not
+    whether it's free of quotes or markup - so it (and the pending token,
+    defense in depth) must still be HTML/attribute-escaped before
+    interpolation, the same as ``render_login_html`` escapes ``next_path``.
+    """
+    template = load_login_2fa_template()
+    error_block = ""
+    if error_message:
+        error_block = (
+            f'<div class="login-alert" role="alert">{html.escape(error_message)}</div>'
+        )
+
+    return (
+        template
+        .replace("{{PENDING_TOKEN}}", html.escape(pending_token, quote=True))
+        .replace("{{NEXT_PATH}}", html.escape(next_path, quote=True))
+        .replace("{{ERROR_BLOCK}}", error_block)
     )
 
 

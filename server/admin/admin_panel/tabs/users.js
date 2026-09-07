@@ -1,10 +1,10 @@
 export function createUsersTab({
   api, endpoints, el, clear, wrapTable, skeleton, refreshButton, field, passwordField,
-  svgIcon, iconPlus, iconPencil, iconSave, iconX, roleDetails, usernameMaxLength, passwordMaxLength,
+  svgIcon, iconPlus, iconPencil, iconSave, iconX, iconCopy, iconCheck, roleDetails, usernameMaxLength, passwordMaxLength,
   createPaginator, createColumnSorter, itemsPerPage, markSelectedRow, syncVisibleSelection,
-  syncBulkActionButton, withButton, confirmAction, requireTypedConfirmation, showStatus,
+  syncBulkActionButton, withButton, confirmAction, confirmDialog, requireTypedConfirmation, showStatus,
   showError, showTableLoadError, validateUsername, bindValidationClear,
-  createSelect, getCurrentUser
+  createSelect, userHasPermission, copyTextToClipboard, getCurrentUser
 }) {
   let selectedUser = null;
   let passwordPolicy = null;
@@ -822,6 +822,197 @@ export function createUsersTab({
     }
     renderChangeMyPassword(formWrap, closeForm);
     panel.appendChild(formWrap);
+    panel.appendChild(renderMyTwoFactorSection());
+  }
+
+  // Self-service enrollment/disable, shown in "My Account" for local
+  // password accounts only - 2FA has no meaning for an SSO-managed identity,
+  // the same restriction the backend enforces (2FA applies to local accounts).
+  function renderMyTwoFactorSection() {
+    var section = el("div", { className: "detail-subsection" });
+    var body = el("div", null, skeleton());
+    section.appendChild(el("h3", null, "Two-Factor Authentication"));
+    section.appendChild(body);
+
+    function renderNotEnrolled(status) {
+      clear(body);
+      if (!status.globally_enabled) {
+        body.appendChild(el("p", { className: "muted" },
+          "Two-factor authentication is disabled for this ORBIT deployment. An administrator must enable it in the server configuration before it can be set up."
+        ));
+        return;
+      }
+      var toggleBtn = el("button", { className: "secondary", type: "button" }, "Set Up Two-Factor Authentication");
+      var formWrap = el("div", { className: "collapsible-panel-body", style: "display:none" });
+      toggleBtn.addEventListener("click", function () {
+        if (formWrap.style.display === "none") {
+          toggleBtn.style.display = "none";
+          formWrap.style.display = "";
+          renderEnrollStep(formWrap);
+        }
+      });
+      function closeEnroll() {
+        clear(formWrap);
+        formWrap.style.display = "none";
+        toggleBtn.style.display = "";
+      }
+
+      function renderEnrollStep(wrap) {
+        clear(wrap);
+        wrap.appendChild(el("p", { className: "muted" }, "Loading enrollment details..."));
+        api("POST", endpoints.mfaEnroll).then(function (enrollment) {
+          clear(wrap);
+          var codeInput = el("input", {
+            type: "text",
+            inputmode: "numeric",
+            pattern: "[0-9]*",
+            autocomplete: "one-time-code",
+            maxlength: "6",
+            placeholder: "123456",
+            className: "mfa-code-input"
+          });
+          codeInput.addEventListener("input", function () {
+            codeInput.value = codeInput.value.replace(/\D/g, "").slice(0, 6);
+          });
+          var confirmBtn = el("button", { type: "button" }, "Confirm");
+          var cancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
+          cancelBtn.addEventListener("click", closeEnroll);
+          var secretCode = el("code", null, enrollment.secret);
+          var copyBtn = el("button", {
+            type: "button",
+            className: "copy-btn",
+            "aria-label": "Copy secret",
+            title: "Copy secret"
+          });
+          copyBtn.appendChild(svgIcon(iconCopy));
+          copyBtn.addEventListener("click", function () {
+            copyTextToClipboard(enrollment.secret).then(function () {
+              copyBtn.innerHTML = "";
+              copyBtn.appendChild(svgIcon(iconCheck));
+              setTimeout(function () {
+                copyBtn.innerHTML = "";
+                copyBtn.appendChild(svgIcon(iconCopy));
+              }, 1500);
+            }).catch(function () { showError("Could not copy secret"); });
+          });
+          confirmBtn.addEventListener("click", function () {
+            var code = codeInput.value.trim();
+            if (!code) { showError("Enter the code from your authenticator app"); return; }
+            withButton(confirmBtn, async function () {
+              var result = await api("POST", endpoints.mfaConfirm, { code: code });
+              renderRecoveryCodes(wrap, result.recovery_codes, closeEnroll);
+            });
+          });
+          wrap.appendChild(el("div", { className: "admin-create-form" },
+            el("p", { className: "muted" }, "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.), or enter the secret manually."),
+            el("img", { src: enrollment.qr_code_data_uri, alt: "2FA enrollment QR code", className: "mfa-qr" }),
+            field(
+              "Manual entry secret",
+              el("div", { className: "secret-field secret-field--single-action" }, secretCode, copyBtn),
+              "If you can't scan the QR code, enter this secret key manually in your authenticator app instead."
+            ),
+            field("Verification code", codeInput),
+            el("div", { className: "admin-create-form-actions mfa-form-actions" }, cancelBtn, confirmBtn)
+          ));
+          bindValidationClear(codeInput);
+          codeInput.focus();
+        }).catch(function (err) {
+          clear(wrap);
+          wrap.appendChild(el("p", { className: "muted" }, "Failed to start enrollment: " + err.message));
+        });
+      }
+
+      function renderRecoveryCodes(wrap, codes, onDone) {
+        clear(wrap);
+        var doneBtn = el("button", { type: "button" }, "Done");
+        doneBtn.addEventListener("click", function () {
+          onDone();
+          load();
+        });
+        var codesText = codes.join("\n");
+        var codesBlock = el("pre", { className: "mfa-recovery-codes" }, codesText);
+        var copyCodesBtn = el("button", {
+          type: "button",
+          className: "copy-btn",
+          "aria-label": "Copy recovery codes",
+          title: "Copy recovery codes"
+        });
+        copyCodesBtn.appendChild(svgIcon(iconCopy));
+        copyCodesBtn.addEventListener("click", function () {
+          copyTextToClipboard(codesText).then(function () {
+            copyCodesBtn.innerHTML = "";
+            copyCodesBtn.appendChild(svgIcon(iconCheck));
+            showStatus("Recovery codes copied");
+            setTimeout(function () {
+              copyCodesBtn.innerHTML = "";
+              copyCodesBtn.appendChild(svgIcon(iconCopy));
+            }, 1500);
+          }).catch(function () { showError("Could not copy recovery codes"); });
+        });
+        wrap.appendChild(el("div", { className: "admin-create-form" },
+          el("p", null, el("strong", null, "Two-factor authentication is now enabled.")),
+          el("p", { className: "mfa-recovery-warning" }, "Save these recovery codes somewhere safe. Each can be used once to sign in if you lose access to your authenticator app. They are shown only once."),
+          el("div", { className: "mfa-recovery-codes-wrap" }, codesBlock, copyCodesBtn),
+          el("div", { className: "admin-create-form-actions mfa-form-actions" }, doneBtn)
+        ));
+      }
+
+      body.appendChild(el("p", { className: "muted" }, "Two-factor authentication is not enabled."));
+      body.appendChild(el("div", { className: "bulk-action-row" }, toggleBtn));
+      body.appendChild(formWrap);
+    }
+
+    function renderEnrolled(status) {
+      clear(body);
+      var disableBtn = el("button", { className: "danger", type: "button" }, "Disable");
+      disableBtn.addEventListener("click", function () {
+        var pwInput = el("input", {
+          type: "password",
+          autocomplete: "current-password",
+          "aria-label": "Current password"
+        });
+        confirmDialog(
+          "Disable Two-Factor Authentication",
+          "Enter your current password to disable two-factor authentication.",
+          async function () {
+            var pw = pwInput.value;
+            if (!pw) throw new Error("Current password is required");
+            await api("POST", endpoints.mfaDisable, { current_password: pw });
+            showStatus("Two-factor authentication disabled");
+            load();
+          },
+          "Disable",
+          true,
+          passwordField("Current Password", pwInput)
+        );
+      });
+      body.appendChild(el("p", null, el("strong", null, "Two-factor authentication is enabled.")));
+      if (!status.globally_enabled) {
+        body.appendChild(el("p", { className: "muted" },
+          "Two-factor authentication is currently disabled for this ORBIT deployment, so this enrollment is not being enforced at login."
+        ));
+      }
+      if (status.required_for_role) {
+        disableBtn.disabled = true;
+        disableBtn.title = "Your role requires two-factor authentication; contact another administrator to disable it.";
+      }
+      body.appendChild(el("div", { className: "bulk-action-row" }, disableBtn));
+    }
+
+    function load() {
+      clear(body);
+      body.appendChild(skeleton());
+      api("GET", endpoints.mfaStatus).then(function (status) {
+        if (status.enabled) renderEnrolled(status);
+        else renderNotEnrolled(status);
+      }).catch(function (err) {
+        clear(body);
+        body.appendChild(el("p", { className: "muted" }, "Failed to load two-factor status: " + err.message));
+      });
+    }
+
+    load();
+    return section;
   }
 
   function renderChangeMyPassword(panel, onDone) {
@@ -1247,6 +1438,76 @@ export function createUsersTab({
     }
 
     panel.appendChild(renderSessionsSection(user, isCurrentUser));
+    panel.appendChild(renderMfaSection(user, isCurrentUser));
+  }
+
+  // Mirrors renderSessionsSection's branching: self-view reads its own
+  // status (also editable from "My Account"), admin-view of another user
+  // with users.manage sees a "Reset 2FA" recovery action.
+  function renderMfaSection(user, isCurrentUser) {
+    var section = el("div", { className: "detail-subsection" });
+    var body = el("div", null, skeleton());
+    section.appendChild(el("h3", null, "Two-Factor Authentication"));
+    section.appendChild(body);
+
+    function render(status) {
+      clear(body);
+      body.appendChild(el("p", null, "Status: " + (status.enabled ? "Enabled" : "Not enrolled")));
+      if (!isCurrentUser && status.enabled && userHasPermission("users.manage")) {
+        var resetBtn = el("button", { className: "danger", type: "button" }, "Reset 2FA");
+        resetBtn.addEventListener("click", function () {
+          if (status.required_for_role) {
+            // This user's role requires 2FA, so resetting leaves them both
+            // unenrolled and unable to obtain even an intermediate session -
+            // authenticate_user blocks password login outright for an
+            // unenrolled required-role account. Unlike the ordinary case,
+            // they cannot simply "re-enroll" afterward without an admin
+            // first changing their role or the required_for_roles config, so
+            // this requires typing the username to proceed, not a plain confirm.
+            requireTypedConfirmation({
+              title: "Reset Two-Factor Authentication",
+              message: user.username + "'s role requires two-factor authentication. " +
+                "Resetting it will lock this account out of signing in entirely (not just out of 2FA) " +
+                "until an administrator either changes their role or removes it from " +
+                "auth.two_factor.required_for_roles, since they cannot re-enroll without a session. " +
+                "Only proceed if you've already arranged one of those.",
+              expectedText: user.username,
+              confirmLabel: "Reset Anyway",
+              onConfirm: async function () {
+                await api("DELETE", endpoints.users + "/" + encodeURIComponent(user.id) + "/mfa");
+                showStatus("Two-factor authentication reset");
+                await load();
+              }
+            });
+            return;
+          }
+          confirmAction({
+            title: "Reset Two-Factor Authentication",
+            message: "Disable two-factor authentication for " + user.username + "? " +
+              "This takes effect immediately and the user must re-enroll to use 2FA again.",
+            confirmLabel: "Reset",
+            isDanger: true,
+            onConfirm: async function () {
+              await api("DELETE", endpoints.users + "/" + encodeURIComponent(user.id) + "/mfa");
+              showStatus("Two-factor authentication reset");
+              await load();
+            }
+          });
+        });
+        body.appendChild(el("div", { className: "bulk-action-row" }, resetBtn));
+      }
+    }
+
+    function load() {
+      var query = isCurrentUser ? "" : "?user_id=" + encodeURIComponent(user.id);
+      return api("GET", endpoints.mfaStatus + query).then(render).catch(function (err) {
+        clear(body);
+        body.appendChild(el("p", { className: "muted" }, "Failed to load two-factor status: " + err.message));
+      });
+    }
+
+    load();
+    return section;
   }
 
   // Self-service (isCurrentUser) uses /auth/sessions, which needs no special

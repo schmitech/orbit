@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORBIT Admin — Two-Factor Authentication</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #020617;
+            --panel: rgba(15, 23, 42, 0.9);
+            --panel-border: rgba(148, 163, 184, 0.18);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-strong: #0ea5e9;
+            --danger-bg: rgba(244, 63, 94, 0.12);
+            --danger-border: rgba(244, 63, 94, 0.3);
+            --danger-text: #fecdd3;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            font-family: Inter, system-ui, sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 32%),
+                radial-gradient(circle at bottom right, rgba(99, 102, 241, 0.18), transparent 28%),
+                linear-gradient(180deg, #020617 0%, #0f172a 100%);
+            color: var(--text);
+        }
+        .login-shell {
+            width: min(100%, 420px);
+            padding: 32px;
+            border-radius: 24px;
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            box-shadow: 0 30px 80px -48px rgba(14, 165, 233, 0.45);
+            backdrop-filter: blur(16px);
+        }
+        h1 {
+            margin: 0 0 8px;
+            font-size: 2rem;
+            line-height: 1.1;
+            text-align: center;
+        }
+        p.subtitle {
+            margin: 0 0 24px;
+            color: var(--muted);
+            font-size: 0.92rem;
+            text-align: center;
+        }
+        .login-alert {
+            margin-bottom: 18px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: var(--danger-bg);
+            border: 1px solid var(--danger-border);
+            color: var(--danger-text);
+            font-size: 0.92rem;
+        }
+        form {
+            display: grid;
+            gap: 16px;
+        }
+        label {
+            display: grid;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+        input[type="text"] {
+            width: 100%;
+            min-height: 48px;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(15, 23, 42, 0.72);
+            color: var(--text);
+            padding: 0 14px;
+            font: inherit;
+            letter-spacing: 0.05em;
+        }
+        input[type="text"]:focus {
+            outline: 2px solid rgba(56, 189, 248, 0.8);
+            outline-offset: 2px;
+            border-color: rgba(56, 189, 248, 0.42);
+        }
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.88rem;
+            color: var(--muted);
+        }
+        .checkbox-row input {
+            width: 16px;
+            height: 16px;
+        }
+        button {
+            min-height: 50px;
+            border: 0;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+            color: #082f49;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        button:hover {
+            filter: brightness(1.05);
+        }
+        button:focus-visible {
+            outline: 2px solid rgba(56, 189, 248, 0.85);
+            outline-offset: 3px;
+        }
+    </style>
+</head>
+<body>
+    <main class="login-shell">
+        <h1>Two-Factor Authentication</h1>
+        <p class="subtitle">Enter the code from your authenticator app, or one of your recovery codes.</p>
+        {{ERROR_BLOCK}}
+        <form method="post" action="/admin/login/2fa">
+            <input type="hidden" name="pending_token" value="{{PENDING_TOKEN}}">
+            <input type="hidden" name="next" value="{{NEXT_PATH}}">
+            <label for="code">
+                Authentication code
+                <input id="code" name="code" type="text" inputmode="text" autocomplete="one-time-code" autofocus required maxlength="32">
+            </label>
+            <label class="checkbox-row" for="remember_device">
+                <input id="remember_device" name="remember_device" type="checkbox" value="true">
+                Remember this device
+            </label>
+            <button type="submit">Verify</button>
+        </form>
+    </main>
+</body>
+</html>

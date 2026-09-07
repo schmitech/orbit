@@ -1234,6 +1234,8 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     iconPencil: ICON_PENCIL,
     iconSave: ICON_SAVE,
     iconX: ICON_X,
+    iconCopy: ICON_COPY,
+    iconCheck: ICON_CHECK,
     roleDetails: ROLE_DETAILS,
     usernameMaxLength: USERNAME_MAX_LENGTH,
     passwordMaxLength: PASSWORD_MAX_LENGTH,
@@ -1245,6 +1247,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     syncBulkActionButton: syncBulkActionButton,
     withButton: withButton,
     confirmAction: confirmAction,
+    confirmDialog: confirmDialog,
     requireTypedConfirmation: requireTypedConfirmation,
     showStatus: showStatus,
     showError: showError,
@@ -1252,6 +1255,8 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     validateUsername: validateUsername,
     bindValidationClear: bindValidationClear,
     createSelect: createSelect,
+    userHasPermission: userHasPermission,
+    copyTextToClipboard: copyTextToClipboard,
     getCurrentUser: function () { return currentUser; }
   });
   var apiKeysTab = createApiKeysTab({

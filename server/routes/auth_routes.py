@@ -103,6 +103,8 @@ class MfaConfirmResponse(BaseModel):
 
 class MfaStatusResponse(BaseModel):
     enabled: bool
+    required_for_role: bool = False
+    globally_enabled: bool = True
 
 
 class MfaDisableRequest(BaseModel):
@@ -1645,14 +1647,32 @@ def _mfa_misconfigured_response(e: FileEncryptionError) -> HTTPException:
 
 @auth_router.get("/mfa/status", response_model=MfaStatusResponse)
 async def get_mfa_status(
+    user_id: Optional[str] = None,
     current_user: dict[str, Any] = Depends(get_current_user),
     auth_service=Depends(get_auth_service),
 ):
-    """Report whether the caller has 2FA enabled."""
+    """Report whether the caller (or, with `users.manage`, another user) has 2FA enabled."""
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     mfa = _require_mfa(auth_service)
-    return MfaStatusResponse(enabled=await mfa.is_enabled(current_user["id"]))
+
+    if user_id and user_id != current_user["id"]:
+        if not has_permission(current_user, "users.manage"):
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        target = await auth_service.get_user_by_id(user_id)
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+        return MfaStatusResponse(
+            enabled=await mfa.is_enabled(user_id),
+            required_for_role=mfa.role_requires_2fa(target.get("roles", [])),
+            globally_enabled=mfa.enabled,
+        )
+
+    return MfaStatusResponse(
+        enabled=await mfa.is_enabled(current_user["id"]),
+        required_for_role=mfa.role_requires_2fa(current_user.get("roles", [])),
+        globally_enabled=mfa.enabled,
+    )
 
 
 @auth_router.post("/mfa/enroll", response_model=MfaEnrollResponse)
@@ -1668,6 +1688,11 @@ async def enroll_mfa(
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     mfa = _require_mfa(auth_service)
+    if not mfa.enabled:
+        raise HTTPException(
+            status_code=400,
+            detail="Two-factor authentication is disabled on this server and cannot be enrolled.",
+        )
     try:
         result = await mfa.begin_enrollment(current_user["id"], current_user["username"])
         return MfaEnrollResponse(**result)
