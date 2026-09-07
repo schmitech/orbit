@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.7] - 2026-09-07
 
 ### Admin Panel
 - **API Key Expiration Management**: The API Keys tab now surfaces and manages the expiration capability from Authentication Phase 8 end-to-end, without the CLI. The key list gets sortable Expiration/Access columns (expired, expiring-soon, non-expiring exception, and legacy-migration-pending states, each communicated by text as well as color) and a filter for each, backed by a new `loadAllKeys()` that pages through the full result set so filtering/sorting stay correct beyond the first 100 keys. The create form gains a Server default / Custom expiration / Non-expiring exception fieldset, and the detail view gains an expiration summary with a Renew / Change Expiration action, both built on a shared mutually-exclusive request builder so create and renew can't diverge. `GET /admin/api-keys` now also returns the configured `expiration_warning_days` so the "expiring soon" threshold shown in the UI always matches the deployment's actual config instead of a hardcoded value. Custom-expiration entry uses a small vendored date-time picker (replacing the browser's native calendar, whose popup had no visible way to close after selecting a time) with an enforced sane date range, and the non-expiring justification field is capped at 1000 characters on both the UI and the API model.

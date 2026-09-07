@@ -162,7 +162,6 @@ For power users and contributors.
 | Guide | Description |
 |-------|-------------|
 | [llama.cpp Server](llama-cpp-server-guide.md) | Run GGUF models locally |
-| [Shimmy Server](shimmy-setup-guide.md) | Lightweight OpenAI-compatible inference |
 | [Ollama Integration (`ollama.yaml`)](../install/default-config/ollama.yaml) | Using Ollama for local inference |
 
 ### Performance & Reliability
