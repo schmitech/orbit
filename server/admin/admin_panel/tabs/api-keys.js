@@ -1201,6 +1201,26 @@ export function createApiKeysTab({
         });
       });
       dangerActions.appendChild(deactivateBtn);
+    } else {
+      var activateBtn = el("button", { className: "secondary", type: "button" }, "Activate Key");
+      activateBtn.addEventListener("click", function () {
+        confirmAction({
+          title: "Activate Key",
+          message: "Activate this API key? It will start authenticating again.",
+          confirmLabel: "Activate",
+          onConfirm: async function () {
+            activateBtn.disabled = true;
+            try {
+              await api("POST", keyPath(keyId, "/activate"));
+              showStatus("Key activated");
+              onRefresh();
+            } finally {
+              activateBtn.disabled = false;
+            }
+          }
+        });
+      });
+      dangerActions.appendChild(activateBtn);
     }
     var deleteBtn = el("button", { className: "danger", type: "button" }, "Delete Key");
     deleteBtn.addEventListener("click", function () {

@@ -386,6 +386,21 @@ async def deactivate_api_key(
     return {"status": "success", "message": "API key deactivated"}
 
 
+@router.post("/api-keys/{api_key_id}/activate", dependencies=[apikeys_auth])
+async def activate_api_key(
+    api_key_id: str,
+    api_key_service = Depends(get_api_key_service),
+):
+    """Activate an API key by record ID."""
+    success = await api_key_service.activate_api_key_by_id(api_key_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail="API key not found")
+
+    logger.info(f"Activated API key: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
+    return {"status": "success", "message": "API key activated"}
+
+
 @router.delete("/api-keys/{api_key_id}", dependencies=[apikeys_auth])
 async def delete_api_key(
     api_key_id: str,

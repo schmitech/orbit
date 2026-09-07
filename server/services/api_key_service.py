@@ -1137,6 +1137,21 @@ class ApiKeyService:
             logger.error(f"Error deactivating API key by id: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error deactivating API key: {e!s}")
 
+    async def activate_api_key_by_id(self, api_key_id: str) -> bool:
+        """Activate an API key identified by record _id or raw key value."""
+        try:
+            key_doc = await self._resolve_key_doc(api_key_id)
+            doc_id = str(key_doc["_id"])
+            return await self.database.update_one(
+                self.collection_name, {"_id": doc_id},
+                {"$set": {"active": True}}
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error activating API key by id: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error activating API key: {e!s}")
+
     async def delete_api_key_by_id(self, api_key_id: str) -> bool:
         """Delete an API key identified by record _id or raw key value."""
         try:

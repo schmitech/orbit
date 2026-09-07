@@ -269,6 +269,64 @@ async def test_deactivate_api_key(api_key_service):
     assert status.get("active") is False
 
 @pytest.mark.asyncio
+async def test_activate_api_key_by_id(api_key_service):
+    """Test reactivating a deactivated API key by id"""
+    # Create and deactivate an API key
+    result = await api_key_service.create_api_key(
+        client_name="test_client",
+        adapter_name="qa-sql",
+        notes="Test API key"
+    )
+
+    api_key = result["api_key"]
+    await api_key_service.deactivate_api_key(api_key)
+
+    status = await api_key_service.get_api_key_status(api_key)
+    assert status.get("active") is False
+
+    # Reactivate using the raw api_key value (resolved like an id)
+    success = await api_key_service.activate_api_key_by_id(api_key)
+    assert success is True
+
+    # Verify status
+    status = await api_key_service.get_api_key_status(api_key)
+    assert status.get("active") is True
+
+
+@pytest.mark.asyncio
+async def test_activate_nonexistent_api_key(api_key_service):
+    """Test that activating a non-existent API key raises 404"""
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.activate_api_key_by_id("nonexistent_key_123")
+
+    assert exc_info.value.status_code == 404
+    assert "not found" in str(exc_info.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_reactivated_api_key_validation_with_adapters(api_key_service):
+    """Test that a reactivated API key passes validation again"""
+    result = await api_key_service.create_api_key(
+        client_name="Reactivate Test Client",
+        adapter_name="qa-sql"
+    )
+
+    api_key = result["api_key"]
+    await api_key_service.deactivate_api_key(api_key)
+
+    is_valid, adapter_name, prompt_id = await api_key_service.validate_api_key(api_key)
+    assert is_valid is False
+
+    await api_key_service.activate_api_key_by_id(api_key)
+
+    is_valid, adapter_name, prompt_id = await api_key_service.validate_api_key(api_key)
+    assert is_valid is True
+    assert adapter_name == "qa-sql"
+
+
+@pytest.mark.asyncio
 async def test_delete_api_key(api_key_service):
     """Test deleting an API key"""
     # Create an API key
