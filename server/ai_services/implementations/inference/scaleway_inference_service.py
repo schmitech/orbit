@@ -65,7 +65,7 @@ class ScalewayInferenceService(UsageReportingMixin, InferenceService, OpenAIComp
 
             return response.choices[0].message.content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_openai_compatible_error(e, "text generation")
             raise
 
@@ -112,6 +112,6 @@ class ScalewayInferenceService(UsageReportingMixin, InferenceService, OpenAIComp
                         reasoning_tokens=self._extract_reasoning_tokens(chunk.usage),
                     )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_openai_compatible_error(e, "streaming generation")
             yield f"Error: {e!s}"

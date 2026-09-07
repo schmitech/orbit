@@ -112,5 +112,5 @@ class OpenAIImageService(ImageGenerationService, OpenAIBaseService):
         try:
             await self.client.models.list()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - provider boundary fallback
             return False

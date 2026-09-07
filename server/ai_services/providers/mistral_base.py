@@ -119,7 +119,7 @@ class MistralBaseService(ProviderAIService):
                 )
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Mistral service: {e!s}")
             return False
 
@@ -139,7 +139,7 @@ class MistralBaseService(ProviderAIService):
             logger.debug("Mistral connection verified successfully")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Mistral connection verification failed: {e!s}")
             return False
 

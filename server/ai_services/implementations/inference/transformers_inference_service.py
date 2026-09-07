@@ -12,7 +12,6 @@ from typing import Any
 from collections.abc import AsyncGenerator
 
 from ...base import ServiceType
-from ...errors import sanitize_provider_error
 from ...providers.transformers_base import TransformersBaseService
 from ...services import InferenceService
 
@@ -55,7 +54,7 @@ class TransformersInferenceService(InferenceService, TransformersBaseService):
                 logger.error("Model not configured")
                 return False
             return await self.verify_connection()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Configuration validation failed: {e}")
             return False
 
@@ -68,7 +67,7 @@ class TransformersInferenceService(InferenceService, TransformersBaseService):
                     tokenize=False,
                     add_generation_prompt=True,
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.debug(f"Could not apply chat template: {e}")
 
         # Plain-text fallback
@@ -141,7 +140,7 @@ class TransformersInferenceService(InferenceService, TransformersBaseService):
             result = await asyncio.to_thread(_run)
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_transformers_error(e, "text generation")
             raise
 
@@ -192,7 +191,7 @@ class TransformersInferenceService(InferenceService, TransformersBaseService):
 
                     gen_thread.join()
 
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - provider boundary fallback
                     loop.call_soon_threadsafe(queue.put_nowait, _StreamError(exc))
                 finally:
                     loop.call_soon_threadsafe(queue.put_nowait, None)  # sentinel
@@ -212,13 +211,7 @@ class TransformersInferenceService(InferenceService, TransformersBaseService):
                     raise token.exc
                 yield token
 
-        except Exception as e:
-            if not isinstance(e, (StopAsyncIteration,)):
-                # _handle_transformers_error raises ProviderServiceError, so this
-                # yield is only reachable for StopAsyncIteration.
-                self._handle_transformers_error(e, "streaming generation")
-            yield sanitize_provider_error(
-                e,
-                provider=self.provider_name,
-                operation="streaming generation",
-            )
+        except StopAsyncIteration:
+            return
+        except Exception as e:  # noqa: BLE001 - normalize provider failures
+            self._handle_transformers_error(e, "streaming generation")

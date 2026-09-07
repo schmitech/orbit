@@ -29,7 +29,7 @@ class NVIDIAInferenceService(InferenceService, NVIDIABaseService):
                 max_tokens=kwargs.get('max_tokens', self.max_tokens), **kwargs
             )
             return response.choices[0].message.content
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_nvidia_error(e, "generation")
             raise
 
@@ -49,7 +49,7 @@ class NVIDIAInferenceService(InferenceService, NVIDIABaseService):
             async for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_nvidia_error(e, "streaming")
             yield f"Error: {e!s}"
 

@@ -100,7 +100,7 @@ class LlamaCppVisionService(VisionService, LlamaCppBaseService):
         except ImportError:
             logger.error("llama-cpp-python not installed (required for direct mode)")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize llama.cpp vision service: {e}")
             return False
 
@@ -174,7 +174,7 @@ class LlamaCppVisionService(VisionService, LlamaCppBaseService):
                 response = await asyncio.to_thread(_generate)
                 return response.get("choices", [{}])[0].get("message", {}).get("content", "")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_llama_cpp_error(e, "image analysis")
             raise
 
@@ -317,6 +317,6 @@ class LlamaCppVisionService(VisionService, LlamaCppBaseService):
                 response = await asyncio.to_thread(_generate)
                 return response.get("choices", [{}])[0].get("message", {}).get("content", "")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_llama_cpp_error(e, "multimodal inference")
             raise

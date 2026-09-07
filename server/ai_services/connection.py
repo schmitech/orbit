@@ -171,7 +171,7 @@ class RetryHandler:
             try:
                 return await operation()
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 last_exception = e
 
                 # Don't retry on the last attempt
@@ -244,7 +244,7 @@ class ConnectionVerifier:
                 _verify,
                 error_message="Connection verification failed"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to verify HTTP connection: {e!s}")
             return False
 
@@ -274,7 +274,7 @@ class ConnectionVerifier:
                 async with session.get(test_endpoint) as response:
                     return 200 <= response.status < 300
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"API key verification failed: {e!s}")
             return False
 

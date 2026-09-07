@@ -55,7 +55,7 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
         try:
             self._get_client()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - provider boundary fallback
             return False
 
     async def generate_video(self, prompt: str, **kwargs) -> dict[str, Any]:
@@ -116,6 +116,6 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
                 "duration": None,
                 "revised_prompt": None,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error(f"Gemini video generation failed: {e}")
             raise

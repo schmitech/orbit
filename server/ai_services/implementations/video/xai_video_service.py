@@ -61,7 +61,7 @@ class XAIVideoService(VideoGenerationService):
             )
             self.initialized = True
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error(f"Failed to initialize xAI video generation service: {e}")
             return False
 

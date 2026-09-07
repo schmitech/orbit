@@ -208,7 +208,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
             # message rather than exposing token chunks to the MCP tool loop.
             async with self.client.messages.stream(**params) as stream:
                 response = await stream.get_final_message()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_anthropic_error(e, "tool-calling generation")
             raise
 
@@ -372,7 +372,7 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
                 text += self._format_citations(citations)
             return text
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_anthropic_error(e, "text generation")
             raise
 
@@ -450,6 +450,6 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
                         if sources:
                             yield sources
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_anthropic_error(e, "streaming generation")
             yield f"Error: {e!s}"

@@ -71,7 +71,7 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
             logger.debug(f"Initialized OpenRouter inference service with model {self.model}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize OpenRouter service: {e!s}")
             return False
 
@@ -96,7 +96,7 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
 
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"OpenRouter connection verification failed: {e!s}")
             return False
 
@@ -169,7 +169,7 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
 
             return content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_error(e, "text generation")
             raise
 
@@ -204,9 +204,8 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
                         getattr(usage, "completion_tokens", None),
                     )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - normalize provider failures
             self._handle_error(e, "streaming generation")
-            yield f"Error: {e!s}"
 
     def _handle_error(self, error: Exception, operation: str) -> None:
         """Handle OpenRouter API errors with appropriate logging."""
@@ -216,7 +215,7 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
             raw_resp = getattr(error, "raw_response")
             try:
                 body = getattr(raw_resp, "text", None)
-            except Exception:
+            except Exception:  # noqa: BLE001 - provider boundary fallback
                 body = None
         if body:
             details = f" - Raw response: {body}"

@@ -52,7 +52,7 @@ class ShimmyInferenceService(InferenceService, ShimmyBaseService):
             if result:
                 logger.debug(f"Shimmy inference service initialized at {self.base_url}")
             return result
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Shimmy inference service: {e!s}")
             return False
 
@@ -132,7 +132,7 @@ class ShimmyInferenceService(InferenceService, ShimmyBaseService):
             
             return self._clean_response_text(response_text)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_shimmy_error(e, "text generation")
             raise
 
@@ -200,7 +200,6 @@ class ShimmyInferenceService(InferenceService, ShimmyBaseService):
                             if text:
                                 yield text
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_shimmy_error(e, "streaming generation")
             yield f"Error: {e!s}"
-

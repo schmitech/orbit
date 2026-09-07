@@ -227,7 +227,7 @@ Provide your safety assessment for 'User' in the above conversation:
             # Execute with retry logic from Ollama base class
             return await self.execute_with_retry(_moderate)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in Ollama moderation: {e!s}")
             logger.warning(f"Moderation check failed, allowing content through: {e!s}")
             return ModerationResult(

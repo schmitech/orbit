@@ -196,7 +196,7 @@ class CoquiAudioService(AudioService):
                     torch.cuda.empty_cache()
 
                 logger.debug("Model warm-up completed")
-            except Exception as warmup_error:
+            except Exception as warmup_error:  # noqa: BLE001 - provider boundary fallback
                 logger.warning(f"Model warm-up failed (non-critical): {warmup_error!s}")
 
             self._tts_initialized = True
@@ -213,7 +213,7 @@ class CoquiAudioService(AudioService):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Coqui TTS model: {e!s}")
             return False
 
@@ -258,7 +258,7 @@ class CoquiAudioService(AudioService):
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Coqui TTS service: {e!s}")
             return False
 
@@ -275,7 +275,7 @@ class CoquiAudioService(AudioService):
             logger.debug("Coqui TTS connection verified (local service)")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Coqui TTS verification failed: {e!s}")
             return False
 
@@ -354,7 +354,7 @@ class CoquiAudioService(AudioService):
                 logger.warning(f"Format '{audio_format}' not natively supported, returning WAV")
                 return self._to_wav_bytes(audio_data)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Coqui TTS error: {e!s}")
             raise
 
@@ -400,7 +400,7 @@ class CoquiAudioService(AudioService):
 
             return audio_array
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Speech synthesis failed: {e!s}")
             raise
 

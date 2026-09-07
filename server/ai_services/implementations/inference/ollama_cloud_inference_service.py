@@ -125,7 +125,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
                 logger.warning("Ollama Cloud connection verification failed")
                 return False
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Ollama Cloud client: {exc}")
             self.client = None
             return False
@@ -157,7 +157,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
                 if models and hasattr(models, 'models') and models.models:
                     logger.debug("Ollama Cloud connection verified successfully")
                     return True
-            except Exception as list_exc:
+            except Exception as list_exc:  # noqa: BLE001 - provider boundary fallback
                 logger.debug(f"Model list failed, trying chat request: {list_exc}")
                 
                 # Fallback to a minimal chat request
@@ -168,7 +168,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
                 )
                 
             return True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error("Failed to verify Ollama Cloud connection: %s", exc)
             return False
         finally:
@@ -212,7 +212,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
                 )
 
             return self._extract_content(response)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error(
                 "Ollama Cloud generation failed: %s",
                 sanitize_provider_error(
@@ -269,7 +269,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
                             getattr(chunk, "prompt_eval_count", None),
                             getattr(chunk, "eval_count", None),
                         )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error(
                 "Ollama Cloud streaming generation failed: %s",
                 sanitize_provider_error(
@@ -324,7 +324,7 @@ class OllamaCloudInferenceService(UsageReportingMixin, InferenceService):
 
         try:
             response = await self.client.chat(**chat_kwargs)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error(
                 "Ollama Cloud tool-calling generation failed: %s",
                 sanitize_provider_error(

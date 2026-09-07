@@ -74,7 +74,7 @@ class JinaRerankingService(RerankingService, JinaBaseService):
             logger.debug(f"Jina AI reranking service initialized with model: {self.model}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Jina AI reranking service: {e!s}")
             return False
 
@@ -159,7 +159,7 @@ class JinaRerankingService(RerankingService, JinaBaseService):
                 logger.debug(f"Reranked {len(documents)} -> {len(results)} documents")
                 return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in Jina AI reranking: {e!s}")
             raise
 
@@ -185,7 +185,7 @@ class JinaRerankingService(RerankingService, JinaBaseService):
                 logger.error("Received empty results from Jina AI")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to verify Jina AI reranking connection: {e!s}")
             return False
 

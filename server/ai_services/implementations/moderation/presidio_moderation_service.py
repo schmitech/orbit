@@ -166,7 +166,7 @@ class PresidioModerationService(ModerationService):
                     )
                     return None
                 supported = await response.json()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.warning(
                 f"Could not reach Presidio analyzer at {self.base_url} during "
                 f"initialization ({exc}); skipping entity validation"
@@ -187,7 +187,7 @@ class PresidioModerationService(ModerationService):
             session = await self.connection_manager.get_session()
             async with session.get(self._url('/health')) as response:
                 return response.status == 200
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.warning(f"Presidio analyzer connection check failed: {exc}")
             return False
 

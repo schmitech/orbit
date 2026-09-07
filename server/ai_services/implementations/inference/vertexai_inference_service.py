@@ -88,7 +88,7 @@ class VertexAIInferenceService(UsageReportingMixin, InferenceService, GoogleBase
 
             return response.text
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_google_error(e, "text generation")
             raise
 
@@ -129,6 +129,6 @@ class VertexAIInferenceService(UsageReportingMixin, InferenceService, GoogleBase
                     reasoning_tokens=getattr(last_usage, "thoughts_token_count", None),
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_google_error(e, "streaming generation")
             yield f"Error: {e!s}"

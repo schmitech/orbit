@@ -144,7 +144,7 @@ class CohereBaseService(ProviderAIService):
                 )
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Cohere service: {e!s}")
             return False
 
@@ -164,7 +164,7 @@ class CohereBaseService(ProviderAIService):
             logger.debug("Cohere connection verified successfully")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Cohere connection verification failed: {e!s}")
             return False
 

@@ -87,7 +87,7 @@ class ShimmyBaseService(ProviderAIService):
             self.initialized = True
             logger.debug(f"Initialized Shimmy service at {self.base_url}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Shimmy service: {e!s}")
             return False
 
@@ -108,7 +108,7 @@ class ShimmyBaseService(ProviderAIService):
                 await self.client.models.list()
                 logger.debug("Shimmy connection verified successfully")
                 return True
-            except Exception as models_error:
+            except Exception as models_error:  # noqa: BLE001 - provider boundary fallback
                 # If models endpoint doesn't work, try a minimal test request
                 logger.debug(
                     f"Shimmy models endpoint not available, trying test request: {models_error!s}"
@@ -128,7 +128,7 @@ class ShimmyBaseService(ProviderAIService):
                 
                 return False
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Shimmy connection verification failed: {e!s}")
             return False
 
@@ -185,4 +185,3 @@ class ShimmyBaseService(ProviderAIService):
             )
 
         raise_sanitized(error, provider=self.provider_name, operation=operation)
-

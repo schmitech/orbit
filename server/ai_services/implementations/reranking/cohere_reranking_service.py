@@ -89,7 +89,7 @@ class CohereRerankingService(RerankingService, CohereBaseService):
             logger.debug(f"Cohere reranking service initialized with model: {self.model}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Cohere reranking service: {e!s}")
             return False
 
@@ -179,7 +179,7 @@ class CohereRerankingService(RerankingService, CohereBaseService):
                 logger.debug(f"Reranked {len(documents)} -> {len(results)} documents")
                 return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in Cohere reranking: {e!s}")
             raise
 
@@ -205,7 +205,7 @@ class CohereRerankingService(RerankingService, CohereBaseService):
                 logger.error("Received empty results from Cohere")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to verify Cohere reranking connection: {e!s}")
             return False
 

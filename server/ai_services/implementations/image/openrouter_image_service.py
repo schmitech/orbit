@@ -73,7 +73,7 @@ class OpenRouterImageService(ImageGenerationService):
             self.initialized = True
             logger.debug(f"Initialized OpenRouter image generation service with model {self.model}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize OpenRouter image generation service: {e}")
             return False
 
@@ -89,7 +89,7 @@ class OpenRouterImageService(ImageGenerationService):
         try:
             await self.client.images.list_models_async()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"OpenRouter image generation connection verification failed: {e}")
             return False
 

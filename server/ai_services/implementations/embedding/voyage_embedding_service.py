@@ -56,7 +56,7 @@ class VoyageEmbeddingService(UsageReportingMixin, EmbeddingService):
             self.initialized = True
             logger.debug(f"Voyage AI embedding service initialized with model: {self.model}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Voyage AI embedding service: {e}")
             return False
 
@@ -79,7 +79,7 @@ class VoyageEmbeddingService(UsageReportingMixin, EmbeddingService):
             )
             return embedding[0]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"VoyageEmbeddingService.embed_query failed: {e}")
             raise
 
@@ -124,7 +124,7 @@ class VoyageEmbeddingService(UsageReportingMixin, EmbeddingService):
                 if i + self.batch_size < len(texts):
                     await asyncio.sleep(0.5)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(
                     f"VoyageEmbeddingService.embed_documents: batch {batch_num} failed: {e}"
                 )
@@ -201,7 +201,7 @@ class VoyageEmbeddingService(UsageReportingMixin, EmbeddingService):
                 logger.info("Successfully verified Voyage AI embedding connection")
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to verify Voyage AI embedding connection: {e}")
             return False
 

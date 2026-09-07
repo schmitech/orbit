@@ -115,7 +115,7 @@ class OpenAIRerankingService(RerankingService, OpenAIBaseService):
             logger.debug(f"Reranked {len(documents)} -> {len(all_results)} documents")
             return all_results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in OpenAI reranking: {e!s}")
             raise
 
@@ -251,6 +251,6 @@ Example format: {{"scores": [0.9, 0.7, 0.3, ...]}}"""
                 logger.error("Received empty results from OpenAI")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to verify OpenAI reranking connection: {e!s}")
             return False

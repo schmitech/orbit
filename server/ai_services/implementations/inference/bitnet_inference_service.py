@@ -125,7 +125,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
         except ImportError:
             logger.error("BitNet package not installed. Please install with: pip install bitnet-cpp")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize BitNet model: {e!s}")
             return False
 
@@ -145,7 +145,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                     # Try to list models or make a simple request
                     await self.model.models.list()
                     return True
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Failed to verify BitNet API connection: {e!s}")
                 return False
         else:
@@ -221,7 +221,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                 response_text = response.choices[0].message.content
                 return self._clean_response_text(response_text)
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error generating response with BitNet: {e!s}")
             raise
 
@@ -291,7 +291,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                                 if text:
                                     yield text
                     
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.exception("Error generating streaming response with BitNet")
             yield sanitize_provider_error(
                 e,

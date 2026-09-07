@@ -66,7 +66,7 @@ class OpenAIBaseService(OpenAICompatibleBaseService):
             await self.client.models.list()
             logger.debug("OpenAI connection verified successfully")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"OpenAI connection verification failed: {e!s}")
             return False
 

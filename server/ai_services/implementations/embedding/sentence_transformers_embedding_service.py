@@ -219,7 +219,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
                         f"Processed {min(i + self.batch_size, len(texts))}/{len(texts)} documents"
                     )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Batch processing failed at index {i}: {e}")
 
                 # Fall back to individual processing for this batch
@@ -227,7 +227,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
                     try:
                         embedding = await self._embed_query_local(text)
                         all_embeddings.append(embedding)
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - provider boundary fallback
                         logger.error(f"Failed to embed document: {e}")
                         # Use zero vector as fallback
                         fallback_dims = self.dimensions or 768
@@ -263,7 +263,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
                         # Retry individually for failed embeddings
                         try:
                             result = await self._embed_query_remote(batch[j])
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 - provider boundary fallback
                             logger.error(f"Retry failed for document {i+j}: {e}")
                             # Use zero vector as fallback
                             fallback_dims = self.dimensions or 768
@@ -277,14 +277,14 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
                         f"Processed {min(i + self.batch_size, len(texts))}/{len(texts)} documents"
                     )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Batch processing failed: {e}")
                 # Fall back to sequential processing
                 for text in batch:
                     try:
                         embedding = await self._embed_query_remote(text)
                         all_embeddings.append(embedding)
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - provider boundary fallback
                         logger.error(f"Failed to embed document: {e}")
                         fallback_dims = self.dimensions or 768
                         all_embeddings.append([0.0] * fallback_dims)
@@ -307,7 +307,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
             test_embedding = await self.embed_query("test")
             self.dimensions = len(test_embedding)
             return self.dimensions
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to determine dimensions: {e!s}")
             # Use a reasonable fallback based on common models
             fallback = 768

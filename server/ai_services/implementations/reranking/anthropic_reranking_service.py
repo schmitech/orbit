@@ -112,7 +112,7 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
             logger.debug(f"Reranked {len(documents)} -> {len(all_results)} documents")
             return all_results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in Anthropic reranking: {e!s}")
             raise
 
@@ -258,6 +258,6 @@ Only output the JSON, no other text."""
                 logger.error("Received empty results from Anthropic")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to verify Anthropic reranking connection: {e!s}")
             return False

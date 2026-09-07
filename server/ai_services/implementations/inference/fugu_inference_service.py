@@ -68,7 +68,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
         except RateLimitError:
             logger.warning("Fugu credit balance exhausted — skipping test request during verification")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.debug("Fugu models list unavailable (%s) — skipping verification", str(e))
             return False
 
@@ -99,7 +99,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
 
         try:
             response = await self.client.chat.completions.create(**params)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_openai_compatible_error(e, "tool-calling generation")
             raise
 
@@ -167,7 +167,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
             response = await self.client.chat.completions.create(**params)
             return response.choices[0].message.content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_openai_compatible_error(e, "text generation")
             raise
 
@@ -215,7 +215,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
             msg = "Sakana AI credit balance is exhausted. Please top up your account."
             logger.warning("Fugu rate limit / credit exhausted: %s", str(e))
             yield msg
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_openai_compatible_error(e, "streaming generation")
             yield f"Error: {e!s}"
 

@@ -112,7 +112,7 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
             )
             logger.error(error_msg)
             raise ImportError(error_msg)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error loading privacy filter model: {e}")
             raise
 
@@ -179,7 +179,7 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
             spans = await loop.run_in_executor(self.executor, self.pipeline, content)
             return self._spans_to_result(spans)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in privacy filter moderation: {e!s}")
             logger.warning(f"Moderation check failed, allowing content through: {e!s}")
             return ModerationResult(
@@ -225,7 +225,7 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
                 batch_spans = [batch_spans]
             return [self._spans_to_result(spans) for spans in batch_spans]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in privacy filter batch moderation: {e!s}")
             return [
                 ModerationResult(

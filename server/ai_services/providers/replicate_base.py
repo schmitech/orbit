@@ -48,7 +48,7 @@ class ReplicateBaseService(ProviderAIService):
         try:
             self.initialized = True
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Replicate: {e!s}")
             return False
 

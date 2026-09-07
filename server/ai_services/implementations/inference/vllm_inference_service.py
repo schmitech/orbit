@@ -124,7 +124,7 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
 
         try:
             response = await self.client.chat.completions.create(**params)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_vllm_error(e, "tool-calling generation")
             raise
 
@@ -173,7 +173,7 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
             else:
                 return await self._generate_direct(messages, **kwargs)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_vllm_error(e, "text generation")
             raise
 
@@ -243,7 +243,7 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
                         tokenize=False,
                         add_generation_prompt=True
                     )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.debug(f"Could not apply chat template: {e}")
 
         # Fallback to simple formatting
@@ -277,7 +277,7 @@ class VLLMInferenceService(InferenceService, VLLMBaseService):
                 async for chunk in self._generate_stream_direct(messages, **kwargs):
                     yield chunk
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_vllm_error(e, "streaming generation")
             yield f"Error: {e!s}"
 

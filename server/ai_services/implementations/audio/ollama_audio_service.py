@@ -101,7 +101,7 @@ class OllamaAudioService(AudioService, OllamaBaseService):
                     else:
                         raise ValueError("No audio data in Ollama response")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Ollama TTS error: {e!s}")
             raise
 
@@ -150,7 +150,7 @@ class OllamaAudioService(AudioService, OllamaBaseService):
                             return result["text"]
                         elif "transcription" in result:
                             return result["transcription"]
-                except Exception:
+                except Exception:  # noqa: BLE001 - provider boundary fallback
                     # Fallback to generate endpoint with audio input
                     # This is a simplified approach - actual implementation may vary
                     payload_generate = {
@@ -172,7 +172,7 @@ class OllamaAudioService(AudioService, OllamaBaseService):
                         else:
                             raise ValueError("No transcription in Ollama response")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Ollama STT error: {e!s}")
             raise
 
@@ -224,11 +224,10 @@ class OllamaAudioService(AudioService, OllamaBaseService):
                         logger.warning("Translation failed, returning transcript")
                         return transcript
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Ollama translation error: {e!s}")
             # Fallback: return transcript if translation fails
             try:
                 return await self.speech_to_text(audio, source_language, **kwargs)
-            except Exception:
+            except Exception:  # noqa: BLE001 - provider boundary fallback
                 raise
-

@@ -90,7 +90,7 @@ class GoogleBaseService(ProviderAIService):
                 f"with model {self.model}"
             )
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize {self.provider_name.title()} service: {e!s}")
             return False
 
@@ -109,7 +109,7 @@ class GoogleBaseService(ProviderAIService):
 
             logger.debug(f"{self.provider_name.title()} connection verified")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"{self.provider_name.title()} connection verification failed: {e!s}")
             return False
 

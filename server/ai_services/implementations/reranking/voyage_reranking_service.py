@@ -64,7 +64,7 @@ class VoyageRerankingService(RerankingService):
             logger.debug(f"Voyage AI reranking service initialized with model: {self.model}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Voyage AI reranking service: {e!s}")
             return False
 
@@ -145,7 +145,7 @@ class VoyageRerankingService(RerankingService):
                 logger.debug(f"Reranked {len(documents)} -> {len(results)} documents")
                 return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in Voyage AI reranking: {e!s}")
             raise
 
@@ -170,7 +170,7 @@ class VoyageRerankingService(RerankingService):
                 logger.error("Received empty results from Voyage AI")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to verify Voyage AI reranking connection: {e!s}")
             return False
 

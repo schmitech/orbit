@@ -71,7 +71,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
             else:
                 return await self._embed_query_direct(text)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_llama_cpp_error(e, "embedding query")
             raise
 
@@ -131,7 +131,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
                 embedding = embeddings['embedding']
 
             return embedding
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in llama.cpp _generate_embedding: {e!s}")
             raise
 
@@ -154,7 +154,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
             else:
                 return await self._embed_documents_direct(texts)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_llama_cpp_error(e, "batch embedding")
             raise
 
@@ -236,7 +236,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
             try:
                 embedding = self._generate_embedding(text)
                 batch_embeddings.append(embedding)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Error embedding text '{text[:30]}...': {e!s}")
                 raise
 
@@ -259,7 +259,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
             embedding = await self.embed_query("test")
             self.dimensions = len(embedding)
             return self.dimensions
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to determine embedding dimensions: {e!s}")
             # Default fallback - many GGUF embedding models use 4096 dimensions
             self.dimensions = 4096

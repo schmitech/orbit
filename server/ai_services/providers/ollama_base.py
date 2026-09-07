@@ -176,7 +176,7 @@ class OllamaBaseService(ProviderAIService):
 
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Ollama service: {e!s}")
             return False
 
@@ -207,7 +207,7 @@ class OllamaBaseService(ProviderAIService):
         """
         try:
             return await self.connection_verifier.verify_connection(check_model=True)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Ollama connection verification failed: {e!s}")
             return False
 
@@ -219,7 +219,7 @@ class OllamaBaseService(ProviderAIService):
             await self.session_manager.close()
             self.initialized = False
             logger.debug("Closed Ollama service")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error closing Ollama service: {e!s}")
 
     def _get_temperature(self, default: float = 0.1) -> float:

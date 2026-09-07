@@ -29,7 +29,7 @@ class ReplicateInferenceService(InferenceService, ReplicateBaseService):
                 }
             )
             return "".join(output) if isinstance(output, list) else str(output)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_replicate_error(e, "generation")
             raise
 
@@ -47,6 +47,6 @@ class ReplicateInferenceService(InferenceService, ReplicateBaseService):
                 }
             ):
                 yield str(chunk)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_replicate_error(e, "streaming")
             yield f"Error: {e!s}"

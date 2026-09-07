@@ -120,7 +120,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
             logger.debug("   Ready for offline speech-to-text transcription!")
             self.initialized = True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Whisper service: {e!s}")
             raise
 
@@ -211,10 +211,10 @@ class WhisperAudioService(AudioService, ProviderAIService):
                 # Clean up temp file
                 try:
                     os.unlink(temp_path)
-                except Exception:
+                except Exception:  # noqa: BLE001 - provider boundary fallback
                     pass
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Whisper transcription error: {e!s}")
             raise
 
@@ -309,7 +309,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
             await self.initialize()
             return self.initialized and self.model_loaded
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Whisper connection verification failed: {e!s}")
             return False
 

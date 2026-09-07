@@ -88,7 +88,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
             logger.debug(f"ElevenLabs audio service initialized with model: {self.tts_model}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize ElevenLabs audio service: {e!s}")
             return False
 
@@ -171,7 +171,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
                 audio_data = await response.read()
                 return audio_data
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"ElevenLabs TTS error: {e!s}")
             raise
 
@@ -298,7 +298,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
             async with self._session.get(url) as response:
                 return response.status == 200
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"ElevenLabs connection verification failed: {e!s}")
             return False
 
@@ -322,7 +322,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
 
                 return await response.json()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to list ElevenLabs voices: {e!s}")
             raise
 
@@ -349,6 +349,6 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
 
                 return await response.json()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to get ElevenLabs voice info: {e!s}")
             raise

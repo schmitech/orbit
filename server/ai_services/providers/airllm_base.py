@@ -99,7 +99,7 @@ class AirLLMBaseService(ProviderAIService):
             )
             logger.error(error_msg)
             raise ImportError(error_msg)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error loading AirLLM model: {e}")
             raise
 
@@ -111,7 +111,7 @@ class AirLLMBaseService(ProviderAIService):
                 await loop.run_in_executor(self.executor, self._load_model)
             self.initialized = True
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize AirLLM service: {e}")
             return False
 
@@ -142,7 +142,7 @@ class AirLLMBaseService(ProviderAIService):
 
             self.initialized = False
             logger.info("AirLLM service closed")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error closing AirLLM service: {e}")
 
     def _handle_airllm_error(self, error: Exception, operation: str = "operation") -> None:

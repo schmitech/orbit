@@ -83,7 +83,7 @@ class CohereAudioService(AudioService):
             self.initialized = True
             self.logger.debug("Initialized Cohere audio service (STT)")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error("Failed to initialize Cohere audio service: %s", e)
             return False
 
@@ -128,7 +128,7 @@ class CohereAudioService(AudioService):
             if not response.is_success:
                 try:
                     body = response.json()
-                except Exception:
+                except Exception:  # noqa: BLE001 - provider boundary fallback
                     body = response.text
                 self.logger.error(
                     "Cohere STT %s response body: %s", response.status_code, body
@@ -141,7 +141,7 @@ class CohereAudioService(AudioService):
                 _transcribe,
                 error_message="Cohere speech-to-text failed",
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error("Cohere speech-to-text failed: %s", e)
             raise_sanitized(e, provider="cohere", operation="speech-to-text")
 

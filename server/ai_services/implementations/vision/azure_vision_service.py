@@ -127,7 +127,7 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
             if not response.choices:
                 return False
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - provider boundary fallback
             return False
 
     async def analyze_image(
@@ -180,7 +180,7 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
 
             return response.choices[0].message.content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_azure_error(e, "image analysis")
             raise
 
@@ -285,6 +285,6 @@ class AzureVisionService(UsageReportingMixin, VisionService, AzureBaseService):
 
             return response.choices[0].message.content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_azure_error(e, "multimodal inference")
             raise

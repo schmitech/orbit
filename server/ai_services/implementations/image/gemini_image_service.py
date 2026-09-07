@@ -49,7 +49,7 @@ class GeminiImageService(ImageGenerationService, GoogleBaseService):
         try:
             self._get_client()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - provider boundary fallback
             return False
 
     def _is_gemini_model(self, model: str) -> bool:

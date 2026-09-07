@@ -104,7 +104,7 @@ class OllamaCloudVisionService(VisionService):
 
             logger.warning("Ollama Cloud vision connection verification failed")
             return False
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error("Failed to initialize Ollama Cloud vision client: %s", exc)
             self.client = None
             return False
@@ -133,7 +133,7 @@ class OllamaCloudVisionService(VisionService):
                 if models and hasattr(models, "models") and models.models:
                     logger.debug("Ollama Cloud vision connection verified successfully")
                     return True
-            except Exception as list_exc:
+            except Exception as list_exc:  # noqa: BLE001 - provider boundary fallback
                 logger.debug("Model list failed, trying chat request: %s", list_exc)
                 await temp_client.chat(
                     model=self.model,
@@ -142,7 +142,7 @@ class OllamaCloudVisionService(VisionService):
                 )
 
             return True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error("Failed to verify Ollama Cloud vision connection: %s", exc)
             return False
 

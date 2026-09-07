@@ -54,7 +54,7 @@ class LMStudioInferenceService(InferenceService, OpenAICompatibleBaseService):
             response = await self.client.chat.completions.create(**params)
             return response.choices[0].message.content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_openai_compatible_error(e, "text generation")
             raise
 
@@ -92,6 +92,6 @@ class LMStudioInferenceService(InferenceService, OpenAICompatibleBaseService):
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_openai_compatible_error(e, "streaming generation")
             yield f"Error: {e!s}"

@@ -64,7 +64,7 @@ class HuggingFaceBaseService(ProviderAIService):
             self.initialized = True
             logger.debug(f"Hugging Face service initialized with model: {self.model}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Hugging Face: {e!s}")
             return False
 
@@ -73,7 +73,7 @@ class HuggingFaceBaseService(ProviderAIService):
             await self.client.get_endpoint_info()
             logger.debug(f"Hugging Face connection verified for model: {self.model}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.warning(f"Hugging Face connection verification failed: {e!s}")
             # Return True anyway — model may still work via serverless inference
             # even if get_endpoint_info fails (e.g. for non-dedicated endpoints)

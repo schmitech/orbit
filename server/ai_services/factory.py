@@ -140,7 +140,7 @@ class AIServiceFactory:
 
             return service_instance
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(
                 f"Failed to create {service_type.value} service with provider "
                 f"{provider}: {e!s}"
@@ -189,7 +189,7 @@ class AIServiceFactory:
                 )
                 return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(
                 f"Error creating/initializing {service_type.value} service "
                 f"with provider {provider}: {e!s}"
@@ -269,7 +269,7 @@ class AIServiceFactory:
         for service in cls._service_cache.values():
             try:
                 await service.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Error closing service {service.__class__.__name__}: {e!s}")
 
         cls._service_cache.clear()

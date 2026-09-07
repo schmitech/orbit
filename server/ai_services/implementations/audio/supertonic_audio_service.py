@@ -135,7 +135,7 @@ class SupertonicAudioService(AudioService):
             logger.debug("Supertonic TTS model loaded successfully")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to load Supertonic TTS model: {e}")
             return False
 

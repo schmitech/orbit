@@ -105,7 +105,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
         except ImportError:
             logger.error("llama-cpp-python package not installed (required for direct mode)")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Llama.cpp: {e!s}")
             return False
 
@@ -157,7 +157,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                     stop=self.stop_tokens if self.stop_tokens else None,
                     **tool_kwargs,
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error("Llama.cpp API tool-calling error: %s", e)
                 raise
 
@@ -210,7 +210,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
 
             try:
                 response = await asyncio.to_thread(_call)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error("Llama.cpp direct tool-calling error: %s", e)
                 raise
 
@@ -297,7 +297,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                 response_text = response.get("choices", [{}])[0].get("message", {}).get("content", "")
                 return self._clean_response_text(response_text)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error generating response with Llama.cpp: {e!s}")
             raise
 
@@ -359,7 +359,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                             if text:
                                 yield text
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.exception("Error generating streaming response with Llama.cpp")
             yield sanitize_provider_error(
                 e,

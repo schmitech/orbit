@@ -111,7 +111,7 @@ class OpenRouterAudioService(UsageReportingMixin, AudioService):
             self.initialized = True
             self.logger.debug(f"Initialized OpenRouter audio service (STT) with model {self.stt_model}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error(f"Failed to initialize OpenRouter audio service: {e}")
             return False
 
@@ -178,7 +178,7 @@ class OpenRouterAudioService(UsageReportingMixin, AudioService):
             )
         except ValueError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error(f"OpenRouter speech-to-text failed: {e}")
             raise_sanitized(e, provider="openrouter", operation="speech-to-text")
 
@@ -234,7 +234,7 @@ class OpenRouterAudioService(UsageReportingMixin, AudioService):
             )
         except ValueError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error(f"OpenRouter text-to-speech failed: {e}")
             raise_sanitized(e, provider="openrouter", operation="text-to-speech")
 

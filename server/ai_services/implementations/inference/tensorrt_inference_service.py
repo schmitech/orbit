@@ -64,7 +64,7 @@ class TensorRTInferenceService(InferenceService, TensorRTBaseService):
             else:
                 return await self._generate_direct(messages, **kwargs)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_tensorrt_error(e, "text generation")
             raise
 
@@ -127,7 +127,7 @@ class TensorRTInferenceService(InferenceService, TensorRTBaseService):
                         tokenize=False,
                         add_generation_prompt=True
                     )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.debug(f"Could not apply chat template: {e}")
 
         # Fallback to simple formatting
@@ -161,7 +161,7 @@ class TensorRTInferenceService(InferenceService, TensorRTBaseService):
                 async for chunk in self._generate_stream_direct(messages, **kwargs):
                     yield chunk
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_tensorrt_error(e, "streaming generation")
             yield f"Error: {e!s}"
 

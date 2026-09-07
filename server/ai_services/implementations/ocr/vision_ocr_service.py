@@ -122,7 +122,7 @@ class VisionBackedOcrService(OcrService):
 
         try:
             img = Image.open(BytesIO(file_data))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.debug(f"Could not open image for frame inspection: {e}")
             return [file_data]
 

@@ -73,7 +73,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
             logger.debug(f"Initialized OpenRouter embedding service with model {self.model}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize OpenRouter embedding service: {e!s}")
             return False
 
@@ -96,7 +96,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
 
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"OpenRouter embedding connection verification failed: {e!s}")
             return False
 
@@ -134,7 +134,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
                 )
             return response.data[0].embedding
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"OpenRouter embedding error: {e!s}")
             raise
 
@@ -184,7 +184,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
                         f"Processed {min(i + self.batch_size, len(texts))}/{len(texts)} documents"
                     )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Error in batch embedding (batch starting at {i}): {e!s}")
                 raise
 

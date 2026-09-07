@@ -244,7 +244,7 @@ class VLLMAudioService(AudioService):
                 reserved = torch.cuda.memory_reserved(0) / 1024**2
                 logger.debug(f"GPU memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize SNAC model: {e!s}")
             return False
 
@@ -316,7 +316,7 @@ class VLLMAudioService(AudioService):
                 token_id = self._turn_token_into_id(token_str, i)
                 if 0 <= token_id <= 4096:
                     token_ids.append(token_id)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.warning(f"Failed to parse token {i}: {e!s}")
                 continue
 
@@ -447,7 +447,7 @@ class VLLMAudioService(AudioService):
                     f"(verification skipped or failed)"
                 )
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize vLLM audio service: {e!s}")
             return False
 
@@ -463,7 +463,7 @@ class VLLMAudioService(AudioService):
                 await self.client.models.list()
                 logger.debug("vLLM audio connection verified successfully")
                 return True
-            except Exception:
+            except Exception:  # noqa: BLE001 - provider boundary fallback
                 # Fallback: make a minimal test request
                 logger.debug("vLLM models endpoint not available, trying test request")
                 response = await self.client.chat.completions.create(
@@ -479,7 +479,7 @@ class VLLMAudioService(AudioService):
 
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"vLLM audio connection verification failed: {e!s}")
             return False
 
@@ -491,7 +491,7 @@ class VLLMAudioService(AudioService):
                 logger.debug("vLLM audio verification completed successfully (async)")
             else:
                 logger.debug("vLLM audio verification completed with negative result (async)")
-        except Exception as verify_error:
+        except Exception as verify_error:  # noqa: BLE001 - provider boundary fallback
             self.connection_verified = False
             logger.warning(
                 f"vLLM audio verification raised an exception; continuing without health check: {verify_error!s}"
@@ -631,7 +631,7 @@ class VLLMAudioService(AudioService):
 
             return audio_data
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"vLLM TTS error: {e!s}")
             raise
 
@@ -741,7 +741,7 @@ class VLLMAudioService(AudioService):
                         else:
                             # Subsequent chunks: raw PCM (client appends to stream)
                             yield pcm_bytes
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - provider boundary fallback
                         logger.warning(f"Failed to decode streaming audio frame: {e}")
 
         # Flush remaining tokens
@@ -755,7 +755,7 @@ class VLLMAudioService(AudioService):
                     yield self._wrap_in_wav(pcm_bytes)
                 else:
                     yield pcm_bytes
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.warning(f"Failed to decode final audio tokens: {e}")
 
     def _construct_tts_prompt(self, text: str, voice: str) -> str:
@@ -843,7 +843,7 @@ class VLLMAudioService(AudioService):
                     # In production, you'd convert to mp3/ogg etc.
                     return pcm_audio
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Failed to decode audio tokens: {e!s}")
                 raise
 
@@ -858,7 +858,7 @@ class VLLMAudioService(AudioService):
             # Try direct base64 decode
             audio_bytes = base64.b64decode(response_text)
             return audio_bytes
-        except Exception:
+        except Exception:  # noqa: BLE001 - provider boundary fallback
             pass
 
         # If no audio tokens and not base64, raise an error
@@ -915,7 +915,7 @@ class VLLMAudioService(AudioService):
 
             return response.choices[0].message.content.strip()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"vLLM STT error: {e!s}")
             raise
 
@@ -969,13 +969,14 @@ class VLLMAudioService(AudioService):
 
             return response.choices[0].message.content.strip()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"vLLM translation error: {e!s}")
             # Fallback: return transcript if translation fails
             try:
                 return await self.speech_to_text(audio, source_language, **kwargs)
-            except Exception:
-                raise
+            except Exception as fallback_error:  # noqa: BLE001 - provider boundary fallback
+                logger.error(f"vLLM translation fallback transcription error: {fallback_error!s}")
+                raise e from fallback_error
 
     def _get_timeout_config(self) -> dict[str, int]:
         """Get timeout configuration."""

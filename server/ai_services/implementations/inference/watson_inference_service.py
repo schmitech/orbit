@@ -28,7 +28,7 @@ class WatsonInferenceService(InferenceService, WatsonBaseService):
                 }
             )
             return response
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_watson_error(e, "generation")
             raise
 
@@ -45,6 +45,6 @@ class WatsonInferenceService(InferenceService, WatsonBaseService):
                 }
             ):
                 yield chunk
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_watson_error(e, "streaming")
             yield f"Error: {e!s}"

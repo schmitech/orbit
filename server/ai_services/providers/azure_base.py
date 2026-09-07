@@ -124,7 +124,7 @@ class AzureBaseService(ProviderAIService):
                 )
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Azure AI service: {e!s}")
             return False
 
@@ -153,7 +153,7 @@ class AzureBaseService(ProviderAIService):
 
             logger.debug("Azure AI connection verified successfully")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Azure AI connection verification failed: {e!s}")
             return False
 

@@ -84,7 +84,7 @@ class GeminiOcrService(UsageReportingMixin, OcrService, GoogleBaseService):
                 raise ValueError("No content returned from Gemini")
 
             text = response.candidates[0].content.parts[0].text or ""
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_google_error(e, "document OCR")
             raise
 
@@ -97,7 +97,7 @@ class GeminiOcrService(UsageReportingMixin, OcrService, GoogleBaseService):
                 from io import BytesIO
                 from PIL import Image
                 return getattr(Image.open(BytesIO(file_data)), "n_frames", 1)
-            except Exception:
+            except Exception:  # noqa: BLE001 - provider boundary fallback
                 return 1
         try:
             import pypdfium2 as pdfium
@@ -106,6 +106,6 @@ class GeminiOcrService(UsageReportingMixin, OcrService, GoogleBaseService):
                 return len(pdf)
             finally:
                 pdf.close()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.debug(f"Could not count PDF pages: {e}")
             return 0

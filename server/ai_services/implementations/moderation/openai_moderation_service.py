@@ -90,7 +90,7 @@ class OpenAIModerationService(ModerationService, OpenAIBaseService):
                 model=self.model
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_openai_error(e, "content moderation")
             # Log the error but don't block - technical failures shouldn't block safe content
             logger.warning(f"Moderation check failed, allowing content through: {e!s}")

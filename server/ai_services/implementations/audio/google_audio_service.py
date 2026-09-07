@@ -74,7 +74,7 @@ class GoogleAudioService(AudioService, GoogleBaseService):
             # Call parent initialize
             return await super().initialize()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Google audio service: {e!s}")
             return False
 
@@ -132,7 +132,7 @@ class GoogleAudioService(AudioService, GoogleBaseService):
 
             return response.audio_content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_google_error(e, "text-to-speech")
             raise
 
@@ -194,7 +194,7 @@ class GoogleAudioService(AudioService, GoogleBaseService):
             else:
                 return ""
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_google_error(e, "speech-to-text")
             raise
 
@@ -245,7 +245,7 @@ class GoogleAudioService(AudioService, GoogleBaseService):
                 )
                 return transcript
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_google_error(e, "audio translation")
             raise
 
@@ -259,4 +259,3 @@ class GoogleAudioService(AudioService, GoogleBaseService):
             self._tts_client = None
         
         await super().close()
-

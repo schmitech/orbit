@@ -139,7 +139,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
                         # Retry individually for failed embeddings
                         try:
                             result = await self.embed_query(batch[j])
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 - provider boundary fallback
                             logger.error(f"Retry failed for document {i+j}: {e}")
                             # Use zero vector as fallback
                             result = [0.0] * (self.dimensions or 768)
@@ -150,14 +150,14 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
                 if len(texts) > 20 and (i + self.batch_size) % 20 == 0:
                     logger.debug(f"Processed {min(i + self.batch_size, len(texts))}/{len(texts)} documents")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Batch processing failed: {e}")
                 # Fall back to sequential processing
                 for text in batch:
                     try:
                         embedding = await self.embed_query(text)
                         all_embeddings.append(embedding)
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - provider boundary fallback
                         logger.error(f"Failed to embed document: {e}")
                         all_embeddings.append([0.0] * (self.dimensions or 768))
 
@@ -198,7 +198,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
 
         try:
             return await self.execute_with_retry(_get_dims)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to determine dimensions: {e!s}")
             fallback = 768
             self.dimensions = fallback

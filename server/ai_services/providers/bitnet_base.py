@@ -161,7 +161,7 @@ class BitNetBaseService(ProviderAIService):
                 )
             self.initialized = True
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize BitNet: {e!s}")
             return False
 
@@ -205,7 +205,7 @@ class BitNetBaseService(ProviderAIService):
             error_msg = "BitNet package not installed. Please install with: pip install bitnet-cpp"
             logger.error(error_msg)
             raise ImportError(error_msg)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error loading BitNet model: {e!s}")
             raise
 
@@ -218,7 +218,7 @@ class BitNetBaseService(ProviderAIService):
                     # Try to list models or make a simple request
                     await self.client.models.list()
                     return True
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Failed to verify BitNet API connection: {e!s}")
                 return False
         else:
@@ -227,7 +227,7 @@ class BitNetBaseService(ProviderAIService):
                 try:
                     await self.initialize()
                     return self.initialized
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - provider boundary fallback
                     logger.error(f"Failed to verify BitNet model: {e!s}")
                     return False
             return True

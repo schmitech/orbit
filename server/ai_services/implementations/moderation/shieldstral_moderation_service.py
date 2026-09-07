@@ -100,7 +100,7 @@ class ShieldstralModerationService(ModerationService):
         try:
             await self.client.models.list()
             return True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.warning("Shieldstral %s connection check failed: %s", self.backend, exc)
             return False
 
@@ -128,7 +128,7 @@ class ShieldstralModerationService(ModerationService):
                 provider="shieldstral",
                 model=self.model,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error("Shieldstral moderation failed; allowing content: %s", exc)
             return ModerationResult(
                 is_flagged=False,

@@ -56,7 +56,7 @@ class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
             logger.debug(f"Initialized NVIDIA embedding service with model {self.model}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize NVIDIA embedding service: {e!s}")
             return False
 
@@ -79,7 +79,7 @@ class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
 
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"NVIDIA embedding connection verification failed: {e!s}")
             return False
 
@@ -108,7 +108,7 @@ class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
                 )
             return response.data[0].embedding
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"NVIDIA embedding error: {e!s}")
             raise
 
@@ -141,7 +141,7 @@ class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
                 sorted_data = sorted(response.data, key=lambda x: x.index)
                 all_embeddings.extend(item.embedding for item in sorted_data)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Error in batch embedding (batch starting at {i}): {e!s}")
                 raise
 

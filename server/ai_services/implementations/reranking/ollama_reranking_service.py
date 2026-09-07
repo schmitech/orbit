@@ -180,7 +180,7 @@ Scores:"""
             # Execute with retry logic from Ollama base class
             return await self.execute_with_retry(_rerank)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in Ollama reranking: {e!s}")
             raise
 
@@ -206,6 +206,6 @@ Scores:"""
                 logger.error("Received empty reranking results from Ollama")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to verify Ollama reranking connection: {e!s}")
             return False

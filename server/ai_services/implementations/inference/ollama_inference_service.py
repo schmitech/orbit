@@ -207,7 +207,7 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
                 if isinstance(args, str):
                     try:
                         args = json.loads(args)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - provider boundary fallback
                         args = {}
                 normalized.append({"id": call_id, "name": fn.get("name", ""), "arguments": args})
                 openai_tcs.append({

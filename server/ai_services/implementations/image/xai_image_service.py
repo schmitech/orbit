@@ -59,7 +59,7 @@ class XAIImageService(ImageGenerationService):
             )
             self.initialized = True
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error(f"Failed to initialize xAI image generation service: {e}")
             return False
 
@@ -77,7 +77,7 @@ class XAIImageService(ImageGenerationService):
         try:
             await self.client.models.list_image_generation_models()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error(f"xAI image generation connection verification failed: {e}")
             return False
 

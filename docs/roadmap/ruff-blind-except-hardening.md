@@ -73,9 +73,13 @@ paced across sessions rather than in one pass.
   site already catches specific DB/value exception types first, and the
   trailing `except Exception` is a deliberate last-resort so auth flows fail
   safe (return `False`/`None`) instead of crashing the caller.
+- 2026-09-07: 100 files under `server/ai_services/` (187 provider-boundary
+  catches resolved). These catches preserve the existing fallback behavior
+  for unstable third-party SDKs and optional provider runtimes while making
+  the intentional broad exception surface explicit.
 
-Running baseline after these three files: 1517 → 1447 (70 resolved). Next up
-in `server/services/`: `mongodb_service.py` (17), `service_factory.py` (15),
+Running baseline after this batch: 1517 → 1260 (257 resolved). Next up in
+`server/services/`: `mongodb_service.py` (17), `service_factory.py` (15),
 `prompt_service.py` (15), `api_key_service.py` (15).
 
 ### Rule meaning

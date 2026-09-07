@@ -112,7 +112,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
 
             return response.choices[0].message.content
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_azure_error(e, "text generation")
             raise
 
@@ -164,7 +164,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
                         reasoning_tokens=self._extract_reasoning_tokens(chunk.usage),
                     )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_azure_error(e, "streaming generation")
             yield f"Error: {e!s}"
 
@@ -192,7 +192,7 @@ class AzureOpenAIInferenceService(UsageReportingMixin, InferenceService, AzureBa
 
         try:
             response = await self.client.chat.completions.create(**params)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_azure_error(e, "tool-calling generation")
             raise
 

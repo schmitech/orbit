@@ -114,7 +114,7 @@ class XAIAudioService(AudioService):
             self.initialized = True
             self.logger.debug("Initialized xAI audio service for speech-to-text")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error("Failed to initialize xAI audio service: %s", e)
             return False
 
@@ -135,7 +135,7 @@ class XAIAudioService(AudioService):
             response = await self.client.get("/models")
             response.raise_for_status()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error("xAI audio connection verification failed: %s", e)
             return False
 
@@ -178,7 +178,7 @@ class XAIAudioService(AudioService):
             )
         except ValueError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self.logger.error("xAI speech-to-text failed: %s", e)
             raise_sanitized(e, provider="xai", operation="speech-to-text")
 

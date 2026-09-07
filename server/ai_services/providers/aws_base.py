@@ -121,7 +121,7 @@ class AWSBaseService(ProviderAIService):
                 )
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize AWS Bedrock service: {e!s}")
             return False
 
@@ -147,7 +147,7 @@ class AWSBaseService(ProviderAIService):
                 f"AWS Bedrock connection verification failed [{error_code}]: {error_msg}"
             )
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"AWS Bedrock connection verification failed: {e!s}")
             return False
 

@@ -42,7 +42,7 @@ class AirLLMInferenceService(InferenceService, AirLLMBaseService):
                 logger.error("Model not configured")
                 return False
             return await self.verify_connection()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Configuration validation failed: {e}")
             return False
 
@@ -55,7 +55,7 @@ class AirLLMInferenceService(InferenceService, AirLLMBaseService):
                     tokenize=False,
                     add_generation_prompt=True,
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.debug(f"Could not apply chat template: {e}")
 
         # Plain-text fallback
@@ -130,7 +130,7 @@ class AirLLMInferenceService(InferenceService, AirLLMBaseService):
             prompt_text = self._format_messages_to_prompt(messages)
             return await asyncio.to_thread(self._run_generate, prompt_text, **kwargs)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_airllm_error(e, "text generation")
             raise
 
@@ -148,5 +148,5 @@ class AirLLMInferenceService(InferenceService, AirLLMBaseService):
                 yield result[i:i + chunk_size]
                 await asyncio.sleep(0.01)  # Small delay for streaming effect
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - provider boundary fallback
             raise

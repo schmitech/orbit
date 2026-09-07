@@ -239,7 +239,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
                 f"{self.service_type.value} service with model {self.model}{suffix}"
             )
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(
                 f"Failed to initialize {self.provider_name.title()} service: {e!s}"
             )
@@ -270,7 +270,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
                     f"{self.provider_name.title()} connection verified successfully"
                 )
                 return True
-            except Exception:
+            except Exception:  # noqa: BLE001 - provider boundary fallback
                 # If models endpoint doesn't work, try a minimal test request
                 logger.debug(
                     f"{self.provider_name.title()} models endpoint not available, "
@@ -293,7 +293,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
 
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(
                 f"{self.provider_name.title()} connection verification failed: {e!s}"
             )
@@ -313,7 +313,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
                     "%s verification completed with negative result (async)",
                     self.provider_name.title(),
                 )
-        except Exception as verify_error:
+        except Exception as verify_error:  # noqa: BLE001 - provider boundary fallback
             self.connection_verified = False
             logger.warning(
                 "%s verification raised an exception; continuing without health check: %s",

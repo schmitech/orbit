@@ -169,7 +169,7 @@ Respond with only the JSON object."""
                 # Try to interpret the response if it contains safety keywords
                 return self._interpret_non_json_response(response_text)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_anthropic_error(e, "content moderation")
             logger.warning(f"Moderation check failed, allowing content through: {e!s}")
             return ModerationResult(

@@ -49,7 +49,7 @@ class OpenRouterRerankingService(RerankingService):
             logger.debug(f"Initialized OpenRouter reranking service with model {self.model}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize OpenRouter reranking service: {e!s}")
             return False
 
@@ -119,7 +119,7 @@ class OpenRouterRerankingService(RerankingService):
                 logger.debug(f"Reranked {len(documents)} -> {len(results)} documents")
                 return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error in OpenRouter reranking: {e!s}")
             raise
 
@@ -137,7 +137,7 @@ class OpenRouterRerankingService(RerankingService):
                 logger.error("Received empty results from OpenRouter")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to verify OpenRouter reranking connection: {e!s}")
             return False
 

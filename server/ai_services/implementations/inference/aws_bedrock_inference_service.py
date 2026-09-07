@@ -131,7 +131,7 @@ class AWSBedrockInferenceService(InferenceService, AWSBaseService):
                 else:
                     raise ValueError(f"Unknown response format from model: {list(response_body.keys())}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_aws_error(e, "text generation")
             raise
 
@@ -208,6 +208,6 @@ class AWSBedrockInferenceService(InferenceService, AWSBaseService):
                         elif 'delta' in chunk_data:
                             yield chunk_data['delta'].get('text', '')
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_aws_error(e, "streaming generation")
             yield f"Error: {e!s}"

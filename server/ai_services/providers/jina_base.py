@@ -148,7 +148,7 @@ class JinaBaseService(ProviderAIService):
                 )
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Jina service: {e!s}")
             return False
 
@@ -193,7 +193,7 @@ class JinaBaseService(ProviderAIService):
                     logger.error(f"Unexpected response structure from Jina API: {data}")
                     return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Jina connection verification failed: {e!s}")
             return False
 

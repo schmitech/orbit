@@ -130,7 +130,7 @@ class OllamaRemoteInferenceService(InferenceService):
                 logger.warning("Ollama Remote connection verification failed")
                 return False
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Ollama Remote client: {exc}")
             self.client = None
             return False
@@ -161,7 +161,7 @@ class OllamaRemoteInferenceService(InferenceService):
                 if models and hasattr(models, 'models') and models.models:
                     logger.debug("Ollama Remote connection verified successfully")
                     return True
-            except Exception as list_exc:
+            except Exception as list_exc:  # noqa: BLE001 - provider boundary fallback
                 logger.debug(f"Model list failed, trying chat request: {list_exc}")
                 
                 # Fallback to a minimal chat request
@@ -172,7 +172,7 @@ class OllamaRemoteInferenceService(InferenceService):
                 )
                 
             return True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error("Failed to verify Ollama Remote connection: %s", exc)
             return False
         finally:
@@ -207,7 +207,7 @@ class OllamaRemoteInferenceService(InferenceService):
             )
 
             return response.get("message", {}).get("content", "")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.error("Error generating response with Ollama Remote: %s", exc)
             raise
 
@@ -243,7 +243,7 @@ class OllamaRemoteInferenceService(InferenceService):
                 content = chunk.get("message", {}).get("content")
                 if content:
                     yield content
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider boundary fallback
             logger.exception("Error generating streaming response with Ollama Remote")
             yield sanitize_provider_error(
                 exc,
@@ -281,4 +281,3 @@ class OllamaRemoteInferenceService(InferenceService):
         if messages is None:
             return [{"role": "user", "content": prompt}]
         return messages
-

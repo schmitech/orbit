@@ -117,7 +117,7 @@ class AnthropicBaseService(ProviderAIService):
                 )
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Anthropic service: {e!s}")
             return False
 
@@ -141,7 +141,7 @@ class AnthropicBaseService(ProviderAIService):
             logger.debug("Anthropic connection verified successfully")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Anthropic connection verification failed: {e!s}")
             return False
 

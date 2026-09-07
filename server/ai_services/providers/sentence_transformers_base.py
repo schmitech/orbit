@@ -154,7 +154,7 @@ class SentenceTransformersBaseService(ProviderAIService):
                 return True
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Sentence Transformers service: {e!s}")
             return False
 
@@ -183,7 +183,7 @@ class SentenceTransformersBaseService(ProviderAIService):
                 "sentence-transformers library not found. "
                 "Install with: pip install sentence-transformers"
             ) from e
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             raise RuntimeError(f"Failed to load model {self.model}: {e!s}") from e
 
     async def _initialize_remote_api(self) -> None:
@@ -215,7 +215,7 @@ class SentenceTransformersBaseService(ProviderAIService):
             else:
                 # For remote, we'll verify on first actual embedding call
                 return self.api_key is not None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Connection verification failed: {e!s}")
             return False
 
@@ -239,7 +239,7 @@ class SentenceTransformersBaseService(ProviderAIService):
 
             self.initialized = False
             logger.debug("Closed Sentence Transformers service")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error closing Sentence Transformers service: {e!s}")
 
     def _get_batch_size(self, default: int = 32) -> int:

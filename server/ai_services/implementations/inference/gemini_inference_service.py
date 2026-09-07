@@ -255,7 +255,7 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
                 contents=contents,
                 config=gtypes.GenerateContentConfig(**config_kwargs),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_google_error(e, "tool-calling generation")
             raise
 
@@ -486,7 +486,7 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
                 text += self._format_grounding_sources(response.candidates[0])
             return text
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_google_error(e, "text generation")
             raise
 
@@ -541,6 +541,6 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
                 if sources:
                     yield sources
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             self._handle_google_error(e, "streaming generation")
             yield f"Error: {e!s}"

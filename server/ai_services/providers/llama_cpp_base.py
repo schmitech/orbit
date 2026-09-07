@@ -139,7 +139,7 @@ class LlamaCppBaseService(ProviderAIService):
                 )
             self.initialized = True
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize Llama.cpp: {e!s}")
             return False
 
@@ -177,7 +177,7 @@ class LlamaCppBaseService(ProviderAIService):
             error_msg = "llama_cpp package not installed. Please install with: pip install llama-cpp-python"
             logger.error(error_msg)
             raise ImportError(error_msg)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Error loading llama.cpp model: {e!s}")
             raise
 
@@ -190,7 +190,7 @@ class LlamaCppBaseService(ProviderAIService):
                 try:
                     await self.initialize()
                     return self.initialized
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - provider boundary fallback
                     logger.error(f"Failed to verify llama.cpp model: {e!s}")
                     return False
             return True

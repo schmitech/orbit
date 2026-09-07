@@ -80,7 +80,7 @@ class OpenRouterVideoService(VideoGenerationService):
             self.initialized = True
             logger.debug(f"Initialized OpenRouter video generation service with model {self.model}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"Failed to initialize OpenRouter video generation service: {e}")
             return False
 
@@ -96,7 +96,7 @@ class OpenRouterVideoService(VideoGenerationService):
         try:
             await self.client.video_generation.list_videos_models_async()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             logger.error(f"OpenRouter video generation connection verification failed: {e}")
             return False
 
@@ -130,7 +130,7 @@ class OpenRouterVideoService(VideoGenerationService):
                 self.client.video_generation.generate_async(**params),
                 timeout=max(deadline - time.monotonic(), 0),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary fallback
             raise ValueError(f"OpenRouter video submission failed: {e}") from e
 
         async def _finish() -> dict[str, Any]:
