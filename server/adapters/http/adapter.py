@@ -66,6 +66,8 @@ class HttpAdapter(DocumentAdapter):
         if not template_library_path and config:
             template_library_path = config.get('template_library_path')
 
+        self.domain_config_path = domain_config_path
+
         # Load configurations
         if domain_config_path:
             self.domain_config = self._load_yaml_config(domain_config_path, "domain configuration")

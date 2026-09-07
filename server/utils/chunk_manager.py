@@ -126,7 +126,7 @@ class ChunkManager:
             counts = [self.budget.count(text).count for text in chunk_texts]
             avg_tokens = sum(counts) // len(counts)
             max_tokens = max(counts)
-            logger.info(
+            logger.debug(
                 f"Embedding {len(chunk_texts)} chunks: avg={avg_tokens} tokens, max={max_tokens} tokens "
                 f"(mode={self.budget.counting_mode})"
             )
@@ -297,7 +297,7 @@ class ChunkManager:
                 }
                 chunks.append(chunk)
 
-            logger.info(f"Retrieved {len(chunks)} relevant chunks (scores: {[c['similarity_score'] for c in chunks]})")
+            logger.debug(f"Retrieved {len(chunks)} relevant chunks (scores: {[c['similarity_score'] for c in chunks]})")
 
             return chunks
 

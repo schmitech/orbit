@@ -1,0 +1,275 @@
+adapters:
+  # Firecrawl Intent Adapter - Web Scraping with Intelligent Chunking
+  # This adapter demonstrates web scraping using Firecrawl with natural language queries
+  # Supports both cloud API (api.firecrawl.dev) and self-hosted Firecrawl deployments
+  # Features intelligent content chunking for large documents (e.g., Wikipedia articles)
+  - name: "intent-firecrawl-webscrape"
+    enabled: true
+    type: "retriever"
+    datasource: "http"  # Reuse HTTP placeholder
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentFirecrawlRetriever"
+    inference_provider: "openai"
+    model: "gpt-5.4-mini"
+    embedding_provider: "openai"  # Used for chunk ranking
+    embedding_model: "text-embedding-3-small"
+    reranker_provider: "voyage"
+    reranker_model: "rerank-2.5-lite"
+    allowed_models:
+      - name: "minimax-m3"
+        provider: "ollama_cloud"
+        model: "minimax-m3:cloud"
+        context_window: 512000
+        max_tokens: 32768
+        effort: "high"
+      - name: "minimax-m2.7"
+        provider: "ollama_cloud"
+        model: "minimax-m2.7:cloud"
+        context_window: 200000
+        max_tokens: 24576
+        effort: "medium"
+      - name: "glm-5.2"
+        provider: "ollama_cloud"
+        model: "glm-5.2:cloud"
+        context_window: 976000
+        max_tokens: 32768
+        effort: "high"
+      - name: "glm-5.1"
+        provider: "ollama_cloud"
+        model: "glm-5.1:cloud"
+        context_window: 198000
+        max_tokens: 24576
+        effort: "high"
+      - name: "glm-5.3-flash"
+        provider: "ollama_cloud"
+        model: "glm-5.3-flash"
+        context_window: 1000000
+        max_tokens: 32768
+        effort: "low"
+      - name: "kimi-k3"
+        provider: "ollama_cloud"
+        model: "kimi-k3:cloud"
+        context_window: 1000000
+        max_tokens: 32768
+        effort: "high"
+      - name: "kimi-k2.7-code"
+        provider: "ollama_cloud"
+        model: "kimi-k2.7-code:cloud"
+        context_window: 256000
+        max_tokens: 24576
+        effort: "high"
+      - name: "deepseek-v4-flash"
+        provider: "ollama_cloud"
+        model: "deepseek-v4-flash:cloud"
+        context_window: 1000000
+        max_tokens: 32768
+        effort: "medium"
+      - name: "deepseek-v4-pro"
+        provider: "ollama_cloud"
+        model: "deepseek-v4-pro:cloud"
+        context_window: 1000000
+        max_tokens: 49152
+        effort: "high"
+      - name: "qwen3.5"
+        provider: "ollama_cloud"
+        model: "qwen3.5:cloud"
+        context_window: 256000
+        max_tokens: 16384
+        effort: "medium"
+      - name: "qwen3.5-397b"
+        provider: "ollama_cloud"
+        model: "qwen3.5:397b-cloud"
+        context_window: 256000
+        max_tokens: 32768
+        effort: "high"
+      - name: "gemma4"
+        provider: "ollama_cloud"
+        model: "gemma4:cloud"
+        context_window: 256000
+        max_tokens: 16384
+        effort: "low"
+      - name: "gemma4-31b"
+        provider: "ollama_cloud"
+        model: "gemma4:31b-cloud"
+        context_window: 256000
+        max_tokens: 24576
+        effort: "low"
+      - name: "mistral-large-3"
+        provider: "ollama_cloud"
+        model: "mistral-large-3:675b-cloud"
+        context_window: 256000
+        max_tokens: 32768
+      - name: "deepseek"
+        provider: "deepseek"
+        model: "deepseek-chat"
+        context_window: 65536
+        max_tokens: 8000
+      - name: "cohere"
+        provider: "cohere"
+        model: "command-a-03-2025"
+        context_window: 256000
+        max_tokens: 8000
+      - name: "grok-4.3"
+        provider: "xai"
+        model: "grok-4.3"
+        context_window: 1000000
+        max_tokens: 16000
+        effort: "low"           # Maps to reasoning_effort; ignored for models that don't support it (e.g. grok-4.3)
+      - name: "gemma4-e2b"
+        provider: "ollama"
+        model: "gemma4-e2b-cpu"
+        context_window: 8192
+        max_tokens: 2048
+      - name: "gpt-oss:120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:120b-cloud"
+        context_window: 131072
+        max_tokens: 32768
+        effort: "medium"
+      - name: "gpt-oss-20b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b-cloud"
+        context_window: 131072
+        max_tokens: 16384
+        effort: "low"
+      - name: "claude"
+        provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+        context_window: 1000000
+        max_tokens: 64000
+        effort: "low"           # Ignored for Claude models that don't support the effort parameter
+      - name: "gemini-3.8-flash"
+        provider: "gemini"
+        model: "gemini-3.8-flash"
+        context_window: 1048576
+        max_tokens: 65536
+        effort: "low"           # Maps to thinking_level (minimal | low | medium | high)
+      - name: "gpt-5.6-luna"
+        provider: "openai"
+        model: "gpt-5.6-luna"
+        context_window: 1048576
+        max_tokens: 65536
+      - name: "nemotron-3-ultra"
+        provider: "ollama_cloud"
+        model: "nemotron-3-ultra:cloud"
+        context_window: 256000
+        max_tokens: 32768
+        effort: "high"
+      - name: "nemotron-3-super"
+        provider: "ollama_cloud"
+        model: "nemotron-3-super:cloud"
+        context_window: 256000
+        max_tokens: 32768
+        effort: "high"
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true  # Enable autocomplete from template nl_examples
+      requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+      optional_parameters:
+        - "api_key"
+    config:
+      # TESTING: Using minimal templates for validation
+      # Switch to firecrawl_domain.yaml and firecrawl_templates.yaml for full Wikipedia templates
+      domain_config_path: "examples/intent-templates/firecrawl-intent-template/templates/firecrawl_domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/firecrawl-intent-template/templates/firecrawl_templates.yaml"
+
+      # Vector store for template matching
+      reranker_top_n: 10       # Optional: limit reranked results (overrides return_results)
+      template_collection_name: "firecrawl_test_templates"  # Using test collection name
+      store_name: "chroma"
+
+      # Intent matching (lower threshold for testing)
+      confidence_threshold: 0.3
+      max_templates: 5
+      return_results: 1
+
+      # Graceful degradation: ask a disambiguation/slot-fill question
+      # instead of guessing or failing outright. Off by default; requires a
+      # stable X-Session-ID per conversation for the follow-up turn to resume
+      # against the pinned template. See docs/adapters/playbook-intent-clarification.md.
+      clarification_enabled: true
+      clarification_high_threshold: 0.65
+      clarification_ambiguity_gap: 0.05
+      clarification_max_rounds: 2
+      clarification_ttl_seconds: 300
+
+      # Template loading
+      reload_templates_on_start: false
+      force_reload_templates: false
+
+      # Enable verbose logging for debugging
+      verbose: true
+
+      # Firecrawl configuration
+      # For cloud API: set base_url to https://api.firecrawl.dev/v1
+      # For self-hosted: set to your instance URL
+      base_url: "https://api.firecrawl.dev/v1"
+      default_timeout: 60  # Increased for large pages
+      default_formats: ["markdown"]
+
+      # Authentication (for cloud API)
+      auth:
+        type: "bearer_token"
+        token_env: "FIRECRAWL_API_KEY"
+        header_name: "Authorization"
+        token_prefix: "Bearer"
+
+      # ========================================
+      # Content Chunking Configuration
+      # ========================================
+      # Automatically chunks large web content to prevent exceeding LLM context limits
+      # and improve response relevance through semantic search
+
+      enable_chunking: true                    # Enable/disable chunking
+      max_chunk_tokens: 4000                   # Maximum tokens per chunk (~16KB)
+      chunk_overlap_tokens: 200                # Overlap between chunks for context continuity
+      min_chunk_tokens: 500                    # Minimum chunk size
+
+      # Embedding model limits (CRITICAL: Set based on your embedding provider)
+      # OpenAI text-embedding-3-*: 8191 tokens → Use 7500 for safety
+      # OpenAI text-embedding-ada-002: 8191 tokens → Use 7500 for safety
+      # Cohere embed-english-v3.0: 512 tokens → Use 450 for safety!
+      # Jina jina-embeddings-v3: 8192 tokens → Use 7500 for safety
+      max_embedding_tokens: 7500               # Max tokens with safety buffer (accounts for estimation error)
+
+      # Chunk storage and retrieval
+      chunks_collection: "firecrawl_chunks"    # Vector store collection for chunks
+      chunk_cache_ttl_hours: 24                # Cache duration (24 hours for Wikipedia)
+
+      # Chunk ranking and selection
+      top_chunks_to_return: 3                  # Number of most relevant chunks to return
+      min_chunk_similarity: 0.3                # Minimum similarity score for chunk retrieval
+
+      # Performance benefits:
+      # - 75-90% reduction in context size
+      # - Faster response times (cached chunks retrieved in <10ms)
+      # - Better relevance (only return sections related to query)
+      # - Cost optimization (fewer tokens processed by LLM)
+      # - Automatic chunk splitting if content exceeds embedding limits
+      # ========================================
+
+    fault_tolerance:
+      operation_timeout: 60.0  # Increased for large content
+      failure_threshold: 5
+      recovery_timeout: 60.0
+      success_threshold: 5
+      max_recovery_timeout: 120.0
+      enable_exponential_backoff: true
+      enable_thread_isolation: false
+      enable_process_isolation: false
+      max_retries: 2
+      retry_delay: 2.0
+      cleanup_interval: 3600.0
+      retention_period: 86400.0
+      event_handler:
+        type: "default"

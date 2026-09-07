@@ -80,6 +80,14 @@ class IntentDomainComponentsMixin:
         """Rebuild domain-aware helpers from the current domain adapter."""
         domain_config = self.domain_adapter.get_domain_config()
 
+        if domain_config is None:
+            raise ValueError(
+                f"{self.__class__.__name__}: domain configuration failed to load "
+                f"(domain_config_path={getattr(self.domain_adapter, 'domain_config_path', None)!r}). "
+                "Check the adapter's 'domain_config_path' in its config/adapters/*.yaml points to an "
+                "existing file, and look for an earlier 'domain configuration file not found' warning."
+            )
+
         if isinstance(domain_config, dict):
             domain_config = DomainConfig(domain_config)
 
