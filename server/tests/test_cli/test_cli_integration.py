@@ -235,7 +235,7 @@ class CLITester:
                     else:
                         logger.warning(f"⚠ Could not get user list to find {username}: {result['stderr']}")
                 except Exception as e:
-                    logger.warning(f"⚠ Error cleaning up test user {username}: {str(e)}")
+                    logger.warning(f"⚠ Error cleaning up test user {username}: {e!s}")
         
         # Also try to clean up any users with test patterns that might have been missed
         try:
@@ -258,7 +258,7 @@ class CLITester:
                                     else:
                                         logger.warning(f"⚠ Failed to delete test user {username}: {delete_result['stderr']}")
         except Exception as e:
-            logger.warning(f"⚠ Error during pattern-based test user cleanup: {str(e)}")
+            logger.warning(f"⚠ Error during pattern-based test user cleanup: {e!s}")
         
         # Logout if still logged in
         if self.logged_in:

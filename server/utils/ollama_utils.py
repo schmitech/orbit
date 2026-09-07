@@ -171,7 +171,7 @@ class OllamaSessionManager:
                 await self.session.close()
                 logger.debug("Closed aiohttp session")
         except Exception as e:
-            logger.error(f"Error closing session: {str(e)}")
+            logger.error(f"Error closing session: {e!s}")
         finally:
             self.session = None
 
@@ -227,7 +227,7 @@ class OllamaRetryHandler:
                     
                     if attempt < self.config.max_retries - 1:
                         logger.warning(
-                            f"Request attempt {attempt + 1}/{self.config.max_retries} failed: {str(e)}. "
+                            f"Request attempt {attempt + 1}/{self.config.max_retries} failed: {e!s}. "
                             f"Retrying in {wait_time:.1f}s..."
                         )
                         await asyncio.sleep(wait_time)
@@ -300,7 +300,7 @@ class OllamaModelWarmer:
                     return False
                 return False
         except Exception as e:
-            logger.debug(f"Could not check running models: {str(e)}")
+            logger.debug(f"Could not check running models: {e!s}")
             return False
 
     async def warmup_model(self, endpoint: str = "generate",
@@ -406,7 +406,7 @@ class OllamaModelWarmer:
 
                 if attempt < self.retry_handler.config.max_retries - 1:
                     logger.warning(
-                        f"Model warmup attempt {attempt + 1}/{self.retry_handler.config.max_retries} failed: {str(e)}. "
+                        f"Model warmup attempt {attempt + 1}/{self.retry_handler.config.max_retries} failed: {e!s}. "
                         f"Retrying in {wait_time:.1f}s..."
                     )
                     await asyncio.sleep(wait_time)
@@ -482,7 +482,7 @@ class OllamaConnectionVerifier:
                 return True
                 
         except Exception as e:
-            logger.error(f"Error verifying connection to Ollama: {str(e)}")
+            logger.error(f"Error verifying connection to Ollama: {e!s}")
             return False
 
 
@@ -582,7 +582,7 @@ class OllamaBaseService:
 
                 return False
             except Exception as e:
-                logger.error(f"Failed to initialize {self.__class__.__name__}: {str(e)}")
+                logger.error(f"Failed to initialize {self.__class__.__name__}: {e!s}")
                 await self.close()
                 return False
             finally:
@@ -594,7 +594,7 @@ class OllamaBaseService:
             await self.session_manager.close()
             logger.debug(f"Closed {self.__class__.__name__}")
         except Exception as e:
-            logger.error(f"Error closing {self.__class__.__name__}: {str(e)}")
+            logger.error(f"Error closing {self.__class__.__name__}: {e!s}")
         finally:
             self.initialized = False
             self._initializing = False

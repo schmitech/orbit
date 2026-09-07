@@ -174,8 +174,8 @@ class AdapterRegistry:
             return adapter_class(config=config, **kwargs)
                 
         except Exception as e:
-            logger.error(f"Error creating adapter: {str(e)}")
-            raise ValueError(f"Failed to create adapter: {str(e)}")
+            logger.error(f"Error creating adapter: {e!s}")
+            raise ValueError(f"Failed to create adapter: {e!s}")
             
     def _try_import_adapter(self, adapter_type: str, datasource: str, adapter_name: str) -> bool:
         """
@@ -210,7 +210,7 @@ class AdapterRegistry:
                     
             return False
         except Exception as e:
-            logger.error(f"Error trying to import adapter: {str(e)}")
+            logger.error(f"Error trying to import adapter: {e!s}")
             return False
             
     def get_types(self) -> list[str]:

@@ -269,7 +269,7 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
 
         except Exception as e:
             self._handle_openai_compatible_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"
 
     def _build_web_search_params(self, messages: list, stream: bool = False, **kwargs) -> dict[str, Any]:
         """

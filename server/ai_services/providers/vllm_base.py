@@ -127,7 +127,7 @@ class VLLMBaseService(ProviderAIService):
             self.initialized = True
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize vLLM: {str(e)}")
+            logger.error(f"Failed to initialize vLLM: {e!s}")
             return False
 
     def _load_direct_model(self):
@@ -169,7 +169,7 @@ class VLLMBaseService(ProviderAIService):
             logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
-            logger.error(f"Error loading vLLM model: {str(e)}")
+            logger.error(f"Error loading vLLM model: {e!s}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -180,7 +180,7 @@ class VLLMBaseService(ProviderAIService):
                 await self.client.models.list()
                 return True
             except Exception as e:
-                logger.error(f"Failed to verify vLLM API connection: {str(e)}")
+                logger.error(f"Failed to verify vLLM API connection: {e!s}")
                 return False
         else:
             # For direct mode, check if engine is loaded
@@ -189,7 +189,7 @@ class VLLMBaseService(ProviderAIService):
                     await self.initialize()
                     return self.initialized
                 except Exception as e:
-                    logger.error(f"Failed to verify vLLM model: {str(e)}")
+                    logger.error(f"Failed to verify vLLM model: {e!s}")
                     return False
             return True
 
@@ -207,7 +207,7 @@ class VLLMBaseService(ProviderAIService):
 
     def _handle_vllm_error(self, error: Exception, operation: str = "operation") -> None:
         """Handle vLLM errors with logging."""
-        logger.error(f"vLLM error during {operation}: {str(error)}")
+        logger.error(f"vLLM error during {operation}: {error!s}")
         raise_sanitized(error, provider=self.provider_name, operation=operation)
 
     def _get_temperature(self, default: float = 0.7) -> float:

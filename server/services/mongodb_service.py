@@ -117,9 +117,9 @@ class MongoDBService(DatabaseService):
             logger.debug("MongoDB Service initialized successfully")
             self._initialized = True
         except Exception as e:
-            logger.error(f"Failed to initialize MongoDB Service: {str(e)}")
+            logger.error(f"Failed to initialize MongoDB Service: {e!s}")
             logger.error(f"MongoDB connection details: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}")
-            raise HTTPException(status_code=500, detail=f"Failed to initialize MongoDB Service: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to initialize MongoDB Service: {e!s}")
     
     def get_collection(self, collection_name: str):
         """
@@ -329,7 +329,7 @@ class MongoDBService(DatabaseService):
             # Convert ObjectIds to strings for JSON serialization
             return self._convert_objectids_to_string(result) if result else None
         except Exception as e:
-            logger.error(f"Error finding document in {collection_name}: {str(e)}")
+            logger.error(f"Error finding document in {collection_name}: {e!s}")
             return None
 
     async def find_one_strict(self, collection_name: str, query: dict[str, Any]) -> Optional[dict[str, Any]]:
@@ -342,7 +342,7 @@ class MongoDBService(DatabaseService):
             result = await collection.find_one(converted_query)
             return self._convert_objectids_to_string(result) if result else None
         except Exception as e:
-            logger.error(f"Error finding document in {collection_name}: {str(e)}")
+            logger.error(f"Error finding document in {collection_name}: {e!s}")
             raise DatabaseOperationError(str(e)) from e
 
     async def find_many(
@@ -386,7 +386,7 @@ class MongoDBService(DatabaseService):
             # Convert ObjectIds to strings for JSON serialization
             return self._convert_objectids_to_string(results)
         except Exception as e:
-            logger.error(f"Error finding documents in {collection_name}: {str(e)}")
+            logger.error(f"Error finding documents in {collection_name}: {e!s}")
             return []
     
     async def insert_one(self, collection_name: str, document: dict[str, Any]) -> Optional[str]:
@@ -411,13 +411,13 @@ class MongoDBService(DatabaseService):
             # Convert ObjectId to string for JSON serialization
             return id_to_string(result.inserted_id)
         except pymongo.errors.DuplicateKeyError as e:
-            logger.warning(f"Duplicate key error inserting into {collection_name}: {str(e)}")
+            logger.warning(f"Duplicate key error inserting into {collection_name}: {e!s}")
             # Raise the abstraction-layer exception, not the raw driver error, so
             # callers (e.g. auth_service._find_or_create_external_user) that catch
             # DatabaseDuplicateKeyError for graceful concurrent-insert handling work.
             raise DatabaseDuplicateKeyError(str(e)) from e
         except Exception as e:
-            logger.error(f"Error inserting document into {collection_name}: {str(e)}")
+            logger.error(f"Error inserting document into {collection_name}: {e!s}")
             logger.error(f"Document that failed: {str(document)[:500]}...")  # Log first 500 chars for debugging
             return None
     
@@ -443,7 +443,7 @@ class MongoDBService(DatabaseService):
             result = await collection.update_one(converted_query, update)
             return result.modified_count > 0
         except Exception as e:
-            logger.error(f"Error updating document in {collection_name}: {str(e)}")
+            logger.error(f"Error updating document in {collection_name}: {e!s}")
             return False
 
     async def record_failed_login_attempt(
@@ -494,7 +494,7 @@ class MongoDBService(DatabaseService):
             )
             return result.modified_count > 0
         except Exception as e:
-            logger.error(f"Error recording failed login attempt: {str(e)}")
+            logger.error(f"Error recording failed login attempt: {e!s}")
             return False
     
     async def delete_one(self, collection_name: str, query: dict[str, Any]) -> bool:
@@ -518,7 +518,7 @@ class MongoDBService(DatabaseService):
             result = await collection.delete_one(converted_query)
             return result.deleted_count > 0
         except Exception as e:
-            logger.error(f"Error deleting document from {collection_name}: {str(e)}")
+            logger.error(f"Error deleting document from {collection_name}: {e!s}")
             return False
     
     async def delete_many(self, collection_name: str, query: dict[str, Any]) -> int:
@@ -542,7 +542,7 @@ class MongoDBService(DatabaseService):
             result = await collection.delete_many(converted_query)
             return result.deleted_count
         except Exception as e:
-            logger.error(f"Error deleting documents from {collection_name}: {str(e)}")
+            logger.error(f"Error deleting documents from {collection_name}: {e!s}")
             return 0
 
     async def count(self, collection_name: str, query: dict[str, Any]) -> int:
@@ -555,7 +555,7 @@ class MongoDBService(DatabaseService):
             converted_query = self._convert_string_ids_to_objectid(query)
             return await collection.count_documents(converted_query)
         except Exception as e:
-            logger.error(f"Error counting documents in {collection_name}: {str(e)}")
+            logger.error(f"Error counting documents in {collection_name}: {e!s}")
             return 0
 
     async def clear_collection(self, collection_name: str) -> int:
@@ -580,7 +580,7 @@ class MongoDBService(DatabaseService):
             logger.info(f"Cleared {deleted_count} documents from collection '{collection_name}'")
             return deleted_count
         except Exception as e:
-            logger.error(f"Error clearing collection {collection_name}: {str(e)}")
+            logger.error(f"Error clearing collection {collection_name}: {e!s}")
             return 0
 
     async def ensure_id_is_object_id(self, id_value: Union[str, ObjectId]) -> ObjectId:
@@ -597,7 +597,7 @@ class MongoDBService(DatabaseService):
             try:
                 return ObjectId(id_value)
             except Exception as e:
-                logger.error(f"Failed to convert ID '{id_value}' to ObjectId: {str(e)}")
+                logger.error(f"Failed to convert ID '{id_value}' to ObjectId: {e!s}")
                 raise ValueError(f"Invalid ObjectId format: {id_value}")
         return id_value
     

@@ -75,7 +75,7 @@ class JinaRerankingService(RerankingService, JinaBaseService):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize Jina AI reranking service: {str(e)}")
+            logger.error(f"Failed to initialize Jina AI reranking service: {e!s}")
             return False
 
     async def rerank(
@@ -160,7 +160,7 @@ class JinaRerankingService(RerankingService, JinaBaseService):
                 return results
 
         except Exception as e:
-            logger.error(f"Error in Jina AI reranking: {str(e)}")
+            logger.error(f"Error in Jina AI reranking: {e!s}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -186,7 +186,7 @@ class JinaRerankingService(RerankingService, JinaBaseService):
                 return False
 
         except Exception as e:
-            logger.error(f"Failed to verify Jina AI reranking connection: {str(e)}")
+            logger.error(f"Failed to verify Jina AI reranking connection: {e!s}")
             return False
 
     async def close(self) -> None:

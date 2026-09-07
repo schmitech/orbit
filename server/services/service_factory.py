@@ -72,7 +72,7 @@ class ServiceFactory:
             logger.info("All services initialized successfully")
             
         except Exception as e:
-            logger.error(f"Failed to initialize services: {str(e)}")
+            logger.error(f"Failed to initialize services: {e!s}")
             raise
     
     async def _initialize_core_services(self, app: FastAPI) -> None:
@@ -143,7 +143,7 @@ class ServiceFactory:
             logger.info("Authentication service initialized successfully")
 
         except Exception as e:
-            logger.error(f"Failed to initialize authentication service: {str(e)}")
+            logger.error(f"Failed to initialize authentication service: {e!s}")
             # Don't fail the entire startup if auth fails, but log it prominently
             app.state.auth_service = None
     
@@ -305,7 +305,7 @@ class ServiceFactory:
             await app.state.database_service.initialize()
             logger.info(f"Shared database service ({backend_type}) initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize shared database service: {str(e)}")
+            logger.error(f"Failed to initialize shared database service: {e!s}")
             raise
     
     async def _initialize_cache_service(self, app: FastAPI) -> None:
@@ -351,7 +351,7 @@ class ServiceFactory:
                 logger.warning(f"Cache service ({provider_name}) initialization failed - service will be disabled")
                 app.state.cache_service = None
         except Exception as e:
-            logger.error(f"Failed to initialize cache service ({provider_name}): {str(e)}")
+            logger.error(f"Failed to initialize cache service ({provider_name}): {e!s}")
             app.state.cache_service = None
     
     async def _initialize_thread_dataset_service(self, app: FastAPI) -> None:
@@ -369,7 +369,7 @@ class ServiceFactory:
                 await app.state.thread_dataset_service.initialize()
                 logger.debug("ThreadDatasetService initialized successfully")
             except Exception as e:
-                logger.warning(f"Failed to initialize ThreadDatasetService: {str(e)}")
+                logger.warning(f"Failed to initialize ThreadDatasetService: {e!s}")
                 app.state.thread_dataset_service = None
         else:
             app.state.thread_dataset_service = None
@@ -422,7 +422,7 @@ class ServiceFactory:
             app.state.message_consumer = consumer
             logger.info("In-process message consumer started")
         except Exception as e:
-            logger.error(f"Failed to start message consumer: {str(e)}")
+            logger.error(f"Failed to start message consumer: {e!s}")
             app.state.message_consumer = None
 
     async def _initialize_quota_service(self, app: FastAPI) -> None:
@@ -473,7 +473,7 @@ class ServiceFactory:
             logger.info("Quota Service initialized successfully")
 
         except Exception as e:
-            logger.error(f"Failed to initialize Quota Service: {str(e)}")
+            logger.error(f"Failed to initialize Quota Service: {e!s}")
             app.state.quota_service = None
             app.state.quota_background_tasks = None
     
@@ -503,7 +503,7 @@ class ServiceFactory:
             else:
                 logger.debug(f"Chat History Service health check passed: {health}")
         except Exception as e:
-            logger.error(f"Failed to initialize Chat History Service: {str(e)}")
+            logger.error(f"Failed to initialize Chat History Service: {e!s}")
             # Don't raise - chat history is optional
             app.state.chat_history_service = None
 
@@ -525,7 +525,7 @@ class ServiceFactory:
             await app.state.api_key_service.initialize()
             logger.info("API Key Service initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize API Key Service: {str(e)}")
+            logger.error(f"Failed to initialize API Key Service: {e!s}")
             raise
 
     async def _initialize_prompt_service(self, app: FastAPI) -> None:
@@ -543,7 +543,7 @@ class ServiceFactory:
             await app.state.prompt_service.initialize()
             logger.info("Prompt Service initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize Prompt Service: {str(e)}")
+            logger.error(f"Failed to initialize Prompt Service: {e!s}")
             raise
     
     async def _initialize_tool_skill_service(self, app: FastAPI) -> None:
@@ -566,7 +566,7 @@ class ServiceFactory:
             await refresh_tool_skill_registry_db(self.config, app.state.tool_skill_service)
             logger.info("Tool Skill Service initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize Tool Skill Service: {str(e)}")
+            logger.error(f"Failed to initialize Tool Skill Service: {e!s}")
             app.state.tool_skill_service = None
 
     async def _initialize_adapter_manager(self, app: FastAPI) -> None:
@@ -609,7 +609,7 @@ class ServiceFactory:
                     logger.warning(f"Failed to preload adapters: {failed_adapters}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize Dynamic Adapter Manager: {str(e)}")
+            logger.error(f"Failed to initialize Dynamic Adapter Manager: {e!s}")
             raise
     
     async def _shutdown_fault_tolerance_services(self, app: FastAPI) -> None:
@@ -620,7 +620,7 @@ class ServiceFactory:
                 await adapter_manager.cleanup()
             logger.info("Fault tolerance services shutdown successfully")
         except Exception as e:
-            logger.error(f"Error shutting down fault tolerance services: {str(e)}")
+            logger.error(f"Error shutting down fault tolerance services: {e!s}")
     
     async def _initialize_logger_service(self, app: FastAPI) -> None:
         """Initialize Logger Service."""
@@ -636,7 +636,7 @@ class ServiceFactory:
             app.state.pricing_service = PricingService(self.config)
             logger.debug("Pricing Service initialized")
         except Exception as e:
-            logger.warning(f"Failed to initialize Pricing Service: {str(e)}")
+            logger.warning(f"Failed to initialize Pricing Service: {e!s}")
             app.state.pricing_service = None
 
     async def _initialize_audit_service(self, app: FastAPI) -> None:
@@ -665,7 +665,7 @@ class ServiceFactory:
             logger.info(f"Audit Service initialized with {app.state.audit_service.backend_name} backend")
 
         except Exception as e:
-            logger.warning(f"Failed to initialize Audit Service: {str(e)}")
+            logger.warning(f"Failed to initialize Audit Service: {e!s}")
             # Don't fail startup if audit service fails
             app.state.audit_service = None
 
@@ -693,7 +693,7 @@ class ServiceFactory:
             set_metrics_service_instance(app.state.metrics_service)
             logger.info("Metrics Service initialized successfully")
         except Exception as e:
-            logger.warning(f"Failed to initialize Metrics Service: {str(e)}")
+            logger.warning(f"Failed to initialize Metrics Service: {e!s}")
             # Don't fail startup if metrics service fails
             app.state.metrics_service = None
             set_metrics_service_instance(None)
@@ -725,7 +725,7 @@ class ServiceFactory:
                 await app.state.moderator_service.initialize()
                 logger.info("Moderator Service initialized successfully")
             except Exception as e:
-                logger.error(f"Failed to initialize Moderator Service: {str(e)}")
+                logger.error(f"Failed to initialize Moderator Service: {e!s}")
                 # Don't raise here - allow server to continue without Moderator
                 app.state.moderator_service = None
                 logger.warning("Continuing without Moderator Service")
@@ -746,7 +746,7 @@ class ServiceFactory:
             )
             logger.info("File Processing Service initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize File Processing Service: {str(e)}")
+            logger.error(f"Failed to initialize File Processing Service: {e!s}")
             # Don't raise - allow server to continue without file processing
             app.state.file_processing_service = None
             logger.warning("Continuing without File Processing Service")
@@ -780,10 +780,10 @@ class ServiceFactory:
                 app.state.reranker_service = None
 
         except ValueError as e:
-            logger.warning(f"Reranker provider not available: {str(e)}")
+            logger.warning(f"Reranker provider not available: {e!s}")
             app.state.reranker_service = None
         except Exception as e:
-            logger.error(f"Failed to initialize Reranker Service: {str(e)}")
+            logger.error(f"Failed to initialize Reranker Service: {e!s}")
             app.state.reranker_service = None
     
     async def _initialize_vector_store_manager(self, app: FastAPI) -> None:

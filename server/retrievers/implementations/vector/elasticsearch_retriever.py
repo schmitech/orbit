@@ -86,7 +86,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
-            error_msg = f"Failed to connect to Elasticsearch: {str(e)}"
+            error_msg = f"Failed to connect to Elasticsearch: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
@@ -97,7 +97,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
                 self.es_client.close()
             logger.debug("Elasticsearch client closed")
         except Exception as e:
-            logger.error(f"Error closing Elasticsearch connection: {str(e)}")
+            logger.error(f"Error closing Elasticsearch connection: {e!s}")
 
     async def set_collection(self, collection_name: str) -> None:
         """
@@ -124,7 +124,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             logger.debug(f"Switched to index: {collection_name}")
                 
         except Exception as e:
-            error_msg = f"Failed to switch index: {str(e)}"
+            error_msg = f"Failed to switch index: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
@@ -189,7 +189,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             return search_results
             
         except Exception as e:
-            logger.error(f"Error querying Elasticsearch: {str(e)}")
+            logger.error(f"Error querying Elasticsearch: {e!s}")
             return []
 
     def calculate_similarity_from_distance(self, distance: float) -> float:
@@ -282,7 +282,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             return context_items
                 
         except Exception as e:
-            logger.error(f"Error retrieving context: {str(e)}")
+            logger.error(f"Error retrieving context: {e!s}")
             return []
 
 # Register the retriever with the factory

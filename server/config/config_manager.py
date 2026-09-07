@@ -98,7 +98,7 @@ def _load_config_from_disk(config_path: Optional[str] = None) -> Optional[dict[s
             logger.debug(f"Config file not found at {os.path.abspath(path)}")
             continue
         except Exception as e:
-            logger.error(f"Error loading config from {os.path.abspath(path)}: {str(e)}")
+            logger.error(f"Error loading config from {os.path.abspath(path)}: {e!s}")
             raise
 
 
@@ -172,7 +172,7 @@ def _process_imports(config: dict[str, Any], config_dir: str) -> dict[str, Any]:
         except FileNotFoundError:
             logger.warning(f"Import file not found: {os.path.abspath(import_path)}")
         except Exception as e:
-            logger.warning(f"Error loading import file {os.path.abspath(import_path)}: {str(e)}")
+            logger.warning(f"Error loading import file {os.path.abspath(import_path)}: {e!s}")
     
     # Recursively process nested dictionaries
     for key, value in config.items():
@@ -450,7 +450,7 @@ def reload_adapters_config(config_path: str) -> dict[str, Any]:
             logger.error(f"Configuration file not found: {os.path.abspath(config_path)}")
             raise
         except Exception as e:
-            logger.error(f"Error loading configuration: {str(e)}")
+            logger.error(f"Error loading configuration: {e!s}")
             raise
 
 
@@ -517,7 +517,7 @@ def _resolve_ollama_presets(config: dict[str, Any]) -> dict[str, Any]:
     try:
         return _resolve_inference_preset(config, 'ollama', 'ollama_presets')
     except Exception as e:
-        logger.warning(f"Error resolving Ollama presets: {str(e)}")
+        logger.warning(f"Error resolving Ollama presets: {e!s}")
         return config
 
 
@@ -525,7 +525,7 @@ def _resolve_llama_cpp_presets(config: dict[str, Any]) -> dict[str, Any]:
     try:
         return _resolve_inference_preset(config, 'llama_cpp', 'llama_cpp_presets')
     except Exception as e:
-        logger.warning(f"Error resolving llama.cpp presets: {str(e)}")
+        logger.warning(f"Error resolving llama.cpp presets: {e!s}")
         return config
 
 
@@ -533,5 +533,5 @@ def _resolve_azure_presets(config: dict[str, Any]) -> dict[str, Any]:
     try:
         return _resolve_inference_preset(config, 'azure', 'azure_presets')
     except Exception as e:
-        logger.warning(f"Error resolving Azure presets: {str(e)}")
+        logger.warning(f"Error resolving Azure presets: {e!s}")
         return config

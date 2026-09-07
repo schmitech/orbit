@@ -123,7 +123,7 @@ class TensorRTBaseService(ProviderAIService):
             self.initialized = True
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize TensorRT-LLM: {str(e)}")
+            logger.error(f"Failed to initialize TensorRT-LLM: {e!s}")
             return False
 
     def _load_direct_model(self):
@@ -161,7 +161,7 @@ class TensorRTBaseService(ProviderAIService):
             logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
-            logger.error(f"Error loading TensorRT-LLM model: {str(e)}")
+            logger.error(f"Error loading TensorRT-LLM model: {e!s}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -172,7 +172,7 @@ class TensorRTBaseService(ProviderAIService):
                 await self.client.models.list()
                 return True
             except Exception as e:
-                logger.error(f"Failed to verify TensorRT-LLM API connection: {str(e)}")
+                logger.error(f"Failed to verify TensorRT-LLM API connection: {e!s}")
                 return False
         else:
             # For direct mode, check if engine is loaded
@@ -181,7 +181,7 @@ class TensorRTBaseService(ProviderAIService):
                     await self.initialize()
                     return self.initialized
                 except Exception as e:
-                    logger.error(f"Failed to verify TensorRT-LLM model: {str(e)}")
+                    logger.error(f"Failed to verify TensorRT-LLM model: {e!s}")
                     return False
             return True
 
@@ -199,7 +199,7 @@ class TensorRTBaseService(ProviderAIService):
 
     def _handle_tensorrt_error(self, error: Exception, operation: str = "operation") -> None:
         """Handle TensorRT-LLM errors with logging."""
-        logger.error(f"TensorRT-LLM error during {operation}: {str(error)}")
+        logger.error(f"TensorRT-LLM error during {operation}: {error!s}")
         raise_sanitized(error, provider=self.provider_name, operation=operation)
 
     def _get_temperature(self, default: float = 0.1) -> float:

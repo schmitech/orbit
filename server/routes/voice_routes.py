@@ -347,11 +347,11 @@ async def _handle_voice_websocket(
         logger.info(f"Voice WebSocket disconnected for adapter: {adapter_name}")
 
     except Exception as e:
-        logger.error(f"Error in voice WebSocket endpoint: {str(e)}", exc_info=True)
+        logger.error(f"Error in voice WebSocket endpoint: {e!s}", exc_info=True)
         try:
             await websocket.send_json({
                 "type": "error",
-                "message": f"Server error: {str(e)}"
+                "message": f"Server error: {e!s}"
             })
         except Exception:
             pass
@@ -362,7 +362,7 @@ async def _handle_voice_websocket(
             try:
                 await handler.cleanup()
             except Exception as e:
-                logger.error(f"Error during handler cleanup: {str(e)}")
+                logger.error(f"Error during handler cleanup: {e!s}")
 
 
 @router.websocket("/ws/voice")
@@ -493,7 +493,7 @@ async def voice_status(request: Request):
         }
 
     except Exception as e:
-        logger.error(f"Error getting voice status: {str(e)}", exc_info=True)
+        logger.error(f"Error getting voice status: {e!s}", exc_info=True)
         return {
             "available": False,
             "error": str(e)

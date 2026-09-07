@@ -202,7 +202,7 @@ class AdminTester:
                     logger.error(f"✗ Authentication failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Authentication error: {str(e)}")
+            logger.error(f"✗ Authentication error: {e!s}")
             return False
     
     async def cleanup_resources(self) -> None:
@@ -228,7 +228,7 @@ class AdminTester:
                     else:
                         logger.warning(f"Failed to clean up API key: ***{api_key[-4:]}")
             except Exception as e:
-                logger.warning(f"Error cleaning up API key: {str(e)}")
+                logger.warning(f"Error cleaning up API key: {e!s}")
         
         # Clean up prompts
         for prompt_id in self.created_prompts:
@@ -243,7 +243,7 @@ class AdminTester:
                     else:
                         logger.warning(f"Failed to clean up prompt: {prompt_id}")
             except Exception as e:
-                logger.warning(f"Error cleaning up prompt: {str(e)}")
+                logger.warning(f"Error cleaning up prompt: {e!s}")
     
     async def test_create_api_key(self) -> bool:
         """Test creating a new API key"""
@@ -292,7 +292,7 @@ class AdminTester:
                     logger.error(f"✗ API key creation failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ API key creation error: {str(e)}")
+            logger.error(f"✗ API key creation error: {e!s}")
             return False
     
     async def test_list_api_keys(self) -> bool:
@@ -334,7 +334,7 @@ class AdminTester:
                     logger.error(f"✗ API key listing failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ API key listing error: {str(e)}")
+            logger.error(f"✗ API key listing error: {e!s}")
             return False
     
     async def test_api_key_status(self) -> bool:
@@ -372,7 +372,7 @@ class AdminTester:
                     logger.error(f"✗ API key status check failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ API key status check error: {str(e)}")
+            logger.error(f"✗ API key status check error: {e!s}")
             return False
     
     async def test_create_system_prompt(self) -> bool:
@@ -422,7 +422,7 @@ class AdminTester:
                     logger.error(f"✗ System prompt creation failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ System prompt creation error: {str(e)}")
+            logger.error(f"✗ System prompt creation error: {e!s}")
             return False
     
     async def test_list_system_prompts(self) -> bool:
@@ -464,7 +464,7 @@ class AdminTester:
                     logger.error(f"✗ System prompt listing failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ System prompt listing error: {str(e)}")
+            logger.error(f"✗ System prompt listing error: {e!s}")
             return False
     
     async def test_get_system_prompt(self) -> bool:
@@ -505,7 +505,7 @@ class AdminTester:
                     logger.error(f"✗ System prompt retrieval failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ System prompt retrieval error: {str(e)}")
+            logger.error(f"✗ System prompt retrieval error: {e!s}")
             return False
     
     async def test_update_system_prompt(self) -> bool:
@@ -552,7 +552,7 @@ class AdminTester:
                     logger.error(f"✗ System prompt update failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ System prompt update error: {str(e)}")
+            logger.error(f"✗ System prompt update error: {e!s}")
             return False
     
     async def test_associate_prompt_with_api_key(self) -> bool:
@@ -599,7 +599,7 @@ class AdminTester:
                     logger.error(f"✗ Prompt-API key association failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Prompt-API key association error: {str(e)}")
+            logger.error(f"✗ Prompt-API key association error: {e!s}")
             return False
 
     async def test_get_adapter_info(self) -> bool:
@@ -646,7 +646,7 @@ class AdminTester:
                     logger.error(f"✗ Get adapter info failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Get adapter info error: {str(e)}")
+            logger.error(f"✗ Get adapter info error: {e!s}")
             return False
 
     async def test_reload_all_adapters(self) -> bool:
@@ -691,7 +691,7 @@ class AdminTester:
                     logger.error(f"✗ Adapter reload failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Adapter reload error: {str(e)}")
+            logger.error(f"✗ Adapter reload error: {e!s}")
             return False
 
     async def test_reload_specific_adapter(self) -> bool:
@@ -741,7 +741,7 @@ class AdminTester:
                     logger.error(f"✗ Adapter reload failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Adapter reload error: {str(e)}")
+            logger.error(f"✗ Adapter reload error: {e!s}")
             return False
 
     async def test_reload_nonexistent_adapter(self) -> bool:
@@ -774,7 +774,7 @@ class AdminTester:
                     logger.warning(f"Unexpected status for non-existent adapter: {response.status}")
                     return True  # Don't fail test for this
         except Exception as e:
-            logger.error(f"✗ Non-existent adapter test error: {str(e)}")
+            logger.error(f"✗ Non-existent adapter test error: {e!s}")
             return False
 
     async def test_unauthorized_access(self) -> bool:
@@ -811,7 +811,7 @@ class AdminTester:
                         logger.error(f"✗ Admin endpoint should allow access when auth disabled but got: {response.status}")
                         return False
         except Exception as e:
-            logger.error(f"✗ Unauthorized access test error: {str(e)}")
+            logger.error(f"✗ Unauthorized access test error: {e!s}")
             return False
 
 
@@ -952,7 +952,7 @@ async def main():
                     failed += 1
                     logger.error(f"❌ {test_name} FAILED")
             except Exception as e:
-                logger.error(f"💥 {test_name} CRASHED: {str(e)}")
+                logger.error(f"💥 {test_name} CRASHED: {e!s}")
                 failed += 1
         
         logger.info("\n" + "=" * 60)

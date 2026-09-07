@@ -50,7 +50,7 @@ class OpenRouterRerankingService(RerankingService):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize OpenRouter reranking service: {str(e)}")
+            logger.error(f"Failed to initialize OpenRouter reranking service: {e!s}")
             return False
 
     async def rerank(
@@ -120,7 +120,7 @@ class OpenRouterRerankingService(RerankingService):
                 return results
 
         except Exception as e:
-            logger.error(f"Error in OpenRouter reranking: {str(e)}")
+            logger.error(f"Error in OpenRouter reranking: {e!s}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -138,7 +138,7 @@ class OpenRouterRerankingService(RerankingService):
                 return False
 
         except Exception as e:
-            logger.error(f"Failed to verify OpenRouter reranking connection: {str(e)}")
+            logger.error(f"Failed to verify OpenRouter reranking connection: {e!s}")
             return False
 
     async def close(self) -> None:

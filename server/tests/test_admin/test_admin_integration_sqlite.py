@@ -213,7 +213,7 @@ class AdminTesterSQLite:
                     logger.error(f"✗ Authentication failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Authentication error: {str(e)}")
+            logger.error(f"✗ Authentication error: {e!s}")
             return False
 
     async def cleanup_resources(self) -> None:
@@ -238,7 +238,7 @@ class AdminTesterSQLite:
                     else:
                         logger.warning(f"Failed to clean up API key: ***{api_key[-4:]}")
             except Exception as e:
-                logger.warning(f"Error cleaning up API key: {str(e)}")
+                logger.warning(f"Error cleaning up API key: {e!s}")
 
         # Clean up prompts
         for prompt_id in self.created_prompts:
@@ -253,7 +253,7 @@ class AdminTesterSQLite:
                     else:
                         logger.warning(f"Failed to clean up prompt: {prompt_id}")
             except Exception as e:
-                logger.warning(f"Error cleaning up prompt: {str(e)}")
+                logger.warning(f"Error cleaning up prompt: {e!s}")
 
     async def test_sqlite_backend_verification(self) -> bool:
         """Verify that the server is actually using SQLite backend"""
@@ -278,7 +278,7 @@ class AdminTesterSQLite:
                 logger.warning("  Server may not be using SQLite backend")
                 return False
         except Exception as e:
-            logger.error(f"Error checking SQLite database: {str(e)}")
+            logger.error(f"Error checking SQLite database: {e!s}")
             return False
 
     async def test_create_api_key(self) -> bool:
@@ -326,7 +326,7 @@ class AdminTesterSQLite:
                     logger.error(f"✗ API key creation failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ API key creation error: {str(e)}")
+            logger.error(f"✗ API key creation error: {e!s}")
             return False
 
     async def test_create_system_prompt(self) -> bool:
@@ -374,7 +374,7 @@ class AdminTesterSQLite:
                     logger.error(f"✗ System prompt creation failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ System prompt creation error: {str(e)}")
+            logger.error(f"✗ System prompt creation error: {e!s}")
             return False
 
     async def test_list_api_keys(self) -> bool:
@@ -414,7 +414,7 @@ class AdminTesterSQLite:
                     logger.error(f"✗ API key listing failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ API key listing error: {str(e)}")
+            logger.error(f"✗ API key listing error: {e!s}")
             return False
 
 
@@ -465,7 +465,7 @@ async def main():
                     failed += 1
                     logger.error(f"❌ {test_name} FAILED")
             except Exception as e:
-                logger.error(f"💥 {test_name} CRASHED: {str(e)}")
+                logger.error(f"💥 {test_name} CRASHED: {e!s}")
                 failed += 1
 
         logger.info("\\n" + "=" * 60)

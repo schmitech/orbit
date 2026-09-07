@@ -85,7 +85,7 @@ class PostgreSQLDatasource(BaseDatasource):
             self._initialized = False
             raise RuntimeError("psycopg is required for PostgreSQLDatasource") from e
         except Exception as e:
-            logger.error(f"Failed to connect to PostgreSQL database: {str(e)}")
+            logger.error(f"Failed to connect to PostgreSQL database: {e!s}")
             logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
             raise
 

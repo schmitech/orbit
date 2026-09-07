@@ -86,7 +86,7 @@ class SQLTemplateRetriever(AbstractSQLRetriever):
             return []
             
         except Exception as e:
-            logger.error(f"Error executing query: {str(e)}")
+            logger.error(f"Error executing query: {e!s}")
             logger.error(f"SQL: {sql}")
             logger.error(f"Params: {params}")
             return []
@@ -109,7 +109,7 @@ class SQLTemplateRetriever(AbstractSQLRetriever):
             logger.info(f"SQLTemplateRetriever initialized for datasource: {self._get_datasource_name()}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize SQLTemplateRetriever: {str(e)}")
+            logger.error(f"Failed to initialize SQLTemplateRetriever: {e!s}")
             raise
 
     async def close(self) -> None:
@@ -123,7 +123,7 @@ class SQLTemplateRetriever(AbstractSQLRetriever):
                 self.connection = None
                 
         except Exception as e:
-            logger.error(f"Error closing connection: {str(e)}")
+            logger.error(f"Error closing connection: {e!s}")
 
     # Optional: Override for database-specific search optimizations
     def _get_search_query(self, query: str, collection_name: str) -> dict[str, Any]:

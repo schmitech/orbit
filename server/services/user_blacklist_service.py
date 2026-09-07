@@ -150,11 +150,11 @@ class UserBlacklistService:
             # Fail closed on the cached set rather than the empty set: a database
             # blip must not silently un-block everyone. If nothing was ever
             # loaded the list is empty, matching today's unrestricted behavior.
-            logger.error(f"Failed to load user {self.LABEL}, using last known rules: {str(e)}")
+            logger.error(f"Failed to load user {self.LABEL}, using last known rules: {e!s}")
             with self._lock:
                 return self._rules
         except Exception as e:
-            logger.error(f"Unexpected error loading user {self.LABEL}: {str(e)}")
+            logger.error(f"Unexpected error loading user {self.LABEL}: {e!s}")
             with self._lock:
                 return self._rules
 
@@ -280,7 +280,7 @@ class UserBlacklistService:
                 )
             except Exception as e:
                 logger.error(
-                    f"Failed to revoke sessions for user {user.get('username')}: {str(e)}"
+                    f"Failed to revoke sessions for user {user.get('username')}: {e!s}"
                 )
         return revoked
 

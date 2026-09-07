@@ -210,7 +210,7 @@ class QdrantRetriever(AbstractVectorRetriever):
                         await self.set_collection(self.collection_name)
                         logger.debug(f"QdrantRetriever initialized with collection: {self.collection_name}")
                     except Exception as e:
-                        logger.error(f"Failed to set collection during initialization: {str(e)}")
+                        logger.error(f"Failed to set collection during initialization: {e!s}")
             else:
                 logger.debug("Qdrant client initialized (connection will be tested on first use)")
 
@@ -219,7 +219,7 @@ class QdrantRetriever(AbstractVectorRetriever):
             logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
-            error_msg = f"Failed to initialize Qdrant client: {str(e)}"
+            error_msg = f"Failed to initialize Qdrant client: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
@@ -231,7 +231,7 @@ class QdrantRetriever(AbstractVectorRetriever):
             self.qdrant_client = None
             logger.debug("Qdrant client reference released")
         except Exception as e:
-            logger.error(f"Error closing Qdrant client: {str(e)}")
+            logger.error(f"Error closing Qdrant client: {e!s}")
     
     async def _ensure_connection(self) -> None:
         """Ensure the connection is valid and test it if needed."""
@@ -250,7 +250,7 @@ class QdrantRetriever(AbstractVectorRetriever):
             collections = self.qdrant_client.get_collections()
             logger.debug(f"Connection verified - found {len(collections.collections)} collections")
         except Exception as e:
-            logger.warning(f"Connection test failed: {str(e)}, reinitializing...")
+            logger.warning(f"Connection test failed: {e!s}, reinitializing...")
             QdrantClientManager.set_connected_status(self.url, self.host, self.port, self.api_key, False)
             await self.initialize_client(test_connection=True)
 
@@ -290,7 +290,7 @@ class QdrantRetriever(AbstractVectorRetriever):
         except HTTPException:
             raise
         except Exception as e:
-            error_msg = f"Failed to switch collection: {str(e)}"
+            error_msg = f"Failed to switch collection: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 

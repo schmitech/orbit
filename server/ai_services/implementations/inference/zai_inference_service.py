@@ -149,4 +149,4 @@ class ZaiInferenceService(UsageReportingMixin, InferenceService, ZaiBaseService)
 
         except Exception as e:
             self._handle_zai_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"

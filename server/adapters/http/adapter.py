@@ -123,7 +123,7 @@ class HttpAdapter(DocumentAdapter):
             # generic load error.
             raise
         except Exception as e:
-            logger.error(f"Error loading {config_type}: {str(e)}")
+            logger.error(f"Error loading {config_type}: {e!s}")
             return None
 
     def _validate_and_hash_templates(self, library: dict[str, Any], *, path: str, source_text: str) -> None:

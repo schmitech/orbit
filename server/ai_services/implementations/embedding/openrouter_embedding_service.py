@@ -74,7 +74,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize OpenRouter embedding service: {str(e)}")
+            logger.error(f"Failed to initialize OpenRouter embedding service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -97,7 +97,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
             return False
 
         except Exception as e:
-            logger.error(f"OpenRouter embedding connection verification failed: {str(e)}")
+            logger.error(f"OpenRouter embedding connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -135,7 +135,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
             return response.data[0].embedding
 
         except Exception as e:
-            logger.error(f"OpenRouter embedding error: {str(e)}")
+            logger.error(f"OpenRouter embedding error: {e!s}")
             raise
 
     async def embed_documents(self, texts: list[str], usage_sink=None) -> list[list[float]]:
@@ -185,7 +185,7 @@ class OpenRouterEmbeddingService(UsageReportingMixin, EmbeddingService):
                     )
 
             except Exception as e:
-                logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
+                logger.error(f"Error in batch embedding (batch starting at {i}): {e!s}")
                 raise
 
         return all_embeddings

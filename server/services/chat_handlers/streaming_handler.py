@@ -131,7 +131,7 @@ class StreamingHandler:
                                 if audio_format_str is None:
                                     audio_format_str = fmt
                     except (AttributeError, TypeError) as e:
-                        logger.debug(f"Streaming audio unavailable, falling back to generate_audio: {str(e)}")
+                        logger.debug(f"Streaming audio unavailable, falling back to generate_audio: {e!s}")
 
                 if audio_chunks:
                     return b"".join(audio_chunks), audio_format_str
@@ -168,7 +168,7 @@ class StreamingHandler:
         except asyncio.TimeoutError:
             logger.warning("TTS generation timeout for sentence, skipping audio chunk")
         except Exception as e:
-            logger.warning(f"Failed to generate streaming audio for sentence: {str(e)}", exc_info=True)
+            logger.warning(f"Failed to generate streaming audio for sentence: {e!s}", exc_info=True)
 
         return None
 
@@ -201,7 +201,7 @@ class StreamingHandler:
             if audio_chunk:
                 self._audio_results[chunk_index] = audio_chunk
         except Exception as e:
-            logger.warning(f"Background audio generation failed for chunk {chunk_index}: {str(e)}")
+            logger.warning(f"Background audio generation failed for chunk {chunk_index}: {e!s}")
             self._audio_results[chunk_index] = None  # Mark as failed
 
     async def _yield_ready_audio_chunks(
@@ -294,7 +294,7 @@ class StreamingHandler:
                     # Debug: Log first chunk timing
                     if not state.first_chunk_yielded and "response" in chunk_data and chunk_data["response"]:
                         state.first_chunk_yielded = True
-                        logger.debug(f"Yielding first chunk to client: {repr(chunk_data['response'][:50])}")
+                        logger.debug(f"Yielding first chunk to client: {chunk_data['response'][:50]!r}")
 
                     # Handle done marker - DON'T yield it yet
                     if chunk_data.get("done", False):
@@ -437,9 +437,9 @@ class StreamingHandler:
                     )
 
         except Exception as e:
-            logger.error(f"Error in streaming handler: {str(e)}", exc_info=True)
+            logger.error(f"Error in streaming handler: {e!s}", exc_info=True)
             error_chunk = json.dumps({
-                "error": f"Stream processing failed: {str(e)}",
+                "error": f"Stream processing failed: {e!s}",
                 "done": True
             })
             yield f"data: {error_chunk}\n\n", state
@@ -559,7 +559,7 @@ class StreamingHandler:
                 return f"data: {json.dumps(audio_chunk)}\n\n"
 
         except Exception as e:
-            logger.warning(f"Failed to generate audio for remaining text: {str(e)}", exc_info=True)
+            logger.warning(f"Failed to generate audio for remaining text: {e!s}", exc_info=True)
 
         return None
 

@@ -75,7 +75,7 @@ class GoogleAudioService(AudioService, GoogleBaseService):
             return await super().initialize()
 
         except Exception as e:
-            logger.error(f"Failed to initialize Google audio service: {str(e)}")
+            logger.error(f"Failed to initialize Google audio service: {e!s}")
             return False
 
     async def text_to_speech(

@@ -116,7 +116,7 @@ class OpenAIRerankingService(RerankingService, OpenAIBaseService):
             return all_results
 
         except Exception as e:
-            logger.error(f"Error in OpenAI reranking: {str(e)}")
+            logger.error(f"Error in OpenAI reranking: {e!s}")
             raise
 
     async def _score_batch(
@@ -188,7 +188,7 @@ class OpenAIRerankingService(RerankingService, OpenAIBaseService):
             return results
 
         except (json.JSONDecodeError, KeyError) as e:
-            logger.error(f"Failed to parse OpenAI response: {str(e)}")
+            logger.error(f"Failed to parse OpenAI response: {e!s}")
             # Fallback: return documents with neutral scores
             return [
                 {
@@ -252,5 +252,5 @@ Example format: {{"scores": [0.9, 0.7, 0.3, ...]}}"""
                 return False
 
         except Exception as e:
-            logger.error(f"Failed to verify OpenAI reranking connection: {str(e)}")
+            logger.error(f"Failed to verify OpenAI reranking connection: {e!s}")
             return False

@@ -356,7 +356,7 @@ def _collect_extraction_trace(retriever, query: str, template: dict[str, Any]) -
                         coerced = extractor._coerce_parameter_value(value, param_type, param_name)
                         if coerced is None and value is not None:
                             pt["resolution"] = "coercion_failed"
-                            pt["coercion_error"] = f"Could not coerce {repr(value)} to {param_type}"
+                            pt["coercion_error"] = f"Could not coerce {value!r} to {param_type}"
                             value = None
                         else:
                             value = coerced

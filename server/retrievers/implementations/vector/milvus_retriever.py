@@ -68,7 +68,7 @@ class MilvusRetriever(AbstractVectorRetriever):
             logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
-            error_msg = f"Failed to connect to Milvus: {str(e)}"
+            error_msg = f"Failed to connect to Milvus: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
@@ -79,7 +79,7 @@ class MilvusRetriever(AbstractVectorRetriever):
             connections.disconnect("default")
             logger.debug("Milvus client closed")
         except Exception as e:
-            logger.error(f"Error closing Milvus connection: {str(e)}")
+            logger.error(f"Error closing Milvus connection: {e!s}")
 
     async def set_collection(self, collection_name: str) -> None:
         """
@@ -110,7 +110,7 @@ class MilvusRetriever(AbstractVectorRetriever):
             logger.debug(f"Switched to collection: {collection_name}")
                 
         except Exception as e:
-            error_msg = f"Failed to switch collection: {str(e)}"
+            error_msg = f"Failed to switch collection: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
@@ -174,7 +174,7 @@ class MilvusRetriever(AbstractVectorRetriever):
             return search_results
             
         except Exception as e:
-            logger.error(f"Error querying Milvus: {str(e)}")
+            logger.error(f"Error querying Milvus: {e!s}")
             return []
 
     def calculate_similarity_from_distance(self, distance: float) -> float:

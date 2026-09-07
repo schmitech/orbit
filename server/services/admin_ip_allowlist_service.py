@@ -121,11 +121,11 @@ class AdminIpAllowlistService:
         except (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError) as e:
             # Fail closed on the cached set, not the empty set: a database blip
             # must not silently widen (or narrow) who can reach the admin panel.
-            logger.error(f"Failed to load admin IP rules, using last known rules: {str(e)}")
+            logger.error(f"Failed to load admin IP rules, using last known rules: {e!s}")
             with self._lock:
                 return self._rule_networks
         except Exception as e:
-            logger.error(f"Unexpected error loading admin IP rules: {str(e)}")
+            logger.error(f"Unexpected error loading admin IP rules: {e!s}")
             with self._lock:
                 return self._rule_networks
 

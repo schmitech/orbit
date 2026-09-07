@@ -147,7 +147,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
                 logger.warning(f"Qdrant collection '{collection_name}' not found (404). Returning empty results.")
                 return []
             else:
-                logger.error(f"Unexpected Qdrant response (status {e.status_code}): {str(e)}")
+                logger.error(f"Unexpected Qdrant response (status {e.status_code}): {e!s}")
                 return []
         except Exception as e:
             error_msg = str(e)
@@ -189,7 +189,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
             try:
                 await self.initialize_client(test_connection=True)
             except Exception as e:
-                logger.error(f"Failed to initialize Qdrant client during validation: {str(e)}")
+                logger.error(f"Failed to initialize Qdrant client during validation: {e!s}")
                 return False
 
         return bool(self.qdrant_client and self.collection_name)

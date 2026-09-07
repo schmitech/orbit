@@ -164,19 +164,19 @@ Respond with only the JSON object."""
 
             except json.JSONDecodeError as json_error:
                 logger.error(f"Failed to parse Anthropic response as JSON: {response_text}")
-                logger.error(f"JSON error: {str(json_error)}")
+                logger.error(f"JSON error: {json_error!s}")
 
                 # Try to interpret the response if it contains safety keywords
                 return self._interpret_non_json_response(response_text)
 
         except Exception as e:
             self._handle_anthropic_error(e, "content moderation")
-            logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
+            logger.warning(f"Moderation check failed, allowing content through: {e!s}")
             return ModerationResult(
                 is_flagged=False,  # Fail-open on errors
                 provider="anthropic",
                 model=self.model,
-                error=f"Moderation check failed (allowed): {str(e)}"
+                error=f"Moderation check failed (allowed): {e!s}"
             )
 
     def _clean_json_response(self, response_text: str) -> str:

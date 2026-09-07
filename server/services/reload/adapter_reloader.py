@@ -138,7 +138,7 @@ class AdapterReloader:
                 error_msg = str(e)
                 logger.error(f"Failed to preload adapter '{adapter_name}' after reload: {error_msg}")
             except Exception as e:
-                logger.warning(f"Failed to preload adapter '{adapter_name}' after reload: {str(e)}. "
+                logger.warning(f"Failed to preload adapter '{adapter_name}' after reload: {e!s}. "
                              f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
 
             logger.info(f"Reloaded adapter '{adapter_name}' ({action})")
@@ -286,7 +286,7 @@ class AdapterReloader:
             error_msg = str(e)
             logger.error(f"Failed to preload {action_desc} adapter '{adapter_name}': {error_msg}")
         except Exception as e:
-            logger.warning(f"Failed to preload {action_desc} adapter '{adapter_name}': {str(e)}. "
+            logger.warning(f"Failed to preload {action_desc} adapter '{adapter_name}': {e!s}. "
                           f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
 
     async def _invalidate_autocomplete_cache(self, adapter_name: str) -> None:

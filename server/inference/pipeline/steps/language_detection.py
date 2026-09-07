@@ -558,7 +558,7 @@ class LanguageDetectionStep(PipelineStep):
                 )
 
         except Exception as e:
-            logger.error(f"Error during language detection: {str(e)}")
+            logger.error(f"Error during language detection: {e!s}")
             context.detected_language = self.fallback_language
             if not hasattr(context, 'language_detection_meta'):
                 context.language_detection_meta = {}
@@ -736,7 +736,7 @@ class LanguageDetectionStep(PipelineStep):
             for i, result in enumerate(results):
                 backend_name, weight = backend_info[i]
                 if isinstance(result, Exception):
-                    logger.warning(f"Backend {backend_name} failed: {str(result)}")
+                    logger.warning(f"Backend {backend_name} failed: {result!s}")
                     raw_results[backend_name] = {'error': str(result)}
                 elif result:
                     backend_results.append((result, weight, backend_name))

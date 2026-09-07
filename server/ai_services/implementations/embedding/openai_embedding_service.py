@@ -121,7 +121,7 @@ class OpenAIEmbeddingService(UsageReportingMixin, EmbeddingService, OpenAIBaseSe
                     await asyncio.sleep(0.5)
 
             except Exception as e:
-                logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
+                logger.error(f"Error in batch embedding (batch starting at {i}): {e!s}")
                 raise
 
         return all_embeddings

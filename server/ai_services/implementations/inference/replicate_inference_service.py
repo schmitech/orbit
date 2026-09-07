@@ -49,4 +49,4 @@ class ReplicateInferenceService(InferenceService, ReplicateBaseService):
                 yield str(chunk)
         except Exception as e:
             self._handle_replicate_error(e, "streaming")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"

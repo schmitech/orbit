@@ -292,7 +292,7 @@ async def login(
         # Re-raise HTTPExceptions as-is
         raise
     except Exception as e:
-        logger.error(f"Login error details: {type(e).__name__}: {str(e)}")
+        logger.error(f"Login error details: {type(e).__name__}: {e!s}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -410,7 +410,7 @@ async def get_current_user_info(
         # Re-raise HTTPExceptions as-is
         raise
     except Exception as e:
-        logger.error(f"Error getting current user info: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error getting current user info: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @auth_router.get("/roles", dependencies=[Depends(require_permission("users.manage"))])
@@ -488,7 +488,7 @@ async def list_users(
         return result
         
     except Exception as e:
-        logger.error(f"Error listing users: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error listing users: {type(e).__name__}: {e!s}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -536,7 +536,7 @@ async def get_user_by_username(
         # Re-raise HTTPExceptions as-is
         raise
     except Exception as e:
-        logger.error(f"Error getting user by username: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error getting user by username: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @auth_router.post("/register", response_model=RegisterResponse)
@@ -599,7 +599,7 @@ async def register_user(
         # Re-raise HTTPExceptions as-is
         raise
     except Exception as e:
-        logger.error(f"Registration error: {str(e)}")
+        logger.error(f"Registration error: {e!s}")
         # If it's a duplicate key error or already exists, return 400
         if 'duplicate key error' in str(e).lower() or 'already exists' in str(e).lower():
             raise HTTPException(
@@ -642,7 +642,7 @@ async def logout(
         return {"message": "Logout successful"}
         
     except Exception as e:
-        logger.error(f"Logout error: {str(e)}")
+        logger.error(f"Logout error: {e!s}")
         raise HTTPException(
             status_code=500,
             detail="Internal server error during logout"
@@ -697,7 +697,7 @@ async def delete_user(
         # Re-raise HTTPExceptions as-is
         raise
     except Exception as e:
-        logger.error(f"User deletion error: {str(e)}")
+        logger.error(f"User deletion error: {e!s}")
         raise HTTPException(
             status_code=500,
             detail="Internal server error during user deletion"
@@ -778,7 +778,7 @@ async def change_password(
         # Re-raise HTTPExceptions as-is
         raise
     except Exception as e:
-        logger.error(f"Password change error: {str(e)}")
+        logger.error(f"Password change error: {e!s}")
         raise HTTPException(
             status_code=500,
             detail="Internal server error during password change"
@@ -838,7 +838,7 @@ async def reset_user_password(
         # Re-raise HTTPExceptions as-is
         raise
     except Exception as e:
-        logger.error(f"Password reset error: {str(e)}")
+        logger.error(f"Password reset error: {e!s}")
         raise HTTPException(
             status_code=500,
             detail="Internal server error during password reset"
@@ -893,7 +893,7 @@ async def deactivate_user(
         # Re-raise HTTPExceptions as-is
         raise
     except Exception as e:
-        logger.error(f"User deactivation error: {str(e)}")
+        logger.error(f"User deactivation error: {e!s}")
         raise HTTPException(
             status_code=500,
             detail="Internal server error during user deactivation"
@@ -941,7 +941,7 @@ async def activate_user(
         # Re-raise HTTPExceptions as-is
         raise
     except Exception as e:
-        logger.error(f"User activation error: {str(e)}")
+        logger.error(f"User activation error: {e!s}")
         raise HTTPException(
             status_code=500,
             detail="Internal server error during user activation"
@@ -1042,7 +1042,7 @@ async def list_blacklist_rules(auth_service=Depends(get_auth_service)):
         rules = await blacklist.list_rules()
         return [_serialize_rule(rule) for rule in rules]
     except Exception as e:
-        logger.error(f"Error listing blacklist rules: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error listing blacklist rules: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1078,7 +1078,7 @@ async def create_blacklist_rule(
     except BlacklistRuleError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error creating blacklist rule: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error creating blacklist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1117,7 +1117,7 @@ async def update_blacklist_rule(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating blacklist rule: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error updating blacklist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1139,7 +1139,7 @@ async def delete_blacklist_rule(rule_id: str, auth_service=Depends(get_auth_serv
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting blacklist rule: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error deleting blacklist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1222,7 +1222,7 @@ async def list_allowlist_rules(auth_service=Depends(get_auth_service)):
     try:
         return [_serialize_rule(rule) for rule in await allowlist.list_rules()]
     except Exception as e:
-        logger.error(f"Error listing allowlist rules: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error listing allowlist rules: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1264,7 +1264,7 @@ async def create_allowlist_rule(
     except BlacklistRuleError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error creating allowlist rule: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error creating allowlist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1317,7 +1317,7 @@ async def update_allowlist_rule(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating allowlist rule: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error updating allowlist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1349,7 +1349,7 @@ async def delete_allowlist_rule(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting allowlist rule: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error deleting allowlist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1390,7 +1390,7 @@ async def list_my_sessions(
         sessions = await auth_service.list_sessions(current_user["id"])
         return [_serialize_session(session) for session in sessions]
     except Exception as e:
-        logger.error(f"Error listing sessions: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error listing sessions: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1415,7 +1415,7 @@ async def revoke_my_session(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error revoking session: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error revoking session: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1430,7 +1430,7 @@ async def list_user_sessions(user_id: str, auth_service=Depends(get_auth_service
         sessions = await auth_service.list_sessions(user_id)
         return [_serialize_session(session) for session in sessions]
     except Exception as e:
-        logger.error(f"Error listing sessions for user {user_id}: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error listing sessions for user {user_id}: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1460,7 +1460,7 @@ async def revoke_user_session(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error revoking session {session_id} for user {user_id}: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error revoking session {session_id} for user {user_id}: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1510,7 +1510,7 @@ async def list_admin_ip_rules(auth_service=Depends(get_auth_service)):
         rules = await service.list_rules()
         return [_serialize_admin_ip_rule(rule) for rule in rules]
     except Exception as e:
-        logger.error(f"Error listing admin IP rules: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error listing admin IP rules: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1542,7 +1542,7 @@ async def create_admin_ip_rule(
     except AdminIpRuleError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error creating admin IP rule: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error creating admin IP rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -1606,7 +1606,7 @@ async def delete_admin_ip_rule(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting admin IP rule: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error deleting admin IP rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

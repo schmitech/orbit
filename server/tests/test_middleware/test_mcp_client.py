@@ -115,7 +115,7 @@ def send_non_streaming_request(url: str, api_key: Optional[str], message: str, s
             print(f"Error: {response.status_code} - {response.text}")
     
     except Exception as e:
-        print(f"Request failed: {str(e)}")
+        print(f"Request failed: {e!s}")
 
 def send_streaming_request(url: str, api_key: Optional[str], message: str, session_id: str) -> None:
     """
@@ -226,7 +226,7 @@ def send_streaming_request(url: str, api_key: Optional[str], message: str, sessi
             print(f"Error: {response.status_code} - {response.text}")
 
     except Exception as e:
-        print(f"Request failed: {str(e)}")
+        print(f"Request failed: {e!s}")
 
 def main():
     """Main function to parse arguments and send requests."""

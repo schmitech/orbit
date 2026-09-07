@@ -90,7 +90,7 @@ class AdapterCacheManager:
                 else:
                     adapter.close()
         except Exception as e:
-            logger.warning(f"Error closing adapter {adapter_name}: {str(e)}")
+            logger.warning(f"Error closing adapter {adapter_name}: {e!s}")
 
         # Release datasource reference if applicable
         try:
@@ -104,7 +104,7 @@ class AdapterCacheManager:
                     logger_instance=logger
                 )
         except Exception as e:
-            logger.warning(f"Error releasing datasource for adapter {adapter_name}: {str(e)}")
+            logger.warning(f"Error releasing datasource for adapter {adapter_name}: {e!s}")
 
         # Unregister capabilities
         try:
@@ -112,7 +112,7 @@ class AdapterCacheManager:
             capability_registry = get_capability_registry()
             capability_registry.unregister(adapter_name)
         except Exception as e:
-            logger.warning(f"Error unregistering capabilities for adapter {adapter_name}: {str(e)}")
+            logger.warning(f"Error unregistering capabilities for adapter {adapter_name}: {e!s}")
 
         logger.info(f"Removed adapter from cache: {adapter_name}")
         return adapter
@@ -150,7 +150,7 @@ class AdapterCacheManager:
             capability_registry = get_capability_registry()
             capability_registry.clear()
         except Exception as e:
-            logger.warning(f"Error clearing capability registry: {str(e)}")
+            logger.warning(f"Error clearing capability registry: {e!s}")
 
         logger.info("Cleared all adapters from cache")
 

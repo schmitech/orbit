@@ -143,7 +143,7 @@ class AIServiceFactory:
         except Exception as e:
             logger.error(
                 f"Failed to create {service_type.value} service with provider "
-                f"{provider}: {str(e)}"
+                f"{provider}: {e!s}"
             )
             raise
 
@@ -192,7 +192,7 @@ class AIServiceFactory:
         except Exception as e:
             logger.error(
                 f"Error creating/initializing {service_type.value} service "
-                f"with provider {provider}: {str(e)}"
+                f"with provider {provider}: {e!s}"
             )
             return None
 
@@ -270,7 +270,7 @@ class AIServiceFactory:
             try:
                 await service.close()
             except Exception as e:
-                logger.error(f"Error closing service {service.__class__.__name__}: {str(e)}")
+                logger.error(f"Error closing service {service.__class__.__name__}: {e!s}")
 
         cls._service_cache.clear()
         logger.info("All services closed")

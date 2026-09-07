@@ -162,7 +162,7 @@ class BitNetBaseService(ProviderAIService):
             self.initialized = True
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize BitNet: {str(e)}")
+            logger.error(f"Failed to initialize BitNet: {e!s}")
             return False
 
     def _load_direct_model(self):
@@ -206,7 +206,7 @@ class BitNetBaseService(ProviderAIService):
             logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
-            logger.error(f"Error loading BitNet model: {str(e)}")
+            logger.error(f"Error loading BitNet model: {e!s}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -219,7 +219,7 @@ class BitNetBaseService(ProviderAIService):
                     await self.client.models.list()
                     return True
             except Exception as e:
-                logger.error(f"Failed to verify BitNet API connection: {str(e)}")
+                logger.error(f"Failed to verify BitNet API connection: {e!s}")
                 return False
         else:
             # For direct mode, check if model is loaded
@@ -228,7 +228,7 @@ class BitNetBaseService(ProviderAIService):
                     await self.initialize()
                     return self.initialized
                 except Exception as e:
-                    logger.error(f"Failed to verify BitNet model: {str(e)}")
+                    logger.error(f"Failed to verify BitNet model: {e!s}")
                     return False
             return True
 
@@ -243,7 +243,7 @@ class BitNetBaseService(ProviderAIService):
 
     def _handle_bitnet_error(self, error: Exception, operation: str = "operation") -> None:
         """Handle BitNet-specific errors."""
-        logger.error(f"BitNet error during {operation}: {str(error)}")
+        logger.error(f"BitNet error during {operation}: {error!s}")
         raise_sanitized(error, provider=self.provider_name, operation=operation)
 
     def _get_batch_size(self, default: int = 8) -> int:

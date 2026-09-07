@@ -487,5 +487,5 @@ class AbstractVectorRetriever(BaseRetriever):
             return context_items
                 
         except Exception as e:
-            logger.error(f"Error retrieving context: {str(e)}")
+            logger.error(f"Error retrieving context: {e!s}")
             return [] 

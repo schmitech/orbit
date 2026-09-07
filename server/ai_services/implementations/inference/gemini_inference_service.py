@@ -543,4 +543,4 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
 
         except Exception as e:
             self._handle_google_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"

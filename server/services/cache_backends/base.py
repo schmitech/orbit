@@ -229,7 +229,7 @@ class CacheProvider(ABC):
                 results[description] = deleted
                 total_cleared += deleted
             except Exception as e:
-                logger.warning(f"Error clearing {description}: {str(e)}")
+                logger.warning(f"Error clearing {description}: {e!s}")
                 results[description] = 0
 
         if total_cleared > 0:
@@ -245,7 +245,7 @@ class CacheProvider(ABC):
             json_data = json.dumps(data)
             return await self.set(key, json_data, ttl)
         except Exception as e:
-            logger.error(f"Error storing JSON data: {str(e)}")
+            logger.error(f"Error storing JSON data: {e!s}")
             return False
 
     async def get_json(self, key: str) -> Optional[dict[str, Any]]:
@@ -256,5 +256,5 @@ class CacheProvider(ABC):
                 return json.loads(data)
             return None
         except Exception as e:
-            logger.error(f"Error getting JSON data: {str(e)}")
+            logger.error(f"Error getting JSON data: {e!s}")
             return None

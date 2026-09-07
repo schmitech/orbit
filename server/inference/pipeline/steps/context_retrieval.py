@@ -360,9 +360,9 @@ class ContextRetrievalStep(PipelineStep):
             )
 
         except Exception as e:
-            logger.error(f"Error during context retrieval: {str(e)}")
+            logger.error(f"Error during context retrieval: {e!s}")
             finalize_usage_components(self.container, context)
-            context.set_error(f"Failed to retrieve context: {str(e)}")
+            context.set_error(f"Failed to retrieve context: {e!s}")
 
         return context
 

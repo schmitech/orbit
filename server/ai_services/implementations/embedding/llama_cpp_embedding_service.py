@@ -132,7 +132,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
 
             return embedding
         except Exception as e:
-            logger.error(f"Error in llama.cpp _generate_embedding: {str(e)}")
+            logger.error(f"Error in llama.cpp _generate_embedding: {e!s}")
             raise
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
@@ -237,7 +237,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
                 embedding = self._generate_embedding(text)
                 batch_embeddings.append(embedding)
             except Exception as e:
-                logger.error(f"Error embedding text '{text[:30]}...': {str(e)}")
+                logger.error(f"Error embedding text '{text[:30]}...': {e!s}")
                 raise
 
         return batch_embeddings
@@ -260,7 +260,7 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
             self.dimensions = len(embedding)
             return self.dimensions
         except Exception as e:
-            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
+            logger.error(f"Failed to determine embedding dimensions: {e!s}")
             # Default fallback - many GGUF embedding models use 4096 dimensions
             self.dimensions = 4096
             logger.warning(f"Using fallback embedding dimensions: {self.dimensions}")

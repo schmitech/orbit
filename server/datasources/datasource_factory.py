@@ -59,5 +59,5 @@ class DatasourceFactory:
             return datasource.get_client()
             
         except Exception as e:
-            logger.error(f"Failed to initialize datasource {provider}: {str(e)}")
+            logger.error(f"Failed to initialize datasource {provider}: {e!s}")
             return None 

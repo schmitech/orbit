@@ -89,7 +89,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize ElevenLabs audio service: {str(e)}")
+            logger.error(f"Failed to initialize ElevenLabs audio service: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -172,7 +172,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
                 return audio_data
 
         except Exception as e:
-            logger.error(f"ElevenLabs TTS error: {str(e)}")
+            logger.error(f"ElevenLabs TTS error: {e!s}")
             raise
 
     async def text_to_speech_streaming(
@@ -299,7 +299,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
                 return response.status == 200
 
         except Exception as e:
-            logger.error(f"ElevenLabs connection verification failed: {str(e)}")
+            logger.error(f"ElevenLabs connection verification failed: {e!s}")
             return False
 
     async def list_voices(self) -> dict[str, Any]:
@@ -323,7 +323,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
                 return await response.json()
 
         except Exception as e:
-            logger.error(f"Failed to list ElevenLabs voices: {str(e)}")
+            logger.error(f"Failed to list ElevenLabs voices: {e!s}")
             raise
 
     async def get_voice_info(self, voice_id: str) -> dict[str, Any]:
@@ -350,5 +350,5 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
                 return await response.json()
 
         except Exception as e:
-            logger.error(f"Failed to get ElevenLabs voice info: {str(e)}")
+            logger.error(f"Failed to get ElevenLabs voice info: {e!s}")
             raise

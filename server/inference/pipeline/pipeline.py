@@ -95,7 +95,7 @@ class InferencePipeline:
                     step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(step.get_name(), step_time, False)
                     
-                    logger.error(f"Error in step {step.get_name()}: {str(e)}")
+                    logger.error(f"Error in step {step.get_name()}: {e!s}")
                     context.error = str(e)
                     break
             
@@ -110,7 +110,7 @@ class InferencePipeline:
             total_time = time.perf_counter() - start_time
             self.monitor.record_pipeline_metrics(total_time, False)
             
-            logger.error(f"Pipeline processing failed: {str(e)}")
+            logger.error(f"Pipeline processing failed: {e!s}")
             context.error = str(e)
             return context
     
@@ -177,7 +177,7 @@ class InferencePipeline:
                     step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(step.get_name(), step_time, False)
                     
-                    logger.error(f"Error in step {step.get_name()}: {str(e)}")
+                    logger.error(f"Error in step {step.get_name()}: {e!s}")
                     error_json = json.dumps({"error": str(e), "done": True})
                     yield error_json
                     total_time = time.perf_counter() - start_time
@@ -244,7 +244,7 @@ class InferencePipeline:
                 except Exception as e:
                     step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(mcp_step.get_name(), step_time, False)
-                    logger.error(f"Error in MCP agent step: {str(e)}")
+                    logger.error(f"Error in MCP agent step: {e!s}")
                     yield json.dumps({"error": str(e), "done": True})
                 return
 
@@ -325,7 +325,7 @@ class InferencePipeline:
                     step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(llm_step.get_name(), step_time, False)
                     
-                    logger.error(f"Error in streaming LLM step: {str(e)}")
+                    logger.error(f"Error in streaming LLM step: {e!s}")
                     error_json = json.dumps({"error": str(e), "done": True})
                     yield error_json
             else:
@@ -334,7 +334,7 @@ class InferencePipeline:
                     try:
                         context = await llm_step.process(context)
                     except Exception as e:
-                        logger.error(f"Error in non-streaming LLM step: {str(e)}")
+                        logger.error(f"Error in non-streaming LLM step: {e!s}")
                         error_json = json.dumps({"error": str(e), "done": True})
                         yield error_json
                         return
@@ -354,7 +354,7 @@ class InferencePipeline:
             total_time = time.perf_counter() - start_time
             self.monitor.record_pipeline_metrics(total_time, False)
             
-            logger.error(f"Streaming pipeline processing failed: {str(e)}")
+            logger.error(f"Streaming pipeline processing failed: {e!s}")
             error_json = json.dumps({"error": str(e), "done": True})
             yield error_json
     

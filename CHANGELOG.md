@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Technical Improvements
+- **Ruff Blind-Except Hardening (in progress)**: Started resolving `BLE001` (blind-except) findings per `docs/roadmap/ruff-blind-except-hardening.md`, file-by-file rather than a repo-wide sweep. `redis_provider.py`, `chat_history_service.py`, and `auth_service.py` are done (70 of 1517 findings): a few catches were narrowed to the specific exceptions their operation can raise, the rest carry a `# noqa: BLE001` with a one-line rationale (DB/cache client boundaries, background worker loops, and best-effort cleanup paths that must not crash). No behavior change.
+- **Ruff RUF010 Cleanup**: Replaced `str(e)`/`str(x)` inside f-strings with the explicit `!s` conversion flag across `server/` and `bin/`, resolving all 751 `RUF010` findings via `ruff check --fix`. Purely mechanical, no behavior change.
+
 ## [2.17.7] - 2026-09-07
 
 ### Admin Panel

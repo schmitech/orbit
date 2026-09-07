@@ -118,7 +118,7 @@ class AnthropicBaseService(ProviderAIService):
                 return True
             return False
         except Exception as e:
-            logger.error(f"Failed to initialize Anthropic service: {str(e)}")
+            logger.error(f"Failed to initialize Anthropic service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -142,7 +142,7 @@ class AnthropicBaseService(ProviderAIService):
             return True
 
         except Exception as e:
-            logger.error(f"Anthropic connection verification failed: {str(e)}")
+            logger.error(f"Anthropic connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -279,10 +279,10 @@ class AnthropicBaseService(ProviderAIService):
         elif isinstance(error, RateLimitError):
             logger.warning(f"Anthropic rate limit exceeded during {operation}")
         elif isinstance(error, APIConnectionError):
-            logger.error(f"Anthropic connection error during {operation}: {str(error)}")
+            logger.error(f"Anthropic connection error during {operation}: {error!s}")
         elif isinstance(error, APIError):
-            logger.error(f"Anthropic API error during {operation}: {str(error)}")
+            logger.error(f"Anthropic API error during {operation}: {error!s}")
         else:
-            logger.error(f"Unexpected error during {operation}: {str(error)}")
+            logger.error(f"Unexpected error during {operation}: {error!s}")
 
         raise_sanitized(error, provider=self.provider_name, operation=operation)

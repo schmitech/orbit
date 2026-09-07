@@ -79,7 +79,7 @@ class ModeratorService:
                 logger.info(f"Safety service using moderator: {self.moderator_name}")
             except (ValueError, Exception) as e:
                 # If moderator initialization fails (e.g., missing API key), try to fall back
-                logger.warning(f"Failed to initialize {self.moderator_name} moderator: {str(e)}")
+                logger.warning(f"Failed to initialize {self.moderator_name} moderator: {e!s}")
                 self._fallback_to_alternative_moderator(config, safety_config)
         else:
             # If no valid moderator, fall back to using the general inference provider
@@ -141,7 +141,7 @@ class ModeratorService:
                     logger.info(f"Successfully fell back to {alt_moderator} moderator")
                     return
                 except Exception as e:
-                    logger.warning(f"Failed to initialize {alt_moderator} moderator: {str(e)}")
+                    logger.warning(f"Failed to initialize {alt_moderator} moderator: {e!s}")
                     continue
 
         # If no alternative moderator works, check if we should disable safety
@@ -208,7 +208,7 @@ class ModeratorService:
             else:
                 logger.warning(f"Safety prompt file not found at: {prompt_path}")
         except Exception as e:
-            logger.warning(f"Failed to load safety prompt from {prompt_path}: {str(e)}")
+            logger.warning(f"Failed to load safety prompt from {prompt_path}: {e!s}")
         
         # Fallback to default safety prompt
         default_prompt = """You are a safety checker. Analyze the following query and determine if it's safe to respond to.
@@ -336,7 +336,7 @@ Query: """
                         logger.info(f"⚠️ Flagged categories: {flagged_categories}")
                         logger.debug(f"All category scores: {result.categories}")
                     except Exception as category_error:
-                        logger.error(f"Error processing moderation categories: {str(category_error)}")
+                        logger.error(f"Error processing moderation categories: {category_error!s}")
                         logger.info("🛑 MODERATION BLOCKED: Query was flagged as UNSAFE (categories unavailable)")
 
                 # Return appropriate response with category information for transparency
@@ -430,7 +430,7 @@ Query: """
                     return False, refusal_message
                 
             except Exception as e:
-                logger.error(f"❌ Error in moderator safety check: {str(e)}", exc_info=True)
+                logger.error(f"❌ Error in moderator safety check: {e!s}", exc_info=True)
                 if attempt < self.max_retries - 1:
                     logger.debug(f"🔄 Retrying in {self.retry_delay} seconds... (Attempt {attempt+1} of {self.max_retries})")
                     await asyncio.sleep(self.retry_delay)
@@ -524,7 +524,7 @@ Query: """
                     logger.warning("🚫 Blocking query after timeout")
                     return False, "I cannot assist with that request due to a service issue. Please try again later."
             except Exception as e:
-                logger.error(f"❌ Error in safety check: {str(e)}", exc_info=True)
+                logger.error(f"❌ Error in safety check: {e!s}", exc_info=True)
                 if attempt < self.max_retries - 1:
                     logger.debug(f"🔄 Retrying in {self.retry_delay} seconds...")
                     await asyncio.sleep(self.retry_delay)

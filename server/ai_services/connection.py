@@ -177,13 +177,13 @@ class RetryHandler:
                 # Don't retry on the last attempt
                 if attempt >= self.max_retries:
                     logger.error(
-                        f"{error_message} after {attempt + 1} attempts: {str(e)}"
+                        f"{error_message} after {attempt + 1} attempts: {e!s}"
                     )
                     raise
 
                 wait_time = self._calculate_wait_time(attempt)
                 logger.warning(
-                    f"{error_message} (attempt {attempt + 1}/{self.max_retries + 1}): {str(e)}. "
+                    f"{error_message} (attempt {attempt + 1}/{self.max_retries + 1}): {e!s}. "
                     f"Retrying in {wait_time:.2f}s..."
                 )
 
@@ -245,7 +245,7 @@ class ConnectionVerifier:
                 error_message="Connection verification failed"
             )
         except Exception as e:
-            logger.error(f"Failed to verify HTTP connection: {str(e)}")
+            logger.error(f"Failed to verify HTTP connection: {e!s}")
             return False
 
     async def verify_api_key(
@@ -275,7 +275,7 @@ class ConnectionVerifier:
                     return 200 <= response.status < 300
 
         except Exception as e:
-            logger.error(f"API key verification failed: {str(e)}")
+            logger.error(f"API key verification failed: {e!s}")
             return False
 
 

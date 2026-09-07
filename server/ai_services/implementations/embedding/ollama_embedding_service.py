@@ -199,7 +199,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
         try:
             return await self.execute_with_retry(_get_dims)
         except Exception as e:
-            logger.error(f"Failed to determine dimensions: {str(e)}")
+            logger.error(f"Failed to determine dimensions: {e!s}")
             fallback = 768
             self.dimensions = fallback
             return fallback

@@ -170,7 +170,7 @@ class CohereVisionService(VisionService, CohereBaseService):
                 return response.text
 
         except Exception as e:
-            logger.error(f"Cohere vision error: {str(e)}")
+            logger.error(f"Cohere vision error: {e!s}")
             logger.error(f"Image base64 length: {len(image_base64) if 'image_base64' in locals() else 'N/A'}")
             logger.error(f"API version: {getattr(self, 'api_version', 'unknown')}")
             logger.error(f"Model: {getattr(self, 'model', 'unknown')}")

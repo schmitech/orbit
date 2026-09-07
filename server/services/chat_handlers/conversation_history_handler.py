@@ -136,7 +136,7 @@ class ConversationHistoryHandler:
             # Never downgrade an authorization failure to "no history".
             raise
         except Exception as e:
-            logger.error(f"Error retrieving conversation context: {str(e)}")
+            logger.error(f"Error retrieving conversation context: {e!s}")
             return []
 
     async def store_turn(
@@ -207,7 +207,7 @@ class ConversationHistoryHandler:
             return result
 
         except Exception as e:
-            logger.error(f"Error storing conversation turn: {str(e)}")
+            logger.error(f"Error storing conversation turn: {e!s}")
             return None, None
 
     async def check_limit_warning(
@@ -274,5 +274,5 @@ class ConversationHistoryHandler:
             return None
 
         except Exception as e:
-            logger.error(f"Error checking conversation limit: {str(e)}")
+            logger.error(f"Error checking conversation limit: {e!s}")
             return None

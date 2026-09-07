@@ -227,8 +227,8 @@ class AuthService:
                 u for u in external
                 if not await self.allowlist.is_user_cleared(u)
             ]
-        except Exception as e:
-            logger.warning(f"Could not evaluate allowlist coverage at startup: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.warning(f"Could not evaluate allowlist coverage at startup: {e!s}")
             return
 
         if denied:
@@ -371,10 +371,10 @@ class AuthService:
             return hmac.compare_digest(stored_hash, computed_hash)
             
         except (ValueError, TypeError) as e:
-            logger.error(f"Error decoding stored password: {str(e)}")
+            logger.error(f"Error decoding stored password: {e!s}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error verifying password: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error verifying password: {e!s}")
             return False
     
     def _encode_password(self, salt: bytes, hash_bytes: bytes) -> str:
@@ -541,13 +541,13 @@ class AuthService:
                 logger.debug(f"Default admin user already exists: {self.default_admin_username}")
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error creating default admin user: {str(e)}")
+            logger.error(f"Database connection error creating default admin user: {e!s}")
             raise
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error creating default admin user: {str(e)}")
+            logger.error(f"Database operation error creating default admin user: {e!s}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error creating default admin user: {str(e)}")
+            logger.error(f"Unexpected error creating default admin user: {e!s}")
             raise
 
     async def _backfill_roles(self) -> None:
@@ -565,8 +565,8 @@ class AuthService:
                     {"$set": {"roles": [role]}}
                 )
                 logger.info(f"Backfilled roles for user {user.get('username')}: [{role}]")
-        except Exception as e:
-            logger.error(f"Unexpected error backfilling user roles: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error backfilling user roles: {e!s}")
 
     async def _is_blacklisted(self, user: dict[str, Any]) -> bool:
         """Return whether a resolved user matches an active blacklist rule.
@@ -638,13 +638,13 @@ class AuthService:
 
             return True, self._user_info(user)
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error verifying credentials for {username}: {str(e)}")
+            logger.error(f"Database connection error verifying credentials for {username}: {e!s}")
             return False, None
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error verifying credentials for {username}: {str(e)}")
+            logger.error(f"Database operation error verifying credentials for {username}: {e!s}")
             return False, None
-        except Exception as e:
-            logger.error(f"Unexpected error verifying credentials for {username}: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error verifying credentials for {username}: {e!s}")
             return False, None
     
     async def authenticate_user(
@@ -772,17 +772,17 @@ class AuthService:
             return True, token, self._user_info(user)
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error authenticating user {username}: {str(e)}")
+            logger.error(f"Database connection error authenticating user {username}: {e!s}")
             if failure_context is not None:
                 failure_context["reason"] = "invalid_credentials"
             return False, None, None
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error authenticating user {username}: {str(e)}")
+            logger.error(f"Database operation error authenticating user {username}: {e!s}")
             if failure_context is not None:
                 failure_context["reason"] = "invalid_credentials"
             return False, None, None
-        except Exception as e:
-            logger.error(f"Unexpected error authenticating user {username}: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error authenticating user {username}: {e!s}")
             if failure_context is not None:
                 failure_context["reason"] = "invalid_credentials"
             return False, None, None
@@ -856,8 +856,8 @@ class AuthService:
                 await self.database.delete_one(
                     self.mfa_pending_collection_name, {"_id": row["_id"]}
                 )
-        except Exception as e:
-            logger.warning(f"Failed to purge expired mfa_pending rows: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.warning(f"Failed to purge expired mfa_pending rows: {e!s}")
 
     async def peek_mfa_pending_user_id(self, pending_token: str) -> Optional[str]:
         """Resolve the user a pending 2FA login belongs to, without consuming it.
@@ -940,10 +940,10 @@ class AuthService:
             # deployment issue indistinguishable from a wrong TOTP guess.
             raise
         except (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError) as e:
-            logger.error(f"Database error completing 2FA login: {str(e)}")
+            logger.error(f"Database error completing 2FA login: {e!s}")
             return False, None, None, None
-        except Exception as e:
-            logger.error(f"Unexpected error completing 2FA login: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error completing 2FA login: {e!s}")
             return False, None, None, None
 
     async def set_role(self, user_id: str, role: str) -> bool:
@@ -965,13 +965,13 @@ class AuthService:
             )
             return bool(result)
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error setting roles for {user_id}: {str(e)}")
+            logger.error(f"Database connection error setting roles for {user_id}: {e!s}")
             return False
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error setting roles for {user_id}: {str(e)}")
+            logger.error(f"Database operation error setting roles for {user_id}: {e!s}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error setting role for {user_id}: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error setting role for {user_id}: {e!s}")
             return False
 
     def _ensure_utc_datetime(self, dt):
@@ -1080,13 +1080,13 @@ class AuthService:
             return True, self._user_info(user)
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error validating token: {str(e)}")
+            logger.error(f"Database connection error validating token: {e!s}")
             return False, None
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error validating token: {str(e)}")
+            logger.error(f"Database operation error validating token: {e!s}")
             return False, None
-        except Exception as e:
-            logger.error(f"Unexpected error validating token: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error validating token: {e!s}")
             return False, None
 
     async def _touch_session_last_seen(self, session: dict[str, Any], now: datetime) -> None:
@@ -1102,8 +1102,8 @@ class AuthService:
                 {"_id": session["_id"]},
                 {"$set": {"last_seen_at": now}}
             )
-        except Exception as e:
-            logger.warning(f"Failed to update session last_seen_at: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.warning(f"Failed to update session last_seen_at: {e!s}")
     
     async def logout(self, token: str) -> bool:
         """
@@ -1132,13 +1132,13 @@ class AuthService:
             return result
             
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error during logout: {str(e)}")
+            logger.error(f"Database connection error during logout: {e!s}")
             return False
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error during logout: {str(e)}")
+            logger.error(f"Database operation error during logout: {e!s}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error during logout: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error during logout: {e!s}")
             return False
 
     async def list_sessions(self, user_id: str) -> list[dict[str, Any]]:
@@ -1151,7 +1151,7 @@ class AuthService:
         try:
             user_id_converted = await self.database.ensure_id_is_object_id(user_id)
         except ValueError as e:
-            logger.error(f"Invalid user ID format: {str(e)}")
+            logger.error(f"Invalid user ID format: {e!s}")
             return []
 
         now = datetime.now(UTC)
@@ -1170,7 +1170,7 @@ class AuthService:
                 sort=[("created_at", -1)],
             )
         except (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError) as e:
-            logger.error(f"Database error listing sessions for {user_id}: {str(e)}")
+            logger.error(f"Database error listing sessions for {user_id}: {e!s}")
             return []
 
         # Expired sessions are only cleaned up lazily, at validate_token time
@@ -1193,8 +1193,8 @@ class AuthService:
                     self.sessions_collection_name,
                     {"_id": expired["_id"]},
                 )
-        except Exception as e:
-            logger.warning(f"Failed to opportunistically clean up expired sessions for {user_id}: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.warning(f"Failed to opportunistically clean up expired sessions for {user_id}: {e!s}")
         return [
             {
                 "id": str(session["_id"]),
@@ -1219,7 +1219,7 @@ class AuthService:
         try:
             session_id_converted = await self.database.ensure_id_is_object_id(session_id)
         except ValueError as e:
-            logger.warning(f"Invalid session ID format: {str(e)}")
+            logger.warning(f"Invalid session ID format: {e!s}")
             return False
 
         try:
@@ -1228,7 +1228,7 @@ class AuthService:
                 {"_id": session_id_converted},
             )
         except (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError) as e:
-            logger.error(f"Database error looking up session {session_id}: {str(e)}")
+            logger.error(f"Database error looking up session {session_id}: {e!s}")
             return False
 
         if not session:
@@ -1248,7 +1248,7 @@ class AuthService:
                 {"_id": session_id_converted},
             )
         except (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError) as e:
-            logger.error(f"Database error revoking session {session_id}: {str(e)}")
+            logger.error(f"Database error revoking session {session_id}: {e!s}")
             return False
 
     async def change_password(self, user_id: str, old_password: str, new_password: str) -> bool:
@@ -1307,16 +1307,16 @@ class AuthService:
             return result
             
         except ValueError as e:
-            logger.error(f"Invalid user ID format: {str(e)}")
+            logger.error(f"Invalid user ID format: {e!s}")
             return False
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error changing password: {str(e)}")
+            logger.error(f"Database connection error changing password: {e!s}")
             return False
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error changing password: {str(e)}")
+            logger.error(f"Database operation error changing password: {e!s}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error changing password: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error changing password: {e!s}")
             return False
     
     async def create_user(
@@ -1379,13 +1379,13 @@ class AuthService:
             return str(user_id)
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error creating user {username}: {str(e)}")
+            logger.error(f"Database connection error creating user {username}: {e!s}")
             return None
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error creating user {username}: {str(e)}")
+            logger.error(f"Database operation error creating user {username}: {e!s}")
             return None
-        except Exception as e:
-            logger.error(f"Unexpected error creating user {username}: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error creating user {username}: {e!s}")
             return None
 
     async def _find_or_create_external_user(
@@ -1467,13 +1467,13 @@ class AuthService:
                     self.users_collection_name, {"username": username}
                 )
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error provisioning external user {username}: {str(e)}")
+            logger.error(f"Database connection error provisioning external user {username}: {e!s}")
             return None
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error provisioning external user {username}: {str(e)}")
+            logger.error(f"Database operation error provisioning external user {username}: {e!s}")
             return None
-        except Exception as e:
-            logger.error(f"Unexpected error provisioning external user {username}: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error provisioning external user {username}: {e!s}")
             return None
 
     async def provision_sso_user(
@@ -1529,13 +1529,13 @@ class AuthService:
             return [self._user_record(u) for u in results]
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error listing users: {str(e)}")
+            logger.error(f"Database connection error listing users: {e!s}")
             return []
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error listing users: {str(e)}")
+            logger.error(f"Database operation error listing users: {e!s}")
             return []
-        except Exception as e:
-            logger.error(f"Unexpected error listing users: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error listing users: {e!s}")
             return []
     
     async def get_user_by_id(self, user_id: str) -> Optional[dict[str, Any]]:
@@ -1563,16 +1563,16 @@ class AuthService:
             return self._user_record(user)
 
         except ValueError as e:
-            logger.error(f"Invalid user ID format: {str(e)}")
+            logger.error(f"Invalid user ID format: {e!s}")
             return None
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error getting user by ID: {str(e)}")
+            logger.error(f"Database connection error getting user by ID: {e!s}")
             return None
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error getting user by ID: {str(e)}")
+            logger.error(f"Database operation error getting user by ID: {e!s}")
             return None
-        except Exception as e:
-            logger.error(f"Unexpected error getting user by ID: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error getting user by ID: {e!s}")
             return None
     
     async def get_user_by_username(self, username: str) -> Optional[dict[str, Any]]:
@@ -1597,13 +1597,13 @@ class AuthService:
             return self._user_record(user)
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error getting user by username: {str(e)}")
+            logger.error(f"Database connection error getting user by username: {e!s}")
             return None
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error getting user by username: {str(e)}")
+            logger.error(f"Database operation error getting user by username: {e!s}")
             return None
-        except Exception as e:
-            logger.error(f"Unexpected error getting user by username: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error getting user by username: {e!s}")
             return None
     
     async def update_user_status(self, user_id: str, active: bool) -> bool:
@@ -1636,16 +1636,16 @@ class AuthService:
             return result
             
         except ValueError as e:
-            logger.error(f"Invalid user ID format: {str(e)}")
+            logger.error(f"Invalid user ID format: {e!s}")
             return False
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error updating user status: {str(e)}")
+            logger.error(f"Database connection error updating user status: {e!s}")
             return False
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error updating user status: {str(e)}")
+            logger.error(f"Database operation error updating user status: {e!s}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error updating user status: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error updating user status: {e!s}")
             return False
     
     async def reset_user_password(self, user_id: str, new_password: str) -> bool:
@@ -1699,16 +1699,16 @@ class AuthService:
             return result
             
         except ValueError as e:
-            logger.error(f"Invalid user ID format: {str(e)}")
+            logger.error(f"Invalid user ID format: {e!s}")
             return False
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error resetting password: {str(e)}")
+            logger.error(f"Database connection error resetting password: {e!s}")
             return False
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error resetting password: {str(e)}")
+            logger.error(f"Database operation error resetting password: {e!s}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error resetting password: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error resetting password: {e!s}")
             return False
     
     async def delete_user(self, user_id: str) -> bool:
@@ -1758,16 +1758,16 @@ class AuthService:
             return result
             
         except ValueError as e:
-            logger.error(f"Invalid user ID format: {str(e)}")
+            logger.error(f"Invalid user ID format: {e!s}")
             return False
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
-            logger.error(f"Database connection error deleting user: {str(e)}")
+            logger.error(f"Database connection error deleting user: {e!s}")
             return False
         except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
-            logger.error(f"Database operation error deleting user: {str(e)}")
+            logger.error(f"Database operation error deleting user: {e!s}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error deleting user: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - last-resort catch after specific DB/value errors; auth operations must fail safe, not crash
+            logger.error(f"Unexpected error deleting user: {e!s}")
             return False
     
     async def close(self) -> None:

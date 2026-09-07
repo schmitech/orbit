@@ -119,7 +119,7 @@ class MistralInferenceService(UsageReportingMixin, InferenceService, OpenAICompa
 
         except Exception as e:
             self._handle_openai_compatible_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"
 
     def _supports_reasoning_effort(self) -> bool:
         """

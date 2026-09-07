@@ -971,7 +971,7 @@ class RouteConfigurator:
                 return thread_info
             except Exception as e:
                 logger.error(f"Failed to create thread: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to create thread: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to create thread: {e!s}")
         
         async def _authorized_thread(request: Request, thread_service, thread_id: str) -> dict[str, Any]:
             """
@@ -1120,7 +1120,7 @@ class RouteConfigurator:
                 raise HTTPException(status_code=400, detail=str(e))
             except Exception as e:
                 logger.error(f"Failed to submit feedback: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to submit feedback: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to submit feedback: {e!s}")
 
         @app.get("/api/feedback/{session_id}", operation_id="get_session_feedback")
         async def get_session_feedback(
@@ -1136,7 +1136,7 @@ class RouteConfigurator:
                 return {"feedbacks": feedbacks}
             except Exception as e:
                 logger.error(f"Failed to get session feedback: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to get feedback: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to get feedback: {e!s}")
 
     def _include_admin_routes(self, app: FastAPI) -> None:
         """Include admin routes, auth routes, and health routes."""

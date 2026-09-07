@@ -62,7 +62,7 @@ class SupabaseDatasource(BaseDatasource):
             self._initialized = True
             
         except Exception as e:
-            logger.error(f"Failed to connect to Supabase database: {str(e)}")
+            logger.error(f"Failed to connect to Supabase database: {e!s}")
             logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
             raise
     

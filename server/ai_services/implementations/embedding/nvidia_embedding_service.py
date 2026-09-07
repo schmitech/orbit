@@ -57,7 +57,7 @@ class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize NVIDIA embedding service: {str(e)}")
+            logger.error(f"Failed to initialize NVIDIA embedding service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -80,7 +80,7 @@ class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
             return False
 
         except Exception as e:
-            logger.error(f"NVIDIA embedding connection verification failed: {str(e)}")
+            logger.error(f"NVIDIA embedding connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -109,7 +109,7 @@ class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
             return response.data[0].embedding
 
         except Exception as e:
-            logger.error(f"NVIDIA embedding error: {str(e)}")
+            logger.error(f"NVIDIA embedding error: {e!s}")
             raise
 
     async def embed_documents(self, texts: list[str], usage_sink=None) -> list[list[float]]:
@@ -142,7 +142,7 @@ class NvidiaEmbeddingService(UsageReportingMixin, EmbeddingService):
                 all_embeddings.extend(item.embedding for item in sorted_data)
 
             except Exception as e:
-                logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
+                logger.error(f"Error in batch embedding (batch starting at {i}): {e!s}")
                 raise
 
         return all_embeddings

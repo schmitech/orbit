@@ -197,7 +197,7 @@ class CoquiAudioService(AudioService):
 
                 logger.debug("Model warm-up completed")
             except Exception as warmup_error:
-                logger.warning(f"Model warm-up failed (non-critical): {str(warmup_error)}")
+                logger.warning(f"Model warm-up failed (non-critical): {warmup_error!s}")
 
             self._tts_initialized = True
 
@@ -214,7 +214,7 @@ class CoquiAudioService(AudioService):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize Coqui TTS model: {str(e)}")
+            logger.error(f"Failed to initialize Coqui TTS model: {e!s}")
             return False
 
     def _needs_vocoder(self) -> bool:
@@ -259,7 +259,7 @@ class CoquiAudioService(AudioService):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize Coqui TTS service: {str(e)}")
+            logger.error(f"Failed to initialize Coqui TTS service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -276,7 +276,7 @@ class CoquiAudioService(AudioService):
             return True
 
         except Exception as e:
-            logger.error(f"Coqui TTS verification failed: {str(e)}")
+            logger.error(f"Coqui TTS verification failed: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -355,7 +355,7 @@ class CoquiAudioService(AudioService):
                 return self._to_wav_bytes(audio_data)
 
         except Exception as e:
-            logger.error(f"Coqui TTS error: {str(e)}")
+            logger.error(f"Coqui TTS error: {e!s}")
             raise
 
     def _synthesize_speech(
@@ -401,7 +401,7 @@ class CoquiAudioService(AudioService):
             return audio_array
 
         except Exception as e:
-            logger.error(f"Speech synthesis failed: {str(e)}")
+            logger.error(f"Speech synthesis failed: {e!s}")
             raise
 
     def _to_wav_bytes(self, audio_array: np.ndarray) -> bytes:

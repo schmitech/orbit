@@ -69,8 +69,8 @@ class VectorTemplateRetriever(AbstractVectorRetriever):
             logger.info(f"Connected to VectorTemplate at {self.host}:{self.port}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize vector database client: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Vector DB connection error: {str(e)}")
+            logger.error(f"Failed to initialize vector database client: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Vector DB connection error: {e!s}")
 
     async def close_client(self) -> None:
         """Close the vector database client."""
@@ -80,7 +80,7 @@ class VectorTemplateRetriever(AbstractVectorRetriever):
                 pass
             logger.info("VectorTemplate client closed")
         except Exception as e:
-            logger.error(f"Error closing vector DB connection: {str(e)}")
+            logger.error(f"Error closing vector DB connection: {e!s}")
 
     async def set_collection(self, collection_name: str) -> None:
         """
@@ -103,7 +103,7 @@ class VectorTemplateRetriever(AbstractVectorRetriever):
             
             logger.debug(f"Switched to collection: {collection_name}")
         except Exception as e:
-            error_msg = f"Failed to switch collection: {str(e)}"
+            error_msg = f"Failed to switch collection: {e!s}"
             logger.error(error_msg)
             custom_msg = self.config.get('messages', {}).get('collection_not_found', 
                         "Collection not found. Please ensure the collection exists before querying.")
@@ -149,7 +149,7 @@ class VectorTemplateRetriever(AbstractVectorRetriever):
             return search_results
             
         except Exception as e:
-            logger.error(f"Error querying vector database: {str(e)}")
+            logger.error(f"Error querying vector database: {e!s}")
             return []
 
     def calculate_similarity_from_distance(self, distance: float) -> float:

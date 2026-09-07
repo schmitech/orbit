@@ -139,7 +139,7 @@ async def mongodb_service():
         # Explicitly close the connection when done
         service.close()
     except Exception as e:
-        logger.error(f"Failed to connect to MongoDB: {str(e)}")
+        logger.error(f"Failed to connect to MongoDB: {e!s}")
         raise
 
 @pytest_asyncio.fixture

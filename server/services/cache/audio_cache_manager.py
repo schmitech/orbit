@@ -99,7 +99,7 @@ class AudioCacheManager(ServiceCacheManager):
                 )
             else:
                 logger.warning(
-                    f"Audio service '{provider_name}' not available{adapter_context}: {str(e)}"
+                    f"Audio service '{provider_name}' not available{adapter_context}: {e!s}"
                 )
             raise
 

@@ -365,7 +365,7 @@ class AudioHandler:
             )
         except ValueError as e:
             # This happens when sound is globally disabled or provider is not registered
-            logger.warning(f"Failed to create audio service for provider '{provider}': {str(e)}")
+            logger.warning(f"Failed to create audio service for provider '{provider}': {e!s}")
             return None
 
         if not audio_service:
@@ -379,7 +379,7 @@ class AudioHandler:
                 self._log_gpu_memory(f"after initializing {provider}")
             except Exception as e:
                 if self._is_gpu_error(e):
-                    logger.error(f"GPU error during {provider} initialization: {str(e)}")
+                    logger.error(f"GPU error during {provider} initialization: {e!s}")
                     # Try to clear GPU cache and retry once
                     if CUDA_AVAILABLE:
                         torch.cuda.empty_cache()
@@ -387,10 +387,10 @@ class AudioHandler:
                             await audio_service.initialize()
                             self._log_gpu_memory(f"after retry initializing {provider}")
                         except Exception as retry_error:
-                            logger.error(f"Failed to initialize {provider} after GPU cleanup: {str(retry_error)}")
+                            logger.error(f"Failed to initialize {provider} after GPU cleanup: {retry_error!s}")
                             return None
                 else:
-                    logger.error(f"Failed to initialize audio service {provider}: {str(e)}")
+                    logger.error(f"Failed to initialize audio service {provider}: {e!s}")
                     return None
 
         # Cache the service
@@ -497,7 +497,7 @@ class AudioHandler:
 
                 if is_gpu_error and attempt < self.gpu_error_retry_count:
                     logger.warning(
-                        f"GPU error during audio generation (attempt {attempt + 1}/{self.gpu_error_retry_count + 1}): {str(e)}"
+                        f"GPU error during audio generation (attempt {attempt + 1}/{self.gpu_error_retry_count + 1}): {e!s}"
                     )
                     # Clear GPU cache and wait before retry
                     if CUDA_AVAILABLE:
@@ -508,7 +508,7 @@ class AudioHandler:
                 else:
                     # Non-GPU error or max retries reached
                     logger.error(
-                        f"Error generating audio: {str(e)}",
+                        f"Error generating audio: {e!s}",
                         exc_info=not is_gpu_error  # Full traceback for non-GPU errors
                     )
                     break
@@ -517,11 +517,11 @@ class AudioHandler:
         if last_error:
             if self._is_gpu_error(last_error):
                 logger.error(
-                    f"GPU error after {self.gpu_error_retry_count + 1} attempts: {str(last_error)}. "
+                    f"GPU error after {self.gpu_error_retry_count + 1} attempts: {last_error!s}. "
                     f"Consider reducing batch size or text length."
                 )
             else:
-                logger.error(f"Failed to generate audio after retries: {str(last_error)}")
+                logger.error(f"Failed to generate audio after retries: {last_error!s}")
 
         return None, None
 
@@ -575,7 +575,7 @@ class AudioHandler:
                 yield chunk, audio_format
             self._log_gpu_memory("after streaming audio generation")
         except Exception as e:
-            logger.error(f"Error in streaming audio generation: {str(e)}", exc_info=True)
+            logger.error(f"Error in streaming audio generation: {e!s}", exc_info=True)
 
     async def cleanup(self):
         """
@@ -593,7 +593,7 @@ class AudioHandler:
                     await service.close()
                     logger.debug(f"Closed audio service: {provider}")
             except Exception as e:
-                logger.warning(f"Error closing audio service {provider}: {str(e)}")
+                logger.warning(f"Error closing audio service {provider}: {e!s}")
 
         # Clear the cache
         self._audio_services.clear()

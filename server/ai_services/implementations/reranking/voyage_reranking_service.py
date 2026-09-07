@@ -65,7 +65,7 @@ class VoyageRerankingService(RerankingService):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize Voyage AI reranking service: {str(e)}")
+            logger.error(f"Failed to initialize Voyage AI reranking service: {e!s}")
             return False
 
     async def rerank(
@@ -146,7 +146,7 @@ class VoyageRerankingService(RerankingService):
                 return results
 
         except Exception as e:
-            logger.error(f"Error in Voyage AI reranking: {str(e)}")
+            logger.error(f"Error in Voyage AI reranking: {e!s}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -171,7 +171,7 @@ class VoyageRerankingService(RerankingService):
                 return False
 
         except Exception as e:
-            logger.error(f"Failed to verify Voyage AI reranking connection: {str(e)}")
+            logger.error(f"Failed to verify Voyage AI reranking connection: {e!s}")
             return False
 
     async def close(self) -> None:

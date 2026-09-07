@@ -113,7 +113,7 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
             return all_results
 
         except Exception as e:
-            logger.error(f"Error in Anthropic reranking: {str(e)}")
+            logger.error(f"Error in Anthropic reranking: {e!s}")
             raise
 
     async def _score_batch(
@@ -187,7 +187,7 @@ class AnthropicRerankingService(RerankingService, AnthropicBaseService):
             return results
 
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            logger.error(f"Failed to parse Anthropic response: {str(e)}")
+            logger.error(f"Failed to parse Anthropic response: {e!s}")
             logger.error(f"Response content: {content}")
             # Fallback: return documents with neutral scores
             return [
@@ -259,5 +259,5 @@ Only output the JSON, no other text."""
                 return False
 
         except Exception as e:
-            logger.error(f"Failed to verify Anthropic reranking connection: {str(e)}")
+            logger.error(f"Failed to verify Anthropic reranking connection: {e!s}")
             return False

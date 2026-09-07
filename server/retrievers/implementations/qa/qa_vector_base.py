@@ -42,7 +42,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             # Re-initialize QA parameters with actual config
             self._initialize_qa_parameters()
         except Exception as e:
-            logger.warning(f"Failed to initialize adapter config: {str(e)}")
+            logger.warning(f"Failed to initialize adapter config: {e!s}")
             # Continue with default values
 
     def _extract_adapter_config(self) -> Optional[dict[str, Any]]:
@@ -77,7 +77,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
 
             return merged_config
         except Exception as e:
-            logger.warning(f"Error merging configs: {str(e)}")
+            logger.warning(f"Error merging configs: {e!s}")
             return {}
 
     def _initialize_qa_parameters(self):
@@ -106,13 +106,13 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
                 )
                 logger.debug(f"Successfully created QA domain adapter for {self.get_datasource_name()}")
             except Exception as e:
-                logger.error(f"Failed to create domain adapter: {str(e)}")
+                logger.error(f"Failed to create domain adapter: {e!s}")
                 # Try fallback to generic QA adapter
                 try:
                     self.domain_adapter = self._create_fallback_adapter()
                     logger.debug("Using generic QA adapter as fallback")
                 except Exception as fallback_e:
-                    logger.error(f"Failed to create fallback domain adapter: {str(fallback_e)}")
+                    logger.error(f"Failed to create fallback domain adapter: {fallback_e!s}")
                     self.domain_adapter = None
 
     def _create_fallback_adapter(self):
@@ -337,7 +337,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             return context_items
 
         except Exception as e:
-            logger.error(f"Error retrieving context: {str(e)}")
+            logger.error(f"Error retrieving context: {e!s}")
             return []
 
     @abstractmethod

@@ -180,13 +180,13 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
             return self._spans_to_result(spans)
 
         except Exception as e:
-            logger.error(f"Error in privacy filter moderation: {str(e)}")
-            logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
+            logger.error(f"Error in privacy filter moderation: {e!s}")
+            logger.warning(f"Moderation check failed, allowing content through: {e!s}")
             return ModerationResult(
                 is_flagged=False,  # Fail-open on errors
                 provider="privacy_filter",
                 model=self.model,
-                error=f"Moderation check failed (allowed): {str(e)}"
+                error=f"Moderation check failed (allowed): {e!s}"
             )
 
     async def moderate_batch(self, contents: list[str]) -> list[ModerationResult]:
@@ -226,13 +226,13 @@ class PrivacyFilterModerationService(ModerationService, TransformersBaseService)
             return [self._spans_to_result(spans) for spans in batch_spans]
 
         except Exception as e:
-            logger.error(f"Error in privacy filter batch moderation: {str(e)}")
+            logger.error(f"Error in privacy filter batch moderation: {e!s}")
             return [
                 ModerationResult(
                     is_flagged=False,
                     provider="privacy_filter",
                     model=self.model,
-                    error=f"Moderation check failed (allowed): {str(e)}"
+                    error=f"Moderation check failed (allowed): {e!s}"
                 )
                 for _ in contents
             ]

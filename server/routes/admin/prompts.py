@@ -159,7 +159,7 @@ def render_markdown_preview(
         )
         return {"html": clean_html}
     except Exception as e:
-        logger.error(f"Error rendering markdown preview: {str(e)}")
+        logger.error(f"Error rendering markdown preview: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to render markdown preview")
 
 

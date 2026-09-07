@@ -80,7 +80,7 @@ class SQLServerDatasource(BaseDatasource):
             self._initialized = True
 
         except Exception as e:
-            logger.error(f"Failed to connect to SQL Server database: {str(e)}")
+            logger.error(f"Failed to connect to SQL Server database: {e!s}")
             logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
             raise
 

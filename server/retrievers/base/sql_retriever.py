@@ -432,6 +432,6 @@ class AbstractSQLRetriever(BaseRetriever):
             return results
 
         except Exception as e:
-            logger.error(f"Error retrieving context: {str(e)}")
+            logger.error(f"Error retrieving context: {e!s}")
             logger.error(traceback.format_exc())
             return []

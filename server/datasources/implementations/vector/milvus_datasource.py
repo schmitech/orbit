@@ -44,7 +44,7 @@ class MilvusDatasource(BaseDatasource):
                 raise Exception("Failed to establish Milvus connection")
                 
         except Exception as e:
-            logger.error(f"Failed to connect to Milvus: {str(e)}")
+            logger.error(f"Failed to connect to Milvus: {e!s}")
             self._client = None
             self._initialized = False
             raise

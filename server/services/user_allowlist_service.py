@@ -214,7 +214,7 @@ class UserAllowlistService(UserBlacklistService):
                 self.users_collection_name, {}, limit=10000
             )
         except Exception as e:
-            logger.error(f"Failed to load users for allowlist evaluation: {str(e)}")
+            logger.error(f"Failed to load users for allowlist evaluation: {e!s}")
             return []
         uncleared = []
         for user in users:

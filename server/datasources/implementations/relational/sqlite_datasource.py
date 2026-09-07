@@ -31,7 +31,7 @@ class SQLiteDatasource(BaseDatasource):
             self._initialized = True
             logger.debug("SQLite connection established successfully")
         except Exception as e:
-            logger.error(f"Failed to connect to SQLite database: {str(e)}")
+            logger.error(f"Failed to connect to SQLite database: {e!s}")
             raise
     
     async def health_check(self) -> bool:

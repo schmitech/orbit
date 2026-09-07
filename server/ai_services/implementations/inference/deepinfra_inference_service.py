@@ -122,4 +122,4 @@ class DeepInfraInferenceService(UsageReportingMixin, InferenceService, OpenAICom
 
         except Exception as e:
             self._handle_openai_compatible_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"

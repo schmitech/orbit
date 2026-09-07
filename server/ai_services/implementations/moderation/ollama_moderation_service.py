@@ -228,13 +228,13 @@ Provide your safety assessment for 'User' in the above conversation:
             return await self.execute_with_retry(_moderate)
 
         except Exception as e:
-            logger.error(f"Error in Ollama moderation: {str(e)}")
-            logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
+            logger.error(f"Error in Ollama moderation: {e!s}")
+            logger.warning(f"Moderation check failed, allowing content through: {e!s}")
             return ModerationResult(
                 is_flagged=False,  # Fail-open on errors
                 provider="ollama",
                 model=self.model,
-                error=f"Moderation check failed (allowed): {str(e)}"
+                error=f"Moderation check failed (allowed): {e!s}"
             )
 
     async def moderate_batch(self, contents: list[str]) -> list[ModerationResult]:

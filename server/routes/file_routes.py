@@ -264,7 +264,7 @@ def create_file_router() -> APIRouter:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
             logger.error(f"Error uploading file: {e}")
-            raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"File upload failed: {e!s}")
     
     
     @router.get("/api/files/{file_id}", response_model=FileInfoResponse)
@@ -329,7 +329,7 @@ def create_file_router() -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Error getting file info: {e}")
-            raise HTTPException(status_code=500, detail=f"Error retrieving file info: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error retrieving file info: {e!s}")
     
     
     @router.get("/api/files/{file_id}/content")
@@ -406,7 +406,7 @@ def create_file_router() -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Error listing files: {e}")
-            raise HTTPException(status_code=500, detail=f"Error listing files: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error listing files: {e!s}")
     
     
     @router.delete("/api/files")
@@ -465,7 +465,7 @@ def create_file_router() -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Error deleting all files: {e}")
-            raise HTTPException(status_code=500, detail=f"Error deleting all files: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error deleting all files: {e!s}")
     
     
     @router.delete("/api/files/{file_id}")
@@ -518,7 +518,7 @@ def create_file_router() -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Error deleting file: {e}")
-            raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error deleting file: {e!s}")
     
     
     @router.post("/api/files/{file_id}/reprocess")
@@ -588,7 +588,7 @@ def create_file_router() -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Error starting file re-processing: {e}")
-            raise HTTPException(status_code=500, detail=f"Error re-processing file: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error re-processing file: {e!s}")
 
     @router.post("/api/files/reprocess")
     async def reprocess_all_files(
@@ -649,7 +649,7 @@ def create_file_router() -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Error starting bulk file re-processing: {e}")
-            raise HTTPException(status_code=500, detail=f"Error re-processing files: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error re-processing files: {e!s}")
 
     @router.post("/api/files/{file_id}/query", response_model=QueryResponse)
     async def query_file(
@@ -763,6 +763,6 @@ def create_file_router() -> APIRouter:
             raise
         except Exception as e:
             logger.error(f"Error querying file: {e}")
-            raise HTTPException(status_code=500, detail=f"Error querying file: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error querying file: {e!s}")
     
     return router

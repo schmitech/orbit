@@ -172,16 +172,16 @@ Scores:"""
                     return reranked_docs
 
                 except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse scores from response: {str(e)}")
+                    logger.error(f"Failed to parse scores from response: {e!s}")
                     logger.error(f"Raw response: {response_text}")
-                    raise ValueError(f"Failed to parse reranking scores: {str(e)}")
+                    raise ValueError(f"Failed to parse reranking scores: {e!s}")
 
         try:
             # Execute with retry logic from Ollama base class
             return await self.execute_with_retry(_rerank)
 
         except Exception as e:
-            logger.error(f"Error in Ollama reranking: {str(e)}")
+            logger.error(f"Error in Ollama reranking: {e!s}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -207,5 +207,5 @@ Scores:"""
                 return False
 
         except Exception as e:
-            logger.error(f"Failed to verify Ollama reranking connection: {str(e)}")
+            logger.error(f"Failed to verify Ollama reranking connection: {e!s}")
             return False

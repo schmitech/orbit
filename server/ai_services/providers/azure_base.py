@@ -125,7 +125,7 @@ class AzureBaseService(ProviderAIService):
                 return True
             return False
         except Exception as e:
-            logger.error(f"Failed to initialize Azure AI service: {str(e)}")
+            logger.error(f"Failed to initialize Azure AI service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -154,7 +154,7 @@ class AzureBaseService(ProviderAIService):
             logger.debug("Azure AI connection verified successfully")
             return True
         except Exception as e:
-            logger.error(f"Azure AI connection verification failed: {str(e)}")
+            logger.error(f"Azure AI connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:

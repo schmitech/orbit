@@ -211,7 +211,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
             try:
                 await self.initialize_client()
             except Exception as e:
-                logger.error(f"Failed to initialize Pinecone client during validation: {str(e)}")
+                logger.error(f"Failed to initialize Pinecone client during validation: {e!s}")
                 return False
 
         return bool(self.pinecone_client and self.index_name)

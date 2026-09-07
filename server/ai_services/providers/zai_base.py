@@ -126,7 +126,7 @@ class ZaiBaseService(ProviderAIService):
                 return True
             return False
         except Exception as e:
-            logger.error(f"Failed to initialize Z.AI service: {str(e)}")
+            logger.error(f"Failed to initialize Z.AI service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -146,7 +146,7 @@ class ZaiBaseService(ProviderAIService):
             logger.debug("Z.AI connection verified successfully")
             return True
         except Exception as e:
-            logger.error(f"Z.AI connection verification failed: {str(e)}")
+            logger.error(f"Z.AI connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -231,10 +231,10 @@ class ZaiBaseService(ProviderAIService):
         elif "rate limit" in error_str or "quota" in error_str:
             logger.warning(f"Z.AI rate limit exceeded during {operation}")
         elif "connection" in error_str or "network" in error_str or "timeout" in error_str:
-            logger.error(f"Z.AI connection error during {operation}: {str(error)}")
+            logger.error(f"Z.AI connection error during {operation}: {error!s}")
         elif "api" in error_str:
-            logger.error(f"Z.AI API error during {operation}: {str(error)}")
+            logger.error(f"Z.AI API error during {operation}: {error!s}")
         else:
-            logger.error(f"Unexpected error during {operation}: {str(error)}")
+            logger.error(f"Unexpected error during {operation}: {error!s}")
 
         raise_sanitized(error, provider=self.provider_name, operation=operation)

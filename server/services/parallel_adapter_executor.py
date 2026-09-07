@@ -932,7 +932,7 @@ class ParallelAdapterExecutor:
         except Exception as e:
             execution_time = time.time() - start_time
             cb.record_failure(execution_time=execution_time)
-            logger.error(f"{log_prefix} Error in adapter {adapter_name}: {str(e)}")
+            logger.error(f"{log_prefix} Error in adapter {adapter_name}: {e!s}")
 
             return AdapterResult(
                 adapter_name=adapter_name,

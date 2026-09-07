@@ -100,7 +100,7 @@ class PromptService:
 
     def _get_cache_key(self, prompt_id: Union[ObjectId, str]) -> str:
         """Build a cache key for the given prompt identifier."""
-        return f"prompt:{str(prompt_id)}"
+        return f"prompt:{prompt_id!s}"
     
     async def create_prompt(self, name: str, prompt_text: str, version: str = "1.0") -> ObjectId:
         """
@@ -148,8 +148,8 @@ class PromptService:
             logger.debug(f"Created new prompt '{name}' with ID: {prompt_id}")
             return prompt_id
         except Exception as e:
-            logger.error(f"Error creating prompt: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error creating prompt: {str(e)}")
+            logger.error(f"Error creating prompt: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error creating prompt: {e!s}")
     
     async def get_prompt_by_id(self, prompt_id: Union[str, ObjectId]) -> Optional[dict[str, Any]]:
         """
@@ -272,7 +272,7 @@ class PromptService:
 
             return prompt
         except Exception as e:
-            logger.error(f"Error retrieving prompt: {str(e)}")
+            logger.error(f"Error retrieving prompt: {e!s}")
             return None
     
     async def get_prompt_by_name(self, name: str) -> Optional[dict[str, Any]]:
@@ -288,7 +288,7 @@ class PromptService:
         try:
             return await self.database.find_one(self.collection_name, {"name": name})
         except Exception as e:
-            logger.error(f"Error retrieving prompt by name: {str(e)}")
+            logger.error(f"Error retrieving prompt by name: {e!s}")
             return None
     
     async def list_prompts(self, name_filter: Optional[str] = None, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
@@ -324,8 +324,8 @@ class PromptService:
                 
             return prompts
         except Exception as e:
-            logger.error(f"Error listing prompts: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error listing prompts: {str(e)}")
+            logger.error(f"Error listing prompts: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Error listing prompts: {e!s}")
     
     async def update_prompt(self, prompt_id: Union[str, ObjectId], prompt_text: str, version: Optional[str] = None) -> bool:
         """
@@ -398,7 +398,7 @@ class PromptService:
                 
             return success
         except Exception as e:
-            logger.error(f"Error updating prompt: {str(e)}")
+            logger.error(f"Error updating prompt: {e!s}")
             return False
     
     async def delete_prompt(self, prompt_id: Union[str, ObjectId]) -> bool:
@@ -425,7 +425,7 @@ class PromptService:
             # Use original prompt_id (database service handles backend-specific format)
             return await self.database.delete_one(self.collection_name, {"_id": prompt_id})
         except Exception as e:
-            logger.error(f"Error deleting prompt: {str(e)}")
+            logger.error(f"Error deleting prompt: {e!s}")
             return False
 
     async def get_cache_stats(self, prompt_id: Optional[Union[ObjectId, str]] = None) -> dict[str, Any]:
@@ -490,5 +490,5 @@ class PromptService:
                 logger.debug("Bulk cache clear not implemented - clear specific prompts instead")
                 return False
         except Exception as e:
-            logger.error(f"Error clearing prompt cache: {str(e)}")
+            logger.error(f"Error clearing prompt cache: {e!s}")
             return False

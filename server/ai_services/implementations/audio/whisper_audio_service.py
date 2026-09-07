@@ -121,7 +121,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
             self.initialized = True
 
         except Exception as e:
-            logger.error(f"Failed to initialize Whisper service: {str(e)}")
+            logger.error(f"Failed to initialize Whisper service: {e!s}")
             raise
 
     async def speech_to_text(
@@ -215,7 +215,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
                     pass
 
         except Exception as e:
-            logger.error(f"Whisper transcription error: {str(e)}")
+            logger.error(f"Whisper transcription error: {e!s}")
             raise
 
     async def transcribe(
@@ -310,7 +310,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
             return self.initialized and self.model_loaded
 
         except Exception as e:
-            logger.error(f"Whisper connection verification failed: {str(e)}")
+            logger.error(f"Whisper connection verification failed: {e!s}")
             return False
 
     async def cleanup(self) -> None:

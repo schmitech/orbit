@@ -64,7 +64,7 @@ class ApiKeyAuthTester:
                     logger.warning(f"Server health check returned status {response.status}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Server health check failed: {str(e)}")
+            logger.error(f"✗ Server health check failed: {e!s}")
             return False
     
     async def check_auth_enabled(self) -> bool:
@@ -111,7 +111,7 @@ class ApiKeyAuthTester:
                 logger.error(f"✗ Admin authentication failed: {response.status}")
                 return False
         except Exception as e:
-            logger.error(f"✗ Admin authentication error: {str(e)}")
+            logger.error(f"✗ Admin authentication error: {e!s}")
             return False
     
     def _get_admin_headers(self) -> dict:
@@ -170,7 +170,7 @@ class ApiKeyAuthTester:
                     return None
                 
         except Exception as e:
-            logger.error(f"✗ Error creating test API key: {str(e)}")
+            logger.error(f"✗ Error creating test API key: {e!s}")
             return None
     
     async def create_test_prompt(self, name: str = None, prompt_text: str = None) -> Optional[str]:
@@ -209,7 +209,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Prompt creation failed: {response.status}")
                     return None
         except Exception as e:
-            logger.error(f"✗ Prompt creation error: {str(e)}")
+            logger.error(f"✗ Prompt creation error: {e!s}")
             return None
     
     async def test_api_key_listing_with_filters(self) -> bool:
@@ -261,7 +261,7 @@ class ApiKeyAuthTester:
                     else:
                         logger.error(f"✗ {test_name}: Failed with status {response.status}")
             except Exception as e:
-                logger.error(f"✗ {test_name}: Error - {str(e)}")
+                logger.error(f"✗ {test_name}: Error - {e!s}")
         
         return passed == len(tests)
     
@@ -312,7 +312,7 @@ class ApiKeyAuthTester:
                     else:
                         logger.error(f"✗ {test_name}: Failed with status {response.status}")
             except Exception as e:
-                logger.error(f"✗ {test_name}: Error - {str(e)}")
+                logger.error(f"✗ {test_name}: Error - {e!s}")
         
         return passed == len(tests)
     
@@ -334,7 +334,7 @@ class ApiKeyAuthTester:
                     logger.info(f"✓ User listing endpoint returned {response.status} (may not be available)")
                     return True
         except Exception as e:
-            logger.info(f"✓ User listing endpoint not accessible: {str(e)}")
+            logger.info(f"✓ User listing endpoint not accessible: {e!s}")
             return True
         
         tests = [
@@ -371,7 +371,7 @@ class ApiKeyAuthTester:
                     else:
                         logger.error(f"✗ {test_name}: Failed with status {response.status}")
             except Exception as e:
-                logger.error(f"✗ {test_name}: Error - {str(e)}")
+                logger.error(f"✗ {test_name}: Error - {e!s}")
         
         return passed == len(tests)
     
@@ -423,7 +423,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Failed to associate prompt: {response.status}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Prompt association error: {str(e)}")
+            logger.error(f"✗ Prompt association error: {e!s}")
             return False
     
     async def test_api_key_operations(self) -> bool:
@@ -453,7 +453,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Failed to get API key status: {response.status}")
                     operations.append(False)
         except Exception as e:
-            logger.error(f"✗ API key status error: {str(e)}")
+            logger.error(f"✗ API key status error: {e!s}")
             operations.append(False)
         
         # Test deactivating API key
@@ -470,7 +470,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Failed to deactivate API key: {response.status}")
                     operations.append(False)
         except Exception as e:
-            logger.error(f"✗ API key deactivation error: {str(e)}")
+            logger.error(f"✗ API key deactivation error: {e!s}")
             operations.append(False)
         
         # Test that deactivated key is rejected
@@ -487,7 +487,7 @@ class ApiKeyAuthTester:
                     logger.info("✓ API key validation not enforced (expected in some configurations)")
                     operations.append(True)
         except Exception as e:
-            logger.error(f"✗ Deactivated key test error: {str(e)}")
+            logger.error(f"✗ Deactivated key test error: {e!s}")
             operations.append(False)
         
         return all(operations)
@@ -514,7 +514,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Unexpected response for invalid key: {response.status}")
                     edge_cases.append(False)
         except Exception as e:
-            logger.error(f"✗ Invalid key format test error: {str(e)}")
+            logger.error(f"✗ Invalid key format test error: {e!s}")
             edge_cases.append(False)
         
         # Test empty API key
@@ -533,7 +533,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Unexpected response for empty key: {response.status}")
                     edge_cases.append(False)
         except Exception as e:
-            logger.error(f"✗ Empty key test error: {str(e)}")
+            logger.error(f"✗ Empty key test error: {e!s}")
             edge_cases.append(False)
         
         # Test malformed query parameters
@@ -552,7 +552,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Unexpected response for malformed params: {response.status}")
                     edge_cases.append(False)
         except Exception as e:
-            logger.error(f"✗ Malformed params test error: {str(e)}")
+            logger.error(f"✗ Malformed params test error: {e!s}")
             edge_cases.append(False)
         
         return all(edge_cases)
@@ -599,7 +599,7 @@ class ApiKeyAuthTester:
                     logger.info("✓ API key validation not enforced for health (expected in some configs)")
                     health_tests.append(True)
         except Exception as e:
-            logger.error(f"✗ Adapter-based key health test error: {str(e)}")
+            logger.error(f"✗ Adapter-based key health test error: {e!s}")
             health_tests.append(False)
         
         # Test collection-based key
@@ -616,7 +616,7 @@ class ApiKeyAuthTester:
                     logger.info("✓ API key validation not enforced for health (expected in some configs)")
                     health_tests.append(True)
         except Exception as e:
-            logger.error(f"✗ Collection-based key health test error: {str(e)}")
+            logger.error(f"✗ Collection-based key health test error: {e!s}")
             health_tests.append(False)
         
         return all(health_tests)
@@ -657,7 +657,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Failed to get API key status: {response.status}")
                     return False
         except Exception as e:
-            logger.error(f"✗ API key status test error: {str(e)}")
+            logger.error(f"✗ API key status test error: {e!s}")
             return False
     
     async def test_adapter_based_api_keys(self) -> bool:
@@ -697,7 +697,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Failed to get dual key status: {response.status}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Dual compatibility test error: {str(e)}")
+            logger.error(f"✗ Dual compatibility test error: {e!s}")
             return False
     
     async def test_health_endpoint_with_api_key(self, api_key: str) -> bool:
@@ -718,7 +718,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Health check with API key failed: {response.status}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Health check with API key error: {str(e)}")
+            logger.error(f"✗ Health check with API key error: {e!s}")
             return False
     
     async def test_invalid_api_key(self) -> bool:
@@ -743,7 +743,7 @@ class ApiKeyAuthTester:
                     logger.error(f"✗ Invalid API key unexpected response: {response.status}")
                     return False
         except Exception as e:
-            logger.error(f"✗ Invalid API key test error: {str(e)}")
+            logger.error(f"✗ Invalid API key test error: {e!s}")
             return False
     
     async def cleanup_resources(self) -> None:
@@ -763,7 +763,7 @@ class ApiKeyAuthTester:
                     else:
                         logger.warning(f"Failed to clean up API key: {api_key[:20]}...")
             except Exception as e:
-                logger.warning(f"Error cleaning up API key: {str(e)}")
+                logger.warning(f"Error cleaning up API key: {e!s}")
         
         # Clean up prompts
         for prompt_id in self.created_prompts:
@@ -778,7 +778,7 @@ class ApiKeyAuthTester:
                     else:
                         logger.warning(f"Failed to clean up prompt: {prompt_id[:12]}...")
             except Exception as e:
-                logger.warning(f"Error cleaning up prompt: {str(e)}")
+                logger.warning(f"Error cleaning up prompt: {e!s}")
 
 
 # Pytest test functions
@@ -1010,7 +1010,7 @@ async def main():
                     failed += 1
                     logger.error(f"❌ {test_name} FAILED")
             except Exception as e:
-                logger.error(f"💥 {test_name} CRASHED: {str(e)}")
+                logger.error(f"💥 {test_name} CRASHED: {e!s}")
                 failed += 1
         
         logger.info("\n" + "=" * 60)

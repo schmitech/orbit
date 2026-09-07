@@ -163,7 +163,7 @@ class TensorRTInferenceService(InferenceService, TensorRTBaseService):
 
         except Exception as e:
             self._handle_tensorrt_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"
 
     async def _generate_stream_api(self, messages: list, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming response using TensorRT-LLM API mode."""

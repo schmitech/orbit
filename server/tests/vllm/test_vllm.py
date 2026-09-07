@@ -137,9 +137,9 @@ def test_vllm_connection(vllm_config: dict[str, Any]):
         assert vllm_config["model"] in model_ids, f"Model {vllm_config['model']} not found in available models: {model_ids}"
         
     except ConnectionError as e:
-        pytest.fail(f"Could not connect to vLLM service at {base_url}. Is vLLM running? Error: {str(e)}")
+        pytest.fail(f"Could not connect to vLLM service at {base_url}. Is vLLM running? Error: {e!s}")
     except ReadTimeout as e:
-        pytest.fail(f"Connection to vLLM service timed out after {DEFAULT_TIMEOUT} seconds. Is vLLM running? Error: {str(e)}")
+        pytest.fail(f"Connection to vLLM service timed out after {DEFAULT_TIMEOUT} seconds. Is vLLM running? Error: {e!s}")
 
 def test_vllm_chat_completion(vllm_config: dict[str, Any], test_query: str):
     """Test that vLLM generates a valid chat completion response"""
@@ -183,9 +183,9 @@ def test_vllm_chat_completion(vllm_config: dict[str, Any], test_query: str):
         print(f"vLLM response: {content[:100]}...")
         
     except ConnectionError as e:
-        pytest.fail(f"Could not connect to vLLM service at {base_url}. Is vLLM running? Error: {str(e)}")
+        pytest.fail(f"Could not connect to vLLM service at {base_url}. Is vLLM running? Error: {e!s}")
     except ReadTimeout as e:
-        pytest.fail(f"Request to vLLM service timed out after {DEFAULT_TIMEOUT} seconds. Is vLLM running? Error: {str(e)}")
+        pytest.fail(f"Request to vLLM service timed out after {DEFAULT_TIMEOUT} seconds. Is vLLM running? Error: {e!s}")
 
 def test_vllm_error_handling(vllm_config: dict[str, Any]):
     """Test error handling with invalid requests"""
@@ -209,9 +209,9 @@ def test_vllm_error_handling(vllm_config: dict[str, Any]):
         assert response.status_code != 200, "Invalid model should result in an error"
         
     except ConnectionError as e:
-        pytest.fail(f"Could not connect to vLLM service at {base_url}. Is vLLM running? Error: {str(e)}")
+        pytest.fail(f"Could not connect to vLLM service at {base_url}. Is vLLM running? Error: {e!s}")
     except ReadTimeout as e:
-        pytest.fail(f"Request to vLLM service timed out after {DEFAULT_TIMEOUT} seconds. Is vLLM running? Error: {str(e)}")
+        pytest.fail(f"Request to vLLM service timed out after {DEFAULT_TIMEOUT} seconds. Is vLLM running? Error: {e!s}")
 
 def test_vllm_provider_integration(vllm_config: dict[str, Any], test_query: str):
     """Test the vLLM provider integration"""
@@ -250,9 +250,9 @@ def test_vllm_provider_integration(vllm_config: dict[str, Any], test_query: str)
         print("vLLM provider integration test passed")
         
     except ImportError as e:
-        pytest.fail(f"Could not import vLLM provider: {str(e)}")
+        pytest.fail(f"Could not import vLLM provider: {e!s}")
     except Exception as e:
-        pytest.fail(f"vLLM provider integration test failed: {str(e)}")
+        pytest.fail(f"vLLM provider integration test failed: {e!s}")
 
 def test_vllm_provider_streaming(vllm_config: dict[str, Any], test_query: str):
     """Test the vLLM provider streaming functionality"""
@@ -300,6 +300,6 @@ def test_vllm_provider_streaming(vllm_config: dict[str, Any], test_query: str):
         print("vLLM provider streaming test passed")
         
     except ImportError as e:
-        pytest.fail(f"Could not import vLLM provider: {str(e)}")
+        pytest.fail(f"Could not import vLLM provider: {e!s}")
     except Exception as e:
-        pytest.fail(f"vLLM provider streaming test failed: {str(e)}") 
+        pytest.fail(f"vLLM provider streaming test failed: {e!s}")

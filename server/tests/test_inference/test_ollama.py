@@ -117,9 +117,9 @@ def test_ollama_connection(ollama_config: dict[str, Any]):
         )
         assert response.status_code == 200, f"Ollama service returned status code {response.status_code}"
     except ConnectionError as e:
-        pytest.fail(f"Could not connect to Ollama service at {ollama_config['base_url']}. Is Ollama running? Error: {str(e)}")
+        pytest.fail(f"Could not connect to Ollama service at {ollama_config['base_url']}. Is Ollama running? Error: {e!s}")
     except ReadTimeout as e:
-        pytest.fail(f"Connection to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
+        pytest.fail(f"Connection to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {e!s}")
 
 def test_ollama_response(ollama_config: dict[str, Any], test_query: str):
     """Test that Ollama generates a valid response"""
@@ -186,9 +186,9 @@ def test_ollama_response(ollama_config: dict[str, Any], test_query: str):
             assert len(response_data["response"]) > 0, "Response should not be empty"
         
     except ConnectionError as e:
-        pytest.fail(f"Could not connect to Ollama service at {ollama_config['base_url']}. Is Ollama running? Error: {str(e)}")
+        pytest.fail(f"Could not connect to Ollama service at {ollama_config['base_url']}. Is Ollama running? Error: {e!s}")
     except ReadTimeout as e:
-        pytest.fail(f"Request to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
+        pytest.fail(f"Request to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {e!s}")
 
 def test_ollama_error_handling(ollama_config: dict[str, Any]):
     """Test error handling with invalid requests"""
@@ -230,6 +230,6 @@ def test_ollama_error_handling(ollama_config: dict[str, Any]):
         assert "error" in response_data, "Error response should contain 'error' field"
         
     except ConnectionError as e:
-        pytest.fail(f"Could not connect to Ollama service at {ollama_config['base_url']}. Is Ollama running? Error: {str(e)}")
+        pytest.fail(f"Could not connect to Ollama service at {ollama_config['base_url']}. Is Ollama running? Error: {e!s}")
     except ReadTimeout as e:
-        pytest.fail(f"Request to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
+        pytest.fail(f"Request to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {e!s}")

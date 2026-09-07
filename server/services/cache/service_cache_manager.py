@@ -176,12 +176,12 @@ class ServiceCacheManager:
                 else:
                     service.close()
         except (AttributeError, TypeError) as e:
-            logger.debug(f"{self.service_label.capitalize()} {cache_key} close method not available: {str(e)}")
+            logger.debug(f"{self.service_label.capitalize()} {cache_key} close method not available: {e!s}")
         except Exception as e:
-            logger.warning(f"Error closing {self.service_label} {cache_key}: {str(e)}")
+            logger.warning(f"Error closing {self.service_label} {cache_key}: {e!s}")
 
     def _log_create_error(self, provider_name: str, error: Exception) -> None:
-        logger.error(f"Failed to load {self.service_label} {provider_name}: {str(error)}")
+        logger.error(f"Failed to load {self.service_label} {provider_name}: {error!s}")
 
     def get_cached_keys(self) -> list[str]:
         """Get list of cached service keys."""

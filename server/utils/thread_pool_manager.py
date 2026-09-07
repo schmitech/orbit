@@ -60,7 +60,7 @@ class ThreadPoolManager:
                 )
                 logger.debug(f"ThreadPoolManager: Initialized {pool_name} pool with {worker_count} workers")
             except Exception as e:
-                logger.error(f"Failed to initialize {pool_name} thread pool: {str(e)}")
+                logger.error(f"Failed to initialize {pool_name} thread pool: {e!s}")
                 # Fallback to default pool size
                 self._pools[pool_name] = ThreadPoolExecutor(
                     max_workers=self._default_pool_size,
@@ -141,7 +141,7 @@ class ThreadPoolManager:
             elapsed = time.time() - start_time
             del self._active_tasks[task_id]
             logger.error(
-                f"ThreadPool[{pool_type}] Task #{task_id}: Failed after {elapsed:.3f}s - {str(e)}"
+                f"ThreadPool[{pool_type}] Task #{task_id}: Failed after {elapsed:.3f}s - {e!s}"
             )
             raise
     
@@ -242,7 +242,7 @@ class ThreadPoolManager:
                 pool.shutdown(wait=wait, cancel_futures=True)
                 logger.info(f"Shut down {pool_name} thread pool")
             except Exception as e:
-                logger.error(f"Error shutting down {pool_name} thread pool: {str(e)}")
+                logger.error(f"Error shutting down {pool_name} thread pool: {e!s}")
         self._pools.clear()
     
     def __enter__(self):

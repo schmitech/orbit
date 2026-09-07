@@ -452,4 +452,4 @@ class AnthropicInferenceService(UsageReportingMixin, InferenceService, Anthropic
 
         except Exception as e:
             self._handle_anthropic_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"

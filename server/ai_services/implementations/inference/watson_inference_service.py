@@ -47,4 +47,4 @@ class WatsonInferenceService(InferenceService, WatsonBaseService):
                 yield chunk
         except Exception as e:
             self._handle_watson_error(e, "streaming")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"

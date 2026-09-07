@@ -91,7 +91,7 @@ class GoogleBaseService(ProviderAIService):
             )
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize {self.provider_name.title()} service: {str(e)}")
+            logger.error(f"Failed to initialize {self.provider_name.title()} service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -110,7 +110,7 @@ class GoogleBaseService(ProviderAIService):
             logger.debug(f"{self.provider_name.title()} connection verified")
             return True
         except Exception as e:
-            logger.error(f"{self.provider_name.title()} connection verification failed: {str(e)}")
+            logger.error(f"{self.provider_name.title()} connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:

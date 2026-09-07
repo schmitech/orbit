@@ -156,8 +156,8 @@ class RedisCacheProvider(CacheProvider):
         if self.enabled:
             try:
                 self._initialize_redis()
-            except Exception as e:
-                logger.error(f"Failed to initialize Redis: {str(e)}")
+            except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+                logger.error(f"Failed to initialize Redis: {e!s}")
                 self.enabled = False
 
         self._singleton_initialized = True
@@ -224,7 +224,7 @@ class RedisCacheProvider(CacheProvider):
                 f"max_connections={max_connections}, SSL: {'enabled' if use_ssl else 'disabled'}"
             )
         except Exception as e:
-            logger.error(f"Error initializing Redis client: {str(e)}")
+            logger.error(f"Error initializing Redis client: {e!s}")
             self.enabled = False
             raise
 
@@ -271,8 +271,8 @@ class RedisCacheProvider(CacheProvider):
             self.initialized = True
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to initialize Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Failed to initialize Redis: {e!s}")
             self.enabled = False
             self.client = None
             self.initialized = False
@@ -289,7 +289,7 @@ class RedisCacheProvider(CacheProvider):
         try:
             self._increment_script = self.client.register_script(_INCREMENT_WITH_TTL_SCRIPT)
             self._increment_script_client = self.client
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
             logger.warning(f"Failed to register increment-with-ttl Lua script: {e}")
             self._increment_script = None
             self._increment_script_client = None
@@ -310,7 +310,7 @@ class RedisCacheProvider(CacheProvider):
         try:
             self._check_and_increment_script = self.client.register_script(_CHECK_AND_INCREMENT_SCRIPT)
             self._check_and_increment_script_client = self.client
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
             logger.warning(f"Failed to register check-and-increment Lua script: {e}")
             self._check_and_increment_script = None
             self._check_and_increment_script_client = None
@@ -350,8 +350,8 @@ class RedisCacheProvider(CacheProvider):
                 return counts, None
             return counts, names[exceeded_index - 1]
 
-        except Exception as e:
-            logger.error(f"Error in check_and_increment in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error in check_and_increment in Redis: {e!s}")
             self._check_and_increment_script = None
             self._check_and_increment_script_client = None
             self._handle_redis_error("check_and_increment", e)
@@ -388,8 +388,8 @@ class RedisCacheProvider(CacheProvider):
                 logger.debug(f"No {description} entries found to clear")
                 return 0
 
-        except Exception as e:
-            logger.warning(f"Failed to clear {description} on startup: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.warning(f"Failed to clear {description} on startup: {e!s}")
             return 0
 
     async def clear_by_pattern(self, pattern: str, description: str = "") -> int:
@@ -408,11 +408,11 @@ class RedisCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except (AttributeError, TypeError) as e:
-            logger.debug(f"Redis client unavailable for key {key}: {str(e)}")
+            logger.debug(f"Redis client unavailable for key {key}: {e!s}")
             self._handle_redis_error("get", e)
             return None
-        except Exception as e:
-            logger.error(f"Error getting key {key} from Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error getting key {key} from Redis: {e!s}")
             self._handle_redis_error("get", e)
             return None
 
@@ -428,11 +428,11 @@ class RedisCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return True
         except (AttributeError, TypeError) as e:
-            logger.debug(f"Redis client unavailable for key {key}: {str(e)}")
+            logger.debug(f"Redis client unavailable for key {key}: {e!s}")
             self._handle_redis_error("set", e)
             return False
-        except Exception as e:
-            logger.error(f"Error setting key {key} in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error setting key {key} in Redis: {e!s}")
             self._handle_redis_error("set", e)
             return False
 
@@ -447,11 +447,11 @@ class RedisCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except (AttributeError, TypeError) as e:
-            logger.debug(f"Redis client unavailable for delete operation: {str(e)}")
+            logger.debug(f"Redis client unavailable for delete operation: {e!s}")
             self._handle_redis_error("delete", e)
             return 0
-        except Exception as e:
-            logger.error(f"Error deleting keys {keys} from Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error deleting keys {keys} from Redis: {e!s}")
             self._handle_redis_error("delete", e)
             return 0
 
@@ -463,8 +463,8 @@ class RedisCacheProvider(CacheProvider):
             result = bool(await self.client.exists(key))
             self._circuit_breaker.record_success()
             return result
-        except Exception as e:
-            logger.error(f"Error checking if key {key} exists in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error checking if key {key} exists in Redis: {e!s}")
             self._handle_redis_error("exists", e)
             return False
 
@@ -476,8 +476,8 @@ class RedisCacheProvider(CacheProvider):
             result = await self.client.ttl(key)
             self._circuit_breaker.record_success()
             return result
-        except Exception as e:
-            logger.error(f"Error getting TTL for key {key} in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error getting TTL for key {key} in Redis: {e!s}")
             self._handle_redis_error("ttl", e)
             return -2
 
@@ -489,8 +489,8 @@ class RedisCacheProvider(CacheProvider):
             result = await self.client.expire(key, seconds)
             self._circuit_breaker.record_success()
             return result
-        except Exception as e:
-            logger.error(f"Error setting expiration for key {key} in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error setting expiration for key {key} in Redis: {e!s}")
             self._handle_redis_error("expire", e)
             return False
 
@@ -502,8 +502,8 @@ class RedisCacheProvider(CacheProvider):
             result = await self.client.mget(*keys)
             self._circuit_breaker.record_success()
             return result
-        except Exception as e:
-            logger.error(f"Error in mget for {len(keys)} keys: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error in mget for {len(keys)} keys: {e!s}")
             self._handle_redis_error("mget", e)
             return [None] * len(keys)
 
@@ -515,8 +515,8 @@ class RedisCacheProvider(CacheProvider):
             await self.client.mset(mapping)
             self._circuit_breaker.record_success()
             return True
-        except Exception as e:
-            logger.error(f"Error in mset for {len(mapping)} keys: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error in mset for {len(mapping)} keys: {e!s}")
             self._handle_redis_error("mset", e)
             return False
 
@@ -528,8 +528,8 @@ class RedisCacheProvider(CacheProvider):
             result = await self.client.set(key, value, nx=True, ex=ttl)
             self._circuit_breaker.record_success()
             return bool(result)
-        except Exception as e:
-            logger.error(f"Error in set_if_not_exists for key {key} in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error in set_if_not_exists for key {key} in Redis: {e!s}")
             self._handle_redis_error("set_if_not_exists", e)
             return False
 
@@ -551,8 +551,8 @@ class RedisCacheProvider(CacheProvider):
             count = await script(keys=[key], args=[ttl, amount])
             self._circuit_breaker.record_success()
             return int(count)
-        except Exception as e:
-            logger.error(f"Error in increment_with_ttl for key {key} in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error in increment_with_ttl for key {key} in Redis: {e!s}")
             self._increment_script = None
             self._increment_script_client = None
             self._handle_redis_error("increment_with_ttl", e)
@@ -578,7 +578,7 @@ class RedisCacheProvider(CacheProvider):
                     "available_connections": len(getattr(pool, "_available_connections", [])),
                     "in_use_connections": len(getattr(pool, "_in_use_connections", [])),
                 }
-            except Exception:
+            except AttributeError:
                 pass
         return stats
 
@@ -592,8 +592,8 @@ class RedisCacheProvider(CacheProvider):
             result = await self.client.lpush(key, *values)
             self._circuit_breaker.record_success()
             return result
-        except Exception as e:
-            logger.error(f"Error pushing values to list {key} in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error pushing values to list {key} in Redis: {e!s}")
             self._handle_redis_error("lpush", e)
             return 0
 
@@ -604,8 +604,8 @@ class RedisCacheProvider(CacheProvider):
             await self.client.rpush(key, *values)
             self._circuit_breaker.record_success()
             return True
-        except Exception as e:
-            logger.error(f"Error pushing values to list {key} in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error pushing values to list {key} in Redis: {e!s}")
             self._handle_redis_error("rpush", e)
             return False
 
@@ -616,8 +616,8 @@ class RedisCacheProvider(CacheProvider):
             result = await self.client.lrange(key, start, end)
             self._circuit_breaker.record_success()
             return result
-        except Exception as e:
-            logger.error(f"Error getting range from list {key} in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error getting range from list {key} in Redis: {e!s}")
             self._handle_redis_error("lrange", e)
             return []
 
@@ -641,8 +641,8 @@ class RedisCacheProvider(CacheProvider):
 
             self._circuit_breaker.record_success()
             return True
-        except Exception as e:
-            logger.error(f"Error storing list of JSON in Redis: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - redis-py's error surface (network + RedisError) isn't fully captured by one type; feeds circuit breaker
+            logger.error(f"Error storing list of JSON in Redis: {e!s}")
             self._handle_redis_error("store_list_json", e)
             return False
 
@@ -653,8 +653,8 @@ class RedisCacheProvider(CacheProvider):
         try:
             json_strings = await self.lrange(key, start, end)
             return [json.loads(item) for item in json_strings if item]
-        except Exception as e:
-            logger.error(f"Error getting list of JSON from Redis: {str(e)}")
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error(f"Error getting list of JSON from Redis: {e!s}")
             return []
 
     async def close(self) -> None:

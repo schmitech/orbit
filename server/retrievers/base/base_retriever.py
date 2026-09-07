@@ -35,7 +35,7 @@ def get_embedding_provider(provider_name: str, **kwargs) -> Any:
         }
         return EmbeddingServiceFactory.create_embedding_service(config, provider_name)
     except Exception as e:
-        logger.error(f"Failed to create embedding service for provider {provider_name}: {str(e)}")
+        logger.error(f"Failed to create embedding service for provider {provider_name}: {e!s}")
         raise ValueError(f"Unsupported or misconfigured embedding provider: {provider_name}")
 
 class BaseRetriever(ABC):
@@ -128,7 +128,7 @@ class BaseRetriever(ABC):
 
             return DocumentAdapterFactory.create_adapter(adapter_type, **adapter_params)
         except (ImportError, ValueError) as e:
-            logger.warning(f"Failed to create domain adapter: {str(e)}")
+            logger.warning(f"Failed to create domain adapter: {e!s}")
             logger.warning("Using default QA adapter")
 
             # Create a minimal adapter as fallback
@@ -267,7 +267,7 @@ class BaseRetriever(ABC):
             return []
             
         except Exception as e:
-            logger.error(f"Error retrieving context: {str(e)}")
+            logger.error(f"Error retrieving context: {e!s}")
             # Print more detailed error information
             logger.error(traceback.format_exc())
             return []

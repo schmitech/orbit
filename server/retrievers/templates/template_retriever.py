@@ -60,8 +60,8 @@ class TemplateRetriever(BaseRetriever):
             # )
             pass
         except Exception as e:
-            logger.error(f"Failed to initialize datasource: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
+            logger.error(f"Failed to initialize datasource: {e!s}")
+            raise HTTPException(status_code=500, detail=f"Connection error: {e!s}")
 
     async def close(self) -> None:
         """Close any open services and connections."""
@@ -75,7 +75,7 @@ class TemplateRetriever(BaseRetriever):
             #     await self.client.close()
             pass
         except Exception as e:
-            logger.error(f"Error closing connection: {str(e)}")
+            logger.error(f"Error closing connection: {e!s}")
 
     async def set_collection(self, collection_name: str) -> None:
         """
@@ -151,7 +151,7 @@ class TemplateRetriever(BaseRetriever):
             return results
                 
         except Exception as e:
-            logger.error(f"Error retrieving context: {str(e)}")
+            logger.error(f"Error retrieving context: {e!s}")
             logger.error(traceback.format_exc())
             return []
 

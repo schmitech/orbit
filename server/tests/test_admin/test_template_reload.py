@@ -115,7 +115,7 @@ class TemplateReloadTester:
                 logger.error(f"Authentication failed: {response.status}")
                 return False
         except Exception as e:
-            logger.error(f"Authentication error: {str(e)}")
+            logger.error(f"Authentication error: {e!s}")
             return False
 
     async def reload_templates(self, adapter_name: Optional[str] = None) -> dict[str, Any]:
@@ -136,7 +136,7 @@ class TemplateReloadTester:
                     error = await response.text()
                     return {"error": error, "status_code": response.status}
         except Exception as e:
-            logger.error(f"Reload templates error: {str(e)}")
+            logger.error(f"Reload templates error: {e!s}")
             raise
 
     async def test_reload_templates_all_adapters(self) -> bool:
@@ -169,7 +169,7 @@ class TemplateReloadTester:
                 return False
 
         except Exception as e:
-            logger.error(f"Test failed: {str(e)}")
+            logger.error(f"Test failed: {e!s}")
             return False
 
     async def test_reload_templates_single_adapter(self) -> bool:
@@ -211,7 +211,7 @@ class TemplateReloadTester:
                     return True
 
             except Exception as e:
-                logger.info(f"Adapter '{adapter_name}' test failed: {str(e)}")
+                logger.info(f"Adapter '{adapter_name}' test failed: {e!s}")
                 continue
 
         # If no adapters were found, the test passes (no intent adapters loaded)
@@ -238,7 +238,7 @@ class TemplateReloadTester:
             return False
 
         except Exception as e:
-            logger.error(f"Test failed: {str(e)}")
+            logger.error(f"Test failed: {e!s}")
             return False
 
     async def test_reload_templates_non_intent_adapter(self) -> bool:
@@ -269,7 +269,7 @@ class TemplateReloadTester:
             return True
 
         except Exception as e:
-            logger.error(f"Test failed: {str(e)}")
+            logger.error(f"Test failed: {e!s}")
             return False
 
     async def test_reload_templates_response_format(self) -> bool:
@@ -310,7 +310,7 @@ class TemplateReloadTester:
             return True
 
         except Exception as e:
-            logger.error(f"Test failed: {str(e)}")
+            logger.error(f"Test failed: {e!s}")
             return False
 
 
@@ -413,7 +413,7 @@ async def main():
                     logger.error(f"FAILED: {test_name}")
 
             except Exception as e:
-                logger.error(f"CRASHED: {test_name}: {str(e)}")
+                logger.error(f"CRASHED: {test_name}: {e!s}")
                 import traceback
                 traceback.print_exc()
                 failed += 1

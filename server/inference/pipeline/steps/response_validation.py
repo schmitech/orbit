@@ -54,7 +54,7 @@ class ResponseValidationStep(PipelineStep):
                     return context
                     
             except Exception as e:
-                logger.error(f"Error during Moderator Service response check: {str(e)}")
+                logger.error(f"Error during Moderator Service response check: {e!s}")
                 # Continue processing on error
         
         logger.debug("Response passed validation checks")

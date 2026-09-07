@@ -75,7 +75,7 @@ class OracleDatasource(BaseDatasource):
             self._initialized = True
 
         except Exception as e:
-            logger.error(f"Failed to connect to Oracle database: {str(e)}")
+            logger.error(f"Failed to connect to Oracle database: {e!s}")
             logger.error(f"Connection details: {host}:{port}/{service_name} (user: {username})")
             raise
 

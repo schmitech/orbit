@@ -140,7 +140,7 @@ class LlamaCppBaseService(ProviderAIService):
             self.initialized = True
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize Llama.cpp: {str(e)}")
+            logger.error(f"Failed to initialize Llama.cpp: {e!s}")
             return False
 
     def _load_direct_model(self):
@@ -178,7 +178,7 @@ class LlamaCppBaseService(ProviderAIService):
             logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
-            logger.error(f"Error loading llama.cpp model: {str(e)}")
+            logger.error(f"Error loading llama.cpp model: {e!s}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -191,7 +191,7 @@ class LlamaCppBaseService(ProviderAIService):
                     await self.initialize()
                     return self.initialized
                 except Exception as e:
-                    logger.error(f"Failed to verify llama.cpp model: {str(e)}")
+                    logger.error(f"Failed to verify llama.cpp model: {e!s}")
                     return False
             return True
 
@@ -204,7 +204,7 @@ class LlamaCppBaseService(ProviderAIService):
         self.initialized = False
 
     def _handle_llama_cpp_error(self, error: Exception, operation: str = "operation") -> None:
-        logger.error(f"Llama.cpp error during {operation}: {str(error)}")
+        logger.error(f"Llama.cpp error during {operation}: {error!s}")
         raise_sanitized(error, provider=self.provider_name, operation=operation)
 
     def _get_batch_size(self, default: int = 8) -> int:

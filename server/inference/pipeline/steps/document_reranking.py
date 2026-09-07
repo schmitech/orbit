@@ -260,7 +260,7 @@ class DocumentRerankingStep(PipelineStep):
                         return reranker
                 except Exception as e:
                     logger.warning(
-                        f"Failed to get adapter-specific reranker: {str(e)}"
+                        f"Failed to get adapter-specific reranker: {e!s}"
                     )
 
         # Fall back to global reranker service

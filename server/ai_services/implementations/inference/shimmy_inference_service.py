@@ -53,7 +53,7 @@ class ShimmyInferenceService(InferenceService, ShimmyBaseService):
                 logger.debug(f"Shimmy inference service initialized at {self.base_url}")
             return result
         except Exception as e:
-            logger.error(f"Failed to initialize Shimmy inference service: {str(e)}")
+            logger.error(f"Failed to initialize Shimmy inference service: {e!s}")
             return False
 
     def _build_messages(self, prompt: str, messages: list = None) -> list:
@@ -202,5 +202,5 @@ class ShimmyInferenceService(InferenceService, ShimmyBaseService):
 
         except Exception as e:
             self._handle_shimmy_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"
 

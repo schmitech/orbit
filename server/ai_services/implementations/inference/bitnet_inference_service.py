@@ -126,7 +126,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
             logger.error("BitNet package not installed. Please install with: pip install bitnet-cpp")
             return False
         except Exception as e:
-            logger.error(f"Failed to initialize BitNet model: {str(e)}")
+            logger.error(f"Failed to initialize BitNet model: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -146,7 +146,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                     await self.model.models.list()
                     return True
             except Exception as e:
-                logger.error(f"Failed to verify BitNet API connection: {str(e)}")
+                logger.error(f"Failed to verify BitNet API connection: {e!s}")
                 return False
         else:
             return self.model is not None
@@ -222,7 +222,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
                 return self._clean_response_text(response_text)
                 
         except Exception as e:
-            logger.error(f"Error generating response with BitNet: {str(e)}")
+            logger.error(f"Error generating response with BitNet: {e!s}")
             raise
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:

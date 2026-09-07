@@ -65,7 +65,7 @@ class HuggingFaceBaseService(ProviderAIService):
             logger.debug(f"Hugging Face service initialized with model: {self.model}")
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize Hugging Face: {str(e)}")
+            logger.error(f"Failed to initialize Hugging Face: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -74,7 +74,7 @@ class HuggingFaceBaseService(ProviderAIService):
             logger.debug(f"Hugging Face connection verified for model: {self.model}")
             return True
         except Exception as e:
-            logger.warning(f"Hugging Face connection verification failed: {str(e)}")
+            logger.warning(f"Hugging Face connection verification failed: {e!s}")
             # Return True anyway — model may still work via serverless inference
             # even if get_endpoint_info fails (e.g. for non-dedicated endpoints)
             return True

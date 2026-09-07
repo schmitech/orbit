@@ -83,7 +83,7 @@ class MongoDBDatasource(BaseDatasource):
             self._initialized = True
 
         except Exception as e:
-            logger.error(f"Failed to connect to MongoDB: {str(e)}")
+            logger.error(f"Failed to connect to MongoDB: {e!s}")
             if 'host' in locals():
                 logger.error(f"Connection details: {host}:{port}/{database}")
             else:

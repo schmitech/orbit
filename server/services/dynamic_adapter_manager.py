@@ -167,7 +167,7 @@ class DynamicAdapterManager:
             self._handle_adapter_load_error(adapter_name, e)
             raise
         except Exception as e:
-            logger.error(f"Failed to load adapter {adapter_name}: {str(e)}")
+            logger.error(f"Failed to load adapter {adapter_name}: {e!s}")
             raise
         finally:
             self.adapter_cache.release_initialization(adapter_name)
@@ -213,7 +213,7 @@ class DynamicAdapterManager:
                         self._handle_adapter_load_error(adapter_name, e)
                         raise
                     except Exception as e:
-                        logger.error(f"Failed to load adapter {adapter_name}: {str(e)}")
+                        logger.error(f"Failed to load adapter {adapter_name}: {e!s}")
                         raise
                     finally:
                         self.adapter_cache.release_initialization(adapter_name)
@@ -293,7 +293,7 @@ class DynamicAdapterManager:
 
             raise ValueError(f"Adapter '{adapter_name}' cannot be loaded: provider '{inference_provider}' is disabled") from error
         else:
-            logger.error(f"Failed to load adapter {adapter_name}: {str(error)}")
+            logger.error(f"Failed to load adapter {adapter_name}: {error!s}")
 
     async def get_overridden_provider(
         self,
@@ -576,7 +576,7 @@ class DynamicAdapterManager:
             await self.get_adapter(adapter_name)
             logger.debug(f"Preloaded adapter: {adapter_name}")
         except Exception as e:
-            logger.error(f"Failed to preload adapter {adapter_name}: {str(e)}")
+            logger.error(f"Failed to preload adapter {adapter_name}: {e!s}")
 
     async def preload_all_adapters(self, timeout_per_adapter: float = 30.0) -> dict[str, Any]:
         """
@@ -839,7 +839,7 @@ class DynamicAdapterManager:
                         summary['adapters_updated'].append(name)
                         logger.info(f"Reloaded templates for adapter '{name}': {result.get('templates_loaded', 0)} templates")
                     except Exception as e:
-                        error_msg = f"{name}: {str(e)}"
+                        error_msg = f"{name}: {e!s}"
                         summary['errors'].append(error_msg)
                         logger.error(f"Error reloading templates for adapter '{name}': {e}")
 
@@ -931,7 +931,7 @@ class AdapterProxy:
                 **kwargs
             )
         except Exception as e:
-            logger.error(f"Error getting context from adapter {adapter_name}: {str(e)}")
+            logger.error(f"Error getting context from adapter {adapter_name}: {e!s}")
             return []
 
     async def initialize(self) -> None:

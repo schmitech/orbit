@@ -66,7 +66,7 @@ class SafetyFilterStep(PipelineStep):
                     logger.debug(f"Moderator passed message: '{(context.message or '')[:50]}...'")
 
             except Exception as e:
-                logger.error(f"Error during Moderator Service check: {str(e)}", exc_info=True)
+                logger.error(f"Error during Moderator Service check: {e!s}", exc_info=True)
                 # Intentional fail-open: allow message through if moderator is unavailable
                 # to preserve availability. Blocking on moderator failure would cause outages.
         

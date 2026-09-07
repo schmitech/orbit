@@ -155,7 +155,7 @@ class SentenceTransformersBaseService(ProviderAIService):
             return False
 
         except Exception as e:
-            logger.error(f"Failed to initialize Sentence Transformers service: {str(e)}")
+            logger.error(f"Failed to initialize Sentence Transformers service: {e!s}")
             return False
 
     async def _initialize_local_model(self) -> None:
@@ -184,7 +184,7 @@ class SentenceTransformersBaseService(ProviderAIService):
                 "Install with: pip install sentence-transformers"
             ) from e
         except Exception as e:
-            raise RuntimeError(f"Failed to load model {self.model}: {str(e)}") from e
+            raise RuntimeError(f"Failed to load model {self.model}: {e!s}") from e
 
     async def _initialize_remote_api(self) -> None:
         """
@@ -216,7 +216,7 @@ class SentenceTransformersBaseService(ProviderAIService):
                 # For remote, we'll verify on first actual embedding call
                 return self.api_key is not None
         except Exception as e:
-            logger.error(f"Connection verification failed: {str(e)}")
+            logger.error(f"Connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -240,7 +240,7 @@ class SentenceTransformersBaseService(ProviderAIService):
             self.initialized = False
             logger.debug("Closed Sentence Transformers service")
         except Exception as e:
-            logger.error(f"Error closing Sentence Transformers service: {str(e)}")
+            logger.error(f"Error closing Sentence Transformers service: {e!s}")
 
     def _get_batch_size(self, default: int = 32) -> int:
         """

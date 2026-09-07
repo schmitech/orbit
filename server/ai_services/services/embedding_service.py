@@ -198,7 +198,7 @@ class EmbeddingService(ProviderAIService):
         try:
             self.dimensions = len(await self.embed_query("test"))
         except Exception as e:
-            logger.error(f"Failed to determine embedding dimensions: {str(e)}")
+            logger.error(f"Failed to determine embedding dimensions: {e!s}")
             self.dimensions = fallback
         return self.dimensions
 
@@ -228,7 +228,7 @@ class EmbeddingService(ProviderAIService):
         try:
             return await self.embed_query(text)
         except Exception as e:
-            logger.error(f"Failed to embed query, using fallback: {str(e)}")
+            logger.error(f"Failed to embed query, using fallback: {e!s}")
             if fallback_value is not None:
                 return fallback_value
             raise
@@ -261,7 +261,7 @@ class EmbeddingService(ProviderAIService):
                 raise
 
             logger.warning(
-                f"Batch embedding failed, retrying individually: {str(e)}"
+                f"Batch embedding failed, retrying individually: {e!s}"
             )
 
             # Retry each document individually
@@ -273,7 +273,7 @@ class EmbeddingService(ProviderAIService):
                     embedding = await self.embed_query(text)
                     embeddings.append(embedding)
                 except Exception as e:
-                    logger.error(f"Failed to embed document: {str(e)}")
+                    logger.error(f"Failed to embed document: {e!s}")
                     # Use zero vector as fallback
                     embeddings.append([0.0] * dimensions)
 

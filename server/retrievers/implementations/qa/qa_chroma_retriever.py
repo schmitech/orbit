@@ -133,7 +133,7 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
                 logger.error(f"ChromaDB invalid argument error: {error_msg}")
             return None
         except Exception as e:
-            logger.error(f"Error querying ChromaDB: {str(e)}")
+            logger.error(f"Error querying ChromaDB: {e!s}")
             logger.error(traceback.format_exc())
             return None
 
@@ -166,7 +166,7 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
             try:
                 await self.initialize_client()
             except Exception as e:
-                logger.error(f"Failed to initialize ChromaDB client during validation: {str(e)}")
+                logger.error(f"Failed to initialize ChromaDB client during validation: {e!s}")
                 return False
 
         return hasattr(self, 'collection') and self.collection is not None

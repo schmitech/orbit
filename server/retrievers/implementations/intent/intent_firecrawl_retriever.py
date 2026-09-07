@@ -279,7 +279,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             logger.error(f"Error in get_relevant_context: {e}")
             logger.error(traceback.format_exc())
             return [{
-                "content": f"An error occurred while processing your query: {str(e)}",
+                "content": f"An error occurred while processing your query: {e!s}",
                 "metadata": {"source": "firecrawl", "error": "exception"},
                 "confidence": 0.0
             }]

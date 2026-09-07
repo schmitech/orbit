@@ -241,7 +241,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
             return True
         except Exception as e:
             logger.error(
-                f"Failed to initialize {self.provider_name.title()} service: {str(e)}"
+                f"Failed to initialize {self.provider_name.title()} service: {e!s}"
             )
             return False
 
@@ -295,7 +295,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
 
         except Exception as e:
             logger.error(
-                f"{self.provider_name.title()} connection verification failed: {str(e)}"
+                f"{self.provider_name.title()} connection verification failed: {e!s}"
             )
             return False
 
@@ -441,22 +441,22 @@ class OpenAICompatibleBaseService(ProviderAIService):
                 )
             elif isinstance(error, APIConnectionError):
                 logger.error(
-                    f"{provider_title} connection error during {operation}: {str(error)}"
+                    f"{provider_title} connection error during {operation}: {error!s}"
                 )
             elif isinstance(error, APIError):
                 logger.error(
-                    f"{provider_title} API error during {operation}: {str(error)}"
+                    f"{provider_title} API error during {operation}: {error!s}"
                 )
             else:
                 logger.error(
                     f"Unexpected error during {operation} with {provider_title}: "
-                    f"{str(error)}"
+                    f"{error!s}"
                 )
         except ImportError:
             # If openai exceptions aren't available, just log the error
             logger.error(
                 f"Error during {operation} with {self.provider_name.title()}: "
-                f"{str(error)}"
+                f"{error!s}"
             )
 
         raise_sanitized(error, provider=self.provider_name, operation=operation)

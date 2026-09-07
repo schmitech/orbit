@@ -86,7 +86,7 @@ class QASSQLRetriever(SQLiteRetriever):
                 self.has_token_table = False
                 logger.debug("'search_tokens' table not found - using QA string similarity only")
         except Exception as e:
-            logger.warning(f"Error checking for search_tokens table: {str(e)}")
+            logger.warning(f"Error checking for search_tokens table: {e!s}")
             self.has_token_table = False
 
     async def set_collection(self, collection_name: str) -> None:
@@ -255,7 +255,7 @@ class QASSQLRetriever(SQLiteRetriever):
             return results
             
         except Exception as e:
-            logger.error(f"Error in QA token-based search: {str(e)}")
+            logger.error(f"Error in QA token-based search: {e!s}")
             return []
 
     def _calculate_similarity(self, query: str, text: str) -> float:
@@ -422,7 +422,7 @@ class QASSQLRetriever(SQLiteRetriever):
             return results
                 
         except Exception as e:
-            logger.error(f"Error retrieving QA context: {str(e)}")
+            logger.error(f"Error retrieving QA context: {e!s}")
             logger.error(traceback.format_exc())
             return []
 
@@ -471,7 +471,7 @@ class QASSQLRetriever(SQLiteRetriever):
                 
                 logger.debug(f"Created QA default table '{self.collection}' with sample data")
         except Exception as e:
-            logger.warning(f"Could not create QA default table: {str(e)}")
+            logger.warning(f"Could not create QA default table: {e!s}")
 
 
 # Register the QA-specialized retriever with the factory

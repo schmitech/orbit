@@ -102,7 +102,7 @@ class OllamaAudioService(AudioService, OllamaBaseService):
                         raise ValueError("No audio data in Ollama response")
 
         except Exception as e:
-            logger.error(f"Ollama TTS error: {str(e)}")
+            logger.error(f"Ollama TTS error: {e!s}")
             raise
 
     async def speech_to_text(
@@ -173,7 +173,7 @@ class OllamaAudioService(AudioService, OllamaBaseService):
                             raise ValueError("No transcription in Ollama response")
 
         except Exception as e:
-            logger.error(f"Ollama STT error: {str(e)}")
+            logger.error(f"Ollama STT error: {e!s}")
             raise
 
     async def transcribe(
@@ -225,7 +225,7 @@ class OllamaAudioService(AudioService, OllamaBaseService):
                         return transcript
 
         except Exception as e:
-            logger.error(f"Ollama translation error: {str(e)}")
+            logger.error(f"Ollama translation error: {e!s}")
             # Fallback: return transcript if translation fails
             try:
                 return await self.speech_to_text(audio, source_language, **kwargs)

@@ -88,7 +88,7 @@ class ShimmyBaseService(ProviderAIService):
             logger.debug(f"Initialized Shimmy service at {self.base_url}")
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize Shimmy service: {str(e)}")
+            logger.error(f"Failed to initialize Shimmy service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -111,7 +111,7 @@ class ShimmyBaseService(ProviderAIService):
             except Exception as models_error:
                 # If models endpoint doesn't work, try a minimal test request
                 logger.debug(
-                    f"Shimmy models endpoint not available, trying test request: {str(models_error)}"
+                    f"Shimmy models endpoint not available, trying test request: {models_error!s}"
                 )
                 
                 # Make a minimal test request
@@ -129,7 +129,7 @@ class ShimmyBaseService(ProviderAIService):
                 return False
                 
         except Exception as e:
-            logger.error(f"Shimmy connection verification failed: {str(e)}")
+            logger.error(f"Shimmy connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -159,7 +159,7 @@ class ShimmyBaseService(ProviderAIService):
 
             if isinstance(error, AuthenticationError):
                 logger.error(
-                    f"Shimmy authentication failed during {operation}: {str(error)}"
+                    f"Shimmy authentication failed during {operation}: {error!s}"
                 )
             elif isinstance(error, RateLimitError):
                 logger.warning(
@@ -167,21 +167,21 @@ class ShimmyBaseService(ProviderAIService):
                 )
             elif isinstance(error, APIConnectionError):
                 logger.error(
-                    f"Shimmy connection error during {operation}: {str(error)}. "
+                    f"Shimmy connection error during {operation}: {error!s}. "
                     f"Make sure the Shimmy server is running at {self.base_url}"
                 )
             elif isinstance(error, APIError):
                 logger.error(
-                    f"Shimmy API error during {operation}: {str(error)}"
+                    f"Shimmy API error during {operation}: {error!s}"
                 )
             else:
                 logger.error(
-                    f"Unexpected error during {operation} with Shimmy: {str(error)}"
+                    f"Unexpected error during {operation} with Shimmy: {error!s}"
                 )
         except ImportError:
             # If openai exceptions aren't available, just log the error
             logger.error(
-                f"Error during {operation} with Shimmy: {str(error)}"
+                f"Error during {operation} with Shimmy: {error!s}"
             )
 
         raise_sanitized(error, provider=self.provider_name, operation=operation)

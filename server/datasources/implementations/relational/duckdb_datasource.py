@@ -60,7 +60,7 @@ class DuckDBDatasource(BaseDatasource):
             logger.debug("DuckDB connection established successfully")
             
         except Exception as e:
-            logger.error(f"Failed to connect to DuckDB database: {str(e)}")
+            logger.error(f"Failed to connect to DuckDB database: {e!s}")
             raise
     
     async def health_check(self) -> bool:

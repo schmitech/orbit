@@ -80,7 +80,7 @@ class QuotaGetCommand(BaseCommand):
 
             return 0
         except Exception as e:
-            self.formatter.error(f"Failed to get quota: {str(e)}")
+            self.formatter.error(f"Failed to get quota: {e!s}")
             return 1
 
 
@@ -141,7 +141,7 @@ class QuotaSetCommand(BaseCommand):
 
             return 0
         except Exception as e:
-            self.formatter.error(f"Failed to update quota: {str(e)}")
+            self.formatter.error(f"Failed to update quota: {e!s}")
             return 1
 
 
@@ -172,7 +172,7 @@ class QuotaResetCommand(BaseCommand):
 
             return 0
         except Exception as e:
-            self.formatter.error(f"Failed to reset quota: {str(e)}")
+            self.formatter.error(f"Failed to reset quota: {e!s}")
             return 1
 
 
@@ -255,5 +255,5 @@ class QuotaReportCommand(BaseCommand):
 
             return 0
         except Exception as e:
-            self.formatter.error(f"Failed to generate report: {str(e)}")
+            self.formatter.error(f"Failed to generate report: {e!s}")
             return 1

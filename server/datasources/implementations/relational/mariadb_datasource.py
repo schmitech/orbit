@@ -60,11 +60,11 @@ class MariaDBDatasource(BaseDatasource):
             self._initialized = True
             
         except Error as e:
-            logger.error(f"Failed to connect to MariaDB database: {str(e)}")
+            logger.error(f"Failed to connect to MariaDB database: {e!s}")
             logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error connecting to MariaDB: {str(e)}")
+            logger.error(f"Unexpected error connecting to MariaDB: {e!s}")
             raise
     
     async def health_check(self) -> bool:

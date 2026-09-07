@@ -197,7 +197,7 @@ def create_health_router() -> APIRouter:
             logger.error(f"Error in readiness check: {e}")
             return JSONResponse(
                 status_code=503,
-                content={"ready": False, "reason": f"Error: {str(e)}"}
+                content={"ready": False, "reason": f"Error: {e!s}"}
             )
     
     @router.get("/system")
@@ -311,7 +311,7 @@ def create_health_router() -> APIRouter:
             logger.error(f"Error getting adapter history for {adapter_name}: {e}")
             raise HTTPException(
                 status_code=500,
-                detail=f"Internal server error while retrieving adapter history: {str(e)}"
+                detail=f"Internal server error while retrieving adapter history: {e!s}"
             )
     
     @router.get("/adapters/{adapter_name}/history/full")
@@ -384,7 +384,7 @@ def create_health_router() -> APIRouter:
             logger.error(f"Error getting full adapter history for {adapter_name}: {e}")
             raise HTTPException(
                 status_code=500,
-                detail=f"Internal server error while retrieving full adapter history: {str(e)}"
+                detail=f"Internal server error while retrieving full adapter history: {e!s}"
             )
     
     @router.get("/thread-pools")

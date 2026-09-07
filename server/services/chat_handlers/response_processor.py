@@ -205,7 +205,7 @@ class ResponseProcessor:
                 user_id=user_id
             )
         except Exception as e:
-            logger.error(f"Error logging conversation to LoggerService: {str(e)}", exc_info=True)
+            logger.error(f"Error logging conversation to LoggerService: {e!s}", exc_info=True)
 
         # Log full conversation to AuditService (SQLite/MongoDB/Elasticsearch based on config)
         if self.audit_service:
@@ -227,7 +227,7 @@ class ResponseProcessor:
                     audit_kwargs["usage"] = usage
                 await self.audit_service.log_conversation(**audit_kwargs)
             except Exception as e:
-                logger.error(f"Error logging conversation to AuditService: {str(e)}", exc_info=True)
+                logger.error(f"Error logging conversation to AuditService: {e!s}", exc_info=True)
 
     async def process_response(
         self,

@@ -121,7 +121,7 @@ async def get_adapter_capabilities(
 
         return {"adapters": capabilities}
     except Exception as e:
-        logger.error(f"Failed to get adapter capabilities: {str(e)}")
+        logger.error(f"Failed to get adapter capabilities: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to get adapter capabilities")
 
 
@@ -1190,13 +1190,13 @@ async def reload_adapters(
         )
 
     except FileNotFoundError as e:
-        logger.error(f"Config file not found: {str(e)}")
+        logger.error(f"Config file not found: {e!s}")
         raise HTTPException(status_code=500, detail="Config file not found")
     except ValueError as e:
-        logger.error(f"Adapter reload error: {str(e)}")
+        logger.error(f"Adapter reload error: {e!s}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error during adapter reload: {str(e)}", exc_info=True)
+        logger.error(f"Unexpected error during adapter reload: {e!s}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to reload adapters")
 
 
@@ -1316,10 +1316,10 @@ async def reload_templates(
         )
 
     except ValueError as e:
-        logger.error(f"Template reload error: {str(e)}")
+        logger.error(f"Template reload error: {e!s}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error during template reload: {str(e)}", exc_info=True)
+        logger.error(f"Unexpected error during template reload: {e!s}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to reload templates")
 
 

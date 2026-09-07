@@ -89,7 +89,7 @@ class AthenaDatasource(BaseDatasource):
             logger.debug("Athena connection established successfully")
 
         except Exception as e:
-            logger.error(f"Failed to connect to Athena: {str(e)}")
+            logger.error(f"Failed to connect to Athena: {e!s}")
             raise
 
     async def health_check(self) -> bool:

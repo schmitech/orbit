@@ -72,7 +72,7 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize OpenRouter service: {str(e)}")
+            logger.error(f"Failed to initialize OpenRouter service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -97,7 +97,7 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
             return False
 
         except Exception as e:
-            logger.error(f"OpenRouter connection verification failed: {str(e)}")
+            logger.error(f"OpenRouter connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -206,7 +206,7 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
 
         except Exception as e:
             self._handle_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"
 
     def _handle_error(self, error: Exception, operation: str) -> None:
         """Handle OpenRouter API errors with appropriate logging."""
@@ -220,5 +220,5 @@ class OpenRouterInferenceService(UsageReportingMixin, InferenceService):
                 body = None
         if body:
             details = f" - Raw response: {body}"
-        logger.error(f"OpenRouter error during {operation}: {str(error)}{details}")
+        logger.error(f"OpenRouter error during {operation}: {error!s}{details}")
         raise_sanitized(error, provider="openrouter", operation=operation)

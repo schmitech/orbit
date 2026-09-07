@@ -127,7 +127,7 @@ class MemcachedCacheProvider(CacheProvider):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize Memcached: {str(e)}")
+            logger.error(f"Failed to initialize Memcached: {e!s}")
             self.enabled = False
             self.client = None
             self.initialized = False
@@ -141,7 +141,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error getting key {key} from Memcached: {str(e)}")
+            logger.error(f"Error getting key {key} from Memcached: {e!s}")
             self._handle_error("get", e)
             return None
 
@@ -154,7 +154,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return bool(result)
         except Exception as e:
-            logger.error(f"Error setting key {key} in Memcached: {str(e)}")
+            logger.error(f"Error setting key {key} in Memcached: {e!s}")
             self._handle_error("set", e)
             return False
 
@@ -169,7 +169,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return deleted
         except Exception as e:
-            logger.error(f"Error deleting keys {keys} from Memcached: {str(e)}")
+            logger.error(f"Error deleting keys {keys} from Memcached: {e!s}")
             self._handle_error("delete", e)
             return 0
 
@@ -181,7 +181,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result is not None
         except Exception as e:
-            logger.error(f"Error checking if key {key} exists in Memcached: {str(e)}")
+            logger.error(f"Error checking if key {key} exists in Memcached: {e!s}")
             self._handle_error("exists", e)
             return False
 
@@ -204,7 +204,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return bool(result)
         except Exception as e:
-            logger.error(f"Error setting expiration for key {key} in Memcached: {str(e)}")
+            logger.error(f"Error setting expiration for key {key} in Memcached: {e!s}")
             self._handle_error("expire", e)
             return False
 
@@ -216,7 +216,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return [_decode(r) for r in results]
         except Exception as e:
-            logger.error(f"Error in mget for {len(keys)} keys: {str(e)}")
+            logger.error(f"Error in mget for {len(keys)} keys: {e!s}")
             self._handle_error("mget", e)
             return [None] * len(keys)
 
@@ -229,7 +229,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return True
         except Exception as e:
-            logger.error(f"Error in mset for {len(mapping)} keys: {str(e)}")
+            logger.error(f"Error in mset for {len(mapping)} keys: {e!s}")
             self._handle_error("mset", e)
             return False
 
@@ -241,7 +241,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return bool(result)
         except Exception as e:
-            logger.error(f"Error in set_if_not_exists for key {key} in Memcached: {str(e)}")
+            logger.error(f"Error in set_if_not_exists for key {key} in Memcached: {e!s}")
             self._handle_error("set_if_not_exists", e)
             return False
 
@@ -275,7 +275,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return count if count is not None else amount
         except Exception as e:
-            logger.error(f"Error in increment_with_ttl for key {key} in Memcached: {str(e)}")
+            logger.error(f"Error in increment_with_ttl for key {key} in Memcached: {e!s}")
             self._handle_error("increment_with_ttl", e)
             return 0
 
@@ -292,7 +292,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return -1  # unknown count; entire cache was flushed
         except Exception as e:
-            logger.error(f"Error flushing Memcached: {str(e)}")
+            logger.error(f"Error flushing Memcached: {e!s}")
             self._handle_error("clear_by_pattern", e)
             return 0
 
@@ -307,7 +307,7 @@ class MemcachedCacheProvider(CacheProvider):
             logger.info("Flushed entire Memcached cache on startup")
             return {"flushed_all": -1}
         except Exception as e:
-            logger.warning(f"Failed to flush Memcached on startup: {str(e)}")
+            logger.warning(f"Failed to flush Memcached on startup: {e!s}")
             return {"flushed_all": 0}
 
     def get_health_stats(self) -> dict[str, Any]:

@@ -308,7 +308,7 @@ class SentenceTransformersEmbeddingService(EmbeddingService, SentenceTransformer
             self.dimensions = len(test_embedding)
             return self.dimensions
         except Exception as e:
-            logger.error(f"Failed to determine dimensions: {str(e)}")
+            logger.error(f"Failed to determine dimensions: {e!s}")
             # Use a reasonable fallback based on common models
             fallback = 768
             logger.warning(f"Using fallback dimensions: {fallback}")

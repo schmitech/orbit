@@ -123,7 +123,7 @@ class SqliteCacheProvider(CacheProvider):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize SQLite cache: {str(e)}")
+            logger.error(f"Failed to initialize SQLite cache: {e!s}")
             self.enabled = False
             self.connection = None
             self.initialized = False
@@ -386,7 +386,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error getting key {key} from SQLite cache: {str(e)}")
+            logger.error(f"Error getting key {key} from SQLite cache: {e!s}")
             self._handle_error("get", e)
             return None
 
@@ -398,7 +398,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error setting key {key} in SQLite cache: {str(e)}")
+            logger.error(f"Error setting key {key} in SQLite cache: {e!s}")
             self._handle_error("set", e)
             return False
 
@@ -410,7 +410,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error deleting keys {keys} from SQLite cache: {str(e)}")
+            logger.error(f"Error deleting keys {keys} from SQLite cache: {e!s}")
             self._handle_error("delete", e)
             return 0
 
@@ -422,7 +422,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result is not None
         except Exception as e:
-            logger.error(f"Error checking if key {key} exists in SQLite cache: {str(e)}")
+            logger.error(f"Error checking if key {key} exists in SQLite cache: {e!s}")
             self._handle_error("exists", e)
             return False
 
@@ -434,7 +434,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error getting TTL for key {key} in SQLite cache: {str(e)}")
+            logger.error(f"Error getting TTL for key {key} in SQLite cache: {e!s}")
             self._handle_error("ttl", e)
             return -2
 
@@ -446,7 +446,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error setting expiration for key {key} in SQLite cache: {str(e)}")
+            logger.error(f"Error setting expiration for key {key} in SQLite cache: {e!s}")
             self._handle_error("expire", e)
             return False
 
@@ -458,7 +458,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error in mget for {len(keys)} keys: {str(e)}")
+            logger.error(f"Error in mget for {len(keys)} keys: {e!s}")
             self._handle_error("mget", e)
             return [None] * len(keys)
 
@@ -470,7 +470,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error in mset for {len(mapping)} keys: {str(e)}")
+            logger.error(f"Error in mset for {len(mapping)} keys: {e!s}")
             self._handle_error("mset", e)
             return False
 
@@ -482,7 +482,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error in set_if_not_exists for key {key} in SQLite cache: {str(e)}")
+            logger.error(f"Error in set_if_not_exists for key {key} in SQLite cache: {e!s}")
             self._handle_error("set_if_not_exists", e)
             return False
 
@@ -494,7 +494,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error in increment_with_ttl for key {key} in SQLite cache: {str(e)}")
+            logger.error(f"Error in increment_with_ttl for key {key} in SQLite cache: {e!s}")
             self._handle_error("increment_with_ttl", e)
             return 0
 
@@ -512,7 +512,7 @@ class SqliteCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             return result
         except Exception as e:
-            logger.error(f"Error in check_and_increment in SQLite cache: {str(e)}")
+            logger.error(f"Error in check_and_increment in SQLite cache: {e!s}")
             self._handle_error("check_and_increment", e)
             return await super().check_and_increment(checks, amount)
 
@@ -527,7 +527,7 @@ class SqliteCacheProvider(CacheProvider):
                 logger.debug(f"Cleared {result} {description or pattern} entries from SQLite cache")
             return result
         except Exception as e:
-            logger.warning(f"Failed to clear {description or pattern} from SQLite cache: {str(e)}")
+            logger.warning(f"Failed to clear {description or pattern} from SQLite cache: {e!s}")
             self._handle_error("clear_by_pattern", e)
             return 0
 

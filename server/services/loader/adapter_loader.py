@@ -134,7 +134,7 @@ class AdapterLoader:
                 except Exception as e:
                     # Preload failures are non-fatal (the adapter loads lazily on next access),
                     # so warn without a full traceback rather than logging as an error.
-                    logger.warning(f"Could not preload inference provider '{inference_provider}' for adapter '{adapter_name}': {str(e)}")
+                    logger.warning(f"Could not preload inference provider '{inference_provider}' for adapter '{adapter_name}': {e!s}")
             else:
                 logger.warning(f"No inference provider configured for adapter '{adapter_name}' (neither in adapter config nor global config)")
 
@@ -378,7 +378,7 @@ class AdapterLoader:
             await cache_manager.create_service(provider, adapter_name)
             logger.debug(f"Preloaded {log_label} provider '{provider}' for adapter '{adapter_name}'")
         except Exception as e:
-            logger.warning(f"Failed to preload {warning_label} for adapter {adapter_name}: {str(e)}")
+            logger.warning(f"Failed to preload {warning_label} for adapter {adapter_name}: {e!s}")
 
     def _clear_embedding_factory_cache(self, provider: str) -> None:
         factory_instances = EmbeddingServiceFactory.get_cached_instances()
@@ -409,7 +409,7 @@ class AdapterLoader:
             await method(provider, adapter_name)
             logger.debug(f"Preloaded {log_label} provider '{provider}' for adapter '{adapter_name}'")
         except Exception as e:
-            logger.warning(f"Failed to preload {warning_label} for adapter {adapter_name}: {str(e)}")
+            logger.warning(f"Failed to preload {warning_label} for adapter {adapter_name}: {e!s}")
 
     def _create_adapter_sync(
         self,

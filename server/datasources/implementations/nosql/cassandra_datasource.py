@@ -64,7 +64,7 @@ class CassandraDatasource(BaseDatasource):
             self._initialized = True
             
         except Exception as e:
-            logger.error(f"Failed to connect to Cassandra: {str(e)}")
+            logger.error(f"Failed to connect to Cassandra: {e!s}")
             logger.error(f"Connection details: {contact_points}:{port}/{keyspace}")
             raise
     

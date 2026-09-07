@@ -245,7 +245,7 @@ class VLLMAudioService(AudioService):
                 logger.debug(f"GPU memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize SNAC model: {str(e)}")
+            logger.error(f"Failed to initialize SNAC model: {e!s}")
             return False
 
     def _turn_token_into_id(self, token_string: str, index: int) -> int:
@@ -317,7 +317,7 @@ class VLLMAudioService(AudioService):
                 if 0 <= token_id <= 4096:
                     token_ids.append(token_id)
             except Exception as e:
-                logger.warning(f"Failed to parse token {i}: {str(e)}")
+                logger.warning(f"Failed to parse token {i}: {e!s}")
                 continue
 
         if len(token_ids) < 7:
@@ -448,7 +448,7 @@ class VLLMAudioService(AudioService):
                 )
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize vLLM audio service: {str(e)}")
+            logger.error(f"Failed to initialize vLLM audio service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -480,7 +480,7 @@ class VLLMAudioService(AudioService):
                 return False
 
         except Exception as e:
-            logger.error(f"vLLM audio connection verification failed: {str(e)}")
+            logger.error(f"vLLM audio connection verification failed: {e!s}")
             return False
 
     async def _run_connection_verification(self) -> None:
@@ -494,7 +494,7 @@ class VLLMAudioService(AudioService):
         except Exception as verify_error:
             self.connection_verified = False
             logger.warning(
-                f"vLLM audio verification raised an exception; continuing without health check: {str(verify_error)}"
+                f"vLLM audio verification raised an exception; continuing without health check: {verify_error!s}"
             )
         finally:
             self._verification_inflight = False
@@ -632,7 +632,7 @@ class VLLMAudioService(AudioService):
             return audio_data
 
         except Exception as e:
-            logger.error(f"vLLM TTS error: {str(e)}")
+            logger.error(f"vLLM TTS error: {e!s}")
             raise
 
     async def text_to_speech_streaming(
@@ -844,7 +844,7 @@ class VLLMAudioService(AudioService):
                     return pcm_audio
 
             except Exception as e:
-                logger.error(f"Failed to decode audio tokens: {str(e)}")
+                logger.error(f"Failed to decode audio tokens: {e!s}")
                 raise
 
         # Try to decode as base64 (for models that return encoded audio)
@@ -916,7 +916,7 @@ class VLLMAudioService(AudioService):
             return response.choices[0].message.content.strip()
 
         except Exception as e:
-            logger.error(f"vLLM STT error: {str(e)}")
+            logger.error(f"vLLM STT error: {e!s}")
             raise
 
     async def transcribe(
@@ -970,7 +970,7 @@ class VLLMAudioService(AudioService):
             return response.choices[0].message.content.strip()
 
         except Exception as e:
-            logger.error(f"vLLM translation error: {str(e)}")
+            logger.error(f"vLLM translation error: {e!s}")
             # Fallback: return transcript if translation fails
             try:
                 return await self.speech_to_text(audio, source_language, **kwargs)

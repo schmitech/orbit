@@ -52,7 +52,7 @@ class NVIDIABaseService(ProviderAIService):
             self.initialized = True
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize NVIDIA service: {str(e)}")
+            logger.error(f"Failed to initialize NVIDIA service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -64,5 +64,5 @@ class NVIDIABaseService(ProviderAIService):
         self.initialized = False
 
     def _handle_nvidia_error(self, error: Exception, operation: str = "operation") -> None:
-        logger.error(f"NVIDIA error during {operation}: {str(error)}")
+        logger.error(f"NVIDIA error during {operation}: {error!s}")
         raise_sanitized(error, provider=self.provider_name, operation=operation)

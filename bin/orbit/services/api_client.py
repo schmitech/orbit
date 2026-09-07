@@ -63,7 +63,7 @@ def handle_api_errors(operation_name: str = None, custom_errors: dict[int, str] 
             except Exception as e:
                 # Handle unexpected errors
                 operation = operation_name or "Operation"
-                raise OrbitError(f"{operation} failed: {str(e)}")
+                raise OrbitError(f"{operation} failed: {e!s}")
         return wrapper
     return decorator
 
@@ -191,5 +191,5 @@ class ApiClient:
         except FileNotFoundError:
             raise OrbitError(f"File not found: {file_path}")
         except Exception as e:
-            raise OrbitError(f"Error reading file {file_path}: {str(e)}")
+            raise OrbitError(f"Error reading file {file_path}: {e!s}")
 

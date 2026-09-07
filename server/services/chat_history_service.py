@@ -285,8 +285,8 @@ class ChatHistoryService:
             
             return max_tokens
             
-        except Exception as e:
-            logger.warning(f"Error calculating max token budget: {str(e)}. Using fallback value.")
+        except (TypeError, ValueError, KeyError, AttributeError) as e:
+            logger.warning(f"Error calculating max token budget: {e!s}. Using fallback value.")
             # Fallback to a reasonable default if calculation fails
             return 4000  # ~40 messages at 100 tokens each
 
@@ -487,7 +487,7 @@ class ChatHistoryService:
             logger.info("Chat history service initialized successfully")
             
         except Exception as e:
-            logger.error(f"Failed to initialize chat history service: {str(e)}")
+            logger.error(f"Failed to initialize chat history service: {e!s}")
             raise
     
     async def _create_indexes(self) -> None:
@@ -540,7 +540,7 @@ class ChatHistoryService:
             logger.debug("Created indexes for chat history collection")
                 
         except Exception as e:
-            logger.error(f"Error creating indexes: {str(e)}")
+            logger.error(f"Error creating indexes: {e!s}")
             raise
     
     def _generate_message_hash(self, session_id: str, role: str, content: str, timestamp: datetime) -> str:
@@ -560,8 +560,8 @@ class ChatHistoryService:
             # Count tokens in content, add overhead for role labels and formatting (~5 tokens)
             token_count = tokenizer.count_tokens(content) + 5
             return max(1, token_count)
-        except Exception as e:
-            logger.warning(f"Error calculating tokens, using estimate: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - tokenizer is a pluggable third-party component with no fixed exception surface
+            logger.warning(f"Error calculating tokens, using estimate: {e!s}")
             return self._estimate_token_count(content)
     
     async def _tokenization_worker(self) -> None:
@@ -617,8 +617,8 @@ class ChatHistoryService:
                     else:
                         logger.warning(f"Message {message_id} not found for token count update")
                         
-                except Exception as e:
-                    logger.error(f"Error updating token_count for message {message_id}: {str(e)}")
+                except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+                    logger.error(f"Error updating token_count for message {message_id}: {e!s}")
                 
                 # Mark task as done
                 self._tokenization_queue.task_done()
@@ -626,8 +626,8 @@ class ChatHistoryService:
             except asyncio.CancelledError:
                 logger.info("Tokenization worker cancelled")
                 break
-            except Exception as e:
-                logger.error(f"Error in tokenization worker: {str(e)}")
+            except Exception as e:  # noqa: BLE001 - background worker loop must keep running past an unexpected error
+                logger.error(f"Error in tokenization worker: {e!s}")
                 await asyncio.sleep(1)  # Brief pause before retrying
     
     async def _backfill_token_counts(self) -> None:
@@ -679,16 +679,16 @@ class ChatHistoryService:
                                 {"$set": {"token_count": actual_token_count}}
                             )
                             processed += 1
-                        except Exception as e:
-                            logger.warning(f"Error updating token_count for message {message_id}: {str(e)}")
+                        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+                            logger.warning(f"Error updating token_count for message {message_id}: {e!s}")
                 
                 # Small delay between batches to avoid overwhelming the system
                 await asyncio.sleep(0.1)
 
         except asyncio.CancelledError:
             logger.info("Token count backfill cancelled")
-        except Exception as e:
-            logger.error(f"Error in token count backfill: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - background worker loop must keep running past an unexpected error
+            logger.error(f"Error in token count backfill: {e!s}")
     
     @with_retry()
     async def add_message(
@@ -809,7 +809,7 @@ class ChatHistoryService:
                 return None
             
         except Exception as e:
-            logger.error(f"Error adding message to history: {str(e)}")
+            logger.error(f"Error adding message to history: {e!s}")
             raise
     
     async def _replace_message_content(
@@ -859,8 +859,8 @@ class ChatHistoryService:
                 }}
             )
             return True
-        except Exception as e:
-            logger.error(f"Error replacing {role} message {message_id}: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+            logger.error(f"Error replacing {role} message {message_id}: {e!s}")
             return False
 
     async def replace_assistant_message(self, session_id: str, message_id: str, content: str) -> bool:
@@ -897,8 +897,8 @@ class ChatHistoryService:
                 if msg.get("role") == "user" and str(msg.get("_id")) != assistant_message_id:
                     return str(msg["_id"])
             return None
-        except Exception as e:
-            logger.error(f"Error finding preceding user message for {assistant_message_id}: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+            logger.error(f"Error finding preceding user message for {assistant_message_id}: {e!s}")
             return None
 
     async def add_conversation_turn(
@@ -1128,8 +1128,8 @@ class ChatHistoryService:
                             self.collection_name,
                             {"_id": {"$in": deleted_ids}}
                         )
-                    except Exception as e:
-                        logger.warning(f"Error bulk-deleting messages: {str(e)}")
+                    except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+                        logger.warning(f"Error bulk-deleting messages: {e!s}")
 
                 # Update cache atomically within the lock
                 if actual_deleted > 0:
@@ -1149,8 +1149,8 @@ class ChatHistoryService:
 
                 return actual_deleted
 
-            except Exception as e:
-                logger.error(f"Error cleaning up excess messages for session {session_id}: {str(e)}")
+            except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+                logger.error(f"Error cleaning up excess messages for session {session_id}: {e!s}")
                 return 0
 
     @with_retry()
@@ -1232,7 +1232,7 @@ class ChatHistoryService:
             return processed_messages
             
         except Exception as e:
-            logger.error(f"Error getting conversation history: {str(e)}")
+            logger.error(f"Error getting conversation history: {e!s}")
             raise
     
     async def get_user_sessions(
@@ -1316,8 +1316,8 @@ class ChatHistoryService:
 
             return paginated_results
 
-        except Exception as e:
-            logger.error(f"Error getting user sessions: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+            logger.error(f"Error getting user sessions: {e!s}")
             return []
     
     async def _delete_generation_memory(self, session_id: str) -> int:
@@ -1342,7 +1342,7 @@ class ChatHistoryService:
                 )
                 if await self.thread_dataset_service.delete_dataset(dataset_key):
                     deleted += 1
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort cleanup of one item must not abort cleanup of the rest
                 logger.debug(
                     "Failed to delete generation memory for adapter '%s' session %s: %s",
                     adapter_name, session_id, e,
@@ -1414,7 +1414,7 @@ class ChatHistoryService:
                                             fid = fm.get('file_id')
                                             if fid:
                                                 file_ids_to_delete.add(fid)
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 - best-effort cleanup of one item must not abort cleanup of the rest
                             logger.warning("Failed to extract file_ids from dataset %s: %s", dataset_key, e)
 
                 if file_ids_to_delete:
@@ -1427,7 +1427,7 @@ class ChatHistoryService:
                             try:
                                 if await file_processing_service.delete_file(file_id, api_key):
                                     result["files_deleted"] += 1
-                            except Exception as e:
+                            except Exception as e:  # noqa: BLE001 - best-effort cleanup of one item must not abort cleanup of the rest
                                 logger.warning("Error deleting file %s: %s", file_id, e)
                     else:
                         logger.warning(
@@ -1442,7 +1442,7 @@ class ChatHistoryService:
                     try:
                         if await self.thread_dataset_service.delete_dataset(dataset_key):
                             result["datasets_deleted"] += 1
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - best-effort cleanup of one item must not abort cleanup of the rest
                         pass
 
                 thread_session_id = thread.get('thread_session_id')
@@ -1453,7 +1453,7 @@ class ChatHistoryService:
                             {"session_id": thread_session_id}
                         )
                         result["thread_messages_deleted"] += deleted
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - best-effort cleanup of one item must not abort cleanup of the rest
                         logger.warning("Failed to delete thread session %s: %s", thread_session_id, e)
 
                     # A generation skill (PDF, Image, ...) invoked while this thread was
@@ -1477,8 +1477,8 @@ class ChatHistoryService:
                     session_id,
                 )
 
-        except Exception as e:
-            logger.warning(f"Error deleting threads for session {session_id}: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+            logger.warning(f"Error deleting threads for session {session_id}: {e!s}")
 
         return result
 
@@ -1516,8 +1516,8 @@ class ChatHistoryService:
 
             return deleted_count > 0
 
-        except Exception as e:
-            logger.error(f"Error clearing session history: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+            logger.error(f"Error clearing session history: {e!s}")
             return False
 
     async def authorize_session(self, session_id: Optional[str], api_key: Optional[str]) -> bool:
@@ -1592,7 +1592,7 @@ class ChatHistoryService:
             )
             return legacy_owned == total
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
             # Fail closed: an ownership check that cannot run must not grant deletion.
             logger.error(
                 "Ownership check failed for session %s: %s", session_id, str(e)
@@ -1710,7 +1710,7 @@ class ChatHistoryService:
                 "timestamp": datetime.now(UTC).isoformat()
             }
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
             logger.error(
                 "Error clearing conversation history for session %s: %s",
                 session_id,
@@ -1769,8 +1769,8 @@ class ChatHistoryService:
                 "avg_message_length": total_chars // message_count if message_count > 0 else 0
             }
 
-        except Exception as e:
-            logger.error(f"Error getting session stats: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+            logger.error(f"Error getting session stats: {e!s}")
             return {"session_id": session_id, "error": str(e)}
     
     async def _get_rolling_window_token_count(
@@ -1885,8 +1885,8 @@ class ChatHistoryService:
             except asyncio.CancelledError:
                 logger.info("Cleanup task cancelled")
                 break
-            except Exception as e:
-                logger.error(f"Error in cleanup task: {str(e)}")
+            except Exception as e:  # noqa: BLE001 - background worker loop must keep running past an unexpected error
+                logger.error(f"Error in cleanup task: {e!s}")
                 await asyncio.sleep(3600)  # Retry in 1 hour on error
     
     async def get_context_messages(
@@ -2001,8 +2001,8 @@ class ChatHistoryService:
 
             return context_messages, accumulated_tokens
 
-        except Exception as e:
-            logger.error(f"Error getting context messages: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+            logger.error(f"Error getting context messages: {e!s}")
             return [], 0
     
     async def health_check(self) -> dict[str, Any]:
@@ -2023,7 +2023,7 @@ class ChatHistoryService:
                 "active_sessions": len(self._active_sessions),
                 "tracked_sessions": len(self._session_token_counts)
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - health/metrics reporting must degrade to a status payload, not raise
             return {
                 "status": "unhealthy",
                 "database": "disconnected",
@@ -2058,8 +2058,8 @@ class ChatHistoryService:
                 "max_tracked_sessions": self.max_tracked_sessions,
                 "retention_days": self.retention_days
             }
-        except Exception as e:
-            logger.error(f"Error getting metrics: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+            logger.error(f"Error getting metrics: {e!s}")
             return {
                 "error": str(e),
                 "active_sessions": len(self._active_sessions),
@@ -2091,8 +2091,8 @@ class ChatHistoryService:
                     len(inactive),
                 )
                 
-        except Exception as e:
-            logger.error(f"Error cleaning up inactive sessions: {str(e)}")
+        except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
+            logger.error(f"Error cleaning up inactive sessions: {e!s}")
 
     async def _cleanup_inactive_sessions_periodic(self) -> None:
         """
@@ -2108,8 +2108,8 @@ class ChatHistoryService:
             except asyncio.CancelledError:
                 logger.info("Inactive sessions cleanup task cancelled")
                 break
-            except Exception as e:
-                logger.error(f"Error in inactive sessions cleanup task: {str(e)}")
+            except Exception as e:  # noqa: BLE001 - background worker loop must keep running past an unexpected error
+                logger.error(f"Error in inactive sessions cleanup task: {e!s}")
                 # Retry in 5 minutes on error
                 await asyncio.sleep(300)
 

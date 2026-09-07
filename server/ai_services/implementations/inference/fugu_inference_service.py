@@ -217,7 +217,7 @@ class FuguInferenceService(InferenceService, OpenAICompatibleBaseService):
             yield msg
         except Exception as e:
             self._handle_openai_compatible_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"
 
     def _build_responses_api_params(
         self, messages: list, stream: bool = False, **kwargs

@@ -44,7 +44,7 @@ class LazyLoader:
                 self._initialized = True
                 logger.info(f"{self._name} loaded successfully")
             except Exception as e:
-                logger.error(f"Error lazy loading {self._name}: {str(e)}")
+                logger.error(f"Error lazy loading {self._name}: {e!s}")
                 raise
         return self._instance
 

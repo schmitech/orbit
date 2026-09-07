@@ -208,7 +208,7 @@ class InferenceService(ProviderAIService):
             return await self.verify_connection()
 
         except Exception as e:
-            logger.error(f"Configuration validation failed: {str(e)}")
+            logger.error(f"Configuration validation failed: {e!s}")
             return False
 
     def _get_temperature(self, default: float = 0.7) -> float:
@@ -338,7 +338,7 @@ class InferenceService(ProviderAIService):
         try:
             return await self.generate(prompt, **kwargs)
         except Exception as e:
-            logger.error(f"Generation failed, using fallback: {str(e)}")
+            logger.error(f"Generation failed, using fallback: {e!s}")
             if fallback_response is not None:
                 return fallback_response
             raise
@@ -375,7 +375,7 @@ class InferenceService(ProviderAIService):
                 last_error = e
                 if attempt < max_retries - 1:
                     logger.warning(
-                        f"Generation attempt {attempt + 1} failed, retrying: {str(e)}"
+                        f"Generation attempt {attempt + 1} failed, retrying: {e!s}"
                     )
                     await asyncio.sleep(2 ** attempt)  # Exponential backoff
 

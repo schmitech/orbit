@@ -84,7 +84,7 @@ class ChromaRetriever(AbstractVectorRetriever):
                 # The error is already logged in set_collection, just re-raise
                 raise
             except Exception as e:
-                logger.error(f"Unexpected error setting collection: {str(e)}")
+                logger.error(f"Unexpected error setting collection: {e!s}")
                 raise
         else:
             logger.warning("No collection name provided during initialization")
@@ -124,7 +124,7 @@ class ChromaRetriever(AbstractVectorRetriever):
                         logger.info(f"Successfully created collection: {collection_name} with cosine similarity")
                         return
                     except Exception as create_error:
-                        error_msg = f"Failed to auto-create collection '{collection_name}': {str(create_error)}"
+                        error_msg = f"Failed to auto-create collection '{collection_name}': {create_error!s}"
                         logger.error(error_msg)
                         raise HTTPException(status_code=500, detail=error_msg)
                 else:
@@ -150,7 +150,7 @@ class ChromaRetriever(AbstractVectorRetriever):
             raise
         except Exception as e:
             # Handle unexpected errors
-            error_msg = f"Failed to set collection '{collection_name}': {str(e)}"
+            error_msg = f"Failed to set collection '{collection_name}': {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
@@ -219,7 +219,7 @@ class ChromaRetriever(AbstractVectorRetriever):
                 logger.error(f"ChromaDB invalid argument error: {error_msg}")
             return []
         except Exception as e:
-            logger.error(f"Error querying ChromaDB: {str(e)}")
+            logger.error(f"Error querying ChromaDB: {e!s}")
             return []
 
     def calculate_similarity_from_distance(self, distance: float) -> float:

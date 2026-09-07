@@ -1020,7 +1020,7 @@ class FileProcessingService:
                 )
             except ValueError as e:
                 # This happens when STT is globally disabled or provider is not registered
-                logger.error(f"Failed to create audio service: {str(e)}")
+                logger.error(f"Failed to create audio service: {e!s}")
                 raise Exception("Audio transcription is not available. Please check that STT services are enabled in the configuration.")
 
             # Initialize if needed
@@ -1062,7 +1062,7 @@ class FileProcessingService:
                 raise Exception("Audio transcription API request timed out. The audio file may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
             except Exception as e:
                 logger.error(f"Audio transcription API error for {filename}: {e}")
-                raise Exception(f"Audio transcription failed: {str(e)}")
+                raise Exception(f"Audio transcription failed: {e!s}")
 
             logger.info(f"Audio transcription completed for {filename}")
 
@@ -1383,7 +1383,7 @@ class FileProcessingService:
                 raise Exception("Vision API request timed out. The image may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
             except Exception as e:
                 logger.error(f"Vision API error for {filename}: {e}")
-                raise Exception(f"Vision processing failed: {str(e)}")
+                raise Exception(f"Vision processing failed: {e!s}")
 
             logger.info(f"Vision processing completed for {filename}")
 

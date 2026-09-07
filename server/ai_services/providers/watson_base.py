@@ -38,7 +38,7 @@ class WatsonBaseService(ProviderAIService):
             self.initialized = True
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize Watson: {str(e)}")
+            logger.error(f"Failed to initialize Watson: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -48,5 +48,5 @@ class WatsonBaseService(ProviderAIService):
         self.initialized = False
 
     def _handle_watson_error(self, error: Exception, operation: str = "operation") -> None:
-        logger.error(f"Watson error during {operation}: {str(error)}")
+        logger.error(f"Watson error during {operation}: {error!s}")
         raise_sanitized(error, provider=self.provider_name, operation=operation)

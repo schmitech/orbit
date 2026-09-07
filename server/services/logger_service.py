@@ -159,10 +159,10 @@ class LoggerService:
                 else:
                     logger.info(f"Using existing index: {index_name}")
             except Exception as index_error:
-                logger.error(f"Failed to setup index {index_name}: {str(index_error)}", exc_info=True)
+                logger.error(f"Failed to setup index {index_name}: {index_error!s}", exc_info=True)
                 raise
         except Exception as e:
-            logger.error(f"Failed to setup Elasticsearch index: {str(e)}", exc_info=True)
+            logger.error(f"Failed to setup Elasticsearch index: {e!s}", exc_info=True)
             self.config["internal_services"]["elasticsearch"]["enabled"] = False
             self.es_client = None
 

@@ -67,7 +67,7 @@ class OpenAIBaseService(OpenAICompatibleBaseService):
             logger.debug("OpenAI connection verified successfully")
             return True
         except Exception as e:
-            logger.error(f"OpenAI connection verification failed: {str(e)}")
+            logger.error(f"OpenAI connection verification failed: {e!s}")
             return False
 
     def _handle_openai_error(self, error: Exception, operation: str = "operation") -> None:
@@ -79,10 +79,10 @@ class OpenAIBaseService(OpenAICompatibleBaseService):
         elif isinstance(error, RateLimitError):
             logger.warning(f"OpenAI rate limit exceeded during {operation}")
         elif isinstance(error, APIConnectionError):
-            logger.error(f"OpenAI connection error during {operation}: {str(error)}")
+            logger.error(f"OpenAI connection error during {operation}: {error!s}")
         elif isinstance(error, APIError):
-            logger.error(f"OpenAI API error during {operation}: {str(error)}")
+            logger.error(f"OpenAI API error during {operation}: {error!s}")
         else:
-            logger.error(f"Unexpected error during {operation}: {str(error)}")
+            logger.error(f"Unexpected error during {operation}: {error!s}")
 
         raise_sanitized(error, provider=self.provider_name, operation=operation)

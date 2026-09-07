@@ -106,7 +106,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
             logger.error("llama-cpp-python package not installed (required for direct mode)")
             return False
         except Exception as e:
-            logger.error(f"Failed to initialize Llama.cpp: {str(e)}")
+            logger.error(f"Failed to initialize Llama.cpp: {e!s}")
             return False
 
     def _build_messages(self, prompt: str, messages: list = None) -> list:
@@ -298,7 +298,7 @@ class LlamaCppInferenceService(InferenceService, LlamaCppBaseService):
                 return self._clean_response_text(response_text)
 
         except Exception as e:
-            logger.error(f"Error generating response with Llama.cpp: {str(e)}")
+            logger.error(f"Error generating response with Llama.cpp: {e!s}")
             raise
 
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:

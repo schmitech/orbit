@@ -77,11 +77,11 @@ class MySQLDatasource(BaseDatasource):
             self._initialized = True
 
         except Error as e:
-            logger.error(f"Failed to connect to MySQL database: {str(e)}")
+            logger.error(f"Failed to connect to MySQL database: {e!s}")
             logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error connecting to MySQL: {str(e)}")
+            logger.error(f"Unexpected error connecting to MySQL: {e!s}")
             raise
 
     def get_connection(self):

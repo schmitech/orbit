@@ -72,7 +72,7 @@ class PineconeRetriever(AbstractVectorRetriever):
             logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
-            error_msg = f"Failed to initialize Pinecone client: {str(e)}"
+            error_msg = f"Failed to initialize Pinecone client: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
@@ -114,7 +114,7 @@ class PineconeRetriever(AbstractVectorRetriever):
             # Re-raise HTTPExceptions as-is
             raise
         except Exception as e:
-            error_msg = f"Failed to switch index: {str(e)}"
+            error_msg = f"Failed to switch index: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
 
@@ -272,7 +272,7 @@ class PineconeRetriever(AbstractVectorRetriever):
             return context_items
                 
         except Exception as e:
-            logger.error(f"Error retrieving context: {str(e)}")
+            logger.error(f"Error retrieving context: {e!s}")
             return []
 
 # Register the retriever with the factory

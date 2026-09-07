@@ -145,7 +145,7 @@ class CohereBaseService(ProviderAIService):
                 return True
             return False
         except Exception as e:
-            logger.error(f"Failed to initialize Cohere service: {str(e)}")
+            logger.error(f"Failed to initialize Cohere service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -165,7 +165,7 @@ class CohereBaseService(ProviderAIService):
             return True
 
         except Exception as e:
-            logger.error(f"Cohere connection verification failed: {str(e)}")
+            logger.error(f"Cohere connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -246,8 +246,8 @@ class CohereBaseService(ProviderAIService):
         elif "rate limit" in error_str.lower():
             logger.warning(f"Cohere rate limit exceeded during {operation}")
         elif "connection" in error_str.lower():
-            logger.error(f"Cohere connection error during {operation}: {str(error)}")
+            logger.error(f"Cohere connection error during {operation}: {error!s}")
         else:
-            logger.error(f"Cohere error during {operation}: {str(error)}")
+            logger.error(f"Cohere error during {operation}: {error!s}")
 
         raise_sanitized(error, provider=self.provider_name, operation=operation)

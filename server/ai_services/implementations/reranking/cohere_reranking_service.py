@@ -90,7 +90,7 @@ class CohereRerankingService(RerankingService, CohereBaseService):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize Cohere reranking service: {str(e)}")
+            logger.error(f"Failed to initialize Cohere reranking service: {e!s}")
             return False
 
     async def rerank(
@@ -180,7 +180,7 @@ class CohereRerankingService(RerankingService, CohereBaseService):
                 return results
 
         except Exception as e:
-            logger.error(f"Error in Cohere reranking: {str(e)}")
+            logger.error(f"Error in Cohere reranking: {e!s}")
             raise
 
     async def verify_connection(self) -> bool:
@@ -206,7 +206,7 @@ class CohereRerankingService(RerankingService, CohereBaseService):
                 return False
 
         except Exception as e:
-            logger.error(f"Failed to verify Cohere reranking connection: {str(e)}")
+            logger.error(f"Failed to verify Cohere reranking connection: {e!s}")
             return False
 
     async def close(self) -> None:

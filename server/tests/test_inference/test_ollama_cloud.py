@@ -139,7 +139,7 @@ async def test_ollama_cloud_connection(ollama_client: AsyncClient, base_url: str
             assert isinstance(models.models, list), "Models should be a list"
     except Exception as e:
         # If list fails, try a minimal chat request
-        pytest.skip(f"Could not verify Ollama Cloud connection: {str(e)}")
+        pytest.skip(f"Could not verify Ollama Cloud connection: {e!s}")
 
 @pytest.mark.asyncio
 async def test_ollama_cloud_response(ollama_client: AsyncClient, ollama_cloud_config: dict[str, Any], test_query: str):
@@ -174,7 +174,7 @@ async def test_ollama_cloud_response(ollama_client: AsyncClient, ollama_cloud_co
         assert len(response["message"]["content"]) > 0, "Response should not be empty"
 
     except Exception as e:
-        pytest.fail(f"Failed to generate response from Ollama Cloud: {str(e)}")
+        pytest.fail(f"Failed to generate response from Ollama Cloud: {e!s}")
 
 @pytest.mark.asyncio
 async def test_ollama_cloud_streaming_response(ollama_client: AsyncClient, ollama_cloud_config: dict[str, Any], test_query: str):
@@ -226,8 +226,8 @@ async def test_ollama_cloud_streaming_response(ollama_client: AsyncClient, ollam
         # Skip on connection/service errors rather than fail
         error_msg = str(e).lower()
         if any(x in error_msg for x in ["timeout", "connection", "unavailable", "rate", "503", "502", "504"]):
-            pytest.skip(f"Ollama Cloud service unavailable: {str(e)}")
-        pytest.fail(f"Failed to generate streaming response from Ollama Cloud: {str(e)}")
+            pytest.skip(f"Ollama Cloud service unavailable: {e!s}")
+        pytest.fail(f"Failed to generate streaming response from Ollama Cloud: {e!s}")
 
 @pytest.mark.asyncio
 async def test_ollama_cloud_error_handling(ollama_client: AsyncClient):
@@ -298,4 +298,4 @@ async def test_ollama_cloud_parameters(ollama_client: AsyncClient, ollama_cloud_
         assert len(content) > 0, "Response should not be empty"
 
     except Exception as e:
-        pytest.fail(f"Failed to generate response with custom parameters: {str(e)}")
+        pytest.fail(f"Failed to generate response with custom parameters: {e!s}")

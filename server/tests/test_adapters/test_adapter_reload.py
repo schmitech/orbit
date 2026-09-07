@@ -155,7 +155,7 @@ class AdapterReloadTester:
                 else:
                     return True
         except Exception as e:
-            logger.error(f"Error checking auth status: {str(e)}")
+            logger.error(f"Error checking auth status: {e!s}")
             return True
 
     async def authenticate(self) -> bool:
@@ -182,7 +182,7 @@ class AdapterReloadTester:
                 logger.error(f"✗ Authentication failed: {response.status}")
                 return False
         except Exception as e:
-            logger.error(f"✗ Authentication error: {str(e)}")
+            logger.error(f"✗ Authentication error: {e!s}")
             return False
 
     async def reload_adapter(self, adapter_name: Optional[str] = None) -> dict[str, Any]:
@@ -203,7 +203,7 @@ class AdapterReloadTester:
                     error = await response.text()
                     raise Exception(f"Reload failed: {response.status} - {error}")
         except Exception as e:
-            logger.error(f"Reload error: {str(e)}")
+            logger.error(f"Reload error: {e!s}")
             raise
 
     def get_recent_logs(self, lines: int = 50, since_time: Optional[float] = None) -> list[str]:
@@ -286,7 +286,7 @@ class AdapterReloadTester:
                     return False
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     # ============================================================================
@@ -355,7 +355,7 @@ class AdapterReloadTester:
                     return False
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     # ============================================================================
@@ -438,7 +438,7 @@ class AdapterReloadTester:
                     return False
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     # ============================================================================
@@ -494,7 +494,7 @@ class AdapterReloadTester:
                         return True  # Don't fail - embedding might not be used
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     # ============================================================================
@@ -544,7 +544,7 @@ class AdapterReloadTester:
                     return False
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     # ============================================================================
@@ -602,7 +602,7 @@ class AdapterReloadTester:
                     return summary.get('total', 0) > 0
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     # ============================================================================
@@ -627,7 +627,7 @@ class AdapterReloadTester:
             return True
 
         except Exception as e:
-            logger.error(f"✗ Test failed: {str(e)}")
+            logger.error(f"✗ Test failed: {e!s}")
             return False
 
     # ============================================================================
@@ -646,14 +646,14 @@ class AdapterReloadTester:
                 return False
             except Exception as e:
                 if "404" in str(e) or "not found" in str(e).lower():
-                    logger.info(f"✓ Correctly rejected non-existent adapter: {str(e)}")
+                    logger.info(f"✓ Correctly rejected non-existent adapter: {e!s}")
                     return True
                 else:
-                    logger.error(f"✗ Unexpected error: {str(e)}")
+                    logger.error(f"✗ Unexpected error: {e!s}")
                     return False
 
         except Exception as e:
-            logger.error(f"✗ Test failed: {str(e)}")
+            logger.error(f"✗ Test failed: {e!s}")
             return False
 
     # ============================================================================
@@ -702,7 +702,7 @@ class AdapterReloadTester:
                     return True  # Don't fail - preload might have succeeded silently
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_model_change_takes_effect(self) -> bool:
@@ -747,7 +747,7 @@ class AdapterReloadTester:
                     return True  # Don't fail - preload might have succeeded silently
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_provider_model_combination_change(self) -> bool:
@@ -795,7 +795,7 @@ class AdapterReloadTester:
                     return True  # Don't fail - changes might have been detected separately
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_disable_enable_with_datasource(self) -> bool:
@@ -864,7 +864,7 @@ class AdapterReloadTester:
                     return True  # Don't fail - might still work
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_disable_enable_with_provider_override(self) -> bool:
@@ -912,7 +912,7 @@ class AdapterReloadTester:
                     return True
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_disable_enable_with_embedding_override(self) -> bool:
@@ -967,7 +967,7 @@ class AdapterReloadTester:
                     return True
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_vision_provider_change_detection(self) -> bool:
@@ -1008,7 +1008,7 @@ class AdapterReloadTester:
                     return True  # Don't fail if adapter doesn't exist
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_multiple_rapid_disable_enable_cycles(self) -> bool:
@@ -1051,7 +1051,7 @@ class AdapterReloadTester:
                 return True
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_disable_enable_with_reranker_override(self) -> bool:
@@ -1106,7 +1106,7 @@ class AdapterReloadTester:
                     return True
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_reload_after_provider_change(self) -> bool:
@@ -1146,7 +1146,7 @@ class AdapterReloadTester:
                     return True  # Don't fail - might still work
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_reload_after_model_change(self) -> bool:
@@ -1186,7 +1186,7 @@ class AdapterReloadTester:
                     return True  # Don't fail - might still work
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_reload_with_shared_provider(self) -> bool:
@@ -1241,7 +1241,7 @@ class AdapterReloadTester:
                         return True  # Don't fail - might still work
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     # ============================================================================
@@ -1296,7 +1296,7 @@ class AdapterReloadTester:
                         return True  # Don't fail - preload may succeed silently
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_inference_provider_preload_with_model(self) -> bool:
@@ -1348,7 +1348,7 @@ class AdapterReloadTester:
                         return True  # Don't fail
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
     async def test_provider_cache_populated_after_reload(self) -> bool:
@@ -1395,7 +1395,7 @@ class AdapterReloadTester:
                         return True  # Don't fail
 
             except Exception as e:
-                logger.error(f"✗ Test failed: {str(e)}")
+                logger.error(f"✗ Test failed: {e!s}")
                 return False
 
 
@@ -1648,7 +1648,7 @@ async def main():
                     logger.error(f"❌ {test_name} FAILED")
 
             except Exception as e:
-                logger.error(f"💥 {test_name} CRASHED: {str(e)}")
+                logger.error(f"💥 {test_name} CRASHED: {e!s}")
                 import traceback
                 traceback.print_exc()
                 failed += 1

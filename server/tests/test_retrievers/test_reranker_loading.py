@@ -108,11 +108,11 @@ def test_reranker_service_creation(config):
         except ValueError as e:
             # Skip if API key is missing (expected in test environment)
             if "API key" in str(e) or "api_key" in str(e):
-                pytest.skip(f"Skipping service creation test - API key not configured: {str(e)}")
+                pytest.skip(f"Skipping service creation test - API key not configured: {e!s}")
             else:
-                pytest.fail(f"Failed to create service for {provider}: {str(e)}")
+                pytest.fail(f"Failed to create service for {provider}: {e!s}")
         except Exception as e:
-            pytest.fail(f"Unexpected error creating service for {provider}: {str(e)}")
+            pytest.fail(f"Unexpected error creating service for {provider}: {e!s}")
 
 
 def test_factory_module_identity():
@@ -192,7 +192,7 @@ def test_reranker_service_manager_cache():
         except ValueError as e:
             # Skip if API key is missing (expected in test environment)
             if "API key" in str(e) or "api_key" in str(e):
-                pytest.skip(f"Skipping cache test - API key not configured: {str(e)}")
+                pytest.skip(f"Skipping cache test - API key not configured: {e!s}")
             else:
                 raise
 

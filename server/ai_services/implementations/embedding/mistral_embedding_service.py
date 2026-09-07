@@ -122,7 +122,7 @@ class MistralEmbeddingService(UsageReportingMixin, EmbeddingService, MistralBase
                     )
 
             except Exception as e:
-                logger.error(f"Error in batch embedding (batch starting at {i}): {str(e)}")
+                logger.error(f"Error in batch embedding (batch starting at {i}): {e!s}")
                 self._handle_mistral_error(e, "batch embedding")
                 raise
 

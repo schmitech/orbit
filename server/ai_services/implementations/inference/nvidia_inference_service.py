@@ -51,7 +51,7 @@ class NVIDIAInferenceService(InferenceService, NVIDIABaseService):
                     yield chunk.choices[0].delta.content
         except Exception as e:
             self._handle_nvidia_error(e, "streaming")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"
 
     def _resolve_reasoning_effort(self, kwargs: dict[str, Any]) -> Any:
         """

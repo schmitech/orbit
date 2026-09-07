@@ -210,4 +210,4 @@ class AWSBedrockInferenceService(InferenceService, AWSBaseService):
 
         except Exception as e:
             self._handle_aws_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"

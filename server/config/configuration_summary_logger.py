@@ -446,8 +446,8 @@ class ConfigurationSummaryLogger:
 
             return report
         except Exception as e:
-            self.logger.error(f"Error generating configuration report: {str(e)}")
+            self.logger.error(f"Error generating configuration report: {e!s}")
             return {
-                'error': f"Failed to generate configuration report: {str(e)}",
+                'error': f"Failed to generate configuration report: {e!s}",
                 'server_mode': {'rag_enabled': True}
             }

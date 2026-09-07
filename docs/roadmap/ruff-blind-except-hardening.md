@@ -52,6 +52,32 @@ re-run the command below before starting work.
 venv/bin/ruff check server bin --select BLE001 --statistics
 ```
 
+## Progress log
+
+Work is landing incrementally on `chore/ruff-ble001-hardening`, one file (or a
+few related files) per commit, per the chunking plan below. Deliberately
+paced across sessions rather than in one pass.
+
+- 2026-09-07: `server/services/cache_backends/redis_provider.py` (22 → 0).
+  Narrowed 2 catches to their real exception surface (JSON decode,
+  connection-pool attribute introspection); justified the rest with
+  `# noqa: BLE001` — they guard the redis-py client boundary and feed a
+  circuit breaker, so must not crash on network/library errors outside
+  `RedisError`.
+- 2026-09-07: `server/services/chat_history_service.py` (27 → 0). Narrowed 1
+  catch (pure config-derived token-budget arithmetic) to
+  `(TypeError, ValueError, KeyError, AttributeError)`; justified the rest —
+  database-backend calls, background worker loops, a pluggable tokenizer with
+  no fixed exception surface, and per-item best-effort cleanup loops.
+- 2026-09-07: `server/services/auth_service.py` (21 → 0). All justified: every
+  site already catches specific DB/value exception types first, and the
+  trailing `except Exception` is a deliberate last-resort so auth flows fail
+  safe (return `False`/`None`) instead of crashing the caller.
+
+Running baseline after these three files: 1517 → 1447 (70 resolved). Next up
+in `server/services/`: `mongodb_service.py` (17), `service_factory.py` (15),
+`prompt_service.py` (15), `api_key_service.py` (15).
+
 ### Rule meaning
 
 `BLE001` flags `except Exception:` (and bare `except:`) clauses. Catching the

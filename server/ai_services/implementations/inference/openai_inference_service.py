@@ -259,7 +259,7 @@ class OpenAIInferenceService(UsageReportingMixin, InferenceService, OpenAIBaseSe
 
         except Exception as e:
             self._handle_openai_error(e, "streaming generation")
-            yield f"Error: {str(e)}"
+            yield f"Error: {e!s}"
 
     async def generate_with_tools(
         self,

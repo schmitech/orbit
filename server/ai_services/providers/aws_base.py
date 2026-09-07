@@ -122,7 +122,7 @@ class AWSBaseService(ProviderAIService):
                 return True
             return False
         except Exception as e:
-            logger.error(f"Failed to initialize AWS Bedrock service: {str(e)}")
+            logger.error(f"Failed to initialize AWS Bedrock service: {e!s}")
             return False
 
     async def verify_connection(self) -> bool:
@@ -148,7 +148,7 @@ class AWSBaseService(ProviderAIService):
             )
             return False
         except Exception as e:
-            logger.error(f"AWS Bedrock connection verification failed: {str(e)}")
+            logger.error(f"AWS Bedrock connection verification failed: {e!s}")
             return False
 
     async def close(self) -> None:
@@ -275,6 +275,6 @@ class AWSBaseService(ProviderAIService):
                     f"AWS Bedrock error [{error_code}] during {operation}: {error_message}"
                 )
         else:
-            logger.error(f"Unexpected error during {operation}: {str(error)}")
+            logger.error(f"Unexpected error during {operation}: {error!s}")
 
         raise_sanitized(error, provider=self.provider_name, operation=operation)
