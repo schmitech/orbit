@@ -436,22 +436,26 @@ Both systems can use the **ChunkManager** for vector store integration:
 **Location:** `server/utils/chunk_manager.py`
 
 ```python
-from utils.chunk_manager import ChunkManager
+from utils.chunk_manager import ChunkManager, IngestionStatus
 
 # Initialize
 chunk_manager = ChunkManager(
     vector_store=chroma_store,
     embedding_client=openai_embeddings,
     collection_name="my_chunks",
-    max_embedding_tokens=7500,  # Max tokens for embedding model (with safety buffer)
+    max_embedding_tokens=7500,  # Max tokens for embedding model (clamped to the model's known limit, if any)
     min_similarity_score=0.3,   # Minimum similarity for retrieval
     cache_ttl_hours=24           # Cache duration
 )
 
-# Store chunks
-await chunk_manager.store_chunks(chunks, source_url, metadata)
+# Store chunks -- returns a structured result, not a bare bool
+result = await chunk_manager.store_chunks(chunks, source_url, metadata)
+if result.status == IngestionStatus.FAILED:
+    ...  # nothing was stored; result.failure_reasons has why
+elif result.status == IngestionStatus.PARTIAL:
+    ...  # result.stored_count / result.expected_count; a later call retries only what's missing
 
-# Retrieve relevant chunks
+# Retrieve relevant chunks (filtered to the latest ingested generation for this URL)
 relevant = await chunk_manager.retrieve_chunks(
     query="What is web scraping?",
     source_url=url,
@@ -462,45 +466,29 @@ relevant = await chunk_manager.retrieve_chunks(
 **Features:**
 - Embedding-based storage and retrieval
 - Similarity search for relevance
-- Caching with TTL (default: 24 hours)
+- Caching with TTL (default: 24 hours), scoped per ingestion **generation** (see below)
 - Works with any vector store (Chroma, Qdrant, etc.)
-- **Automatic chunk splitting** - Splits chunks that exceed embedding model limits
-- **Safety margins** - Uses 95% of max_embedding_tokens to prevent token estimation errors
-- **Recursive splitting** - Intelligently splits by paragraphs → sentences → character limits
-- **Fallback embedding** - Retries with individual chunk embedding if batch fails
+- **Automatic chunk splitting** - Splits chunks that exceed the shared `EmbeddingBudget` before submission
+- **Bounded, policy-driven recovery** - Provider errors are classified from structured status/code data (never a message match) and recovered under one shared attempt/deadline budget, not an unbounded batch→individual retry loop
+- **Explicit completeness** - `store_chunks()` returns an `IngestionResult` (`complete`/`partial`/`failed`, with per-piece failure reasons); a partial result's missing pieces are retried on the next call instead of being silently treated as done
+- **Idempotent, generation-aware ids** - Piece ids are deterministic from `(URL, content, embedding model, embedding budget)`, so retries can't duplicate a stored piece, and retrieval never mixes pieces from a stale generation after content, the model, or the budget changes
 
-### Embedding Safety and Automatic Splitting
+### Embedding Safety and Bounded Recovery
 
-ChunkManager automatically handles chunks that exceed embedding model token limits:
+`ChunkManager` and `server/utils/embedding_recovery.py` handle chunks that exceed embedding model token limits or that a provider rejects:
 
-1. **Token Estimation**: Uses conservative estimate (1 token ≈ 3 chars) to account for special tokens
-2. **Safety Margin**: Applies 95% limit (e.g., 7500 tokens → 7125 tokens max) to prevent estimation errors
-3. **Recursive Splitting Strategy**:
-   - First: Split by paragraphs (`\n\n`)
-   - Then: Split by sentences (`.`)
-   - Finally: Split by character limit at word boundaries
-4. **Validation**: Double-checks each split piece before embedding
-5. **Fallback**: If batch embedding fails, retries with individual chunk embedding
-
-**Example:**
-```python
-# Chunk with 9500 tokens exceeds limit (7500 max)
-chunk = {
-    "content": "Very long content...",  # 9500 tokens
-    "token_count": 9500
-}
-
-# ChunkManager automatically splits it:
-# → Piece 1: 7000 tokens
-# → Piece 2: 2500 tokens
-# Both pieces are now embeddable
-```
+1. **One shared budget** (`server/utils/embedding_budget.py`): a single `EmbeddingBudget`, shared with `ContentChunker`, clamped to the model's known input limit when recognized. Counting prefers an exact tokenizer and is explicitly labeled `estimated` otherwise -- never silently treated as exact.
+2. **Splitting strategy** (`split_text_to_budget`): paragraphs → sentences → character-boundary fallback, always making progress and guaranteeing every piece fits the budget.
+3. **Structured error classification**: provider exceptions are classified from status codes/structured fields (auth, transient, batch-size-exceeded, per-input-context-exceeded, malformed/unknown) -- never a bare `"token"` substring match.
+4. **One shared attempt/deadline budget per `store_chunks()` call**, not per batch -- bounds total provider calls, concurrency, and split depth regardless of how many pieces a document produces.
+5. **Response validation**: cardinality, per-vector dimension consistency, and finite values are checked before a piece is treated as embedded.
 
 **Why This Matters:**
-- Prevents embedding API errors (e.g., "maximum context length exceeded")
-- Ensures all chunks are successfully embedded
-- Handles edge cases where ContentChunker creates chunks larger than embedding limits
+- Prevents embedding API errors (e.g., "maximum context length exceeded") from becoming unbounded retry storms
+- A batch/size/transient failure degrades to a `partial` `IngestionResult` with per-piece reasons, not a silent drop or an infinite retry
 - Works with any embedding model (OpenAI, Cohere, Jina, etc.)
+
+See [`docs/roadmap/complete/chunking-safeguards.md`](../roadmap/complete/chunking-safeguards.md) for the full design (Phases 1-6) and [`docs/chunking/chunking_safeguards.md`](chunking_safeguards.md) for the current architecture writeup, including retry ownership, partial-cache semantics, and known limitations.
 
 ## Architecture Diagram
 
@@ -636,8 +624,8 @@ chunker = ContentChunker(max_chunk_tokens=4000)
 if chunker.should_chunk(markdown):
     chunks = chunker.chunk_markdown(markdown, metadata)
 
-    # Store with embeddings
-    await chunk_manager.store_chunks(chunks, url, metadata)
+    # Store with embeddings -- check the structured result explicitly
+    result = await chunk_manager.store_chunks(chunks, url, metadata)
 
     # Retrieve relevant sections
     relevant = await chunk_manager.retrieve_chunks(
@@ -645,6 +633,8 @@ if chunker.should_chunk(markdown):
         top_k=3
     )
 ```
+
+`IntentFirecrawlRetriever` (the actual Firecrawl adapter) wraps this with bounded output formatting: ranked-chunk output and the raw-content fallback are both bounded to a configured token budget, and a `partial`/`failed` `IngestionResult` is disclosed in the formatted response rather than silently treated as full coverage. See the linked docs above for details.
 
 ## Performance Metrics
 
@@ -664,11 +654,7 @@ if chunker.should_chunk(markdown):
 - **Test Coverage**: 76 tests, 100% passing
 
 ### Web Content Chunking
-- **Speed**: ~100ms per 50KB markdown
-- **Memory**: Low (streaming)
-- **Cache Hit Rate**: 60-80% (after first scrape)
-- **Context Reduction**: 75-90% (only relevant sections)
-- **Cost Savings**: 80% (fewer tokens to LLM)
+No benchmark numbers are published here -- the previous figures in this section were unmeasured and have been removed rather than replaced with new unverified ones. `docs/roadmap/complete/chunking-safeguards.md` explicitly scoped formal benchmarking out (see its Phase 6 completion note); if you need real numbers, measure against your own provider/config and treat any figure without a recorded environment and methodology as a guess.
 
 ## Configuration
 

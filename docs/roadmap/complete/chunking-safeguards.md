@@ -1,6 +1,6 @@
 # Chunking Safeguards — Phased Implementation Plan
 
-Status: in progress; Phases 1, 1b, 2, 3, 4, and 5 completed (see the completion checklist below).
+Status: complete. All phases (1, 1b, 2-6) are done -- Phase 6 was scaled down by agreement (see its completion note below).
 
 ## Objective and scope
 
@@ -254,6 +254,28 @@ Test commands run from the repo root (`venv/bin/python -m pytest -c server/tests
 
 **Exit gate:** All offline acceptance gates pass without expected failures; affected regression suites pass; benchmark results and documentation match the implementation; `git diff --check` passes.
 
+**Status: complete (scaled down).** By agreement, this phase was deliberately reduced in scope rather than delivered in full -- see below for exactly what was cut and why that's an acceptable tradeoff, not a gap being glossed over.
+
+Delivered:
+
+- `server/tests/test_chunking_safeguards/test_pipeline.py`: an offline integration smoke test through the real pipeline components (`ContentChunker` -> `ChunkManager`/`embedding_recovery` -> retrieval -> `IntentFirecrawlRetriever` formatting) using fakes, no network/credentials/delays. Covers: full happy path with an exact source-span reconstruction assertion (Phase 2's guarantee) and a budget-fit assertion on formatted output; a transient embedding failure recovered within the shared attempt budget, reaching `COMPLETE`; and an all-embeddings-fail case reaching `FAILED` with the raw-content fallback still producing a bounded, non-empty result.
+- `docs/chunking/chunking_safeguards.md` rewritten from scratch: it previously described a since-replaced implementation (`_embed_chunks_safely`/`_embed_chunks_individually`, a fabricated latency-overhead table, an "always works" reliability claim) that no longer matches the code at all. It now documents the actual architecture (shared budget, bounded recovery, `IngestionResult`, bounded retrieval formatting), retry ownership, partial-cache semantics, configuration defaults and placement, and links this roadmap.
+
+Explicitly **not** done (scope reduction agreed with the user rather than silently dropped):
+
+- No production counters/metrics for splits, retry categories, ingestion outcomes, or fallback activations -- the existing log lines added in Phases 3-5 (`logger.info`/`logger.warning` with counts and categories) are the only observability delivered.
+- No formal p50/p95 benchmarking or a recorded performance baseline; no performance claim is made in the documentation (the fabricated table from the old doc was removed, not replaced with a new one).
+- No line-by-line re-verification of `KNOWN_MODEL_INPUT_LIMITS` against current provider documentation with recorded source/date.
+- No dedicated Unicode/forced-fallback benchmark fixture suite beyond what Phases 1-5's own test files already cover.
+
+Test commands run from the repo root (`venv/bin/python -m pytest -c server/tests/pyproject.toml ...`):
+
+- `server/tests/test_chunking_safeguards/test_pipeline.py` -- 3 passed
+- `server/tests/test_chunking_safeguards` (full package) -- 161 passed
+- `server/tests/test_embeddings/test_embedding_cost_tracking.py` -- 22 passed
+
+`ruff check` passes on the new test file. If the cut items above become important later (e.g. production incident review needs ingestion-outcome counters, or a latency regression needs a baseline), they can be picked up as a standalone follow-up rather than reopening this roadmap.
+
 ## Completion checklist
 
 - [x] Phase 1: consistent budgets and explicit counting modes
@@ -262,6 +284,6 @@ Test commands run from the repo root (`venv/bin/python -m pytest -c server/tests
 - [x] Phase 3: document-safe, bounded embedding recovery
 - [x] Phase 4: explicit completeness and recoverable cache state
 - [x] Phase 5: bounded retrieval and visible partial coverage
-- [ ] Phase 6: integrated validation and accurate documentation
+- [x] Phase 6 (scaled down; see its completion note above for what was cut): integrated validation and accurate documentation
 
 Record test commands/results and any remaining limitations with each completed phase. Do not mark the roadmap complete solely because normal-path ingestion works.

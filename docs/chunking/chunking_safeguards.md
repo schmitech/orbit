@@ -1,370 +1,115 @@
 # Chunking Safeguards and Error Handling
 
-This document explains the safeguards implemented to prevent chunking errors, particularly when dealing with embedding model token limits.
+This document explains the safeguards that protect the Firecrawl web-content chunking, embedding, storage, and retrieval pipeline. It reflects the implementation delivered by [`docs/roadmap/complete/chunking-safeguards.md`](../roadmap/complete/chunking-safeguards.md) (Phases 1-6); see that roadmap for the full design rationale, test coverage, and known limitations of each phase.
 
-## The Problem
+## The problem
 
-When scraping large web content (like Wikipedia articles), chunks can sometimes exceed the embedding model's maximum context length, causing errors like:
+Scraped web content varies wildly in size and structure. Left unchecked, this causes several distinct failure modes: chunks that exceed an embedding provider's input limit, inconsistent token-counting between chunk preparation and the actual embedding call, embedding fallback paths that silently used query-embedding semantics for documents, retries that either gave up too early or fanned out into runaway retry storms, and successful-looking ingestion that was actually missing pieces.
+
+## Architecture
 
 ```
-Error code: 400 - {'error': {'message': "This model's maximum context length is 8192 tokens,
-however you requested 17710 tokens..."}}
+ContentChunker            ChunkManager                 IntentFirecrawlRetriever
+(content_chunker.py)      (chunk_manager.py +          (intent_firecrawl_retriever.py)
+                           embedding_recovery.py)
+     |                          |                              |
+     | chunk_markdown()         | store_chunks()                | retrieve_chunks() -> format
+     v                          v                              v
+ EmbeddingBudget-bounded    embed_documents_with_recovery   Bounded, budget-checked
+ chunks, source spans       + IngestionResult (complete/    formatting; discloses
+ preserved                  partial/failed)                 partial/failed coverage
 ```
 
-## The Solution: Multi-Layer Protection
+### One shared token budget (`server/utils/embedding_budget.py`)
 
-We've implemented **four layers of protection** to prevent and recover from token limit errors:
+`EmbeddingBudget`, produced by `resolve_embedding_budget()`, is the single source of truth for what fits in one embedding call. Both `ContentChunker` (preparation) and `ChunkManager` (submission) are given the *same* `EmbeddingBudget` instance so neither applies a different cutoff. It:
 
-### Layer 1: Content Chunking (ContentChunker)
+- Clamps a configured `max_embedding_tokens` to the known provider/model input limit, when that limit is in `KNOWN_MODEL_INPUT_LIMITS`.
+- Prefers an exact tokenizer (`tiktoken`) when available for the resolved model; otherwise counts are explicitly labeled `estimated` (`TokenCount.estimated`), never silently treated as exact.
+- Exposes `split_text_to_budget()`, a paragraph -> sentence -> character-boundary splitter that always makes progress and guarantees every emitted piece fits the budget.
 
-**Location:** `server/utils/content_chunker.py`
+Configuration (adapter YAML, `adapter_config` for the Firecrawl adapter):
 
-**Purpose:** Prevents chunks from being created larger than desired limits
-
-- Chunks by markdown headers (H1-H6)
-- Default max: 4000 tokens per chunk
-- Adds 200 token overlap for context
-- Only chunks content > 4000 tokens
-
-**Configuration:**
 ```yaml
-max_chunk_tokens: 4000        # Target chunk size
+max_chunk_tokens: 4000        # Target chunk size (ContentChunker)
 chunk_overlap_tokens: 200     # Overlap for continuity
-min_chunk_tokens: 500         # Minimum viable chunk
+min_chunk_tokens: 500         # Soft minimum -- never used to drop short content
+max_embedding_tokens: 7500    # Hard budget for one embedding submission
 ```
 
-### Layer 2: Embedding Validation (ChunkManager)
+### Content preservation (`ContentChunker.chunk_markdown`)
 
-**Location:** `server/utils/chunk_manager.py`
+Chunks carry `source_span` (and `overlap_span`) offsets into the original content. Concatenating chunks' source spans in order reconstructs the original document exactly -- this is asserted directly in `test_content_preservation.py` and again end-to-end in `test_pipeline.py`. Overlap is computed from original spans (not from already-overlapped chunk text) so it cannot accumulate across chunks.
 
-**Purpose:** Validates chunks before embedding and splits oversized chunks
+### Bounded embedding recovery (`server/utils/embedding_recovery.py`)
 
-**Method:** `_prepare_chunks_for_embedding()` with recursive `_recursive_split_chunk()`
+`embed_documents_with_recovery()` wraps every document-embedding call (including a singleton fallback for one oversized input -- it never calls `embed_query()` for a document). Provider errors are classified from structured status/code data, never a bare `"token"` substring match:
 
-**How it works:**
-1. **Estimates tokens** for each chunk (1 token ≈ 3 chars - conservative estimate)
-2. **Validates against embedding model limit** (default: 7500 tokens)
-3. **Applies 95% safety margin** to prevent token estimation errors (e.g., 7500 → 7125 tokens max)
-4. **Recursively splits large chunks** using multi-level strategy:
-   - **First:** Split by paragraphs (`\n\n`)
-   - **Then:** Split by sentences (`.`)
-   - **Finally:** Split by character limit at word boundaries
-5. **Validates each split piece** before embedding
-6. **Logs warnings** when chunks need splitting
+| Failure | Recovery policy |
+|---|---|
+| Authentication/authorization or invalid model configuration | Stop; do not fan out into individual calls |
+| Rate limit, timeout, transient service failure | Bounded backoff with jitter; honor retry hints within the deadline |
+| Batch item/aggregate size exceeded | Reduce the batch while retaining completed results |
+| Per-input context exceeded | Split the offending input further and retry as documents; retain provenance |
+| Unknown error or malformed embedding response | Explicit failure; no unbounded speculative retries |
 
-**Recursive Splitting Strategy:**
-```python
-# Example: Chunk with 9500 tokens exceeds limit (7500 max)
-# Step 1: Try paragraphs → Split into 2 pieces
-# Step 2: Piece 1 (7000 tokens) ✅ OK
-# Step 3: Piece 2 (2500 tokens) ✅ OK
-# Both pieces now embeddable!
-```
+One `RecoveryConfig` (`max_attempts`, `deadline_seconds`, `max_concurrency`, `max_split_depth`, `max_pieces_per_input`) bounds the *entire* call, not each batch independently -- the attempt budget is shared, so a batch of many small inputs cannot multiply out into an unbounded number of provider calls. Cancellation and the deadline are honored even against a provider call that doesn't cooperate with cancellation (the wrapper detaches rather than blocking on it).
 
-**Example output:**
-```
-2025-10-30 19:46:42 - chunk_manager - WARNING - Chunk too large for embedding (17710 tokens).
-Splitting into smaller pieces (max: 7500 tokens)
-2025-10-30 19:46:42 - chunk_manager - INFO - Split large chunk into 3 pieces
-2025-10-30 19:46:42 - chunk_manager - INFO - Prepared 15 chunks for embedding (from 12 original chunks)
-```
+### Explicit ingestion completeness (`ChunkManager.store_chunks`)
 
-**Configuration:**
-```yaml
-max_embedding_tokens: 7500    # Must match your embedding provider (with buffer)
-```
+`store_chunks()` returns a structured `IngestionResult` -- `IngestionStatus.COMPLETE` / `PARTIAL` / `FAILED`, expected/stored/failed piece counts, and per-piece failure reasons -- instead of a boolean. Callers must check `.status` explicitly; there is no meaningful truthiness shortcut.
 
-**Provider-Specific Limits:**
-| Provider | Model | Max Tokens | Recommended Setting |
-|----------|-------|------------|---------------------|
-| OpenAI | text-embedding-3-* | 8191 | **7500** (safety buffer) |
-| OpenAI | text-embedding-ada-002 | 8191 | **7500** (safety buffer) |
-| Cohere | embed-english-v3.0 | 512 | **450** (CRITICAL!) |
-| Jina | jina-embeddings-v3 | 8192 | **7500** (safety buffer) |
+Ingestion identity is `(source URL, prepared-content hash, embedding model, embedding budget)`, hashed into a `generation_id`. Piece ids are deterministic from that identity, so:
 
-### Layer 3: Safe Batch Embedding
+- A retry after a `PARTIAL` result re-embeds and re-stores only the pieces still missing, not the whole document.
+- Retrieval filters by the latest known `generation_id` for a URL, so changed content, a changed embedding model, or a changed budget can never mix stale pieces from an earlier generation into a query's results.
 
-**Location:** `server/utils/chunk_manager.py`
+This state (`_ingestion_state`, `_pending_pieces`, `_generation_by_url`) lives only in the `ChunkManager` process instance -- see **Limitations** below.
 
-**Purpose:** Handles batch embedding errors gracefully
+### Bounded, visible retrieval degradation (`IntentFirecrawlRetriever`)
 
-**Method:** `_embed_chunks_safely()`
+The retriever consumes `IngestionResult` explicitly:
 
-**How it works:**
-1. **Attempts batch embedding** with all chunks
-2. **Detects token limit errors** in exception message
-3. **Logs specific error** with helpful message
-4. **Raises exception** to trigger fallback
+- `FAILED` -> skips chunk retrieval and returns a bounded raw-content excerpt.
+- `PARTIAL` -> still retrieves ranked chunks, but discloses incomplete coverage in the formatted text and in response metadata (`ingestion_status`).
+- `COMPLETE` -> normal ranked-chunk formatting.
 
-**Example output:**
-```
-2025-10-30 19:46:42 - chunk_manager - ERROR - Failed to generate embeddings: Error code: 400...
-2025-10-30 19:46:42 - chunk_manager - INFO - Retrying with individual chunk embedding...
-```
-
-### Layer 4: Individual Chunk Fallback
-
-**Location:** `server/utils/chunk_manager.py`
-
-**Purpose:** Last-resort fallback to embed chunks one-by-one
-
-**Method:** `_embed_chunks_individually()`
-
-**How it works:**
-1. **Embeds each chunk separately** instead of batches
-2. **Applies 95% safety margin** (e.g., 7500 → 7125 tokens max) for validation
-3. **Validates each chunk** before embedding using conservative token estimate
-4. **Skips oversized chunks** with warning (includes safety margin in log)
-5. **Returns successful indices** to align embeddings with validated chunks
-6. **Filters chunks** to match successfully embedded ones
-7. **Reports failures** but continues with successful chunks
-
-**Example output:**
-```
-2025-10-30 19:46:42 - chunk_manager - INFO - Retrying with individual chunk embedding...
-2025-10-30 19:46:42 - chunk_manager - WARNING - Skipping chunk 12: too large (9500 tokens, max: 7125)
-2025-10-30 19:46:42 - chunk_manager - WARNING - Failed to embed 1 chunks: [12]
-2025-10-30 19:46:42 - chunk_manager - INFO - Successfully embedded 14/15 chunks
-```
-
-## Error Recovery Flow
-
-```
-┌─────────────────────────────────────────────┐
-│ 1. ContentChunker creates chunks            │
-│    Target: 4000 tokens per chunk            │
-└────────────────┬────────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────────┐
-│ 2. ChunkManager validates chunks            │
-│    Splits any > max_embedding_tokens        │
-└────────────────┬────────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────────┐
-│ 3. Attempt batch embedding                  │
-│    _embed_chunks_safely()                   │
-└────────────────┬────────────────────────────┘
-                 │
-          ┌──────┴──────┐
-          │             │
-      SUCCESS         ERROR
-          │             │
-          │             ▼
-          │    ┌─────────────────────────────┐
-          │    │ 4. Fallback: Individual     │
-          │    │    _embed_chunks_individually│
-          │    └──────────┬──────────────────┘
-          │               │
-          │        ┌──────┴──────┐
-          │        │             │
-          │    SUCCESS       PARTIAL
-          │        │             │
-          │        │      (Skip bad chunks)
-          │        │             │
-          └────────┴─────────────┘
-                   │
-                   ▼
-          ┌──────────────────┐
-          │ 5. Store in      │
-          │    Vector Store  │
-          └──────────────────┘
-```
-
-## Monitoring and Logging
-
-The system provides comprehensive logging at each layer:
-
-### Chunk Statistics
-```
-INFO - Embedding 15 chunks: avg=3200 tokens, max=4500 tokens
-```
-
-### Splitting Warnings
-```
-WARNING - Chunk too large for embedding (17710 tokens). Splitting into smaller pieces (max: 7500 tokens)
-INFO - Split large chunk into 3 pieces
-WARNING - Split piece still too large (8500 tokens). Applying character-based splitting.
-INFO - Prepared 18 chunks for embedding (from 15 original chunks)
-```
-
-### Batch Errors
-```
-ERROR - Token limit error during batch embedding: Error code: 400...
-INFO - Retrying with individual chunk embedding...
-```
-
-### Individual Failures
-```
-WARNING - Skipping chunk 5: too large (9500 tokens, max: 7125)
-WARNING - Failed to embed 2 chunks: [5, 12]
-```
-
-### Success Confirmation
-```
-INFO - Successfully stored 16 chunks for https://en.wikipedia.org/wiki/Web_scraping
-INFO - Chunk manager initialized successfully with chroma store
-```
-
-## Configuration Best Practices
-
-### 1. Match Your Embedding Provider
-
-**Critical:** Set `max_embedding_tokens` to match your provider:
+Every formatting path -- ranked-chunk output, the raw-content fallback, and their empty/failed/no-match edge cases -- is bounded to a configured `max_retrieval_context_tokens` (default 6000). None of them send the whole page or an unbounded error message; a budget too small to show anything useful returns an explicit, itself-bounded "unavailable" message instead. Query embedding (`retrieve_chunks` -> `embed_query`) is unaffected by any of this.
 
 ```yaml
-# For OpenAI (most common)
-embedding_provider: "openai"
-max_embedding_tokens: 7500  # Safety buffer from 8191 limit
-
-# For Cohere (VERY IMPORTANT - low limit!)
-embedding_provider: "cohere"
-max_embedding_tokens: 450   # Safety buffer from 512 limit
-
-# For Jina
-embedding_provider: "jina"
-max_embedding_tokens: 7500  # Safety buffer from 8192 limit
+max_retrieval_context_tokens: 6000   # Bound on formatted retrieval output (both paths)
+top_chunks_to_return: 3
+min_chunk_similarity: 0.3
 ```
 
-### 2. Set Appropriate Chunk Sizes
+## Retry ownership
 
-**Recommendation:** Keep chunks smaller than embedding limit
+Retries are owned at exactly one layer for each concern, so they don't compound:
 
-```yaml
-# Good: Leaves room for splitting
-max_chunk_tokens: 4000
-max_embedding_tokens: 7500
+- **Provider-level retries** (transient errors, size-exceeded splits): owned by `embed_documents_with_recovery`, bounded by one shared `RecoveryConfig` per `store_chunks()` call.
+- **Cross-request retries** (an earlier `PARTIAL` ingestion): owned by `ChunkManager`'s pending-piece state, replayed the next time `store_chunks()` is called for the same URL -- there is no background retry scheduler.
+- **Nothing retries silently forever.** Every path terminates within its configured attempt/deadline budget and reports a terminal `FailureCategory` or `IngestionStatus`.
 
-# Acceptable: Close but safe
-max_chunk_tokens: 6000
-max_embedding_tokens: 7500
+## Partial-cache semantics
 
-# Bad: Chunk larger than embedding limit!
-max_chunk_tokens: 8000
-max_embedding_tokens: 7500
-```
+`has_cached_chunks()` is true only for a generation that reached `IngestionStatus.COMPLETE`. A `PARTIAL` generation is never treated as a complete cache hit -- the next request for that URL re-enters `store_chunks()` and resumes from the pending pieces. `invalidate_cache()` and `cleanup_expired_chunks()` clear ingestion state for *every* generation seen for a URL, not just the latest, so an old partial generation can't resurface after its content is deleted.
 
-### 3. Use Safety Buffers
+## Limitations
 
-Always leave a safety buffer:
+- **No durable retry state.** Ingestion and generation state is in-memory, scoped to one `ChunkManager` instance. A process restart treats every URL as uncached and rebuilds idempotently (safe, but not fast) rather than resuming a partial ingestion. Multiple worker processes do not share this state.
+- **Estimated token counting by default.** Exact counting requires a recognized model with a `tiktoken` encoding; otherwise counts are conservative character-ratio estimates, explicitly labeled as such.
+- **The retrieval-context budget is a configured cap, not the caller's actual remaining prompt budget** -- the pipeline does not currently thread the live remaining-context allowance through to this retriever. The final prompt assembler remains responsible for the complete prompt budget.
+- **Vector-store partial-write detection depends on the store signaling failure.** A store that silently drops part of a bulk write without returning `False` or raising would not be caught.
+- **Provider-specific structured error codes** (`_CONTEXT_CODES`/`_BATCH_CODES` in `embedding_recovery.py`) are seeded from OpenAI's error shape; a provider exposing different codes for context/batch-size errors classifies as `unknown` until its codes are added.
 
-- **OpenAI limit: 8191 → Use 7500** (with internal 95% margin → 7125 effective)
-- **Cohere limit: 512 → Use 450** (with internal 95% margin → 427 effective)
-- **Jina limit: 8192 → Use 7500** (with internal 95% margin → 7125 effective)
-
-**Note:** ChunkManager automatically applies an additional **95% safety margin** internally:
-- Your setting: `max_embedding_tokens: 7500`
-- Actual limit used: `7500 * 0.95 = 7125 tokens`
-- This prevents token estimation errors
-
-This accounts for:
-- **Token estimation error** (1 token ≈ 3 chars is still approximate)
-- Special characters and formatting
-- Metadata and system tokens
-- Batch overhead in some embedding APIs
-- **Double safety** with external buffer + internal 95% margin
-
-## Graceful Degradation
-
-The system is designed to **always work**, even with configuration errors:
-
-1. **Invalid config** → Disables chunking, returns full content
-2. **Chunks too large** → Automatically splits them
-3. **Batch embedding fails** → Falls back to individual
-4. **Some chunks fail** → Stores successful ones, skips failures
-5. **All chunks fail** → Logs error, returns full content
-
-**Result:** Users always get an answer, never a complete failure.
-
-## Testing
-
-To test the safeguards:
-
-### Test 1: Large Wikipedia Article
-```python
-# Query a large article
-query = "What is machine learning?"
-# Should trigger chunking and splitting
-```
-
-### Test 2: Force Token Limit Error
-```yaml
-# Temporarily set low limit
-max_embedding_tokens: 1000
-max_chunk_tokens: 4000
-# Should trigger splitting warnings
-```
-
-### Test 3: Monitor Logs
-```bash
-# Watch for safeguard activations
-tail -f logs/orbit.log | grep -E "chunk_manager|Chunk too large|Splitting"
-```
-
-## Metrics
-
-The safeguards add minimal overhead:
-
-| Operation | Without Safeguards | With Safeguards | Overhead |
-|-----------|-------------------|-----------------|----------|
-| Validation | 0ms | ~5ms | +5ms |
-| Splitting | N/A | ~20ms | +20ms |
-| Individual fallback | N/A | ~2s (per batch) | +2s |
-| Total (normal case) | 500ms | 525ms | **+5%** |
-| Total (split case) | FAILS | 545ms | Works! |
-
-**Conclusion:** Small overhead for guaranteed reliability.
+No formal p50/p95 latency benchmarking or production metrics/counters were added as part of this work; overhead has not been measured against a recorded baseline, and no claim is made about it here.
 
 ## Troubleshooting
 
-### Error: "Chunk too large" warnings persist
+**"Chunk too large" / repeated splitting in logs.** Reduce `max_chunk_tokens`, or verify `max_embedding_tokens` matches your provider's actual input limit (check `KNOWN_MODEL_INPUT_LIMITS` in `embedding_budget.py` for what's recognized).
 
-**Solution:** Reduce `max_chunk_tokens`:
-```yaml
-max_chunk_tokens: 2000  # Was 4000
-```
+**Ingestion stays `PARTIAL` across repeated requests.** Check logs for the specific `FailureCategory` (`embedding_recovery.py`) or `vector_store_write_failed` reasons in the `IngestionResult`. An `AUTH` failure will not resolve on retry without a configuration fix.
 
-### Error: "Failed to embed any chunks individually"
+**Chunks stored but retrieval returns nothing.** Confirm the query and the stored content share a `generation_id` (a content/model/budget change creates a new generation); force a rebuild with `await chunk_manager.invalidate_cache(source_url)` if needed.
 
-**Solution:** Your `max_embedding_tokens` is set too high:
-```yaml
-# Check your provider's actual limit!
-# OpenAI: Use 7500, not 8000+
-# Cohere users: Use 450, not 500+!
-max_embedding_tokens: 7500  # For OpenAI
-# OR
-max_embedding_tokens: 450   # For Cohere
-```
-
-### Error: Chunks stored but search returns nothing
-
-**Solution:** Check cache and collection:
-```python
-# Force refresh cache
-await chunk_manager.invalidate_cache(source_url)
-```
-
-### Error: Performance is slow
-
-**Solution:** Tune batch size in embedding service:
-```yaml
-# OpenAI: Default 10 (good)
-# Cohere: Can use 96 (fast!)
-# Adjust in ai_services config
-```
-
-## Summary
-
-The chunking system now has **comprehensive safeguards** at every level:
-
-✅ **Prevention** - ContentChunker limits initial chunk size
-✅ **Validation** - ChunkManager validates before embedding
-✅ **Recursive Splitting** - Multi-level strategy: paragraphs → sentences → character limits
-✅ **Safety Margins** - 95% internal margin + external buffer for double protection
-✅ **Recovery** - Batch → Individual fallback with index tracking
-✅ **Logging** - Detailed monitoring at each step
-✅ **Configuration** - Provider-specific limits
-✅ **Graceful degradation** - Always returns something useful
-
-**Result:** Robust, reliable chunking that handles edge cases gracefully!
+**Formatted output looks truncated.** That's the Phase 5 bound working as intended -- raise `max_retrieval_context_tokens` if more content should be shown, and check the response metadata / formatted footer for the explicit truncation disclosure.
