@@ -1,6 +1,6 @@
 # Chunking Safeguards — Phased Implementation Plan
 
-Status: in progress; Phases 1, 1b, 2, 3, and 4 completed (see the completion checklist below).
+Status: in progress; Phases 1, 1b, 2, 3, 4, and 5 completed (see the completion checklist below).
 
 ## Objective and scope
 
@@ -216,6 +216,24 @@ Limitations: partial-write detection and idempotent piece ids depend on `add_vec
 
 **Exit gate:** Retriever tests and earlier gates pass. Every fallback is bounded and incomplete coverage remains observable to callers.
 
+**Status: complete.** `IntentFirecrawlRetriever` now resolves a `retrieval_context_budget` (configurable via `max_retrieval_context_tokens`, default 6000) in `initialize()`, independent of whether chunking itself is enabled. The pipeline does not currently pass this retriever the caller's remaining prompt-context allowance, so this is the explicit configured cap the roadmap permits as a fallback; the final prompt assembler remains responsible for the complete prompt budget.
+
+- `_process_with_chunking` now consumes `ChunkManager.store_chunks`'s `IngestionResult` explicitly: `FAILED` skips chunk retrieval entirely and returns the bounded raw-content excerpt; `PARTIAL` proceeds to retrieval but discloses incomplete coverage in the formatted output; `COMPLETE` (including the cache-hit path, which is COMPLETE by construction) proceeds normally. The resulting `ingestion_status` is also surfaced in the context item's metadata, not just the formatted text.
+- `_format_chunked_results` assembles sections in relevance order against the resolved budget, truncating (never silently dropping mid-section) the first section that doesn't fully fit and disclosing both truncation and how many of the ranked sections were actually shown.
+- `_format_firecrawl_results` (the raw-content fallback used for small pages, no-similarity-match results, and indexing failures alike) now returns a deterministic, budget-bounded excerpt via `split_text_to_budget` instead of the full page unconditionally, with source attribution and truncation disclosed.
+- A budget too small to show anything useful (below `_MIN_USEFUL_CONTEXT_TOKENS`, both paths) returns an explicit bounded "unavailable" message instead of an unbounded error or a squeezed, useless fragment. Provider/implementation details (which vector store, which recovery path) stay in logs; user-facing text only says content is unavailable within budget.
+- Query embedding is unaffected -- `retrieve_chunks` (and therefore `embed_query`) is called with the original query text unchanged.
+
+Three review-driven fixes since the initial implementation, all about paths that bypassed the budget rather than being bounded by it: `_bounded_unavailable_message` now checks its own message against the budget (falling back to a shorter constant, then a hard character split, since a long source URL or a tiny configured budget could otherwise make the "unavailable" response itself exceed the budget it's reporting on); the "no content extracted" branch of `_format_firecrawl_results` (a successful scrape with empty markdown/HTML/text, but still page metadata and up to 10 links to assemble) now checks the assembled result against the budget and falls back to the bounded unavailable message if an arbitrarily long title or link list would exceed it; and the empty-`results`/failed-scrape early returns (previously returning before any budget was even constructed) now check their message against the budget too, falling back to `_bounded_unavailable_message` for a tiny budget or an arbitrarily long provider error string.
+
+Test commands run from the repo root (`venv/bin/python -m pytest -c server/tests/pyproject.toml ...`):
+
+- `server/tests/test_chunking_safeguards/test_firecrawl_fallback.py` -- 21 passed
+- `server/tests/test_chunking_safeguards` (full package) -- 158 passed
+- `server/tests/test_embeddings/test_embedding_cost_tracking.py` -- 22 passed
+
+`ruff check` on `intent_firecrawl_retriever.py` went from 23 to 20 pre-existing findings (no new findings introduced); the new test file is ruff-clean. Limitations: token counting for the retrieval-context budget always uses the "estimated" character-ratio mode (no LLM tokenizer is plumbed through to this retriever), so the budget is a conservative approximation, not an exact accounting of what the eventual LLM call will see -- a small fixed slack (`_ESTIMATION_SLACK_TOKENS`) absorbs the rounding gap between per-piece and assembled-string estimates. The configured cap is a per-retriever default, not the caller's actual remaining context allowance, since that isn't currently threaded through the retrieval pipeline to this retriever.
+
 ## Phase 6 — Validate the integrated contract and update documentation
 
 **Changes**
@@ -243,7 +261,7 @@ Limitations: partial-write detection and idempotent piece ids depend on `add_vec
 - [x] Phase 2: source preservation and bounded final chunks
 - [x] Phase 3: document-safe, bounded embedding recovery
 - [x] Phase 4: explicit completeness and recoverable cache state
-- [ ] Phase 5: bounded retrieval and visible partial coverage
+- [x] Phase 5: bounded retrieval and visible partial coverage
 - [ ] Phase 6: integrated validation and accurate documentation
 
 Record test commands/results and any remaining limitations with each completed phase. Do not mark the roadmap complete solely because normal-path ingestion works.

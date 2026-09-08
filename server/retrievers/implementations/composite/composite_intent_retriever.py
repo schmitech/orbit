@@ -214,7 +214,7 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                 "confidence_threshold": self.confidence_threshold,
                 "max_templates_per_source": self.max_templates_per_source,
                 "parallel_search": self.parallel_search,
-                "search_timeout": self.search_timeou
+                "search_timeout": self.search_timeout
             },
             "multistage_selection": {
                 "enabled": self.multistage_enabled,

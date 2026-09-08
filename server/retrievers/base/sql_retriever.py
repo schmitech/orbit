@@ -215,7 +215,7 @@ class AbstractSQLRetriever(BaseRetriever):
 
         # Ensure query timeout is applied
         if "timeout" not in search_config:
-            search_config["timeout"] = self.query_timeou
+            search_config["timeout"] = self.query_timeout
 
         return search_config
 
@@ -420,7 +420,7 @@ class AbstractSQLRetriever(BaseRetriever):
             for result in results:
                 if "metadata" not in result:
                     result["metadata"] = {}
-                result["metadata"]["total_available"] = original_coun
+                result["metadata"]["total_available"] = original_count
                 result["metadata"]["truncated"] = was_truncated
                 result["metadata"]["result_count"] = len(results)
 

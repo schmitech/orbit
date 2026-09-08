@@ -21,8 +21,8 @@ from retrievers.base.intent_http_base import IntentHTTPRetriever
 from retrievers.base.intent_domain_components import record_intent_telemetry
 from retrievers.base.base_retriever import RetrieverFactory
 from utils.content_chunker import ContentChunker
-from utils.chunk_manager import ChunkManager
-from utils.embedding_budget import resolve_embedding_budget
+from utils.chunk_manager import ChunkManager, IngestionStatus
+from utils.embedding_budget import resolve_embedding_budget, split_text_to_budget
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,18 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
     - Fresh content fetching (no local caching)
     - Error handling for invalid URLs and API failures
     """
+
+    # Below this many tokens of remaining budget, no formatted excerpt is
+    # worth attempting -- return an explicit bounded "unavailable" result
+    # instead of a fragment too small to be useful.
+    _MIN_USEFUL_CONTEXT_TOKENS = 40
+
+    # Estimated-mode counting sums pieces' token counts separately (each
+    # rounded down) when reserving budget, then counts the assembled result
+    # as one joined string -- rounding can differ by a few tokens between
+    # the two. This small fixed slack keeps the assembled result within
+    # budget despite that quantization gap.
+    _ESTIMATION_SLACK_TOKENS = 8
 
     def __init__(self, config: dict[str, Any], domain_adapter=None, datasource=None, **kwargs):
         """
@@ -79,10 +91,18 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         # Use 7500 default to provide safety buffer for estimation errors
         self.max_embedding_tokens = self.intent_config.get('max_embedding_tokens', 7500)
 
+        # Bound on formatted retrieval output (chunked results and the
+        # raw-content fallback alike). The pipeline does not currently pass
+        # this retriever the caller's remaining prompt-context allowance, so
+        # this is an explicit configured cap -- the final prompt assembler
+        # remains responsible for the complete prompt budget.
+        self.max_retrieval_context_tokens = self.intent_config.get('max_retrieval_context_tokens', 6000)
+
         # Initialize chunking components (will be set up in initialize())
         self.content_chunker: Optional[ContentChunker] = None
         self.chunk_manager: Optional[ChunkManager] = None
         self.embedding_budget = None
+        self.retrieval_context_budget = None
 
         
         logger.debug(f"Firecrawl retriever initialized with base_url: {self.base_url}")
@@ -96,6 +116,19 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         """Initialize the Firecrawl retriever and chunking components."""
         # Call parent initialization
         await super().initialize()
+
+        # Retrieval-context budget for formatted output (both the chunked
+        # path and the raw-content fallback), independent of whether
+        # chunking itself is enabled -- no LLM tokenizer is plumbed through
+        # here, so counting is always the explicit "estimated" mode.
+        try:
+            self.retrieval_context_budget = resolve_embedding_budget(
+                max_embedding_tokens=self.max_retrieval_context_tokens,
+                safety_margin=1.0,
+            )
+        except ValueError as e:
+            logger.warning(f"Invalid max_retrieval_context_tokens, using default bound: {e}")
+            self.retrieval_context_budget = resolve_embedding_budget(max_embedding_tokens=6000, safety_margin=1.0)
 
         # Initialize chunking if enabled
         if self.enable_chunking:
@@ -535,9 +568,10 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                 should_chunk = self.content_chunker.should_chunk(result['markdown'])
 
         # If chunking is enabled and content is large enough
+        chunk_meta_updates: dict[str, Any] = {}
         if should_chunk:
             try:
-                content = await self._process_with_chunking(
+                content, chunk_meta_updates = await self._process_with_chunking(
                     results, template, parameters, query, source_url,
                     usage_sink=usage_sink,
                 )
@@ -559,6 +593,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             "results": results,
             "chunked": should_chunk
         }
+        metadata.update(chunk_meta_updates)
 
         # Add URL and success status
         if results and len(results) > 0:
@@ -637,7 +672,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
     async def _process_with_chunking(self, results: list[dict], template: dict,
                                      parameters: dict, query: str,
-                                     source_url: str, usage_sink=None) -> str:
+                                     source_url: str, usage_sink=None) -> tuple[str, dict[str, Any]]:
         """
         Process large content with chunking and ranking.
 
@@ -649,13 +684,15 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             source_url: URL of the scraped page
 
         Returns:
-            Formatted string with relevant chunks
+            (formatted string, metadata updates) -- the metadata updates
+            surface ingestion completeness explicitly (never inferred from
+            content alone) so callers can see incomplete coverage.
         """
         result = results[0]
         markdown_content = result.get('markdown', '')
 
         if not markdown_content:
-            return "No markdown content available."
+            return "No markdown content available.", {}
 
         # Prepare metadata for chunking
         page_metadata = result.get('metadata', {})
@@ -667,7 +704,10 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             'language': page_metadata.get('language', '')
         }
 
-        # Check if we have cached chunks
+        # Check if we have cached chunks. A prior COMPLETE ingestion is the
+        # only thing has_cached_chunks reports true for, so this call's
+        # ingestion status is implicitly COMPLETE without re-storing.
+        ingestion_status = IngestionStatus.COMPLETE
         if await self.chunk_manager.has_cached_chunks(source_url):
             logger.debug(f"Using cached chunks for {source_url}")
         else:
@@ -676,12 +716,32 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
             chunks = self.content_chunker.chunk_markdown(markdown_content, chunk_metadata)
 
-            # Store chunks in vector store
-            await self.chunk_manager.store_chunks(
+            # Store chunks in vector store, consuming the structured result
+            # explicitly rather than assuming storage succeeded.
+            ingestion_result = await self.chunk_manager.store_chunks(
                 chunks, source_url, chunk_metadata, usage_sink=usage_sink
             )
+            ingestion_status = ingestion_result.status
 
-            logger.debug(f"Created and stored {len(chunks)} chunks")
+            if ingestion_status == IngestionStatus.FAILED:
+                logger.warning(
+                    f"Embedding/storage failed for {source_url} "
+                    f"(expected={ingestion_result.expected_count}, stored=0); "
+                    "returning a bounded content excerpt instead of ranked sections."
+                )
+                content = self._format_firecrawl_results(results, template)
+                return content, {"ingestion_status": ingestion_status.value}
+
+            if ingestion_status == IngestionStatus.PARTIAL:
+                logger.warning(
+                    f"Partial embedding/storage for {source_url}: "
+                    f"{ingestion_result.stored_count}/{ingestion_result.expected_count} piece(s) stored"
+                )
+
+            logger.debug(
+                f"Ingestion for {source_url}: status={ingestion_status.value}, "
+                f"stored={ingestion_result.stored_count}/{ingestion_result.expected_count}"
+            )
 
         # Retrieve relevant chunks based on query
         relevant_chunks = await self.chunk_manager.retrieve_chunks(
@@ -693,76 +753,167 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         )
 
         if not relevant_chunks:
-            logger.warning("No relevant chunks found, returning full content")
-            return self._format_firecrawl_results(results, template)
+            logger.warning("No relevant chunks found, returning a bounded content excerpt")
+            content = self._format_firecrawl_results(results, template)
+            return content, {"ingestion_status": ingestion_status.value}
 
-        # Format the chunked response
-        return self._format_chunked_results(
+        # Format the chunked response, bounded to the retrieval context budget
+        content = self._format_chunked_results(
             chunks=relevant_chunks,
             source_url=source_url,
             page_metadata=page_metadata,
-            total_content_size=len(markdown_content)
+            total_content_size=len(markdown_content),
+            ingestion_status=ingestion_status,
         )
+        return content, {"ingestion_status": ingestion_status.value}
 
     def _format_chunked_results(self, chunks: list[dict[str, Any]],
                                 source_url: str,
                                 page_metadata: dict[str, Any],
-                                total_content_size: int) -> str:
+                                total_content_size: int,
+                                ingestion_status: Optional[IngestionStatus] = None) -> str:
         """
-        Format chunked results for display.
+        Format chunked results for display, bounded to the retrieval context
+        budget. Sections are included in relevance order until the budget is
+        exhausted; a section that doesn't fully fit is truncated once (never
+        silently dropped mid-section), and any dropped/truncated coverage is
+        disclosed in the footer rather than left implicit.
 
         Args:
-            chunks: List of relevant chunks
+            chunks: List of relevant chunks, already ordered by relevance
             source_url: Source URL
             page_metadata: Page metadata
             total_content_size: Total size of original content
+            ingestion_status: The IngestionStatus for this content's storage,
+                if known -- disclosed when PARTIAL so incomplete indexing
+                coverage is visible, not silently mixed in with full coverage.
 
         Returns:
             Formatted string
         """
-        lines = []
+        budget = self.retrieval_context_budget or resolve_embedding_budget(
+            max_embedding_tokens=self.max_retrieval_context_tokens, safety_margin=1.0,
+        )
 
-        # Header
-        lines.append(f"Successfully scraped and analyzed content from: {source_url}")
-        lines.append(f"Original content size: {total_content_size // 4} tokens (~{total_content_size} chars)")
-        lines.append(f"Showing {len(chunks)} most relevant section(s):\n")
-
-        # Page info
+        header_lines = [
+            f"Successfully scraped and analyzed content from: {source_url}",
+            f"Original content size: {total_content_size // 4} tokens (~{total_content_size} chars)",
+        ]
+        if ingestion_status == IngestionStatus.PARTIAL:
+            header_lines.append("Note: only part of this page's content could be indexed; results may be incomplete.")
+        header_lines.append(f"Showing up to {len(chunks)} most relevant section(s):\n")
         if page_metadata.get('title'):
-            lines.append(f"Title: {page_metadata['title']}")
+            header_lines.append(f"Title: {page_metadata['title']}")
         if page_metadata.get('description'):
-            lines.append(f"Description: {page_metadata['description']}")
-        lines.append("")
+            header_lines.append(f"Description: {page_metadata['description']}")
+        header_lines.append("")
+        header_text = "\n".join(header_lines)
 
-        # Show each relevant chunk
+        total_sections = chunks[0].get('total_chunks', '?') if chunks else '?'
+        # Reserve room for the footer using its longest ("truncated") form so
+        # the actually-emitted footer never pushes the result over budget.
+        footer_reserved = budget.count(
+            f"{'=' * 70}\n"
+            f"Note: Showing {len(chunks)} of {len(chunks)} relevant section(s) out of {total_sections} "
+            f"total section(s) (truncated to fit the available context budget).\n"
+            "The full content has been cached for follow-up queries.\n"
+            f"{'=' * 70}"
+        ).count
+
+        available = (
+            budget.effective_max_tokens - budget.count(header_text).count
+            - footer_reserved - self._ESTIMATION_SLACK_TOKENS
+        )
+        if available < self._MIN_USEFUL_CONTEXT_TOKENS:
+            return self._bounded_unavailable_message(source_url)
+
+        shown_blocks: list[str] = []
+        truncated = False
         for i, chunk in enumerate(chunks, 1):
             similarity = chunk.get('similarity_score', 0.0)
-            chunk.get('section', 'Section')
             hierarchy = chunk.get('hierarchy', [])
             position = chunk.get('position', 0)
             total_chunks = chunk.get('total_chunks', 1)
+            content = chunk['content']
 
-            lines.append("=" * 70)
-            lines.append(f"RELEVANT SECTION {i}/{len(chunks)} "
-                        f"(Relevance: {similarity:.1%}, "
-                        f"Part {position + 1}/{total_chunks})")
-            lines.append(f"Path: {' > '.join(hierarchy)}")
-            lines.append("=" * 70)
-            lines.append("")
-            lines.append(chunk['content'])
-            lines.append("")
+            block_header = (
+                f"{'=' * 70}\n"
+                f"RELEVANT SECTION {i}/{len(chunks)} "
+                f"(Relevance: {similarity:.1%}, Part {position + 1}/{total_chunks})\n"
+                f"Path: {' > '.join(hierarchy)}\n"
+                f"{'=' * 70}\n"
+            )
+            full_block = f"{block_header}\n{content}\n"
+            full_block_tokens = budget.count(full_block).count
 
-        # Footer
-        lines.append("=" * 70)
-        lines.append(f"Note: Showing top {len(chunks)} relevant sections out of {chunks[0].get('total_chunks', '?')} total sections.")
-        lines.append("The full content has been cached for follow-up queries.")
-        lines.append("=" * 70)
+            if full_block_tokens <= available:
+                shown_blocks.append(full_block)
+                available -= full_block_tokens
+                continue
 
-        return '\n'.join(lines)
+            # Doesn't fit whole -- include a deterministic, bounded excerpt of
+            # this section if there's enough budget left to be useful, then
+            # stop (later, lower-relevance sections are dropped either way).
+            remaining_for_content = available - budget.count(block_header).count
+            if remaining_for_content >= self._MIN_USEFUL_CONTEXT_TOKENS:
+                excerpt_budget = resolve_embedding_budget(
+                    max_embedding_tokens=remaining_for_content, safety_margin=1.0,
+                )
+                excerpt = split_text_to_budget(content, excerpt_budget)[0]
+                shown_blocks.append(f"{block_header}\n{excerpt}\n")
+            truncated = True
+            break
+
+        if len(shown_blocks) < len(chunks):
+            truncated = True
+
+        footer = (
+            f"{'=' * 70}\n"
+            f"Note: Showing {len(shown_blocks)} of {len(chunks)} relevant section(s) "
+            f"out of {total_sections} total section(s)"
+            f"{' (truncated to fit the available context budget)' if truncated else ''}.\n"
+            "The full content has been cached for follow-up queries.\n"
+            f"{'=' * 70}"
+        )
+
+        return "\n".join([header_text, *shown_blocks, footer])
+
+    def _bounded_unavailable_message(self, source_url: str) -> str:
+        """Explicit, bounded result for when the available context budget is
+        too small to include any useful content -- never an unbounded error
+        or a silent full-content dump. Implementation details (which store,
+        which recovery path, etc.) stay in logs, not this user-facing text.
+
+        The message itself must fit the configured budget -- a long enough
+        source URL, or a small enough budget, could otherwise make this
+        "unavailable" response bigger than the budget it's reporting on."""
+        budget = self.retrieval_context_budget or resolve_embedding_budget(
+            max_embedding_tokens=self.max_retrieval_context_tokens, safety_margin=1.0,
+        )
+        message = (
+            f"Content from {source_url} is available but could not be shown "
+            "within the available context budget. Try a narrower or more specific query."
+        )
+        if budget.fits(message):
+            return message
+
+        minimal = "Content unavailable within the available context budget."
+        if budget.fits(minimal):
+            return minimal
+
+        # Budget smaller than even the minimal constant message -- hard-split
+        # it deterministically rather than exceed the budget regardless.
+        return split_text_to_budget(minimal, budget)[0]
 
     def _format_firecrawl_results(self, results: list[dict], template: dict) -> str:
         """
         Format Firecrawl results as human-readable text.
+
+        This is the raw-content fallback used both for pages too small to
+        chunk and for pages where chunking/ranking couldn't produce a
+        result (indexing failure, no similarity matches, etc.). Its content
+        section is a deterministic, bounded excerpt of the page -- never the
+        whole page unconditionally -- with truncation disclosed.
 
         Args:
             results: List of Firecrawl result dictionaries
@@ -772,9 +923,15 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             Formatted string representation
         """
         lines = []
+        budget = self.retrieval_context_budget or resolve_embedding_budget(
+            max_embedding_tokens=self.max_retrieval_context_tokens, safety_margin=1.0,
+        )
 
         if not results:
-            return "No content was scraped."
+            no_results_message = "No content was scraped."
+            if budget.fits(no_results_message):
+                return no_results_message
+            return self._bounded_unavailable_message("the requested page")
 
         result = results[0]
         url = result.get('url', 'Unknown URL')
@@ -784,7 +941,10 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             lines.append(f"Failed to scrape content from: {url}")
             if 'error' in result:
                 lines.append(f"Error: {result['error']}")
-            return '\n'.join(lines)
+            failure_message = '\n'.join(lines)
+            if budget.fits(failure_message):
+                return failure_message
+            return self._bounded_unavailable_message(url)
 
         lines.append(f"Successfully scraped content from: {url}")
 
@@ -801,30 +961,58 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             if metadata.get('language'):
                 lines.append(f"Language: {metadata['language']}")
 
-        # Add content based on available formats
-        content_added = False
-        
-        if 'markdown' in result and result['markdown']:
-            lines.append(f"\nMarkdown Content:\n{result['markdown']}")
-            content_added = True
-        elif 'html' in result and result['html']:
-            lines.append(f"\nHTML Content:\n{result['html']}")
-            content_added = True
-        elif 'text' in result and result['text']:
-            lines.append(f"\nText Content:\n{result['text']}")
-            content_added = True
+        raw_content = result.get('markdown') or result.get('html') or result.get('text') or ''
+        content_label = 'Markdown' if result.get('markdown') else ('HTML' if result.get('html') else 'Text')
 
-        if not content_added:
-            lines.append("\nNo content was extracted from the page.")
-
-        # Add links if present
-        if 'links' in result and result['links']:
+        link_lines: list[str] = []
+        if result.get('links'):
             links = result['links']
-            lines.append(f"\nFound {len(links)} links:")
+            link_lines.append(f"\nFound {len(links)} links:")
             for i, link in enumerate(links[:10], 1):  # Show first 10 links
-                lines.append(f"{i}. {link}")
+                link_lines.append(f"{i}. {link}")
             if len(links) > 10:
-                lines.append(f"... and {len(links) - 10} more links")
+                link_lines.append(f"... and {len(links) - 10} more links")
+
+        if not raw_content.strip():
+            lines.append("\nNo content was extracted from the page.")
+            lines.extend(link_lines)
+            no_content_result = '\n'.join(lines)
+            # Metadata (e.g. an arbitrarily long title) and links (arbitrary
+            # URL lengths, up to 10 of them) are otherwise unbounded -- this
+            # path must still respect the configured budget, not bypass it
+            # just because there's no main content to size against it.
+            if budget.fits(no_content_result):
+                return no_content_result
+            return self._bounded_unavailable_message(url)
+
+        # Reserve for the label line, the truncation-disclosure line (using
+        # its longest, "truncated" form), and the links section, so the
+        # eventually-assembled output can never exceed the budget.
+        truncation_notice = f"\n[Source: {url} -- content truncated; not the full page.]"
+        label_reserved = budget.count(f"\n{content_label} Content (excerpt, truncated to fit the available context budget):\n").count
+        reserved = (
+            budget.count('\n'.join(lines)).count
+            + (budget.count('\n'.join(link_lines)).count if link_lines else 0)
+            + label_reserved
+            + budget.count(truncation_notice).count
+        )
+        available = budget.effective_max_tokens - reserved - self._ESTIMATION_SLACK_TOKENS
+
+        if available < self._MIN_USEFUL_CONTEXT_TOKENS:
+            return self._bounded_unavailable_message(url)
+
+        content_budget = resolve_embedding_budget(max_embedding_tokens=available, safety_margin=1.0)
+        try:
+            pieces = split_text_to_budget(raw_content, content_budget)
+        except ValueError:
+            return self._bounded_unavailable_message(url)
+        excerpt, truncated = pieces[0], len(pieces) > 1
+
+        label = f"{content_label} Content" + (" (excerpt, truncated to fit the available context budget)" if truncated else "")
+        lines.append(f"\n{label}:\n{excerpt}")
+        if truncated:
+            lines.append(f"\n[Source: {url} -- content truncated; not the full page.]")
+        lines.extend(link_lines)
 
         return '\n'.join(lines)
 
