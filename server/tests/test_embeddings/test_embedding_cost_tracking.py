@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import yaml
-
 from ai_services.implementations.embedding.openai_embedding_service import (
     OpenAIEmbeddingService,
 )
@@ -181,9 +180,16 @@ async def test_chunk_manager_reports_query_embedding_usage():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_chunk_manager_reports_batch_and_fallback_embedding_usage():
+    """Phase 3: the individual-item fallback path also uses document embedding
+    semantics (embed_documents_tracked with a singleton list), never
+    embed_query_tracked -- so both paths report usage the same way."""
     from utils.chunk_manager import ChunkManager
+    from utils.embedding_recovery import embed_documents_with_recovery
+
+    calls = []
 
     async def embed_documents_tracked(texts, usage_sink):
+        calls.append(list(texts))
         usage_sink.update({
             "prompt_tokens": len(texts) * 10,
             "completion_tokens": 0,
@@ -194,31 +200,22 @@ async def test_chunk_manager_reports_batch_and_fallback_embedding_usage():
         })
         return [[0.1] for _ in texts]
 
-    async def embed_query_tracked(_text, usage_sink):
-        usage_sink.update({
-            "prompt_tokens": 10,
-            "completion_tokens": 0,
-            "total_tokens": 10,
-            "provider": "openai",
-            "model": "text-embedding-3-small",
-            "reported": True,
-        })
-        return [0.1]
-
-    manager = ChunkManager(
-        MagicMock(),
-        SimpleNamespace(
-            embed_documents_tracked=embed_documents_tracked,
-            embed_query_tracked=embed_query_tracked,
-        ),
-    )
+    embedding_client = SimpleNamespace(embed_documents_tracked=embed_documents_tracked)
+    manager = ChunkManager(MagicMock(), embedding_client)
     usage = {}
 
-    await manager._embed_chunks_safely(["one", "two"], usage_sink=usage)
-    await manager._embed_chunks_individually(["three", "four"], usage_sink=usage)
+    await embed_documents_with_recovery(
+        embedding_client, ["one", "two"], manager.budget, usage_sink=usage,
+    )
+    await embed_documents_with_recovery(
+        embedding_client, ["three", "four"], manager.budget, usage_sink=usage,
+    )
 
     assert usage["prompt_tokens"] == 40
-    assert len(usage["line_items"]) == 3
+    assert len(usage["line_items"]) == 2
+    # embed_query_tracked must never be used for document fallback.
+    assert not hasattr(embedding_client, "embed_query_tracked")
+    assert calls == [["one", "two"], ["three", "four"]]
 
 
 @pytest.mark.unit

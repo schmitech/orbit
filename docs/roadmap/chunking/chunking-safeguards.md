@@ -150,6 +150,16 @@ Status: proposed; depends on the Phase 1 shared budget abstraction (`server/util
 
 **Exit gate:** Recovery and existing embedding usage tests pass alongside earlier gates. Every simulated failure terminates within its configured limits and every document retains document embedding semantics.
 
+**Status: complete.** Implemented in `server/utils/embedding_recovery.py` (new): structured error classification (`classify_embedding_error`, using status codes and provider-exposed `.code`/`.body` fields only -- never a bare message match), a `RecoveryConfig`/deadline-and-attempt budget shared across every batch/split/retry, request packing against a provider's `batch_size` and an optional `aggregate_token_limit`, and response validation (cardinality, per-vector dimensional consistency, finite values) before any input is treated as embedded. `ChunkManager.store_chunks` (`server/utils/chunk_manager.py`) now calls `embed_documents_with_recovery` directly instead of the old two-step batch-then-individual-embed_query fallback; the individual/singleton fallback path was the `embed_query()` document-embedding bug this phase fixes -- it now always calls `embed_documents(_tracked)`, including for a single oversized input, and query embedding (`ChunkManager.retrieve_chunks`) is untouched. `intent_firecrawl_retriever.py` needed no changes: it never called `embed_query` for documents.
+
+Test commands run from the repo root (`venv/bin/python -m pytest -c server/tests/pyproject.toml ...`):
+
+- `server/tests/test_chunking_safeguards/test_embedding_recovery.py` -- 32 passed
+- `server/tests/test_chunking_safeguards` (full package) -- 99 passed
+- `server/tests/test_embeddings/test_embedding_cost_tracking.py` -- 22 passed (extended: the batch/fallback usage test now asserts the singleton fallback uses `embed_documents_tracked`, not `embed_query_tracked`)
+
+`ruff check` passes on all changed files. Limitations: the packing/classification layer bounds concurrency and split depth but batches within one round are still dispatched with `asyncio.gather` rather than a work-stealing pool, so `max_concurrency` bounds concurrent provider calls per round, not globally across rounds; this is intentional (rounds are short-lived and bounded by the shared deadline) but worth revisiting if a provider needs stricter global concurrency. Provider-specific structured-code tables (`_CONTEXT_CODES`/`_BATCH_CODES`) are seeded from OpenAI's error shape; providers exposing different structured codes for context/batch-size errors will classify as `unknown` until their codes are added.
+
 ## Phase 4 — Make ingestion completeness and cache state explicit
 
 **Changes**
@@ -216,7 +226,7 @@ Status: proposed; depends on the Phase 1 shared budget abstraction (`server/util
 - [x] Phase 1: consistent budgets and explicit counting modes
 - [x] Phase 1b (follow-up, optional; not part of the Phase 6 gate unless merged first): `FileVectorRetriever.index_file_chunks()` validates every outgoing chunk against a resolved `EmbeddingBudget`; uploaded-file chunkers' decode-failure estimates and unlabeled character-as-token counting are fixed
 - [x] Phase 2: source preservation and bounded final chunks
-- [ ] Phase 3: document-safe, bounded embedding recovery
+- [x] Phase 3: document-safe, bounded embedding recovery
 - [ ] Phase 4: explicit completeness and recoverable cache state
 - [ ] Phase 5: bounded retrieval and visible partial coverage
 - [ ] Phase 6: integrated validation and accurate documentation

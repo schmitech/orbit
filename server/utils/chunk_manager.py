@@ -5,12 +5,13 @@ This module provides intelligent chunk storage, retrieval, and ranking using
 vector stores and embedding-based similarity search.
 """
 
-import logging
 import hashlib
-from typing import Any, Optional
+import logging
 from datetime import datetime, timedelta
+from typing import Any
 
 from utils.embedding_budget import EmbeddingBudget, resolve_embedding_budget, split_text_to_budget
+from utils.embedding_recovery import FailureCategory, RecoveryConfig, embed_documents_with_recovery
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,8 @@ class ChunkManager:
                  cache_ttl_hours: int = 24,
                  min_similarity_score: float = 0.3,
                  max_embedding_tokens: int = 7500,
-                 budget: Optional[EmbeddingBudget] = None):
+                 budget: EmbeddingBudget | None = None,
+                 recovery_config: RecoveryConfig | None = None):
         """
         Initialize the chunk manager.
 
@@ -47,6 +49,8 @@ class ChunkManager:
             budget: Shared EmbeddingBudget to validate against (preferred). When
                 provided, callers should pass the same instance used by the
                 ContentChunker so preparation and submission agree on one cutoff.
+            recovery_config: Bounds (attempts, deadline, concurrency, split depth)
+                for embedding recovery. Defaults to RecoveryConfig()'s values.
         """
         self.vector_store = vector_store
         self.embedding_client = embedding_client
@@ -58,6 +62,7 @@ class ChunkManager:
             model=getattr(embedding_client, "model", None),
         )
         self.max_embedding_tokens = self.budget.effective_max_tokens
+        self.recovery_config = recovery_config or RecoveryConfig()
 
         # Track which URLs have been cached
         self._cached_urls = {}
@@ -131,34 +136,45 @@ class ChunkManager:
                 f"(mode={self.budget.counting_mode})"
             )
 
-            # Generate embeddings with error handling
-            try:
-                embeddings = await self._embed_chunks_safely(
-                    chunk_texts, usage_sink=usage_sink
+            # Generate embeddings with bounded, policy-driven recovery: one
+            # attempt/deadline budget shared across every batch and split
+            # retry, document embedding semantics preserved throughout (no
+            # embed_query fallback), and input-to-vector provenance kept
+            # even when an oversized input must be split and re-embedded.
+            recovery = await embed_documents_with_recovery(
+                self.embedding_client, chunk_texts, self.budget,
+                usage_sink=usage_sink, config=self.recovery_config,
+            )
+
+            if recovery.terminal_error is not None and recovery.terminal_error.category == FailureCategory.AUTH:
+                logger.error(f"Authentication/configuration error during embedding: {recovery.terminal_error.reason}")
+                return False
+
+            if recovery.failed_indices:
+                logger.warning(
+                    f"Failed to embed {len(recovery.failed_indices)} chunk(s): {recovery.failure_reasons}"
                 )
-                # If successful, all chunks should have embeddings
-                if not embeddings or len(embeddings) != len(validated_chunks):
-                    logger.error(f"Embedding count mismatch: got {len(embeddings)}, expected {len(validated_chunks)}")
-                    return False
-            except Exception as e:
-                logger.error(f"Failed to generate embeddings: {e}")
-                # Try one more time with smaller batches
-                logger.info("Retrying with individual chunk embedding...")
-                try:
-                    embeddings, successful_indices = await self._embed_chunks_individually(
-                        chunk_texts, usage_sink=usage_sink
-                    )
-                    # Filter validated_chunks to match successfully embedded chunks
-                    if successful_indices:
-                        validated_chunks = [validated_chunks[i] for i in successful_indices]
-                        chunk_texts = [chunk_texts[i] for i in successful_indices]
-                    
-                    if not embeddings or len(embeddings) != len(validated_chunks):
-                        logger.error(f"Embedding count mismatch after individual embedding: got {len(embeddings)}, expected {len(validated_chunks)}")
-                        return False
-                except Exception as e2:
-                    logger.error(f"Individual chunk embedding also failed: {e2}")
-                    return False
+
+            if not recovery.pieces:
+                logger.error("No chunks were successfully embedded")
+                return False
+
+            expanded_chunks = []
+            embeddings = []
+            for piece in recovery.pieces:
+                source_chunk = validated_chunks[piece.source_index]
+                if piece.split_depth:
+                    sub_chunk = source_chunk.copy()
+                    sub_chunk['content'] = piece.text
+                    token_count = self.budget.count(piece.text)
+                    sub_chunk['token_count'] = token_count.count
+                    sub_chunk['token_count_estimated'] = token_count.estimated
+                    expanded_chunks.append(sub_chunk)
+                else:
+                    expanded_chunks.append(source_chunk)
+                embeddings.append(piece.vector)
+
+            validated_chunks = expanded_chunks
 
             # Prepare vectors and metadata for storage
             vectors = []
@@ -213,9 +229,9 @@ class ChunkManager:
 
     async def retrieve_chunks(self,
                              query: str,
-                             source_url: Optional[str] = None,
+                             source_url: str | None = None,
                              top_k: int = 3,
-                             min_score: Optional[float] = None,
+                             min_score: float | None = None,
                              usage_sink=None) -> list[dict[str, Any]]:
         """
         Retrieve relevant chunks based on query similarity.
@@ -422,92 +438,6 @@ class ChunkManager:
 
         logger.info(f"Prepared {len(validated_chunks)} chunks for embedding (from {len(chunks)} original chunks)")
         return validated_chunks, chunk_texts
-
-    async def _embed_chunks_safely(
-        self, chunk_texts: list[str], usage_sink=None
-    ) -> list[list[float]]:
-        """
-        Safely embed chunks with error handling.
-
-        Args:
-            chunk_texts: List of chunk texts to embed
-
-        Returns:
-            List of embeddings
-
-        Raises:
-            Exception if embedding fails
-        """
-        try:
-            if hasattr(self.embedding_client, "embed_documents_tracked"):
-                local_usage = {}
-                embeddings = await self.embedding_client.embed_documents_tracked(
-                    chunk_texts, usage_sink=local_usage
-                )
-                if usage_sink is not None:
-                    from ai_services.providers.usage_reporting import accumulate_usage_sink
-                    accumulate_usage_sink(usage_sink, local_usage)
-            else:
-                embeddings = await self.embedding_client.embed_documents(chunk_texts)
-            return embeddings
-        except Exception as e:
-            # Check if it's a token limit error
-            error_msg = str(e).lower()
-            if 'maximum context length' in error_msg or 'token' in error_msg:
-                logger.error(f"Token limit error during batch embedding: {e}")
-                logger.error("Some chunks may still be too large. Consider reducing max_chunk_tokens.")
-            raise
-
-    async def _embed_chunks_individually(
-        self, chunk_texts: list[str], usage_sink=None
-    ) -> tuple[list[list[float]], list[int]]:
-        """
-        Embed chunks one at a time after batch embedding fails.
-
-        Args:
-            chunk_texts: List of chunk texts to embed
-
-        Returns:
-            Tuple of (list of embeddings, list of successful chunk indices)
-        """
-        embeddings = []
-        successful_indices = []
-        failed_indices = []
-
-        for i, text in enumerate(chunk_texts):
-            try:
-                if not self.budget.fits(text):
-                    token_count = self.budget.count(text)
-                    logger.warning(
-                        f"Skipping chunk {i}: too large ({token_count.count} tokens, "
-                        f"max: {self.budget.effective_max_tokens})"
-                    )
-                    failed_indices.append(i)
-                    continue
-
-                if hasattr(self.embedding_client, "embed_query_tracked"):
-                    local_usage = {}
-                    embedding = await self.embedding_client.embed_query_tracked(
-                        text, usage_sink=local_usage
-                    )
-                    if usage_sink is not None:
-                        from ai_services.providers.usage_reporting import accumulate_usage_sink
-                        accumulate_usage_sink(usage_sink, local_usage)
-                else:
-                    embedding = await self.embedding_client.embed_query(text)
-                embeddings.append(embedding)
-                successful_indices.append(i)
-            except Exception as e:
-                logger.error(f"Failed to embed chunk {i}: {e}")
-                failed_indices.append(i)
-
-        if failed_indices:
-            logger.warning(f"Failed to embed {len(failed_indices)} chunks: {failed_indices}")
-
-        if not embeddings:
-            raise Exception("Failed to embed any chunks individually")
-
-        return embeddings, successful_indices
 
     async def cleanup_expired_chunks(self):
         """
