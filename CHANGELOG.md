@@ -1,6 +1,6 @@
 # Changelog
 
-[UNRELEASED]
+## [2.17.8] - 2026-09-08
 
 ### Bug Fixes
 - **Chunking Safeguards (Phase 3)**: Document embedding fallback now always uses `embed_documents`/`embed_documents_tracked` instead of `embed_query`, so oversized or split chunks retain document embedding semantics. Added bounded, policy-driven recovery for embedding submission: structured (never message-substring) classification of provider errors into auth/transient/batch-size/context-size/malformed categories, packing against per-input/batch/aggregate token limits, and one shared attempt/deadline budget across manager and provider retries that stops fanning out on authentication failures, bounds concurrency and split depth, and detaches (rather than blocking on) calls that outlive the deadline.
