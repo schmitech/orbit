@@ -7,13 +7,59 @@ vector stores and embedding-based similarity search.
 
 import hashlib
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from enum import Enum
 from typing import Any
 
 from utils.embedding_budget import EmbeddingBudget, resolve_embedding_budget, split_text_to_budget
 from utils.embedding_recovery import FailureCategory, RecoveryConfig, embed_documents_with_recovery
 
 logger = logging.getLogger(__name__)
+
+
+class IngestionStatus(str, Enum):
+    """Explicit completeness state for a `store_chunks` call -- never inferred
+    from truthiness of the original storage boolean."""
+
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    FAILED = "failed"
+
+
+VECTOR_STORE_WRITE_FAILED = "vector_store_write_failed"
+
+
+@dataclass
+class IngestionResult:
+    """Structured outcome of `ChunkManager.store_chunks`.
+
+    `generation_id` identifies the (content, embedding model, embedding
+    budget) combination this result describes -- retrieval is isolated by
+    this id so a later, differently-chunked or re-embedded generation for the
+    same URL cannot mix pieces with a stale one.
+    """
+
+    status: IngestionStatus
+    source_url: str
+    generation_id: str
+    expected_count: int
+    stored_count: int
+    failed_count: int
+    failed_ids: list = field(default_factory=list)
+    failure_reasons: dict = field(default_factory=dict)
+
+    @property
+    def complete(self) -> bool:
+        return self.status == IngestionStatus.COMPLETE
+
+    @property
+    def partial(self) -> bool:
+        return self.status == IngestionStatus.PARTIAL
+
+    @property
+    def failed(self) -> bool:
+        return self.status == IngestionStatus.FAILED
 
 
 class ChunkManager:
@@ -67,6 +113,16 @@ class ChunkManager:
         # Track which URLs have been cached
         self._cached_urls = {}
 
+        # Ingestion state, kept for the current process lifetime only (no
+        # durable retry support is implied): completed/partial results keyed
+        # by "{url_hash}:{generation_id}", pieces still needing (re-)embedding
+        # or storage for a partial generation, and the latest generation seen
+        # per URL so retrieval can filter out a stale, previously-ingested
+        # generation for the same source.
+        self._ingestion_state: dict[str, IngestionResult] = {}
+        self._pending_pieces: dict[str, dict[int, dict[str, Any]]] = {}
+        self._generation_by_url: dict[str, str] = {}
+
     async def initialize(self):
         """Initialize the chunk manager and create collection if needed."""
         try:
@@ -97,7 +153,7 @@ class ChunkManager:
                           chunks: list[dict[str, Any]],
                           source_url: str,
                           metadata: dict[str, Any],
-                          usage_sink=None) -> bool:
+                          usage_sink=None) -> IngestionResult:
         """
         Store chunks in the vector store with embeddings.
 
@@ -107,33 +163,60 @@ class ChunkManager:
             metadata: Additional metadata about the source
 
         Returns:
-            True if successful, False otherwise
+            An `IngestionResult` describing complete/partial/failed status,
+            expected/stored/failed piece counts, and per-piece failure
+            reasons. Never rely on truthiness -- check `.status` (or the
+            `.complete`/`.partial`/`.failed` properties) explicitly.
         """
+        url_hash = self._hash_url(source_url)
+
+        if not chunks:
+            logger.warning("No chunks to store")
+            return IngestionResult(IngestionStatus.FAILED, source_url, "", 0, 0, 0)
+
         try:
-            if not chunks:
-                logger.warning("No chunks to store")
-                return False
-
-            # Check if we've already cached this URL recently
-            url_hash = self._hash_url(source_url)
-            if self._is_cached(url_hash):
-                logger.info(f"Chunks for {source_url} already cached, skipping storage")
-                return True
-
             # Validate and prepare chunks for embedding
             validated_chunks, chunk_texts = self._prepare_chunks_for_embedding(chunks)
 
             if not chunk_texts:
                 logger.error("No valid chunks to embed after validation")
-                return False
+                return IngestionResult(IngestionStatus.FAILED, source_url, "", 0, 0, 0)
 
-            # Log chunk statistics
-            counts = [self.budget.count(text).count for text in chunk_texts]
+            # Ingestion identity: source URL, prepared-content hash, embedding
+            # model identity, and budget version. Any change to these makes a
+            # new generation, so retries never mix pieces produced under a
+            # different model/budget/content into one "complete" result.
+            content_hash = self._hash_content(chunk_texts)
+            model_identity = str(getattr(self.embedding_client, "model", "") or "")
+            budget_version = f"{self.budget.effective_max_tokens}:{self.budget.counting_mode}"
+            generation_id = hashlib.sha256(
+                f"{content_hash}:{model_identity}:{budget_version}".encode()
+            ).hexdigest()[:16]
+            state_key = f"{url_hash}:{generation_id}"
+
+            cached = self._ingestion_state.get(state_key)
+            if cached is not None and cached.status == IngestionStatus.COMPLETE and self._is_cached(url_hash):
+                logger.info(f"Chunks for {source_url} already fully stored at this generation, skipping")
+                return cached
+
+            # A prior attempt at this exact generation may have partially
+            # succeeded -- retry only the pieces still pending instead of
+            # re-embedding/re-storing everything, and keep accumulating
+            # toward the same expected total.
+            pending = self._pending_pieces.get(state_key)
+            if pending is None:
+                pending = {i: validated_chunks[i] for i in range(len(validated_chunks))}
+            work_indices = sorted(pending.keys())
+            texts_to_embed = [pending[i]["content"] for i in work_indices]
+            expected_count = len(validated_chunks)
+            already_stored = expected_count - len(work_indices)
+
+            counts = [self.budget.count(text).count for text in texts_to_embed]
             avg_tokens = sum(counts) // len(counts)
             max_tokens = max(counts)
             logger.debug(
-                f"Embedding {len(chunk_texts)} chunks: avg={avg_tokens} tokens, max={max_tokens} tokens "
-                f"(mode={self.budget.counting_mode})"
+                f"Embedding {len(texts_to_embed)} chunk(s) ({already_stored} already stored): "
+                f"avg={avg_tokens} tokens, max={max_tokens} tokens (mode={self.budget.counting_mode})"
             )
 
             # Generate embeddings with bounded, policy-driven recovery: one
@@ -142,90 +225,148 @@ class ChunkManager:
             # embed_query fallback), and input-to-vector provenance kept
             # even when an oversized input must be split and re-embedded.
             recovery = await embed_documents_with_recovery(
-                self.embedding_client, chunk_texts, self.budget,
+                self.embedding_client, texts_to_embed, self.budget,
                 usage_sink=usage_sink, config=self.recovery_config,
             )
 
-            if recovery.terminal_error is not None and recovery.terminal_error.category == FailureCategory.AUTH:
-                logger.error(f"Authentication/configuration error during embedding: {recovery.terminal_error.reason}")
-                return False
-
-            if recovery.failed_indices:
-                logger.warning(
-                    f"Failed to embed {len(recovery.failed_indices)} chunk(s): {recovery.failure_reasons}"
-                )
-
-            if not recovery.pieces:
-                logger.error("No chunks were successfully embedded")
-                return False
-
-            expanded_chunks = []
-            embeddings = []
-            for piece in recovery.pieces:
-                source_chunk = validated_chunks[piece.source_index]
-                if piece.split_depth:
-                    sub_chunk = source_chunk.copy()
-                    sub_chunk['content'] = piece.text
-                    token_count = self.budget.count(piece.text)
-                    sub_chunk['token_count'] = token_count.count
-                    sub_chunk['token_count_estimated'] = token_count.estimated
-                    expanded_chunks.append(sub_chunk)
-                else:
-                    expanded_chunks.append(source_chunk)
-                embeddings.append(piece.vector)
-
-            validated_chunks = expanded_chunks
-
-            # Prepare vectors and metadata for storage
-            vectors = []
-            ids = []
-            metadatas = []
+            failure_reasons: dict[str, str] = {}
+            remaining_pending: dict[int, dict[str, Any]] = {}
+            stored_ids: list[str] = []
             timestamp = datetime.utcnow().isoformat()
 
-            for i, (chunk, embedding) in enumerate(zip(validated_chunks, embeddings)):
-                chunk_id = f"{url_hash}_chunk_{i}"
+            for embed_idx in recovery.failed_indices:
+                orig_idx = work_indices[embed_idx]
+                piece_id = f"{state_key}_p{orig_idx}"
+                failure_reasons[piece_id] = recovery.failure_reasons.get(embed_idx, FailureCategory.UNKNOWN)
+                remaining_pending[orig_idx] = pending[orig_idx]
 
-                chunk_metadata = {
-                    "source_url": source_url,
-                    "chunk_id": chunk.get("chunk_id", i),
-                    "total_chunks": chunk.get("total_chunks", len(validated_chunks)),
-                    "section": chunk.get("section", ""),
-                    "hierarchy": "|".join(chunk.get("hierarchy", [])),
-                    "token_count": chunk.get("token_count", 0),
-                    "position": chunk.get("position", i),
-                    "timestamp": timestamp,
-                    "content": chunk['content'],  # Store content in metadata for retrieval
-                    # Add source metadata
-                    **{f"source_{k}": v for k, v in metadata.items()
-                       if isinstance(v, (str, int, float, bool))}
-                }
+            pieces_by_orig_idx: dict[int, list] = {}
+            for piece in recovery.pieces:
+                orig_idx = work_indices[piece.source_index]
+                pieces_by_orig_idx.setdefault(orig_idx, []).append(piece)
 
-                vectors.append(embedding)
-                ids.append(chunk_id)
-                metadatas.append(chunk_metadata)
+            for orig_idx, pieces in pieces_by_orig_idx.items():
+                stored_pieces_metadata = []
+                stored_pieces_ids = []
+                stored_pieces_vectors = []
+                for sub_idx, piece in enumerate(pieces):
+                    source_chunk = validated_chunks[orig_idx]
+                    if piece.split_depth:
+                        chunk = source_chunk.copy()
+                        chunk['content'] = piece.text
+                        token_count = self.budget.count(piece.text)
+                        chunk['token_count'] = token_count.count
+                        chunk['token_count_estimated'] = token_count.estimated
+                    else:
+                        chunk = source_chunk
 
-            # Store in vector store
-            success = await self.vector_store.add_vectors(
-                vectors=vectors,
-                ids=ids,
-                metadata=metadatas,
-                collection_name=self.collection_name
-            )
+                    piece_id = f"{state_key}_p{orig_idx}" if len(pieces) == 1 else f"{state_key}_p{orig_idx}_s{sub_idx}"
+                    chunk_metadata = {
+                        "source_url": source_url,
+                        "generation_id": generation_id,
+                        "chunk_id": chunk.get("chunk_id", orig_idx),
+                        "total_chunks": chunk.get("total_chunks", expected_count),
+                        "section": chunk.get("section", ""),
+                        "hierarchy": "|".join(chunk.get("hierarchy", [])),
+                        "token_count": chunk.get("token_count", 0),
+                        "position": chunk.get("position", orig_idx),
+                        "timestamp": timestamp,
+                        "content": chunk['content'],  # Store content in metadata for retrieval
+                        # Add source metadata
+                        **{f"source_{k}": v for k, v in metadata.items()
+                           if isinstance(v, (str, int, float, bool))}
+                    }
+                    stored_pieces_ids.append(piece_id)
+                    stored_pieces_vectors.append(piece.vector)
+                    stored_pieces_metadata.append(chunk_metadata)
 
-            if success:
-                # Mark URL as cached
-                self._cached_urls[url_hash] = datetime.utcnow()
-                logger.info(f"Successfully stored {len(chunks)} chunks for {source_url}")
+                # Store per original index so a vector-store failure on one
+                # piece never masks or blocks another piece's successful
+                # write, and so completion can be confirmed piece by piece.
+                try:
+                    write_ok = await self.vector_store.add_vectors(
+                        vectors=stored_pieces_vectors,
+                        ids=stored_pieces_ids,
+                        metadata=stored_pieces_metadata,
+                        collection_name=self.collection_name,
+                    )
+                except Exception as exc:
+                    logger.error(f"Vector store write failed for chunk {orig_idx} of {source_url}: {exc}")
+                    write_ok = False
+
+                if not write_ok and hasattr(self.vector_store, "get_vector"):
+                    # A rejected write on a deterministic, already-stored id
+                    # (e.g. an add-not-upsert adapter refusing a duplicate id
+                    # on a retry after restart) is not a real failure --
+                    # confirm existence before treating it as one.
+                    try:
+                        write_ok = True
+                        for piece_id in stored_pieces_ids:
+                            existing = await self.vector_store.get_vector(
+                                piece_id, collection_name=self.collection_name
+                            )
+                            if existing is None:
+                                write_ok = False
+                                break
+                    except Exception as exc:
+                        write_ok = False
+                        logger.debug(f"Could not confirm existing vector(s) for chunk {orig_idx}: {exc}")
+
+                if write_ok:
+                    stored_ids.extend(stored_pieces_ids)
+                else:
+                    for piece_id in stored_pieces_ids:
+                        failure_reasons[piece_id] = VECTOR_STORE_WRITE_FAILED
+                    remaining_pending[orig_idx] = pending[orig_idx]
+
+            newly_stored = sum(1 for orig_idx in pieces_by_orig_idx if orig_idx not in remaining_pending)
+            stored_count = already_stored + newly_stored
+            failed_count = expected_count - stored_count
+
+            if failed_count == 0:
+                status = IngestionStatus.COMPLETE
+            elif stored_count > 0:
+                status = IngestionStatus.PARTIAL
             else:
-                logger.error("Failed to store chunks in vector store")
+                status = IngestionStatus.FAILED
 
-            return success
+            if remaining_pending:
+                self._pending_pieces[state_key] = remaining_pending
+            else:
+                self._pending_pieces.pop(state_key, None)
+
+            self._generation_by_url[url_hash] = generation_id
+
+            if status == IngestionStatus.COMPLETE:
+                self._cached_urls[url_hash] = datetime.utcnow()
+
+            result = IngestionResult(
+                status=status,
+                source_url=source_url,
+                generation_id=generation_id,
+                expected_count=expected_count,
+                stored_count=stored_count,
+                failed_count=failed_count,
+                failed_ids=list(failure_reasons.keys()),
+                failure_reasons=failure_reasons,
+            )
+            self._ingestion_state[state_key] = result
+
+            logger.debug(
+                f"Ingestion for {source_url}: status={status.value}, prepared={expected_count}, "
+                f"embedded_this_attempt={len(texts_to_embed) - len(recovery.failed_indices)}, "
+                f"stored={stored_count}, failed={failed_count}"
+            )
+            if recovery.terminal_error is not None and recovery.terminal_error.category == FailureCategory.AUTH:
+                logger.error(f"Authentication/configuration error during embedding: {recovery.terminal_error.reason}")
+
+            return result
 
         except Exception as e:
             logger.error(f"Error storing chunks: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            return False
+            return IngestionResult(IngestionStatus.FAILED, source_url, "", len(chunks), 0, len(chunks))
 
     async def retrieve_chunks(self,
                              query: str,
@@ -263,10 +404,20 @@ class ChunkManager:
 
             query_vector = query_embedding
 
-            # Build metadata filter if source_url provided
+            # Build metadata filter if source_url provided. Filter by the
+            # latest known generation for that URL too, so a superseded
+            # generation (changed content, model, or budget) cannot return
+            # stale pieces alongside or instead of the current one. Without a
+            # known generation (e.g. after a process restart, before any
+            # store_chunks call in this process), no generation filter is
+            # applied -- this is a documented limitation of the in-memory
+            # generation map, not a durable guarantee.
             filter_metadata = None
             if source_url:
                 filter_metadata = {"source_url": source_url}
+                generation_id = self._generation_by_url.get(self._hash_url(source_url))
+                if generation_id:
+                    filter_metadata["generation_id"] = generation_id
 
             # Search vector store
             results = await self.vector_store.search_vectors(
@@ -353,6 +504,17 @@ class ChunkManager:
             if url_hash in self._cached_urls:
                 del self._cached_urls[url_hash]
 
+            # Clear state for every generation ever seen for this URL, not
+            # just the latest one -- an older partial generation's pending
+            # map must not survive to later report false completion after
+            # its pieces are deleted below.
+            self._generation_by_url.pop(url_hash, None)
+            state_prefix = f"{url_hash}:"
+            for state_key in [k for k in self._ingestion_state if k.startswith(state_prefix)]:
+                del self._ingestion_state[state_key]
+            for state_key in [k for k in self._pending_pieces if k.startswith(state_prefix)]:
+                del self._pending_pieces[state_key]
+
             # Delete chunks from vector store
             # This requires getting all chunk IDs first
             # Most vector stores support metadata-based deletion
@@ -375,6 +537,16 @@ class ChunkManager:
     def _hash_url(self, url: str) -> str:
         """Generate a consistent hash for a URL."""
         return hashlib.md5(url.encode()).hexdigest()
+
+    def _hash_content(self, texts: list[str]) -> str:
+        """Deterministic hash of prepared chunk texts, used as part of the
+        ingestion generation identity so changed content is never mistaken
+        for the same generation."""
+        hasher = hashlib.sha256()
+        for text in texts:
+            hasher.update(text.encode("utf-8"))
+            hasher.update(b"\x1f")
+        return hasher.hexdigest()[:16]
 
     def _is_cached(self, url_hash: str) -> bool:
         """Check if a URL hash is in cache and not expired."""
@@ -436,7 +608,7 @@ class ChunkManager:
 
             logger.info(f"Split large chunk into {len(pieces)} pieces")
 
-        logger.info(f"Prepared {len(validated_chunks)} chunks for embedding (from {len(chunks)} original chunks)")
+        logger.debug(f"Prepared {len(validated_chunks)} chunks for embedding (from {len(chunks)} original chunks)")
         return validated_chunks, chunk_texts
 
     async def cleanup_expired_chunks(self):
@@ -454,6 +626,12 @@ class ChunkManager:
 
             for url_hash in expired_hashes:
                 del self._cached_urls[url_hash]
+                self._generation_by_url.pop(url_hash, None)
+                state_prefix = f"{url_hash}:"
+                for state_key in [k for k in self._ingestion_state if k.startswith(state_prefix)]:
+                    del self._ingestion_state[state_key]
+                for state_key in [k for k in self._pending_pieces if k.startswith(state_prefix)]:
+                    del self._pending_pieces[state_key]
 
             if expired_hashes:
                 logger.info(f"Cleaned up {len(expired_hashes)} expired URL caches")

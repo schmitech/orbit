@@ -1,6 +1,6 @@
 # Chunking Safeguards — Phased Implementation Plan
 
-Status: in progress; Phases 1, 1b, and 2 completed (see the completion checklist below).
+Status: in progress; Phases 1, 1b, 2, 3, and 4 completed (see the completion checklist below).
 
 ## Objective and scope
 
@@ -182,6 +182,21 @@ Test commands run from the repo root (`venv/bin/python -m pytest -c server/tests
 
 **Exit gate:** Ingestion-state tests and earlier gates pass. Missing content is never represented as a complete cached ingestion; retries and refreshes cannot mix generations.
 
+**Status: complete.** `ChunkManager.store_chunks` (`server/utils/chunk_manager.py`) now returns a structured `IngestionResult` (`complete`/`partial`/`failed` `IngestionStatus`, expected/stored/failed counts, failed piece ids, and per-piece failure reasons) instead of a bare boolean; callers must read `.status` explicitly. Ingestion identity is `(source URL, prepared-content hash, embedding model identity, embedding budget version)`, hashed into a `generation_id`; piece ids are deterministic (`"{url_hash}:{generation_id}_p{index}[_s{split}]"`) so retries are idempotent and never re-store an already-confirmed piece. A partial result keeps only its still-missing pieces pending (in-memory, current-process-lifetime only) and a later `store_chunks` call for the same generation retries just those, without re-embedding or re-storing pieces already confirmed written. Vector-store write failures are now distinguished from embedding failures (`vector_store_write_failed` vs. the Phase 3 `FailureCategory` reasons) by writing each embedded piece individually and catching write failures per piece rather than treating a bulk write as all-or-nothing. `retrieve_chunks` filters by the latest known `generation_id` for a URL (tracked in-memory per process) so a superseded generation's stale pieces are never mixed into a query's results; without a known generation (e.g. immediately after a process restart, before any `store_chunks` call), no generation filter is applied -- this is documented as a limitation of the in-memory map, not a durable guarantee. `invalidate_cache` and `cleanup_expired_chunks` clear the associated ingestion/pending state so a URL is treated as fully uncached, not left as a stale partial.
+
+Test commands run from the repo root (`venv/bin/python -m pytest -c server/tests/pyproject.toml ...`):
+
+- `server/tests/test_chunking_safeguards/test_ingestion_state.py` -- 11 passed
+- `server/tests/test_chunking_safeguards` (full package) -- 137 passed
+- `server/tests/test_embeddings/test_embedding_cost_tracking.py` -- 22 passed
+
+`ruff check` passes on all changed files (pre-existing `BLE001`/`DTZ003` findings in `chunk_manager.py`/`chroma_store.py` predate this phase and are unchanged in kind). Two review-driven fixes since the initial implementation:
+
+- `server/vector_stores/implementations/chroma_store.py`'s `add_vectors` used `collection.add()`, which rejects an id that already exists rather than upserting it; on the default persistent Chroma adapter this meant a retry after a process restart -- reusing the same deterministic piece ids -- reported every already-stored piece as a failed write and never reached `COMPLETE`. Changed to `collection.upsert()`. As defense in depth for any other add-only adapter, `ChunkManager.store_chunks` now also confirms a rejected write's id already exists (via `get_vector`, when the store supports it) before counting it as a real failure.
+- `invalidate_cache` and `cleanup_expired_chunks` previously cleared only the *latest* generation's `_ingestion_state`/`_pending_pieces` entry for a URL. An older partial generation's pending map survived invalidation; re-ingesting that older content could report `COMPLETE` after storing only its previously-missing pieces, since the retained pending map skipped pieces that `delete_by_metadata` had just deleted. Both now clear every generation's state for the URL hash.
+
+Limitations: partial-write detection and idempotent piece ids depend on `add_vectors` returning `False`/raising on a rejected write rather than silently dropping it; a store that silently drops part of a bulk write without signaling failure would not be caught, and the existing-id fallback depends on the store implementing `get_vector`. Ingestion and generation state lives only in the `ChunkManager` process instance -- a restart does not recover partial-completion metadata (a fresh instance treats every URL as uncached and rebuilds idempotently, per the roadmap's own guidance, now compatible with add-only stores via the upsert/existing-id fixes above), and multiple `ChunkManager` instances (e.g. multiple worker processes) do not share pending-piece or generation state, so cross-process partial-retry coalescing and generation filtering are out of scope here.
+
 ## Phase 5 — Integrate bounded, visible retrieval degradation
 
 **Changes**
@@ -227,7 +242,7 @@ Test commands run from the repo root (`venv/bin/python -m pytest -c server/tests
 - [x] Phase 1b (follow-up, optional; not part of the Phase 6 gate unless merged first): `FileVectorRetriever.index_file_chunks()` validates every outgoing chunk against a resolved `EmbeddingBudget`; uploaded-file chunkers' decode-failure estimates and unlabeled character-as-token counting are fixed
 - [x] Phase 2: source preservation and bounded final chunks
 - [x] Phase 3: document-safe, bounded embedding recovery
-- [ ] Phase 4: explicit completeness and recoverable cache state
+- [x] Phase 4: explicit completeness and recoverable cache state
 - [ ] Phase 5: bounded retrieval and visible partial coverage
 - [ ] Phase 6: integrated validation and accurate documentation
 

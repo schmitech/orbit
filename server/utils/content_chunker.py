@@ -329,7 +329,7 @@ class ContentChunker:
         pieces = self._merge_contiguous_units(content, units)
         chunks = self._add_overlap_and_finalize(content, pieces, metadata, source_hash)
 
-        logger.info(
+        logger.debug(
             f"Chunked content into {len(chunks)} chunks "
             f"(original: {self.budget.count(content).count} tokens, mode={self.budget.counting_mode})"
         )

@@ -633,9 +633,11 @@ async def test_chunk_manager_store_chunks_never_calls_embed_query():
         {"content": "chunk two", "chunk_id": 1, "total_chunks": 2},
     ]
 
-    ok = await manager.store_chunks(chunks, "https://example.com", metadata={})
+    from utils.chunk_manager import IngestionStatus
 
-    assert ok is True
+    result = await manager.store_chunks(chunks, "https://example.com", metadata={})
+
+    assert result.status == IngestionStatus.COMPLETE
     assert client.embed_documents_tracked_calls == [["chunk one", "chunk two"]]
 
 
@@ -690,9 +692,13 @@ async def test_chunk_manager_reports_usage_before_partial_failure():
     ]
     usage = {}
 
-    ok = await manager.store_chunks(chunks, "https://example.com", metadata={}, usage_sink=usage)
+    from utils.chunk_manager import IngestionStatus
 
-    # One chunk embedded and stored; usage reflects only the reported call.
-    assert ok is True
+    result = await manager.store_chunks(chunks, "https://example.com", metadata={}, usage_sink=usage)
+
+    # One chunk embedded and stored; the other failed -- partial, not silently complete.
+    assert result.status == IngestionStatus.PARTIAL
+    assert result.stored_count == 1
+    assert result.failed_count == 1
     assert usage.get("reported") is True
     assert usage["prompt_tokens"] == 1

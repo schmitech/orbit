@@ -171,8 +171,11 @@ class ChromaStore(BaseVectorStore):
             else:
                 doc_texts = [f"vector_{i}" for i in range(len(vectors))]
 
-            # Add to collection
-            collection.add(
+            # Upsert rather than add: an id that already exists (e.g. a
+            # ChunkManager retry re-storing a piece with a deterministic id)
+            # must be recognized as already stored, not rejected as a
+            # duplicate -- collection.add() raises on an existing id.
+            collection.upsert(
                 embeddings=vectors,
                 documents=doc_texts,
                 metadatas=metadata or [{}] * len(vectors),
@@ -214,11 +217,18 @@ class ChromaStore(BaseVectorStore):
                 logger.warning(f"Collection {collection_name} not found")
                 return []
 
+            # ChromaDB's `where` rejects a bare dict with more than one key
+            # (it expects exactly one operator per clause) -- combine
+            # multiple equality filters with $and.
+            where = filter_metadata
+            if filter_metadata and len(filter_metadata) > 1:
+                where = {"$and": [{k: v} for k, v in filter_metadata.items()]}
+
             # Perform search (include documents for ChromaDB)
             results = collection.query(
                 query_embeddings=[query_vector],
                 n_results=limit,
-                where=filter_metadata,
+                where=where,
                 include=['embeddings', 'metadatas', 'distances', 'documents']
             )
 
