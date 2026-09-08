@@ -249,7 +249,7 @@ export function createSkillsTab({
     });
     table.appendChild(thead);
     table.appendChild(tbody);
-    wrap.appendChild(wrapTable(table));
+    wrap.appendChild(wrapTable(table, ["label", "fluid", "number", "status"]));
   }
 
   function renderSkillDetail(panel, skill, onRefresh) {

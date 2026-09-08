@@ -370,7 +370,7 @@ export function createApiKeysTab({
     bindValidationClear(clientInput, adapterSelect, promptSelect, notesInput);
 
     var keySearchInput = el("input", {
-      type: "text",
+      type: "search",
       placeholder: "Search API keys",
       "aria-label": "Search API keys"
     });
@@ -379,7 +379,9 @@ export function createApiKeysTab({
       options: [{ value: "all", label: "All keys" }, { value: "expired", label: "Expired" }, { value: "soon", label: "Expiring soon" }, { value: "non_expiring", label: "Non-expiring exceptions" }],
       value: "all"
     });
-    listPanel.appendChild(el("div", { className: "admin-create-form-grid api-key-filter-grid" },
+    var listToolbar = el("div", { className: "list-toolbar" });
+    listPanel.appendChild(listToolbar);
+    listToolbar.appendChild(el("div", { className: "admin-create-form-grid api-key-filter-grid" },
       field("Search", keySearchInput),
       field("Expiration", keyExpirationFilterSelect)
     ));
@@ -392,7 +394,7 @@ export function createApiKeysTab({
     var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
     bulkDeleteBtn.style.visibility = "hidden";
     bulkDeleteBtn.disabled = true;
-    listPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
+    listToolbar.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
 
     var tableWrap = el("div", null, skeleton());
     listPanel.appendChild(tableWrap);
@@ -685,7 +687,6 @@ export function createApiKeysTab({
       selection.onSelectionChange();
       syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, keyIds);
     });
-    table.appendChild(el("colgroup", null, el("col", { className: "selection-col-width" })));
     var thead = el("thead", null, selection.sorter.headerRow([
       { attrs: { className: "selection-col" }, content: selectAllBox },
       { label: "Client", key: "client", sortValue: function (k) { return k.client_name || ""; } },
@@ -765,7 +766,7 @@ export function createApiKeysTab({
     });
     table.appendChild(thead);
     table.appendChild(tbody);
-    wrap.appendChild(wrapTable(table));
+    wrap.appendChild(wrapTable(table, ["selection", "fluid", "fluid", "fluid", "date", "status"]));
   }
 
   var EXPIRATION_POLICY_LABELS = {

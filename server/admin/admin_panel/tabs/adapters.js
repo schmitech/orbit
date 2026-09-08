@@ -1,3 +1,5 @@
+import { wrapTable } from "../core/dom.js";
+
 export function createAdaptersTab({
   api, endpoints, el, clear, skeleton, svgIcon, iconPlus, iconSave, iconRefresh,
   field, helpTooltip, characterCount, withButton, createPaginator, createColumnSorter, itemsPerPage,
@@ -101,7 +103,7 @@ export function createAdaptersTab({
     table.appendChild(thead);
     var tbody = el("tbody");
     table.appendChild(tbody);
-    leftPanel.appendChild(table);
+    leftPanel.appendChild(wrapTable(table, ["fluid", "label", "status"]));
 
     // Flatten adapters from imported files only
     var allAdapters = [];
@@ -222,7 +224,7 @@ export function createAdaptersTab({
       {
         label: "Enabled",
         key: "enabled",
-        attrs: { style: "width:70px;text-align:center" },
+        attrs: { style: "text-align:center" },
         sortValue: function (a) { return a.enabled ? "Enabled" : "Disabled"; },
       },
     ]));

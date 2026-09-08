@@ -1,3 +1,5 @@
+import { wrapTable } from "../core/dom.js";
+
 const AUDIT_PAGE_SIZE = 25;
 const AUDIT_STREAMS = [
   { value: "all", label: "All" },
@@ -343,7 +345,7 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
 
     table.appendChild(thead);
     table.appendChild(tbody);
-    wrap.appendChild(el("div", { className: "table-wrap" }, table));
+    wrap.appendChild(wrapTable(table, ["date", "fluid", "label", "fluid", "number", "number", "status"]));
   }
 
   // Mirrors admin_panel.js's createPaginator numbering (ellipsis past 7 pages) —

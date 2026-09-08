@@ -53,8 +53,31 @@ function trackSelect(entry) {
   }
 }
 
-export function wrapTable(table) {
-  return el("div", { className: "table-wrap" }, table);
+/** Explicit column roles keep widths stable across filtering and pagination.
+ * Use "fluid" for prose columns that share the space left by fixed columns.
+ * Each fluid column retains a readable minimum via the table's scroll width.
+ */
+export function sizeTable(table, columns) {
+  table.querySelectorAll("colgroup").forEach((group) => group.remove());
+  table.classList.add("sized-table");
+  table.style.setProperty("--table-min-width", "calc(" + columns.map((role) =>
+    "var(--table-col-" + role + ")"
+  ).join(" + ") + ")");
+  table.prepend(el("colgroup", null, columns.map((role) =>
+    el("col", role === "fluid" ? null : { style: "width:var(--table-col-" + role + ")" })
+  )));
+  return table;
+}
+
+export function wrapTable(table, columns) {
+  if (columns) sizeTable(table, columns);
+  // Let keyboard users reach and horizontally scroll wide tables too.
+  return el("div", {
+    className: "table-wrap",
+    tabindex: "0",
+    role: "region",
+    "aria-label": table.getAttribute("aria-label") || "Data table"
+  }, table);
 }
 
 /**

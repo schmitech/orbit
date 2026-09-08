@@ -1,3 +1,5 @@
+import { sizeTable } from "../core/dom.js";
+
 export function createOverviewTab({
   api, endpoints, el, clear, formatNum, clampPercentage,
   userHasPermission, createPaginator, createColumnSorter, withButton,
@@ -492,6 +494,7 @@ export function createOverviewTab({
       : el("tr", null, columns.map((column) => el("th", column.attrs || null, column.label)))));
     const tbody = el("tbody");
     table.appendChild(tbody);
+    sizeTable(table, columns.map((column) => column.width || "fluid"));
     container.appendChild(table);
     function renderPage(pageRows) {
       clear(tbody);
@@ -623,13 +626,13 @@ export function createOverviewTab({
     });
     renderMonitoringTable(container, [
       { label: "Adapter" },
-      { label: "State" },
-      { label: "Requests", attrs: { style: "text-align:right" } },
-      { label: "Failures", attrs: { style: "text-align:right" } },
-      { label: "Recovery Attempts", attrs: { style: "text-align:right" } },
-      { label: "Next Retry", attrs: { style: "text-align:right" } },
-      { label: "Avg Latency", attrs: { style: "text-align:right" } },
-      { label: "Actions", attrs: { style: "text-align:right" }, sortable: false }
+      { label: "State", width: "status" },
+      { label: "Requests", width: "number", attrs: { style: "text-align:right" } },
+      { label: "Failures", width: "number", attrs: { style: "text-align:right" } },
+      { label: "Recovery Attempts", width: "number", attrs: { style: "text-align:right" } },
+      { label: "Next Retry", width: "number", attrs: { style: "text-align:right" } },
+      { label: "Avg Latency", width: "number", attrs: { style: "text-align:right" } },
+      { label: "Actions", width: "actions", attrs: { style: "text-align:right" }, sortable: false }
     ], rows, "No adapters match the current filters.", overviewAdapterPaginator, overviewAdapterSorter);
   }
 
@@ -662,10 +665,10 @@ export function createOverviewTab({
     });
     renderMonitoringTable(container, [
       { label: "Pool" },
-      { label: "Status" },
-      { label: "Active Threads", attrs: { style: "text-align:right" } },
-      { label: "Queued", attrs: { style: "text-align:right" } },
-      { label: "Utilization", attrs: { style: "text-align:right" } }
+      { label: "Status", width: "status" },
+      { label: "Active Threads", width: "number", attrs: { style: "text-align:right" } },
+      { label: "Queued", width: "number", attrs: { style: "text-align:right" } },
+      { label: "Utilization", width: "number", attrs: { style: "text-align:right" } }
     ], rows, "No thread pools match the current filter.", overviewThreadPoolPaginator, overviewThreadPoolSorter);
   }
 
@@ -722,9 +725,9 @@ export function createOverviewTab({
     });
     renderMonitoringTable(container, [
       { label: "Datasource" },
-      { label: "Connection" },
-      { label: "References", attrs: { style: "text-align:right" } },
-      { label: "Status" }
+      { label: "Connection", width: "label" },
+      { label: "References", width: "number", attrs: { style: "text-align:right" } },
+      { label: "Status", width: "status" }
     ], rows, "No datasource pool entries match the current filter.", overviewDatasourcePaginator, overviewDatasourceSorter);
   }
 
@@ -829,6 +832,7 @@ export function createOverviewTab({
         )
       )
     );
+    sizeTable(endpointSection.querySelector("table"), ["status", "fluid", "number", "number", "number"]);
     container.appendChild(endpointSection);
 
     // 6. Pipeline steps

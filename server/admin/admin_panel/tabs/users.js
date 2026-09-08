@@ -117,13 +117,14 @@ export function createUsersTab({
       el("h2", null, "Users"),
       usersRefreshBtn
     ));
-    listPanel.appendChild(field("Search", searchInput));
+    var listToolbar = el("div", { className: "list-toolbar" }, field("Search", searchInput));
+    listPanel.appendChild(listToolbar);
     var createLaunchBtn = el("button", {
       className: "secondary create-launch-btn",
       type: "button",
       "aria-label": "Create user"
     }, svgIcon(iconPlus), el("span", null, "Create User"));
-    listPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
+    listToolbar.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
     listPanel.appendChild(tableWrap);
     listPanel.appendChild(userPaginator.getControlsEl());
 
@@ -770,7 +771,7 @@ export function createUsersTab({
         tbody.appendChild(buildRuleRow(rule));
       });
       table.appendChild(tbody);
-      tableWrap.appendChild(wrapTable(table));
+      tableWrap.appendChild(wrapTable(table, ["label", "fluid", "fluid", "label", "actions"]));
     }
 
     async function loadRules() {
@@ -1136,7 +1137,6 @@ export function createUsersTab({
       selection.onSelectionChange();
       syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, selectableUserIds);
     });
-    table.appendChild(el("colgroup", null, el("col", { className: "selection-col-width" })));
     var thead = el("thead", null, selection.sorter.headerRow([
       { attrs: { className: "selection-col" }, content: selectAllBox },
       { label: "Username", key: "username", sortValue: function (u) { return u.email || u.username; } },
@@ -1198,7 +1198,7 @@ export function createUsersTab({
     });
     table.appendChild(thead);
     table.appendChild(tbody);
-    wrap.appendChild(wrapTable(table));
+    wrap.appendChild(wrapTable(table, ["selection", "fluid", "label", "status"]));
   }
 
   function renderUserDetail(panel, user, onRefresh) {
@@ -1581,7 +1581,7 @@ export function createUsersTab({
         tbody.appendChild(buildSessionRow(session));
       });
       table.appendChild(tbody);
-      tableWrap.appendChild(wrapTable(table));
+      tableWrap.appendChild(wrapTable(table, ["label", "fluid", "date", "date", "actions"]));
     }
 
     async function loadSessions() {

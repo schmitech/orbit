@@ -73,11 +73,12 @@ export function createPromptsTab({
     bindValidationClear(nameInput, versionInput, textArea, createKeySelect);
 
     var promptSearchInput = el("input", {
-      type: "text",
+      type: "search",
       placeholder: "Search personas",
       "aria-label": "Search personas"
     });
-    listPanel.appendChild(field("Search", promptSearchInput));
+    var listToolbar = el("div", { className: "list-toolbar" }, field("Search", promptSearchInput));
+    listPanel.appendChild(listToolbar);
     var createLaunchBtn = el("button", {
       className: "secondary create-launch-btn",
       type: "button",
@@ -87,7 +88,7 @@ export function createPromptsTab({
     var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
     bulkDeleteBtn.style.visibility = "hidden";
     bulkDeleteBtn.disabled = true;
-    listPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
+    listToolbar.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
 
     var tableWrap = el("div", null, skeleton());
     listPanel.appendChild(tableWrap);
@@ -249,7 +250,6 @@ export function createPromptsTab({
       selection.onSelectionChange();
       syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, promptIds);
     });
-    table.appendChild(el("colgroup", null, el("col", { className: "selection-col-width" })));
     var thead = el("thead", null, selection.sorter.headerRow([
       { attrs: { className: "selection-col" }, content: selectAllBox },
       { label: "ID", key: "id", attrs: { className: "persona-id-col" }, sortValue: promptIdentifier },
@@ -301,7 +301,7 @@ export function createPromptsTab({
     });
     table.appendChild(thead);
     table.appendChild(tbody);
-    wrap.appendChild(wrapTable(table));
+    wrap.appendChild(wrapTable(table, ["selection", "id", "fluid", "version"]));
   }
 
   function renderPromptDetail(panel, prompt, onRefresh) {
