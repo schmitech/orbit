@@ -22,9 +22,11 @@ export function createOverviewTab({
   let overviewAdapterPaginator = null;
   let overviewDatasourcePaginator = null;
   let overviewThreadPoolPaginator = null;
+  let overviewEndpointPaginator = null;
   let overviewAdapterSorter = null;
   let overviewDatasourceSorter = null;
   let overviewThreadPoolSorter = null;
+  let overviewEndpointSorter = null;
 
   function destroyOverviewCharts() {
     Object.keys(overviewCharts).forEach((k) => { try { overviewCharts[k].destroy(); } catch (_) {} });
@@ -407,22 +409,28 @@ export function createOverviewTab({
 
   function updateMonitoringEndpoints(endpoints) {
     const section = document.getElementById("mon-endpoint-section");
-    const tbody = document.getElementById("mon-endpoint-tbody");
-    if (!section || !tbody) return;
+    const container = document.getElementById("mon-endpoint-list");
+    if (!section || !container) return;
     if (!endpoints || !endpoints.length) { section.style.display = "none"; return; }
     section.style.display = "";
     const methodColors = { GET: "method-get", POST: "method-post", PUT: "method-put", DELETE: "method-delete" };
-    clear(tbody);
-    endpoints.forEach((ep) => {
+    const rows = endpoints.map((ep) => {
       const method = (ep.method || "GET").toUpperCase();
-      tbody.appendChild(el("tr", null,
+      return [
         el("td", null, el("span", { className: "method-badge " + (methodColors[method] || "method-get") }, method)),
         el("td", { style: "font-family:var(--font-mono);font-size:var(--text-xs)" }, ep.endpoint),
         el("td", { style: "text-align:right;font-weight:600" }, formatNum(ep.total_requests)),
         el("td", { style: "text-align:right;font-weight:600" }, formatNum(ep.avg_latency_ms, 1) + " ms"),
         el("td", { style: "text-align:right;font-weight:600" }, formatNum(ep.error_rate, 2) + "%")
-      ));
+      ];
     });
+    renderMonitoringTable(container, [
+      { label: "Method", width: "status" },
+      { label: "Endpoint", width: "fluid" },
+      { label: "Requests", width: "number", attrs: { style: "text-align:right" } },
+      { label: "Avg Latency", width: "number", attrs: { style: "text-align:right" } },
+      { label: "Error Rate", width: "number", attrs: { style: "text-align:right" } }
+    ], rows, "No endpoint activity recorded yet.", overviewEndpointPaginator, overviewEndpointSorter);
   }
 
   function monitoringStatCell(label, value) {
@@ -760,9 +768,11 @@ export function createOverviewTab({
     overviewAdapterPaginator = createPaginator({ pageSize: itemsPerPage, onPageChange: () => {} });
     overviewDatasourcePaginator = createPaginator({ pageSize: itemsPerPage, onPageChange: () => {} });
     overviewThreadPoolPaginator = createPaginator({ pageSize: itemsPerPage, onPageChange: () => {} });
+    overviewEndpointPaginator = createPaginator({ pageSize: itemsPerPage, onPageChange: () => {} });
     overviewAdapterSorter = createColumnSorter(overviewAdapterPaginator);
     overviewDatasourceSorter = createColumnSorter(overviewDatasourcePaginator);
     overviewThreadPoolSorter = createColumnSorter(overviewThreadPoolPaginator);
+    overviewEndpointSorter = createColumnSorter(overviewEndpointPaginator);
 
     // 1. Toolbar
     const toolbar = el("div", { className: "monitoring-toolbar" },
@@ -829,17 +839,9 @@ export function createOverviewTab({
     // 5. Endpoint latency table
     const endpointSection = el("div", { id: "mon-endpoint-section", className: "monitoring-section", style: "display:none" },
       el("h3", null, "Endpoint Latency"),
-      el("div", { className: "endpoint-table-wrap" },
-        el("table", { className: "endpoint-table" },
-          el("thead", null, el("tr", null,
-            el("th", null, "Method"), el("th", null, "Endpoint"), el("th", { style: "text-align:right" }, "Requests"),
-            el("th", { style: "text-align:right" }, "Avg Latency"), el("th", { style: "text-align:right" }, "Error Rate")
-          )),
-          el("tbody", { id: "mon-endpoint-tbody" })
-        )
-      )
+      el("div", { id: "mon-endpoint-list", className: "table-wrap monitoring-table-wrap" }),
+      overviewEndpointPaginator.getControlsEl()
     );
-    sizeTable(endpointSection.querySelector("table"), ["status", "fluid", "number", "number", "number"]);
     container.appendChild(endpointSection);
 
     // 6. Pipeline steps

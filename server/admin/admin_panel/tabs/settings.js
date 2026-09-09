@@ -37,7 +37,7 @@ export function createSettingsTab({
     { label: "General & Performance", keys: ["general", "performance", "language_detection", "clock_service"] },
     { label: "Authentication & Security", keys: ["auth", "api_keys", "security", "secrets_management"] },
     { label: "Internal Services & Storage", keys: ["internal_services", "chat_history", "conversation_threading", "prompt_service"] },
-    { label: "Retrieval & Files", keys: ["composite_retrieval", "autocomplete", "skill_routing", "files"] },
+    { label: "Retrieval & Files", keys: ["composite_retrieval", "autocomplete", "skill_routing", "tool_skills", "files"] },
     { label: "Reliability & Messaging", keys: ["fault_tolerance", "messaging", "messages"] },
     { label: "Logging & Monitoring", keys: ["logging", "monitoring"] },
   ];
@@ -48,7 +48,7 @@ export function createSettingsTab({
     internal_services: "Internal Services", chat_history: "Chat History",
     conversation_threading: "Conversation Threading", prompt_service: "Prompt Service",
     composite_retrieval: "Composite Retrieval", autocomplete: "Autocomplete",
-    skill_routing: "Skill Routing", files: "Files",
+    skill_routing: "Skill Routing", tool_skills: "Tool Skills", files: "Files",
     fault_tolerance: "Fault Tolerance", messaging: "Message Queue", messages: "Messages",
     logging: "Logging", monitoring: "Monitoring",
   };
@@ -469,9 +469,10 @@ export function createSettingsTab({
     }
 
     if (!selectedSettingsSection || knownKeys.indexOf(selectedSettingsSection) === -1) {
-      // `knownKeys` contains every eligible section, unlike an individual
-      // group which may be empty after future grouping changes.
-      selectedSettingsSection = knownKeys[0];
+      // Default to the first key in nav order (grouped, then Uncategorized),
+      // not raw config.yaml order — otherwise a key just added near the top
+      // of config.yaml jumps ahead of "General" as the default selection.
+      selectedSettingsSection = groups.length ? groups[0].keys[0] : knownKeys[0];
     }
     renderBody(selectedSettingsSection);
   }

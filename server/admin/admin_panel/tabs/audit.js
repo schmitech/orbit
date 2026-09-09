@@ -324,8 +324,10 @@ export function createAuditTab({ api, endpoints, el, clear, skeleton, refreshBut
         el("td", { className: "audit-col-cost", title: isChatAudit(ev) ? (ev.pricing_source || "") : "" },
           isChatAudit(ev) ? obsCost(ev.cost_usd) : "—"),
         el("td", { className: "audit-col-status" },
-          el("span", { className: "audit-status-code" }, isChatAudit(ev) ? (ev.provider || "") : String(ev.status_code != null ? ev.status_code : "")),
-          el("span", { className: "badge " + statusCls }, statusLabel)
+          el("div", { className: "audit-status-cell" },
+            el("span", { className: "audit-status-code" }, isChatAudit(ev) ? (ev.provider || "") : String(ev.status_code != null ? ev.status_code : "")),
+            el("span", { className: "badge " + statusCls }, statusLabel)
+          )
         )
       );
       tr.tabIndex = 0;

@@ -107,7 +107,7 @@ export function createAdaptersTab({
     table.appendChild(thead);
     var tbody = el("tbody");
     table.appendChild(tbody);
-    leftPanel.appendChild(wrapTable(table, ["fluid", "label", "status"]));
+    leftPanel.appendChild(wrapTable(table, ["fluid", "label", "label", "label", "status"]));
 
     // Flatten adapters from imported files only
     var allAdapters = [];
@@ -189,7 +189,7 @@ export function createAdaptersTab({
     function buildAdapterRows(pageItems) {
       clear(tbody);
       if (!pageItems || pageItems.length === 0) {
-        tbody.appendChild(el("tr", null, el("td", { colSpan: "3", className: "empty-state" },
+        tbody.appendChild(el("tr", null, el("td", { colSpan: "5", className: "empty-state" },
           el("div", { className: "empty-state-icon" }, "\u{1F50C}"),
           el("p", null, "No adapters found")
         )));
@@ -199,6 +199,8 @@ export function createAdaptersTab({
         var row = el("tr", { className: "selectable-row", tabindex: "0" },
           el("td", null, a.name),
           el("td", null, a.adapter || a.type),
+          el("td", null, a.datasource || "—"),
+          el("td", null, a.model || "—"),
           el("td", { className: "adapter-toggle-cell" }, makeToggle(a))
         );
 
@@ -225,6 +227,8 @@ export function createAdaptersTab({
     thead.appendChild(adapterSorter.headerRow([
       { label: "Name", key: "name", sortValue: function (a) { return a.name || ""; } },
       { label: "Type", key: "type", sortValue: function (a) { return a.adapter || a.type || ""; } },
+      { label: "Datasource", key: "datasource", sortValue: function (a) { return a.datasource || ""; } },
+      { label: "Model", key: "model", sortValue: function (a) { return a.model || ""; } },
       {
         label: "Enabled",
         key: "enabled",
@@ -237,7 +241,9 @@ export function createAdaptersTab({
     function renderAdapterRows(filter) {
       var lc = (filter || "").toLowerCase();
       var filtered = !lc ? allAdapters : allAdapters.filter(function (a) {
-        return a.name.toLowerCase().indexOf(lc) !== -1 || a.adapter.toLowerCase().indexOf(lc) !== -1;
+        return [a.name, a.adapter, a.datasource, a.model].some(function (value) {
+          return String(value || "").toLowerCase().indexOf(lc) !== -1;
+        });
       });
       adapterPaginator.setData(filtered);
     }

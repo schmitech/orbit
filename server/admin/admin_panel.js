@@ -996,8 +996,8 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     { id: "prompts", label: "Personas", permission: "prompts.manage", group: "configure", icon: ICON_NAV_PERSONAS },
     { id: "adapters", label: "Adapters", permission: "adapters.manage", group: "configure", icon: ICON_NAV_ADAPTERS },
     { id: "settings", label: "Settings", permission: "config.manage", group: "configure", icon: ICON_NAV_SETTINGS },
-    { id: "mcp", label: "MCP", permission: "config.manage", group: "system", icon: ICON_NAV_MCP },
-    { id: "skills", label: "Skills", permission: "config.manage", group: "system", icon: ICON_NAV_SKILLS },
+    { id: "mcp", label: "Servers", permission: "config.manage", group: "mcp", icon: ICON_NAV_MCP },
+    { id: "skills", label: "Skills", permission: "config.manage", group: "mcp", icon: ICON_NAV_SKILLS },
     { id: "ops", label: "Ops", permission: "system.manage", group: "system", icon: ICON_NAV_OPS },
     { id: "audit", label: "Audit", permission: "audit.read", group: "system", icon: ICON_NAV_AUDIT },
   ];
@@ -1009,6 +1009,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     { id: "access", label: "Access" },
     { id: "configure", label: "Configure" },
     { id: "system", label: "System" },
+    { id: "mcp", label: "MCP" },
   ];
 
   function tabById(id) {

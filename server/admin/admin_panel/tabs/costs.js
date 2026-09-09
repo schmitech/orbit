@@ -219,30 +219,28 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
       value: selectedCallType
     });
     callTypeSelect.addEventListener("change", () => { selectedCallType = callTypeSelect.value; load(); });
-    const header = el("div", { className: "panel" },
-      el("div", { className: "panel-header-row" },
-        el("div", null,
-          el("h2", null, "Costs"),
-          el("p", { className: "muted" }, "Usage and estimated cost across chat, embedding, and media providers. Cost is an estimate from the local rate table in config/pricing.yaml, not a provider invoice.")
-        ),
-        el("div", { className: "monitoring-toolbar-right", id: "obs-window-controls" },
-          [1, 7, 30].map((days) => {
-            const button = el("button", {
-              type: "button",
-              className: "time-window-btn",
-              "aria-pressed": days === selectedWindowDays ? "true" : "false"
-            }, days === 1 ? "24h" : days + "d");
-            button.addEventListener("click", () => {
-              if (selectedWindowDays === days) return;
-              selectedWindowDays = days;
-              load();
-            });
-            return button;
-          }),
-          groupBySelect,
-          callTypeSelect,
-          refreshButton("Refresh costs data", () => load())
-        )
+    const header = el("div", { className: "panel-header-row costs-page-header" },
+      el("div", { className: "monitoring-toolbar-right", id: "obs-window-controls" },
+        [1, 7, 30].map((days) => {
+          const button = el("button", {
+            type: "button",
+            className: "time-window-btn",
+            "aria-pressed": days === selectedWindowDays ? "true" : "false"
+          }, days === 1 ? "24h" : days + "d");
+          button.addEventListener("click", () => {
+            if (selectedWindowDays === days) return;
+            selectedWindowDays = days;
+            load();
+          });
+          return button;
+        }),
+        groupBySelect,
+        callTypeSelect,
+        refreshButton("Refresh costs data", () => load())
+      ),
+      el("div", null,
+        el("h2", null, "Costs"),
+        el("p", { className: "muted" }, "Usage and estimated cost across chat, embedding, and media providers. Cost is an estimate from the local rate table in config/pricing.yaml, not a provider invoice.")
       )
     );
     const chipRow = el("div", { id: "obs-filter-chip-row", style: "display:none" });

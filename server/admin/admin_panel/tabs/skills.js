@@ -75,8 +75,11 @@ export function createSkillsTab({
 
     var skillsRefreshBtn = refreshButton("Refresh the skill list", function () { refreshSkills(); });
     listPanel.appendChild(el("div", { className: "panel-header-row" },
-      el("h2", null, "Skills"),
+      el("h2", null, "MCP Tool Playbooks"),
       skillsRefreshBtn
+    ));
+    listPanel.appendChild(el("p", { className: "muted skills-intro" },
+      "Create procedural playbooks for matching MCP tools. Eligible playbooks help the model use tools safely and consistently; they are separate from adapter-routing skills such as mcp-agent."
     ));
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "64", placeholder: "my-tool-playbook" });
