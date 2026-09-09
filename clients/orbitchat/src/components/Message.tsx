@@ -216,8 +216,8 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
       <div className="flex items-center gap-0.5 text-gray-400 dark:text-[#8e8ea0]">
         <button
           onClick={() => handleClick('up')}
-          disabled={isLoading}
-          className={`rounded-md p-1.5 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
+          disabled={isLoading || !reply.databaseMessageId}
+          className={`rounded-md p-1.5 transition-colors ${isLoading || !reply.databaseMessageId ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
           title={t('message.feedback.good')}
           aria-label={t('message.feedback.good')}
         >
@@ -225,8 +225,8 @@ function ThreadReplyFeedback({ reply }: { reply: MessageType }) {
         </button>
         <button
           onClick={() => handleClick('down')}
-          disabled={isLoading}
-          className={`rounded-md p-1.5 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
+          disabled={isLoading || !reply.databaseMessageId}
+          className={`rounded-md p-1.5 transition-colors ${isLoading || !reply.databaseMessageId ? 'opacity-50 cursor-not-allowed' : ''} ${reply.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
           title={t('message.feedback.poor')}
           aria-label={t('message.feedback.poor')}
         >
@@ -1291,8 +1291,8 @@ export function Message({
                 <div className="relative flex items-center gap-0.5">
                   <button
                     onClick={() => handleFeedback('up')}
-                    disabled={isFeedbackLoading}
-                    className={`rounded-md p-1.5 transition-colors ${isFeedbackLoading ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
+                    disabled={isFeedbackLoading || !message.databaseMessageId}
+                    className={`rounded-md p-1.5 transition-colors ${isFeedbackLoading || !message.databaseMessageId ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
                     title={t('message.feedback.good')}
                     aria-label={t('message.feedback.good')}
                   >
@@ -1300,8 +1300,8 @@ export function Message({
                   </button>
                   <button
                     onClick={() => handleFeedback('down')}
-                    disabled={isFeedbackLoading}
-                    className={`rounded-md p-1.5 transition-colors ${isFeedbackLoading ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
+                    disabled={isFeedbackLoading || !message.databaseMessageId}
+                    className={`rounded-md p-1.5 transition-colors ${isFeedbackLoading || !message.databaseMessageId ? 'opacity-50 cursor-not-allowed' : ''} ${message.feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'}`}
                     title={t('message.feedback.poor')}
                     aria-label={t('message.feedback.poor')}
                   >
