@@ -3,54 +3,87 @@
    ============================================================ */
 
 :root {
-  /* Palette */
-  --ink:           #0f1d33;
-  --ink-secondary: #3d4f6f;
-  --ink-muted:     #637189;
-  --surface:       #ffffff;
-  --surface-raised:#f7f9fc;
-  --surface-sunken:#eef1f7;
-  --surface-subtle:#f4f7fb;
-  --border:        #dfe5ee;
-  --border-light:  #edf0f5;
+  /* Palette — dark is the default theme; :root[data-theme="light"] below
+     overrides these tokens for the light variant. */
+  --ink:           #e8edf6;
+  --ink-secondary: #c1cbdf;
+  --ink-muted:     #9aa8c0;
+  --surface:       #131d2e;
+  --surface-raised:#182437;
+  --surface-sunken:#0d1421;
+  --surface-subtle:#16202f;
+  --surface-translucent: rgba(19, 29, 46, 0.88);
+  --border:        #2a3750;
+  --border-light:  #212c40;
 
   /* Quiet surfaces keep the emphasis on content and active controls. */
-  --canvas:        #f3f5f9;
-  --panel:         #ffffff;
-  --panel-hover:   #f8fafc;
-  --panel-active:  #ffffff;
-  --panel-border-active: #b9cce5;
-  --panel-accent:  #3b82c4;
-  --row-alt:       #fafbfd;
-  --th-bg:         #f6f8fb;
+  --canvas:        #0b1220;
+  --panel:         #131d2e;
+  --panel-hover:   #182437;
+  --panel-active:  #182437;
+  --panel-border-active: #3c5c8c;
+  --panel-accent:  #5b9bdc;
+  --row-alt:       #101928;
+  --th-bg:         #17222f;
 
   /* Brand */
-  --brand-200:     #b7d5f2;
-  --brand-300:     #8dbdec;
-  --brand-400:     #4d94dd;
-  --brand-500:     #2b6cb0;
-  --brand-600:     #1f5a96;
-  --brand-700:     #16497c;
-  --brand-50:      #eaf2fb;
+  --brand-200:     #3a5f8c;
+  --brand-300:     #4d7db8;
+  --brand-400:     #5b9bdc;
+  --brand-500:     #4d94dd;
+  --brand-600:     #6fb0ea;
+  --brand-700:     #8dc0ee;
+  --brand-50:      #16233a;
 
   /* Danger */
-  --danger-500:    #c4382a;
-  --danger-600:    #a32d21;
-  --danger-50:     #fef2f1;
-  --danger-text:   #7a1f18;
+  --danger-500:    #e5675a;
+  --danger-600:    #f28277;
+  --danger-50:     #2c1917;
+  --danger-text:   #f4a89f;
 
   /* Success */
-  --success-50:    #ecfdf5;
-  --success-500:   #10b981;
-  --success-text:  #065f46;
+  --success-50:    #12281f;
+  --success-500:   #34d399;
+  --success-text:  #7fe3b7;
+
+  /* Warning */
+  --warning-50:    #2b2413;
+  --warning-500:   #f2b84c;
+  --warning-text:  #f2c568;
+  --warning-border:#5c4a1f;
+
+  /* Status borders reused on inputs / rows */
+  --success-border: #2b7a55;
+  --danger-border:  #a3453a;
+
+  /* Audit log source badges — one pastel family per content source */
+  --audit-chat-bg:      #2c2013;
+  --audit-chat-bg-strong: #3a2a17;
+  --audit-chat-text:    #f3ac6d;
+  --audit-chat-border:  #7a5327;
+  --audit-embedding-bg:    #201a30;
+  --audit-embedding-text:  #c4a9f7;
+  --audit-embedding-border:#4d3d75;
+  --audit-image-bg:        #12262c;
+  --audit-image-text:      #6fd6ec;
+  --audit-image-border:    #2c5560;
+  --audit-video-bg:        #2c1725;
+  --audit-video-text:      #f18cbb;
+  --audit-video-border:    #6b3450;
+  --audit-audio-bg:        #142a1d;
+  --audit-audio-text:      #7fe3a3;
+  --audit-audio-border:    #2f6144;
+  --audit-document-bg:     #2b2712;
+  --audit-document-text:   #e8d271;
+  --audit-document-border: #5c5121;
 
   /* Focus */
-  --focus-ring:    #3b82f6;
+  --focus-ring:    #5b9bdc;
 
   /* Neutral buttons */
-  --neutral-100:   #ffffff;
-  --neutral-200:   #dfe5ee;
-  --neutral-text:  #1e3a5f;
+  --neutral-100:   #182437;
+  --neutral-200:   #2a3750;
+  --neutral-text:  #cdd9ec;
 
   /* Spacing scale (4px base) */
   --sp-1: 0.25rem;
@@ -70,10 +103,10 @@
   --radius-full: 999px;
 
   /* Shadows */
-  --shadow-sm:  0 1px 3px rgba(15, 29, 51, 0.06);
-  --shadow-md:  0 4px 16px rgba(15, 29, 51, 0.08);
-  --shadow-lg:  0 12px 40px rgba(15, 29, 51, 0.10);
-  --shadow-xl:  0 20px 50px rgba(15, 29, 51, 0.18);
+  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.24);
+  --shadow-md:  0 4px 16px rgba(0, 0, 0, 0.32);
+  --shadow-lg:  0 12px 40px rgba(0, 0, 0, 0.40);
+  --shadow-xl:  0 20px 50px rgba(0, 0, 0, 0.55);
 
   /* Typography */
   --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -108,6 +141,88 @@
   --table-col-label:     14rem;
   --table-col-actions:   9rem;
   --table-col-fluid:     14rem;
+}
+
+/* ============================================================
+   Light theme — overrides the dark defaults above.
+   ============================================================ */
+
+:root[data-theme="light"] {
+  --ink:           #0f1d33;
+  --ink-secondary: #3d4f6f;
+  --ink-muted:     #637189;
+  --surface:       #ffffff;
+  --surface-raised:#f7f9fc;
+  --surface-sunken:#eef1f7;
+  --surface-subtle:#f4f7fb;
+  --surface-translucent: rgba(255, 255, 255, 0.88);
+  --border:        #dfe5ee;
+  --border-light:  #edf0f5;
+
+  --canvas:        #f3f5f9;
+  --panel:         #ffffff;
+  --panel-hover:   #f8fafc;
+  --panel-active:  #ffffff;
+  --panel-border-active: #b9cce5;
+  --panel-accent:  #3b82c4;
+  --row-alt:       #fafbfd;
+  --th-bg:         #f6f8fb;
+
+  --brand-200:     #b7d5f2;
+  --brand-300:     #8dbdec;
+  --brand-400:     #4d94dd;
+  --brand-500:     #2b6cb0;
+  --brand-600:     #1f5a96;
+  --brand-700:     #16497c;
+  --brand-50:      #eaf2fb;
+
+  --danger-500:    #c4382a;
+  --danger-600:    #a32d21;
+  --danger-50:     #fef2f1;
+  --danger-text:   #7a1f18;
+
+  --success-50:    #ecfdf5;
+  --success-500:   #10b981;
+  --success-text:  #065f46;
+
+  --warning-50:    #fffbeb;
+  --warning-500:   #f59e0b;
+  --warning-text:  #92400e;
+  --warning-border:#fde68a;
+
+  --success-border: #a7f3d0;
+  --danger-border:  #fecaca;
+
+  --audit-chat-bg:      #fff7ed;
+  --audit-chat-bg-strong: #ffedd5;
+  --audit-chat-text:    #9a3412;
+  --audit-chat-border:  #fdba74;
+  --audit-embedding-bg:    #f5f3ff;
+  --audit-embedding-text:  #6d28d9;
+  --audit-embedding-border:#c4b5fd;
+  --audit-image-bg:        #ecfeff;
+  --audit-image-text:      #0e7490;
+  --audit-image-border:    #67e8f9;
+  --audit-video-bg:        #fdf2f8;
+  --audit-video-text:      #be185d;
+  --audit-video-border:    #f9a8d4;
+  --audit-audio-bg:        #f0fdf4;
+  --audit-audio-text:      #15803d;
+  --audit-audio-border:    #86efac;
+  --audit-document-bg:     #fefce8;
+  --audit-document-text:   #a16207;
+  --audit-document-border: #fde047;
+
+  --focus-ring:    #3b82f6;
+
+  --neutral-100:   #ffffff;
+  --neutral-200:   #dfe5ee;
+  --neutral-text:  #1e3a5f;
+
+  --shadow-sm:  0 1px 3px rgba(15, 29, 51, 0.06);
+  --shadow-md:  0 4px 16px rgba(15, 29, 51, 0.08);
+  --shadow-lg:  0 12px 40px rgba(15, 29, 51, 0.10);
+  --shadow-xl:  0 20px 50px rgba(15, 29, 51, 0.18);
 }
 
 /* ============================================================
@@ -464,7 +579,7 @@ textarea {
   gap: var(--sp-4);
   min-height: var(--workbar-h);
   padding: var(--sp-3) var(--sp-6);
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--surface-translucent);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
@@ -883,14 +998,14 @@ textarea {
 .markdown-preview code {
   font-family: "JetBrains Mono", monospace;
   font-size: 0.92em;
-  background: rgba(22, 59, 114, 0.08);
+  background: var(--surface-sunken);
   padding: 0.1rem 0.3rem;
   border-radius: 0.3rem;
 }
 
 .markdown-preview pre {
   overflow: auto;
-  background: #f5f8fc;
+  background: var(--surface-sunken);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   padding: var(--sp-3);
@@ -928,7 +1043,7 @@ textarea {
 }
 
 .markdown-preview th {
-  background: #eef4fb;
+  background: var(--th-bg);
   font-weight: 700;
 }
 
@@ -1314,7 +1429,7 @@ button.help-button:focus-visible {
 
 .role-picker-option:has(input:checked) {
   background: var(--brand-50);
-  border-color: #b8d2ee;
+  border-color: var(--brand-200);
   color: var(--brand-700);
 }
 
@@ -1551,12 +1666,12 @@ button.btn--neutral {
 button.secondary:hover:not(:disabled),
 button.btn--neutral:hover:not(:disabled) {
   background: var(--neutral-200);
-  border-color: #c3cedf;
+  border-color: var(--border);
 }
 
 button.secondary:active:not(:disabled),
 button.btn--neutral:active:not(:disabled) {
-  background: #cdd6e5;
+  background: var(--surface-sunken);
 }
 
 .btn--icon {
@@ -1614,13 +1729,13 @@ button.btn--icon-danger:active:not(:disabled) {
 .status {
   background: var(--success-50);
   color: var(--success-text);
-  border: 1px solid #a7f3d0;
+  border: 1px solid var(--success-border);
 }
 
 .error {
   background: var(--danger-50);
   color: var(--danger-text);
-  border: 1px solid #fecaca;
+  border: 1px solid var(--danger-border);
 }
 
 .message-body {
@@ -2327,11 +2442,19 @@ label.expiration-choice-row-item {
 }
 
 .expiration-cell {
-  white-space: nowrap;
+  white-space: normal;
 }
 
-.expiration-cell .monitoring-badge {
-  margin-left: var(--sp-2);
+.expiration-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  min-width: 0;
+}
+
+.expiration-primary {
+  min-width: 0;
 }
 
 .expiration-secondary {
@@ -2356,10 +2479,6 @@ label.expiration-choice-row-item {
 }
 
 @media (max-width: 680px) {
-  .expiration-cell {
-    white-space: normal;
-  }
-
   .expiration-date-input {
     width: 100%;
     max-width: none;
@@ -2390,13 +2509,13 @@ label.expiration-choice-row-item {
 .badge-ok {
   background: var(--success-50);
   color: var(--success-text);
-  border: 1px solid #a7f3d0;
+  border: 1px solid var(--success-border);
 }
 
 .badge-fail {
   background: var(--danger-50);
   color: var(--danger-text);
-  border: 1px solid #fecaca;
+  border: 1px solid var(--danger-border);
 }
 
 .test-result {
@@ -2424,13 +2543,13 @@ label.expiration-choice-row-item {
 
 .test-result-ok {
   background: var(--success-50);
-  border-color: #a7f3d0;
+  border-color: var(--success-border);
   color: var(--success-text);
 }
 
 .test-result-fail {
   background: var(--danger-50);
-  border-color: #fecaca;
+  border-color: var(--danger-border);
   color: var(--danger-text);
 }
 
@@ -2859,7 +2978,7 @@ label.expiration-choice-row-item {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255,255,255,0.85);
+  background: var(--surface-translucent);
   backdrop-filter: blur(6px);
   animation: overlayFadeIn 0.3s ease;
 }
@@ -3102,7 +3221,7 @@ code.plain-code {
   line-height: 1.5;
   background: var(--danger-50);
   color: var(--danger-text);
-  border: 1px solid #fecaca;
+  border: 1px solid var(--danger-border);
 }
 
 /* ============================================================
@@ -3540,19 +3659,19 @@ code.plain-code {
 .metric-card[data-state="live"] .metric-status {
   color: var(--success-text);
   background: var(--success-50);
-  border-color: #a7f3d0;
+  border-color: var(--success-border);
 }
 
 .metric-card[data-state="warning"] .metric-status {
-  color: #92400e;
-  background: #fffbeb;
-  border-color: #fde68a;
+  color: var(--warning-text);
+  background: var(--warning-50);
+  border-color: var(--warning-border);
 }
 
 .metric-card[data-state="critical"] .metric-status {
   color: var(--danger-text);
   background: var(--danger-50);
-  border-color: #fecaca;
+  border-color: var(--danger-border);
 }
 
 .metric-card .metric-sub {
@@ -3663,19 +3782,19 @@ code.plain-code {
 .monitoring-badge.green {
   background: var(--success-50);
   color: var(--success-text);
-  border-color: #a7f3d0;
+  border-color: var(--success-border);
 }
 
 .monitoring-badge.amber {
-  background: #fffbeb;
-  color: #92400e;
-  border-color: #fde68a;
+  background: var(--warning-50);
+  color: var(--warning-text);
+  border-color: var(--warning-border);
 }
 
 .monitoring-badge.red {
   background: var(--danger-50);
   color: var(--danger-text);
-  border-color: #fecaca;
+  border-color: var(--danger-border);
 }
 
 .monitoring-badge.muted {
@@ -3965,10 +4084,10 @@ code.plain-code {
   letter-spacing: 0.03em;
 }
 
-.method-get    { background: #ecfdf5; color: #065f46; }
-.method-post   { background: #eaf2fb; color: #1e3a5f; }
-.method-put    { background: #fffbeb; color: #92400e; }
-.method-delete { background: #fef2f1; color: #7a1f18; }
+.method-get    { background: var(--success-50); color: var(--success-text); }
+.method-post   { background: var(--brand-50); color: var(--neutral-text); }
+.method-put    { background: var(--warning-50); color: var(--warning-text); }
+.method-delete { background: var(--danger-50); color: var(--danger-text); }
 
 /* Monitoring section headers */
 .monitoring-section {
@@ -4077,9 +4196,9 @@ code.plain-code {
   padding: var(--sp-3) var(--sp-4);
   margin-bottom: var(--sp-3);
   border-radius: var(--radius-md);
-  background: #fef3cd;
-  color: #664d03;
-  border: 1px solid #ffecb5;
+  background: var(--warning-50);
+  color: var(--warning-text);
+  border: 1px solid var(--warning-border);
   font-size: var(--text-sm);
 }
 
@@ -4326,7 +4445,7 @@ button.settings-nav-group-header:hover:not(:disabled) {
 .settings-nav-item.is-selected:hover:not(:disabled),
 .settings-nav-item.is-selected:active:not(:disabled) {
   background: var(--brand-50);
-  border-color: #b8d2ee;
+  border-color: var(--brand-200);
   color: var(--brand-700);
   box-shadow: none;
   transform: none;
@@ -4494,7 +4613,7 @@ button.settings-nav-group-header:hover:not(:disabled) {
 .mcp-list-item.is-selected:hover:not(:disabled),
 .mcp-list-item.is-selected:active:not(:disabled) {
   background: var(--brand-50);
-  border-color: #b8d2ee;
+  border-color: var(--brand-200);
   color: var(--brand-700);
   box-shadow: none;
   transform: none;
@@ -4722,7 +4841,7 @@ button.settings-nav-group-header:hover:not(:disabled) {
 .mcp-unreachable {
   margin-top: var(--sp-2);
   padding: var(--sp-3) var(--sp-4);
-  border: 1px solid #fecaca;
+  border: 1px solid var(--danger-border);
   border-radius: var(--radius-md);
   background: var(--danger-50);
   color: var(--danger-text);
@@ -4904,12 +5023,12 @@ button.mcp-kv-btn {
 
 button.mcp-kv-btn:hover:not(:disabled) {
   background: var(--neutral-200);
-  border-color: #c3cedf;
+  border-color: var(--border);
   box-shadow: none;
 }
 
 button.mcp-kv-btn:active:not(:disabled) {
-  background: #cdd6e5;
+  background: var(--surface-sunken);
   transform: scale(0.92);
 }
 
@@ -4959,7 +5078,7 @@ button.mcp-kv-btn:active:not(:disabled) {
 
 .mcp-revert:hover:not(:disabled) {
   background: var(--neutral-100);
-  border-color: #c3cedf;
+  border-color: var(--border);
   box-shadow: none;
 }
 
@@ -5430,7 +5549,7 @@ button.mcp-kv-btn:active:not(:disabled) {
 }
 
 .audit-table tbody tr.audit-row--source-chat:hover {
-  background: #fff7ed;
+  background: var(--audit-chat-bg);
 }
 
 .audit-table tbody tr.audit-row--active,
@@ -5446,7 +5565,7 @@ button.mcp-kv-btn:active:not(:disabled) {
 
 .audit-table tbody tr.audit-row--source-chat.audit-row--active,
 .audit-table tbody tr.audit-row--source-chat.audit-row--active:hover {
-  background: #ffedd5;
+  background: var(--audit-chat-bg-strong);
 }
 
 .audit-col-time {
@@ -5495,39 +5614,39 @@ button.mcp-kv-btn:active:not(:disabled) {
 }
 
 .audit-source-badge--chat {
-  color: #9a3412;
-  background: #fff7ed;
-  border-color: #fdba74;
+  color: var(--audit-chat-text);
+  background: var(--audit-chat-bg);
+  border-color: var(--audit-chat-border);
 }
 
 .audit-source-badge--embedding {
-  color: #6d28d9;
-  background: #f5f3ff;
-  border-color: #c4b5fd;
+  color: var(--audit-embedding-text);
+  background: var(--audit-embedding-bg);
+  border-color: var(--audit-embedding-border);
 }
 
 .audit-source-badge--image {
-  color: #0e7490;
-  background: #ecfeff;
-  border-color: #67e8f9;
+  color: var(--audit-image-text);
+  background: var(--audit-image-bg);
+  border-color: var(--audit-image-border);
 }
 
 .audit-source-badge--video {
-  color: #be185d;
-  background: #fdf2f8;
-  border-color: #f9a8d4;
+  color: var(--audit-video-text);
+  background: var(--audit-video-bg);
+  border-color: var(--audit-video-border);
 }
 
 .audit-source-badge--audio {
-  color: #15803d;
-  background: #f0fdf4;
-  border-color: #86efac;
+  color: var(--audit-audio-text);
+  background: var(--audit-audio-bg);
+  border-color: var(--audit-audio-border);
 }
 
 .audit-source-badge--document {
-  color: #a16207;
-  background: #fefce8;
-  border-color: #fde047;
+  color: var(--audit-document-text);
+  background: var(--audit-document-bg);
+  border-color: var(--audit-document-border);
 }
 
 .audit-event-action {
@@ -5649,13 +5768,13 @@ button.mcp-kv-btn:active:not(:disabled) {
 .audit-verdict--success {
   color: var(--success-text);
   background: var(--success-50);
-  border-color: #a7f3d0;
+  border-color: var(--success-border);
 }
 
 .audit-verdict--failure {
   color: var(--danger-text);
   background: var(--danger-50);
-  border-color: #fecaca;
+  border-color: var(--danger-border);
 }
 
 .audit-section-heading {

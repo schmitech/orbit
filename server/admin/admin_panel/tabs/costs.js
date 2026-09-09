@@ -1,3 +1,5 @@
+import { chartTheme } from "../core/charts.js";
+
 const GROUP_BY_LABELS = {
   model: "Model",
   provider: "Provider",
@@ -126,7 +128,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         },
         options: Object.assign(costOpts, {
           scales: Object.assign(costOpts.scales, {
-            y1: { beginAtZero: true, position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#526684", font: { size: 12 } } }
+            y1: { beginAtZero: true, position: "right", grid: { drawOnChartArea: false }, ticks: { color: chartTheme().axisText, font: { size: 12 } } }
           })
         })
       });
@@ -155,7 +157,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         anchor: "end",
         align: "end",
         clip: false,
-        color: "#3d4f6f",
+        color: chartTheme().legendText,
         font: { family: "Inter, 'Segoe UI', system-ui, sans-serif", size: 11, weight: "600" },
         formatter: (value) => obsCost(value)
       };

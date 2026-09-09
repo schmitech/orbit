@@ -1,4 +1,12 @@
 /** Small DOM primitives shared by admin-panel feature modules. */
+
+/** The Ace theme matching the app's current light/dark setting. */
+export function aceThemeName() {
+  return document.documentElement.getAttribute("data-theme") === "light"
+    ? "ace/theme/tomorrow"
+    : "ace/theme/tomorrow_night";
+}
+
 export function el(tag, attrs, ...children) {
   const node = document.createElement(tag);
   if (attrs) {

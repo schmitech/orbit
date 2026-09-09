@@ -1,4 +1,5 @@
 import { sizeTable } from "../core/dom.js";
+import { chartTheme } from "../core/charts.js";
 
 export function createOverviewTab({
   api, endpoints, el, clear, formatNum, clampPercentage,
@@ -144,57 +145,61 @@ export function createOverviewTab({
     }
   }
 
-  // --- Dark Grafana-style chart options ---
-  const monitoringChartOpts = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: "index", intersect: false, axis: "x" },
-    elements: { point: { radius: 0, hoverRadius: 4, hitRadius: 20 }, line: { borderWidth: 1.5 } },
-    scales: {
-      y: {
-        beginAtZero: true,
-        grid: { color: "rgba(15,29,51,0.06)", drawBorder: false },
-        ticks: { color: "#6b7a96", font: { size: 10, family: "'JetBrains Mono', monospace" }, padding: 6 }
-      },
-      x: {
-        grid: { color: "rgba(15,29,51,0.05)", drawBorder: false },
-        ticks: {
-          color: "#6b7a96",
-          autoSkip: true,
-          maxTicksLimit: 5,
-          maxRotation: 0,
-          minRotation: 0,
-          font: { size: 10, family: "'JetBrains Mono', monospace" },
-          padding: 4
-        }
-      }
-    },
-    plugins: {
-      legend: {
-        labels: {
-          color: "#3d4f6f",
-          usePointStyle: true,
-          pointStyle: "line",
-          boxWidth: 28,
-          boxHeight: 2,
-          font: { size: 11 },
-          padding: 14
+  // Rebuilt on every call (rather than captured once) so it always reflects
+  // the theme in effect when the charts are (re)created.
+  function monitoringChartOpts() {
+    const t = chartTheme();
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false, axis: "x" },
+      elements: { point: { radius: 0, hoverRadius: 4, hitRadius: 20 }, line: { borderWidth: 1.5 } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: t.grid, drawBorder: false },
+          ticks: { color: t.axisText, font: { size: 10, family: "'JetBrains Mono', monospace" }, padding: 6 }
+        },
+        x: {
+          grid: { color: t.grid, drawBorder: false },
+          ticks: {
+            color: t.axisText,
+            autoSkip: true,
+            maxTicksLimit: 5,
+            maxRotation: 0,
+            minRotation: 0,
+            font: { size: 10, family: "'JetBrains Mono', monospace" },
+            padding: 4
+          }
         }
       },
-      tooltip: {
-        backgroundColor: "rgba(10,14,23,0.96)",
-        borderColor: "rgba(255,255,255,0.1)",
-        borderWidth: 1,
-        titleColor: "#f4f6fa",
-        bodyColor: "#e4e8f0",
-        padding: 16,
-        cornerRadius: 6,
-        boxPadding: 8,
-        titleFont: { family: "'JetBrains Mono', monospace", size: 18, weight: "500" },
-        bodyFont: { family: "'JetBrains Mono', monospace", size: 17, weight: "400" }
+      plugins: {
+        legend: {
+          labels: {
+            color: t.legendText,
+            usePointStyle: true,
+            pointStyle: "line",
+            boxWidth: 28,
+            boxHeight: 2,
+            font: { size: 11 },
+            padding: 14
+          }
+        },
+        tooltip: {
+          backgroundColor: t.tooltipBg,
+          borderColor: t.grid,
+          borderWidth: 1,
+          titleColor: t.tooltipTitle,
+          bodyColor: t.tooltipBody,
+          padding: 16,
+          cornerRadius: 6,
+          boxPadding: 8,
+          titleFont: { family: "'JetBrains Mono', monospace", size: 18, weight: "500" },
+          bodyFont: { family: "'JetBrains Mono', monospace", size: 17, weight: "400" }
+        }
       }
-    }
-  };
+    };
+  }
 
   function initOverviewCharts() {
     destroyOverviewCharts();
@@ -241,24 +246,26 @@ export function createOverviewTab({
         };
       });
 
-      let opts = monitoringChartOpts;
+      const baseOpts = monitoringChartOpts();
+      let opts = baseOpts;
       // Request volume and error rate have different units. A second axis keeps
       // both trends readable instead of implying that req/s and percent share a scale.
       if (i === 1) {
-        opts = Object.assign({}, monitoringChartOpts, {
-          scales: Object.assign({}, monitoringChartOpts.scales, {
-            y: Object.assign({}, monitoringChartOpts.scales.y, {
+        const axisText = chartTheme().axisText;
+        opts = Object.assign({}, baseOpts, {
+          scales: Object.assign({}, baseOpts.scales, {
+            y: Object.assign({}, baseOpts.scales.y, {
               min: 0,
-              ticks: Object.assign({}, monitoringChartOpts.scales.y.ticks, { stepSize: 1, precision: 0 }),
-              title: { display: true, text: "Requests/sec", color: "#6b7a96", font: { size: 10 } }
+              ticks: Object.assign({}, baseOpts.scales.y.ticks, { stepSize: 1, precision: 0 }),
+              title: { display: true, text: "Requests/sec", color: axisText, font: { size: 10 } }
             }),
             y1: {
               beginAtZero: true,
               max: 100,
               position: "right",
               grid: { drawOnChartArea: false },
-              ticks: { color: "#6b7a96", callback: (value) => value + "%", font: { size: 10, family: "'JetBrains Mono', monospace" }, padding: 6 },
-              title: { display: true, text: "Error rate", color: "#6b7a96", font: { size: 10 } }
+              ticks: { color: axisText, callback: (value) => value + "%", font: { size: 10, family: "'JetBrains Mono', monospace" }, padding: 6 },
+              title: { display: true, text: "Error rate", color: axisText, font: { size: 10 } }
             }
           })
         });

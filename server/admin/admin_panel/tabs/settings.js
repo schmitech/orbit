@@ -1,5 +1,7 @@
 // TAB: Settings (Ace Editor — YAML, split into config.yaml sections)
 // ==================================================================
+import { aceThemeName } from "../core/dom.js";
+
 export function createSettingsTab({
   api, endpoints, el, clear, skeleton, svgIcon, iconSave, iconRefresh, iconChevronDown, iconSearch, iconX,
   confirmAction, showError, showStatus, getActiveTab
@@ -372,7 +374,7 @@ export function createSettingsTab({
 
       var editor = ace.edit(editorWrap, {
         mode: "ace/mode/yaml",
-        theme: "ace/theme/tomorrow",
+        theme: aceThemeName(),
         fontSize: 15,
         fontFamily: "var(--font-mono)",
         showPrintMargin: false,

@@ -641,12 +641,14 @@ export function createApiKeysTab({
 
   function expirationCell(key) {
     var info = formatExpiration(key, cachedExpirationWarningDays);
-    var children = [el("span", null, info.label)];
+    var children = [el("span", { className: "expiration-primary" }, info.label)];
     if (info.secondary) children.push(el("span", { className: "expiration-secondary" }, " · " + info.secondary));
     if (info.badge) {
       children.push(el("span", { className: "monitoring-badge " + EXPIRATION_BADGE_CLASS[info.badge] }, EXPIRATION_BADGE_TEXT[info.badge]));
     }
-    return el("td", { className: "expiration-cell" }, children);
+    return el("td", { className: "expiration-cell" },
+      el("div", { className: "expiration-value" }, children)
+    );
   }
 
   function accessCell(key) {

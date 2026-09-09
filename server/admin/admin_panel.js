@@ -26,6 +26,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
   let activeTab = "overview";
   let serverVersion = null;
   let railCollapsed = readStoredFlag("orbit.admin.railCollapsed");
+  let theme = readStoredTheme();
 
   // Cached data
   let cachedAdapters = null;
@@ -64,6 +65,24 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
   function writeStoredFlag(key, value) {
     try {
       localStorage.setItem(key, value ? "1" : "0");
+    } catch (err) {
+      /* Preference is not persisted; the in-memory value still applies. */
+    }
+  }
+
+  // Dark is the default theme; the inline bootstrap script in
+  // admin_panel.html applies this same fallback before first paint.
+  function readStoredTheme() {
+    try {
+      return localStorage.getItem("orbit.admin.theme") === "light" ? "light" : "dark";
+    } catch (err) {
+      return "dark";
+    }
+  }
+
+  function writeStoredTheme(value) {
+    try {
+      localStorage.setItem("orbit.admin.theme", value);
     } catch (err) {
       /* Preference is not persisted; the in-memory value still applies. */
     }
@@ -959,6 +978,12 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
   ];
   var ICON_NAV_COSTS = ["M3 3v18h18", "M7 15l4-6 3 4 4-7"];
   var ICON_CHEVRONS_LEFT = ["M11 17l-5-5 5-5", "M18 17l-5-5 5-5"];
+  var ICON_SUN = [
+    "M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z",
+    "M12 1v2", "M12 21v2", "M4.22 4.22l1.42 1.42", "M18.36 18.36l1.42 1.42",
+    "M1 12h2", "M21 12h2", "M4.22 19.78l1.42-1.42", "M18.36 5.64l1.42-1.42",
+  ];
+  var ICON_MOON = ["M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"];
   var ICON_CHEVRON_DOWN = ["M6 9l6 6 6-6"];
   var ICON_SEARCH = ["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"];
 
@@ -1119,6 +1144,15 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     );
 
     // Workbar: where you are, who you are
+    var themeBtn = el("button", {
+      type: "button",
+      className: "btn btn--neutral btn--icon workbar-theme-btn",
+      "aria-label": "Light theme",
+      "aria-pressed": String(theme === "light"),
+      title: theme === "light" ? "Switch to dark theme" : "Switch to light theme",
+    }, svgIcon(theme === "light" ? ICON_MOON : ICON_SUN));
+    themeBtn.addEventListener("click", toggleTheme);
+
     var logoutBtn = el("button", { type: "button", className: "secondary workbar-logout" }, "Log out");
     logoutBtn.addEventListener("click", doLogout);
 
@@ -1130,6 +1164,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
         workbarTitle
       ),
       el("div", { className: "workbar-actions" },
+        themeBtn,
         el("span", { className: "workbar-user" }, currentUser ? (currentUser.email || currentUser.username) : ""),
         logoutBtn
       )
@@ -1165,6 +1200,24 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     if (shell) shell.classList.toggle("rail-collapsed", railCollapsed);
     var btn = document.querySelector(".rail-collapse-btn");
     if (btn) btn.setAttribute("aria-expanded", String(!railCollapsed));
+  }
+
+  function toggleTheme() {
+    theme = theme === "light" ? "dark" : "light";
+    writeStoredTheme(theme);
+    document.documentElement.setAttribute("data-theme", theme);
+    var btn = document.querySelector(".workbar-theme-btn");
+    if (btn) {
+      btn.setAttribute("aria-pressed", String(theme === "light"));
+      btn.setAttribute("title", theme === "light" ? "Switch to dark theme" : "Switch to light theme");
+      clear(btn);
+      btn.appendChild(svgIcon(theme === "light" ? ICON_MOON : ICON_SUN));
+    }
+    // Chart.js bakes colors into each chart instance at creation time, so a
+    // CSS variable flip alone won't recolor an already-rendered chart —
+    // rebuild the active tab so any charts on it are recreated against the
+    // new theme.
+    renderTab();
   }
 
   // Feature modules receive their dependencies explicitly so their state and

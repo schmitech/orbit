@@ -1,4 +1,4 @@
-import { wrapTable } from "../core/dom.js";
+import { wrapTable, aceThemeName } from "../core/dom.js";
 
 export function createAdaptersTab({
   api, endpoints, el, clear, skeleton, svgIcon, iconPlus, iconSave, iconRefresh,
@@ -679,7 +679,7 @@ export function createAdaptersTab({
         ace.config.set("workerPath", "/static");
         adapterPreviewEditor = ace.edit(previewWrap, {
           mode: "ace/mode/yaml",
-          theme: "ace/theme/tomorrow",
+          theme: aceThemeName(),
           fontSize: 15,
           fontFamily: "var(--font-mono)",
           readOnly: true,
@@ -800,7 +800,7 @@ export function createAdaptersTab({
       ace.config.set("workerPath", "/static");
       importEditor = ace.edit(importEditorWrap, {
         mode: "ace/mode/yaml",
-        theme: "ace/theme/tomorrow",
+        theme: aceThemeName(),
         fontSize: 15,
         fontFamily: "var(--font-mono)",
         showPrintMargin: false,
@@ -1143,7 +1143,7 @@ export function createAdaptersTab({
 
       adapterEditor = ace.edit(editorWrap, {
         mode: "ace/mode/yaml",
-        theme: "ace/theme/tomorrow",
+        theme: aceThemeName(),
         fontSize: 15,
         fontFamily: "var(--font-mono)",
         showPrintMargin: false,
