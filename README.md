@@ -29,7 +29,7 @@
 <p align="center">⭐ If ORBIT looks useful, <a href="https://github.com/schmitech/orbit">star the repo</a> — it helps others find it and tells us what to keep building.</p>
 
 <div id="admin-panel-demo" align="center">
-  <video src="https://github.com/user-attachments/assets/195ac335-db59-40db-bc86-7473780fcd0e" controls muted playsinline width="85%"></video>
+  <video src="https://github.com/user-attachments/assets/e1f91fbb-f398-40f0-beb0-45129d4b0e34" controls muted playsinline width="85%"></video>
   <br />
   <em>The built-in admin panel is ORBIT's control plane—manage adapters, API keys, prompts, and system operations without touching server code.</em>
 </div>

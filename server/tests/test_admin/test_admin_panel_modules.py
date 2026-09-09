@@ -70,6 +70,12 @@ def test_ops_log_autoscroll_stays_inside_terminal():
     assert "logScrollAnchor.scrollIntoView" not in source
 
 
+def test_audit_status_cell_keeps_provider_and_outcome_separate():
+    source = (ADMIN_DIR / "admin_panel" / "tabs" / "audit.js").read_text()
+
+    assert 'className: "audit-status-cell"' in source
+
+
 def test_persona_api_key_names_use_safe_display_metadata():
     module_url = json.dumps((ADMIN_DIR / "admin_panel" / "tabs" / "prompts.js").resolve().as_uri())
     script = f"""
