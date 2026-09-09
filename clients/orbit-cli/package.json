@@ -1,0 +1,36 @@
+{
+  "name": "@schmitech/orbit-cli",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Terminal REPL client for ORBIT",
+  "type": "module",
+  "bin": {
+    "orbit-chat": "./bin/orbit-chat.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli.ts",
+    "test": "node --test --experimental-strip-types 'src/**/*.test.ts'",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@schmitech/chatbot-api": "file:../node-api"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.5.3"
+  },
+  "allowScripts": {
+    "esbuild": true
+  }
+}
