@@ -72,9 +72,9 @@ export function createUsersTab({
     var tableWrap = el("div", null, skeleton());
     var searchInput = el("input", {
       type: "search",
+      className: "users-search-input",
       name: "user-search",
       value: "",
-      maxlength: "64",
       placeholder: "Search users",
       "aria-label": "Search users",
       autocomplete: "off",
@@ -113,18 +113,20 @@ export function createUsersTab({
     container.appendChild(layout);
 
     var usersRefreshBtn = refreshButton("Refresh the user list", function () { loadUsers({}); });
-    listPanel.appendChild(el("div", { className: "panel-header-row" },
-      el("h2", null, "Users"),
-      usersRefreshBtn
-    ));
-    var listToolbar = el("div", { className: "list-toolbar" }, field("Search", searchInput));
-    listPanel.appendChild(listToolbar);
     var createLaunchBtn = el("button", {
-      className: "secondary create-launch-btn",
+      className: "create-launch-btn",
       type: "button",
       "aria-label": "Create user"
     }, svgIcon(iconPlus), el("span", null, "Create User"));
-    listToolbar.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
+    listPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "Users"),
+      el("div", { className: "panel-header-actions" }, usersRefreshBtn, createLaunchBtn)
+    ));
+    // The placeholder supplies the visible prompt; aria-label keeps the
+    // label available to assistive technology without duplicating it onscreen.
+    var listToolbar = el("div", { className: "list-toolbar" }, searchInput);
+    listPanel.appendChild(listToolbar);
+    listToolbar.appendChild(el("div", { className: "bulk-action-row" }, bulkDeleteBtn));
     listPanel.appendChild(tableWrap);
     listPanel.appendChild(userPaginator.getControlsEl());
 
@@ -221,6 +223,9 @@ export function createUsersTab({
     var createPanelToggle = el("button", { className: "secondary", type: "button" }, "Close");
 
     function openCreatePanel() {
+      selectedUser = null;
+      renderSelectedUserPlaceholder(detailPanel);
+      applyUserFilter();
       createPanel.style.display = "";
       createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     }

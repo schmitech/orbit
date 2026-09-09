@@ -103,8 +103,11 @@ export function createSkillsTab({
     var createBtn = el("button", { type: "button" }, "Create Skill");
 
     function openCreatePanel() {
+      selectedSkill = null;
+      clear(detailPanel);
+      detailPanel.style.display = "none";
       createPanel.style.display = "";
-      if (!selectedSkill) detailPanel.style.display = "none";
+      renderSkillTable(tableWrap, cachedSkills || [], detailPanel, refreshSkills);
       createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     }
     function closeCreatePanel() { createPanel.style.display = "none"; }

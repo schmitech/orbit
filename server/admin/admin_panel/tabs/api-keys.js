@@ -81,12 +81,14 @@ export function formatExpiration(key, warningDays) {
   var days = typeof warningDays === "number" ? warningDays : DEFAULT_EXPIRATION_WARNING_DAYS;
   var dateLabel = typeof key.expires_at === "number" ? new Date(key.expires_at * 1000).toLocaleString() : "";
   if (state === "expired") {
-    return { label: "Expired " + dateLabel, badge: "error", state: state };
+    // The badge carries the state; keep the timestamp as supporting detail
+    // instead of repeating "Expired" in both pieces of UI.
+    return { label: dateLabel, badge: "error", state: state };
   }
   if (state === "non_expiring") {
-    // The "Exception" badge already communicates this; no need to repeat it
-    // as secondary text next to "Never" too.
-    return { label: "Never", badge: "success", state: state };
+    // Render this as one self-contained badge ("Never expires") rather than
+    // the visually noisy "Never" + "Exception" combination.
+    return { label: "", badge: "success", state: state };
   }
   if (state === "missing") {
     // No badge here: the label "Migration pending" already says it, and
@@ -288,9 +290,15 @@ export function createApiKeysTab({
     container.appendChild(layout);
 
     var keysRefreshBtn = refreshButton("Refresh the API key list", function () { loadKeys(); });
+    var createLaunchBtn = el("button", {
+      className: "create-launch-btn",
+      type: "button",
+      "aria-label": "Create API key"
+    }, svgIcon(iconPlus), el("span", null, "Create API Key"));
+    createLaunchBtn.addEventListener("click", openCreatePanel);
     listPanel.appendChild(el("div", { className: "panel-header-row" },
       el("h2", null, "API Keys"),
-      keysRefreshBtn
+      el("div", { className: "panel-header-actions" }, keysRefreshBtn, createLaunchBtn)
     ));
 
     // Fetch adapters and prompts for dropdowns
@@ -371,6 +379,7 @@ export function createApiKeysTab({
 
     var keySearchInput = el("input", {
       type: "search",
+      className: "compact-search-input",
       placeholder: "Search API keys",
       "aria-label": "Search API keys"
     });
@@ -382,19 +391,13 @@ export function createApiKeysTab({
     var listToolbar = el("div", { className: "list-toolbar" });
     listPanel.appendChild(listToolbar);
     listToolbar.appendChild(el("div", { className: "admin-create-form-grid api-key-filter-grid" },
-      field("Search", keySearchInput),
+      keySearchInput,
       field("Expiration", keyExpirationFilterSelect)
     ));
-    var createLaunchBtn = el("button", {
-      className: "secondary create-launch-btn",
-      type: "button",
-      "aria-label": "Create API key"
-    }, svgIcon(iconPlus), el("span", null, "Create API Key"));
-    createLaunchBtn.addEventListener("click", openCreatePanel);
     var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
     bulkDeleteBtn.style.visibility = "hidden";
     bulkDeleteBtn.disabled = true;
-    listToolbar.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
+    listToolbar.appendChild(el("div", { className: "bulk-action-row" }, bulkDeleteBtn));
 
     var tableWrap = el("div", null, skeleton());
     listPanel.appendChild(tableWrap);
@@ -637,14 +640,19 @@ export function createApiKeysTab({
   // color modifier already used elsewhere in the admin panel, and to its
   // display text.
   var EXPIRATION_BADGE_CLASS = { error: "red", warning: "amber", success: "green" };
-  var EXPIRATION_BADGE_TEXT = { error: "Expired", warning: "Expiring soon", success: "Exception" };
+  var EXPIRATION_BADGE_TEXT = { error: "Expired", warning: "Expiring soon", success: "Never expires" };
 
   function expirationCell(key) {
     var info = formatExpiration(key, cachedExpirationWarningDays);
-    var children = [el("span", { className: "expiration-primary" }, info.label)];
-    if (info.secondary) children.push(el("span", { className: "expiration-secondary" }, " · " + info.secondary));
+    var children = [];
     if (info.badge) {
       children.push(el("span", { className: "monitoring-badge " + EXPIRATION_BADGE_CLASS[info.badge] }, EXPIRATION_BADGE_TEXT[info.badge]));
+    }
+    if (info.label || info.secondary) {
+      var details = [];
+      if (info.label) details.push(el("span", { className: "expiration-primary" }, info.label));
+      if (info.secondary) details.push(el("span", { className: "expiration-secondary" }, " · " + info.secondary));
+      children.push(el("div", { className: "expiration-details" }, details));
     }
     return el("td", { className: "expiration-cell" },
       el("div", { className: "expiration-value" }, children)

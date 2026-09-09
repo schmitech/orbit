@@ -28,6 +28,12 @@
 
 <p align="center">⭐ If ORBIT looks useful, <a href="https://github.com/schmitech/orbit">star the repo</a> — it helps others find it and tells us what to keep building.</p>
 
+<div id="admin-panel-demo" align="center">
+  <video src="https://github.com/user-attachments/assets/195ac335-db59-40db-bc86-7473780fcd0e" controls muted playsinline width="85%"></video>
+  <br />
+  <em>The built-in admin panel is ORBIT's control plane—manage adapters, API keys, prompts, and system operations without touching server code.</em>
+</div>
+
 ## What you can build
 
 ORBIT can act as an [MCP server](docs/mcp_protocol.md), connect to external MCP servers as

@@ -61,6 +61,32 @@ def test_mcp_playbook_glob_matcher_covers_backend_fnmatch_shapes():
     assert "mcpToolSkillGlobMatch(n, pattern)" in source
 
 
+def test_ops_log_autoscroll_stays_inside_terminal():
+    """Loading/tailing logs must not scroll the page past server controls."""
+    source = (ADMIN_DIR / "admin_panel" / "tabs" / "ops.js").read_text()
+
+    assert "function scrollLogsToBottom" in source
+    assert "logBody.scrollTop = logBody.scrollHeight" in source
+    assert "logScrollAnchor.scrollIntoView" not in source
+
+
+def test_persona_api_key_names_use_safe_display_metadata():
+    module_url = json.dumps((ADMIN_DIR / "admin_panel" / "tabs" / "prompts.js").resolve().as_uri())
+    script = f"""
+import {{ associatedApiKeyNames }} from {module_url};
+
+var keys = [
+  {{ client_name: "Zeta client", api_key: "***secret-z", system_prompt_id: "persona-1" }},
+  {{ client_name: "Alpha client", api_key: "***secret-a", system_prompt_id: "persona-1" }},
+  {{ client_name: "Other client", api_key: "***secret-o", system_prompt_id: "persona-2" }},
+];
+var names = associatedApiKeyNames("persona-1", keys);
+if (names.join(",") !== "Alpha client,Zeta client") throw new Error("associated key names should be matched and sorted");
+if (names.join(" ").includes("secret")) throw new Error("key values must never appear in persona associations");
+"""
+    _run_node_module_assertions(script)
+
+
 def _run_node_module_assertions(script: str) -> None:
     """Run an ES-module script with node and fail the test on any assertion
     failure it reports (via a non-zero exit code)."""
@@ -133,6 +159,8 @@ assert(formatExpiration(tenDayKey, 14).badge === "warning", "10 days remaining s
 assert(formatExpiration(tenDayKey, 7).badge !== "warning", "10 days remaining should not be 'expiring soon' at a 7-day threshold");
 assert(formatExpiration(expiredKey, 14).badge === "error", "expired key should carry the error badge regardless of threshold");
 assert(formatExpiration(nonExpiringKey, 14).badge === "success", "non-expiring exception should carry a success (green) badge");
+assert(!formatExpiration(expiredKey, 14).label.startsWith("Expired"), "expired timestamp should not repeat the badge text");
+assert(formatExpiration(nonExpiringKey, 14).label === "", "non-expiring exception should be represented by one self-contained badge");
 
 // --- create default: no expiration properties ---------------------------
 var defaultResult = buildExpirationRequest("default", "", "");

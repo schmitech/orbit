@@ -1,3 +1,15 @@
+// Return safe display names for every key assigned to a persona. Raw or
+// masked key values are intentionally ignored even if present in the payload.
+export function associatedApiKeyNames(promptId, keys) {
+  if (!promptId) return [];
+  return (keys || [])
+    .filter(function (key) {
+      return key.system_prompt_id && String(key.system_prompt_id) === String(promptId);
+    })
+    .map(function (key) { return key.client_name || "Unnamed key"; })
+    .sort(function (a, b) { return a.localeCompare(b); });
+}
+
 export function createPromptsTab({
   api, endpoints, el, clear, wrapTable, skeleton, refreshButton, field,
   svgIcon, iconPlus, iconSave, iconX,
@@ -23,9 +35,15 @@ export function createPromptsTab({
     container.appendChild(layout);
 
     var personasRefreshBtn = refreshButton("Refresh the persona list", function () { refreshPrompts(); });
+    var createLaunchBtn = el("button", {
+      className: "create-launch-btn",
+      type: "button",
+      "aria-label": "Create persona"
+    }, svgIcon(iconPlus), el("span", null, "Create Persona"));
+    createLaunchBtn.addEventListener("click", openCreatePanel);
     listPanel.appendChild(el("div", { className: "panel-header-row" },
       el("h2", null, "Personas"),
-      personasRefreshBtn
+      el("div", { className: "panel-header-actions" }, personasRefreshBtn, createLaunchBtn)
     ));
 
     var nameInput = el("input", { type: "text", required: "true", maxlength: "100" });
@@ -39,10 +57,14 @@ export function createPromptsTab({
       fillKeySelect(createKeySelect, keys, null, "No API key");
     }
 
-    fillCreatePersonaKeySelect(getCachedKeys());
-    if (!getCachedKeys()) {
+    if (getCachedKeys()) {
+      fillCreatePersonaKeySelect(getCachedKeys());
+    } else {
       loadAvailableKeys().then(function (keys) {
         fillCreatePersonaKeySelect(keys);
+        // Personas may already have rendered while keys were loading.
+        // Re-render so the association column is populated immediately.
+        applyPromptFilter();
       });
     }
 
@@ -74,21 +96,16 @@ export function createPromptsTab({
 
     var promptSearchInput = el("input", {
       type: "search",
+      className: "compact-search-input",
       placeholder: "Search personas",
       "aria-label": "Search personas"
     });
-    var listToolbar = el("div", { className: "list-toolbar" }, field("Search", promptSearchInput));
+    var listToolbar = el("div", { className: "list-toolbar" }, promptSearchInput);
     listPanel.appendChild(listToolbar);
-    var createLaunchBtn = el("button", {
-      className: "secondary create-launch-btn",
-      type: "button",
-      "aria-label": "Create persona"
-    }, svgIcon(iconPlus), el("span", null, "Create Persona"));
-    createLaunchBtn.addEventListener("click", openCreatePanel);
     var bulkDeleteBtn = el("button", { className: "danger", type: "button" }, "Delete Selected");
     bulkDeleteBtn.style.visibility = "hidden";
     bulkDeleteBtn.disabled = true;
-    listToolbar.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, bulkDeleteBtn));
+    listToolbar.appendChild(el("div", { className: "bulk-action-row" }, bulkDeleteBtn));
 
     var tableWrap = el("div", null, skeleton());
     listPanel.appendChild(tableWrap);
@@ -102,6 +119,7 @@ export function createPromptsTab({
           onSelectionChange: function () {
             syncBulkActionButton(bulkDeleteBtn, selectedPromptIds.size, "personas");
           },
+          apiKeys: getCachedKeys() || [],
           sorter: promptSorter
         });
       }
@@ -157,7 +175,8 @@ export function createPromptsTab({
         return [
           promptIdentifier(prompt),
           prompt.name,
-          prompt.version
+          prompt.version,
+          associatedApiKeyNames(promptIdentifier(prompt), getCachedKeys()).join(" ")
         ].some(function (value) {
           return String(value || "").toLowerCase().includes(filter);
         });
@@ -255,6 +274,9 @@ export function createPromptsTab({
       { label: "ID", key: "id", attrs: { className: "persona-id-col" }, sortValue: promptIdentifier },
       { label: "Name", key: "name", sortValue: function (p) { return p.name || ""; } },
       { label: "Version", key: "version", sortValue: function (p) { return p.version || ""; } },
+      { label: "API Keys", key: "api-keys", sortValue: function (p) {
+        return associatedApiKeyNames(promptIdentifier(p), selection.apiKeys).join(" ");
+      } },
     ]));
     var tbody = el("tbody");
     prompts.forEach(function (p) {
@@ -274,6 +296,7 @@ export function createPromptsTab({
         syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, promptIds);
       });
       rowCheckboxes.push(checkbox);
+      var associatedKeys = associatedApiKeyNames(promptId, selection.apiKeys);
       var tr = el("tr", {
         className: "selectable-row" + (isSelected ? " selected-row" : ""),
         tabindex: "0",
@@ -282,7 +305,11 @@ export function createPromptsTab({
         el("td", { className: "selection-col" }, checkbox),
         el("td", { className: "persona-id-col" }, el("code", { className: "plain-code", title: promptId }, promptId ? promptId.slice(0, 8) : "")),
         el("td", null, p.name),
-        el("td", null, p.version || "")
+        el("td", null, p.version || ""),
+        el("td", {
+          className: "persona-api-keys-col" + (associatedKeys.length ? "" : " muted"),
+          title: associatedKeys.length ? associatedKeys.join(", ") : null
+        }, associatedKeys.length ? associatedKeys.join(", ") : "—")
       );
       tr.addEventListener("click", function () {
         selectedPrompt = p;
@@ -301,7 +328,7 @@ export function createPromptsTab({
     });
     table.appendChild(thead);
     table.appendChild(tbody);
-    wrap.appendChild(wrapTable(table, ["selection", "id", "fluid", "version"]));
+    wrap.appendChild(wrapTable(table, ["selection", "id", "fluid", "version", "fluid"]));
   }
 
   function renderPromptDetail(panel, prompt, onRefresh) {
@@ -441,6 +468,7 @@ export function createPromptsTab({
           return key.system_prompt_id && String(key.system_prompt_id) === String(promptId);
         });
         fillKeySelect(keySelect, refreshedKeys, matchedKey ? matchedKey._id : null);
+        onRefresh(promptId);
       }, "Persona associated with key");
     });
     panel.appendChild(el("div", { className: "inline-form" }, field("API Key", keySelect), assocBtn));

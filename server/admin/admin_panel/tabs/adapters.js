@@ -77,14 +77,8 @@ export function createAdaptersTab({
     var leftPanel = el("div", { className: "panel" });
     layout.appendChild(leftPanel);
 
-    var leftHeader = el("div", { style: "display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-3)" });
-    leftHeader.appendChild(el("h2", { style: "margin:0" }, "Adapters"));
-    var searchInput = el("input", { type: "text", placeholder: "Search adapters…", style: "flex:1;min-width:0" });
-    leftHeader.appendChild(searchInput);
-    leftPanel.appendChild(leftHeader);
-
     var createLaunchBtn = el("button", {
-      className: "secondary create-launch-btn",
+      className: "create-launch-btn",
       type: "button",
       "aria-label": "Create adapter",
     }, svgIcon(iconPlus), el("span", null, "Create Adapter"));
@@ -95,7 +89,17 @@ export function createAdaptersTab({
       "aria-label": "Import adapter",
     }, "Import Adapter");
     importLaunchBtn.addEventListener("click", function () { openAdapterImportPanel(); });
-    leftPanel.appendChild(el("div", { className: "bulk-action-row" }, createLaunchBtn, importLaunchBtn));
+    leftPanel.appendChild(el("div", { className: "panel-header-row" },
+      el("h2", null, "Adapters"),
+      el("div", { className: "panel-header-actions" }, importLaunchBtn, createLaunchBtn)
+    ));
+    var searchInput = el("input", {
+      type: "search",
+      className: "compact-search-input",
+      placeholder: "Search adapters…",
+      "aria-label": "Search adapters"
+    });
+    leftPanel.appendChild(el("div", { className: "list-toolbar" }, searchInput));
 
     var table = el("table");
     // Filled in below, once the paginator the sorter drives exists.

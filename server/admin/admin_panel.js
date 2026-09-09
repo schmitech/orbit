@@ -1072,7 +1072,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     }
 
     // Side rail: grouped vertical nav
-    var nav = el("nav", { className: "rail-nav", role: "tablist", "aria-label": "Admin sections" });
+    var nav = el("nav", { id: "admin-sidebar-nav", className: "rail-nav", role: "tablist", "aria-label": "Admin sections" });
     NAV_GROUPS.forEach(function (group) {
       var tabsInGroup = visibleTabs.filter(function (t) { return t.group === group.id; });
       if (!tabsInGroup.length) return;
@@ -1113,15 +1113,25 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
       nav.appendChild(section);
     });
 
+    var railToggleText = railCollapsed ? "Expand sidebar" : "Collapse sidebar";
     var collapseBtn = el("button", {
       type: "button",
       className: "rail-collapse-btn",
+      "aria-label": railToggleText,
+      "aria-controls": "admin-sidebar-nav",
       "aria-expanded": String(!railCollapsed),
+      title: railToggleText,
     },
       el("span", { className: "rail-collapse-icon" }, svgIcon(ICON_CHEVRONS_LEFT)),
-      el("span", { className: "rail-link-label" }, "Collapse")
+      el("span", { className: "rail-link-label rail-collapse-label" }, railCollapsed ? "Expand" : "Collapse")
     );
     collapseBtn.addEventListener("click", toggleRail);
+
+    var versionBadge = serverVersion ? el("span", {
+      className: "rail-version",
+      title: "ORBIT server version " + serverVersion,
+      "aria-label": "ORBIT server version " + serverVersion
+    }, "v" + serverVersion) : null;
 
     var rail = el("header", { className: "rail", role: "banner" },
       el("div", { className: "rail-brand" },
@@ -1136,11 +1146,10 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
             alt: "",
             className: "brand-mark",
           })
-        ),
-        serverVersion ? el("p", { className: "rail-version" }, "v" + serverVersion) : null
+        )
       ),
       nav,
-      el("div", { className: "rail-footer" }, collapseBtn)
+      el("div", { className: "rail-footer" }, versionBadge, collapseBtn)
     );
 
     // Workbar: where you are, who you are
@@ -1199,7 +1208,14 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     var shell = document.querySelector(".app-shell");
     if (shell) shell.classList.toggle("rail-collapsed", railCollapsed);
     var btn = document.querySelector(".rail-collapse-btn");
-    if (btn) btn.setAttribute("aria-expanded", String(!railCollapsed));
+    if (btn) {
+      var label = railCollapsed ? "Expand sidebar" : "Collapse sidebar";
+      btn.setAttribute("aria-expanded", String(!railCollapsed));
+      btn.setAttribute("aria-label", label);
+      btn.setAttribute("title", label);
+      var visibleLabel = btn.querySelector(".rail-collapse-label");
+      if (visibleLabel) visibleLabel.textContent = railCollapsed ? "Expand" : "Collapse";
+    }
   }
 
   function toggleTheme() {
@@ -1664,8 +1680,17 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
 
   async function loadAvailableKeys() {
     try {
-      var result = await api("GET", ENDPOINTS.apiKeys);
-      cachedKeys = (result && result.keys) || [];
+      var keys = [];
+      var offset = 0;
+      var limit = 1000;
+      while (true) {
+        var result = await api("GET", ENDPOINTS.apiKeys + "?limit=" + limit + "&offset=" + offset);
+        var page = (result && result.keys) || [];
+        keys = keys.concat(page);
+        if (page.length < limit) break;
+        offset += page.length;
+      }
+      cachedKeys = keys;
     } catch (_) {
       cachedKeys = [];
     }

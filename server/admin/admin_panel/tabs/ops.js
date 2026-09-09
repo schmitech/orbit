@@ -181,7 +181,7 @@ export function createOpsTab({
       userNearBottom = true;
       pendingNewLines = 0;
       jumpBanner.classList.add("hidden");
-      logScrollAnchor.scrollIntoView({ behavior: "smooth", block: "end" });
+      scrollLogsToBottom("smooth");
     });
 
     // Level filter buttons
@@ -213,6 +213,17 @@ export function createOpsTab({
     var logBody = el("div", { className: "log-terminal" });
     var logScrollAnchor = el("div", { className: "log-scroll-anchor" });
     logBody.appendChild(logScrollAnchor);
+
+    // Scroll only the terminal. Element.scrollIntoView() also scrolls every
+    // ancestor, including the page, which previously pulled the log panel to
+    // the top and hid the server lifecycle controls when Ops first loaded.
+    function scrollLogsToBottom(behavior) {
+      if (behavior === "smooth" && typeof logBody.scrollTo === "function") {
+        logBody.scrollTo({ top: logBody.scrollHeight, behavior: "smooth" });
+        return;
+      }
+      logBody.scrollTop = logBody.scrollHeight;
+    }
 
     // Track scroll position to decide auto-scroll
     logBody.addEventListener("scroll", function () {
@@ -287,7 +298,7 @@ export function createOpsTab({
       logBody.insertBefore(frag, logScrollAnchor);
       updateLogCount();
       if (userNearBottom) {
-        logScrollAnchor.scrollIntoView({ block: "end" });
+        scrollLogsToBottom();
       }
     }
 
@@ -308,7 +319,7 @@ export function createOpsTab({
 
       if (added > 0) {
         if (userNearBottom) {
-          logScrollAnchor.scrollIntoView({ block: "end" });
+          scrollLogsToBottom();
         } else {
           pendingNewLines += added;
           jumpBanner.textContent = pendingNewLines + " new line" + (pendingNewLines !== 1 ? "s" : "") + " below ↓";
@@ -343,7 +354,7 @@ export function createOpsTab({
           fullRenderLogLines();
           // Start scrolled to bottom
           userNearBottom = true;
-          logScrollAnchor.scrollIntoView({ block: "end" });
+          scrollLogsToBottom();
         } else {
           // Diff: find new lines appended at the end.
           // The server returns the last N lines of the file. If the file grew,
