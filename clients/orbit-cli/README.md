@@ -5,8 +5,8 @@ repo root for the phased plan.
 
 ## Status
 
-Phase 0 (connection, `--health`) and Phase 1 (one-shot mode) are done.
-Interactive REPL mode lands in Phase 2.
+Phase 0 (connection, `--health`), Phase 1 (one-shot mode), and Phase 2 (the
+REPL) are done. Agents/models/`@` attachments/rendering land in Phase 3.
 
 ## Usage
 
@@ -35,6 +35,18 @@ node bin/orbit-chat.js --agent <skill-name> --model <model-id> "hi"
 node bin/orbit-chat.js "hi" | cat
 
 # Ctrl+C cancels an in-flight one-shot turn (exit code 130).
+
+# Interactive REPL: no message, run from a real terminal.
+node bin/orbit-chat.js
+
+# In the REPL:
+#   type a message and press Enter to send a turn
+#   /new     start a new session
+#   /clear   clear the screen
+#   /help    list commands
+#   /exit    exit
+#   Ctrl+C   cancel the in-flight turn; again while idle to exit
+#   Ctrl+D   exit
 ```
 
 Exit codes: `0` ok, `1` server error, `2` usage, `3` auth, `4` network,

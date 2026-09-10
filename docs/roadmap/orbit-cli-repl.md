@@ -163,7 +163,7 @@ pipe (exits quietly), and `Ctrl+C` mid-stream (exit 130).
 
 ---
 
-### Phase 2 — The REPL
+### Phase 2 — The REPL ✅ Complete
 
 - Prompt line + streaming transcript.
 - Session UUID per run; `/new` rotates it.
@@ -180,6 +180,24 @@ pipe (exits quietly), and `Ctrl+C` mid-stream (exit 130).
 **Verify:** cancel before *and* after the first `request_id` chunk — both
 restore the prompt and leave the session usable; context is retained across
 turns after a cancel.
+
+Shipped in `clients/orbit-cli/src/repl.ts`, built on plain `node:readline`
+rather than Ink — skipped the spike rather than timeboxing it, since a
+framework choice makes sense once there's rendering complex enough to need
+it (Phase 3's markdown/artifact output), and `readline`'s own terminal mode
+already gives history navigation with up/down for free. `client.setSessionId`
+rotates the session on `/new`; `/clear`, `/help`, `/exit` are handled
+locally, and `/agents`/`/models`/`/model` report "lands in Phase 3" instead
+of being sent as chat text. Cancellation: `rl.on('SIGINT')` aborts the local
+`AbortController` and best-effort calls `stopChat` with the last-seen
+`request_id` if one had arrived; the turn's `catch` swallows the resulting
+abort and restores the prompt without exiting. A second `Ctrl+C` while idle
+(no turn in flight) closes the REPL, matching `Ctrl+D`/`/exit`. Verified
+over a PTY (Python's `pty` module, since `node-pty` isn't a project
+dependency yet): a normal turn, `/new`, `/help`, cancelling mid-generation
+(prompt restores, next turn still works), `/exit`, `Ctrl+D`, and an idle
+`Ctrl+C` — all exit or recover as designed. Also re-verified Phases 0/1
+still behave (`--health`, one-shot piped output, no-message-on-non-TTY).
 
 ---
 

@@ -4,6 +4,7 @@ import { ConfigError, resolveConnection } from './connection.js';
 import { createClient } from './client.js';
 import { classifyError } from './errors.js';
 import { runOneShot } from './one-shot.js';
+import { runRepl } from './repl.js';
 import { readStdin } from './stdin.js';
 import { EXIT_OK, EXIT_USAGE } from './exit-codes.js';
 
@@ -56,9 +57,15 @@ async function main(): Promise<void> {
 
   const rawMessage = args.positional[0];
   if (rawMessage === undefined) {
-    // Phase 2 (the REPL) lands here.
-    process.stderr.write('Connected. Interactive mode is not implemented yet (Phase 2).\n');
-    process.exit(EXIT_OK);
+    if (!process.stdin.isTTY) {
+      process.stderr.write(
+        'No message provided and stdin is not a terminal. Pass a message, or "-" to read one from stdin.\n'
+      );
+      process.exit(EXIT_USAGE);
+    }
+    const code = await runRepl(client, args.agent, args.model);
+    process.exitCode = code;
+    return;
   }
 
   const message = rawMessage === '-' ? (await readStdin()).trim() : rawMessage;
