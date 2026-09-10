@@ -881,27 +881,33 @@ class PipelineChatService:
                 usage_sink=embedding_usage,
             )
 
-            context = self.context_builder.build_context(
-                message=message,
-                adapter_name=adapter_name,
-                context_messages=context_messages,
-                system_prompt_id=system_prompt_id,
-                user_id=user_id,
-                session_id=effective_session_id,
-                api_key=api_key,
-                file_ids=file_ids,
-                thread_id=thread_id,
-                audio_input=audio_input,
-                audio_format=audio_format,
-                language=language,
-                return_audio=return_audio,
-                tts_voice=tts_voice,
-                source_language=source_language,
-                target_language=target_language,
-                requested_model=requested_model,
-                skill=skill,
-                skill_auto_detected=skill_auto_detected,
-            )
+            try:
+                context = self.context_builder.build_context(
+                    message=message,
+                    adapter_name=adapter_name,
+                    context_messages=context_messages,
+                    system_prompt_id=system_prompt_id,
+                    user_id=user_id,
+                    session_id=effective_session_id,
+                    api_key=api_key,
+                    file_ids=file_ids,
+                    thread_id=thread_id,
+                    audio_input=audio_input,
+                    audio_format=audio_format,
+                    language=language,
+                    return_audio=return_audio,
+                    tts_voice=tts_voice,
+                    source_language=source_language,
+                    target_language=target_language,
+                    requested_model=requested_model,
+                    skill=skill,
+                    skill_auto_detected=skill_auto_detected,
+                )
+            except ValueError as e:
+                # Invalid client-supplied input (e.g. requested_model not in
+                # allowed_models) — a normal validation failure, not a server fault.
+                logger.warning(f"Invalid chat request for adapter '{adapter_name}': {e}")
+                return {"error": str(e)}
             from inference.pipeline.steps._utils import add_usage_component
             add_usage_component(context, embedding_usage, "embedding")
 
@@ -1103,28 +1109,35 @@ class PipelineChatService:
                 usage_sink=embedding_usage,
             )
 
-            context = self.context_builder.build_context(
-                message=message,
-                adapter_name=adapter_name,
-                context_messages=context_messages,
-                system_prompt_id=system_prompt_id,
-                user_id=user_id,
-                session_id=effective_session_id,
-                api_key=api_key,
-                file_ids=file_ids,
-                thread_id=thread_id,
-                audio_input=audio_input,
-                audio_format=audio_format,
-                language=language,
-                return_audio=return_audio,
-                tts_voice=tts_voice,
-                source_language=source_language,
-                target_language=target_language,
-                cancel_event=cancel_event,
-                requested_model=requested_model,
-                skill=skill,
-                skill_auto_detected=skill_auto_detected,
-            )
+            try:
+                context = self.context_builder.build_context(
+                    message=message,
+                    adapter_name=adapter_name,
+                    context_messages=context_messages,
+                    system_prompt_id=system_prompt_id,
+                    user_id=user_id,
+                    session_id=effective_session_id,
+                    api_key=api_key,
+                    file_ids=file_ids,
+                    thread_id=thread_id,
+                    audio_input=audio_input,
+                    audio_format=audio_format,
+                    language=language,
+                    return_audio=return_audio,
+                    tts_voice=tts_voice,
+                    source_language=source_language,
+                    target_language=target_language,
+                    cancel_event=cancel_event,
+                    requested_model=requested_model,
+                    skill=skill,
+                    skill_auto_detected=skill_auto_detected,
+                )
+            except ValueError as e:
+                # Invalid client-supplied input (e.g. requested_model not in
+                # allowed_models) — a normal validation failure, not a server fault.
+                logger.warning(f"Invalid chat stream request for adapter '{adapter_name}': {e}")
+                yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
+                return
             from inference.pipeline.steps._utils import add_usage_component
             add_usage_component(context, embedding_usage, "embedding")
 
