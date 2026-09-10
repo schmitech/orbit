@@ -5,8 +5,8 @@ repo root for the phased plan.
 
 ## Status
 
-Phase 0 (connection, `--health`), Phase 1 (one-shot mode), and Phase 2 (the
-REPL) are done. Agents/models/`@` attachments/rendering land in Phase 3.
+Phases 0–3 are done: connection/`--health`, one-shot mode, the REPL, and
+agents/models/`@` attachments/artifacts/markdown rendering.
 
 ## Usage
 
@@ -41,12 +41,20 @@ node bin/orbit-chat.js
 
 # In the REPL:
 #   type a message and press Enter to send a turn
-#   /new     start a new session
-#   /clear   clear the screen
-#   /help    list commands
-#   /exit    exit
-#   Ctrl+C   cancel the in-flight turn; again while idle to exit
-#   Ctrl+D   exit
+#   /new                 start a new session
+#   /agents              list agents (the key's own adapter + enabled skills)
+#   /agents <name|#>      switch agent — clears any /model selection
+#   /models              list models allowed for the current agent
+#   /model <id|#>        set the model for later turns
+#   /clear               clear the screen
+#   /help                list commands
+#   /exit                exit
+#   Ctrl+C               cancel the in-flight turn; again while idle to exit
+#   Ctrl+D               exit
+#
+# @path/to/file inline in a message attaches that file to the turn (works in
+# both the REPL, with tab completion, and one-shot mode). Generated media
+# (images, video, documents, TTS audio) is written to ./.orbit-out/.
 ```
 
 Exit codes: `0` ok, `1` server error, `2` usage, `3` auth, `4` network,

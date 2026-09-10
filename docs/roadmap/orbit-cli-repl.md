@@ -201,7 +201,7 @@ still behave (`--health`, one-shot piped output, no-message-on-non-TTY).
 
 ---
 
-### Phase 3 — Agents, models, files, rendering
+### Phase 3 — Agents, models, files, rendering ✅ Complete
 
 - `/agents` and `/models` as described above.
 - `@path` attachments with filename completion.
@@ -221,6 +221,76 @@ still behave (`--health`, one-shot piped output, no-message-on-non-TTY).
 and mid-table; `@file.pdf` produces a grounded answer; both artifact paths
 write byte-correct files; selecting an agent visibly changes which backend
 answers.
+
+Shipped in `clients/orbit-cli`, with one SDK addition:
+
+- **`downloadArtifact(url)`** added to `@schmitech/chatbot-api`
+  (`clients/node-api/api.ts`) exactly as planned: the `*_url` fields are
+  paths relative to the API base (e.g. `/api/files/{id}/content`) that
+  require the same `X-API-Key` used for chat, so a plain unauthenticated
+  fetch 401s — it goes through the client's existing request pipeline
+  instead. `dist/` rebuilt so the `file:`-linked CLI picks it up.
+- **`/agents`** (`src/agents.ts`) lists the key's own adapter plus every
+  enabled skill from `getAllSkills()`, exactly as designed above; picking
+  one sets `skill` on later turns and also clears any `/model` selection
+  (a model choice is adapter-specific, so it shouldn't silently survive an
+  agent switch).
+- **`/models`/`/model`** (`src/models.ts`) call `getAdapterModels()` for the
+  *current* agent's models. Fixed a real bug caught in review: the
+  discovery route resolves models for the API key's own adapter regardless
+  of the `adapterName` path param, *unless* a `skill` query param is also
+  given — so listing models after switching to a skill was silently
+  showing the base adapter's models (and a `/model` selection from that
+  list could then be rejected on send). `getAdapterModels()` gained an
+  optional `skill` parameter in the SDK to match the server route, and the
+  CLI now always passes the current agent's `skill` alongside its
+  `adapterName`.
+- **`@path` attachments** (`src/attachments.ts`): `@`-tokens are extracted
+  from the message, each file is read and uploaded via `uploadFile()`
+  ahead of the turn, and the resulting file ids ride along as that turn's
+  `fileIds` only — nothing persists onto later turns. Tab completion for
+  `@` (`src/repl.ts`'s `completer`) lists filesystem entries matching the
+  partial path. Used in both the REPL and one-shot mode.
+- **Artifacts** (`src/artifacts.ts`): both inline-base64 and URL shapes are
+  handled, written to `./.orbit-out/`. One real bug found and fixed during
+  verification — a single chunk can carry *both* an inline copy and a URL
+  for the same generated image, which without care wrote two identical
+  files; fixed by saving a given artifact kind only once per chunk,
+  preferring the inline copy (skips the extra download). Artifact paths
+  print to stdout in the REPL and to stderr in one-shot mode, keeping
+  one-shot's stdout reply-only per Phase 1. A second review bug: the REPL
+  wrote an artifact's "Saved artifact: ..." notice as soon as it saw the
+  artifact, but a chunk's `text` (typically the final chunk, with no
+  trailing newline) stays buffered in `MarkdownRenderer` until a newline or
+  an explicit flush — so the notice could print before the reply text it
+  belonged after. Fixed by flushing the renderer before writing any
+  artifact notice.
+- **Markdown → ANSI** (`src/markdown.ts`): headings, bold/italic, inline
+  code, list markers, and a dimmed treatment for fenced code blocks;
+  respects `NO_COLOR` and non-TTY by stripping markdown syntax instead of
+  emitting escape codes — including the fence delimiters themselves, which
+  a review pass caught being emitted verbatim (as literal `` ``` `` marks)
+  in the no-color path; they're now dropped like every other stripped
+  syntax marker. This is a deliberately scoped-down rendering strategy,
+  not the roadmap's block-buffered tail-redraw design — it is
+  **line-buffered**: a completed line is written once and never rewritten.
+  That's simpler (no cursor bookkeeping) and still streaming-safe, but it
+  does **not** syntax-highlight code by language (no `cli-highlight`
+  dependency added) and does not reflow tables. One-shot mode is
+  unaffected — it stays plain text per Phase 1.
+
+Verified against a live server: `/agents` lists the default adapter plus
+20 real skills; `/models` lists an adapter's `allowed_models`; switching to
+the Image skill and generating an image saves exactly one file to
+`.orbit-out/` (after the inline/URL duplicate-save bug above was fixed);
+`@path` uploads a real file and its `file_id` reaches the server
+(confirmed via `listFiles()`) — the `simple-chat` adapter itself doesn't
+use file content (`isFileSupported: false`), which is a server adapter
+property, not a CLI defect; an unknown attachment path fails with exit 2
+in one-shot mode; markdown bold/lists render correctly in a real terminal
+and fall back to clean stripped text under `NO_COLOR`; REPL startup now
+also calls `getAdapterInfo()` up front, so an invalid key fails fast with
+exit 3 instead of only failing on the first turn.
 
 ---
 

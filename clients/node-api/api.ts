@@ -2104,9 +2104,23 @@ export class ApiClient {
     );
   }
 
-  public async getAdapterModels(adapterName: string): Promise<AdapterModelsResponse> {
+  /**
+   * List models available for an adapter.
+   *
+   * @param adapterName - Adapter to query. Note: when authenticated with an
+   * API key, the server resolves the models for the key's own adapter
+   * regardless of this value, unless `skill` is also provided — pass the
+   * skill's name to get its backing adapter's allowed models instead.
+   * @param skill - Optional skill name; lists models for the adapter that
+   * skill routes to rather than the caller's own adapter.
+   */
+  public async getAdapterModels(adapterName: string, skill?: string): Promise<AdapterModelsResponse> {
+    const url = new URL(`${this.apiUrl}/admin/adapters/${encodeURIComponent(adapterName)}/models`);
+    if (skill) {
+      url.searchParams.set('skill', skill);
+    }
     return await this.requestJsonOrThrow<AdapterModelsResponse>(
-      `${this.apiUrl}/admin/adapters/${encodeURIComponent(adapterName)}/models`,
+      url.toString(),
       { method: 'GET' },
       'Failed to get adapter models'
     );
@@ -2134,6 +2148,37 @@ export class ApiClient {
       { method: 'GET' },
       'Failed to get all skills'
     );
+  }
+
+  /**
+   * Download an artifact referenced by one of streamChat's *_url fields
+   * (image_url, video_url, document_url, generated_audio_url).
+   *
+   * The server returns these as paths relative to the API base
+   * (e.g. `/api/files/{id}/content`), authenticated by the same API key used
+   * for the chat request, so a plain unauthenticated fetch of the URL will
+   * 401 — this goes through the client's own request pipeline instead.
+   *
+   * @param url - Absolute URL or a path relative to apiUrl
+   * @returns Promise resolving to the raw bytes and the response's content type
+   * @throws Error if the download fails
+   */
+  public async downloadArtifact(url: string): Promise<{ data: ArrayBuffer; contentType: string | null }> {
+    const resolvedUrl = /^https?:\/\//i.test(url) ? url : `${this.apiUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+
+    const response = await this.fetchWithNetworkErrorHandling(resolvedUrl, {
+      ...this.getFetchOptions({ method: 'GET' })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to download artifact: ${response.status} ${errorText}`);
+    }
+
+    return {
+      data: await response.arrayBuffer(),
+      contentType: response.headers.get('content-type'),
+    };
   }
 
   public async deleteAllFiles(): Promise<{ message: string; deleted_count: number; errors?: string[] | null }> {
