@@ -3,6 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "description": "Terminal REPL client for ORBIT",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/schmitech/orbit.git",
+    "directory": "clients/orbit-cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "orbit-chat": "./bin/orbit-chat.js"
@@ -18,17 +27,24 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/cli.ts",
+    "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "test": "node --test --experimental-strip-types 'src/**/*.test.ts'",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@schmitech/chatbot-api": "file:../node-api"
+    "@schmitech/chatbot-api": "file:../node-api",
+    "cli-highlight": "^2.1.11"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@types/node": "^20.11.24",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.0.0"
   },
   "allowScripts": {
     "esbuild": true

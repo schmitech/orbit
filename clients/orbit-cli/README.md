@@ -14,6 +14,9 @@ agents/models/`@` attachments/artifacts/markdown rendering.
 npm install
 npm run build
 
+# --url defaults to http://localhost:3000 if omitted (flag/env/prompt all fall back to it):
+node bin/orbit-chat.js --key sk-... --health
+
 # Flags:
 node bin/orbit-chat.js --url http://localhost:3000 --key sk-... --health
 
@@ -46,6 +49,7 @@ node bin/orbit-chat.js
 #   /agents <name|#>      switch agent — clears any /model selection
 #   /models              list models allowed for the current agent
 #   /model <id|#>        set the model for later turns
+#   /key <api-key>       switch API key without restarting (re-discovers agents)
 #   /clear               clear the screen
 #   /help                list commands
 #   /exit                exit

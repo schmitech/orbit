@@ -1350,7 +1350,14 @@ export class ApiClient {
       headers['X-API-Key'] = this.apiKey;
     }
 
-    if (this.sessionId) {
+    // Default to the client's current session, but don't clobber an explicit
+    // X-Session-ID a caller already set (e.g. clearConversationHistory and
+    // deleteConversationWithFiles accept a sessionId parameter specifically
+    // so they can target a session other than the client's current one —
+    // unconditionally overwriting it here made every such call fail with a
+    // header/URL session-id mismatch).
+    const hasExplicitSessionHeader = Object.keys(headers).some((key) => key.toLowerCase() === 'x-session-id');
+    if (this.sessionId && !hasExplicitSessionHeader) {
       headers['X-Session-ID'] = this.sessionId;
     }
 

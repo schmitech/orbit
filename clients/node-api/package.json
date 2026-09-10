@@ -3,6 +3,15 @@
     "private": false,
     "version": "2.2.0",
     "description": "API client for the ORBIT MCP server",
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/schmitech/orbit.git",
+        "directory": "clients/node-api"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
     "type": "module",
     "main": "./dist/api.cjs",
     "module": "./dist/api.mjs",
@@ -32,7 +41,8 @@
         "test:npm": "node ./test/test-npm-package.mjs",
         "test-query": "node ./test/run-query.js",
         "test-query-from-pairs": "node ./test/run-query-from-pairs.js",
-        "test:live": "node ./test/live-integration.mjs"
+        "test:live": "node ./test/live-integration.mjs",
+        "prepublishOnly": "npm run build"
     },
     "dependencies": {},
     "devDependencies": {

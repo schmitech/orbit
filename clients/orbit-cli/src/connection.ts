@@ -8,11 +8,15 @@ export interface Connection {
 
 export class ConfigError extends Error {}
 
+/** Assumed for a locally-run ORBIT server, same as most CLI tools default to localhost. */
+const DEFAULT_URL = 'http://localhost:3000';
+
 /**
  * Resolve the server URL and API key.
  *
- * Order: CLI flags -> env vars -> interactive prompt (TTY only).
- * Nothing is persisted to disk — each run resolves its own connection.
+ * Order: CLI flags -> env vars -> `DEFAULT_URL` (or an interactive prompt
+ * that itself defaults to it, on a TTY). Nothing is persisted to disk — each
+ * run resolves its own connection.
  */
 export async function resolveConnection(args: ParsedArgs): Promise<Connection> {
   let url = args.url ?? process.env.ORBIT_URL;
@@ -20,11 +24,11 @@ export async function resolveConnection(args: ParsedArgs): Promise<Connection> {
 
   if (!url) {
     if (!process.stdin.isTTY) {
-      throw new ConfigError(
-        'Missing server URL. Pass --url <url> or set ORBIT_URL.'
-      );
+      url = DEFAULT_URL;
+    } else {
+      const answer = await ask(`ORBIT server URL [${DEFAULT_URL}]: `);
+      url = answer || DEFAULT_URL;
     }
-    url = await ask('ORBIT server URL: ');
   }
 
   if (!apiKey) {

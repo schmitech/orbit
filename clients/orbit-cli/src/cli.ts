@@ -63,7 +63,7 @@ async function main(): Promise<void> {
       );
       process.exit(EXIT_USAGE);
     }
-    const code = await runRepl(client, args.agent, args.model);
+    const code = await runRepl(client, connection, args.agent, args.model);
     process.exitCode = code;
     return;
   }

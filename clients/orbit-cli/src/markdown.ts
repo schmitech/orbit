@@ -1,12 +1,11 @@
+import { highlight, supportsLanguage } from 'cli-highlight';
+import { ansiEnabled } from './tty.js';
+
 const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';
 const DIM = '\x1b[2m';
 const ITALIC = '\x1b[3m';
 const HEADING = '\x1b[1;36m';
-
-function ansiEnabled(): boolean {
-  return Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
-}
 
 function styleLine(line: string): string {
   const heading = /^(#{1,6})\s+(.*)$/.exec(line);
@@ -47,6 +46,7 @@ function stripLine(line: string): string {
 export class MarkdownRenderer {
   private buffer = '';
   private inFence = false;
+  private fenceLang: string | undefined;
 
   push(text: string): void {
     this.buffer += text;
@@ -69,8 +69,10 @@ export class MarkdownRenderer {
   private emitLine(line: string): void {
     const color = ansiEnabled();
 
-    if (/^```/.test(line.trim())) {
+    const fenceMatch = /^```\s*(\S*)/.exec(line.trim());
+    if (fenceMatch) {
       this.inFence = !this.inFence;
+      this.fenceLang = this.inFence ? fenceMatch[1] || undefined : undefined;
       if (color) {
         process.stdout.write(`${DIM}${line}${RESET}\n`);
       }
@@ -80,7 +82,19 @@ export class MarkdownRenderer {
     }
 
     if (this.inFence) {
-      process.stdout.write(`${color ? `${DIM}${line}${RESET}` : line}\n`);
+      if (!color) {
+        process.stdout.write(`${line}\n`);
+        return;
+      }
+      if (this.fenceLang && supportsLanguage(this.fenceLang)) {
+        try {
+          process.stdout.write(`${highlight(line, { language: this.fenceLang, ignoreIllegals: true })}\n`);
+          return;
+        } catch {
+          // Fall through to the flat dim treatment below.
+        }
+      }
+      process.stdout.write(`${DIM}${line}${RESET}\n`);
       return;
     }
 
