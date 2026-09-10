@@ -134,7 +134,7 @@ the documented exit code and message.
 
 ---
 
-### Phase 1 — One-shot mode
+### Phase 1 — One-shot mode ✅ Complete
 
 Built before the REPL: it is the scriptable path and the substrate the tests
 drive. **It must not initialize any TUI framework.**
@@ -149,7 +149,17 @@ drive. **It must not initialize any TUI framework.**
 **Verify:** `orbit-chat "hi" | cat` produces clean text with no escape
 sequences; a broken pipe exits quietly; exit codes tested per class.
 
-*~1 day.*
+Shipped in `clients/orbit-cli`: `src/one-shot.ts` streams `chunk.text` to
+stdout as it arrives and returns the exit code; `src/stdin.ts` reads all of
+stdin for the `-` form; a fresh `randomUUID()` session id is generated per
+run (the server rejects chat requests with no `X-Session-ID`) since one-shot
+has no REPL state to carry a session across turns. `Ctrl+C` aborts the
+in-flight `AbortController` and exits 130. `--agent` maps to `streamChat`'s
+`skill` parameter, `--model` to `model`. Verified against a live server:
+plain and piped output, `-` reading stdin, an invalid key (exit 3), an
+invalid model (exit 1, error on stderr only), no message given (falls
+through to the Phase 2 stub, exit 0), an empty message (exit 2), a broken
+pipe (exits quietly), and `Ctrl+C` mid-stream (exit 130).
 
 ---
 
