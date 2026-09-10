@@ -20,6 +20,11 @@ async function main(): Promise<void> {
     throw error;
   }
 
+  if (args.version) {
+    process.stdout.write(`orbit-chat ${typeof __ORBIT_CLI_VERSION__ === 'string' ? __ORBIT_CLI_VERSION__ : 'dev'}\n`);
+    process.exit(EXIT_OK);
+  }
+
   let connection;
   try {
     connection = await resolveConnection(args);

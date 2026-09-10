@@ -1,7 +1,7 @@
 {
   "name": "@schmitech/orbit-cli",
-  "private": true,
-  "version": "0.1.0",
+  "private": false,
+  "version": "0.1.2",
   "description": "Terminal REPL client for ORBIT",
   "license": "Apache-2.0",
   "repository": {
@@ -33,7 +33,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@schmitech/chatbot-api": "file:../node-api",
+    "@schmitech/chatbot-api": "^2.2.1",
     "cli-highlight": "^2.1.11"
   },
   "devDependencies": {

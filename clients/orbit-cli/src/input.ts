@@ -445,21 +445,16 @@ export class LineReader {
   }
 
   /**
-   * Enter on a visible menu: a command that takes no further argument (empty
-   * `usage`, e.g. `/models`) runs immediately, since there's nothing left to
-   * type — otherwise Enter would just fill the buffer and force a second
-   * Enter to actually submit it. A command that does take an argument (e.g.
-   * `/agents <name|number>`) still only fills the buffer, the same as Tab,
-   * so the user can type that argument before submitting.
+   * Enter on a visible menu runs the highlighted command immediately —
+   * whether or not it takes an optional argument (e.g. `/agents
+   * <name|number>` with no argument opens its own interactive picker; there
+   * is no dedicated "no-argument" case to special-case around). A command
+   * that does take an argument can still be filled into the buffer without
+   * running it via Tab, for typing that argument manually before Enter.
    */
   private selectMenuItemOnEnter(): void {
     const item = this.menuItems[this.menuIndex];
     if (!item) return;
-    if (item.usage) {
-      this.acceptMenuSelection();
-      this.render();
-      return;
-    }
     this.menuVisible = false;
     this.buffer = item.name;
     this.cursor = graphemes(this.buffer).length;

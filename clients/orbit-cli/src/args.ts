@@ -2,6 +2,7 @@ export interface ParsedArgs {
   url?: string;
   key?: string;
   health: boolean;
+  version: boolean;
   agent?: string;
   model?: string;
   positional: string[];
@@ -9,7 +10,7 @@ export interface ParsedArgs {
 
 export class ArgsError extends Error {}
 
-const FLAGS = new Set(['--url', '--key', '--health', '--agent', '--model']);
+const FLAGS = new Set(['--url', '--key', '--health', '--agent', '--model', '--version', '-v']);
 
 function isFlagLike(value: string | undefined): boolean {
   return value === undefined || FLAGS.has(value);
@@ -26,11 +27,15 @@ function isFlagLike(value: string | undefined): boolean {
  * value (e.g. `--url --health` must not disable --health).
  */
 export function parseArgs(argv: string[]): ParsedArgs {
-  const result: ParsedArgs = { health: false, positional: [] };
+  const result: ParsedArgs = { health: false, version: false, positional: [] };
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     switch (arg) {
+      case '--version':
+      case '-v':
+        result.version = true;
+        break;
       case '--url': {
         const value = argv[i + 1];
         if (isFlagLike(value)) {

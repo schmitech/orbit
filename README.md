@@ -150,6 +150,15 @@ curl -X POST http://localhost:3000/v1/chat \
   }'
 ```
 
+Or test it from a terminal with [orbit-cli](clients/orbit-cli/):
+
+```bash
+npm install -g @schmitech/orbit-cli@latest
+
+orbit-chat --version
+orbit-chat --key default-key
+```
+
 For API-key creation, file uploads, and browser-based testing, continue with
 [Before you start](docs/tutorial/before-you-start.md).
 

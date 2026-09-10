@@ -16,8 +16,7 @@ import { Spinner } from './spinner.js';
 const COMMANDS: CommandSpec[] = [
   { name: '/new', usage: '', description: 'start a new session (clears server-side context)' },
   { name: '/agents', usage: '<name|number>', description: 'pick an agent (arrow keys), or /agents <name|number>' },
-  { name: '/models', usage: '', description: 'pick a model for the current agent (arrow keys)' },
-  { name: '/model', usage: '<id|number>', description: 'set the model for later turns' },
+  { name: '/model', usage: '<id|number>', description: 'pick a model (arrow keys), or /model <id|number>' },
   { name: '/key', usage: '', description: 'switch API key without restarting (masked prompt)' },
   { name: '/clear', usage: '', description: 'clear the screen and this session\'s server-side history' },
   { name: '/help', usage: '', description: 'show this message' },
@@ -175,6 +174,39 @@ export async function runRepl(
 
   process.stdout.write('Connected. Type /help for commands, Ctrl+D to exit.\n');
 
+  /**
+   * Fetch the current agent's models and let the user pick one interactively.
+   * Used by bare `/model` (no argument) — there used to be a separate
+   * `/models` command for this, but once bare `/model` did the exact same
+   * thing (rather than printing a static "Current model: (adapter default)"
+   * that told the user nothing useful), the two were pure duplicates, so
+   * `/models` was folded into `/model`.
+   */
+  async function pickModel(): Promise<void> {
+    try {
+      lastModels = await listModels(client, currentAgent.adapterName, currentAgent.skill);
+      if (lastModels.length === 0) {
+        process.stdout.write('This agent has no restricted model list (uses its configured default).\n');
+        return;
+      }
+      const idx = await rl.selectFromList(
+        'Select model (type to filter, Esc to cancel): ',
+        lastModels.map((m) => {
+          const id = m.name ?? m.id;
+          return `${id}${id === currentModel ? '  (current)' : ''}`;
+        })
+      );
+      if (idx !== null) {
+        const picked = lastModels[idx];
+        currentModel = picked.name ?? picked.id;
+        process.stdout.write(`Model set to ${currentModel}.\n`);
+      }
+    } catch (error) {
+      const { message } = classifyError(error);
+      process.stderr.write(`${message}\n`);
+    }
+  }
+
   for await (const line of rl) {
     const text = line.trim();
 
@@ -240,34 +272,9 @@ export async function runRepl(
           }
           break;
 
-        case '/models':
-          try {
-            lastModels = await listModels(client, currentAgent.adapterName, currentAgent.skill);
-            if (lastModels.length === 0) {
-              process.stdout.write('This agent has no restricted model list (uses its configured default).\n');
-            } else {
-              const idx = await rl.selectFromList(
-                'Select model (type to filter, Esc to cancel): ',
-                lastModels.map((m) => {
-                  const id = m.name ?? m.id;
-                  return `${id}${id === currentModel ? '  (current)' : ''}`;
-                })
-              );
-              if (idx !== null) {
-                const picked = lastModels[idx];
-                currentModel = picked.name ?? picked.id;
-                process.stdout.write(`Model set to ${currentModel}.\n`);
-              }
-            }
-          } catch (error) {
-            const { message } = classifyError(error);
-            process.stderr.write(`${message}\n`);
-          }
-          break;
-
         case '/model':
           if (!arg) {
-            process.stdout.write(`Current model: ${currentModel ?? '(adapter default)'}\n`);
+            await pickModel();
           } else {
             const found = findModel(lastModels, arg);
             currentModel = found ? found.name ?? found.id : arg;

@@ -8,6 +8,15 @@ repo root for the phased plan.
 Phases 0–3 are done: connection/`--health`, one-shot mode, the REPL, and
 agents/models/`@` attachments/artifacts/markdown rendering.
 
+## Quick start
+
+```bash
+npm install -g @schmitech/orbit-cli@latest
+
+orbit-chat --version
+orbit-chat --key sk-... --health
+```
+
 ## Usage
 
 ```bash
@@ -44,16 +53,21 @@ node bin/orbit-chat.js
 
 # In the REPL:
 #   type a message and press Enter to send a turn
+#   type / to see a filtered command menu (arrow keys, Tab/Enter to pick)
 #   /new                 start a new session
-#   /agents              list agents (the key's own adapter + enabled skills)
-#   /agents <name|#>      switch agent — clears any /model selection
-#   /models              list models allowed for the current agent
-#   /model <id|#>        set the model for later turns
-#   /key <api-key>       switch API key without restarting (re-discovers agents)
-#   /clear               clear the screen
+#   /agents              pick an agent (arrow keys) — the key's own adapter +
+#                        enabled skills actually available to it; clears any
+#                        /model selection
+#   /agents <name|#>      switch agent directly, same effect
+#   /model               pick a model for the current agent (arrow keys)
+#   /model <id|#>        set the model directly, no picker
+#   /key                 switch API key without restarting (masked prompt;
+#                        re-discovers agents/models for the new key)
+#   /clear               clear the screen and this session's server-side history
 #   /help                list commands
-#   /exit                exit
+#   /exit                exit (also clears this session's server-side history)
 #   Ctrl+C               cancel the in-flight turn; again while idle to exit
+#   Ctrl+R               reverse search through this session's input history
 #   Ctrl+D               exit
 #
 # @path/to/file inline in a message attaches that file to the turn (works in
