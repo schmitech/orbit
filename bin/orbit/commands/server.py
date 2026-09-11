@@ -294,13 +294,6 @@ class ServerStatusCommand(BaseCommand):
     # Process state -> colour
     STATE_COLORS: ClassVar[dict[str, str]] = {"running": "green", "paused": "yellow", "stopped": "red"}
 
-    # Circuit breaker state -> (glyph, colour)
-    CIRCUIT_STYLES: ClassVar[dict[str, tuple[str, str]]] = {
-        "closed": ("\u25cf", "green"),
-        "half-open": ("\u25d0", "yellow"),
-        "open": ("\u25cb", "red"),
-    }
-
     SPARK_CHARS = "\u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588"
 
     def __init__(self, server_service: ServerService, formatter: OutputFormatter):
@@ -358,10 +351,6 @@ class ServerStatusCommand(BaseCommand):
             return Group(self._render_header(status), *self._render_notes(status))
 
         sections = [self._render_header(status), "", self._render_summary(status)]
-
-        adapters = status.get('adapters') or {}
-        if adapters:
-            sections.extend(["", self._render_adapters(adapters)])
 
         if detailed:
             endpoints = status.get('endpoints') or []
@@ -455,25 +444,6 @@ class ServerStatusCommand(BaseCommand):
             table.add_row("Resources", "   ".join(parts))
 
         return table
-
-    def _render_adapters(self, adapters: dict) -> Group:
-        """Circuit breaker state per adapter."""
-        table = Table.grid(padding=(0, 2))
-        table.add_column(width=2)
-        table.add_column(min_width=18)
-        table.add_column()
-
-        for name in sorted(adapters):
-            adapter = adapters[name] or {}
-            state = str(adapter.get('state', 'unknown')).lower().replace('_', '-')
-            glyph, color = self.CIRCUIT_STYLES.get(state, ("?", "yellow"))
-            failures = adapter.get('failure_count')
-            state_text = f"[{color}]{state}[/{color}]"
-            if failures:
-                state_text += f"  [dim]{failures} failures[/dim]"
-            table.add_row(f"[{color}]{glyph}[/{color}]", name, state_text)
-
-        return Group("[bold]Adapters[/bold]", table)
 
     def _render_endpoints(self, endpoints: list) -> Group:
         """Busiest endpoints by request count."""
