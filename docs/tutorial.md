@@ -21,6 +21,12 @@ Work through these in order the first time. Each level assumes the ones before i
 
 If Level 0 works end-to-end, the gateway path is healthy and you're ready for the rest.
 
+You can follow the chat exercises with the terminal-based
+[`orbit-cli`](../clients/orbit-cli/) client, raw `curl` requests, or the
+browser-based [OrbitChat](../clients/orbitchat/README.md) UI. The Level 0 pages
+show the CLI commands alongside the other client options so you can choose the
+workflow that best fits your testing environment.
+
 ## Already know what you want? Jump straight there
 
 Answer these in order — each one narrows it down:

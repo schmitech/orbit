@@ -47,6 +47,18 @@ Open the chat UI at `http://localhost:5173`; the OpenAI-compatible API is at
 `http://localhost:3000`. `docker pull` never needs, receives, or persists a
 credential — only `docker run` does.
 
+For a terminal-only smoke test, install `orbit-cli` on the host and use the
+bundled `multimodal` API key:
+
+```bash
+npm install -g @schmitech/orbit-cli@latest
+orbit-chat --url http://localhost:3000 --key multimodal --health
+orbit-chat --url http://localhost:3000 --key multimodal \
+  "Describe how to upload a document"
+```
+
+Use `orbitchat` below when you want the browser UI instead.
+
 - `orbit-data` persists the ORBIT database, uploaded files, and logs.
 - `orbit-models` (ollama flavor only) persists downloaded Ollama models so
   they aren't re-pulled on restart.
@@ -156,9 +168,19 @@ curl http://localhost:3000/health
 curl http://localhost:11434/api/tags
 ```
 
-### 3. Connect orbitchat (Optional)
+### 3. Connect a chat client (Optional)
 
-Install and run the orbitchat web interface from your host machine:
+For a terminal workflow, install `orbit-cli` on the host and use the bundled
+`default-key`:
+
+```bash
+npm install -g @schmitech/orbit-cli@latest
+orbit-chat --url http://localhost:3000 --key default-key --health
+orbit-chat --url http://localhost:3000 --key default-key "Hello, what is 2+2?"
+```
+
+Omit the message to use the interactive REPL. For a browser-based client,
+install and run orbitchat:
 
 ```bash
 npm install -g orbitchat

@@ -68,9 +68,30 @@ For a full visual tour of every tab, see [Admin Panel Tour](admin-panel-tour.md)
 > 🖼️ **Screenshot placeholder:** the admin panel login screen.
 > _(To be added — see [`_media-todo.md`](_media-todo.md))_
 
-### Test a conversation with `curl`
+### Test a conversation from the terminal
 
-Before installing a chat UI, you can test the running server directly with the API. The release tarball includes a `default-key` example; if you are using a git checkout, use a key you created instead.
+Before installing a chat UI, you can test the running server directly from the terminal. Use either `orbit-cli` for a readable chat client or `curl` when you want to inspect the raw HTTP response. The release tarball includes a `default-key` example; if you are using a git checkout, use a key you created instead.
+
+Install the CLI once (Node.js 20 or newer is required), then check the server and send a one-shot message:
+
+```bash
+npm install -g @schmitech/orbit-cli@latest
+
+orbit-chat --url http://localhost:3000 --key default-key --health
+orbit-chat --url http://localhost:3000 --key default-key \
+  "Explain quantum computing in simple terms"
+```
+
+The CLI keeps the API key out of the message and supports a REPL when you omit the message. To avoid putting the key in shell history, set `ORBIT_URL` and `ORBIT_API_KEY` instead:
+
+```bash
+export ORBIT_URL=http://localhost:3000
+export ORBIT_API_KEY=orbit_YOUR_KEY
+orbit-chat --health
+orbit-chat
+```
+
+If you want to see the raw JSON response, use `curl`:
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
@@ -89,7 +110,7 @@ The `X-Session-ID` header identifies the conversation, so reuse `my-session` in 
 
 ### Install the chat client (`orbitchat`)
 
-You'll see `orbitchat …` invocations throughout this tutorial — that's the standalone chat UI for testing adapters end-to-end. It's a separate npm package from the ORBIT server; it proxies your API requests so real API keys never reach the browser.
+You'll see `orbitchat …` invocations throughout this tutorial — that's the standalone browser chat UI for testing adapters end-to-end. Use `orbit-cli` when you want a terminal-only workflow; use OrbitChat when you want the browser interface. OrbitChat is a separate npm package from the ORBIT server and proxies your API requests so real API keys never reach the browser.
 
 ```bash
 npm install -g orbitchat@latest

@@ -7,6 +7,7 @@ This guide covers installing, running, configuring, and operating an ORBIT serve
 - [Installation](#installation)
 - [Server Management](#server-management)
 - [Admin Panel](#admin-panel)
+- [Testing Chat from the Terminal](#testing-chat-from-the-terminal)
 - [Authentication and User Management](#authentication-and-user-management)
 - [API Key Management](#api-key-management)
 - [System Prompt Management](#system-prompt-management)
@@ -158,6 +159,40 @@ Change the default password immediately after the first login. The panel groups 
 - **Ops and Audit:** Server controls, jobs, logs, and administrative events
 
 The Admin Panel uses the same authentication and role-based permissions as the management APIs. For SSO configuration and security details, see [Authentication](authentication.md).
+
+## Testing Chat from the Terminal
+
+Once the server is running and you have an API key, the standalone `orbit-cli`
+client provides a quick terminal workflow for health checks, one-shot prompts,
+and an interactive REPL. It is useful for smoke tests and for following the
+tutorial without setting up a browser client.
+
+Install it with Node.js 20 or newer:
+
+```bash
+npm install -g @schmitech/orbit-cli@latest
+```
+
+Check connectivity and authentication, then send a prompt. Replace
+`default-key` with a key created for your adapter when needed:
+
+```bash
+orbit-chat --url http://localhost:3000 --key default-key --health
+orbit-chat --url http://localhost:3000 --key default-key "Say hello in one sentence"
+```
+
+For local development, environment variables keep the key out of shell history:
+
+```bash
+export ORBIT_URL=http://localhost:3000
+export ORBIT_API_KEY=orbit_YOUR_KEY
+orbit-chat --health
+orbit-chat
+```
+
+Run `orbit-chat --help` for the available one-shot and REPL options. The
+browser-based [OrbitChat](../clients/orbitchat/README.md) remains available when
+you prefer a graphical client.
 
 ## Authentication and User Management
 

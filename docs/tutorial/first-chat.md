@@ -49,7 +49,18 @@ Open `http://localhost:3000/admin`, sign in, then go to **Prompts / Personas**.
 
 ### 2. Chat
 
-You can test the conversation directly against the HTTP API with `curl`. This uses the seeded `default-key`; replace it with the key returned by the admin panel or CLI if you created your own.
+You can test the conversation with the terminal CLI, the raw HTTP API, or the browser UI. The CLI is the quickest repeatable check and uses the seeded `default-key`; replace it with the key returned by the admin panel or CLI if you created your own.
+
+```bash
+npm install -g @schmitech/orbit-cli@latest
+orbit-chat --url http://localhost:3000 --key default-key --health
+orbit-chat --url http://localhost:3000 --key default-key \
+  "Explain quantum computing in simple terms"
+```
+
+Omit the final message to enter the interactive REPL. For repeated use, set `ORBIT_URL` and `ORBIT_API_KEY` instead of passing the key on the command line. You can also select a configured skill or model with `--agent` and `--model`.
+
+For the raw JSON response, use `curl`:
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat \
