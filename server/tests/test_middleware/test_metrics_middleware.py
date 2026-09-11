@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from unittest.mock import Mock
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 SCRIPT_DIR = Path(__file__).parent.absolute()
@@ -42,6 +42,20 @@ def _build_app(metrics_service=None):
     @app.get("/metrics/json")
     def metrics_json():
         return {}
+
+    # Mirror how ORBIT composes admin routes: the prefix lives on the parent
+    # router and the route is declared on a prefix-less sub-router nested
+    # inside it. A route declared directly on the prefixed router would not
+    # reproduce the bug, because its own path already carries the prefix.
+    admin_config_router = APIRouter()
+
+    @admin_config_router.get("/info")
+    def admin_info():
+        return {}
+
+    admin_router = APIRouter(prefix="/admin")
+    admin_router.include_router(admin_config_router)
+    app.include_router(admin_router)
 
     if metrics_service is not None:
         app.state.metrics_service = metrics_service
@@ -100,6 +114,16 @@ class TestMetricsRecording:
         assert response.status_code == 200
         call_kwargs = svc.record_request.call_args.kwargs
         assert call_kwargs["endpoint"] == "/items/{item_id}"
+
+    def test_record_request_uses_full_template_for_included_router(self):
+        svc = _mock_metrics_service(enabled=True)
+        app = _build_app(svc)
+        client = TestClient(app)
+
+        response = client.get("/admin/info")
+
+        assert response.status_code == 200
+        assert svc.record_request.call_args.kwargs["endpoint"] == "/admin/info"
 
     def test_record_request_uses_bounded_label_for_unmatched_route(self):
         svc = _mock_metrics_service(enabled=True)

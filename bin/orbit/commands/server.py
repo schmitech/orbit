@@ -8,12 +8,18 @@ import time
 import argparse
 import logging
 from datetime import datetime
-from rich.console import Console
+from typing import ClassVar
+from rich import box
+from rich.console import Console, Group
+from rich.live import Live
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from bin.orbit.commands import BaseCommand
 from bin.orbit.services.server_service import ServerService
 from bin.orbit.services.worker_service import WorkerService
+from bin.orbit.utils.invocation import cli_command
 from bin.orbit.utils.output import OutputFormatter
 
 logger = logging.getLogger(__name__)
@@ -276,6 +282,27 @@ class WorkerStatusCommand(BaseCommand):
 class ServerStatusCommand(BaseCommand):
     """Command to check ORBIT server status."""
 
+    # Overall health verdict -> (glyph colour, label)
+    HEALTH_STYLES: ClassVar[dict[str, tuple[str, str]]] = {
+        "healthy": ("green", "HEALTHY"),
+        "degraded": ("yellow", "DEGRADED"),
+        "unhealthy": ("red", "UNHEALTHY"),
+        "stopped": ("red", "STOPPED"),
+        "unknown": ("yellow", "UNKNOWN"),
+    }
+
+    # Process state -> colour
+    STATE_COLORS: ClassVar[dict[str, str]] = {"running": "green", "paused": "yellow", "stopped": "red"}
+
+    # Circuit breaker state -> (glyph, colour)
+    CIRCUIT_STYLES: ClassVar[dict[str, tuple[str, str]]] = {
+        "closed": ("\u25cf", "green"),
+        "half-open": ("\u25d0", "yellow"),
+        "open": ("\u25cb", "red"),
+    }
+
+    SPARK_CHARS = "\u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588"
+
     def __init__(self, server_service: ServerService, formatter: OutputFormatter):
         self.server_service = server_service
         self.formatter = formatter
@@ -291,93 +318,251 @@ class ServerStatusCommand(BaseCommand):
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument('--watch', action='store_true', help='Continuously monitor status')
         parser.add_argument('--interval', type=int, default=5, help='Watch interval in seconds')
+        parser.add_argument('--detailed', action='store_true',
+                            help='Include per-endpoint traffic and process detail')
     
     def execute(self, args: argparse.Namespace) -> int:
+        detailed = getattr(args, 'detailed', False)
+
+        if getattr(args, 'output', None) == 'json':
+            status = self.server_service.status()
+            self.formatter.format_json(status)
+            return 0 if status['status'] in ('running', 'paused') else 1
+
         if args.watch:
+            # The alternate screen only makes sense on a real terminal; when
+            # piped, fall through to appending each snapshot instead.
+            interactive = console.is_terminal
             try:
-                # Initialize CPU monitoring for watch mode
-                self.server_service._cpu_initialized = False
-                
-                while True:
-                    console.clear()
-                    # Use enhanced status for watch mode with better CPU measurement
-                    status = self.server_service.get_enhanced_status(interval=0.5)
-                    self._display_enhanced_status(status)
-                    time.sleep(args.interval)
+                with Live(console=console, screen=interactive,
+                          auto_refresh=False, transient=not interactive) as live:
+                    while True:
+                        status = self.server_service.status(cpu_interval=0.5)
+                        view = self._render(status, detailed)
+                        if interactive:
+                            live.update(view, refresh=True)
+                        else:
+                            console.print(view)
+                        time.sleep(args.interval)
             except KeyboardInterrupt:
                 self.formatter.info("Status monitoring stopped")
                 return 0
-        else:
-            status = self.server_service.status()
-            self._display_status(status)
-            return 0 if status['status'] in ('running', 'paused') else 1
 
-    def _display_status(self, status: dict) -> None:
-        """Display server status in a formatted way."""
+        status = self.server_service.status()
+        console.print(self._render(status, detailed))
+        return 0 if status['status'] in ('running', 'paused') else 1
+
+    def _render(self, status: dict, detailed: bool = False) -> Group:
+        """Build the full status view as a single Rich renderable."""
+        if status['status'] not in ('running', 'paused'):
+            return Group(self._render_header(status), *self._render_notes(status))
+
+        sections = [self._render_header(status), "", self._render_summary(status)]
+
+        adapters = status.get('adapters') or {}
+        if adapters:
+            sections.extend(["", self._render_adapters(adapters)])
+
+        if detailed:
+            endpoints = status.get('endpoints') or []
+            if endpoints:
+                sections.extend(["", self._render_endpoints(endpoints)])
+            sections.extend(["", self._render_process(status)])
+
+        sections.extend(self._render_notes(status))
+        return Group(*sections)
+
+    def _render_header(self, status: dict) -> Panel:
+        """Identity panel with the overall health badge in the border title."""
+        health = status.get('health', 'unknown')
+        color, label = self.HEALTH_STYLES.get(health, self.HEALTH_STYLES['unknown'])
+
+        grid = Table.grid(padding=(0, 3))
+        grid.add_column(style="bold")
+        grid.add_column()
+
+        version = status.get('version')
+        grid.add_row("Version", f"v{version}" if version else "[dim]unknown[/dim]")
+        grid.add_row("Endpoint", status.get('server_url') or "[dim]unknown[/dim]")
+        state_color = self.STATE_COLORS.get(status['status'], "yellow")
+        grid.add_row("State", f"[{state_color}]{status['status']}[/{state_color}]")
+        if status.get('pid'):
+            grid.add_row("PID", str(status['pid']))
+        if status.get('uptime'):
+            grid.add_row("Uptime", status['uptime'])
+        if status.get('config_path'):
+            grid.add_row("Config", status['config_path'])
+
+        return Panel(
+            grid,
+            title="[bold]ORBIT[/bold]",
+            subtitle=f"[{color}]\u25cf {label}[/{color}]",
+            border_style=color,
+            padding=(0, 1),
+        )
+
+    def _render_summary(self, status: dict) -> Table:
+        """Readiness, traffic, latency and resource lines."""
+        table = Table.grid(padding=(0, 2))
+        table.add_column(style="bold", width=11)
+        table.add_column()
+
+        readiness = status.get('readiness')
+        if readiness is not None:
+            ready = readiness.get('ready')
+            glyph = "[green]\u25cf ready[/green]" if ready else "[red]\u25cb not ready[/red]"
+            detail = ""
+            if readiness.get('total_adapters') is not None:
+                detail = (f"   adapters {readiness.get('healthy_adapters', 0)}"
+                          f"/{readiness.get('total_adapters', 0)} healthy")
+            elif readiness.get('reason'):
+                detail = f"   {readiness['reason']}"
+            table.add_row("Readiness", glyph + detail)
+
+        traffic = status.get('traffic') or {}
+        thresholds = status.get('thresholds') or {}
+        if traffic:
+            error_rate = self._threshold_text(
+                traffic.get('error_rate'), thresholds.get('error_rate'), "{:.2f}%")
+            table.add_row("Traffic", (
+                f"{traffic.get('per_second', 0)} req/s"
+                f"   errors {error_rate}"
+                f"   {traffic.get('total', 0):,} total"
+            ))
+            p95 = self._threshold_text(
+                traffic.get('p95_response_time'), thresholds.get('response_time_ms'), "{:.0f} ms")
+            table.add_row("Latency", (
+                f"p50 {traffic.get('p50_response_time', 0):.0f} ms"
+                f"   p95 {p95}"
+                f"   p99 {traffic.get('p99_response_time', 0):.0f} ms"
+            ))
+
+        resources = status.get('resources') or {}
+        process = status.get('process') or {}
+        parts = []
+        cpu = resources.get('cpu_percent', process.get('cpu_percent'))
+        if cpu is not None:
+            spark = self._sparkline(status.get('cpu_series') or [])
+            parts.append(f"CPU {self._threshold_text(cpu, thresholds.get('cpu'), '{:.1f}%')}"
+                         + (f" {spark}" if spark else ""))
+        if process.get('memory_mb') is not None:
+            parts.append(f"MEM {process['memory_mb']:.0f} MB ({process.get('memory_percent', 0):.1f}%)")
+        elif resources.get('memory_gb') is not None:
+            parts.append(f"MEM {resources['memory_gb']} GB ({resources.get('memory_percent', 0)}%)")
+        if resources.get('disk_usage_percent') is not None:
+            parts.append(f"DISK {resources['disk_usage_percent']}%")
+        if parts:
+            table.add_row("Resources", "   ".join(parts))
+
+        return table
+
+    def _render_adapters(self, adapters: dict) -> Group:
+        """Circuit breaker state per adapter."""
+        table = Table.grid(padding=(0, 2))
+        table.add_column(width=2)
+        table.add_column(min_width=18)
+        table.add_column()
+
+        for name in sorted(adapters):
+            adapter = adapters[name] or {}
+            state = str(adapter.get('state', 'unknown')).lower().replace('_', '-')
+            glyph, color = self.CIRCUIT_STYLES.get(state, ("?", "yellow"))
+            failures = adapter.get('failure_count')
+            state_text = f"[{color}]{state}[/{color}]"
+            if failures:
+                state_text += f"  [dim]{failures} failures[/dim]"
+            table.add_row(f"[{color}]{glyph}[/{color}]", name, state_text)
+
+        return Group("[bold]Adapters[/bold]", table)
+
+    def _render_endpoints(self, endpoints: list) -> Group:
+        """Busiest endpoints by request count."""
+        table = Table(box=box.SIMPLE, padding=(0, 1), header_style="dim")
+        table.add_column("Endpoint")
+        table.add_column("Method")
+        table.add_column("Requests", justify="right")
+        table.add_column("Avg", justify="right")
+        table.add_column("Errors", justify="right")
+
+        for endpoint in endpoints[:10]:
+            table.add_row(
+                endpoint.get('endpoint', '?'),
+                endpoint.get('method', 'GET'),
+                f"{endpoint.get('total_requests', 0):,}",
+                f"{endpoint.get('avg_latency_ms', 0)} ms",
+                f"{endpoint.get('error_rate', 0)}%",
+            )
+
+        return Group("[bold]Top endpoints[/bold]", table)
+
+    def _render_process(self, status: dict) -> Group:
+        """Process-level detail, shown only with --detailed."""
+        process = status.get('process') or {}
+        table = Table.grid(padding=(0, 2))
+        table.add_column(style="bold", width=11)
+        table.add_column()
+        table.add_row("Threads", str(process.get('num_threads', '-')))
+        table.add_row("I/O", f"read {process.get('io_read_mb', 0)} MB"
+                             f"   write {process.get('io_write_mb', 0)} MB")
+        table.add_row("Logs", status.get('log_file') or "-")
+        return Group("[bold]Process[/bold]", table)
+
+    def _render_notes(self, status: dict) -> list:
+        """Reasons for the verdict, missing sections, and a timestamp."""
+        notes = []
+
+        def note(markup: str) -> None:
+            notes.append(Text.from_markup(markup))
+
+        if status['status'] == 'stopped':
+            note(f"[yellow]{status['message']}[/yellow]")
+        elif status['status'] not in ('running', 'paused'):
+            note(f"[red]{status['message']}[/red]")
+            if status.get('error'):
+                note(f"[bold]Error:[/bold] {status['error']}")
+
+        reasons = status.get('health_reasons') or []
+        if reasons:
+            color = self.HEALTH_STYLES.get(status.get('health'), ("yellow", ""))[0]
+            notes.append("")
+            for reason in reasons:
+                note(f"[{color}]\u2022[/{color}] {reason}")
+
+        unavailable = status.get('unavailable') or []
+        if unavailable:
+            notes.append("")
+            note(f"[dim]No data for: {', '.join(unavailable)} "
+                 f"(monitoring disabled, or run '{cli_command('login')}' for admin detail)[/dim]")
+
         if status['status'] in ('running', 'paused'):
-            if status['status'] == 'paused':
-                self.formatter.warning(status['message'])
-            else:
-                self.formatter.success(status['message'])
-            if 'pid' in status:
-                console.print(f"[bold]PID:[/bold] {status['pid']}")
-            if 'uptime' in status:
-                console.print(f"[bold]Uptime:[/bold] {status['uptime']}")
-            if 'memory_mb' in status:
-                console.print(f"[bold]Memory:[/bold] {status['memory_mb']} MB")
-            if 'cpu_percent' in status:
-                console.print(f"[bold]CPU:[/bold] {status['cpu_percent']}%")
-        elif status['status'] == 'stopped':
-            self.formatter.warning(status['message'])
-        else:
-            self.formatter.error(status['message'])
-            if 'error' in status:
-                console.print(f"[bold]Error:[/bold] {status['error']}")
-    
-    def _display_enhanced_status(self, status: dict) -> None:
-        """Display enhanced server status with additional metrics."""
-        if status['status'] in ('running', 'paused'):
-            if status['status'] == 'paused':
-                self.formatter.warning(status['message'])
-            else:
-                self.formatter.success(status['message'])
+            notes.append("")
+            note(f"[dim]Updated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
 
-            # Create a table for better organization
-            table = Table(show_header=False, box=None, padding=(0, 2))
-            table.add_column("Metric", style="bold")
-            table.add_column("Value")
-            
-            # Basic info
-            if 'pid' in status:
-                table.add_row("PID", str(status['pid']))
-            if 'uptime' in status:
-                table.add_row("Uptime", status['uptime'])
-            
-            # Performance metrics
-            if 'memory_mb' in status:
-                memory_str = f"{status['memory_mb']} MB"
-                if 'memory_percent' in status:
-                    memory_str += f" ({status['memory_percent']}%)"
-                table.add_row("Memory", memory_str)
-            if 'cpu_percent' in status:
-                table.add_row("CPU", f"{status['cpu_percent']}%")
-            
-            # Additional metrics if available
-            if 'num_threads' in status:
-                table.add_row("Threads", str(status['num_threads']))
-            
-            if 'io_read_mb' in status and 'io_write_mb' in status:
-                table.add_row("I/O", f"R: {status['io_read_mb']} MB, W: {status['io_write_mb']} MB")
-            
-            console.print(table)
-            
-            # Add timestamp
-            console.print(f"\n[dim]Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
-            
-        elif status['status'] == 'stopped':
-            self.formatter.warning(status['message'])
-        else:
-            self.formatter.error(status['message'])
-            if 'error' in status:
-                console.print(f"[bold]Error:[/bold] {status['error']}")
+        return notes
 
+    def _threshold_text(self, value, limit, fmt: str) -> str:
+        """Format a metric, coloured red when it exceeds the server's threshold."""
+        if value is None:
+            return "[dim]-[/dim]"
+        text = fmt.format(value)
+        if limit is not None and value > limit:
+            return f"[red]{text}[/red]"
+        return text
+
+    def _sparkline(self, series: list, headroom: float = 10.0) -> str:
+        """
+        Render a percentage series as a compact inline sparkline.
+
+        Scales from zero rather than from the series minimum, so an idle
+        server reads as flat and low instead of having its noise stretched
+        to full height. `headroom` is the minimum top of the scale, which
+        keeps a busy server using the full ramp.
+        """
+        points = [v for v in series[-20:] if isinstance(v, (int, float))]
+        if len(points) < 2:
+            return ""
+        top = max(max(points), headroom)
+        scale = len(self.SPARK_CHARS) - 1
+        return "".join(
+            self.SPARK_CHARS[min(int(v / top * scale), scale)] for v in points
+        )

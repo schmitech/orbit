@@ -11,6 +11,7 @@ from rich.console import Console
 from bin.orbit.commands import BaseCommand
 from bin.orbit.services.api_service import ApiService
 from bin.orbit.services.auth_service import AuthService
+from bin.orbit.utils.invocation import cli_command
 from bin.orbit.utils.output import OutputFormatter
 
 console = Console()
@@ -140,7 +141,7 @@ class RegisterCommand(BaseCommand):
         parser.add_argument('--role', '-r', default='user', help='User role (default: user)')
         parser.add_argument(
             '--roles', help='Comma-separated list of roles to assign (overrides --role). '
-                             "Run 'orbit user roles' to see valid roles."
+                             f"Run '{cli_command('user', 'roles')}' to see valid roles."
         )
         parser.add_argument('--email', help='Email address for the user')
 

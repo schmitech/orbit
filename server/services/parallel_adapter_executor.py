@@ -230,9 +230,9 @@ class SimpleCircuitBreaker:
                  max_half_open_calls: int = 1):
         self.adapter_name = adapter_name
         self.failure_threshold = failure_threshold
-        self.base_recovery_timeout = recovery_timeou
+        self.base_recovery_timeout = recovery_timeout
         self.success_threshold = success_threshold
-        self.max_recovery_timeout = max_recovery_timeou
+        self.max_recovery_timeout = max_recovery_timeout
         self.enable_exponential_backoff = enable_exponential_backoff
 
         # Memory leak prevention settings
@@ -247,7 +247,7 @@ class SimpleCircuitBreaker:
 
         # Exponential backoff tracking
         self.recovery_attempts = 0
-        self.current_recovery_timeout = recovery_timeou
+        self.current_recovery_timeout = recovery_timeout
 
         # Half-open probe gating
         self.max_half_open_calls = max_half_open_calls
@@ -266,12 +266,12 @@ class SimpleCircuitBreaker:
     def _calculate_recovery_timeout(self) -> float:
         """Calculate recovery timeout with exponential backoff and jitter"""
         if not self.enable_exponential_backoff:
-            return self.base_recovery_timeou
+            return self.base_recovery_timeout
 
         # Exponential backoff with jitter
         backoff = min(
             self.base_recovery_timeout * (2 ** self.recovery_attempts),
-            self.max_recovery_timeou
+            self.max_recovery_timeout
         )
         # Add jitter to prevent thundering herd (0-10% of backoff)
         jitter = random.uniform(0, backoff * 0.1)
@@ -433,7 +433,7 @@ class SimpleCircuitBreaker:
 
         # Reset exponential backoff when circuit closes successfully
         self.recovery_attempts = 0
-        self.current_recovery_timeout = self.base_recovery_timeou
+        self.current_recovery_timeout = self.base_recovery_timeout
 
         logger.info(f"Circuit breaker CLOSED for adapter: {self.adapter_name} "
                     f"(recovery_attempts reset to 0)")
@@ -491,7 +491,7 @@ class SimpleCircuitBreaker:
                     "recovery_attempts": self.recovery_attempts,
                     "current_timeout": self.current_recovery_timeout,
                     "base_timeout": self.base_recovery_timeout,
-                    "max_timeout": self.max_recovery_timeou
+                    "max_timeout": self.max_recovery_timeout
                 }
             }
 
@@ -539,7 +539,7 @@ class SimpleCircuitBreaker:
 
             # Reset exponential backoff state
             self.recovery_attempts = 0
-            self.current_recovery_timeout = self.base_recovery_timeou
+            self.current_recovery_timeout = self.base_recovery_timeout
 
             # Reset half-open probe counter
             self._half_open_probes = 0
@@ -603,7 +603,7 @@ class ParallelAdapterExecutor:
 
     @property
     def timeout(self):
-        return self.operation_timeou
+        return self.operation_timeout
 
     @timeout.setter
     def timeout(self, value):
@@ -659,7 +659,7 @@ class ParallelAdapterExecutor:
                 "is_shutting_down": self.is_shutting_down(),
                 "active_request_count": self.get_active_request_count(),
                 "active_requests": self.get_active_requests(),
-                "shutdown_timeout": self._shutdown_timeou
+                "shutdown_timeout": self._shutdown_timeout
             }
         }
 
@@ -788,7 +788,7 @@ class ParallelAdapterExecutor:
                 data=None,
                 error=RuntimeError("Executor is shutting down"),
                 execution_time=0.0,
-                context=contex
+                context=context
             ) for adapter_name in adapter_names]
 
         # Track active reques
@@ -817,7 +817,7 @@ class ParallelAdapterExecutor:
                         data=None,
                         error=Exception(f"Circuit is open for adapter {adapter_name}"),
                         execution_time=0.0,
-                        context=contex
+                        context=context
                     ))
 
             if not available_adapters:
@@ -857,7 +857,7 @@ class ParallelAdapterExecutor:
                 data=None,
                 error=Exception(f"Circuit is open for adapter {adapter_name}"),
                 execution_time=0.0,
-                context=contex
+                context=context
             )
 
         if not cb._claim_half_open_slot():
@@ -873,10 +873,10 @@ class ParallelAdapterExecutor:
                 data=None,
                 error=Exception(message),
                 execution_time=0.0,
-                context=contex
+                context=context
             )
 
-        # Get adapter-specific timeou
+        # Get adapter-specific timeout
         ft_config = self._get_adapter_fault_tolerance_config(adapter_name)
         adapter_timeout = ft_config.get('operation_timeout', self.operation_timeout)
 
@@ -890,11 +890,11 @@ class ParallelAdapterExecutor:
                 timeout=adapter_timeout * 0.3  # 30% of time for initialization
             )
 
-            # Execute the query with remaining timeou
+            # Execute the query with remaining timeout
             remaining_timeout = adapter_timeout * 0.7  # 70% for execution
             result = await asyncio.wait_for(
                 self._execute_adapter_query(adapter, query, context, api_key, **kwargs),
-                timeout=remaining_timeou
+                timeout=remaining_timeout
             )
 
             # Record success
@@ -908,7 +908,7 @@ class ParallelAdapterExecutor:
                 success=True,
                 data=result,
                 execution_time=execution_time,
-                context=contex
+                context=context
             )
 
         except asyncio.TimeoutError:
@@ -923,7 +923,7 @@ class ParallelAdapterExecutor:
                 success=False,
                 error=Exception(f"Timeout for adapter {adapter_name}"),
                 execution_time=execution_time,
-                context=contex
+                context=context
             )
         except asyncio.CancelledError:
             cb._release_half_open_slot()
@@ -939,7 +939,7 @@ class ParallelAdapterExecutor:
                 success=False,
                 error=e,
                 execution_time=execution_time,
-                context=contex
+                context=context
             )
 
     async def _get_adapter_with_timeout(self, adapter_name: str):
@@ -1028,11 +1028,11 @@ class ParallelAdapterExecutor:
     async def _execute_best_effort_strategy(self, tasks: list[asyncio.Task],
                                           adapter_names: list[str]) -> list[AdapterResult]:
         """Return whatever completes within a reasonable time"""
-        # Wait for a shorter timeou
+        # Wait for a shorter timeout
         timeout = self.operation_timeout * 0.8
 
         try:
-            # Wait for all tasks with timeou
+            # Wait for all tasks with timeout
             done, pending = await asyncio.wait(tasks, timeout=timeout, return_when=asyncio.ALL_COMPLETED)
 
             results = []
@@ -1144,7 +1144,7 @@ class ParallelAdapterExecutor:
         self._shutdown_event.set()
         logger.info("Shutdown signal sent - rejecting new requests")
 
-        # Wait for active requests to complete with timeou
+        # Wait for active requests to complete with timeout
         if self._active_requests:
             logger.info(f"Waiting for {len(self._active_requests)} active requests to complete")
             wait_time = 0

@@ -11,6 +11,7 @@ from typing import Optional
 
 from bin.orbit.services.config_service import DEFAULT_ENV_FILE
 from bin.orbit.utils.exceptions import AuthenticationError
+from bin.orbit.utils.invocation import cli_command
 
 # Secure credential storage
 try:
@@ -225,7 +226,11 @@ class AuthService:
                     if DEFAULT_ENV_FILE.exists():
                         logger.warning("Found legacy plain text token in ~/.orbit/.env")
                         if KEYRING_AVAILABLE:
-                            logger.info("To migrate to secure storage: orbit config set auth.credential_storage keyring && orbit logout && orbit login")
+                            logger.info(
+                                f"To migrate to secure storage: "
+                                f"{cli_command('config', 'set', 'auth.credential_storage', 'keyring')}"
+                                f" && {cli_command('logout')} && {cli_command('login')}"
+                            )
                         else:
                             logger.info("For enhanced security: pip install keyring && orbit config set auth.credential_storage keyring && orbit logout && orbit login")
                     self._legacy_warning_shown = True
@@ -301,5 +306,7 @@ class AuthService:
     def ensure_authenticated(self) -> None:
         """Ensure user is authenticated before proceeding."""
         if not self.token:
-            raise AuthenticationError("Authentication required. Please run 'orbit login' first.")
+            raise AuthenticationError(
+                f"Authentication required. Please run '{cli_command('login')}' first."
+            )
 

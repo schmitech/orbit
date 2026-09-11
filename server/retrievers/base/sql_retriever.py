@@ -368,7 +368,7 @@ class AbstractSQLRetriever(BaseRetriever):
 
                 # Only include results that meet threshold
                 if similarity >= self.relevance_threshold:
-                    # Extract raw documen
+                    # Extract raw document
                     raw_doc = ""
                     if "content" in row:
                         raw_doc = row["content"]
@@ -380,14 +380,14 @@ class AbstractSQLRetriever(BaseRetriever):
                         for field, value in row.items():
                             if isinstance(value, str) and len(value) > len(longest):
                                 longest = value
-                        raw_doc = longes
+                        raw_doc = longest
 
                     # Create metadata from all fields
                     metadata = {}
                     for field, value in row.items():
                         metadata[field] = value
 
-                    # Use domain adapter to format the documen
+                    # Use domain adapter to format the document
                     context_item = self.format_document(raw_doc, metadata)
 
                     # Add confidence score

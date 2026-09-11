@@ -54,6 +54,18 @@ def test_dashboard_metrics_excludes_unmatched_route_label():
     ]
 
 
+def test_record_request_excludes_monitoring_and_management_routes():
+    service = MetricsService({"monitoring": {"enabled": True}})
+
+    for endpoint in ("/admin/info", "/auth/login", "/health/ready"):
+        service.record_request("GET", endpoint, 503, 0.01)
+
+    dashboard_metrics = service.get_dashboard_metrics()
+
+    assert dashboard_metrics["requests"]["total"] == 0
+    assert dashboard_metrics["endpoint_stats"] == []
+
+
 # --- Intent-template outcome metrics (Phase 4: production observability) ---
 
 def test_record_intent_outcome_increments_counter_and_confidence_histogram():

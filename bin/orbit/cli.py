@@ -21,6 +21,7 @@ from bin.orbit.services.api_service import ApiService
 from bin.orbit.services.server_service import ServerService
 from bin.orbit.utils.output import OutputFormatter
 from bin.orbit.utils.exceptions import OrbitError, AuthenticationError, NetworkError
+from bin.orbit.utils.invocation import cli_command
 
 # Import all commands
 from bin.orbit.commands.server import (
@@ -211,12 +212,14 @@ class OrbitCLI:
     def create_parser(self) -> argparse.ArgumentParser:
         """Create the argument parser for the CLI."""
         parser = argparse.ArgumentParser(
-            prog='orbit',
+            # The CLI is reached through the bin/ wrapper rather than being
+            # installed on PATH, so usage lines must name the wrapper.
+            prog=cli_command(),
             description='ORBIT Control CLI - ORBIT management',
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog="""
+            epilog=f"""
 For more information about a specific command, use:
-  orbit <command> --help
+  {cli_command('<command>', '--help')}
 
 Configuration files are stored in ~/.orbit/
 Authentication tokens are stored based on config (keychain or ~/.orbit/.env)
@@ -227,7 +230,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         
         # Global arguments
-        parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
+        parser.add_argument('--version', action='version', version=f'ORBIT CLI {__version__}')
         parser.add_argument('--server-url', help='Server URL (default: from config or localhost:3000)')
         parser.add_argument('--config', help='Path to configuration file (for server start/restart)')
         parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')

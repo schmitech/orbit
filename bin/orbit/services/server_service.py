@@ -23,6 +23,7 @@ from rich.console import Console
 from bin.orbit.services.api_client import ApiClient
 from bin.orbit.services.auth_service import AuthService
 from bin.orbit.utils.exceptions import AuthenticationError, NetworkError
+from bin.orbit.utils.invocation import cli_command
 from bin.orbit.utils.output import OutputFormatter
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,6 @@ class ServerService:
             self.project_root = project_root
         
         self.log_file = self.project_root / "logs" / "orbit.log"
-        self._cpu_initialized = False
     
     def is_running(self) -> bool:
         """
@@ -178,6 +178,14 @@ class ServerService:
         Returns:
             Dictionary with server info (pid, version, status) or None if unavailable
         """
+        # Skip the call when no token is stored. The endpoint requires
+        # system.manage, and a 401 is recorded as a server-side error - which
+        # would inflate the error rate that `status` goes on to report -
+        # while telling us nothing the PID fallbacks don't already cover.
+        if not self.auth_service.token:
+            logger.debug("Skipping /admin/info: no stored credentials")
+            return None
+
         try:
             self.auth_service.ensure_authenticated()
             headers = {"Authorization": f"Bearer {self.auth_service.token}"}
@@ -369,7 +377,7 @@ class ServerService:
                             else:
                                 self.formatter.warning("Server process is running but not yet responding to HTTP requests")
                                 self.formatter.info("The server may still be initializing. Check logs at: " + str(self.log_file))
-                                self.formatter.info("You can check server status with: orbit status")
+                                self.formatter.info(f"Tip: Run '{cli_command('status')}' to check when it is ready")
                                 # Don't return False - the server is running, just not ready yet
                                 return True
                         self.formatter.info(f"Check logs at: {self.log_file}")
@@ -611,7 +619,7 @@ class ServerService:
                     progress.update(task, completed=True)
                     self.formatter.error(f"Error stopping server: {e}")
                     if not pid:
-                        self.formatter.info("Tip: Try 'orbit stop --force' or manually kill the process")
+                        self.formatter.info(f"Tip: Try '{cli_command('stop', '--force')}' or manually kill the process")
                     return False
                     
             except ProcessLookupError:
@@ -661,6 +669,32 @@ class ServerService:
             self.formatter.error(f"Error requesting server {action}: {e}")
             return False
 
+    def _find_config_path(self, config_path: Optional[str] = None) -> Optional[str]:
+        """
+        Resolve the server's config.yaml path.
+
+        Args:
+            config_path: Optional explicit path (resolved against project root)
+
+        Returns:
+            Path to an existing config file, or None if none was found
+        """
+        if config_path:
+            if not os.path.isabs(config_path):
+                config_path = str(self.project_root / config_path)
+            return config_path if os.path.exists(config_path) else None
+
+        # Try to find config file in common locations
+        possible_configs = [
+            self.project_root / "config" / "config.yaml",
+            self.project_root / "server" / "config.yaml",
+            self.project_root / "config.yaml"
+        ]
+        for config in possible_configs:
+            if config.exists():
+                return str(config)
+        return None
+
     def _get_port_from_config(self, config_path: Optional[str] = None) -> Optional[int]:
         """
         Read the port from the server's config.yaml file.
@@ -671,23 +705,8 @@ class ServerService:
         Returns:
             Port number if found, None otherwise
         """
-        # Determine config file path
-        if config_path:
-            if not os.path.isabs(config_path):
-                config_path = str(self.project_root / config_path)
-        else:
-            # Try to find config file in common locations
-            possible_configs = [
-                self.project_root / "config" / "config.yaml",
-                self.project_root / "server" / "config.yaml",
-                self.project_root / "config.yaml"
-            ]
-            for config in possible_configs:
-                if config.exists():
-                    config_path = str(config)
-                    break
-        
-        if not config_path or not os.path.exists(config_path):
+        config_path = self._find_config_path(config_path)
+        if not config_path:
             return None
         
         try:
@@ -787,10 +806,58 @@ class ServerService:
         # Start the server with new configuration
         return self.start(config_path=config_path, host=host, port=port, delete_logs=delete_logs)
     
-    def status(self) -> dict[str, Any]:
+    def _probe(
+        self,
+        endpoint: str,
+        authenticated: bool = False,
+        accept_codes: tuple = (200,)
+    ) -> Optional[dict[str, Any]]:
         """
-        Get the status of the server.
-        
+        Fetch an optional status endpoint, returning None when unavailable.
+
+        Status reporting must never fail because a section is disabled or the
+        caller is not logged in, so every error is swallowed and logged at
+        debug level. Retries are disabled to keep `status` responsive.
+
+        Args:
+            endpoint: API endpoint path
+            authenticated: Whether to attach an admin bearer token
+            accept_codes: HTTP status codes whose body should be parsed
+
+        Returns:
+            Parsed JSON body, or None if the section is unavailable
+        """
+        try:
+            headers = None
+            if authenticated:
+                self.auth_service.ensure_authenticated()
+                headers = {"Authorization": f"Bearer {self.auth_service.token}"}
+            response = self.api_client.get(endpoint, headers=headers, retry=False)
+            if response.status_code not in accept_codes:
+                logger.debug(f"Probe {endpoint} returned {response.status_code}")
+                return None
+            return response.json()
+        except Exception as e:
+            logger.debug(f"Probe {endpoint} failed: {e}")
+            return None
+
+    def status(self, cpu_interval: float = 0.15) -> dict[str, Any]:
+        """
+        Get a full status report for the server.
+
+        Combines process facts (from psutil), server identity (/admin/info),
+        traffic and latency (/metrics/json), adapter readiness (/health/ready)
+        and circuit breaker state (/health/system) into a single report, then
+        rolls those up into an overall health verdict using the thresholds the
+        server itself declares.
+
+        Sections that are unavailable - monitoring disabled, not logged in,
+        endpoint missing - are omitted and named in `unavailable` rather than
+        raising.
+
+        Args:
+            cpu_interval: Seconds to sample CPU over (blocking)
+
         Returns:
             A dictionary containing status information
         """
@@ -798,164 +865,210 @@ class ServerService:
         config_port = self._get_port_from_config()
         if config_port:
             self._update_api_client_url(config_port)
-        
+
+        config_path = self._find_config_path()
+        result: dict[str, Any] = {
+            "server_url": self.api_client.server_url,
+            "config_path": str(config_path) if config_path else None,
+            "log_file": str(self.log_file),
+            "unavailable": [],
+        }
+
         if not self.is_running():
-            return {
+            result.update({
                 "status": "stopped",
+                "health": "stopped",
+                "health_reasons": [],
                 "message": "Server is not running"
-            }
-        
-        # Try to get server info via API
+            })
+            return result
+
+        # Server identity. Requires system.manage, so it may legitimately fail.
         info = self.get_server_info()
+        if info is None:
+            result["unavailable"].append("info")
+        else:
+            result["version"] = info.get("version")
+        reported_status = (info.get('status') if info else None) or "running"
+        result["status"] = reported_status
+
         pid = info.get('pid') if info else None
-        
-        # If we don't have PID from API, try to find it by port
         if not pid:
             pid = self._find_process_by_port()
             if pid:
                 logger.debug(f"Found server process by port: PID {pid}")
-        
-        reported_status = (info.get('status') if info else None) or "running"
+        result["pid"] = pid
 
-        if not pid:
-            # Server is running but we can't get PID
-            return {
-                "status": reported_status,
-                "message": f"Server is {reported_status} (unable to get detailed info - try 'orbit login' for full details)"
-            }
-
-        try:
-            process = psutil.Process(pid)
-            uptime_seconds = time.time() - process.create_time()
-            uptime_str = self._format_uptime(uptime_seconds)
-
-            # Get CPU percentage with proper initialization
-            cpu_percent = self._get_cpu_percent(process)
-
-            return {
-                "status": reported_status,
-                "pid": pid,
-                "uptime": uptime_str,
-                "uptime_seconds": uptime_seconds,
-                "memory_mb": round(process.memory_info().rss / 1024 / 1024, 2),
-                "cpu_percent": cpu_percent,
-                "message": f"Server is {reported_status} with PID {pid}"
-            }
-        except psutil.NoSuchProcess:
-            return {
-                "status": "stopped",
-                "pid": pid,
-                "message": f"Server is not running (PID {pid} not found)"
-            }
-        except Exception as e:
-            return {
-                "status": "unknown",
-                "pid": pid,
-                "error": str(e),
-                "message": f"Error checking server status: {e}"
-            }
-    
-    def get_enhanced_status(self, interval: float = 1.0) -> dict[str, Any]:
-        """
-        Get enhanced status with more accurate CPU measurement.
-        
-        Args:
-            interval: Time interval for CPU measurement (default: 1.0 second)
-            
-        Returns:
-            A dictionary containing enhanced status information
-        """
-        if not self.is_running():
-            return {
-                "status": "stopped",
-                "message": "Server is not running"
-            }
-        
-        info = self.get_server_info()
-        pid = info.get('pid') if info else None
-        reported_status = (info.get('status') if info else None) or "running"
-
-        if not pid:
-            return {
-                "status": reported_status,
-                "message": f"Server is {reported_status} (unable to get detailed info)"
-            }
-
-        try:
-            process = psutil.Process(pid)
-            uptime_seconds = time.time() - process.create_time()
-            uptime_str = self._format_uptime(uptime_seconds)
-
-            # Get more accurate CPU measurement with interval
-            cpu_percent = process.cpu_percent(interval=interval)
-
-            # Get additional system information
-            memory_info = process.memory_info()
-            memory_percent = process.memory_percent()
-
-            # Get number of threads
-            num_threads = process.num_threads()
-
-            # Get I/O counters if available
+        if pid:
             try:
-                io_counters = process.io_counters()
-                io_read_mb = round(io_counters.read_bytes / 1024 / 1024, 2)
-                io_write_mb = round(io_counters.write_bytes / 1024 / 1024, 2)
-            except (psutil.AccessDenied, AttributeError):
-                io_read_mb = io_write_mb = 0.0
+                self._add_process_metrics(result, pid, cpu_interval)
+            except psutil.NoSuchProcess:
+                result.update({
+                    "status": "stopped",
+                    "health": "stopped",
+                    "health_reasons": [],
+                    "message": f"Server is not running (PID {pid} not found)"
+                })
+                return result
+            except Exception as e:
+                result.update({
+                    "status": "unknown",
+                    "health": "unknown",
+                    "health_reasons": [],
+                    "error": str(e),
+                    "message": f"Error checking server status: {e}"
+                })
+                return result
+        else:
+            result["unavailable"].append("process")
 
-            return {
-                "status": reported_status,
-                "pid": pid,
-                "uptime": uptime_str,
-                "uptime_seconds": uptime_seconds,
-                "memory_mb": round(memory_info.rss / 1024 / 1024, 2),
-                "memory_percent": round(memory_percent, 2),
-                "cpu_percent": round(cpu_percent, 2),
-                "num_threads": num_threads,
-                "io_read_mb": io_read_mb,
-                "io_write_mb": io_write_mb,
-                "message": f"Server is {reported_status} with PID {pid}"
-            }
-        except psutil.NoSuchProcess:
-            return {
-                "status": "stopped",
-                "pid": pid,
-                "message": f"Server is not running (PID {pid} not found)"
-            }
-        except Exception as e:
-            return {
-                "status": "unknown",
-                "pid": pid,
-                "error": str(e),
-                "message": f"Error checking server status: {e}"
-            }
-    
-    def _get_cpu_percent(self, process: psutil.Process) -> float:
+        self._add_service_metrics(result)
+
+        health, reasons = self._roll_up_health(result)
+        result["health"] = health
+        result["health_reasons"] = reasons
+
+        if pid:
+            result["message"] = f"Server is {reported_status} with PID {pid}"
+        else:
+            result["message"] = (
+                f"Server is {reported_status} (unable to get detailed info - "
+                f"try '{cli_command('login')}' for full details)"
+            )
+        return result
+
+    def _add_process_metrics(self, result: dict[str, Any], pid: int, cpu_interval: float) -> None:
+        """Add psutil-derived process facts to a status report, in place."""
+        process = psutil.Process(pid)
+        uptime_seconds = time.time() - process.create_time()
+        result["uptime_seconds"] = uptime_seconds
+        result["uptime"] = self._format_uptime(uptime_seconds)
+
+        memory_info = process.memory_info()
+        try:
+            io_counters = process.io_counters()
+            io_read_mb = round(io_counters.read_bytes / 1024 / 1024, 2)
+            io_write_mb = round(io_counters.write_bytes / 1024 / 1024, 2)
+        except (psutil.AccessDenied, AttributeError):
+            io_read_mb = io_write_mb = 0.0
+
+        result["process"] = {
+            "memory_mb": round(memory_info.rss / 1024 / 1024, 2),
+            "memory_percent": round(process.memory_percent(), 2),
+            "cpu_percent": self._get_cpu_percent(process, cpu_interval),
+            "num_threads": process.num_threads(),
+            "io_read_mb": io_read_mb,
+            "io_write_mb": io_write_mb,
+        }
+
+    def _add_service_metrics(self, result: dict[str, Any]) -> None:
+        """Add traffic, readiness and adapter sections to a report, in place."""
+        metrics = self._probe("/metrics/json")
+        if metrics is None:
+            result["unavailable"].append("metrics")
+        else:
+            result["traffic"] = metrics.get("requests") or {}
+            result["thresholds"] = metrics.get("thresholds") or {}
+            result["resources"] = metrics.get("system") or {}
+            result["endpoints"] = metrics.get("endpoint_stats") or []
+            result["cpu_series"] = (metrics.get("time_series") or {}).get("cpu") or []
+
+        # 503 carries a meaningful "not ready" body, so accept it too.
+        readiness = self._probe("/health/ready", accept_codes=(200, 503))
+        if readiness is None:
+            result["unavailable"].append("readiness")
+        else:
+            result["readiness"] = readiness
+
+        system = self._probe("/health/system")
+        if system is None:
+            result["unavailable"].append("adapters")
+        else:
+            fault_tolerance = system.get("fault_tolerance") or {}
+            result["fault_tolerance_enabled"] = fault_tolerance.get("enabled", False)
+            result["adapters"] = fault_tolerance.get("adapters") or {}
+
+    def _roll_up_health(self, result: dict[str, Any]) -> tuple[str, list[str]]:
         """
-        Get CPU percentage for a process with proper initialization.
-        
+        Derive an overall health verdict from a status report.
+
+        Uses the thresholds the server reports for itself rather than limits
+        invented here, so the CLI verdict matches the server's own alerting.
+
+        Returns:
+            (verdict, reasons) where verdict is healthy/degraded/unhealthy
+        """
+        severity = {"healthy": 0, "degraded": 1, "unhealthy": 2}
+        level = "healthy"
+        reasons: list[str] = []
+
+        def degrade(new_level: str, reason: str) -> None:
+            nonlocal level
+            reasons.append(reason)
+            if severity[new_level] > severity[level]:
+                level = new_level
+
+        if result.get("status") == "paused":
+            degrade("degraded", "server is paused")
+
+        readiness = result.get("readiness") or {}
+        if readiness.get("ready") is False:
+            reason = readiness.get("reason")
+            if not reason:
+                reason = (
+                    f"only {readiness.get('healthy_adapters', 0)}/"
+                    f"{readiness.get('total_adapters', 0)} adapters healthy"
+                )
+            degrade("unhealthy", reason)
+
+        adapters = result.get("adapters") or {}
+        states: dict[str, list[str]] = {}
+        for name, adapter in adapters.items():
+            state = str((adapter or {}).get("state", "")).lower().replace("_", "-")
+            states.setdefault(state, []).append(name)
+        if states.get("open"):
+            degrade("unhealthy", f"circuit open: {', '.join(sorted(states['open']))}")
+        if states.get("half-open"):
+            degrade("degraded", f"circuit recovering: {', '.join(sorted(states['half-open']))}")
+
+        thresholds = result.get("thresholds") or {}
+        traffic = result.get("traffic") or {}
+        resources = result.get("resources") or {}
+        checks = [
+            (traffic.get("error_rate"), thresholds.get("error_rate"), "error rate {value}% (limit {limit}%)"),
+            (traffic.get("p95_response_time"), thresholds.get("response_time_ms"), "p95 latency {value} ms (limit {limit} ms)"),
+            (resources.get("cpu_percent"), thresholds.get("cpu"), "CPU {value}% (limit {limit}%)"),
+            (resources.get("memory_percent"), thresholds.get("memory"), "memory {value}% (limit {limit}%)"),
+        ]
+        for value, limit, template in checks:
+            if value is None or limit is None:
+                continue
+            if value > limit:
+                degrade("degraded", template.format(value=value, limit=limit))
+
+        return level, reasons
+
+    def _get_cpu_percent(self, process: psutil.Process, interval: float = 0.15) -> float:
+        """
+        Get CPU percentage for a process.
+
+        psutil computes CPU as a delta between two samples, so a blocking
+        interval is required - a single non-blocking call would always return
+        0.0 in a short-lived CLI process.
+
         Args:
             process: The psutil Process object
-            
+            interval: Seconds to sample over; must be > 0
+
         Returns:
             CPU percentage as float
         """
         try:
-            # For the first call, we need to initialize the CPU monitoring
-            if not self._cpu_initialized:
-                # Call cpu_percent() once to initialize the baseline
-                process.cpu_percent()
-                self._cpu_initialized = True
-                # Return 0.0 for the first call since we don't have a baseline yet
-                return 0.0
-            
-            # For subsequent calls, get the actual CPU percentage
-            return process.cpu_percent()
+            return round(process.cpu_percent(interval=max(interval, 0.05)), 2)
         except Exception as e:
             logger.debug(f"Error getting CPU percentage: {e}")
             return 0.0
-    
+
     def _format_uptime(self, seconds: float) -> str:
         """Format uptime in human-readable format."""
         days = int(seconds // 86400)

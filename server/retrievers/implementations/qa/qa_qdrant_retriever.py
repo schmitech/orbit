@@ -132,7 +132,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
                     with_payload=True
                 )
                 # Extract points from QueryResponse
-                return result.points if hasattr(result, 'points') else resul
+                return result.points if hasattr(result, 'points') else result
             except AttributeError:
                 # Fall back to old API (qdrant-client < v1.16)
                 return self.qdrant_client.search(

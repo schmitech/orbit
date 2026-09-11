@@ -138,7 +138,7 @@ class FileAdapter(DocumentAdapter):
         if len(content) > self.max_summary_length:
             return content[:self.max_summary_length] + "..."
 
-        return conten
+        return content
 
     def apply_domain_specific_filtering(self,
                                       context_items: list[dict[str, Any]],
@@ -282,7 +282,7 @@ class FileAdapter(DocumentAdapter):
         if len(content) > 300:
             answer += content[:300] + "..."
         else:
-            answer += conten
+            answer += content
 
         return answer
 
@@ -302,7 +302,7 @@ class FileAdapter(DocumentAdapter):
         if len(content) > 200:
             answer += content[:200] + "..."
         else:
-            answer += conten
+            answer += content
 
         return answer
 

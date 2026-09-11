@@ -139,7 +139,7 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
 
     def extract_document_data(self, result: tuple[str, dict, float]) -> tuple[str, dict[str, Any], float]:
         """Extract document, metadata, and distance from ChromaDB result."""
-        doc, metadata, distance = resul
+        doc, metadata, distance = result
         return doc, metadata or {}, distance
 
     def _iterate_results(self, results: Any):
