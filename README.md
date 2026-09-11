@@ -26,12 +26,10 @@
   <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit" alt="Last commit" /></a>
 </p>
 
-<p align="center">⭐ If ORBIT looks useful, <a href="https://github.com/schmitech/orbit">star the repo</a> — it helps others find it and tells us what to keep building.</p>
-
-<div id="admin-panel-demo" align="center">
-  <video src="https://github.com/user-attachments/assets/e1f91fbb-f398-40f0-beb0-45129d4b0e34" controls muted playsinline width="85%"></video>
+<div id="multimodal-demo" align="center">
+  <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="85%"></video>
   <br />
-  <em>The built-in admin panel is ORBIT's control plane—manage adapters, API keys, prompts, and system operations without touching server code.</em>
+  <em>Upload PDFs, documents, and images, then ask questions across all of them in one conversation. Context is preserved across turns, and local models keep every file and query on your infrastructure.</em>
 </div>
 
 ## What you can build
@@ -57,7 +55,14 @@ capabilities through a conversational interface.
 | **Query public data** | Ask natural-language questions against the City of Paris open-data events and activities API. [Try the Paris open-data demo →](https://orbit.schmitech.ca/intent-http-paris-opendata) |
 | **Build tool-using agents** | Give models scoped access to MCP servers with procedural skills, and bounded tool loops. [Try the MCP agent live →](https://orbit.schmitech.ca/mcp-business-sample) |
 
-⭐ **Finding ORBIT useful?** [Star the repository](https://github.com/schmitech/orbit) to help other developers discover it.
+<br />
+<div id="admin-panel-demo" align="center">
+  <video src="https://github.com/user-attachments/assets/e1f91fbb-f398-40f0-beb0-45129d4b0e34" controls muted playsinline width="85%"></video>
+  <br />
+  <em>The built-in admin panel is ORBIT's control plane—manage adapters, API keys, prompts, and system operations without touching server code.</em>
+</div>
+
+<br />
 
 ## Why ORBIT
 
@@ -70,6 +75,8 @@ capabilities through a conversational interface.
 | **Stay resilient in production** | Use provider fallbacks, retries, circuit breakers, health checks, metrics, hot adapter reloads, and an integrated admin panel for day-to-day operations. |
 
 ORBIT sits between your applications and the models, data, and tools they need. Move from a local prototype to a governed deployment without replacing the architecture. For technical and security assessments, see [platform comparison and capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md), and [NIST SP 800-53 and OWASP Top 10 mapping](docs/security/nist-sp800-53-and-ai-security.md).
+
+<p align="left">⭐ If ORBIT looks useful, <a href="https://github.com/schmitech/orbit">star the repo</a> — it helps others find it and tells us what to keep building.</p>
 
 ## Quick start
 
@@ -163,18 +170,6 @@ For API-key creation, file uploads, and browser-based testing, continue with
 [Before you start](docs/tutorial/before-you-start.md).
 
 Prefer containers or a bundled chat UI? Use the [Docker quick start](docker/README.md#flavor-images-recommended-pull-and-run), or install and configure [OrbitChat](clients/orbitchat/README.md).
-
-## How it works
-
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/8de74ddc-15b1-45f4-8837-45195ae67fe5" alt="ORBIT authenticates and routes application requests to models, private data, and tools" width="680" />
-  <br />
-  <em>Authenticate and route REST, OpenAI-compatible, MCP, A2A, or message-queue requests to models, private data, and tools.</em>
-</div>
-
- <br />
-
-Adapters—not server code—define what ORBIT can do. Configure models, retrieval sources, voice, file handling, and multimodal behavior in YAML under `config/adapters/`, then expose them through one endpoint. Start with the [adapter overview](docs/adapters/adapters.md).
 
 
 ## Explore more
