@@ -10,8 +10,14 @@
   Connect files, databases, APIs, and MCP tools to local or hosted models behind one OpenAI-compatible API—with authentication, observability, and an admin UI built in.
 
   <p>
-    <strong><a href="https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=hero">Try ORBIT live →</a></strong>
-    &nbsp;·&nbsp;
+    <a href="https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=hero">
+      <img src="https://img.shields.io/badge/Try_ORBIT_Sandbox-Open_live_demo_%E2%86%92-2563eb?style=for-the-badge" alt="Try ORBIT Sandbox →" />
+    </a>
+    <br />
+    <sub>Explore interactive demos in your browser. No installation or account required.</sub>
+  </p>
+
+  <p>
     <a href="#quick-start">Quick start</a>
     &nbsp;·&nbsp;
     <a href="docs/">Documentation</a>
@@ -30,6 +36,11 @@
   <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="85%"></video>
   <br />
   <em>Upload PDFs, documents, and images, then ask questions across all of them in one conversation. Context is preserved across turns, and local models keep every file and query on your infrastructure.</em>
+  <p>
+    <strong><a href="https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=after_demo">Try ORBIT Sandbox →</a></strong>
+    <br />
+    Explore demos for documents, databases, and tool-using agents.
+  </p>
 </div>
 
 ## What you can build
@@ -82,7 +93,7 @@ ORBIT sits between your applications and the models, data, and tools they need. 
 
 ### Try it without installing
 
-Open the [live ORBIT sandbox](https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=quick_start)—no download, Docker, or account required.
+**[Try ORBIT Sandbox →](https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=quick_start)** Choose a demo and ask your first question—no download, Docker, or account required.
 
 ### Run it locally
 
@@ -176,6 +187,7 @@ Prefer containers or a bundled chat UI? Use the [Docker quick start](docker/READ
 
 | I want to… | Start here |
 | :--- | :--- |
+| **Try ORBIT in my browser** | [Try ORBIT Sandbox →](https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=explore_more) — explore the live demos before setting up your own instance. |
 | **Learn ORBIT** | [Tutorial](docs/tutorial.md) · [First chat](docs/tutorial/first-chat.md) · [HTTP APIs](docs/tutorial/http-apis.md) |
 | **Connect private data** | [Files](docs/adapters/file-adapter-guide.md) · [Vector stores](docs/vector-stores/vector_store_integration_guide.md) · [SQL](docs/sql-retriever-architecture.md) |
 | **Build agents** | [MCP tools](docs/tutorial/mcp-tool-calling.md) · [Automatic skill routing](docs/tutorial/auto-skill-routing.md) · [A2A](docs/a2a-protocol.md) |
