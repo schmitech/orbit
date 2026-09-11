@@ -1,0 +1,142 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif" role="img">
+<title>Agentic automation testing: the two-channel harness pattern</title>
+<desc>A test case declares a real user question plus the rules the agent must obey. Two independent channels then talk to the same live system: an agent channel where a real LLM chooses and chains real tools, and a ground-truth channel that calls the same server directly with no LLM. The first produces what the agent did — its ordered tool calls and its prose answer. The second produces what correct looks like, computed at run time rather than hardcoded. Both feed a scoring step of thirteen deterministic checks plus one LLM judge for invented facts. The resulting raw counts are compared against a checked-in floor, so a behavioural regression fails CI.</desc>
+
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+<marker id="arrowBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="#0C447C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+<marker id="arrowTeal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="#1F5E56" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+
+<rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>
+
+<!-- Header -->
+<text x="48" y="56" font-size="27" font-weight="700" fill="#2C2C2A">Testing what the agent does, not what the API returns</text>
+<text x="48" y="84" font-size="15" fill="#5F5E5A">Agentic automation testing — two independent channels, one live system, a ratcheted gate</text>
+<line x1="48" y1="102" x2="1232" y2="102" stroke="#5F5E5A" stroke-width="0.75" opacity="0.45"/>
+
+<!-- 1. The case -->
+<g>
+<rect x="48" y="248" width="180" height="140" rx="10" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.75"/>
+<text x="68" y="277" font-size="11" font-weight="700" fill="#5F5E5A" letter-spacing="1.2">THE CASE</text>
+<text x="68" y="303" font-size="13.5" fill="#2C2C2A">
+  <tspan x="68">A real question a</tspan>
+  <tspan x="68" dy="19">user would ask —</tspan>
+  <tspan x="68" dy="19">plus the rules the</tspan>
+  <tspan x="68" dy="19">agent must obey.</tspan>
+</text>
+</g>
+
+<!-- Case fans out to both channels -->
+<path d="M228 318 H248 V180 H262" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M228 318 H248 V456 H262" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- 2a. Agent channel -->
+<g>
+<rect x="268" y="120" width="290" height="120" rx="10" fill="#E6F1FB" stroke="#0C447C" stroke-width="1"/>
+<text x="290" y="149" font-size="15" font-weight="700" fill="#042C53">Agent channel</text>
+<text x="290" y="174" font-size="13.5" fill="#0C447C">
+  <tspan x="290">A real model, with the real tools.</tspan>
+  <tspan x="290" dy="19">Free to pick, chain and go wrong.</tspan>
+</text>
+<rect x="290" y="203" width="118" height="21" rx="10.5" fill="#FFFFFF" stroke="#0C447C" stroke-width="0.75"/>
+<text x="349" y="218" font-size="11" font-weight="600" fill="#0C447C" text-anchor="middle">non-deterministic</text>
+</g>
+
+<!-- 2b. Ground-truth channel -->
+<g>
+<rect x="268" y="396" width="290" height="120" rx="10" fill="#E3F0ED" stroke="#1F5E56" stroke-width="1"/>
+<text x="290" y="425" font-size="15" font-weight="700" fill="#123B36">Ground-truth channel</text>
+<text x="290" y="450" font-size="13.5" fill="#1F5E56">
+  <tspan x="290">The same server, called directly.</tspan>
+  <tspan x="290" dy="19">No model involved. Read-only.</tspan>
+</text>
+<rect x="290" y="479" width="100" height="21" rx="10.5" fill="#FFFFFF" stroke="#1F5E56" stroke-width="0.75"/>
+<text x="340" y="494" font-size="11" font-weight="600" fill="#1F5E56" text-anchor="middle">deterministic</text>
+</g>
+
+<!-- Both channels touch the same server -->
+<path d="M470 240 V266" fill="none" stroke="#0C447C" stroke-width="1.5" marker-end="url(#arrowBlue)" marker-start="url(#arrowBlue)"/>
+<text x="484" y="258" font-size="11.5" fill="#0C447C">tool calls it chose</text>
+<path d="M470 370 V392" fill="none" stroke="#1F5E56" stroke-width="1.5" marker-end="url(#arrowTeal)" marker-start="url(#arrowTeal)"/>
+<text x="484" y="386" font-size="11.5" fill="#1F5E56">read-only lookups</text>
+
+<!-- The system under test -->
+<g>
+<rect x="268" y="272" width="622" height="92" rx="10" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="579" y="303" font-size="15" font-weight="700" fill="#2C2C2A" text-anchor="middle">The live system under test — real tools, real data</text>
+<text x="579" y="330" font-size="13" fill="#5F5E5A" text-anchor="middle">One server, two clients that share no code. If they shared one, a single bug</text>
+<text x="579" y="349" font-size="13" fill="#5F5E5A" text-anchor="middle">could corrupt the observation and the expectation together — and the test would still pass.</text>
+</g>
+
+<!-- Channel outputs -->
+<path d="M558 180 H594" fill="none" stroke="#0C447C" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+<path d="M558 456 H594" fill="none" stroke="#1F5E56" stroke-width="1.5" marker-end="url(#arrowTeal)"/>
+
+<g>
+<rect x="600" y="120" width="290" height="120" rx="10" fill="#FFFFFF" stroke="#0C447C" stroke-width="1"/>
+<text x="622" y="149" font-size="15" font-weight="700" fill="#042C53">What it actually did</text>
+<text x="622" y="174" font-size="13.5" fill="#0C447C">
+  <tspan x="622">Every tool call it made, in order,</tspan>
+  <tspan x="622" dy="19">with its arguments — and the</tspan>
+  <tspan x="622" dy="19">answer it wrote.</tspan>
+</text>
+</g>
+
+<g>
+<rect x="600" y="396" width="290" height="120" rx="10" fill="#FFFFFF" stroke="#1F5E56" stroke-width="1"/>
+<text x="622" y="425" font-size="15" font-weight="700" fill="#123B36">What correct looks like</text>
+<text x="622" y="450" font-size="13.5" fill="#1F5E56">
+  <tspan x="622">Computed fresh at run time from</tspan>
+  <tspan x="622" dy="19">the same server — never frozen</tspan>
+  <tspan x="622" dy="19">into the test as a magic value.</tspan>
+</text>
+</g>
+
+<!-- Converge on scoring -->
+<path d="M890 180 H915 V279 H934" fill="none" stroke="#0C447C" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+<path d="M890 456 H915 V357 H934" fill="none" stroke="#1F5E56" stroke-width="1.5" marker-end="url(#arrowTeal)"/>
+
+<g>
+<rect x="940" y="248" width="292" height="140" rx="10" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="962" y="277" font-size="15" font-weight="700" fill="#2C2C2A">Score the behaviour</text>
+<text x="962" y="302" font-size="13.5" fill="#2C2C2A">
+  <tspan x="962">Right tool · right order · right</tspan>
+  <tspan x="962" dy="19">arguments · nothing destructive</tspan>
+  <tspan x="962" dy="19">it was never asked to do.</tspan>
+</text>
+<text x="962" y="371" font-size="12.5" font-style="italic" fill="#5F5E5A">Plus one LLM judge: invented facts.</text>
+</g>
+
+<!-- Down to the gate -->
+<path d="M1086 388 V574" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- The ratchet -->
+<g>
+<rect x="48" y="580" width="1184" height="112" rx="10" fill="#FFFFFF" stroke="#5F5E5A" stroke-width="1"/>
+<text x="72" y="612" font-size="15" font-weight="700" fill="#2C2C2A">Then ratchet it</text>
+<text x="72" y="640" font-size="13.5" fill="#5F5E5A">
+  <tspan x="72">Agents are not deterministic, so the gate is a floor, not an exact match.</tspan>
+  <tspan x="72" dy="19">Change a prompt, a tool description or the model behind it, and the drop is visible the same day.</tspan>
+</text>
+
+<rect x="726" y="613" width="128" height="34" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.75"/>
+<text x="790" y="635" font-size="13" font-weight="600" fill="#2C2C2A" text-anchor="middle">Raw counts</text>
+<path d="M860 630 H886" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="892" y="613" width="150" height="34" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.75"/>
+<text x="967" y="635" font-size="13" font-weight="600" fill="#2C2C2A" text-anchor="middle">Checked-in floor</text>
+<path d="M1048 630 H1074" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="1080" y="613" width="128" height="34" rx="8" fill="#E6F1FB" stroke="#0C447C" stroke-width="0.75"/>
+<text x="1144" y="635" font-size="13" font-weight="600" fill="#042C53" text-anchor="middle">CI fails loudly</text>
+</g>
+
+<text x="1232" y="712" font-size="11.5" fill="#5F5E5A" text-anchor="end">ORBIT · examples/mcp-server-test</text>
+</svg>

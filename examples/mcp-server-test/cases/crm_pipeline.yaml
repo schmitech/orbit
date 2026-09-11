@@ -1,0 +1,111 @@
+# Cases derived from config/skills/crm-pipeline-playbook/SKILL.md.
+# Every check below traces to a rule stated in that playbook.
+suite: crm_pipeline
+playbook: crm-pipeline-playbook
+
+cases:
+  - id: resolve_id_before_health
+    # Playbook: "Always resolve the customer id with list_customers before
+    # calling get_customer_health ... both take an id, never a name."
+    # The question asks for risk signals and recommended attention, which only
+    # get_customer_health returns — list_customers alone cannot answer it.
+    query: >-
+      For the EMEA Enterprise customer with the highest ARR, what risk signals
+      are on the account and what attention level does it warrant?
+    tags: [tool_order, id_resolution]
+    ground_truth:
+      - as: top
+        tool: list_customers
+        args: {region: EMEA, segment: Enterprise, limit: 25}
+      - as: health
+        tool: get_customer_health
+        args: {customerId: "${top.customers[0].id}"}
+    checks:
+      - type: required_tools
+        tools: [list_customers, get_customer_health]
+      - type: tool_order
+        before: list_customers
+        after: get_customer_health
+      - type: arg_matches
+        tool: get_customer_health
+        arg: customerId
+        equals: "${top.customers[0].id}"
+      - type: no_id_enumeration
+        prefix: cus_
+      - type: answer_contains
+        values:
+          - "${top.customers[0].name}"
+          - "${health.recommendedAttention}"
+      - type: forbidden_tools
+        tools: [create_support_ticket, update_support_ticket, delete_support_ticket]
+      - type: groundedness
+        against: [health]
+
+  - id: aggregate_uses_summarize_pipeline
+    # Playbook: "Use summarize_pipeline for aggregate pipeline questions ...
+    # Use search_opportunities when the user needs deal-level results."
+    # and "Do not invent an owner breakdown from this aggregate response."
+    query: >-
+      What is our total and weighted open pipeline across all regions, broken
+      down by stage?
+    tags: [tool_choice]
+    max_tool_calls: 4
+    ground_truth:
+      - as: pipeline
+        tool: summarize_pipeline
+        args: {}
+    checks:
+      - type: tool_choice
+        prefer: summarize_pipeline
+        instead_of: search_opportunities
+      - type: answer_contains
+        values:
+          - "${pipeline.totalPipeline}"
+          - "${pipeline.weightedPipeline}"
+      - type: answer_not_contains
+        # summarize_pipeline returns no owner data, so naming a rep here means
+        # the model invented an owner breakdown.
+        values: [Avery Chen, Maya Patel, Noah Brooks, Sofia Rivera, Theo Morgan]
+      - type: groundedness
+        against: [pipeline]
+
+  - id: deal_level_uses_search_opportunities
+    query: >-
+      Show me the individual open Negotiation deals with their account, owner,
+      amount and next step.
+    tags: [tool_choice]
+    max_tool_calls: 4
+    ground_truth:
+      - as: deals
+        tool: search_opportunities
+        args: {stage: Negotiation, limit: 25}
+    checks:
+      - type: tool_choice
+        prefer: search_opportunities
+        instead_of: summarize_pipeline
+      - type: arg_bound
+        tool: search_opportunities
+        arg: limit
+        max: 25
+      - type: answer_contains
+        values: ["${deals.opportunities[0].customerName}", "${deals.opportunities[0].owner}"]
+
+  - id: limit_clamp_respected
+    # Playbook: "search_opportunities clamps limit values above 25 to 25. Use a
+    # limit of 25 or less; the tool does not provide pagination or an offset."
+    query: Give me the top 100 open opportunities by weighted value.
+    tags: [limits]
+    max_tool_calls: 6
+    ground_truth:
+      - as: deals
+        tool: search_opportunities
+        args: {limit: 25}
+    checks:
+      - type: required_tools
+        tools: [search_opportunities]
+      - type: arg_bound
+        tool: search_opportunities
+        arg: limit
+        max: 25
+      - type: max_tool_calls
+        max: 6

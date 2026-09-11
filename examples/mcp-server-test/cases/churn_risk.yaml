@@ -1,0 +1,45 @@
+# Cases derived from config/skills/churn-risk-playbook/SKILL.md.
+suite: churn_risk
+playbook: churn-risk-playbook
+
+cases:
+  - id: telemetry_before_simulation
+    # Playbook: "Call get_product_telemetry for the customer before
+    # simulate_churn_risk_scenario" and "Never present a bare churn
+    # probability. Always pair it with the simulation's key drivers and the
+    # telemetry's utilization or adoption alerts."
+    query: >-
+      Run a churn risk assessment for customer cus_0025 and explain what is
+      driving the number.
+    tags: [tool_order, groundedness]
+    ground_truth:
+      - as: telemetry
+        tool: get_product_telemetry
+        args: {customerId: cus_0025}
+      - as: churn
+        tool: simulate_churn_risk_scenario
+        args: {customerId: cus_0025}
+    checks:
+      - type: required_tools
+        tools: [get_product_telemetry, simulate_churn_risk_scenario]
+      - type: tool_order
+        before: get_product_telemetry
+        after: simulate_churn_risk_scenario
+      - type: answer_contains
+        values:
+          - "${churn.simulationResults.churnProbabilityPct}"
+          - "${churn.simulationResults.estimatedArrAtRisk}"
+          - "${churn.simulationResults.riskCategory}"
+          - "${telemetry.seats.utilizationRatePct}"
+      - type: groundedness
+        against: [telemetry, churn]
+
+  - id: churn_for_unknown_customer
+    # Playbook: report the tool's error rather than inventing a result.
+    query: Run a churn risk simulation for customer cus_9999.
+    tags: [error_handling]
+    max_tool_calls: 4
+    checks:
+      - type: tool_error_handled
+      - type: max_tool_calls
+        max: 4

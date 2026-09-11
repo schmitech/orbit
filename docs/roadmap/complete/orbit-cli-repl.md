@@ -292,6 +292,81 @@ and fall back to clean stripped text under `NO_COLOR`; REPL startup now
 also calls `getAdapterInfo()` up front, so an invalid key fails fast with
 exit 3 instead of only failing on the first turn.
 
+### Phase 4 — Interactive UX ✅ Complete
+
+Goal: close the biggest gap with Claude Code's own CLI — discovering and
+running `/` commands is still "type it fully, press Enter, read the result."
+Add a live filtered menu plus a few other polish items already named in
+Deferred or scoped down in Phase 3.
+
+- Interactive `/` command menu: type `/` to see every command with its
+  usage and description; keep typing to fuzzy-filter it; arrow keys move a
+  highlighted selection; Tab or Enter accepts it into the buffer.
+- Ctrl+R reverse-search over the session's input history (classic shell
+  UX: `(reverse-i-search)`query`: match`).
+- A spinner between submitting a turn and the first stream chunk arriving.
+- Real language-aware syntax highlighting for fenced code blocks, the one
+  piece Phase 3 explicitly scoped out.
+
+**Why a rewrite of input handling was required:** `node:readline`'s public
+API has no hook for rendering extra UI below the input line while it owns
+line editing — `completer` only supports Tab-cycling replacement text, and
+there's no way to intercept individual keystrokes before readline consumes
+them. Delivering a live filtered dropdown and a search overlay meant
+replacing readline's line editing with a hand-rolled one, the same pattern
+`src/prompt.ts::askSecret()` already used for the masked API-key prompt,
+extended with cursor movement, in-memory history, and the two overlays.
+
+Shipped in `clients/orbit-cli`:
+
+- **`src/input.ts`** (new) — `LineReader`, a raw-mode line editor built on
+  `readline.emitKeypressEvents()` + `process.stdin`. Owns the buffer,
+  cursor, and an in-session history array; exposes an async iterator so
+  `src/repl.ts`'s `for await (const line of rl)` loop is unchanged in
+  shape. The `/` menu and Ctrl+R search render as extra lines below the
+  prompt using `readline.cursorTo`/`clearScreenDown`/`moveCursor` for
+  redraw bookkeeping, gated by the same `ansiEnabled()` check as
+  everything else for the highlighted-selection styling (the cursor
+  bookkeeping itself isn't color, so it isn't gated by `NO_COLOR`). The
+  existing `@path` filesystem completer moved here unchanged, wired to
+  Tab. `requestExit()` lets `src/repl.ts` force the current read to end as
+  EOF from its own Ctrl+C-at-idle handler, matching the exact exit
+  semantics readline gave for free before.
+- **Single command table**: `src/repl.ts` now builds both the `/help` text
+  and the menu's entries from one `COMMANDS: CommandSpec[]` array, so the
+  two can't drift out of sync the way two hand-written lists eventually
+  would.
+- **`src/spinner.ts`** (new) — a `\r`-overwritten Braille-frame spinner,
+  started right after a turn is submitted and stopped (erasing its line)
+  the instant the first chunk with text or an artifact arrives, before any
+  rendering happens — same ordering discipline as the Phase 3
+  flush-before-artifact-notice fix. No-ops under `NO_COLOR`/non-TTY via the
+  shared `ansiEnabled()` check.
+- **`src/tty.ts`** (new) — `ansiEnabled()` extracted out of `markdown.ts`
+  into its own module so `input.ts` and `spinner.ts` share the exact same
+  TTY/`NO_COLOR` predicate instead of each reimplementing it.
+- **`src/markdown.ts`**: fenced code blocks now track their language tag
+  (the text after ` ``` `) and, when color is enabled, run each fence line
+  through `cli-highlight` — the dependency named but not added back in
+  Phase 3. Falls back to the flat dimmed treatment for an unrecognized or
+  absent language tag, or if `cli-highlight` throws; the `NO_COLOR`/non-TTY
+  stripped-text path is untouched.
+- **`cli-highlight`** added as the CLI's one runtime dependency beyond the
+  SDK.
+
+Verified against a live server via the same PTY-harness approach as Phase
+3: typing `/mo` filters the menu to `/models`/`/model`; arrow-down + Tab
+fills the buffer with the highlighted entry; up-arrow with no menu open
+still recalls prior lines; Ctrl+R against a two-command history correctly
+narrows to and submits a match; Ctrl+C mid-turn still aborts and prints
+`[cancelled]`, Ctrl+C at an idle prompt still exits; `@path` Tab-completion
+(including its existing multi-match common-prefix behavior) is unchanged;
+the spinner cycles frames and clears cleanly the moment a reply's first
+chunk arrives; a fenced Python block renders with real syntax highlighting
+in a TTY and degrades to plain stripped text under `NO_COLOR`; piped
+one-shot input (`echo hi | orbit-chat -`) is unaffected since it never
+constructs a `LineReader`.
+
 ---
 
 ## Testing
@@ -312,7 +387,9 @@ Live-server checks stay a separate integration script, not part of
 ## Deferred
 
 Everything OrbitChat does that this does not, in rough order of likely demand:
-persisted history and `--resume`, `/feedback`, bearer-token login (needs an
-`accessToken` option on `ApiClientConfig` — `streamChat` sends only the API
-key today), autocomplete suggestions, multi-key multi-adapter switching,
-conversation threads, voice, i18n, rich rendering (mermaid, KaTeX, charts).
+persisted history across process restarts and `--resume`, `/feedback`,
+bearer-token login (needs an `accessToken` option on `ApiClientConfig` —
+`streamChat` sends only the API key today), multi-key multi-adapter
+switching, conversation threads, voice, i18n, rich rendering (mermaid,
+KaTeX, charts). (The interactive `/` menu and Ctrl+R history search that
+used to be listed here shipped in Phase 4 — see above.)

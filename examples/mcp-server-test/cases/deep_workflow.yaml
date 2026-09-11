@@ -1,0 +1,129 @@
+# Depth coverage.
+#
+# The rest of the corpus is deliberately narrow: one rule per case, one or two
+# tool calls each. That says nothing about what happens at depth, which is
+# where agents actually fail — losing the thread, re-querying what they already
+# have, drifting onto a different customer halfway through, or stopping early
+# and answering from what they have so far.
+#
+# This suite is the proof case for that regime: one request that can only be
+# answered by chaining seven tools, where every later step depends on an id
+# discovered in the first. It has no playbook of its own — the point is the
+# workflow, not a rule from config/skills.
+suite: deep_workflow
+playbook: null
+
+cases:
+  - id: renewal_review_end_to_end
+    # Seven steps, each dependent on the first lookup's result. The only way to
+    # pass is to resolve the account once and carry that id all the way
+    # through — which is exactly what breaks down at depth.
+    query: >-
+      Our largest EMEA Enterprise account by ARR is up for a renewal review.
+      Work it end to end: find the account, then pull its health snapshot, its
+      product telemetry and its open support tickets, model the churn impact,
+      check how its account owner is performing, and finally build an account
+      plan for a renewal save. Summarise what you found.
+    tags: [multi_step, depth, groundedness]
+    # Well above the 7 the workflow needs. The point is not to constrain the
+    # agent's route, only to catch runaway thrash.
+    max_tool_calls: 16
+    ground_truth:
+      - as: top
+        tool: list_customers
+        args: {region: EMEA, segment: Enterprise, limit: 3}
+      - as: health
+        tool: get_customer_health
+        args: {customerId: "${top.customers[0].id}"}
+      - as: churn
+        tool: simulate_churn_risk_scenario
+        args: {customerId: "${top.customers[0].id}"}
+    checks:
+      # Every step must happen. required_tools scores partial credit, so a
+      # workflow that stops two steps early is visible as a fraction rather
+      # than a flat fail.
+      - type: required_tools
+        tools:
+          - list_customers
+          - get_customer_health
+          - get_product_telemetry
+          - list_support_tickets
+          - simulate_churn_risk_scenario
+          - get_sales_rep_performance
+          - build_account_plan
+
+      # The dependency spine: discover the account, understand it, model it,
+      # then plan. Other calls may interleave — only this order is required.
+      - type: tool_sequence
+        tools:
+          - list_customers
+          - get_customer_health
+          - simulate_churn_risk_scenario
+          - build_account_plan
+
+      # The failure this case exists to catch: drifting onto a different
+      # customer partway through. `which: all` means one correct call cannot
+      # mask a wrong one, which is exactly what the default would allow.
+      - type: arg_matches
+        tool: get_customer_health
+        arg: customerId
+        equals: "${top.customers[0].id}"
+        which: all
+      - type: arg_matches
+        tool: get_product_telemetry
+        arg: customerId
+        equals: "${top.customers[0].id}"
+        which: all
+      - type: arg_matches
+        tool: simulate_churn_risk_scenario
+        arg: customerId
+        equals: "${top.customers[0].id}"
+        which: all
+      - type: arg_matches
+        tool: build_account_plan
+        arg: customerId
+        equals: "${top.customers[0].id}"
+        which: all
+
+      # The account was resolved, not guessed by walking cus_0001, cus_0002...
+      - type: no_id_enumeration
+      - type: max_tool_calls
+
+      # Seven steps of context, and the answer must still name the account it
+      # started from and the health score it read in step two.
+      - type: answer_contains
+        values:
+          - "${top.customers[0].name}"
+          - "${health.customer.healthScore}"
+
+      - type: groundedness
+
+  - id: recovers_from_a_bad_id_midway
+    # The other half of error handling. tool_error_handled asserts the agent
+    # reports a failure honestly; this asserts it did not STOP there. A bogus
+    # ticket id is planted mid-request so the failure lands in the middle of a
+    # workflow rather than at the end of a one-shot lookup.
+    query: >-
+      Start with ticket tkt_9999. If that ticket does not exist, say so
+      plainly, then fall back to listing the open support tickets for customer
+      cus_0025 and give me a short summary of what you find there.
+    tags: [multi_step, error_handling]
+    max_tool_calls: 8
+    ground_truth:
+      - as: tickets
+        tool: list_support_tickets
+        args: {customerId: cus_0025, status: open, limit: 25}
+    checks:
+      - type: required_tools
+        tools: [get_support_ticket, list_support_tickets]
+
+      # The agent hit the error, kept going, and finished the real job.
+      - type: recovers_after_error
+        then_tools: [list_support_tickets]
+
+      # ...and still reported the failure honestly rather than inventing a
+      # ticket. Both halves must hold: recovery without honesty is worse than
+      # giving up.
+      - type: tool_error_handled
+
+      - type: max_tool_calls

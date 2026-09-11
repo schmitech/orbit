@@ -1,0 +1,142 @@
+{
+  "churn_risk::anthropic:claude-sonnet-4-6::base": {
+    "agent_errors": 0,
+    "cases_passed": 2,
+    "checks_passed": 4,
+    "checks_total": 5,
+    "total": 2
+  },
+  "churn_risk::anthropic:claude-sonnet-4-6::playbook": {
+    "agent_errors": 0,
+    "cases_passed": 2,
+    "checks_passed": 5,
+    "checks_total": 5,
+    "total": 2
+  },
+  "churn_risk::openai:gpt-5.4-mini::base": {
+    "agent_errors": 0,
+    "cases_passed": 2,
+    "checks_passed": 5,
+    "checks_total": 5,
+    "total": 2
+  },
+  "churn_risk::openai:gpt-5.4-mini::playbook": {
+    "agent_errors": 0,
+    "cases_passed": 2,
+    "checks_passed": 5,
+    "checks_total": 5,
+    "total": 2
+  },
+  "crm_pipeline::anthropic:claude-sonnet-4-6::base": {
+    "agent_errors": 0,
+    "cases_passed": 4,
+    "checks_passed": 15,
+    "checks_total": 15,
+    "total": 4
+  },
+  "crm_pipeline::anthropic:claude-sonnet-4-6::playbook": {
+    "agent_errors": 0,
+    "cases_passed": 4,
+    "checks_passed": 15,
+    "checks_total": 15,
+    "total": 4
+  },
+  "crm_pipeline::openai:gpt-5.4-mini::base": {
+    "agent_errors": 0,
+    "cases_passed": 4,
+    "checks_passed": 15,
+    "checks_total": 15,
+    "total": 4
+  },
+  "crm_pipeline::openai:gpt-5.4-mini::playbook": {
+    "agent_errors": 0,
+    "cases_passed": 4,
+    "checks_passed": 15,
+    "checks_total": 15,
+    "total": 4
+  },
+  "deep_workflow::anthropic:claude-sonnet-4-6::base": {
+    "agent_errors": 0,
+    "cases_passed": 2,
+    "checks_passed": 13,
+    "checks_total": 13,
+    "total": 2
+  },
+  "deep_workflow::openai:gpt-5.4-mini::base": {
+    "agent_errors": 0,
+    "cases_passed": 2,
+    "checks_passed": 13,
+    "checks_total": 13,
+    "total": 2
+  },
+  "general::anthropic:claude-sonnet-4-6::base": {
+    "agent_errors": 0,
+    "cases_passed": 2,
+    "checks_passed": 4,
+    "checks_total": 4,
+    "total": 2
+  },
+  "general::openai:gpt-5.4-mini::base": {
+    "agent_errors": 0,
+    "cases_passed": 2,
+    "checks_passed": 4,
+    "checks_total": 4,
+    "total": 2
+  },
+  "sales_performance::anthropic:claude-sonnet-4-6::base": {
+    "agent_errors": 0,
+    "cases_passed": 1,
+    "checks_passed": 3,
+    "checks_total": 3,
+    "total": 1
+  },
+  "sales_performance::anthropic:claude-sonnet-4-6::playbook": {
+    "agent_errors": 0,
+    "cases_passed": 1,
+    "checks_passed": 3,
+    "checks_total": 3,
+    "total": 1
+  },
+  "sales_performance::openai:gpt-5.4-mini::base": {
+    "agent_errors": 0,
+    "cases_passed": 1,
+    "checks_passed": 3,
+    "checks_total": 3,
+    "total": 1
+  },
+  "sales_performance::openai:gpt-5.4-mini::playbook": {
+    "agent_errors": 0,
+    "cases_passed": 1,
+    "checks_passed": 3,
+    "checks_total": 3,
+    "total": 1
+  },
+  "support_tickets::anthropic:claude-sonnet-4-6::base": {
+    "agent_errors": 0,
+    "cases_passed": 4,
+    "checks_passed": 12,
+    "checks_total": 12,
+    "total": 4
+  },
+  "support_tickets::anthropic:claude-sonnet-4-6::playbook": {
+    "agent_errors": 0,
+    "cases_passed": 4,
+    "checks_passed": 12,
+    "checks_total": 12,
+    "total": 4
+  },
+  "support_tickets::openai:gpt-5.4-mini::base": {
+    "agent_errors": 0,
+    "cases_passed": 3,
+    "checks_passed": 11,
+    "checks_total": 12,
+    "total": 4
+  },
+  "support_tickets::openai:gpt-5.4-mini::playbook": {
+    "agent_errors": 0,
+    "cases_passed": 4,
+    "checks_passed": 12,
+    "checks_total": 12,
+    "total": 4
+  }
+}

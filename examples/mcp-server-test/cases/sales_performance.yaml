@@ -1,0 +1,31 @@
+# Cases derived from config/skills/sales-performance-playbook/SKILL.md.
+suite: sales_performance
+playbook: sales-performance-playbook
+
+cases:
+  - id: rank_reps_by_attainment
+    # Playbook: "Rank reps by attainment percentage (closed amount / quota),
+    # not raw closed amount" and "Flag any rep below 70% attainment as at-risk."
+    # The tool returns reps in seed order, so the expected ranking is derived.
+    query: Rank the sales reps by quota attainment and tell me who is at risk.
+    tags: [ranking]
+    max_tool_calls: 4
+    ground_truth:
+      - as: reps
+        tool: get_sales_rep_performance
+        args: {}
+      - as: ranked
+        derive: reps_by_attainment_desc
+        from: reps
+      - as: at_risk
+        derive: reps_below_quota_threshold
+        from: reps
+    checks:
+      - type: required_tools
+        tools: [get_sales_rep_performance]
+      - type: answer_ordering
+        values: ["${ranked[0]}", "${ranked[1]}", "${ranked[2]}", "${ranked[3]}", "${ranked[4]}"]
+      - type: answer_contains
+        values: ["${at_risk[0]}", "${at_risk[1]}", "${at_risk[2]}"]
+      - type: groundedness
+        against: [reps]

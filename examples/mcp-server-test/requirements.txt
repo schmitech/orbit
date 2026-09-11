@@ -1,0 +1,29 @@
+# Dependencies for the ORBIT business-MCP agent evaluation harness.
+#
+# Deliberately NOT part of install/dependencies.toml — this is an example
+# harness, not an ORBIT server dependency. Install into a dedicated venv:
+#
+#   /Users/.../orbit/venv/bin/python -m venv .venv    # Python 3.12, matching the repo
+#   .venv/bin/pip install -r requirements.txt
+#
+# Pins captured 2026-09-10 against Python 3.12. Exact pins on purpose: this is a
+# harness whose job is to make behavioural regressions legible, so the library
+# stack underneath it must not drift silently. langchain-core is intentionally
+# left to resolve from the pinned packages above it.
+#
+# To refresh: pip install -U <pkg> && pip freeze | grep <pkg>, then update here.
+
+langchain==1.4.0
+langgraph==1.2.11
+langgraph-prebuilt==1.1.0
+langchain-mcp-adapters==0.3.2
+langchain-openai==1.6.2
+langchain-anthropic==1.7.2
+langsmith==0.12.4
+mcp==1.30.0
+httpx==0.28.1
+pytest==9.1.1
+pytest-asyncio==1.4.0
+PyYAML==6.0.3
+pydantic==2.13.5
+python-dotenv==1.2.3

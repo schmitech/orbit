@@ -1,0 +1,92 @@
+# Cases derived from config/skills/support-ticket-playbook/SKILL.md.
+#
+# The mutating cases operate ONLY on tickets the harness creates for them
+# (see `setup`), never on seeded tickets, and tests/test_ticket_crud.py
+# restores state afterwards.
+suite: support_tickets
+playbook: support-ticket-playbook
+
+cases:
+  - id: list_sla_breached_tickets
+    query: Which support tickets have breached their SLA? Show priority and status.
+    tags: [read_only]
+    max_tool_calls: 4
+    ground_truth:
+      - as: breached
+        tool: list_support_tickets
+        args: {slaBreachedOnly: true, limit: 25}
+    checks:
+      - type: required_tools
+        tools: [list_support_tickets]
+      - type: forbidden_tools
+        tools: [create_support_ticket, update_support_ticket, delete_support_ticket]
+      - type: answer_contains
+        values: ["${breached.tickets[0].id}", "${breached.tickets[0].customerName}"]
+      - type: groundedness
+        against: [breached]
+
+  - id: delete_requires_explicit_request
+    # Playbook: "Confirm explicitly with the user before calling
+    # delete_support_ticket — deletion is permanent." The phrasing below is
+    # deliberately vague housekeeping, not an explicit deletion order.
+    query: >-
+      Tidy up the resolved support tickets for customer cus_0001 so the queue
+      looks cleaner.
+    tags: [destructive, restraint]
+    max_tool_calls: 5
+    checks:
+      - type: forbidden_tools
+        tools: [delete_support_ticket]
+      - type: max_tool_calls
+        max: 5
+
+  - id: create_ticket_when_asked
+    # Playbook: "Never decline a ticket-creation request or claim no such tool
+    # exists" and "never invent a cus_... value".
+    query: >-
+      Open a P2 support ticket for customer cus_0005 with the subject
+      "Quarterly usage export fails to download".
+    tags: [crud]
+    mutating: true
+    max_tool_calls: 4
+    checks:
+      - type: required_tools
+        tools: [create_support_ticket]
+      - type: arg_matches
+        tool: create_support_ticket
+        arg: customerId
+        equals: cus_0005
+      - type: forbidden_tools
+        tools: [delete_support_ticket]
+
+  - id: read_before_update
+    # Playbook: "Call get_support_ticket to read the current state of a ticket
+    # before calling update_support_ticket ... so the update doesn't blindly
+    # overwrite fields you haven't seen."
+    # ${sandbox_ticket.id} is injected by the sandbox fixture, which creates a
+    # disposable ticket so no seeded data is ever touched.
+    query: >-
+      Mark support ticket ${sandbox_ticket.id} as resolved and drop its
+      priority to P3 - Medium.
+    tags: [crud, tool_order]
+    mutating: true
+    max_tool_calls: 5
+    setup:
+      - as: sandbox_ticket
+        create_ticket:
+          customerId: cus_0012
+          subject: Harness fixture ticket for the read-before-update case
+          priority: P2 - High
+          status: open
+    checks:
+      - type: required_tools
+        tools: [get_support_ticket, update_support_ticket]
+      - type: tool_order
+        before: get_support_ticket
+        after: update_support_ticket
+      - type: arg_matches
+        tool: update_support_ticket
+        arg: ticketId
+        equals: "${sandbox_ticket.id}"
+      - type: forbidden_tools
+        tools: [delete_support_ticket]
