@@ -64,7 +64,7 @@ export function createOverviewTab({
         updateMonitoringAdapters(data.adapters || {});
         if (data.thread_pools) updateMonitoringThreadPools(data.thread_pools);
         if (data.datasource_pool) updateMonitoringDatasourcePool(data.datasource_pool);
-        if (data.redis_health) updateMonitoringRedisHealth(data.redis_health);
+        if (data.cache_health) updateMonitoringCacheHealth(data.cache_health);
         if (data.pipeline_steps) updateMonitoringPipeline(data.pipeline_steps, data.pipeline_summary);
         if (data.connections) updateMonitoringConnections(data.connections);
       } catch (e) { console.error("Metrics parse error:", e); }
@@ -687,11 +687,13 @@ export function createOverviewTab({
     ], rows, "No thread pools match the current filter.", overviewThreadPoolPaginator, overviewThreadPoolSorter);
   }
 
-  function updateMonitoringRedisHealth(data) {
+  function updateMonitoringCacheHealth(data) {
     const section = document.getElementById("mon-redis-section");
     if (!section) return;
     if (!data || !data.enabled) { section.style.display = "none"; return; }
     section.style.display = "";
+    const heading = document.getElementById("mon-redis-heading");
+    if (heading) heading.textContent = "Cache Health (" + (data.provider || "unknown") + ")";
     const statusEl = document.getElementById("mon-redis-status");
     if (statusEl) {
       statusEl.textContent = data.initialized ? "Connected" : "Disconnected";
@@ -700,12 +702,21 @@ export function createOverviewTab({
     const cb = data.circuit_breaker || {};
     setText("mon-redis-cb", (cb.state || "unknown").replace("_", "-"));
     setText("mon-redis-failures", (cb.failure_count || 0) + " / " + (cb.max_failures || 5));
-    const pool = data.pool || {};
-    const inUse = pool.in_use_connections || 0;
-    const maxC = pool.max_connections || 0;
-    setText("mon-redis-pool", inUse + " / " + maxC);
-    const util = maxC > 0 ? clampPercentage((inUse / maxC) * 100) : 0;
-    setProgressBar("mon-redis-bar", util, util >= 90 ? "red" : util >= 70 ? "amber" : "green");
+    // Only redis reports a connection pool - other providers don't have one.
+    const poolRow = document.getElementById("mon-redis-pool-row");
+    const barRow = document.getElementById("mon-redis-bar-row");
+    if (data.pool) {
+      if (poolRow) poolRow.style.display = "";
+      if (barRow) barRow.style.display = "";
+      const inUse = data.pool.in_use_connections || 0;
+      const maxC = data.pool.max_connections || 0;
+      setText("mon-redis-pool", inUse + " / " + maxC);
+      const util = maxC > 0 ? clampPercentage((inUse / maxC) * 100) : 0;
+      setProgressBar("mon-redis-bar", util, util >= 90 ? "red" : util >= 70 ? "amber" : "green");
+    } else {
+      if (poolRow) poolRow.style.display = "none";
+      if (barRow) barRow.style.display = "none";
+    }
   }
 
   function updateMonitoringDatasourcePool(data) {
@@ -913,14 +924,14 @@ export function createOverviewTab({
 
     // 9. Redis Health
     const redisSection = el("div", { id: "mon-redis-section", className: "monitoring-section", style: "display:none" },
-      el("h3", null, "Redis Health"),
+      el("h3", { id: "mon-redis-heading" }, "Cache Health"),
       el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--sp-2)" },
         el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Status"), el("p", { id: "mon-redis-status", className: "value" }, "—")),
         el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Circuit Breaker"), el("p", { id: "mon-redis-cb", className: "value" }, "—")),
         el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Failures"), el("p", { id: "mon-redis-failures", className: "value" }, "—")),
-        el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Pool"), el("p", { id: "mon-redis-pool", className: "value" }, "—"))
+        el("div", { id: "mon-redis-pool-row", className: "monitoring-summary-card", style: "display:none" }, el("p", { className: "label" }, "Pool"), el("p", { id: "mon-redis-pool", className: "value" }, "—"))
       ),
-      el("div", { className: "monitoring-progress-track", style: "margin-top:var(--sp-2)" }, el("div", { id: "mon-redis-bar", className: "monitoring-progress-bar muted", style: "width:0%" }))
+      el("div", { id: "mon-redis-bar-row", className: "monitoring-progress-track", style: "margin-top:var(--sp-2)" }, el("div", { id: "mon-redis-bar", className: "monitoring-progress-bar muted", style: "width:0%" }))
     );
     container.appendChild(redisSection);
 

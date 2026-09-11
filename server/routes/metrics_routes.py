@@ -187,11 +187,12 @@ def create_metrics_router() -> APIRouter:
                 except Exception as e:
                     logger.warning(f"Error getting datasource pool stats: {e}")
 
-                # Get cache service health statistics (key name kept as redis_health for the dashboard)
+                # Get cache service health statistics (covers whichever backend is
+                # active - sqlite, redis, or memcached - not just redis)
                 try:
                     cache_service = getattr(websocket.app.state, 'cache_service', None)
                     if cache_service:
-                        data['redis_health'] = cache_service.get_health_stats()
+                        data['cache_health'] = cache_service.get_health_stats()
                 except Exception as e:
                     logger.debug(f"Error getting cache service health stats: {e}")
 
