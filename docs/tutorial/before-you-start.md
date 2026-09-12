@@ -119,6 +119,7 @@ npm install -g orbitchat@latest
 Point it at your running server and an API key:
 
 ```bash
+# Minimal single-adapter config for a quick test — see orbitchat.yaml.example for all options
 cat > orbitchat.yaml <<'EOF'
 agentMode:
   mode: "single"

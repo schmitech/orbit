@@ -22,6 +22,8 @@
     &nbsp;·&nbsp;
     <a href="docs/">Documentation</a>
   </p>
+
+  <p>⭐ If ORBIT looks useful, <a href="https://github.com/schmitech/orbit">star the repo</a> — it helps others find it and tells us what to keep building.</p>
 </div>
 
 <p align="center">
@@ -33,9 +35,29 @@
 </p>
 
 <div id="multimodal-demo" align="center">
-  <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="85%"></video>
+  <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="65%"></video>
   <br />
-  <em>Upload PDFs, documents, and images, then ask questions across all of them in one conversation. Context is preserved across turns, and local models keep every file and query on your infrastructure.</em>
+  <em>Upload PDFs, documents, and images, then ask questions across all of them in one conversation.
+  Context is preserved across turns, and local models keep every file and query on your infrastructure.
+  See <a href="config/adapters/multimodal.yaml">multimodal.yaml</a></em>
+</div>
+
+<br />
+
+<div id="sts-assistant" align="center">
+  <video src="https://github.com/user-attachments/assets/9c6530be-1116-4a14-aa82-321448ea5a8d" controls muted playsinline width="45%"></video>
+  <br />
+  <em>Create voice‑enabled virtual assistants that answer questions in any language, drawing knowledge
+  from any data source (API, database, file, etc.). See <a href="clients/realtime-voice/">realtime-voice</a></em>
+</div>
+
+<br />
+
+<div id="es-chat" align="center">
+  <video src="https://github.com/user-attachments/assets/e7fd2834-e438-4ac1-9173-0c0d56ca562b" controls muted playsinline width="65%"></video>
+  <br />
+  <em>Chat with your Elasticsearch application logs so incident management teams can ask natural-language
+  questions and let AI trace an incident back to its root cause. See <a href="examples/intent-templates/elasticsearch-intent-template/application-logs/">elasticsearch-intent-template</a></em>
 </div>
 
 <br />
@@ -50,9 +72,9 @@
 | **Govern AI operations** | RBAC, OIDC/SSO, identity allowlisting, per-key quotas, audit logs, moderation, and file encryption. |
 | **Stay resilient in production** | Use provider fallbacks, retries, circuit breakers, health checks, metrics, hot adapter reloads, and an integrated admin panel for day-to-day operations. |
 
-ORBIT sits between your applications and the models, data, and tools they need. Move from a local prototype to a governed deployment without replacing the architecture. For technical and security assessments, see [platform comparison and capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md), and [NIST SP 800-53 and OWASP Top 10 mapping](docs/security/nist-sp800-53-and-ai-security.md).
+ORBIT sits between your applications and the models, data, and tools they need. Move from a local prototype to a governed deployment without replacing the architecture.
 
-<p align="left">⭐ If ORBIT looks useful, <a href="https://github.com/schmitech/orbit">star the repo</a> — it helps others find it and tells us what to keep building.</p>
+For technical and security assessments, see [platform comparison and capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md), and [NIST SP 800-53 and OWASP Top 10 mapping](docs/security/nist-sp800-53-and-ai-security.md).
 
 ## Quick start
 
@@ -96,6 +118,15 @@ for adapter behavior.
 To use another provider, enable it in `config/inference.yaml`, set its
 credential in `.env`, and select it globally or on the adapter that should use it.
 
+For the adapter implementations themselves, see [`server/adapters/`](server/adapters/); for
+ready-to-use intent templates (SQL, GraphQL, MongoDB, Elasticsearch, HTTP, and more), see
+[`examples/intent-templates/`](examples/intent-templates/).
+
+Adapters are defined in [`config/adapters.yaml`](config/adapters.yaml). The default installation
+comes with the `simple-chat` and `multimodal` adapters enabled, but you can use the examples above
+to configure your own. See [`docs/adapters/`](docs/adapters/) for technical details on how the
+adapter system works.
+
 ORBIT starts at [http://localhost:3000](http://localhost:3000), and the dashboard at [http://localhost:3000/admin](http://localhost:3000/admin). Follow the tutorial to [verify the installation](docs/tutorial/before-you-start.md) and [create your first chat](docs/tutorial/first-chat.md).
 
 <br />
@@ -132,8 +163,8 @@ orbit-chat --url http://localhost:3000 --key default-key
 
 <br />
 
-<div id="multimodal-demo" align="left">
-  <video src="https://github.com/user-attachments/assets/ba9a96dd-ef76-40d6-b129-3406d427cb81" controls muted playsinline width="85%"></video>
+<div id="multimodal-demo" align="center">
+  <video src="https://github.com/user-attachments/assets/ba9a96dd-ef76-40d6-b129-3406d427cb81" controls muted playsinline width="55%"></video>
   <br />
   <em>The ORBIT chat CLI tool.</em>
 </div>
@@ -144,6 +175,8 @@ Or test it from the browser with [orbitchat](clients/orbitchat/):
 
 ```bash
 npm install -g orbitchat@latest
+
+# Minimal single-adapter config for a quick test — see orbitchat.yaml.example for all options
 cat > orbitchat.yaml <<'EOF'
 agentMode:
   mode: "single"
@@ -151,7 +184,9 @@ agentMode:
 adapters:
   - id: "simple-chat"
 EOF
-ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' orbitchat --config orbitchat.yaml
+
+# Starts the proxy and opens http://localhost:5173 in your browser
+ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' orbitchat --config orbitchat.yaml --open
 ```
 
 See [orbitchat.yaml.example](clients/orbitchat/orbitchat.yaml.example) for the full set of configuration options.
@@ -168,10 +203,10 @@ Prefer containers or a bundled chat UI? Use the [Docker quick start](docker/READ
 | :--- | :--- |
 | **Try ORBIT in my browser** | [Try ORBIT Sandbox →](https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=explore_more) — explore the live demos before setting up your own instance. |
 | **Learn ORBIT** | [Tutorial](docs/tutorial.md) · [First chat](docs/tutorial/first-chat.md) · [HTTP APIs](docs/tutorial/http-apis.md) |
-| **Connect private data** | [Files](docs/adapters/file-adapter-guide.md) · [Vector stores](docs/vector-stores/vector_store_integration_guide.md) · [SQL](docs/sql-retriever-architecture.md) |
-| **Build agents** | [MCP tools](docs/tutorial/mcp-tool-calling.md) · [Automatic skill routing](docs/tutorial/auto-skill-routing.md) · [A2A](docs/a2a-protocol.md) |
+| **Connect private data** | [Files](docs/adapters/file-adapter-guide.md) · [Vector stores](docs/vector-stores/vector_store_integration_guide.md) · [SQL](docs/sql-retriever-architecture.md) · [Intent templates](examples/intent-templates/) · [Adapter system overview](docs/adapters/adapters.md) |
+| **Build agents** | [MCP tools](docs/tutorial/mcp-tool-calling.md) · [Automatic skill routing](docs/tutorial/auto-skill-routing.md) · [A2A](docs/a2a-protocol.md) · [Adapter creation](docs/adapters/adapter-creation.md) |
 | **Run in production** | [Authentication](docs/authentication.md) · [Cost tracking](docs/token-usage-and-cost-tracking.md) · [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
-| **Use a client** | [OrbitChat](clients/orbitchat/) · [Node.js SDK](clients/node-api/) · [Python API example](examples/openai-compatible-api/chat_completions.py) |
+| **Use a client** | [OrbitChat](clients/orbitchat/) · [Realtime Voice](clients/realtime-voice/) · [Node.js SDK](clients/node-api/) · [Python API example](examples/openai-compatible-api/chat_completions.py) |
 
 See the [documentation index](docs/README.md) for every guide and architecture deep dive.
 
