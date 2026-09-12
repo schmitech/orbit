@@ -145,6 +145,9 @@ Or test it from the browser with [orbitcli](clients/orbitchat/):
 ```bash
 npm install -g orbitchat@latest
 cat > orbitchat.yaml <<'EOF'
+agentMode:
+  mode: "single"
+  defaultAdapterId: "simple-chat"
 adapters:
   - id: "simple-chat"
 EOF

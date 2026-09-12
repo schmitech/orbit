@@ -367,6 +367,7 @@ function loadAdaptersForProxy(yamlAdapters) {
 function createServer(distPath, config, serverConfig = {}) {
   const app = express();
   const adapters = loadAdaptersForProxy(config.adapters);
+  app.locals.adapters = adapters;
   const apiOnly = serverConfig.apiOnly || false;
   const robotsTxt = buildRobotsTxt(config);
   const sitemapXml = buildSitemapXml(config, adapters);
@@ -674,7 +675,7 @@ function main() {
   });
   // WebSocket companion to /api: inject the adapter key during upgrade instead
   // of exposing it in the browser's socket URL.
-  const websocketAdapters = loadAdaptersForProxy(config.adapters) || {};
+  const websocketAdapters = app.locals.adapters || {};
   server.on('upgrade', (req, socket, head) => {
     const match = req.url?.match(/^\/api\/ws\/voice\/([^/?]+)(\?.*)?$/);
     if (!match) return;
