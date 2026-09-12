@@ -12,29 +12,35 @@ BaseRetriever (abstract base for all retrievers)
 │   └── BaseSQLDatabaseRetriever (unified SQL with mixins)
 │       ├── relational/
 │       │   ├── SQLiteRetriever
+│       │   │   └── qa/QASSQLRetriever (QA domain specialization)
 │       │   ├── PostgreSQLRetriever
 │       │   └── MySQLRetriever
-│       └── qa/
-│           └── QASSQLRetriever (QA domain specialization)
 │
-├── IntentSQLRetriever (intent-based SQL, extends BaseSQLDatabaseRetriever)
+├── IntentSQLRetriever (+ IntentDomainComponentsMixin, extends BaseSQLDatabaseRetriever)
 │   ├── IntentSQLiteRetriever
 │   ├── IntentPostgreSQLRetriever
 │   ├── IntentMySQLRetriever
-│   └── IntentDuckDBRetriever
+│   ├── IntentDuckDBRetriever
+│   └── IntentAthenaRetriever (AWS Athena)
 │
-├── IntentHTTPRetriever (intent-based HTTP queries)
+├── IntentHTTPRetriever (+ IntentDomainComponentsMixin, intent-based HTTP queries)
 │   ├── IntentHTTPJSONRetriever (REST APIs)
 │   ├── IntentElasticsearchRetriever (Elasticsearch Query DSL)
 │   ├── IntentMongoDBRetriever (MongoDB aggregation pipelines)
 │   ├── IntentGraphQLRetriever (GraphQL queries)
-│   └── IntentFirecrawlRetriever (web scraping)
+│   ├── IntentFirecrawlRetriever (web scraping)
+│   └── IntentAgentRetriever (function/tool calling — see below)
+│
+├── CompositeIntentRetriever (routes across multiple child intent adapters — see below)
 │
 └── AbstractVectorRetriever (vector similarity search)
     ├── ChromaRetriever, PineconeRetriever, QdrantRetriever
     ├── MilvusRetriever, ElasticsearchRetriever, RedisRetriever
-    └── qa/ (QA specializations for vector stores)
+    ├── qa/ (QA specializations for vector stores)
+    └── FileVectorRetriever (uploaded-file retrieval — see below)
 ```
+
+`IntentSQLRetriever` and `IntentHTTPRetriever` both mix in `IntentDomainComponentsMixin`, which wires up the domain-aware components described below (template matching, parameter extraction, response generation).
 
 ### Two Retriever Paradigms
 
@@ -55,6 +61,7 @@ ORBIT supports two retriever paradigms:
 | **PostgreSQL** | `relational.PostgreSQLRetriever` | `intent.IntentPostgreSQLRetriever` | ✅ Complete | Full-text search, JSON ops |
 | **MySQL** | `relational.MySQLRetriever` | `intent.IntentMySQLRetriever` | ✅ Complete | FULLTEXT indexes |
 | **DuckDB** | — | `intent.IntentDuckDBRetriever` | ✅ Complete | Analytics, Parquet/CSV, columnar |
+| **AWS Athena** | — | `intent.IntentAthenaRetriever` | ✅ Complete | Serverless SQL over S3 data; see [Athena credentials setup](aws/athena-credentials-setup.md) |
 
 ### NoSQL & Document Databases
 
@@ -107,6 +114,18 @@ The intent-based HTTP retriever (`retrievers/base/intent_http_base.py`) provides
 - **Template-Based Queries**: HTTP request templates with parameter substitution
 - **Response Processing**: JSON response parsing and formatting
 
+### CompositeIntentRetriever
+
+`CompositeIntentRetriever` (`base/intent_composite_base.py`, implementation in `implementations/composite/`) doesn't own a datasource of its own — it sits in front of several already-configured intent adapters and routes each query to the best-matching one. It searches every child adapter's template store (in parallel), reranks candidates, and delegates execution to the winning child. For queries that legitimately span sources, "cross-adapter templates" fan out to multiple named children and merge the results (`side_by_side` or `labeled_concat`). See [Composite Intent Retriever](adapters/composite-intent-retriever.md) for the full guide.
+
+### IntentAgentRetriever
+
+`IntentAgentRetriever` (`implementations/intent/intent_agent_retriever.py`, registered as `intent_agent`) extends `IntentHTTPRetriever` to support function/tool calling instead of a fixed SQL/HTTP template per query. It can use native function calling (a function-calling model picks a tool + arguments) or fall back to template-matching with LLM-based parameter extraction, and supports built-in tools (calculator, date/time, JSON transform) alongside HTTP-based tools defined in YAML. See [Intent Agent Retriever](adapters/intent-agent-retriever.md) for configuration details.
+
+### FileVectorRetriever
+
+`FileVectorRetriever` (`implementations/file/file_retriever.py`, extends `AbstractVectorRetriever`) backs the file-upload and multimodal adapters (`config/adapters/file.yaml`, `config/adapters/multimodal.yaml`). It chunks, embeds, and searches uploaded documents (PDF, DOCX, TXT, code, etc.), with an optional DuckDB path for structured uploads (CSV/Parquet), pluggable storage backends (filesystem/S3/MinIO/Azure), and `file_ids` filtering. See [File Adapter Guide](adapters/file-adapter-guide.md) and [Multimodal Conversational Adapter](adapters/multimodal-conversational-adapter.md).
+
 ## Configuration
 
 ### Adapter Configuration (config/adapters/intent.yaml)
@@ -131,9 +150,9 @@ adapters:
     
     config:
       # Domain and template configuration
-      domain_config_path: "utils/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
+      domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
       template_library_path:
-        - "utils/duckdb-intent-template/examples/analytics/analytics_templates.yaml"
+        - "examples/intent-templates/duckdb-intent-template/examples/analytics/analytics_templates.yaml"
       
       # Vector store for template matching
       template_collection_name: "duckdb_analytics_templates"
@@ -353,6 +372,8 @@ RetrieverFactory.register_retriever('intent_mynewdb', IntentMyNewDBRetriever)
 
 3. **Register in `__init__.py`**: Add import to `retrievers/implementations/intent/__init__.py`.
 
+A scaffold layer already exists to start from: `retrievers/implementations/templates/` contains `sql_template_retriever.py`, `template_retriever.py`, and `vector_template_retriever.py` — copy-paste starting points (with registration calls commented out) for a new SQL, generic, or vector retriever respectively. These aren't a separate retrieval paradigm and aren't wired into any adapter config; use `Intent*Retriever` classes for a new SQL/HTTP/GraphQL datasource with NL-to-query template matching, and reach for these templates only when building a genuinely new retriever type from scratch.
+
 ### Adding a New HTTP-Based API
 
 1. **Create the Retriever Class**:
@@ -440,7 +461,11 @@ fault_tolerance:
 
 ## Related Documentation
 
-- [Vector Store Architecture](./vector_store_architecture.md)
+- [Vector Store Architecture](./vector-stores/vector_store_architecture.md)
 - [Intent SQL/RAG System](./intent-sql-rag-system.md)
+- [Composite Intent Retriever](./adapters/composite-intent-retriever.md)
+- [Intent Agent Retriever](./adapters/intent-agent-retriever.md)
+- [File Adapter Guide](./adapters/file-adapter-guide.md)
+- [AWS Athena Credentials Setup](./aws/athena-credentials-setup.md)
 - [Datasource Pooling](./datasource-pooling.md)
 - [Configuration Reference (`config.yaml`)](../install/default-config/config.yaml)
