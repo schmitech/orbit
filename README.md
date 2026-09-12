@@ -140,7 +140,7 @@ orbit-chat --url http://localhost:3000 --key default-key
 
 <br />
 
-Or test it from the browser with [orbitcli](clients/orbitchat/):
+Or test it from the browser with [orbitchat](clients/orbitchat/):
 
 ```bash
 npm install -g orbitchat@latest
