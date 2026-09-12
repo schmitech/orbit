@@ -307,11 +307,11 @@ DocumentAdapterFactory.register_adapter("your_adapter_name", YourAdapterClass)
 
 For more in-depth information on specific retriever types, see the following guides:
 
--   **[Vector Retriever Architecture Guide](./vector-retriever-architecture.md)**: A guide for developers working with vector databases. It covers the architecture, supported databases, and how to add new ones.
+-   **[Vector Retriever Architecture Guide](../vector-stores/vector-retriever-architecture.md)**: A guide for developers working with vector databases. It covers the architecture, supported databases, and how to add new ones.
 
--   **[SQL Retriever Architecture & Implementation Guide](./sql-retriever-architecture.md)**: A guide for developers working with any SQL-based retriever. It covers architecture, configuration, best practices, and how to add support for new SQL databases.
+-   **[SQL Retriever Architecture & Implementation Guide](../sql-retriever-architecture.md)**: A guide for developers working with any SQL-based retriever. It covers architecture, configuration, best practices, and how to add support for new SQL databases.
 
--   **[Intent-SQL RAG System](./intent-sql-rag-system.md)**: A deep-dive into the powerful Intent-to-SQL system, explaining how to configure and extend it for any business domain.
+-   **[Intent-SQL RAG System](../intent-sql-rag-system.md)**: A deep-dive into the powerful Intent-to-SQL system, explaining how to configure and extend it for any business domain.
 
 -   **[Composite Intent Retriever](./composite-intent-retriever.md)**: A guide to the composite retriever that routes queries across multiple intent adapters to find the best matching data source.
 
