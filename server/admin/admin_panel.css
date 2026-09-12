@@ -347,7 +347,6 @@ textarea {
   gap: var(--sp-2);
   min-height: var(--workbar-h);
   padding: var(--sp-4) var(--sp-4);
-  border-bottom: 1px solid var(--rail-line);
 }
 
 .rail-logo {
@@ -605,9 +604,7 @@ textarea {
   gap: var(--sp-4);
   min-height: var(--workbar-h);
   padding: var(--sp-3) var(--sp-6);
-  background: var(--surface-translucent);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
+  background: var(--canvas);
 }
 
 .workbar-heading {
@@ -3555,11 +3552,6 @@ code.plain-code {
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
 }
 
 .monitoring-toolbar-left,

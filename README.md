@@ -127,7 +127,9 @@ comes with the `simple-chat` and `multimodal` adapters enabled, but you can use 
 to configure your own. See [`docs/adapters/`](docs/adapters/) for technical details on how the
 adapter system works.
 
-ORBIT starts at [http://localhost:3000](http://localhost:3000), and the dashboard at [http://localhost:3000/admin](http://localhost:3000/admin). Follow the tutorial to [verify the installation](docs/tutorial/before-you-start.md) and [create your first chat](docs/tutorial/first-chat.md).
+ORBIT starts at [http://localhost:3000](http://localhost:3000), and the dashboard at [http://localhost:3000/admin](http://localhost:3000/admin) - default credentials: admin/ChangeMe!2026.
+
+Follow the tutorial to [verify the installation](docs/tutorial/before-you-start.md) and [create your first chat](docs/tutorial/first-chat.md).
 
 <br />
 <div id="admin-panel-demo" align="center">
