@@ -119,10 +119,17 @@ npm install -g orbitchat@latest
 Point it at your running server and an API key:
 
 ```bash
-ORBIT_ADAPTER_KEYS='{"simple-chat":"orbit_YOUR_KEY"}' orbitchat --open
+cat > orbitchat.yaml <<'EOF'
+agentMode:
+  mode: "single"
+  defaultAdapterId: "simple-chat"
+adapters:
+  - id: "simple-chat"
+EOF
+ORBIT_ADAPTER_KEYS='{"simple-chat":"orbit_YOUR_KEY"}' orbitchat --config orbitchat.yaml --open
 ```
 
-That starts a local proxy and opens the browser at `http://localhost:5173`. The JSON maps an adapter ID to its ORBIT API key; OrbitChat keeps the real key in the proxy and the browser sends only the adapter name.
+That starts a local proxy and opens the browser at `http://localhost:5173`. The `adapters` list defines which adapter IDs are available; the JSON in `ORBIT_ADAPTER_KEYS` maps each adapter ID to its ORBIT API key. OrbitChat keeps the real key in the proxy and the browser sends only the adapter name.
 
 You can map multiple adapters the same way, or define richer names, descriptions, and backend URLs in `orbitchat.yaml` — see [`clients/orbitchat/README.md`](../../clients/orbitchat/README.md) for the full option reference, config format, and HTTP contract for custom frontends.
 
