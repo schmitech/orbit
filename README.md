@@ -36,41 +36,6 @@
   <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="85%"></video>
   <br />
   <em>Upload PDFs, documents, and images, then ask questions across all of them in one conversation. Context is preserved across turns, and local models keep every file and query on your infrastructure.</em>
-  <p>
-    <strong><a href="https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=after_demo">Try ORBIT Sandbox →</a></strong>
-    <br />
-    Explore demos for documents, databases, and tool-using agents.
-  </p>
-</div>
-
-## What you can build
-
-ORBIT can act as an [MCP server](docs/mcp_protocol.md), connect to external MCP servers as
-a [tool-using client](docs/tutorial/mcp-tool-calling.md), provide an [A2A endpoint](docs/a2a-protocol.md),
-serve requests through its [REST and OpenAI-compatible APIs](docs/tutorial/http-apis.md),
-support [real-time speech-to-speech over WebSocket](clients/realtime-voice/README.md),
-be integrated asynchronously through the [message-queue interface](docs/tutorial/message-queue-async.md),
-or be called from the [Node.js client](clients/node-api/). The demos below use
-the [OrbitChat client](https://www.npmjs.com/package/orbitchat) to showcase these
-capabilities through a conversational interface.
-
-| Goal | ORBIT handles |
-| :--- | :--- |
-| **Chat with private documents** | Upload PDFs, office documents, spreadsheets, images, and audio, then retrieve relevant context across the conversation. [Try the file and multimodal demo →](https://orbit.schmitech.ca/chat-with-files) |
-| **Query databases in natural language** | Run parameterized queries across SQL, MongoDB, Elasticsearch, and composite data sources. [Try the SQL demo →](https://orbit.schmitech.ca/intent-sql-postgres) |
-| **Analyze business data** | Explore sales and operational data with natural-language analytics over DuckDB. [Try the DuckDB analytics demo →](https://orbit.schmitech.ca/ecomm-analytics) |
-| **Query HR data** | Ask natural-language questions over a SQLite HR database using reviewed intent templates. [Try the HR SQLite demo →](https://orbit.schmitech.ca/hr-db-chatbot) |
-| **Query a MongoDB database** | Explore the sample MFlix movie database through natural-language intent queries. [Try the MongoDB MFlix demo →](https://orbit.schmitech.ca/intent-mongodb-mflix) |
-| **Join data and tools across systems** | Combine billing data from SQL, support SLA data from HTTP, and live CRM context from MCP tools in one place. [Try the Customer 360 demo →](https://orbit.schmitech.ca/composite-customer-360) |
-| **Talk to a grounded virtual assistant** | Use low-latency, natural speech-to-speech voice chat with responses grounded in knowledge sources. [Try the real-time voice demo →](https://orbit.schmitech.ca/real-time-voice-chat) |
-| **Query public data** | Ask natural-language questions against the City of Paris open-data events and activities API. [Try the Paris open-data demo →](https://orbit.schmitech.ca/intent-http-paris-opendata) |
-| **Build tool-using agents** | Give models scoped access to MCP servers with procedural skills, and bounded tool loops. [Try the MCP agent live →](https://orbit.schmitech.ca/mcp-business-sample) |
-
-<br />
-<div id="admin-panel-demo" align="center">
-  <video src="https://github.com/user-attachments/assets/e1f91fbb-f398-40f0-beb0-45129d4b0e34" controls muted playsinline width="85%"></video>
-  <br />
-  <em>The built-in admin panel is ORBIT's control plane—manage adapters, API keys, prompts, and system operations without touching server code.</em>
 </div>
 
 <br />
@@ -123,20 +88,6 @@ preset for the initial conversational adapter. Presets are defined in
 running the model pull command (run `ollama serve` in another terminal if
 Ollama is not already running).
 
-If you plan to use the retrieval adapters (file, SQL, etc.), also enable Ollama
-embeddings in `config/embeddings.yaml` and keep the model aligned with the
-download above:
-
-```yaml
-embedding:
-  provider: "ollama"
-  enabled: true
-
-embeddings:
-  ollama:
-    model: "nomic-embed-text"
-```
-
 All ORBIT behavior is managed through YAML: use `config/config.yaml` for global
 server settings, `config/inference.yaml` for provider enablement and credentials,
 `config/ollama.yaml` for Ollama presets, and the files under `config/adapters/`
@@ -145,12 +96,16 @@ for adapter behavior.
 To use another provider, enable it in `config/inference.yaml`, set its
 credential in `.env`, and select it globally or on the adapter that should use it.
 
-If you prefer not to install a local model, the prebuilt Docker flavors provide
-ready-to-run Ollama, OpenAI, and Gemini setups. See the [Docker flavor quick
-start](docker/README.md#flavor-images-recommended-pull-and-run) for the exact
-commands and required credentials.
+ORBIT starts at [http://localhost:3000](http://localhost:3000), and the dashboard at [http://localhost:3000/admin](http://localhost:3000/admin). Follow the tutorial to [verify the installation](docs/tutorial/before-you-start.md) and [create your first chat](docs/tutorial/first-chat.md).
 
-ORBIT starts at [http://localhost:3000](http://localhost:3000). Follow the tutorial to [verify the installation](docs/tutorial/before-you-start.md) and [create your first chat](docs/tutorial/first-chat.md).
+<br />
+<div id="admin-panel-demo" align="center">
+  <video src="https://github.com/user-attachments/assets/e1f91fbb-f398-40f0-beb0-45129d4b0e34" controls muted playsinline width="85%"></video>
+  <br />
+  <em>The built-in admin panel is ORBIT's control plane—manage adapters, API keys, prompts, and system operations without touching server code.</em>
+</div>
+
+<br />
 
 For a quick smoke test, the release seed includes `default-key` mapped to the
 `simple-chat` adapter:
@@ -168,14 +123,35 @@ curl -X POST http://localhost:3000/v1/chat \
   }'
 ```
 
-Or test it from a terminal with [orbit-cli](clients/orbit-cli/):
+Test it from a terminal with [orbit-cli](clients/orbit-cli/):
 
 ```bash
 npm install -g @schmitech/orbit-cli@latest
-
-orbit-chat --version
-orbit-chat --key default-key
+orbit-chat --url http://localhost:3000 --key default-key
 ```
+
+<br />
+
+<div id="multimodal-demo" align="left">
+  <video src="https://github.com/user-attachments/assets/ba9a96dd-ef76-40d6-b129-3406d427cb81" controls muted playsinline width="85%"></video>
+  <br />
+  <em>The ORBIT chat CLI tool.</em>
+</div>
+
+<br />
+
+Or test it from the browser with [orbitcli](clients/orbitchat/):
+
+```bash
+npm install -g orbitchat@latest
+cat > orbitchat.yaml <<'EOF'
+adapters:
+  - id: "simple-chat"
+EOF
+ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' orbitchat --config orbitchat.yaml
+```
+
+See [orbitchat.yaml.example](clients/orbitchat/orbitchat.yaml.example) for the full set of configuration options.
 
 For API-key creation, file uploads, and browser-based testing, continue with
 [Before you start](docs/tutorial/before-you-start.md).
