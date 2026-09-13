@@ -18,12 +18,14 @@ Prerequisites:
 1. MongoDB must be available and configured
 2. orbit.py CLI must be accessible
 3. Server must be running with authentication enabled
-4. Default admin credentials (admin/admin123) must be available
+4. Default admin credentials must be available (admin/ChangeMe!2026 unless
+   overridden by ORBIT_TEST_ADMIN_USERNAME and ORBIT_TEST_ADMIN_PASSWORD).
 """
 
 import subprocess
 import json
 import logging
+import re
 import time
 import pytest
 from typing import Optional, Any, Union
@@ -39,9 +41,23 @@ logger = logging.getLogger(__name__)
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 ORBIT_CLI = PROJECT_ROOT / "bin" / "orbit.py"
+ADMIN_USERNAME = os.getenv("ORBIT_TEST_ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ORBIT_TEST_ADMIN_PASSWORD", "ChangeMe!2026")
+TEST_USER_PASSWORD = "OrbitTest!2026"
+TEST_USER_NEW_PASSWORD = "OrbitNext!2027"
+LOGIN_WINDOW_SECONDS = max(
+    1, int(os.getenv("ORBIT_TEST_LOGIN_WINDOW_SECONDS", "60"))
+)
+# The server default is 10 attempts per IP. Keep one request in reserve for
+# activity outside this process and for boundary-clock differences.
+LOGIN_ATTEMPTS_PER_WINDOW = max(
+    1, int(os.getenv("ORBIT_TEST_LOGIN_ATTEMPTS_PER_WINDOW", "9"))
+)
 
 
 class CLITester:
+    _login_attempt_times: list[float] = []
+
     def __init__(self):
         self.created_api_keys = []
         self.created_prompts = []
@@ -57,6 +73,9 @@ class CLITester:
     
     def run_command(self, command: list[str], timeout: int = 30) -> dict[str, Any]:
         """Run a CLI command and return result"""
+        if command and command[0] == "login":
+            self._throttle_login_attempts()
+
         full_command = ["python", str(ORBIT_CLI)] + command
         logger.info(f"Running: {' '.join(full_command)}")
         
@@ -103,6 +122,31 @@ class CLITester:
                 "stderr": str(e),
                 "success": False
             }
+
+    @classmethod
+    def _throttle_login_attempts(cls) -> None:
+        """Keep the whole test process below the server's per-IP login limit."""
+        while True:
+            now = time.monotonic()
+            cutoff = now - LOGIN_WINDOW_SECONDS
+            cls._login_attempt_times = [
+                attempted_at
+                for attempted_at in cls._login_attempt_times
+                if attempted_at > cutoff
+            ]
+            if len(cls._login_attempt_times) < LOGIN_ATTEMPTS_PER_WINDOW:
+                cls._login_attempt_times.append(now)
+                return
+
+            wait_seconds = max(
+                0.01,
+                cls._login_attempt_times[0] + LOGIN_WINDOW_SECONDS - now + 0.1,
+            )
+            logger.info(
+                "Pausing %.1f seconds to stay below the server login rate limit",
+                wait_seconds,
+            )
+            time.sleep(wait_seconds)
     
     def extract_json_from_output(self, output: str) -> Optional[Union[dict[str, Any], list[Any]]]:
         """Extract JSON from CLI output that may contain additional text"""
@@ -178,6 +222,29 @@ class CLITester:
         """
         output_text = result["stdout"] + " " + result["stderr"]
         return any(pattern in output_text for pattern in error_patterns)
+
+    def _login_as_admin(self) -> dict[str, Any]:
+        """Log in as the test admin, retrying once after an IP rate limit."""
+        command = [
+            "login",
+            "--username", ADMIN_USERNAME,
+            "--password", ADMIN_PASSWORD,
+        ]
+        result = self.run_command(command)
+        output = result["stdout"] + " " + result["stderr"]
+        if result["success"] or "429" not in output:
+            return result
+
+        match = re.search(r'"retry_after"\s*:\s*(\d+)', output)
+        if not match:
+            return result
+
+        retry_after = int(match.group(1))
+        logger.info(
+            "Login rate limited; retrying once after %s seconds", retry_after
+        )
+        time.sleep(retry_after + 1)
+        return self.run_command(command)
     
     def cleanup(self):
         """Clean up temporary files and created resources"""
@@ -273,11 +340,21 @@ class CLITester:
         try:
             result = self.run_command(["status"])
             if result["success"]:
-                # Server status outputs formatted text with PID, uptime, memory, CPU
-                return "server is running" in result["stdout"].lower() or "pid:" in result["stdout"].lower()
+                return self.is_running_server_status(result["stdout"])
             return False
         except Exception:
             return False
+
+    @staticmethod
+    def is_running_server_status(output: str) -> bool:
+        """Recognize both the current status panel and the legacy prose output."""
+        normalized = " ".join(output.lower().split())
+        return (
+            "server is running" in normalized
+            or "server is paused" in normalized
+            or ("orbit" in normalized and "state running" in normalized)
+            or ("orbit" in normalized and "state paused" in normalized)
+        )
     
     def check_authentication_available(self) -> bool:
         """Check if authentication is available on the server"""
@@ -347,12 +424,8 @@ class CLITester:
         """Test authentication login"""
         logger.info("\n=== Testing Authentication Login ===")
         
-        # Try to login with default admin credentials
-        result = self.run_command([
-            "login",
-            "--username", "admin",
-            "--password", "admin123"
-        ])
+        # Try to login with the configured integration-test admin credentials.
+        result = self._login_as_admin()
         
         if result["success"]:
             # Login outputs success message with checkmark
@@ -442,7 +515,7 @@ class CLITester:
             logger.info("✓ Skipping user registration test (not logged in)")
             return True
         test_username = f"testuser_{int(time.time())}"
-        test_password = "testpass123"
+        test_password = TEST_USER_PASSWORD
         result = self.run_command([
             "register",
             "--username", test_username,
@@ -507,11 +580,7 @@ class CLITester:
         self.run_command(["logout"])
         
         # Then login
-        login_result = self.run_command([
-            "login",
-            "--username", "admin",
-            "--password", "admin123"
-        ])
+        login_result = self._login_as_admin()
         
         if not login_result["success"]:
             logger.info("✓ Skipping token persistence test (login failed)")
@@ -539,8 +608,7 @@ class CLITester:
         result = self.run_command(["status"])
         
         if result["success"]:
-            # Server status outputs formatted text with PID, uptime, memory, CPU
-            if "server is running" in result["stdout"].lower() or "server is not running" in result["stdout"].lower() or "pid:" in result["stdout"].lower():
+            if self.is_running_server_status(result["stdout"]):
                 logger.info("✓ Server status command successful")
                 return True
             else:
@@ -1225,7 +1293,7 @@ class CLITester:
         
         # Create a test user first
         test_username = f"cli_comprehensive_{int(time.time())}"
-        test_password = "testpass123"
+        test_password = TEST_USER_PASSWORD
         
         create_result = self.run_command([
             "register",
@@ -1235,10 +1303,13 @@ class CLITester:
         ])
         
         if not create_result["success"]:
-            if "403" in create_result["stderr"] or "Only administrators" in create_result["stderr"]:
+            if self._check_error_in_output(create_result, ["403", "Only administrators"]):
                 logger.info("✓ User registration requires admin privileges (expected)")
                 return True
-            logger.error(f"✗ Failed to create test user: {create_result['stderr']}")
+            logger.error(
+                f"✗ Failed to create test user: stdout: {create_result['stdout']} "
+                f"stderr: {create_result['stderr']}"
+            )
             return False
         
         self.test_users.append(test_username)
@@ -1247,7 +1318,7 @@ class CLITester:
         operations = [
             (["user", "list", "--role", "user"], "List users by role"),
             (["user", "list", "--active-only"], "List active users"),
-            (["user", "reset-password", "--username", test_username, "--password", "newpass123"], "Reset user password"),
+            (["user", "reset-password", "--username", test_username, "--password", TEST_USER_NEW_PASSWORD], "Reset user password"),
             (["user", "delete", "--user-id", "test_id", "--force"], "Delete user (will fail with test_id)")
         ]
         
@@ -1375,7 +1446,7 @@ class CLITester:
         
         # Create a temporary user for password change testing
         test_username = f"pwd_test_{int(time.time())}"
-        test_password = "original123"
+        test_password = TEST_USER_PASSWORD
         
         # Register the test user
         register_result = self.run_command([
@@ -1386,10 +1457,13 @@ class CLITester:
         ])
         
         if not register_result["success"]:
-            if "403" in register_result["stderr"] or "Only administrators" in register_result["stderr"]:
+            if self._check_error_in_output(register_result, ["403", "Only administrators"]):
                 logger.info("✓ Password change test requires admin privileges (expected)")
                 return True
-            logger.error(f"✗ Failed to create test user for password change: {register_result['stderr']}")
+            logger.error(
+                "✗ Failed to create test user for password change: "
+                f"stdout: {register_result['stdout']} stderr: {register_result['stderr']}"
+            )
             return False
         
         self.test_users.append(test_username)
@@ -1412,7 +1486,7 @@ class CLITester:
             return False
         
         # Test password change
-        new_password = "newpassword123"
+        new_password = TEST_USER_NEW_PASSWORD
         change_result = self.run_command([
             "user", "change-password",
             "--current-password", test_password,
@@ -1437,11 +1511,7 @@ class CLITester:
                     # Clean up - logout and login back as admin for remaining tests
                     self.run_command(["logout"])
                     # Login back as admin for remaining tests
-                    admin_login = self.run_command([
-                        "login",
-                        "--username", "admin",
-                        "--password", "admin123"
-                    ])
+                    admin_login = self._login_as_admin()
                     if admin_login["success"]:
                         self.logged_in = True
                     return True
@@ -1571,7 +1641,7 @@ class CLITester:
         
         # Create a test user first
         test_username = f"lookup_test_{int(time.time())}"
-        test_password = "lookuppass123"
+        test_password = TEST_USER_PASSWORD
         
         create_result = self.run_command([
             "register",
@@ -1581,10 +1651,13 @@ class CLITester:
         ])
         
         if not create_result["success"]:
-            if "403" in create_result["stderr"] or "Only administrators" in create_result["stderr"]:
+            if self._check_error_in_output(create_result, ["403", "Only administrators"]):
                 logger.info("✓ Server-side user lookup test requires admin privileges (expected)")
                 return True
-            logger.error(f"✗ Failed to create test user for lookup: {create_result['stderr']}")
+            logger.error(
+                f"✗ Failed to create test user for lookup: stdout: {create_result['stdout']} "
+                f"stderr: {create_result['stderr']}"
+            )
             return False
         
         self.test_users.append(test_username)
@@ -1593,7 +1666,7 @@ class CLITester:
         reset_result = self.run_command([
             "user", "reset-password",
             "--username", test_username,
-            "--password", "newpassword123"
+            "--password", TEST_USER_NEW_PASSWORD
         ])
         
         if reset_result["success"]:
@@ -1707,7 +1780,7 @@ class CLITester:
         
         # Create a test user first
         test_username = f"activation_test_{int(time.time())}"
-        test_password = "activationpass123"
+        test_password = TEST_USER_PASSWORD
         
         create_result = self.run_command([
             "register",
@@ -1717,10 +1790,13 @@ class CLITester:
         ])
         
         if not create_result["success"]:
-            if "403" in create_result["stderr"]:
+            if self._check_error_in_output(create_result, ["403"]):
                 logger.info("✓ User activation/deactivation test requires admin privileges (expected)")
                 return True
-            logger.error(f"✗ Failed to create test user: {create_result['stderr']}")
+            logger.error(
+                f"✗ Failed to create test user: stdout: {create_result['stdout']} "
+                f"stderr: {create_result['stderr']}"
+            )
             return False
         
         self.test_users.append(test_username)
