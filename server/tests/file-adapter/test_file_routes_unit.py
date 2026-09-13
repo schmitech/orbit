@@ -42,7 +42,7 @@ class DummyProcessingService:
             "chunk_count": 1,
         }
 
-    async def quick_upload(self, *, file_data, filename, mime_type, api_key, current_user_id=None):
+    async def quick_upload(self, *, file_data, filename, mime_type, api_key, current_user_id=None, current_user_email=None):
         self.received_mime_type = mime_type
         return "file-123"
 
@@ -54,6 +54,7 @@ def create_test_client(service: DummyProcessingService) -> TestClient:
     app = FastAPI()
     app.include_router(create_file_router())
     app.state.file_processing_service = service
+    app.state.config = {}
     return TestClient(app)
 
 
@@ -123,6 +124,7 @@ def test_file_query_audits_embedding_usage(monkeypatch):
     app.include_router(create_file_router())
     app.state.file_processing_service = service
     app.state.audit_service = audit_service
+    app.state.config = {}
     app.state.pricing_service = PricingService({
         "pricing": {
             "providers": {

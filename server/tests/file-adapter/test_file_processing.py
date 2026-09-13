@@ -685,7 +685,8 @@ async def test_file_processing_failure_status(tmp_path):
         tmp_path,
         db_name="test_orbit_failure.db",
         chunking_strategy='fixed',
-        chunk_size=100
+        chunk_size=100,
+        chunk_overlap=20
     )
 
     from services.file_metadata.metadata_store import FileMetadataStore

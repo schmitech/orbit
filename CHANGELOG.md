@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Bug Fixes
+- **File Query Endpoint Rejected Valid Requests**: `create_file_router()`'s router-level auth dependency exposed an untyped `adapter_config` parameter to FastAPI's dependency resolution, which forced `POST /api/files/{file_id}/query` to wrap its JSON body as `{"query_request": ...}` instead of matching `QueryRequest` directly, so any normal flat-body client request failed with a `422`. Added a request-only wrapper (`require_authenticated_user_dependency`) for router-level use, leaving the underlying `require_authenticated_user` unchanged for its other callers.
+
 ## [2.17.8] - 2026-09-08
 
 ### CLI & Tools

@@ -357,6 +357,21 @@ async def resolve_authenticated_user_ws(
     return user_info
 
 
+async def require_authenticated_user_dependency(request: Request) -> Optional[dict[str, Any]]:
+    """
+    FastAPI-injectable wrapper around `require_authenticated_user` for use as a
+    router-level dependency.
+
+    `require_authenticated_user`'s `adapter_config` parameter is a bare `dict`
+    with no Query/Path/Header annotation, so FastAPI's dependency resolution
+    treats it as a second request-body field — forcing any endpoint on the
+    router to receive its JSON body embedded under `{"query_request": ...}`
+    instead of matching its Pydantic model directly. This wrapper exposes only
+    `request`, so it can be safely attached at the router level.
+    """
+    return await require_authenticated_user(request)
+
+
 async def require_authenticated_user_ws(
     websocket: WebSocket,
     *,

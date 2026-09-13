@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from services.file_processing.file_processing_service import FileProcessingService
 from services.file_processing.magika_detector import FileValidationError
-from routes.auth_helpers import resolve_authenticated_user, resolve_authenticated_user_id, require_authenticated_user
+from routes.auth_helpers import resolve_authenticated_user, resolve_authenticated_user_id, require_authenticated_user_dependency
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ def create_file_router() -> APIRouter:
     # auth.require_authenticated_user flag applies here. Attaching the check
     # at the router level (rather than per-route) covers every route below,
     # including any added later, in one place.
-    router = APIRouter(tags=["files"], dependencies=[Depends(require_authenticated_user)])
+    router = APIRouter(tags=["files"], dependencies=[Depends(require_authenticated_user_dependency)])
     
     @router.post("/api/files/upload", response_model=UploadResponse)
     async def upload_file(
