@@ -224,7 +224,7 @@ class ApiKeyService:
             legacy_keys = await self.database.find_many(
                 self.collection_name, {"expiration_policy": None}, limit=100000, skip=0
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend scan call (mongodb/sqlite); best-effort legacy-key migration must not block startup
             logger.error(f"Error scanning for legacy API keys to migrate: {e!s}")
             return
 
@@ -426,7 +426,7 @@ class ApiKeyService:
                 **self._serialize_expiration(key_doc),
             }
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error getting API key status: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error checking API key status: {e!s}")
     
@@ -521,7 +521,7 @@ class ApiKeyService:
             logger.warning(f"API key {masked_key} has no associated adapter")
             return False, None, None
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - auth validation path must fail safe (return False) rather than crash the caller, matching auth_service.py
             logger.error(f"Error validating API key: {e!s}")
             return False, None, None
     
@@ -817,7 +817,7 @@ class ApiKeyService:
         except HTTPException:
             # Re-raise HTTP exceptions as-is
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error creating API key: {e!s}")
             raise HTTPException(status_code=500, detail=f"Failed to create API key: {e!s}")
     
@@ -883,7 +883,7 @@ class ApiKeyService:
                 
             return result
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error updating API key system prompt: {e!s}")
             return False
 
@@ -925,7 +925,7 @@ class ApiKeyService:
                     cleared,
                 )
             return cleared
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error clearing API key prompt associations: {e!s}")
             return 0
 
@@ -1012,7 +1012,7 @@ class ApiKeyService:
             )
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error updating API key metadata: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error updating API key metadata: {e!s}")
     
@@ -1051,7 +1051,7 @@ class ApiKeyService:
                 "system_prompt": system_prompt_info,
                 **self._serialize_expiration(key_doc),
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error getting API key status by id: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error checking API key status: {e!s}")
 
@@ -1118,7 +1118,7 @@ class ApiKeyService:
             return result
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error renaming API key by id: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error renaming API key: {e!s}")
 
@@ -1133,7 +1133,7 @@ class ApiKeyService:
             )
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error deactivating API key by id: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error deactivating API key: {e!s}")
 
@@ -1148,7 +1148,7 @@ class ApiKeyService:
             )
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error activating API key by id: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error activating API key: {e!s}")
 
@@ -1160,7 +1160,7 @@ class ApiKeyService:
             return await self.database.delete_one(self.collection_name, {"_id": doc_id})
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error deleting API key by id: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error deleting API key: {e!s}")
 
@@ -1210,7 +1210,7 @@ class ApiKeyService:
         except HTTPException:
             # Re-raise HTTP exceptions as-is
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error renaming API key: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error renaming API key: {e!s}")
 
@@ -1230,7 +1230,7 @@ class ApiKeyService:
                 {"api_key": api_key},
                 {"$set": {"active": False}}
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error deactivating API key: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error deactivating API key: {e!s}")
     
@@ -1246,7 +1246,7 @@ class ApiKeyService:
         """
         try:
             return await self.database.delete_one(self.collection_name, {"api_key": api_key})
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error deleting API key: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error deleting API key: {e!s}")
     

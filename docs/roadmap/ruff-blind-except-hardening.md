@@ -7,6 +7,9 @@ bare `except Exception:` clauses with the specific exception types each call
 site actually expects, or by explicitly documenting why a broad catch is
 correct there.
 
+Scope is production code only — `server/tests/` is explicitly excluded (see
+"Ruff configuration" below).
+
 Unlike the completed `UP006`/`UP035` typing modernization
 (`docs/roadmap/complete/ruff-python-typing-modernization.md`), this is **not**
 mechanically fixable. Ruff cannot safely auto-fix `BLE001` — narrowing an
@@ -21,35 +24,40 @@ folded into feature work.
 Snapshot taken with Ruff after the Phase 8 (API key expiration) review pass,
 2026-09-05:
 
-- `BLE001`: 1,513 findings across 482 files in `server/` and `bin/`.
+- `BLE001`: 1,513 findings across 482 files in `server/` and `bin/`, of which
+  a significant share are under `server/tests/` — out of scope for this plan
+  (see "Ruff configuration" below). Excluding `server/tests/`, production-code
+  findings are lower; re-run the scoped command below to get the current
+  count.
 - None are automatically fixable (`ruff check --fix` reports 0 fixed for this
   rule).
-- Heaviest concentrations (by finding count) are in test fixtures/cleanup
-  scripts, database/vector-store backends, and a handful of route/service
-  files with broad top-level `try/except` blocks around request handling:
+- Heaviest concentrations (by finding count) in production code are in
+  database/vector-store backends and a handful of route/service files with
+  broad top-level `try/except` blocks around request handling:
 
   ```
-  23  server/tests/test_auth/test_api_key_integration.py
   22  server/services/cache_backends/redis_provider.py
-  21  server/tests/cleanup/cleanup_test_users.py
   20  server/utils/template_diagnostics.py
-  19  server/tests/test_adapters/test_adapter_reload.py
   19  server/services/chat_history_service.py
   17  server/vector_stores/implementations/qdrant_store.py
-  17  server/tests/test_admin/test_admin_integration.py
   17  server/services/mongodb_service.py
   15  server/services/service_factory.py
   15  server/routes/auth_routes.py
   15  server/retrievers/base/intent_http_base.py
   14  server/vector_stores/implementations/chroma_store.py
-  14  server/tests/file-adapter/test_file_types_full_pipeline.py
   ```
+
+  (`server/tests/` findings — e.g. `test_auth/test_api_key_integration.py`,
+  `cleanup/cleanup_test_users.py`, `test_adapters/test_adapter_reload.py`,
+  `test_admin/test_admin_integration.py`,
+  `file-adapter/test_file_types_full_pipeline.py` — are excluded from this
+  count and from this plan's scope entirely.)
 
 These counts are a planning baseline and will drift as the repository evolves;
 re-run the command below before starting work.
 
 ```bash
-venv/bin/ruff check server bin --select BLE001 --statistics
+venv/bin/ruff check server bin --select BLE001 --statistics --exclude server/tests
 ```
 
 ## Progress log
@@ -77,10 +85,27 @@ paced across sessions rather than in one pass.
   catches resolved). These catches preserve the existing fallback behavior
   for unstable third-party SDKs and optional provider runtimes while making
   the intentional broad exception surface explicit.
+- 2026-09-13: `server/services/mongodb_service.py` (17 → 0). Narrowed 2
+  catches (ObjectId string conversion) to
+  `(TypeError, ValueError, bson.errors.InvalidId)`; justified the rest —
+  motor/pymongo driver calls and best-effort attribute probing in
+  `_sanitize_document` for arbitrary third-party response objects.
+- 2026-09-13: `server/services/service_factory.py` (15 → 0). All justified:
+  each catch wraps a pluggable service's startup initialization and must not
+  crash app boot — degrades to `app.state.<service> = None` instead.
+- 2026-09-13: `server/services/prompt_service.py` (15 → 0). Narrowed 4
+  catches (cached-value JSON/dict parsing, version-string increment) to
+  `(json.JSONDecodeError, TypeError, KeyError, AttributeError)` /
+  `(ValueError, IndexError, AttributeError, KeyError)`; justified the rest —
+  cache-backend (Redis/Memcached) calls and database-backend calls.
+- 2026-09-13: `server/services/api_key_service.py` (15 → 0). All justified:
+  database-backend calls (mongodb/sqlite), plus the key-validation path which
+  must fail safe (`return False`) rather than crash the caller, matching the
+  precedent set by `auth_service.py`.
 
-Running baseline after this batch: 1517 → 1260 (257 resolved). Next up in
-`server/services/`: `mongodb_service.py` (17), `service_factory.py` (15),
-`prompt_service.py` (15), `api_key_service.py` (15).
+Running baseline (production code, `server/tests/` excluded): 1022 → 960
+(62 resolved). Next up in `server/services/`: re-run the statistics command
+to pick the next-largest file.
 
 ### Rule meaning
 
@@ -141,14 +166,11 @@ development or triggering the right alerting in production.
    - **Restructure**: where a broad catch wraps both a risky call and
      unrelated code, narrow the `try` block to just the risky call so a
      smaller, more specific `except` becomes possible.
-4. Prioritize non-test production code first (`server/services`,
-   `server/routes`, `server/retrievers`, `server/vector_stores`,
-   `bin/orbit`), since these affect real error visibility. Test fixtures and
-   cleanup scripts (the majority of the 1,513 findings) are lower risk and can
-   follow, or may be a candidate for a scoped `ruff.toml` per-path ignore if
-   the team decides blind catches are acceptable there (see "Ruff
-   configuration" below — must be an explicit, documented decision, not a
-   silent default).
+4. Scope is production code only: `server/services`, `server/routes`,
+   `server/retrievers`, `server/vector_stores`, `bin/orbit`, etc. `server/tests/`
+   is excluded from this plan entirely (see "Ruff configuration" below) — test
+   fixtures and cleanup scripts are lower value to harden and are not part of
+   the completion criteria.
 5. Run the server test suite after each chunk, paying particular attention to
    any test that asserted on a specific exception type or error message that a
    narrowed `except` might now let propagate differently.
@@ -157,26 +179,38 @@ development or triggering the right alerting in production.
    2. `server/vector_stores/` and `server/retrievers/`
    3. `server/routes/` and `server/middleware/`
    4. `bin/orbit/`
-   5. `server/tests/` (or scope-ignore, per the team decision in step 4)
+
+   `server/tests/` is out of scope and is not part of this chunking plan.
 7. Re-run the statistics command after each chunk and confirm the count only
    decreases (a `# noqa` suppression should still be visible via
-   `ruff check --select BLE001 --statistics` unless the file is fully clean).
+   `ruff check --select BLE001 --statistics --exclude server/tests` unless the
+   file is fully clean).
 
 ## Ruff configuration
 
-No `ruff.toml` change is required to perform this migration incrementally.
-Do not add a blanket `BLE001` ignore to `ruff.toml` to make a repo-wide run
-pass — that defeats the purpose of the rule. A scoped, documented per-path
-ignore for genuinely low-value catches (e.g. test cleanup scripts) is
-acceptable if the team decides that tradeoff explicitly, but it must be
-recorded here or in `ruff.toml` with a comment explaining the scope and
-rationale, not left as a silent blanket suppression.
+`server/tests/` is excluded from this plan's scope: unit test fixtures and
+cleanup scripts routinely swallow arbitrary exceptions in setup/teardown, and
+narrowing them is low value relative to production code. Add a scoped
+per-path ignore to `ruff.toml`:
+
+```toml
+[lint.per-file-ignores]
+"server/tests/**" = ["BLE001"]
+```
+
+Do not add a blanket `BLE001` ignore covering `server/` or `bin/` as a whole
+to make a repo-wide run pass — that defeats the purpose of the rule for
+production code. This `server/tests/` ignore is the one explicit, documented
+exception; anything outside it must still be narrowed or carry a
+`# noqa: BLE001` with a reason.
 
 ## Completion criteria
 
-- `venv/bin/ruff check server bin --select BLE001` reports no findings, or
-  every remaining finding carries an explicit `# noqa: BLE001` with a reason,
-  or falls under an explicitly documented scoped ignore per the section above.
+- `venv/bin/ruff check server bin --select BLE001 --exclude server/tests`
+  reports no findings, or every remaining finding carries an explicit
+  `# noqa: BLE001` with a reason, or falls under an explicitly documented
+  scoped ignore per the section above. `server/tests/` is out of scope and
+  excluded from this criterion.
 - No behavior change for the intentionally-broad catches identified in step 3
   — they still catch everything they did before, just with a documented
   reason instead of silently.

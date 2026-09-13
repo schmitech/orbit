@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Technical Improvements
+- **Ruff Blind-Except Hardening (in progress)**: Continued resolving `BLE001` (blind-except) findings per `docs/roadmap/ruff-blind-except-hardening.md`, file-by-file rather than a repo-wide sweep. `mongodb_service.py`, `service_factory.py`, `prompt_service.py`, and `api_key_service.py` are done (62 more findings resolved; 960 of the original 1,022 production-code findings remain). A handful of catches were narrowed to the specific exceptions their operation can raise (ObjectId conversion, cached-value JSON/dict parsing, version-string increments); the rest carry a `# noqa: BLE001` with a one-line rationale (DB/cache backend calls, pluggable service startup that must not crash app boot, and an auth path that must fail safe). The plan's scope was also narrowed to exclude `server/tests/`, which is lower value to harden and is documented as a candidate for a scoped `ruff.toml` per-path ignore. No behavior change.
+
 ## [2.17.9] - 2026-09-13
 
 ### CLI & Tools

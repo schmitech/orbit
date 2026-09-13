@@ -18,6 +18,7 @@ from collections.abc import Callable, Awaitable
 from fastapi import HTTPException
 from datetime import datetime
 from bson import ObjectId
+from bson.errors import InvalidId
 
 from services.database_service import DatabaseDuplicateKeyError, DatabaseOperationError, DatabaseService
 from utils.id_utils import id_to_string
@@ -116,7 +117,7 @@ class MongoDBService(DatabaseService):
             logger.debug(f"Using database '{database}'")
             logger.debug("MongoDB Service initialized successfully")
             self._initialized = True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo connection setup can raise from a wide, version-dependent driver hierarchy
             logger.error(f"Failed to initialize MongoDB Service: {e!s}")
             logger.error(f"MongoDB connection details: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}")
             raise HTTPException(status_code=500, detail=f"Failed to initialize MongoDB Service: {e!s}")
@@ -208,7 +209,7 @@ class MongoDBService(DatabaseService):
                     else:
                         # Not an ObjectId format, keep as string
                         converted_query[key] = value
-                except Exception:
+                except (TypeError, ValueError, InvalidId):
                     # If conversion fails, keep as string
                     converted_query[key] = value
             elif isinstance(value, dict):
@@ -271,29 +272,29 @@ class MongoDBService(DatabaseService):
                     # Otherwise, recursively sanitize the body
                     else:
                         return self._sanitize_document(body)
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort probe of an arbitrary object's attributes; any failure falls through to the next strategy
                     pass
-            
+
             # Try to convert object to dict if it has a to_dict method
             if hasattr(data, 'to_dict'):
                 try:
                     return self._sanitize_document(data.to_dict())
-                except Exception:
+                except Exception:  # noqa: BLE001 - to_dict() is caller-defined and can raise anything; fall through to the next strategy
                     pass
-            
+
             # Try dict-like access (some response objects support this)
             try:
                 if hasattr(data, 'get') and callable(data.get):
                     # Try to convert to dict using dict() constructor if possible
                     return self._sanitize_document(dict(data))
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort probe of an arbitrary object's dict-like interface; fall through to the next strategy
                 pass
-            
+
             # Try to convert using __dict__
             if hasattr(data, '__dict__'):
                 try:
                     return self._sanitize_document(data.__dict__)
-                except Exception:
+                except Exception:  # noqa: BLE001 - last-resort probe before falling back to str(data)
                     pass
             
             # Last resort: convert to string representation
@@ -328,7 +329,7 @@ class MongoDBService(DatabaseService):
             result = await collection.find_one(converted_query)
             # Convert ObjectIds to strings for JSON serialization
             return self._convert_objectids_to_string(result) if result else None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
             logger.error(f"Error finding document in {collection_name}: {e!s}")
             return None
 
@@ -341,7 +342,7 @@ class MongoDBService(DatabaseService):
             converted_query = self._convert_string_ids_to_objectid(query)
             result = await collection.find_one(converted_query)
             return self._convert_objectids_to_string(result) if result else None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
             logger.error(f"Error finding document in {collection_name}: {e!s}")
             raise DatabaseOperationError(str(e)) from e
 
@@ -385,7 +386,7 @@ class MongoDBService(DatabaseService):
             results = await cursor.to_list(length=limit)
             # Convert ObjectIds to strings for JSON serialization
             return self._convert_objectids_to_string(results)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
             logger.error(f"Error finding documents in {collection_name}: {e!s}")
             return []
     
@@ -416,7 +417,7 @@ class MongoDBService(DatabaseService):
             # callers (e.g. auth_service._find_or_create_external_user) that catch
             # DatabaseDuplicateKeyError for graceful concurrent-insert handling work.
             raise DatabaseDuplicateKeyError(str(e)) from e
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
             logger.error(f"Error inserting document into {collection_name}: {e!s}")
             logger.error(f"Document that failed: {str(document)[:500]}...")  # Log first 500 chars for debugging
             return None
@@ -442,7 +443,7 @@ class MongoDBService(DatabaseService):
             converted_query = self._convert_string_ids_to_objectid(query)
             result = await collection.update_one(converted_query, update)
             return result.modified_count > 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
             logger.error(f"Error updating document in {collection_name}: {e!s}")
             return False
 
@@ -493,7 +494,7 @@ class MongoDBService(DatabaseService):
                 ],
             )
             return result.modified_count > 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
             logger.error(f"Error recording failed login attempt: {e!s}")
             return False
     
@@ -517,7 +518,7 @@ class MongoDBService(DatabaseService):
             converted_query = self._convert_string_ids_to_objectid(query)
             result = await collection.delete_one(converted_query)
             return result.deleted_count > 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
             logger.error(f"Error deleting document from {collection_name}: {e!s}")
             return False
     
@@ -541,7 +542,7 @@ class MongoDBService(DatabaseService):
             converted_query = self._convert_string_ids_to_objectid(query)
             result = await collection.delete_many(converted_query)
             return result.deleted_count
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
             logger.error(f"Error deleting documents from {collection_name}: {e!s}")
             return 0
 
@@ -554,7 +555,7 @@ class MongoDBService(DatabaseService):
             collection = self.get_collection(collection_name)
             converted_query = self._convert_string_ids_to_objectid(query)
             return await collection.count_documents(converted_query)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
             logger.error(f"Error counting documents in {collection_name}: {e!s}")
             return 0
 
@@ -579,7 +580,7 @@ class MongoDBService(DatabaseService):
             deleted_count = result.deleted_count
             logger.info(f"Cleared {deleted_count} documents from collection '{collection_name}'")
             return deleted_count
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
             logger.error(f"Error clearing collection {collection_name}: {e!s}")
             return 0
 
@@ -596,7 +597,7 @@ class MongoDBService(DatabaseService):
         if isinstance(id_value, str):
             try:
                 return ObjectId(id_value)
-            except Exception as e:
+            except (TypeError, ValueError, InvalidId) as e:
                 logger.error(f"Failed to convert ID '{id_value}' to ObjectId: {e!s}")
                 raise ValueError(f"Invalid ObjectId format: {id_value}")
         return id_value
@@ -690,7 +691,7 @@ class MongoDBService(DatabaseService):
                 try:
                     if hasattr(instance, 'close') and instance.client:
                         instance.client.close()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort cleanup during cache clear; must not stop closing remaining instances
                     logger.warning(f"Error closing MongoDB client: {e}")
             
             cls._instances.clear()

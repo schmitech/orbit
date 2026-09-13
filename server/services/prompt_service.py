@@ -69,7 +69,7 @@ class PromptService:
                     logger.debug("Cache service instance created for prompt caching")
                 else:
                     logger.debug("Cache service disabled in configuration for prompt caching")
-            except Exception as exc:  # pragma: no cover - defensive guard if backend unavailable
+            except Exception as exc:  # noqa: BLE001 - pragma: no cover - cache backend construction is pluggable (Redis/Memcached/...), must not block service construction
                 logger.warning(f"Failed to initialize cache service for prompt caching: {exc}")
                 self.cache_service = None
                 logger.debug("  → Continuing without cache support")
@@ -93,7 +93,7 @@ class PromptService:
                 else:
                     logger.debug("  → Cache TTL: No expiration (persistent cache)")
                 logger.debug("  → Cache keys format: prompt:<ObjectId>")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - cache backend initialize() call; must not fail prompt service startup, caching is optional
                 logger.warning(f"✗ Disabling prompt caching due to cache service initialization error: {exc}")
                 self.cache_service = None
                 logger.debug("  → Prompts will be fetched from the database on every request")
@@ -147,7 +147,7 @@ class PromptService:
             prompt_id = await self.database.insert_one(self.collection_name, prompt_doc)
             logger.debug(f"Created new prompt '{name}' with ID: {prompt_id}")
             return prompt_id
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error creating prompt: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error creating prompt: {e!s}")
     
@@ -195,7 +195,7 @@ class PromptService:
                         prompt_size = len(cached_value)
                         logger.debug(f"  → Saved MongoDB query, returned {prompt_size} bytes from cache")
                         return cached_prompt
-                    except Exception as exc:
+                    except (json.JSONDecodeError, TypeError, KeyError, AttributeError) as exc:
                         logger.warning(f"Failed to parse cached prompt for key {cache_key}: {exc}")
                         logger.debug("  → Cache entry corrupted, will fetch from MongoDB")
                 else:
@@ -210,7 +210,7 @@ class PromptService:
                     lock_acquired = await self.cache_service.set_if_not_exists(
                         lock_key, "1", ttl=10
                     )
-                except Exception:
+                except Exception:  # noqa: BLE001 - cache backend call for stampede-protection lock; must not fail the read on a cache error
                     lock_acquired = True  # Proceed without lock on error
 
                 if not lock_acquired:
@@ -228,7 +228,7 @@ class PromptService:
                                     except (ValueError, TypeError):
                                         pass
                             return retried_prompt
-                        except Exception:
+                        except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
                             pass
                     # Still no cache — fall through to DB query
 
@@ -264,14 +264,14 @@ class PromptService:
                             logger.debug(f"  → Prompt '{prompt.get('name')}' v{prompt.get('version')} now available in cache")
                         else:
                             logger.warning(f"✗ Failed to cache prompt {cache_key} - cache set returned False")
-                    except Exception as exc:
+                    except Exception as exc:  # noqa: BLE001 - cache backend write; must not fail the read when caching fails
                         logger.warning(f"Failed to cache prompt {cache_key}: {exc}")
                         logger.debug("  → Cache write failed, but prompt still returned from MongoDB")
             else:
                 logger.warning(f"No prompt found for ID: {prompt_id}")
 
             return prompt
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error retrieving prompt: {e!s}")
             return None
     
@@ -287,7 +287,7 @@ class PromptService:
         """
         try:
             return await self.database.find_one(self.collection_name, {"name": name})
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error retrieving prompt by name: {e!s}")
             return None
     
@@ -323,7 +323,7 @@ class PromptService:
                 prompt["_id"] = str(prompt["_id"])
                 
             return prompts
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error listing prompts: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error listing prompts: {e!s}")
     
@@ -380,7 +380,7 @@ class PromptService:
                     else:
                         # Fallback to just appending .1
                         update_doc["version"] = f"{current_version}.1"
-                except Exception:
+                except (ValueError, IndexError, AttributeError, KeyError):
                     # If version parsing fails, just add .1
                     update_doc["version"] = f"{current_prompt['version']}.1"
 
@@ -397,7 +397,7 @@ class PromptService:
                 logger.warning(f"Prompt with ID {prompt_id_str} was not modified")
                 
             return success
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error updating prompt: {e!s}")
             return False
     
@@ -424,7 +424,7 @@ class PromptService:
 
             # Use original prompt_id (database service handles backend-specific format)
             return await self.database.delete_one(self.collection_name, {"_id": prompt_id})
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error deleting prompt: {e!s}")
             return False
 
@@ -457,7 +457,7 @@ class PromptService:
                         cached_data = json.loads(cached_value)
                         stats["cached_prompt_name"] = cached_data.get("name")
                         stats["cached_prompt_version"] = cached_data.get("version")
-                    except Exception:
+                    except (json.JSONDecodeError, AttributeError):
                         pass
 
         return stats
@@ -489,6 +489,6 @@ class PromptService:
                 # Clear all prompt caches (would need to track keys or use pattern matching)
                 logger.debug("Bulk cache clear not implemented - clear specific prompts instead")
                 return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - cache backend delete() call; exception surface not fully known or stable across providers
             logger.error(f"Error clearing prompt cache: {e!s}")
             return False
