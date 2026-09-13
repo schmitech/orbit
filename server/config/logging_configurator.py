@@ -15,7 +15,7 @@ import time
 import logging
 import logging.handlers
 from typing import Any
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger.json import JsonFormatter
 from utils import is_true_value
 
 
@@ -115,7 +115,7 @@ class LoggingConfigurator:
         
         # Create formatters based on configuration
         text_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        json_formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+        json_formatter = JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
         
         # Configure console logging
         handlers = log_config.get('handlers', {})

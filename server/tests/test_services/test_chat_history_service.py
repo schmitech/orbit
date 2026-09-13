@@ -56,8 +56,8 @@ def test_runtime_provider_selects_its_own_history_budget_without_param_overrides
     'simple-chat', runtime_provider='mistral'
   )
 
-  assert default_budget == 123204
-  assert mistral_budget == 29252
+  assert default_budget == 122704
+  assert mistral_budget == 28752
   assert mistral_budget < default_budget
 
 

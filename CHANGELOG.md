@@ -8,6 +8,8 @@
 ### Bug Fixes
 - **File Query Endpoint Rejected Valid Requests**: `create_file_router()`'s router-level auth dependency exposed an untyped `adapter_config` parameter to FastAPI's dependency resolution, which forced `POST /api/files/{file_id}/query` to wrap its JSON body as `{"query_request": ...}` instead of matching `QueryRequest` directly, so any normal flat-body client request failed with a `422`. Added a request-only wrapper (`require_authenticated_user_dependency`) for router-level use, leaving the underlying `require_authenticated_user` unchanged for its other callers.
 - **Deprecated `datetime.utcnow()` in `ChunkManager`**: Replaced all four uses of the deprecated, timezone-naive `datetime.utcnow()` in `chunk_manager.py` with timezone-aware `datetime.now(UTC)`, removing the `DeprecationWarning`s raised across the chunking safeguards test suite.
+- **Deprecated `datetime.utcfromtimestamp()` in Admin Logs**: Replaced the deprecated `datetime.utcfromtimestamp()` call in `routes/admin/logs.py`'s log-tail endpoint with timezone-aware `datetime.fromtimestamp(mtime, timezone.utc)`, removing the `DeprecationWarning` raised in the admin permission guard tests.
+- **Deprecated `pythonjsonlogger.jsonlogger` Import**: `logging_configurator.py` imported `pythonjsonlogger.jsonlogger`, which the installed `python-json-logger` 4.2.0 has moved to `pythonjsonlogger.json` and warns on import. Updated to import `JsonFormatter` from the new module path, removing the `DeprecationWarning` raised across the test suite.
 
 ## [2.17.8] - 2026-09-08
 

@@ -415,8 +415,10 @@ async def test_thread_expiration(test_services):
     thread = await services['thread'].get_thread(thread_id)
     assert thread is not None  # Record still exists
 
-    # Parse expires_at and verify it's in the past
-    thread_expires = datetime.fromisoformat(thread['expires_at'].replace('Z', '+00:00'))
+    # expires_at comes back from SQLiteService as a parsed datetime; verify it's in the past
+    thread_expires = thread['expires_at']
+    if isinstance(thread_expires, str):
+        thread_expires = datetime.fromisoformat(thread_expires.replace('Z', '+00:00'))
     assert thread_expires < datetime.now(UTC)
 
 

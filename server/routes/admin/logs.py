@@ -3,7 +3,7 @@ Log file discovery and tailing endpoints.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException, Query
 
@@ -101,6 +101,6 @@ def tail_log_file(
     return {
         "file": str(log_path),
         "filename": log_path.name,
-        "updated_at": datetime.utcfromtimestamp(mtime).isoformat() + "Z",
+        "updated_at": datetime.fromtimestamp(mtime, timezone.utc).isoformat().replace("+00:00", "Z"),
         "lines": tail_lines,
     }
