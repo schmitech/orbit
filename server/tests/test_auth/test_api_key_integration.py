@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Server configuration
 SERVER_URL = "http://localhost:3000"
 DEFAULT_USERNAME = "admin"
-DEFAULT_PASSWORD = "admin123"
+DEFAULT_PASSWORD = "ChangeMe!2026"
 
 # Check environment variable for password
 env_password = os.getenv('ORBIT_DEFAULT_ADMIN_PASSWORD')
@@ -68,17 +68,15 @@ class ApiKeyAuthTester:
             return False
     
     async def check_auth_enabled(self) -> bool:
-        """Check if authentication is enabled on the server"""
-        try:
-            async with self.session.post(
-                f"{self.base_url}/auth/login",
-                json={"username": "test", "password": "test"},
-                headers={"Content-Type": "application/json"},
-                timeout=5
-            ) as response:
-                return response.status in [401, 503]  # Auth enabled returns 401, disabled returns 404
-        except Exception:
-            return True  # Assume enabled if we can't determine
+        """
+        Check if authentication is enabled on the server.
+
+        The integration environment has authentication enabled. Avoid invalid
+        login probes because they consume the shared IP login-rate-limit
+        bucket and can trip the account lockout policy, blocking this
+        integration suite.
+        """
+        return True
     
     async def authenticate_admin(self) -> bool:
         """Authenticate as admin if auth is enabled"""
