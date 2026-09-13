@@ -56,7 +56,7 @@
 # If --download-gguf is used without a value, it defaults to gemma3-270m if present in the config.
 #
 # Platform / dependency notes:
-#   1. Use Python 3.12 whenever possible. The script selects the best interpreter and installs tomli automatically.
+#   1. Python 3.11+ is required; Python 3.12 is recommended for full ML support. The script selects the best interpreter.
 #   2. PyTorch/docling installs now honour --torch-backend (cpu, cuda, metal, auto). CUDA installs pull wheels from
 #      https://download.pytorch.org/whl/${CUDA_VER:-cu121}, CPU installs use the CPU wheel channel, and Metal targets the macOS wheel.
 #      vLLM (GPU-only) is skipped unless a CUDA GPU is detected or explicitly requested.
@@ -734,9 +734,12 @@ select_python_version() {
     declare -a PYTHON_STATUS
     declare -a PYTHON_EMOJI
 
-    for cmd in python3.12 python3.13 python3.11 python3.10 python3.9 python3; do
+    for cmd in python3.12 python3.13 python3.11 python3; do
         version=$(get_python_version "$cmd")
         if [ -n "$version" ]; then
+            if ! "$cmd" -c 'import sys; raise SystemExit(sys.version_info < (3, 11))' 2>/dev/null; then
+                continue
+            fi
             # Check if we already have this version
             already_added=false
             for existing in "${PYTHON_VERSIONS[@]}"; do
@@ -777,7 +780,7 @@ select_python_version() {
     if [ ${#PYTHON_VERSIONS[@]} -eq 0 ]; then
         print_message "red" "No Python installations found!" >&2
         echo "" >&2
-        print_message "yellow" "Install Python 3.12: brew install python@3.12" >&2
+        print_message "yellow" "Install Python 3.12 (recommended): brew install python@3.12" >&2
         exit 1
     fi
 
@@ -867,10 +870,11 @@ if [ -n "$PYTHON_CMD_OVERRIDE" ]; then
     fi
     PYTHON_CMD="$PYTHON_CMD_OVERRIDE"
     selected_version=$(get_python_version "$PYTHON_CMD")
-    if [ -n "$selected_version" ]; then
+    if [ -n "$selected_version" ] && "$PYTHON_CMD" -c 'import sys; raise SystemExit(sys.version_info < (3, 11))'; then
         print_message "green" "✓ Selected: Python $selected_version ($PYTHON_CMD) via --python-cmd"
     else
-        print_message "yellow" "Using provided Python command: $PYTHON_CMD"
+        print_message "red" "Error: Python 3.11 or higher is required (Python 3.12 is recommended)."
+        exit 1
     fi
 else
     PYTHON_CMD=$(select_python_version)
@@ -883,7 +887,7 @@ else
     print_message "blue" "Torch backend forced via CLI: $RESOLVED_TORCH_BACKEND"
 fi
 
-# Install TOML parser dependency before invoking the parser (needed for Python <= 3.10)
+# Install TOML parser dependency before invoking the parser when needed.
 install_toml_parser
 
 # If list profiles is requested, show them and exit

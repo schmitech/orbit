@@ -45,14 +45,18 @@ print_success() {
 # Function to check Python version
 check_python_version() {
     local python_cmd="$1"
-    local min_version="3.12"
+    local min_major=3
+    local min_minor=11
     
     if ! command -v "$python_cmd" &> /dev/null; then
         return 1
     fi
     
-    local version=$("$python_cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-    if [[ $(echo "$version >= $min_version" | bc) -eq 1 ]]; then
+    local version
+    version=$("$python_cmd" -c 'import sys; print(f"{sys.version_info.major} {sys.version_info.minor}")')
+    local major=${version%% *}
+    local minor=${version##* }
+    if [[ "$major" -gt "$min_major" ]] || [[ "$major" -eq "$min_major" && "$minor" -ge "$min_minor" ]]; then
         return 0
     else
         return 1
@@ -61,7 +65,7 @@ check_python_version() {
 
 # Find the best Python interpreter
 find_python() {
-    local python_cmds=("python3.12" "python3.11" "python3.10" "python3.9" "python3.8" "python3.7" "python3" "python")
+    local python_cmds=("python3.12" "python3.13" "python3.14" "python3.11" "python3" "python")
     
     for cmd in "${python_cmds[@]}"; do
         if check_python_version "$cmd"; then
@@ -130,8 +134,8 @@ fi
 # Find Python interpreter
 PYTHON_CMD=$(find_python)
 if [[ -z "$PYTHON_CMD" ]]; then
-    print_error "Python 3.12 or higher is required but not found"
-    print_info "Please install Python 3.12+ or activate a virtual environment"
+    print_error "Python 3.11 or higher is required but not found"
+    print_info "Please install Python 3.11+ (3.12 recommended) or activate a virtual environment"
     exit 1
 fi
 

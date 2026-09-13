@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-- [Python 3.12+](https://www.python.org/downloads/) — check **"Add python.exe to PATH"** during install
+- [Python 3.11+](https://www.python.org/downloads/) — Python 3.12 is preferred; check **"Add python.exe to PATH"** during install
 - [Git for Windows](https://git-scm.com/download/win)
 
 ## Quick Start

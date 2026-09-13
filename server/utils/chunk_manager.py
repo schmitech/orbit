@@ -8,7 +8,7 @@ vector stores and embedding-based similarity search.
 import hashlib
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
 
@@ -232,7 +232,7 @@ class ChunkManager:
             failure_reasons: dict[str, str] = {}
             remaining_pending: dict[int, dict[str, Any]] = {}
             stored_ids: list[str] = []
-            timestamp = datetime.utcnow().isoformat()
+            timestamp = datetime.now(UTC).isoformat()
 
             for embed_idx in recovery.failed_indices:
                 orig_idx = work_indices[embed_idx]
@@ -338,7 +338,7 @@ class ChunkManager:
             self._generation_by_url[url_hash] = generation_id
 
             if status == IngestionStatus.COMPLETE:
-                self._cached_urls[url_hash] = datetime.utcnow()
+                self._cached_urls[url_hash] = datetime.now(UTC)
 
             result = IngestionResult(
                 status=status,
@@ -556,7 +556,7 @@ class ChunkManager:
         cached_time = self._cached_urls[url_hash]
         expiry_time = cached_time + timedelta(hours=self.cache_ttl_hours)
 
-        if datetime.utcnow() > expiry_time:
+        if datetime.now(UTC) > expiry_time:
             # Expired - remove from cache
             del self._cached_urls[url_hash]
             return False
@@ -621,7 +621,7 @@ class ChunkManager:
             # Remove expired URLs from cache tracking
             expired_hashes = [
                 url_hash for url_hash, cached_time in self._cached_urls.items()
-                if datetime.utcnow() > cached_time + timedelta(hours=self.cache_ttl_hours)
+                if datetime.now(UTC) > cached_time + timedelta(hours=self.cache_ttl_hours)
             ]
 
             for url_hash in expired_hashes:

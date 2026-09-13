@@ -9,7 +9,7 @@ SETLOCAL ENABLEDELAYEDEXPANSION
 ::   bin\adapter-sdk.bat                       (interactive wizard)
 ::   bin\adapter-sdk.bat --spec fetch --dry-run
 ::
-:: Requires Python 3.12+ (installed or in the project venv).
+:: Requires Python 3.11+ (installed or in the project venv). Python 3.12 is recommended.
 
 :: Resolve the directory containing this script, then the project root (one level up)
 SET "SCRIPT_DIR=%~dp0"
@@ -33,12 +33,12 @@ IF "%VIRTUAL_ENV%"=="" (
 )
 :venv_done
 
-:: Locate a suitable Python interpreter (3.12+)
+:: Locate a suitable Python interpreter (3.11+; 3.12 recommended)
 :: Try the Python Launcher (py.exe) first — it bypasses Microsoft Store App Execution Aliases.
 SET "PYTHON_CMD="
 WHERE py >NUL 2>&1
 IF NOT ERRORLEVEL 1 (
-    FOR %%V IN (3.14 3.13 3.12 3.11) DO (
+    FOR %%V IN (3.12 3.13 3.14 3.11) DO (
         IF "!PYTHON_CMD!"=="" (
             py -%%V --version >NUL 2>&1
             IF NOT ERRORLEVEL 1 (
@@ -50,11 +50,11 @@ IF NOT ERRORLEVEL 1 (
     )
 )
 :: Fall back to named executables on PATH
-FOR %%P IN (python3.14 python3.13 python3.12 python3 python) DO (
+FOR %%P IN (python3.12 python3.13 python3.14 python3.11 python3 python) DO (
     IF "!PYTHON_CMD!"=="" (
         WHERE %%P >NUL 2>&1
         IF NOT ERRORLEVEL 1 (
-            FOR /F "tokens=*" %%V IN ('%%P -c "import sys; print(sys.version_info >= (3,12))"') DO (
+            FOR /F "tokens=*" %%V IN ('%%P -c "import sys; print(sys.version_info >= (3,11))"') DO (
                 IF "%%V"=="True" SET "PYTHON_CMD=%%P"
             )
         )
@@ -62,14 +62,19 @@ FOR %%P IN (python3.14 python3.13 python3.12 python3 python) DO (
 )
 
 IF "!PYTHON_CMD!"=="" (
-    echo ERROR: Python 3.12 or higher is required but was not found.
+    echo ERROR: Python 3.11 or higher is required but was not found. Python 3.12 is recommended.
     echo.
     echo If Python is installed but not detected, check for the Microsoft Store
     echo App Execution Alias: Settings ^> Apps ^> Advanced app settings ^>
     echo App execution aliases ^> turn off "python.exe" and "python3.exe".
     echo.
-    echo Or install Python 3.12+ from https://www.python.org/downloads/
+    echo Or install Python 3.11+ from https://www.python.org/downloads/ ^(Python 3.12 recommended^)
     echo and ensure "Add Python to PATH" is checked during installation.
+    exit /b 1
+)
+"!PYTHON_CMD!" -c "import sys; raise SystemExit(sys.version_info < (3,11))" >NUL 2>&1
+IF ERRORLEVEL 1 (
+    echo ERROR: Python 3.11 or higher is required. Python 3.12 is recommended.
     exit /b 1
 )
 

@@ -135,7 +135,7 @@ The distribution package includes:
 
 Recipients of the distribution package need:
 
-- Python 3.12 or higher
+- Python 3.11 or higher (Python 3.12 recommended)
 - MongoDB (for API key management)
 - Internet connection (for downloading dependencies)
 
@@ -487,7 +487,7 @@ After installation:
 
 If you encounter any issues during installation:
 
-1. Ensure Python 3.12 or higher is installed
+1. Ensure Python 3.11 or higher is installed (Python 3.12 recommended)
 2. Check that all required system dependencies are installed
 3. Verify your internet connection for downloading packages
 4. Check the installation logs for specific error messages
