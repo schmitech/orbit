@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.9] - 2026-09-13
 
 ### CLI & Tools
 - **Python 3.11+ Support in Installer and Launchers**: `install/setup.sh`, `install/setup.bat`, `bin/orbit.sh`, `bin/orbit.bat`, and `bin/adapter-sdk.bat` now accept Python 3.11 as the minimum, with 3.12 still preferred wherever multiple interpreters are found. `bin/orbit.sh`'s version check replaced an unreliable `bc`-based float comparison (`3.9` sorted below `3.10`, and failed outright without `bc` installed) with a proper major/minor integer comparison, and the two Windows launcher `.bat` files gained a hard version-enforcement check they previously lacked, instead of only warning. Installation docs (`install/README.md`, `install/windows.md`) and the root `README.md` were updated to match.
