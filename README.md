@@ -5,6 +5,8 @@
 
   # ORBIT
 
+  Open Retrieval-Based Inference Toolkit
+
   **The self-hosted AI backend for private data and tool-using agents.**
 
   Connect files, databases, APIs, and MCP tools to local or hosted models behind one OpenAI-compatible API—with authentication, observability, and an admin UI built in.
