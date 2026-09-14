@@ -1451,7 +1451,7 @@ async def test_regenerate_of_non_final_turn_preserves_conversation_order(chat_hi
 def _service_with_mocked_db():
   """A ChatHistoryService backed by a fully mocked database/thread-dataset
   service, for exercising the @retry_on_error-decorated add_message() in
-  isolation from a real database (see docs/roadmap/chat-history-service-followups.md
+  isolation from a real database (see docs/roadmap/complete/chat-history-service-followups.md
   Phase 1)."""
   database_service = MagicMock()
   thread_dataset_service = MagicMock()

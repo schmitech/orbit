@@ -9,6 +9,8 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional
 
+from services.provider_metadata import get_provider_context_window_info
+
 from .service_cache_manager import ServiceCacheManager
 
 logger = logging.getLogger(__name__)
@@ -196,29 +198,6 @@ class ProviderCacheManager(ServiceCacheManager):
         config_for_provider['inference'][provider_name]['model'] = model_override
         logger.debug(f"Loading inference provider '{provider_name}' with model override: {model_override}")
 
-    # Most providers read the generic 'context_window'/'max_tokens' keys directly
-    # (see ProviderAIService._get_model/_get_temperature-style helpers), but local
-    # inference backends use their own native option names instead. Writing the
-    # override under both the generic key and the provider's native alias ensures
-    # the override actually reaches the request options for these providers too —
-    # otherwise it's silently shadowed by whatever inference.yaml already set
-    # (e.g. ollama_cloud hardcodes num_predict/num_ctx).
-    _CONTEXT_WINDOW_ALIASES = {
-        'ollama': 'num_ctx',
-        'ollama_cloud': 'num_ctx',
-        'ollama_remote': 'num_ctx',
-        'llama_cpp': 'n_ctx',
-        'bitnet': 'n_ctx',
-        'vllm': 'max_model_len',
-        'tensorrt': 'max_model_len',
-        'huggingface': 'max_length',
-    }
-    _MAX_TOKENS_ALIASES = {
-        'ollama': 'num_predict',
-        'ollama_cloud': 'num_predict',
-        'ollama_remote': 'num_predict',
-    }
-
     def _apply_param_overrides(
         self,
         config_for_provider: dict[str, Any],
@@ -231,8 +210,12 @@ class ProviderCacheManager(ServiceCacheManager):
 
         Providers read these via ProviderAIService._extract_provider_config(), so writing
         them into config['inference'][provider_name] is sufficient for most providers —
-        no per-provider plumbing needed. Providers with a native option name (see the
-        alias maps above) also get that key set directly.
+        no per-provider plumbing needed. Providers with a native option name (most
+        providers read the generic 'context_window'/'max_tokens' keys directly, but
+        local inference backends use their own native option name instead — see
+        provider_metadata.get_provider_context_window_info) also get that key set
+        directly, since otherwise it's silently shadowed by whatever inference.yaml
+        already set (e.g. ollama_cloud hardcodes num_predict/num_ctx).
         """
         if 'inference' not in config_for_provider:
             config_for_provider['inference'] = {}
@@ -240,16 +223,17 @@ class ProviderCacheManager(ServiceCacheManager):
             config_for_provider['inference'][provider_name] = {}
 
         inference_section = config_for_provider['inference'][provider_name]
+        provider_info = get_provider_context_window_info(provider_name)
         for key, value in param_overrides.items():
             if value is None:
                 continue
             inference_section[key] = value
 
             alias = None
-            if key == 'context_window':
-                alias = self._CONTEXT_WINDOW_ALIASES.get(provider_name)
-            elif key == 'max_tokens':
-                alias = self._MAX_TOKENS_ALIASES.get(provider_name)
+            if key == 'context_window' and provider_info.context_window_param != 'context_window':
+                alias = provider_info.context_window_param
+            elif key == 'max_tokens' and provider_info.max_tokens_param != 'max_tokens':
+                alias = provider_info.max_tokens_param
             if alias:
                 inference_section[alias] = value
 

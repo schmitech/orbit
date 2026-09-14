@@ -13,6 +13,7 @@ from typing import Any, Optional
 from datetime import datetime, timedelta, UTC
 
 from ai_services.connection import retry_on_error
+from services.provider_metadata import get_provider_context_window_info
 from services.database_service import (
     DatabaseConnectionError,
     DatabaseOperationError,
@@ -55,21 +56,6 @@ class SessionOwnershipError(Exception):
 
 class ChatHistoryService:
     """Service for managing chat history and conversations"""
-
-    # Provider-specific context window parameter names. Most providers use the
-    # generic 'context_window' key; local inference backends use their own native
-    # option name instead. Used both to read the configured value and to write an
-    # adapter-level context_window override to the key the provider actually reads.
-    _CONTEXT_WINDOW_PARAM_NAMES = {
-        'ollama': 'num_ctx',
-        'ollama_cloud': 'num_ctx',
-        'ollama_remote': 'num_ctx',
-        'llama_cpp': 'n_ctx',
-        'bitnet': 'n_ctx',
-        'vllm': 'max_model_len',
-        'tensorrt': 'max_model_len',
-        'huggingface': 'max_length',
-    }
 
     def __init__(self, config: dict[str, Any], database_service=None, thread_dataset_service=None, adapter_manager=None):
         """
@@ -224,8 +210,8 @@ class ChatHistoryService:
             if adapter_config:
                 if adapter_config.get('context_window') is not None:
                     inference_config['context_window'] = adapter_config['context_window']
-                    native_key = self._CONTEXT_WINDOW_PARAM_NAMES.get(inference_provider)
-                    if native_key:
+                    native_key = get_provider_context_window_info(inference_provider).context_window_param
+                    if native_key != 'context_window':
                         inference_config[native_key] = adapter_config['context_window']
                 if adapter_config.get('max_tokens') is not None:
                     inference_config['max_tokens'] = adapter_config['max_tokens']
@@ -344,55 +330,21 @@ class ChatHistoryService:
         Returns:
             Context window size in tokens
         """
-        # Provider-specific context window parameter names (shared with the override
-        # logic in _calculate_max_token_budget via _CONTEXT_WINDOW_PARAM_NAMES)
-        context_params = self._CONTEXT_WINDOW_PARAM_NAMES
-        # Most providers use 'context_window' — set it as the default
-        _default_context_param = 'context_window'
-        
+        # Provider-specific context window parameter name and default size
+        # (shared with the override logic in _calculate_max_token_budget, and
+        # with ProviderCacheManager's own native-parameter-alias needs, via
+        # provider_metadata.get_provider_context_window_info)
+        provider_info = get_provider_context_window_info(provider)
+
         # Alternative parameter names that might indicate context window size
         # These are fallback parameters if the primary one isn't found.
         # 'context_window' is included so an adapter-level override still takes
         # effect for providers whose primary param has a different name (e.g.
         # ollama's num_ctx).
         default_alternatives = ['context_window', 'max_context_length', 'context_length']
-        
-        # Default context window sizes for providers (conservative estimates)
-        # Used only when no configuration parameter is found
-        default_context_windows = {
-            'ollama': 8192,
-            'ollama_cloud': 32768,
-            'ollama_remote': 8192,
-            'llama_cpp': 4096,
-            'openai': 128000,
-            'anthropic': 200000,
-            'gemini': 1000000,
-            'groq': 131072,
-            'deepseek': 65536,
-            'together': 32768,
-            'xai': 131072,
-            'vllm': 8192,
-            'tensorrt': 4096,
-            'shimmy': 65536,
-            'azure': 128000,
-            'vertex': 1000000,
-            'aws': 200000,
-            'huggingface': 2048,
-            'mistral': 32768,
-            'openrouter': 131072,
-            'cohere': 288000,
-            'watson': 8192,
-            'perplexity': 32768,
-            'fireworks': 4096,
-            'replicate': 4096,
-            'nvidia': 8192,
-            'bitnet': 2048,
-            'transformers': 4096,
-            'zai': 128000,
-        }
-        
+
         # First, try to read the primary context window parameter
-        param_name = context_params.get(provider, _default_context_param)
+        param_name = provider_info.context_window_param
         if param_name and param_name in provider_config:
             context_window = provider_config[param_name]
             if isinstance(context_window, int) and context_window > 0:
@@ -418,9 +370,9 @@ class ChatHistoryService:
                     )
                     return context_window
         
-        # Finally, fall back to provider-specific defaults
-        default_window = default_context_windows.get(provider, 4096)
-        
+        # Finally, fall back to the provider-specific default
+        default_window = provider_info.default_context_window
+
         logger.debug(
             "No context window configured for %s, using default: %s tokens",
             provider,

@@ -203,94 +203,57 @@ None of the current call sites in `chat_history_service.py` pass an empty
 projection list, so bug 3 was latent (not yet reachable in production) but
 is part of the parameter's stated contract and now correctly implemented.
 
-**Deferred (not done in this pass):** the 10,000-row fetch cap itself, and
-the original plan's DB-side `count_by_group`/`find_one_per_group`
-aggregation primitives that would remove it, are unchanged. MongoDB and
-PostgreSQL implementations of the `projection` parameter above are
-code-reviewed against the same query-construction helpers already used
+**Deferred — extracted to its own roadmap item:** the 10,000-row fetch cap
+itself, and the original plan's DB-side `count_by_group`/`find_one_per_group`
+aggregation primitives that would remove it, are unchanged by this phase.
+MongoDB and PostgreSQL implementations of the `projection` parameter above
+are code-reviewed against the same query-construction helpers already used
 elsewhere in each file, but — unlike the SQLite path — could not be
-exercised against a live server in this environment; the existing
-integration test files (`test_mongodb_service.py`, `test_postgres_service.py`)
-already skip/require a live server per the project's existing convention and
-were not extended in this pass.
+exercised against a live server in this environment. Both of these (the
+row-cap removal and live MongoDB/PostgreSQL verification of this phase's own
+fixes) are tracked as their own item in
+`docs/roadmap/chat-history-bounded-aggregation-queries.md`, so they aren't
+lost now that this plan is being closed out.
 
-**Items (original framing):**
-- `get_user_sessions()` (`chat_history_service.py:1262-1267`) fetches up to
-  10,000 full message documents (including `content`) per call just to
-  compute per-session counts/timestamps/last-message preview.
-- `_cleanup_excess_messages()` (`chat_history_service.py:1077-1082`) fetches
-  up to 10,000 full messages per session on every cleanup call, even though
-  typically only the oldest handful need deleting.
+## Phase 3 — Provider native-parameter-alias knowledge moved to shared metadata [COMPLETE]
 
-**Why it was skipped inline:** both need a DB-side aggregation or
-cursor/limit capability that `database_service` does not currently expose
-uniformly across its three backends — MongoDB, SQLite, **and PostgreSQL**
-(`server/services/database_service.py:328` documents all three; see
-`create_database_service()`). Adding that is a schema/interface change to a
-shared service with three concrete implementations to update and test, not
-a same-file cleanup or a two-backend change.
+Implemented 2026-09-14, matching this phase's plan closely (no scope
+reduction, unlike Phase 2). Added `server/services/provider_metadata.py`
+with a frozen `ProviderContextWindowInfo` dataclass
+(`context_window_param`, `max_tokens_param`, `default_context_window`,
+each defaulting to the generic key name / 4096) and a module-level
+`get_provider_context_window_info(provider)` lookup, populated verbatim
+from the four dicts it replaces — confirmed the two context-window-alias
+dicts (`ChatHistoryService._CONTEXT_WINDOW_PARAM_NAMES` and
+`ProviderCacheManager._CONTEXT_WINDOW_ALIASES`) already agreed exactly, so
+no value discrepancy needed resolving.
 
-**Plan:**
-1. Audit `server/services/database_service.py` and its three backend
-   implementations (`MongoDBService`, `SQLiteService`, `PostgresService`) for
-   existing aggregation primitives (e.g. does the Mongo backend expose a raw
-   `aggregate()` passthrough already? does Postgres have a query builder that
-   supports `GROUP BY`/window functions?). Document the gap for whichever
-   backend(s) lack it — treat all three as in scope from the start.
-2. Design a minimal, backend-agnostic addition to the `DatabaseService`
-   interface — do not leak MongoDB-specific aggregation pipeline syntax or
-   Postgres-specific SQL into callers. Candidate shape:
-   - `count_by_group(collection, group_field, filter) -> dict[str, int]`
-     for session message counts.
-   - `find_one_per_group(collection, group_field, filter, sort) -> list[dict]`
-     for "last message per session" (used by `get_user_sessions`'s preview).
-   - A new primitive for `_cleanup_excess_messages()` that reflects the
-     **actual** operation: cleanup walks a session's messages from *newest*
-     to *oldest*, accumulating token counts until the per-adapter budget is
-     reached, then deletes everything older than that boundary (see the
-     current `messages_reversed` walk in
-     `_cleanup_excess_messages()`/`get_context_messages()` for the reference
-     semantics) — it is not a simple "find the N oldest" query. Name and
-     shape it accordingly, e.g. `find_messages_beyond_token_budget(
-     collection, session_filter, token_field, content_field, budget,
-     sort_desc_field) -> list[dict]` (documenting it as returning the *ids to
-     delete*, i.e. the tail beyond the retained newest-first budget window).
-     The primitive must handle legacy rows with no `token_count` (`None`) by
-     estimating from `content` inline (matching today's
-     `_get_msg_token_count()`/`_estimate_token_count()` fallback) — if the
-     estimation can't be pushed into the query layer for a given backend,
-     the primitive should return `token_count` (nullable) and `content`
-     alongside each row so `ChatHistoryService` can still apply the same
-     fallback logic in Python, rather than silently treating an unestimated
-     row as 0 tokens.
-3. Implement the SQLite backend version first (simpler, single-process,
-   well-covered by existing tests), then MongoDB, then Postgres.
-4. Migrate `get_user_sessions()` to the new grouped-count/last-message
-   primitive; keep the existing return shape unchanged so route callers
-   (`server/routes/`) need no changes.
-5. Migrate `_cleanup_excess_messages()`'s initial fetch to the new bounded
-   query; keep the per-session lock, the newest-first budget-walk semantics,
-   and the cache-adjustment logic unchanged.
-6. Add regression tests per step 7 below to confirm the new query paths
-   don't re-introduce a full-table load, against all three backends.
+- `ChatHistoryService._get_context_window_size()` and
+  `._calculate_max_token_budget()`'s adapter-override native-key write now
+  call the shared lookup instead of reading `_CONTEXT_WINDOW_PARAM_NAMES`/the
+  inline `default_context_windows` dict (both removed). The
+  alternative-param-name fallback chain (`context_window`,
+  `max_context_length`, `context_length`) is unchanged.
+- `ProviderCacheManager._apply_param_overrides()` now calls the same shared
+  lookup instead of `_CONTEXT_WINDOW_ALIASES`/`_MAX_TOKENS_ALIASES` (both
+  removed), guarding the alias write with `!= 'context_window'`/
+  `!= 'max_tokens'` to reproduce the prior "no alias for providers without
+  one" behavior exactly (previously a plain dict miss returning `None`).
+- Grepped `server/ai_services/`, `server/inference/`, and
+  `provider_cache_manager.py` for any other provider-keyed dict of this
+  shape; found none beyond the two already known.
 
-**Verification:** test `get_user_sessions()` and `_cleanup_excess_messages()`
-separately — they exercise different failure modes:
-- `get_user_sessions()`: a test with many *sessions* (not necessarily many
-  messages per session) verifying pagination, counts, and last-message
-  preview are correct across the new grouped-query path. A single
-  large-session test would not catch a pagination or per-session-count
-  regression here.
-- `_cleanup_excess_messages()`: a test with >10,000 messages in *one*
-  session (or a low test-only limit override) confirming the budget-walk
-  boundary and deletion set are unchanged, plus a case mixing rows with and
-  without `token_count` to confirm the legacy-estimation fallback still
-  applies correctly through the new query path.
-
-Run both sets of tests against all three backends (MongoDB, SQLite,
-Postgres), not just SQLite/MongoDB.
-
-## Phase 3 — Provider native-parameter-alias knowledge moved to shared metadata
+Tests added in `server/tests/test_services/test_provider_metadata.py`: a
+table-driven equivalence test (Verification's step 7) parametrized over
+every provider from all four original dicts, confirming each resolves to
+the identical value through the shared lookup; a "providers without a
+native alias get the generic key" test; an unknown-provider-defaults test;
+and direct tests against both consumers (`ChatHistoryService`'s default
+context window and adapter-override native-key write,
+`ProviderCacheManager`'s native-alias write for Ollama and its absence for
+a plain generic-key provider like OpenAI). 46 new tests pass, plus all 190
+pre-existing tests across `test_chat_history_service.py` and
+`test_cache_managers.py` still pass unchanged.
 
 **Scope note:** this phase is explicitly broader than context-window
 metadata alone. `ProviderCacheManager._MAX_TOKENS_ALIASES` (provider →
@@ -419,13 +382,16 @@ combined, so a regression in one is easy to isolate and revert.
   `token_count`) pass against SQLite (the only backend testable in this
   environment). The 10,000-row fetch cap and full DB-side
   aggregation/`GROUP BY` primitives from the original plan remain
-  unimplemented — see the Phase 2 section above for what's deferred.
-- Phase 3: `_CONTEXT_WINDOW_PARAM_NAMES` and the inline
+  unimplemented — extracted to
+  `docs/roadmap/chat-history-bounded-aggregation-queries.md`.
+- Phase 3 [DONE]: `_CONTEXT_WINDOW_PARAM_NAMES` and the inline
   `default_context_windows` dict are removed from
   `chat_history_service.py`; `_CONTEXT_WINDOW_ALIASES` and
   `_MAX_TOKENS_ALIASES` are removed from `provider_cache_manager.py`; both
-  consumers read from one shared provider-metadata module; the table-driven
-  equivalence test covering both consumers passes.
+  consumers read from one shared provider-metadata module
+  (`server/services/provider_metadata.py`); the table-driven equivalence
+  test covering both consumers passes
+  (`server/tests/test_services/test_provider_metadata.py`).
 - Full server test suite passes after each phase, with any external-service
   skips documented per the existing convention (see
   `docs/roadmap/complete/ruff-python-typing-modernization.md`).
