@@ -293,6 +293,92 @@ class DatabaseService(ABC):
         return len(results)
 
     @abstractmethod
+    async def find_user_session_summaries(
+        self,
+        collection_name: str,
+        user_id: Any,
+        offset: int,
+        limit: int,
+        include_summary: bool,
+        content_field: str = "content",
+        role_field: str = "role",
+    ) -> list[dict[str, Any]]:
+        """
+        Return one page of per-session summaries for a user, computed and
+        paginated entirely in the database (never fetching every message or
+        every session).
+
+        Groups messages by `session_id` filtered to `user_id`, computing per
+        session: `message_count`, `first_activity` (min timestamp),
+        `last_activity` (max timestamp), and — only when
+        `include_summary=True` — the latest message's `content_field`/
+        `role_field` (returned as `last_message_content`/`last_message_role`).
+        When `include_summary=False`, those two fields must not be fetched
+        or computed at all.
+
+        Session groups are ordered `last_activity DESC, session_id ASC`
+        (`session_id` is the tie-breaker for a grouped row, which has no
+        message id to break ties on), with `offset`/`limit` applied in the
+        database before returning. Selecting which message is "latest"
+        within a session is a separate ordering, over individual message
+        rows: `timestamp DESC, _id DESC`.
+
+        Args:
+            collection_name: Name of the collection/table
+            user_id: User to summarize sessions for
+            offset: Number of session groups to skip
+            limit: Maximum number of session groups to return
+            include_summary: Whether to include the latest message preview
+            content_field: Name of the message content field
+            role_field: Name of the message role field
+
+        Returns:
+            List of dicts with keys `session_id`, `message_count`,
+            `first_activity`, `last_activity`, and (when `include_summary`)
+            `last_message_content`, `last_message_role`.
+        """
+        pass
+
+    @abstractmethod
+    async def delete_messages_beyond_token_budget(
+        self,
+        collection_name: str,
+        session_filter: dict[str, Any],
+        token_field: str,
+        content_field: str,
+        budget: int,
+        chars_per_token_estimate: int,
+    ) -> dict[str, int]:
+        """
+        Delete a session's oldest messages once their accumulated token
+        count exceeds `budget`, determining the delete boundary and
+        performing the delete server-side — never materializing every
+        message/id in the session, even transiently.
+
+        Walks messages newest-to-oldest, ordered `timestamp DESC, _id DESC`,
+        accumulating `token_field` (or, for legacy rows where it is NULL,
+        `max(1, len(content_field) // chars_per_token_estimate)`, matching
+        `_estimate_token_count()`'s exact semantics including Unicode
+        codepoint length) until `budget` is exceeded, then deletes that
+        message and everything older.
+
+        Args:
+            collection_name: Name of the collection/table
+            session_filter: Query identifying the session's messages
+            token_field: Name of the stored token-count field
+            content_field: Name of the message content field
+            budget: Token budget; messages pushing the running total past
+                this are deleted
+            chars_per_token_estimate: Characters-per-token ratio for
+                estimating legacy rows with no stored token count
+
+        Returns:
+            `{"deleted_count": int, "tokens_removed": int}` — reflecting
+            only messages actually, successfully deleted.
+        """
+        pass
+
+    @abstractmethod
     async def execute_transaction(
         self,
         operations: Callable[[Any], Awaitable[Any]]

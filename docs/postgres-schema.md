@@ -309,6 +309,11 @@ CREATE TABLE IF NOT EXISTS chat_history (
 - `idx_chat_history_api_key` on `api_key`
 - `idx_chat_history_api_key_hash` on `(session_id, api_key_hash)`
 - `idx_chat_history_hash` (UNIQUE) on `(session_id, message_hash)`
+- `idx_chat_history_session_id_timestamp_token_count` on `(session_id, timestamp, token_count)` — rolling-window token queries
+- `idx_chat_history_user_id_timestamp_id` on `(user_id, timestamp, id)` — backs `find_user_session_summaries()`
+- `idx_chat_history_session_id_timestamp_id` on `(session_id, timestamp, id)` — backs `delete_messages_beyond_token_budget()`
+
+**Bounded session-list and cleanup queries:** identical design to SQLite — see [`docs/sqlite-schema.md#chat_history`](sqlite-schema.md#chat_history) and `docs/roadmap/chat-history-bounded-aggregation-queries.md`. The Postgres cleanup delete uses `DELETE ... RETURNING`, same as SQLite; the legacy `token_count IS NULL` estimate uses `CHAR_LENGTH()` (codepoints, not bytes) to match `max(1, len(content) // 3)` exactly.
 
 ---
 
@@ -628,6 +633,9 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are 
 
 ## Version History
 
+- **v1.11** (2026-09-14): Bounded chat-history session-list and cleanup queries (matches SQLite v1.21)
+  - No new columns. Added two indexes on `chat_history`: `idx_chat_history_user_id_timestamp_id` and `idx_chat_history_session_id_timestamp_id`; see the SQLite v1.21 entry for details
+  - Created on existing databases through the additive startup migration (`create_index` runs idempotently on every startup)
 - **v1.10** (2026-09-05): API key expiration (matches SQLite v1.20)
   - Added `api_keys.expires_at`, `api_keys.expiration_policy`, `api_keys.expiration_justification`; see the SQLite v1.20 entry for details
   - Created on existing databases through the additive startup migration (`ADD COLUMN IF NOT EXISTS`); MongoDB is schemaless and needs no migration

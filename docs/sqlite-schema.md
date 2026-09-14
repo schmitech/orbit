@@ -468,6 +468,16 @@ CREATE TABLE IF NOT EXISTS chat_history (
 - `idx_chat_history_api_key` on `api_key`
 - `idx_chat_history_api_key_hash` on `(session_id, api_key_hash)`
 - `idx_chat_history_hash` (UNIQUE) on `(session_id, message_hash)`
+- `idx_chat_history_session_id_timestamp_token_count` on `(session_id, timestamp, token_count)` — rolling-window token queries
+- `idx_chat_history_user_id_timestamp_id` on `(user_id, timestamp, id)` — backs `find_user_session_summaries()`'s per-user grouped query and its `timestamp DESC, id DESC` latest-message ranking (see below)
+- `idx_chat_history_session_id_timestamp_id` on `(session_id, timestamp, id)` — backs `delete_messages_beyond_token_budget()`'s `timestamp DESC, id DESC` budget walk and its `DELETE ... RETURNING` boundary delete (see below)
+
+**Bounded session-list and cleanup queries:**
+
+`ChatHistoryService.get_user_sessions()` and the rolling-window cleanup that runs after each turn (`_cleanup_excess_messages()`) are both computed and paginated/bounded entirely in the database, rather than fetching every message for a user or session into Python first — see `docs/roadmap/chat-history-bounded-aggregation-queries.md`.
+
+- `DatabaseService.find_user_session_summaries()` groups messages by `session_id` (filtered to `user_id`), computing `message_count`, `first_activity` (`MIN(timestamp)`), `last_activity` (`MAX(timestamp)`), and — only when `include_summary=True` — the latest message's `content`/`role` via a window function ranked `timestamp DESC, id DESC` per session. Session groups are ordered `last_activity DESC, session_id ASC` with `LIMIT`/`OFFSET` applied in SQL before returning.
+- `DatabaseService.delete_messages_beyond_token_budget()` walks a session's messages newest-to-oldest (`timestamp DESC, id DESC`), accumulating `token_count` (estimating `max(1, LENGTH(content) / 3)` for legacy `NULL` rows) until the adapter's token budget is exceeded, then deletes that message and everything older in a single `DELETE ... RETURNING` statement — the returned rows are the sole source of `deleted_count`/`tokens_removed`, so a concurrent writer touching the same session between boundary detection and the delete can never make the reported token total describe a different set of rows than what was actually deleted.
 
 **Session ownership:**
 
@@ -1082,6 +1092,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.21** (2026-09-14): Bounded chat-history session-list and cleanup queries (matches Postgres v1.11)
+  - No new columns. Added two indexes on `chat_history`: `idx_chat_history_user_id_timestamp_id` on `(user_id, timestamp, id)` and `idx_chat_history_session_id_timestamp_id` on `(session_id, timestamp, id)`, backing `DatabaseService.find_user_session_summaries()` and `delete_messages_beyond_token_budget()` respectively — see the new indexes and the "Bounded session-list and cleanup queries" note under `chat_history` above
+  - `ChatHistoryService.get_user_sessions()` and `_cleanup_excess_messages()` now compute their results via DB-side grouping/window functions and a `DELETE ... RETURNING` boundary delete instead of fetching up to 10,000 rows into Python and grouping/walking them there; no longer capped at a fixed row count. See `docs/roadmap/chat-history-bounded-aggregation-queries.md`
+  - Created on existing databases through the additive startup migration (`create_index` runs idempotently on every startup); MongoDB gained two matching compound indexes (`(user_id, timestamp, _id)` and `(session_id, timestamp, _id)`) via the same code path
 - **v1.20** (2026-09-05): API key expiration
   - Added `api_keys.expires_at`, `api_keys.expiration_policy`, `api_keys.expiration_justification`. New keys default to a 90-day lifetime (`api_keys.default_lifetime_days`), capped at 365 days (`api_keys.max_lifetime_days`); a `non_expiring_exception` requires a justification and admin permission. Enforced in `validate_api_key`/`get_adapter_info` before adapter resolution, allowlists, and quotas — an expired explicit key never falls back to `api_keys.allow_default`
   - Pre-existing rows are assigned `expiration_policy: legacy_migration` and `expires_at = migrated_at + api_keys.legacy_migration_lifetime_days` (90) by an idempotent migration run on `ApiKeyService.initialize()`, safe under concurrent workers since it only touches rows with `expires_at IS NULL`

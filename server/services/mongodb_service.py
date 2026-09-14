@@ -581,6 +581,185 @@ class MongoDBService(DatabaseService):
             logger.error(f"Error counting documents in {collection_name}: {e!s}")
             return 0
 
+    async def find_user_session_summaries(
+        self,
+        collection_name: str,
+        user_id: Any,
+        offset: int,
+        limit: int,
+        include_summary: bool,
+        content_field: str = "content",
+        role_field: str = "role",
+    ) -> list[dict[str, Any]]:
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            collection = self.get_collection(collection_name)
+
+            group_stage = {
+                "_id": "$session_id",
+                "message_count": {"$sum": 1},
+                "first_activity": {"$min": "$timestamp"},
+                "last_activity": {"$max": "$timestamp"},
+            }
+            project_stage = {
+                "_id": 0,
+                "session_id": "$_id",
+                "message_count": 1,
+                "first_activity": 1,
+                "last_activity": 1,
+            }
+            if include_summary:
+                # Docs are pre-sorted timestamp DESC, _id DESC, so $first within
+                # each group is the latest message by that exact ordering.
+                group_stage["last_message_content"] = {"$first": f"${content_field}"}
+                group_stage["last_message_role"] = {"$first": f"${role_field}"}
+                project_stage["last_message_content"] = 1
+                project_stage["last_message_role"] = 1
+
+            pipeline = [
+                {"$match": {"user_id": user_id}},
+                {"$sort": {"timestamp": -1, "_id": -1}},
+                {"$group": group_stage},
+                {"$sort": {"last_activity": -1, "_id": 1}},
+                {"$skip": offset},
+                {"$limit": limit},
+                {"$project": project_stage},
+            ]
+            cursor = collection.aggregate(pipeline)
+            results = await cursor.to_list(length=limit)
+            return self._convert_objectids_to_string(results)
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
+            logger.error(f"Error finding session summaries in {collection_name}: {e!s}")
+            return []
+
+    async def delete_messages_beyond_token_budget(
+        self,
+        collection_name: str,
+        session_filter: dict[str, Any],
+        token_field: str,
+        content_field: str,
+        budget: int,
+        chars_per_token_estimate: int,
+    ) -> dict[str, int]:
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            collection = self.get_collection(collection_name)
+            converted_filter = self._convert_string_ids_to_objectid(session_filter)
+
+            effective_tokens_expr = {
+                "$cond": [
+                    {"$ne": [f"${token_field}", None]},
+                    f"${token_field}",
+                    {
+                        "$max": [
+                            1,
+                            {
+                                "$floor": {
+                                    "$divide": [
+                                        {"$strLenCP": {"$ifNull": [f"${content_field}", ""]}},
+                                        chars_per_token_estimate,
+                                    ]
+                                }
+                            },
+                        ]
+                    },
+                ]
+            }
+
+            boundary_pipeline = [
+                {"$match": converted_filter},
+                {"$sort": {"timestamp": -1, "_id": -1}},
+                {"$project": {"timestamp": 1, "effective_tokens": effective_tokens_expr}},
+                {
+                    "$setWindowFields": {
+                        "sortBy": {"timestamp": -1, "_id": -1},
+                        "output": {
+                            "running_total": {
+                                "$sum": "$effective_tokens",
+                                "window": {"documents": ["unbounded", "current"]},
+                            }
+                        },
+                    }
+                },
+                {"$match": {"running_total": {"$gt": budget}}},
+                {"$sort": {"timestamp": -1, "_id": -1}},
+                {"$limit": 1},
+            ]
+            boundary_docs = await collection.aggregate(boundary_pipeline).to_list(length=1)
+            if not boundary_docs:
+                return {"deleted_count": 0, "tokens_removed": 0}
+
+            boundary = boundary_docs[0]
+            b_ts = boundary["timestamp"]
+            b_id = boundary["_id"]
+
+            delete_predicate = {
+                "$or": [
+                    {"timestamp": {"$lt": b_ts}},
+                    {"timestamp": b_ts, "_id": {"$lte": b_id}},
+                ]
+            }
+            delete_query = {"$and": [converted_filter, delete_predicate]}
+
+            tally_pipeline = [
+                {"$match": delete_query},
+                {"$project": {"effective_tokens": effective_tokens_expr}},
+                {"$group": {"_id": None, "cnt": {"$sum": 1}, "total_tokens": {"$sum": "$effective_tokens"}}},
+            ]
+
+            async def _tally_and_delete(session: Any) -> dict[str, int]:
+                # Tally and delete share one multi-document transaction so a
+                # concurrent writer touching the same session's messages
+                # between the two steps cannot make tokens_removed describe a
+                # different set of rows than deleted_count.
+                tally_docs = await collection.aggregate(tally_pipeline, session=session).to_list(length=1)
+                tokens_removed = int(tally_docs[0]["total_tokens"]) if tally_docs else 0
+                result = await collection.delete_many(delete_query, session=session)
+                return {"deleted_count": result.deleted_count, "tokens_removed": tokens_removed}
+
+            try:
+                return await self.execute_transaction(_tally_and_delete)
+            except pymongo.errors.OperationFailure as txn_error:
+                # Only a standalone deployment's inability to run multi-document
+                # transactions selects the fallback below — error code 20 ("Transaction
+                # numbers are only allowed on a replica set member or mongos"). Any other
+                # OperationFailure (a transient one included) is a real failure and must
+                # propagate to the outer handler, which returns zero without deleting,
+                # rather than silently switching to a fallback that can misreport tokens.
+                if txn_error.code != 20:
+                    raise
+                logger.warning(
+                    f"Standalone MongoDB deployment (no replica set) for {collection_name}; "
+                    "falling back to a per-document find_one_and_delete walk so "
+                    "tokens_removed always matches what was actually deleted "
+                    f"({txn_error!s})"
+                )
+                # find_one_and_delete is atomic per document, so this never tallies a
+                # document that a concurrent writer already removed or changed — unlike
+                # a separate tally-then-delete_many, deleted_count/tokens_removed can
+                # only ever reflect documents this call itself deleted.
+                deleted_count = 0
+                tokens_removed = 0
+                projection = {token_field: 1, content_field: 1}
+                while True:
+                    doc = await collection.find_one_and_delete(delete_query, projection=projection)
+                    if doc is None:
+                        break
+                    token_count = doc.get(token_field)
+                    if token_count is None:
+                        content = doc.get(content_field) or ""
+                        token_count = max(1, len(content) // chars_per_token_estimate)
+                    deleted_count += 1
+                    tokens_removed += token_count
+                return {"deleted_count": deleted_count, "tokens_removed": tokens_removed}
+        except Exception as e:  # noqa: BLE001 - motor/pymongo driver call; exception surface not fully known or stable across versions
+            logger.error(f"Error deleting messages beyond token budget in {collection_name}: {e!s}")
+            return {"deleted_count": 0, "tokens_removed": 0}
+
     async def clear_collection(self, collection_name: str) -> int:
         """
         Delete ALL documents from a collection.

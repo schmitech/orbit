@@ -704,6 +704,22 @@ class PostgresService(DatabaseService):
                 self.connection.commit()
             return [dict(row) for row in rows]
 
+    def _execute_sql_delete_returning(self, sql: str, params: tuple) -> list[dict[str, Any]]:
+        """Execute a DELETE ... RETURNING statement and commit (runs in thread) - thread-safe.
+
+        Fetching the returned rows and committing happen under the same lock
+        acquisition as the delete itself, so the reported rows are exactly
+        (and only) the rows this statement deleted — no separate tally query
+        that could race against a concurrent writer.
+        """
+        with self._db_lock:
+            cursor = self.connection.cursor()
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            if not self._in_transaction:
+                self.connection.commit()
+            return [dict(row) for row in rows]
+
     def _table_exists(self, table_name: str) -> bool:
         """Check if a table exists (runs in thread) - thread-safe"""
         with self._db_lock:
@@ -845,10 +861,17 @@ class PostgresService(DatabaseService):
                 collection_name
             )
 
+            # Callers may pass MongoDB-style "_id" (e.g. to mirror a compound
+            # index ending in the document id across all three backends) —
+            # map it to the actual storage column name, same as
+            # _projection_storage_columns does for find_many.
+            def _storage_column(name: str) -> str:
+                return "id" if name == "_id" else name
+
             if isinstance(field_name, list):
-                field_str = '_'.join([f[0] for f in field_name])
+                field_str = '_'.join([_storage_column(f[0]) for f in field_name])
             else:
-                field_str = field_name
+                field_str = _storage_column(field_name)
             index_name = f"idx_{collection_name}_{field_str}"
 
             if not table_exists:
@@ -868,9 +891,9 @@ class PostgresService(DatabaseService):
             unique_str = "UNIQUE " if unique else ""
 
             if isinstance(field_name, list):
-                fields_str = ', '.join([f'"{f[0]}"' for f in field_name])
+                fields_str = ', '.join([f'"{_storage_column(f[0])}"' for f in field_name])
             else:
-                fields_str = f'"{field_name}"'
+                fields_str = f'"{_storage_column(field_name)}"'
 
             index_sql = f"CREATE {unique_str}INDEX IF NOT EXISTS {index_name} ON {collection_name}({fields_str})"
 
@@ -1372,6 +1395,168 @@ class PostgresService(DatabaseService):
         except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's zero-result fallback
             logger.error(f"Error counting records in {collection_name}: {e!s}")
             return 0
+
+    async def find_user_session_summaries(
+        self,
+        collection_name: str,
+        user_id: Any,
+        offset: int,
+        limit: int,
+        include_summary: bool,
+        content_field: str = "content",
+        role_field: str = "role",
+    ) -> list[dict[str, Any]]:
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            if include_summary:
+                sql = f'''
+                    WITH agg AS (
+                        SELECT session_id,
+                               COUNT(*) AS message_count,
+                               MIN(timestamp) AS first_activity,
+                               MAX(timestamp) AS last_activity
+                        FROM {collection_name}
+                        WHERE user_id = %s
+                        GROUP BY session_id
+                    ),
+                    ranked AS (
+                        SELECT session_id, "{content_field}" AS rc, "{role_field}" AS rr,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY session_id ORDER BY timestamp DESC, id DESC
+                               ) AS rn
+                        FROM {collection_name}
+                        WHERE user_id = %s
+                    )
+                    SELECT agg.session_id AS session_id,
+                           agg.message_count AS message_count,
+                           agg.first_activity AS first_activity,
+                           agg.last_activity AS last_activity,
+                           ranked.rc AS last_message_content,
+                           ranked.rr AS last_message_role
+                    FROM agg
+                    LEFT JOIN ranked ON ranked.session_id = agg.session_id AND ranked.rn = 1
+                    ORDER BY agg.last_activity DESC, agg.session_id ASC
+                    LIMIT %s OFFSET %s
+                '''
+                params = (user_id, user_id, limit, offset)
+            else:
+                sql = f'''
+                    SELECT session_id AS session_id,
+                           COUNT(*) AS message_count,
+                           MIN(timestamp) AS first_activity,
+                           MAX(timestamp) AS last_activity
+                    FROM {collection_name}
+                    WHERE user_id = %s
+                    GROUP BY session_id
+                    ORDER BY last_activity DESC, session_id ASC
+                    LIMIT %s OFFSET %s
+                '''
+                params = (user_id, limit, offset)
+
+            loop = asyncio.get_running_loop()
+            rows = await loop.run_in_executor(
+                self.executor, self._execute_sql_fetchall, sql, params
+            )
+            results = []
+            for row in rows:
+                doc = dict(row)
+                for field in ("first_activity", "last_activity"):
+                    if doc.get(field) and isinstance(doc[field], str):
+                        try:
+                            doc[field] = datetime.fromisoformat(doc[field])
+                        except (ValueError, TypeError):
+                            pass
+                results.append(doc)
+            return results
+
+        except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's empty-result fallback
+            logger.error(f"Error finding session summaries in {collection_name}: {e!s}")
+            return []
+
+    async def delete_messages_beyond_token_budget(
+        self,
+        collection_name: str,
+        session_filter: dict[str, Any],
+        token_field: str,
+        content_field: str,
+        budget: int,
+        chars_per_token_estimate: int,
+    ) -> dict[str, int]:
+        if not self._initialized:
+            await self.initialize()
+
+        async with self._operation_scope():
+            try:
+                where_clause, params = self._convert_query_to_sql(collection_name, session_filter)
+                if not where_clause:
+                    logger.warning("delete_messages_beyond_token_budget called without a session filter")
+                    return {"deleted_count": 0, "tokens_removed": 0}
+
+                # CHAR_LENGTH counts characters (codepoints), not bytes, matching
+                # Python's len() semantics for the legacy-token estimate.
+                base_sql = f'''
+                    SELECT id, timestamp,
+                           CASE WHEN "{token_field}" IS NOT NULL THEN "{token_field}"
+                                ELSE GREATEST(1, CHAR_LENGTH("{content_field}") / %s) END AS effective_tokens
+                    FROM {collection_name}
+                    WHERE {where_clause}
+                '''
+                ranked_sql = f'''
+                    SELECT id, timestamp, effective_tokens,
+                           SUM(effective_tokens) OVER (ORDER BY timestamp DESC, id DESC) AS running_total
+                    FROM ({base_sql}) t
+                '''
+                boundary_sql = f'''
+                    SELECT id, timestamp FROM ({ranked_sql}) r
+                    WHERE running_total > %s
+                    ORDER BY timestamp DESC, id DESC
+                    LIMIT 1
+                '''
+                boundary_params = (chars_per_token_estimate,) + params + (budget,)
+
+                loop = asyncio.get_running_loop()
+                boundary = await loop.run_in_executor(
+                    self.executor, self._execute_sql_fetchone, boundary_sql, boundary_params
+                )
+                if not boundary:
+                    return {"deleted_count": 0, "tokens_removed": 0}
+
+                b_ts = boundary["timestamp"]
+                b_id = boundary["id"]
+
+                delete_predicate = '(timestamp < %s OR (timestamp = %s AND id <= %s))'
+                delete_params = (b_ts, b_ts, b_id)
+
+                # DELETE ... RETURNING computes and deletes in one atomic
+                # statement — deleted_count/tokens_removed are derived only
+                # from the rows this statement actually deleted, never from
+                # a separate tally that could race against a concurrent
+                # writer touching the same session.
+                delete_sql = f'''
+                    DELETE FROM {collection_name}
+                    WHERE {where_clause} AND {delete_predicate}
+                    RETURNING (
+                        CASE WHEN "{token_field}" IS NOT NULL THEN "{token_field}"
+                             ELSE GREATEST(1, CHAR_LENGTH("{content_field}") / %s) END
+                    ) AS effective_tokens
+                '''
+                deleted_rows = await loop.run_in_executor(
+                    self.executor,
+                    self._execute_sql_delete_returning,
+                    delete_sql,
+                    params + delete_params + (chars_per_token_estimate,),
+                )
+
+                deleted_count = len(deleted_rows)
+                tokens_removed = sum(row["effective_tokens"] for row in deleted_rows)
+
+                return {"deleted_count": deleted_count, "tokens_removed": tokens_removed}
+
+            except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's zero-result fallback
+                logger.error(f"Error deleting messages beyond token budget in {collection_name}: {e!s}")
+                return {"deleted_count": 0, "tokens_removed": 0}
 
     async def clear_collection(self, collection_name: str) -> int:
         """

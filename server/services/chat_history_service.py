@@ -468,7 +468,24 @@ class ChatHistoryService:
                 self.collection_name,
                 [("session_id", 1), ("timestamp", -1), ("token_count", 1)]
             )
-            
+
+            # find_user_session_summaries() matches on user_id and sorts
+            # timestamp DESC, _id DESC (both the grouped-row window used for
+            # message_count/first_activity/last_activity, and the per-session
+            # latest-message ranking) — a compound index ending in _id lets
+            # that exact sort be satisfied without a blocking in-memory sort.
+            await self.database_service.create_index(
+                self.collection_name,
+                [("user_id", 1), ("timestamp", -1), ("_id", -1)]
+            )
+
+            # delete_messages_beyond_token_budget() matches on session_id and
+            # walks messages in the same timestamp DESC, _id DESC order.
+            await self.database_service.create_index(
+                self.collection_name,
+                [("session_id", 1), ("timestamp", -1), ("_id", -1)]
+            )
+
             logger.debug("Created indexes for chat history collection")
                 
         except Exception as e:
@@ -1005,76 +1022,22 @@ class ChatHistoryService:
                     cleanup_threshold,
                 )
 
-                # Fetch message metadata only (not `content`) for session, ordered by
-                # timestamp ASC (oldest first). `content` is fetched separately, only
-                # for legacy rows missing `token_count`, to avoid loading the full
-                # message text of a large session into memory just to compute the
-                # budget-walk boundary below.
-                all_messages = await self.database_service.find_many(
+                # Determines the delete boundary and performs the delete
+                # server-side: walks messages newest-to-oldest, ordered
+                # timestamp DESC, _id DESC, accumulating token_count (or the
+                # legacy content-length estimate) until token_budget is
+                # exceeded, then deletes that message and everything older.
+                # Never materializes the full session's messages/ids.
+                result = await self.database_service.delete_messages_beyond_token_budget(
                     self.collection_name,
                     {"session_id": session_id},
-                    sort=[("timestamp", 1)],  # Oldest first
-                    limit=10000,  # Reasonable upper bound
-                    projection=["timestamp", "token_count"]
+                    token_field="token_count",
+                    content_field="content",
+                    budget=token_budget,
+                    chars_per_token_estimate=CHARS_PER_TOKEN_ESTIMATE,
                 )
-
-                if not all_messages:
-                    return 0
-
-                missing_ids = [
-                    msg.get("_id") for msg in all_messages
-                    if msg.get("token_count") is None and msg.get("_id")
-                ]
-                if missing_ids:
-                    content_rows = await self.database_service.find_many(
-                        self.collection_name,
-                        {"_id": {"$in": missing_ids}},
-                        limit=len(missing_ids),
-                        projection=["content"]
-                    )
-                    content_by_id = {row.get("_id"): row.get("content", "") for row in content_rows}
-                    for msg in all_messages:
-                        if msg.get("token_count") is None:
-                            msg["content"] = content_by_id.get(msg.get("_id"), "")
-
-                # Calculate which messages to keep (from newest, within budget)
-                messages_reversed = list(reversed(all_messages))
-                accumulated_tokens = 0
-                keep_count = 0
-
-                for msg in messages_reversed:
-                    token_count = self._get_msg_token_count(msg)
-
-                    if accumulated_tokens + token_count > token_budget:
-                        break
-
-                    accumulated_tokens += token_count
-                    keep_count += 1
-
-                # Calculate how many to delete (oldest messages)
-                delete_count = len(all_messages) - keep_count
-
-                if delete_count <= 0:
-                    return 0
-
-                # Get IDs of messages to delete (oldest ones)
-                messages_to_delete = all_messages[:delete_count]
-                deleted_ids = [msg.get("_id") for msg in messages_to_delete if msg.get("_id")]
-
-                # Tokens being removed = everything minus what we decided to keep
-                total_tokens = sum(self._get_msg_token_count(msg) for msg in all_messages)
-                tokens_removed = total_tokens - accumulated_tokens
-
-                # Delete messages in bulk
-                actual_deleted = 0
-                if deleted_ids:
-                    try:
-                        actual_deleted = await self.database_service.delete_many(
-                            self.collection_name,
-                            {"_id": {"$in": deleted_ids}}
-                        )
-                    except Exception as e:  # noqa: BLE001 - database boundary (mongo/sqlite backend), must not crash caller on backend-specific errors
-                        logger.warning(f"Error bulk-deleting messages: {e!s}")
+                actual_deleted = result.get("deleted_count", 0)
+                tokens_removed = result.get("tokens_removed", 0)
 
                 # Update cache atomically within the lock
                 if actual_deleted > 0:
@@ -1203,75 +1166,41 @@ class ChatHistoryService:
             return []
 
         try:
-            # Get all messages for the user, sorted by timestamp descending. Only
-            # `session_id`/`timestamp` are projected here — `content` is fetched
-            # afterwards, and only for the paginated slice of sessions actually
-            # returned, to avoid loading every message body in the user's history
-            # just to compute per-session counts and timestamps.
-            messages = await self.database_service.find_many(
+            # Session summaries (count, first/last activity, and — when
+            # include_summary — the latest message preview) are computed and
+            # paginated entirely in the database, so this never fetches every
+            # message or every session for the user.
+            summaries = await self.database_service.find_user_session_summaries(
                 self.collection_name,
-                {"user_id": user_id},
-                sort=[("timestamp", -1)],
-                limit=10000,  # reasonable limit to prevent memory issues
-                projection=["session_id", "timestamp"]
+                user_id,
+                offset=offset,
+                limit=limit,
+                include_summary=include_summary,
             )
 
-            # Group messages by session_id — only track metadata, not full messages
-            sessions_dict = {}
-            for msg in messages:
-                session_id = msg.get("session_id")
-                if not session_id:
-                    continue
-
-                if session_id not in sessions_dict:
-                    sessions_dict[session_id] = {
-                        "message_count": 0,
-                        "last_activity": msg.get("timestamp"),
-                        "first_activity": msg.get("timestamp"),
-                    }
-
-                sessions_dict[session_id]["message_count"] += 1
-                # Update first_activity (since messages are sorted desc, last one we see is oldest)
-                sessions_dict[session_id]["first_activity"] = msg.get("timestamp")
-
-            # Convert to list
-            sessions_list = []
-            for session_id, data in sessions_dict.items():
+            paginated_results = []
+            for summary in summaries:
+                last_activity = summary.get("last_activity")
+                first_activity = summary.get("first_activity")
                 session_data = {
-                    "session_id": session_id,
-                    "last_activity": data["last_activity"],
-                    "first_activity": data["first_activity"],
-                    "message_count": data["message_count"],
+                    "session_id": summary.get("session_id"),
+                    "last_activity": last_activity,
+                    "first_activity": first_activity,
+                    "message_count": summary.get("message_count", 0),
                     "duration_seconds": (
-                        data["last_activity"] - data["first_activity"]
-                    ).total_seconds() if data["last_activity"] and data["first_activity"] else 0
+                        last_activity - first_activity
+                    ).total_seconds() if last_activity and first_activity else 0
                 }
-                sessions_list.append(session_data)
 
-            # Sort by last_activity descending
-            sessions_list.sort(key=lambda x: x["last_activity"], reverse=True)
-
-            # Apply pagination
-            paginated_results = sessions_list[offset:offset + limit]
-
-            if include_summary:
-                # Fetch the last message content/role only for the sessions actually
-                # being returned on this page, not all 10000 fetched above.
-                for session_data in paginated_results:
-                    last_messages = await self.database_service.find_many(
-                        self.collection_name,
-                        {"user_id": user_id, "session_id": session_data["session_id"]},
-                        sort=[("timestamp", -1)],
-                        limit=1,
-                        projection=["content", "role"]
-                    )
-                    last_message = last_messages[0] if last_messages else {}
-                    content = last_message.get("content", "") or ""
+                if include_summary:
+                    content = summary.get("last_message_content") or ""
                     preview = content[:100]
                     if len(content) > 100:
                         preview += "..."
                     session_data["last_message_preview"] = preview
-                    session_data["last_message_role"] = last_message.get("role")
+                    session_data["last_message_role"] = summary.get("last_message_role")
+
+                paginated_results.append(session_data)
 
             return paginated_results
 
