@@ -8,6 +8,7 @@ and timeout handling for all AI services.
 import aiohttp
 import asyncio
 import logging
+import random
 from typing import Any, Optional, TypeVar
 from collections.abc import Callable, Awaitable
 from functools import wraps
@@ -109,23 +110,36 @@ class RetryHandler:
         initial_wait_ms: int = 1000,
         max_wait_ms: int = 30000,
         exponential_base: float = 2.0,
-        enabled: bool = True
+        enabled: bool = True,
+        retry_on: Optional[tuple] = None,
+        jitter: bool = False
     ):
         """
         Initialize the retry handler.
 
         Args:
-            max_retries: Maximum number of retry attempts
+            max_retries: Maximum number of retry attempts (on top of the
+                first attempt, so total calls = max_retries + 1)
             initial_wait_ms: Initial wait time in milliseconds
             max_wait_ms: Maximum wait time in milliseconds
             exponential_base: Base for exponential backoff calculation
             enabled: Whether retry logic is enabled
+            retry_on: Optional tuple of exception types to retry on. When
+                None (default), every exception is retried, preserving prior
+                behavior. When set, any exception not in the tuple is
+                re-raised immediately without retrying or sleeping.
+            jitter: When True, apply full jitter (a random wait time between
+                0 and the computed exponential backoff) instead of the exact
+                exponential value, to avoid synchronized retry storms across
+                concurrent callers.
         """
         self.max_retries = max_retries
         self.initial_wait_ms = initial_wait_ms
         self.max_wait_ms = max_wait_ms
         self.exponential_base = exponential_base
         self.enabled = enabled
+        self.retry_on = retry_on
+        self.jitter = jitter
         self.logger = logging.getLogger(f"{__name__}.RetryHandler")
 
     def _calculate_wait_time(self, attempt: int) -> float:
@@ -142,6 +156,8 @@ class RetryHandler:
             self.initial_wait_ms * (self.exponential_base ** attempt),
             self.max_wait_ms
         )
+        if self.jitter:
+            wait_ms = random.uniform(0, wait_ms)
         return wait_ms / 1000
 
     async def execute_with_retry(
@@ -160,7 +176,8 @@ class RetryHandler:
             Result of the operation
 
         Raises:
-            Exception: The last exception encountered if all retries fail
+            Exception: The last exception encountered if all retries fail,
+                or immediately if it doesn't match `retry_on`.
         """
         if not self.enabled:
             return await operation()
@@ -171,7 +188,10 @@ class RetryHandler:
             try:
                 return await operation()
 
-            except Exception as e:  # noqa: BLE001 - provider boundary fallback
+            except Exception as e:  # noqa: BLE001 - provider boundary fallback; non-retryable types are re-raised immediately below
+                if self.retry_on is not None and not isinstance(e, self.retry_on):
+                    raise
+
                 last_exception = e
 
                 # Don't retry on the last attempt
@@ -331,15 +351,25 @@ class RateLimiter:
 def retry_on_error(
     max_retries: int = 3,
     initial_wait_ms: int = 1000,
-    exponential_base: float = 2.0
+    max_wait_ms: int = 30000,
+    exponential_base: float = 2.0,
+    retry_on: Optional[tuple] = None,
+    jitter: bool = False
 ):
     """
     Decorator for adding retry logic to async functions.
 
     Args:
-        max_retries: Maximum number of retry attempts
+        max_retries: Maximum number of retry attempts on top of the first
+            attempt (total calls = max_retries + 1)
         initial_wait_ms: Initial wait time in milliseconds
+        max_wait_ms: Maximum wait time in milliseconds
         exponential_base: Base for exponential backoff
+        retry_on: Optional tuple of exception types to retry on; other
+            exceptions propagate immediately without retrying (see
+            RetryHandler)
+        jitter: When True, randomize the backoff wait time (full jitter)
+            instead of using the exact exponential value
 
     Returns:
         Decorated function with retry logic
@@ -348,7 +378,10 @@ def retry_on_error(
         retry_handler = RetryHandler(
             max_retries=max_retries,
             initial_wait_ms=initial_wait_ms,
-            exponential_base=exponential_base
+            max_wait_ms=max_wait_ms,
+            exponential_base=exponential_base,
+            retry_on=retry_on,
+            jitter=jitter
         )
 
         @wraps(func)

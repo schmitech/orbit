@@ -17,7 +17,23 @@ Applied in that same pass (not part of this plan): a shared
 parallelization of `_delete_generation_memory()` and the per-file deletion
 loop in `_cascade_delete_session()`.
 
-## Phase 1 — Retry decorator consolidation
+## Phase 1 — Retry decorator consolidation [COMPLETE]
+
+Implemented 2026-09-13. `RetryHandler`/`retry_on_error()` in
+`server/ai_services/connection.py` gained `retry_on` and `jitter` parameters
+(both default to the prior behavior, so no other caller changed). The two
+`@with_retry()` call sites in `chat_history_service.py` now use
+`@retry_on_error(max_retries=2, initial_wait_ms=1000, max_wait_ms=10000,
+retry_on=_DB_RETRY_ON, jitter=True)` — `max_retries=2` was required (not 3)
+to preserve the original 3-total-call count, per the attempt-count
+reconciliation below. `with_retry()` and its now-unused imports were
+removed. Tests added in
+`server/tests/test_services/test_chat_history_service.py`:
+`test_add_message_retries_transient_db_error_then_succeeds`,
+`test_add_message_retry_exhaustion_makes_exactly_three_total_calls`,
+`test_add_message_non_retryable_exception_is_not_retried`,
+`test_add_message_duplicate_key_behavior_unchanged`. All 42 tests in that
+file pass.
 
 **Item:** `with_retry()` (`server/services/chat_history_service.py:47-81`)
 duplicates the exponential-backoff retry pattern already implemented by

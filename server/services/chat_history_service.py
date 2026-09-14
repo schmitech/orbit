@@ -8,13 +8,11 @@ This service manages chat conversation history with database persistence
 
 import logging
 import asyncio
-import functools
 import hashlib
-import random
-from typing import Any, Optional, TypeVar
-from collections.abc import Callable, Awaitable
+from typing import Any, Optional
 from datetime import datetime, timedelta, UTC
 
+from ai_services.connection import retry_on_error
 from services.database_service import (
     DatabaseConnectionError,
     DatabaseOperationError,
@@ -41,47 +39,19 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+# Shared retry config for chat-history database operations: 2 retries (3 total
+# calls), matching the prior `with_retry()`'s max_attempts=3 exactly.
+# `retry_on_error`'s `max_retries` counts retries on top of the first attempt
+# (RetryHandler.execute_with_retry: `for attempt in range(max_retries + 1)`),
+# whereas the removed `with_retry(max_attempts=3)` looped `range(max_attempts)`
+# directly — so `max_retries=2` here is required to preserve the same total
+# call count, not `max_retries=3`.
+_DB_RETRY_ON = (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError)
 
 
 class SessionOwnershipError(Exception):
     """Raised when an API key operates on a session owned by a different key."""
 
-def with_retry(
-    max_attempts: int = 3,
-    base_delay: float = 1.0,
-    max_delay: float = 10.0,
-    retry_on: tuple = (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError)
-):
-    """
-    Decorator that adds retry logic with exponential backoff
-
-    Args:
-        max_attempts: Maximum number of retry attempts
-        base_delay: Base delay for exponential backoff in seconds
-        max_delay: Maximum delay between retries in seconds
-        retry_on: Tuple of database exceptions to retry on
-    """
-    def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
-            last_exception = None
-            for attempt in range(max_attempts):
-                try:
-                    return await func(*args, **kwargs)
-                except retry_on as e:
-                    last_exception = e
-                    if attempt < max_attempts - 1:
-                        # Calculate delay with exponential backoff and full jitter
-                        delay = min(random.uniform(0, base_delay * (2 ** attempt)), max_delay)
-                        logger.warning(f"Retry attempt {attempt + 1}/{max_attempts} for {func.__name__} after {delay:.2f}s due to {type(e).__name__}")
-                        await asyncio.sleep(delay)
-                    else:
-                        logger.error(f"All {max_attempts} retry attempts failed for {func.__name__}")
-                        raise last_exception
-            raise last_exception  # This should never be reached due to the raise in the loop
-        return wrapper
-    return decorator
 
 class ChatHistoryService:
     """Service for managing chat history and conversations"""
@@ -700,7 +670,7 @@ class ChatHistoryService:
         except Exception as e:  # noqa: BLE001 - background worker loop must keep running past an unexpected error
             logger.error(f"Error in token count backfill: {e!s}")
     
-    @with_retry()
+    @retry_on_error(max_retries=2, initial_wait_ms=1000, max_wait_ms=10000, retry_on=_DB_RETRY_ON, jitter=True)
     async def add_message(
         self,
         session_id: str,
@@ -1155,7 +1125,7 @@ class ChatHistoryService:
                 logger.error(f"Error cleaning up excess messages for session {session_id}: {e!s}")
                 return 0
 
-    @with_retry()
+    @retry_on_error(max_retries=2, initial_wait_ms=1000, max_wait_ms=10000, retry_on=_DB_RETRY_ON, jitter=True)
     async def get_conversation_history(
         self,
         session_id: str,

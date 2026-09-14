@@ -14,7 +14,7 @@ import shutil
 import tempfile
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 from pytest_asyncio import fixture
@@ -27,6 +27,7 @@ sys.path.append(str(SERVER_DIR))
 from services.sqlite_service import SQLiteService
 from services.chat_history_service import ChatHistoryService, SessionOwnershipError
 from services.thread_dataset_service import ThreadDatasetService
+from services.database_service import DatabaseConnectionError, DatabaseDuplicateKeyError
 from utils.id_utils import generate_id
 from utils.text_utils import hash_api_key, mask_api_key
 
@@ -1445,3 +1446,77 @@ async def test_regenerate_of_non_final_turn_preserves_conversation_order(chat_hi
   assert contents == ["Give me one color.", "Green.", "Give me one animal.", "Dog."], (
     "Regenerating the first turn should not move it after the second turn"
   )
+
+
+def _service_with_mocked_db():
+  """A ChatHistoryService backed by a fully mocked database/thread-dataset
+  service, for exercising the @retry_on_error-decorated add_message() in
+  isolation from a real database (see docs/roadmap/chat-history-service-followups.md
+  Phase 1)."""
+  database_service = MagicMock()
+  thread_dataset_service = MagicMock()
+  service = ChatHistoryService(
+    {'chat_history': {'enabled': True}},
+    database_service=database_service,
+    thread_dataset_service=thread_dataset_service,
+  )
+  return service, database_service
+
+
+async def test_add_message_retries_transient_db_error_then_succeeds(monkeypatch):
+  """A retryable DatabaseConnectionError on the first attempt must be retried,
+  and the operation should ultimately succeed once the underlying call does."""
+  monkeypatch.setattr("ai_services.connection.asyncio.sleep", AsyncMock())
+  service, database_service = _service_with_mocked_db()
+  database_service.insert_one = AsyncMock(
+    side_effect=[DatabaseConnectionError("transient"), "msg-1"]
+  )
+
+  result = await service.add_message(session_id="s1", role="user", content="hi")
+
+  assert result == "msg-1"
+  assert database_service.insert_one.call_count == 2
+
+
+async def test_add_message_retry_exhaustion_makes_exactly_three_total_calls(monkeypatch):
+  """@retry_on_error(max_retries=2) on add_message must make exactly 3 total
+  calls (the original attempt + 2 retries) before propagating the last
+  exception — matching the removed with_retry(max_attempts=3)'s exact total
+  call count, per the Phase 1 attempt-count reconciliation."""
+  monkeypatch.setattr("ai_services.connection.asyncio.sleep", AsyncMock())
+  service, database_service = _service_with_mocked_db()
+  database_service.insert_one = AsyncMock(side_effect=DatabaseConnectionError("down"))
+
+  with pytest.raises(DatabaseConnectionError):
+    await service.add_message(session_id="s1", role="user", content="hi")
+
+  assert database_service.insert_one.call_count == 3
+
+
+async def test_add_message_non_retryable_exception_is_not_retried():
+  """A non-retryable exception (SessionOwnershipError) must propagate on the
+  first attempt without triggering any retry — the retry filter must not
+  treat every exception as retryable."""
+  service, database_service = _service_with_mocked_db()
+  service._api_key_owns_session = AsyncMock(return_value=False)
+
+  with pytest.raises(SessionOwnershipError):
+    await service.add_message(
+      session_id="s1", role="user", content="hi", api_key="some-key"
+    )
+
+  # The whole decorated function body ran exactly once — not retried 3 times.
+  assert service._api_key_owns_session.call_count == 1
+  database_service.insert_one.assert_not_called()
+
+
+async def test_add_message_duplicate_key_behavior_unchanged():
+  """DatabaseDuplicateKeyError is handled inside add_message itself (returns
+  None) and must never reach the retry decorator, so it must not be retried."""
+  service, database_service = _service_with_mocked_db()
+  database_service.insert_one = AsyncMock(side_effect=DatabaseDuplicateKeyError("dup"))
+
+  result = await service.add_message(session_id="s1", role="user", content="hi")
+
+  assert result is None
+  assert database_service.insert_one.call_count == 1
