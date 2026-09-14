@@ -109,3 +109,27 @@ The wrapper auto-activates `venv\` if `VIRTUAL_ENV` is not already set, so you d
 | CUDA wheels installed but GPU not used | Confirm `nvidia-smi` is on your PATH and your CUDA driver is ≥ 12.1 |
 | `tomllib` / `tomli` import error | Run `pip install tomli` inside the activated venv |
 | GGUF download fails | Check your Hugging Face token if the model is gated; set `HF_TOKEN` in `server\.env` |
+| `orbit-chat`/`orbitchat` not recognized after `npm install -g` | See [npm global commands not found](#npm-global-commands-not-found) below |
+
+### npm global commands not found
+
+After `npm install -g @schmitech/orbit-cli` or `npm install -g orbitchat`, the command may still not be
+recognized, even though `npm list -g` shows it installed. This means the package is there but its folder
+isn't on your `PATH` — npm installs global command shims (`.cmd` launchers) into its global prefix, which
+on Windows defaults to `%AppData%\npm` (e.g. `C:\Users\<you>\AppData\Roaming\npm`), not somewhere already
+on `PATH` by default.
+
+To confirm this is the issue, run the shim directly by its full path:
+
+```powershell
+& "$env:AppData\npm\orbit-chat.cmd" -v
+```
+
+If that works, fix it permanently by adding the npm prefix to your **user** `PATH`:
+
+1. Open **Environment Variables** (search for it in the Start menu → "Edit environment variables for your account")
+2. Under **User variables**, select `Path` → **Edit** → **New**
+3. Add `%AppData%\npm` (or run `npm config get prefix` to confirm the exact path)
+4. Click OK on all dialogs, then **fully close and reopen your terminal** — PATH changes never apply to
+   an already-open shell or terminal tab, and some terminal apps (e.g. VS Code's integrated terminal) only
+   pick up the change after a full app restart, not just a new tab.
