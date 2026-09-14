@@ -24,6 +24,10 @@ from services.database_service import (
 from utils.text_utils import hash_api_key, mask_api_key
 from utils.generation_memory import GENERATION_ADAPTER_TYPES, generation_memory_key
 
+# Conservative estimate shared by the real tokenizer fallback below and by
+# ChatHistoryService._estimate_token_count, so the ratio only lives in one place.
+CHARS_PER_TOKEN_ESTIMATE = 3
+
 # Import tokenizer utilities for token counting
 try:
     from services.file_processing.chunking.utils import get_tokenizer
@@ -32,8 +36,7 @@ except ImportError:
     def get_tokenizer(tokenizer=None):
         class SimpleTokenizer:
             def count_tokens(self, text: str) -> int:
-                # Conservative estimate: ~3 characters per token
-                return len(text) // 3
+                return len(text) // CHARS_PER_TOKEN_ESTIMATE
         return SimpleTokenizer()
 
 logger = logging.getLogger(__name__)
@@ -189,8 +192,15 @@ class ChatHistoryService:
         Uses character-based estimation: ~3 characters per token (conservative).
         Actual tokenization happens asynchronously.
         """
-        return max(1, len(content) // 3)
-    
+        return max(1, len(content) // CHARS_PER_TOKEN_ESTIMATE)
+
+    def _get_msg_token_count(self, msg: dict[str, Any]) -> int:
+        """Token count for a stored message: actual if already tokenized, else estimated."""
+        token_count = msg.get("token_count")
+        if token_count is None:
+            token_count = self._estimate_token_count(msg.get("content", ""))
+        return token_count
+
     def _resolve_preset_config(self, provider: str, provider_config: dict[str, Any]) -> dict[str, Any]:
         """Merge preset values into provider_config when a use_preset reference is present.
 
@@ -1090,10 +1100,7 @@ class ChatHistoryService:
                 keep_count = 0
 
                 for msg in messages_reversed:
-                    token_count = msg.get("token_count")
-                    if token_count is None:
-                        content = msg.get("content", "")
-                        token_count = self._estimate_token_count(content)
+                    token_count = self._get_msg_token_count(msg)
 
                     if accumulated_tokens + token_count > token_budget:
                         break
@@ -1111,14 +1118,9 @@ class ChatHistoryService:
                 messages_to_delete = all_messages[:delete_count]
                 deleted_ids = [msg.get("_id") for msg in messages_to_delete if msg.get("_id")]
 
-                # Calculate tokens being removed for cache update
-                tokens_removed = 0
-                for msg in messages_to_delete:
-                    token_count = msg.get("token_count")
-                    if token_count is None:
-                        content = msg.get("content", "")
-                        token_count = self._estimate_token_count(content)
-                    tokens_removed += token_count
+                # Tokens being removed = everything minus what we decided to keep
+                total_tokens = sum(self._get_msg_token_count(msg) for msg in all_messages)
+                tokens_removed = total_tokens - accumulated_tokens
 
                 # Delete messages in bulk
                 actual_deleted = 0
@@ -1327,7 +1329,6 @@ class ChatHistoryService:
         if not self.thread_dataset_service or not session_id:
             return 0
 
-        deleted = 0
         generation_adapter_names = {
             adapter.get('name')
             for adapter in self.config.get('adapters', [])
@@ -1335,19 +1336,22 @@ class ChatHistoryService:
             and adapter.get('type') in GENERATION_ADAPTER_TYPES
             and adapter.get('name')
         }
-        for adapter_name in generation_adapter_names:
+
+        async def _delete_for_adapter(adapter_name: str) -> bool:
             try:
                 dataset_key = self.thread_dataset_service._generate_dataset_key(
                     generation_memory_key(adapter_name, session_id)
                 )
-                if await self.thread_dataset_service.delete_dataset(dataset_key):
-                    deleted += 1
+                return await self.thread_dataset_service.delete_dataset(dataset_key)
             except Exception as e:  # noqa: BLE001 - best-effort cleanup of one item must not abort cleanup of the rest
                 logger.debug(
                     "Failed to delete generation memory for adapter '%s' session %s: %s",
                     adapter_name, session_id, e,
                 )
-        return deleted
+                return False
+
+        results = await asyncio.gather(*(_delete_for_adapter(name) for name in generation_adapter_names))
+        return sum(1 for r in results if r)
 
     async def _cascade_delete_session(
         self,
@@ -1423,12 +1427,17 @@ class ChatHistoryService:
                         file_processing_service = getattr(self.database_service.app_state, 'file_processing_service', None)
 
                     if file_processing_service:
-                        for file_id in file_ids_to_delete:
+                        async def _delete_file(file_id: str) -> bool:
                             try:
-                                if await file_processing_service.delete_file(file_id, api_key):
-                                    result["files_deleted"] += 1
+                                return await file_processing_service.delete_file(file_id, api_key)
                             except Exception as e:  # noqa: BLE001 - best-effort cleanup of one item must not abort cleanup of the rest
                                 logger.warning("Error deleting file %s: %s", file_id, e)
+                                return False
+
+                        deleted_flags = await asyncio.gather(
+                            *(_delete_file(fid) for fid in file_ids_to_delete)
+                        )
+                        result["files_deleted"] += sum(1 for d in deleted_flags if d)
                     else:
                         logger.warning(
                             "FileProcessingService not available - files will not be deleted. "
@@ -1482,6 +1491,12 @@ class ChatHistoryService:
 
         return result
 
+    def _untrack_session(self, session_id: str) -> None:
+        """Drop a session from all in-memory tracking caches."""
+        self._active_sessions.pop(session_id, None)
+        self._session_token_counts.pop(session_id, None)
+        self._session_locks.pop(session_id, None)
+
     async def clear_session_history(self, session_id: str) -> bool:
         """
         Clear all history for a session
@@ -1503,10 +1518,7 @@ class ChatHistoryService:
 
             await self._cascade_delete_session(session_id)
 
-            # Clear from tracking
-            self._active_sessions.pop(session_id, None)
-            self._session_token_counts.pop(session_id, None)
-            self._session_locks.pop(session_id, None)
+            self._untrack_session(session_id)
 
             logger.debug(
                 "Cleared history for session %s: %s messages",
@@ -1618,26 +1630,17 @@ class ChatHistoryService:
         Returns:
             Dictionary containing operation result and statistics
         """
+        def _fail(error: str) -> dict[str, Any]:
+            return {"success": False, "error": error, "deleted_count": 0}
+
         if not self.enabled:
-            return {
-                "success": False,
-                "error": "Chat history service is disabled",
-                "deleted_count": 0
-            }
+            return _fail("Chat history service is disabled")
 
         if not session_id:
-            return {
-                "success": False,
-                "error": "Session ID is required",
-                "deleted_count": 0
-            }
+            return _fail("Session ID is required")
 
         if not api_key:
-            return {
-                "success": False,
-                "error": "API key is required",
-                "deleted_count": 0
-            }
+            return _fail("API key is required")
 
         try:
             # Prefer explicitly passed service over instance attribute to avoid shared-state races
@@ -1650,17 +1653,9 @@ class ChatHistoryService:
 
                 is_valid, adapter_name, _ = await _api_key_svc.validate_api_key(api_key, adapter_manager)
                 if not is_valid:
-                    return {
-                        "success": False,
-                        "error": "Invalid API key",
-                        "deleted_count": 0
-                    }
+                    return _fail("Invalid API key")
             else:
-                return {
-                    "success": False,
-                    "error": "API key service not available",
-                    "deleted_count": 0
-                }
+                return _fail("API key service not available")
 
             # Validating the key only proves it is a live key, not that it owns this
             # session. Without this check any valid key can delete any other tenant's
@@ -1671,11 +1666,7 @@ class ChatHistoryService:
                     session_id,
                     mask_api_key(api_key, show_last=True, num_chars=6)
                 )
-                return {
-                    "success": False,
-                    "error": "Access denied",
-                    "deleted_count": 0
-                }
+                return _fail("Access denied")
 
             deleted_count = await self.database_service.delete_many(
                 self.collection_name,
@@ -1686,9 +1677,7 @@ class ChatHistoryService:
                 session_id, api_key=api_key, delete_files=True
             )
 
-            self._active_sessions.pop(session_id, None)
-            self._session_token_counts.pop(session_id, None)
-            self._session_locks.pop(session_id, None)
+            self._untrack_session(session_id)
 
             logger.debug(
                 "Cleared conversation history for session %s: %s messages deleted, %s threads deleted, %s files deleted",
@@ -1716,12 +1705,8 @@ class ChatHistoryService:
                 session_id,
                 str(exc)
             )
-            return {
-                "success": False,
-                "error": str(exc),
-                "deleted_count": 0
-            }
-    
+            return _fail(str(exc))
+
     async def get_session_stats(self, session_id: str) -> dict[str, Any]:
         """
         Get statistics for a session
@@ -1953,12 +1938,7 @@ class ChatHistoryService:
             accumulated_tokens = 0
 
             for msg in all_messages:
-                # Get token count (use actual if available, otherwise estimate)
-                token_count = msg.get("token_count")
-                if token_count is None:
-                    # Fallback to estimate if token_count not yet calculated
-                    content = msg.get("content", "")
-                    token_count = self._estimate_token_count(content)
+                token_count = self._get_msg_token_count(msg)
 
                 # Check if adding this message would exceed budget
                 if accumulated_tokens + token_count > token_budget:
@@ -2081,9 +2061,7 @@ class ChatHistoryService:
             ]
             
             for sid in inactive:
-                self._active_sessions.pop(sid, None)
-                self._session_token_counts.pop(sid, None)
-                self._session_locks.pop(sid, None)  # Clean up session locks
+                self._untrack_session(sid)
 
             if inactive:
                 logger.debug(
@@ -2113,38 +2091,21 @@ class ChatHistoryService:
                 # Retry in 5 minutes on error
                 await asyncio.sleep(300)
 
-    async def close(self) -> None:
-        """Clean up resources"""
-        # Cancel cleanup tasks
-        if self._cleanup_task:
-            self._cleanup_task.cancel()
+    async def _cancel_task(self, task: Optional[asyncio.Task]) -> None:
+        """Cancel a background task and await its cancellation, if it's still running."""
+        if task and not task.done():
+            task.cancel()
             try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
-                
-        if hasattr(self, '_inactive_cleanup_task') and self._inactive_cleanup_task:
-            self._inactive_cleanup_task.cancel()
-            try:
-                await self._inactive_cleanup_task
-            except asyncio.CancelledError:
-                pass
-        
-        # Cancel tokenization task
-        if self._tokenization_task:
-            self._tokenization_task.cancel()
-            try:
-                await self._tokenization_task
+                await task
             except asyncio.CancelledError:
                 pass
 
-        # Cancel backfill task
-        if self._backfill_task and not self._backfill_task.done():
-            self._backfill_task.cancel()
-            try:
-                await self._backfill_task
-            except asyncio.CancelledError:
-                pass
+    async def close(self) -> None:
+        """Clean up resources"""
+        await self._cancel_task(self._cleanup_task)
+        await self._cancel_task(getattr(self, '_inactive_cleanup_task', None))
+        await self._cancel_task(self._tokenization_task)
+        await self._cancel_task(self._backfill_task)
 
         # Clear tracking
         self._active_sessions.clear()
