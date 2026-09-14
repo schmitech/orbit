@@ -907,7 +907,13 @@ class PostgresService(DatabaseService):
         params = []
 
         for key, value in query.items():
-            if key == '_id':
+            if key == '_id' and isinstance(value, dict) and '$in' in value:
+                # ids are strings, so route through id_to_string rather than the
+                # generic $in branch below (which uses _convert_value_for_sql)
+                placeholders = ','.join(['%s' for _ in value['$in']])
+                conditions.append(f'"id" IN ({placeholders})')
+                params.extend(id_to_string(v) for v in value['$in'])
+            elif key == '_id':
                 conditions.append('"id" = %s')
                 params.append(id_to_string(value))
             elif isinstance(value, dict):
@@ -1078,16 +1084,29 @@ class PostgresService(DatabaseService):
         query: dict[str, Any],
         limit: int = 100,
         sort: list[tuple[str, int]] | None = None,
-        skip: int = 0
+        skip: int = 0,
+        projection: list[str] | None = None
     ) -> list[dict[str, Any]]:
-        """Find multiple records in a table"""
+        """
+        Find multiple records in a table
+
+        Args:
+            projection: Optional list of column names to return; the row id
+                (`id`, exposed as `_id`) is always included in addition
+        """
         if not self._initialized:
             await self.initialize()
 
         try:
             where_clause, params = self._convert_query_to_sql(collection_name, query)
 
-            sql = f"SELECT * FROM {collection_name}"
+            if projection is not None:
+                columns = ", ".join(
+                    f'"{field}"' for field in self._projection_storage_columns(collection_name, projection)
+                )
+                sql = f"SELECT {columns} FROM {collection_name}"
+            else:
+                sql = f"SELECT * FROM {collection_name}"
 
             if where_clause:
                 sql += f" WHERE {where_clause}"
@@ -1449,6 +1468,28 @@ class PostgresService(DatabaseService):
             The ID as a string
         """
         return ensure_id(id_value, 'postgres')
+
+    def _projection_storage_columns(self, collection_name: str, projection: list[str]) -> set[str]:
+        """
+        Map logical (MongoDB-style) field names in a `find_many` projection to
+        their SQL storage column names, mirroring `_convert_row_to_document`'s
+        reverse mapping. `_id` is stored as `id`, and `chat_history.metadata`
+        is stored as the JSON-serialized `metadata_json` column.
+
+        Args:
+            collection_name: Name of the table
+            projection: Logical field names requested by the caller
+
+        Returns:
+            Set of storage column names to select, always including `id`
+        """
+        field_map = {"_id": "id"}
+        if collection_name == "chat_history":
+            field_map["metadata"] = "metadata_json"
+
+        columns = {field_map.get(field, field) for field in projection}
+        columns.add("id")
+        return columns
 
     def _convert_row_to_document(
         self,

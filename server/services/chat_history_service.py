@@ -1053,16 +1053,37 @@ class ChatHistoryService:
                     cleanup_threshold,
                 )
 
-                # Fetch all messages for session, ordered by timestamp ASC (oldest first)
+                # Fetch message metadata only (not `content`) for session, ordered by
+                # timestamp ASC (oldest first). `content` is fetched separately, only
+                # for legacy rows missing `token_count`, to avoid loading the full
+                # message text of a large session into memory just to compute the
+                # budget-walk boundary below.
                 all_messages = await self.database_service.find_many(
                     self.collection_name,
                     {"session_id": session_id},
                     sort=[("timestamp", 1)],  # Oldest first
-                    limit=10000  # Reasonable upper bound
+                    limit=10000,  # Reasonable upper bound
+                    projection=["timestamp", "token_count"]
                 )
 
                 if not all_messages:
                     return 0
+
+                missing_ids = [
+                    msg.get("_id") for msg in all_messages
+                    if msg.get("token_count") is None and msg.get("_id")
+                ]
+                if missing_ids:
+                    content_rows = await self.database_service.find_many(
+                        self.collection_name,
+                        {"_id": {"$in": missing_ids}},
+                        limit=len(missing_ids),
+                        projection=["content"]
+                    )
+                    content_by_id = {row.get("_id"): row.get("content", "") for row in content_rows}
+                    for msg in all_messages:
+                        if msg.get("token_count") is None:
+                            msg["content"] = content_by_id.get(msg.get("_id"), "")
 
                 # Calculate which messages to keep (from newest, within budget)
                 messages_reversed = list(reversed(all_messages))
@@ -1230,12 +1251,17 @@ class ChatHistoryService:
             return []
 
         try:
-            # Get all messages for the user, sorted by timestamp descending
+            # Get all messages for the user, sorted by timestamp descending. Only
+            # `session_id`/`timestamp` are projected here — `content` is fetched
+            # afterwards, and only for the paginated slice of sessions actually
+            # returned, to avoid loading every message body in the user's history
+            # just to compute per-session counts and timestamps.
             messages = await self.database_service.find_many(
                 self.collection_name,
                 {"user_id": user_id},
                 sort=[("timestamp", -1)],
-                limit=10000  # reasonable limit to prevent memory issues
+                limit=10000,  # reasonable limit to prevent memory issues
+                projection=["session_id", "timestamp"]
             )
 
             # Group messages by session_id — only track metadata, not full messages
@@ -1250,8 +1276,6 @@ class ChatHistoryService:
                         "message_count": 0,
                         "last_activity": msg.get("timestamp"),
                         "first_activity": msg.get("timestamp"),
-                        "last_message": msg.get("content", ""),
-                        "last_role": msg.get("role")
                     }
 
                 sessions_dict[session_id]["message_count"] += 1
@@ -1270,14 +1294,6 @@ class ChatHistoryService:
                         data["last_activity"] - data["first_activity"]
                     ).total_seconds() if data["last_activity"] and data["first_activity"] else 0
                 }
-
-                if include_summary:
-                    preview = data.get("last_message", "")[:100]
-                    if len(data.get("last_message", "")) > 100:
-                        preview += "..."
-                    session_data["last_message_preview"] = preview
-                    session_data["last_message_role"] = data.get("last_role")
-
                 sessions_list.append(session_data)
 
             # Sort by last_activity descending
@@ -1285,6 +1301,25 @@ class ChatHistoryService:
 
             # Apply pagination
             paginated_results = sessions_list[offset:offset + limit]
+
+            if include_summary:
+                # Fetch the last message content/role only for the sessions actually
+                # being returned on this page, not all 10000 fetched above.
+                for session_data in paginated_results:
+                    last_messages = await self.database_service.find_many(
+                        self.collection_name,
+                        {"user_id": user_id, "session_id": session_data["session_id"]},
+                        sort=[("timestamp", -1)],
+                        limit=1,
+                        projection=["content", "role"]
+                    )
+                    last_message = last_messages[0] if last_messages else {}
+                    content = last_message.get("content", "") or ""
+                    preview = content[:100]
+                    if len(content) > 100:
+                        preview += "..."
+                    session_data["last_message_preview"] = preview
+                    session_data["last_message_role"] = last_message.get("role")
 
             return paginated_results
 

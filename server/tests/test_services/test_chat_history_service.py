@@ -1520,3 +1520,97 @@ async def test_add_message_duplicate_key_behavior_unchanged():
 
   assert result is None
   assert database_service.insert_one.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_get_user_sessions_counts_and_preview_across_sessions(chat_history_services):
+  """Session grouping, counts, and last-message preview stay correct when
+  computed from the projected (session_id, timestamp) query plus a separate
+  per-session last-message fetch, instead of one full-content fetch."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+  user_id = f"user_{generate_id(backend_type)}"
+
+  session_a = f"session_{generate_id(backend_type)}"
+  session_b = f"session_{generate_id(backend_type)}"
+
+  await chat_history.add_message(session_id=session_a, role="user", content="a1", user_id=user_id)
+  await chat_history.add_message(session_id=session_a, role="assistant", content="a2", user_id=user_id)
+  await chat_history.add_message(session_id=session_b, role="user", content="b1" * 60, user_id=user_id)
+
+  sessions = await chat_history.get_user_sessions(user_id, limit=10, include_summary=True)
+
+  by_id = {s['session_id']: s for s in sessions}
+  assert by_id[session_a]['message_count'] == 2
+  assert by_id[session_b]['message_count'] == 1
+  assert by_id[session_a]['last_message_preview'] == "a2"
+  assert by_id[session_a]['last_message_role'] == "assistant"
+  # Preview is truncated to 100 chars with an ellipsis for long content
+  assert len(by_id[session_b]['last_message_preview']) == 103
+  assert by_id[session_b]['last_message_preview'].endswith("...")
+
+
+@pytest.mark.asyncio
+async def test_get_user_sessions_without_summary_skips_content_fetch(chat_history_services):
+  """include_summary=False must not populate preview fields or need content."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  backend_type = services['config']['internal_services']['backend']['type']
+  user_id = f"user_{generate_id(backend_type)}"
+  session_id = f"session_{generate_id(backend_type)}"
+
+  await chat_history.add_message(session_id=session_id, role="user", content="hi", user_id=user_id)
+
+  sessions = await chat_history.get_user_sessions(user_id, include_summary=False)
+
+  assert len(sessions) == 1
+  assert "last_message_preview" not in sessions[0]
+  assert "last_message_role" not in sessions[0]
+
+
+@pytest.mark.asyncio
+async def test_cleanup_excess_messages_handles_legacy_rows_without_token_count(chat_history_services, monkeypatch):
+  """Rows with a NULL token_count (pre-migration legacy data) must still be
+  estimated correctly via a targeted content fetch, not silently treated as
+  zero tokens by the projected metadata-only query -- which would otherwise
+  cause them to be dropped from the budget-walk boundary calculation."""
+  services = chat_history_services
+  chat_history = services['chat_history']
+  db = services['db']
+  backend_type = services['config']['internal_services']['backend']['type']
+
+  session_id = f"session_{generate_id(backend_type)}"
+
+  # Stop the background tokenization worker: it asynchronously overwrites a
+  # message's initial char-based token_count estimate with a real tokenizer
+  # count shortly after insert, which would race with (and clobber) the
+  # NULL token_count this test sets below to simulate a legacy row.
+  await chat_history._cancel_task(chat_history._tokenization_task)
+  chat_history._tokenization_task = None
+
+  # Each message is 9 chars -> estimated at 3 tokens (CHARS_PER_TOKEN_ESTIMATE=3).
+  for i in range(4):
+    await chat_history.add_message(session_id=session_id, role="user", content=f"message {i}")
+
+  # Simulate a legacy row written before token_count existed. It must fall
+  # back to the same char-based estimate (9 chars -> 3 tokens) via a
+  # targeted content fetch.
+  await db.update_one(
+    chat_history.collection_name,
+    {"session_id": session_id, "content": "message 0"},
+    {"$set": {"token_count": None}}
+  )
+
+  # Force the cleanup path to run and use a tight budget: newest 3 messages
+  # (9 tokens) fit, the oldest ("message 0", a legacy NULL-token_count row)
+  # does not. If the NULL row were miscounted as 0 tokens instead of its
+  # correct ~3-token estimate, it would wrongly be kept.
+  monkeypatch.setattr(chat_history, "_get_token_budget_for_adapter", lambda *a, **k: 10)
+  chat_history._session_token_counts[session_id] = 1000
+
+  deleted = await chat_history._cleanup_excess_messages(session_id)
+
+  assert deleted == 1
+  remaining = await chat_history.get_conversation_history(session_id)
+  assert [m['content'] for m in remaining] == ["message 1", "message 2", "message 3"]

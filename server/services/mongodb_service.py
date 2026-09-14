@@ -212,6 +212,17 @@ class MongoDBService(DatabaseService):
                 except (TypeError, ValueError, InvalidId):
                     # If conversion fails, keep as string
                     converted_query[key] = value
+            elif key == '_id' and isinstance(value, dict) and '$in' in value:
+                # $in list elements are not caught by the generic dict recursion
+                # below (it only converts values keyed directly by '_id'), so
+                # convert each id in the list individually here.
+                converted_query[key] = {
+                    **value,
+                    '$in': [
+                        self._convert_string_ids_to_objectid({'_id': v})['_id']
+                        for v in value['$in']
+                    ]
+                }
             elif isinstance(value, dict):
                 # Recursively convert nested queries
                 converted_query[key] = self._convert_string_ids_to_objectid(value)
@@ -352,7 +363,8 @@ class MongoDBService(DatabaseService):
         query: dict[str, Any],
         limit: int = 100,
         sort: Optional[list[tuple[str, int]]] = None,
-        skip: int = 0
+        skip: int = 0,
+        projection: Optional[list[str]] = None
     ) -> list[dict[str, Any]]:
         """
         Find multiple documents in a collection
@@ -363,6 +375,8 @@ class MongoDBService(DatabaseService):
             limit: Maximum number of documents to return
             sort: List of (field, direction) tuples for sorting
             skip: Number of documents to skip
+            projection: Optional list of field names to return (`_id` is
+                always included by MongoDB unless explicitly excluded)
 
         Returns:
             List of matching documents (with ObjectIds converted to strings)
@@ -374,7 +388,15 @@ class MongoDBService(DatabaseService):
             collection = self.get_collection(collection_name)
             # Convert string IDs to ObjectId for MongoDB compatibility
             converted_query = self._convert_string_ids_to_objectid(query)
-            cursor = collection.find(converted_query)
+            # An empty {} projection means "no projection" to MongoDB (all fields
+            # returned), the same ambiguity as None, so an empty list must still
+            # produce an explicit {"_id": 1} to restrict to just the id.
+            if projection is not None:
+                mongo_projection = {field: 1 for field in projection}
+                mongo_projection.setdefault("_id", 1)
+            else:
+                mongo_projection = None
+            cursor = collection.find(converted_query, mongo_projection)
 
             # Apply sorting if specified
             if sort:

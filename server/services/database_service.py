@@ -160,7 +160,8 @@ class DatabaseService(ABC):
         query: dict[str, Any],
         limit: int = 100,
         sort: Optional[list[tuple[str, int]]] = None,
-        skip: int = 0
+        skip: int = 0,
+        projection: Optional[list[str]] = None
     ) -> list[dict[str, Any]]:
         """
         Find multiple documents/records in a collection/table.
@@ -171,9 +172,15 @@ class DatabaseService(ABC):
             limit: Maximum number of documents/records to return
             sort: List of (field, direction) tuples for sorting (1=asc, -1=desc)
             skip: Number of documents/records to skip
+            projection: Optional list of field names to return. When None
+                (default), all fields are returned. The document/record id
+                (`_id`) is always included regardless of whether it is
+                listed. Use this to avoid loading large fields (e.g. message
+                `content`) when only a few fields are needed.
 
         Returns:
-            List of matching documents/records
+            List of matching documents/records, containing only the
+            projected fields (plus id) when `projection` is given
         """
         pass
 

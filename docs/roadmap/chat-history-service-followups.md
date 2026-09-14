@@ -112,9 +112,109 @@ phase must add them, not assume existing coverage. At minimum:
   unchanged — it must still return `None` from `add_message` without
   triggering a retry loop.
 
-## Phase 2 — Bounded/streaming session and cleanup queries
+## Phase 2 — Bounded/streaming session and cleanup queries [COMPLETE, reduced scope]
 
-**Items:**
+Implemented 2026-09-14, with a narrower mechanism than the original plan's
+`count_by_group`/`find_one_per_group`/`find_messages_beyond_token_budget`
+primitives. Rather than adding new GROUP BY/aggregation-shaped methods per
+backend (which would need per-backend query-dialect code that cannot be
+verified against a live PostgreSQL or MongoDB server in this environment —
+only SQLite is locally testable here), `DatabaseService.find_many()` gained
+an optional `projection: list[str] | None` parameter (field selection,
+implemented identically in `MongoDBService`, `SQLiteService`, and
+`PostgresService` — the row/document id is always included regardless of
+whether it's listed). Both consumers were migrated to fetch only the fields
+they need instead of full documents:
+- `_cleanup_excess_messages()` now fetches only `timestamp`/`token_count`
+  for the budget walk, then issues a second, targeted `find_many` (filtered
+  by `_id: {"$in": [...]}`) for `content` — but only for rows whose
+  `token_count` is `None` (legacy pre-migration rows), not the whole set.
+- `get_user_sessions()` now fetches only `session_id`/`timestamp` to compute
+  per-session counts and activity timestamps, then — only when
+  `include_summary=True`, and only for the page of sessions actually being
+  returned (bounded by `limit`, default 10) — issues one small `limit=1`
+  query per session for its last message's `content`/`role`.
+
+This still caps the initial fetch at 10,000 rows (unlike the original plan's
+DB-side aggregation, which would remove that cap entirely) but eliminates
+loading message `content` for the other ~9,990+ rows in the common case,
+which was the dominant memory cost identified in the original review. Fully
+removing the 10,000-row cap via DB-side `GROUP BY`/aggregation is deferred —
+see "Deferred" below.
+
+**Bug found and fixed along the way:** implementing the second, targeted
+`_id: {"$in": [...]}` query surfaced a pre-existing correctness bug, unrelated
+to this refactor: `SQLiteService._convert_query_to_sql()` and
+`PostgresService._convert_query_to_sql()` special-cased `_id` as a plain
+equality match unconditionally, so a query shaped like
+`{"_id": {"$in": [...]}}` (as already used by `_cleanup_excess_messages()`'s
+own bulk `delete_many()` call, pre-dating this phase) silently matched zero
+rows. Fixed by special-casing `_id` + `$in` ahead of the plain-equality
+branch. This means the existing oldest-message bulk delete may have been
+silently deleting 0 rows on the SQLite and PostgreSQL backends before this
+fix, on this code path. If this is running in production, existing sessions
+may have accumulated more history than intended on SQLite/PostgreSQL; no
+worse than that, since the enclosing cleanup logic already treats delete
+failures as non-fatal/logged, not crash-worthy.
+
+Tests added in `server/tests/test_services/test_chat_history_service.py`
+(against the real SQLite backend via the existing `chat_history_services`
+fixture): `test_get_user_sessions_counts_and_preview_across_sessions`,
+`test_get_user_sessions_without_summary_skips_content_fetch`,
+`test_cleanup_excess_messages_handles_legacy_rows_without_token_count`. All
+45 tests in that file pass. The `_id: {"$in": [...]}` fix is additionally
+covered indirectly by the legacy-row test (it depends on the targeted
+content re-fetch actually returning rows).
+
+**Three more cross-backend contract bugs found and fixed on review** (SQLite
+was the only backend actually exercised by the automated tests above, so a
+manual/logic-only review caught what testing couldn't):
+1. MongoDB's `_id: {"$in": [...]}` query has its own separate bug from the
+   SQLite/PostgreSQL one above: `_convert_string_ids_to_objectid()` only
+   converts a bare `_id` string value to `ObjectId`, not elements nested
+   inside an `_id: {"$in": [...]}` list — so on a MongoDB backend using
+   normal auto-generated ObjectIds, the legacy-row content re-fetch above
+   returned nothing, and the legacy message was silently estimated at 0
+   tokens instead of its real size. Fixed by converting each element of the
+   `$in` list individually. Verified with a standalone logic test (no live
+   Mongo server needed, since this is pure query-transformation code) for
+   both ObjectId-shaped and non-ObjectId-shaped (e.g. UUID) id strings.
+2. `SQLiteService`/`PostgresService`'s new `projection` parameter selected
+   logical (MongoDB-style) field names literally as SQL column names, but
+   two fields are stored under a different column name: `_id` is column
+   `id`, and `chat_history.metadata` is the JSON-serialized `metadata_json`
+   column. Projecting either raised an undefined-column error on Postgres,
+   and on SQLite would have selected zero rows for `_id` (no such column)
+   or a raw undecoded JSON string under `metadata` instead of a parsed
+   dict. Fixed by adding a `_projection_storage_columns()` helper (identical
+   in both files) that
+   maps logical to storage names before building the `SELECT` column list,
+   mirroring `_convert_row_to_document`'s existing reverse mapping. Verified
+   with a standalone logic test.
+3. All three backends treated `projection=[]` the same as `projection=None`
+   (falsy-list check) and returned every field instead of an id-only result;
+   MongoDB additionally treats an empty `{}` projection dict the same as no
+   projection at all, so the fix there requires an explicit `{"_id": 1}`
+   rather than just switching the truthiness check. Fixed in all three
+   backends by checking `is not None` instead of truthiness, and building
+   MongoDB's projection dict as `{"_id": 1}` when the list is empty.
+
+None of the current call sites in `chat_history_service.py` pass an empty
+projection list, so bug 3 was latent (not yet reachable in production) but
+is part of the parameter's stated contract and now correctly implemented.
+
+**Deferred (not done in this pass):** the 10,000-row fetch cap itself, and
+the original plan's DB-side `count_by_group`/`find_one_per_group`
+aggregation primitives that would remove it, are unchanged. MongoDB and
+PostgreSQL implementations of the `projection` parameter above are
+code-reviewed against the same query-construction helpers already used
+elsewhere in each file, but — unlike the SQLite path — could not be
+exercised against a live server in this environment; the existing
+integration test files (`test_mongodb_service.py`, `test_postgres_service.py`)
+already skip/require a live server per the project's existing convention and
+were not extended in this pass.
+
+**Items (original framing):**
 - `get_user_sessions()` (`chat_history_service.py:1262-1267`) fetches up to
   10,000 full message documents (including `content`) per call just to
   compute per-session counts/timestamps/last-message preview.
@@ -311,12 +411,15 @@ combined, so a regression in one is easy to isolate and revert.
   silently changed) total-attempt count; non-retryable exceptions
   (`SessionOwnershipError`) are verified not to be retried; the four new
   tests listed in Phase 1's verification section exist and pass.
-- Phase 2: `get_user_sessions()` and `_cleanup_excess_messages()` no longer
-  load full message sets (content included) into Python memory to compute
-  aggregate/boundary values; separate regression tests for session-list
-  pagination and for cleanup's token-budget boundary (including legacy rows
-  with no `token_count`) pass against all three backends — MongoDB, SQLite,
-  and PostgreSQL.
+- Phase 2 [DONE, reduced scope]: `get_user_sessions()` and
+  `_cleanup_excess_messages()` no longer load message `content` for rows
+  that don't need it, via a new `projection` parameter on
+  `DatabaseService.find_many()`; regression tests for session-list grouping
+  and for cleanup's token-budget boundary (including legacy rows with no
+  `token_count`) pass against SQLite (the only backend testable in this
+  environment). The 10,000-row fetch cap and full DB-side
+  aggregation/`GROUP BY` primitives from the original plan remain
+  unimplemented — see the Phase 2 section above for what's deferred.
 - Phase 3: `_CONTEXT_WINDOW_PARAM_NAMES` and the inline
   `default_context_windows` dict are removed from
   `chat_history_service.py`; `_CONTEXT_WINDOW_ALIASES` and
