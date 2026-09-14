@@ -270,9 +270,22 @@ IF NOT ERRORLEVEL 1 (
     SET "NEEDS_VLLM=true"
     FOR /F "tokens=*" %%L IN ('findstr /R "^vllm" "%TEMP_REQS%"') DO SET "VLLM_SPEC=%%L"
 )
+SET "NEEDS_PYCLD2=false"
+findstr /R "^pycld2" "%TEMP_REQS%" >NUL 2>&1
+IF NOT ERRORLEVEL 1 (
+    SET "NEEDS_PYCLD2=true"
+    FOR /F "tokens=*" %%L IN ('findstr /R "^pycld2" "%TEMP_REQS%"') DO SET "PYCLD2_SPEC=%%L"
+)
 
-:: Remove torch/torchvision/vllm from main requirements — installed separately below
-python -c "import re; lines=open(r'%TEMP_REQS%').readlines(); out=[l for l in lines if not re.match(r'^(torch|torchvision|vllm)([>=!<\s]|$)', l)]; open(r'%TEMP_REQS%','w').writelines(out)"
+:: Remove torch/torchvision/vllm/pycld2 from main requirements — installed separately below.
+:: pycld2 has no Windows wheels and requires MSVC Build Tools to compile from source, so it
+:: is installed best-effort: ORBIT's language detection falls back to langdetect/langid when
+:: pycld2 is unavailable (server/inference/pipeline/steps/language_detection.py).
+:: (delayed expansion is disabled here because the regex below contains a literal
+:: '!', which cmd would otherwise try to parse as a !variable! reference)
+SETLOCAL DISABLEDELAYEDEXPANSION
+python -c "import re; lines=open(r'%TEMP_REQS%').readlines(); out=[l for l in lines if not re.match(r'^(torch|torchvision|vllm|pycld2)([>=!<\s]|$)', l)]; open(r'%TEMP_REQS%','w').writelines(out)"
+ENDLOCAL
 
 :: ---------------------------------------------------------------------------
 :: Install main requirements
@@ -319,6 +332,20 @@ IF "!NEEDS_VLLM!"=="true" (
         IF ERRORLEVEL 1 echo WARNING: vLLM install failed. Continuing without it.
     ) ELSE (
         echo [INFO] Skipping vLLM ^(requires CUDA backend^).
+    )
+)
+
+:: ---------------------------------------------------------------------------
+:: Install pycld2 (optional language-detection backend; best-effort on Windows —
+:: it has no prebuilt wheel and requires MSVC Build Tools to compile from source)
+:: ---------------------------------------------------------------------------
+IF "!NEEDS_PYCLD2!"=="true" (
+    echo [INFO] Installing pycld2 ^(optional language detection backend^)...
+    pip install "!PYCLD2_SPEC!"
+    IF ERRORLEVEL 1 (
+        echo WARNING: pycld2 install failed - this usually means Microsoft Visual C++ 14.0+
+        echo Build Tools are not installed ^(https://visualstudio.microsoft.com/visual-cpp-build-tools/^).
+        echo Continuing without it - ORBIT will use langdetect/langid for language detection instead.
     )
 )
 
