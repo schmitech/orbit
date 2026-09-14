@@ -527,11 +527,11 @@ class PostgresService(DatabaseService):
 
             self._initialized = True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg connection and schema setup has a broad, version-dependent driver exception surface
             if hasattr(self, 'connection') and self.connection:
                 try:
                     self.connection.close()
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort connection cleanup must not mask the initialization failure
                     pass
             logger.error(f"Failed to initialize Postgres Service: {e!s}")
             raise
@@ -574,7 +574,7 @@ class PostgresService(DatabaseService):
                     ()
                 )
                 logger.debug(f"Created table: {table_name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - inspect all psycopg DDL errors for the expected concurrent-schema race
                 if not _is_concurrent_ddl_race(e):
                     raise
                 logger.debug(
@@ -625,7 +625,7 @@ class PostgresService(DatabaseService):
                     cursor = self.connection.cursor()
                     cursor.execute(alter_sql)
                     self.connection.commit()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - inspect all psycopg DDL errors for the expected concurrent-schema race
                 if _is_concurrent_ddl_race(e):
                     logger.debug(
                         f"Column '{column_name}' on table '{table_name}' already added by a "
@@ -1035,7 +1035,7 @@ class PostgresService(DatabaseService):
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's graceful not-found fallback
             logger.error(f"Error finding document in {collection_name}: {e!s}")
             return None
 
@@ -1068,7 +1068,7 @@ class PostgresService(DatabaseService):
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's graceful empty-result fallback
             logger.error(f"Error finding document in {collection_name}: {e!s}")
             raise DatabaseOperationError(str(e)) from e
 
@@ -1110,7 +1110,7 @@ class PostgresService(DatabaseService):
 
             return [self._convert_row_to_document(collection_name, row) for row in results]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's graceful empty-result fallback
             logger.error(f"Error finding documents in {collection_name}: {e!s}")
             return []
 
@@ -1152,11 +1152,11 @@ class PostgresService(DatabaseService):
                 # callers (e.g. auth_service._find_or_create_external_user) that catch
                 # DatabaseDuplicateKeyError for graceful concurrent-insert handling work.
                 raise DatabaseDuplicateKeyError(str(e)) from e
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - psycopg database operation; insert failure must roll back and return the existing fallback
                 logger.error(f"Error inserting document into {collection_name}: {e!s}")
                 try:
                     self.connection.rollback()
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort rollback must not mask the original insert failure
                     pass
                 return None
 
@@ -1215,7 +1215,7 @@ class PostgresService(DatabaseService):
 
                 return cursor.rowcount > 0
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's false-result fallback
                 logger.error(f"Error updating document in {collection_name}: {e!s}")
                 return False
 
@@ -1256,7 +1256,7 @@ class PostgresService(DatabaseService):
                     self.executor, self._execute_sql, sql, params
                 )
                 return cursor.rowcount > 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's false-result fallback
             logger.error(f"Error recording failed login attempt: {e!s}")
             return False
 
@@ -1292,7 +1292,7 @@ class PostgresService(DatabaseService):
 
                 return cursor.rowcount > 0
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's false-result fallback
                 logger.error(f"Error deleting document from {collection_name}: {e!s}")
                 return False
 
@@ -1325,7 +1325,7 @@ class PostgresService(DatabaseService):
 
                 return cursor.rowcount
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's zero-result fallback
                 logger.error(f"Error deleting documents from {collection_name}: {e!s}")
                 return 0
 
@@ -1350,7 +1350,7 @@ class PostgresService(DatabaseService):
             )
             return row["cnt"] if row else 0
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's zero-result fallback
             logger.error(f"Error counting records in {collection_name}: {e!s}")
             return 0
 
@@ -1386,7 +1386,7 @@ class PostgresService(DatabaseService):
                 logger.info(f"Cleared {deleted_count} records from table '{collection_name}'")
                 return deleted_count
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - psycopg database operation; preserve the service's zero-result fallback
                 logger.error(f"Error clearing table {collection_name}: {e!s}")
                 return 0
 
@@ -1527,7 +1527,7 @@ class PostgresService(DatabaseService):
                 try:
                     if hasattr(instance, 'close'):
                         instance.close()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort instance cleanup must not stop closing remaining cached services
                     logger.warning(f"Error closing Postgres instance: {e}")
 
             cls._instances.clear()

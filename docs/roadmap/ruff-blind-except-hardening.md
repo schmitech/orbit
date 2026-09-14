@@ -102,9 +102,13 @@ paced across sessions rather than in one pass.
   database-backend calls (mongodb/sqlite), plus the key-validation path which
   must fail safe (`return False`) rather than crash the caller, matching the
   precedent set by `auth_service.py`.
+- 2026-09-13: `server/services/postgres_service.py` (13 → 0). All justified:
+  psycopg driver and schema-DDL calls have a broad, version-dependent error
+  surface; the broad handlers preserve the service's existing result fallbacks,
+  expected concurrent-DDL-race handling, and best-effort cleanup.
 
-Running baseline (production code, `server/tests/` excluded): 1022 → 960
-(62 resolved). Next up in `server/services/`: re-run the statistics command
+Running baseline (production code, `server/tests/` excluded): 1022 → 947
+(75 resolved). Next up in `server/services/`: re-run the statistics command
 to pick the next-largest file.
 
 ### Rule meaning
