@@ -648,20 +648,66 @@ class MCPClientManager:
     # Helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _log_http_request(server_name: str):
+    # Header names that commonly carry a credential — matched by substring,
+    # case-insensitively, so a deployment's own header (e.g. "X-My-Api-Key")
+    # is caught without needing an exhaustive exact-name list.
+    _SENSITIVE_HEADER_HINTS = ("authorization", "cookie", "token", "secret", "key", "auth")
+
+    @classmethod
+    def _mask_secret(cls, value: str) -> str:
+        """First/last 4 characters plus a length, e.g. 'Bear...k123 (len=41)'
+        — enough to confirm against a working `curl` call (same token,
+        same length, no stray whitespace) without ever logging the secret
+        itself."""
+        if len(value) <= 10:
+            return "*" * len(value)
+        return f"{value[:4]}...{value[-4:]} (len={len(value)})"
+
+    @classmethod
+    def _header_display_value(cls, name: str, value: str) -> str:
+        lname = name.lower()
+        if any(hint in lname for hint in cls._SENSITIVE_HEADER_HINTS):
+            return cls._mask_secret(value)
+        return value
+
+    @classmethod
+    def _build_curl_repro(cls, request, headers_display: dict[str, str]) -> str:
+        """A copy-pasteable (modulo the masked secret) `curl` command for the
+        exact request ORBIT just sent — the fastest way to tell "ORBIT sends
+        a different request than my manual curl" from "the server rejects
+        this request regardless of who sends it"."""
+        parts = [f"curl -X {request.method} '{request.url}'"]
+        for name, value in headers_display.items():
+            escaped = value.replace("'", "'\\''")
+            parts.append(f"-H '{name}: {escaped}'")
+        body = request.content or b""
+        if body:
+            body_text = body.decode("utf-8", errors="replace")
+            if len(body_text) > 500:
+                body_text = body_text[:500] + "...<truncated>"
+            escaped_body = body_text.replace("'", "'\\''")
+            parts.append(f"-d '{escaped_body}'")
+        return " ".join(parts)
+
+    @classmethod
+    def _log_http_request(cls, server_name: str):
         """Build an httpx request event hook that logs the outgoing request
-        at DEBUG: method, URL, and which header *names* were sent (never
-        values, since one of them is usually the credential). Lets an admin
-        confirm the request actually reached the right URL with the right
-        header set, before chasing the response status."""
+        at DEBUG — method, URL, every header (secrets masked to their
+        boundary characters, never in full), and a ready-to-paste `curl`
+        reproduction — so a "works with curl, fails from ORBIT" report can
+        be diagnosed by diffing the two requests directly, rather than
+        guessing at what ORBIT actually sent."""
         async def hook(request) -> None:
             if not logger.isEnabledFor(logging.DEBUG):
                 return
+            headers_display = {
+                name: cls._header_display_value(name, value)
+                for name, value in request.headers.items()
+            }
             logger.debug(
-                "MCP server '%s': -> %s %s (headers: %s)",
-                server_name, request.method, request.url,
-                sorted(request.headers.keys()),
+                "MCP server '%s': -> %s %s\n  headers: %s\n  curl repro: %s",
+                server_name, request.method, request.url, headers_display,
+                cls._build_curl_repro(request, headers_display),
             )
         return hook
 

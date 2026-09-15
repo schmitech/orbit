@@ -1281,6 +1281,61 @@ class TestHttpRequestDiagnosticHook:
         assert "authorization" in caplog.text  # header name...
         assert "super-secret" not in caplog.text  # ...but never its value
 
+    async def test_non_sensitive_headers_shown_in_full(self, caplog):
+        """Accept/Content-Type/etc. aren't secrets — showing them verbatim is
+        what lets an admin diff ORBIT's request against a working curl call."""
+        hook = MCPClientManager._log_http_request("myServer")
+        request = httpx.Request(
+            "POST", "https://example.test/mcp",
+            headers={"Accept": "application/json, text/event-stream", "X-Trace-Id": "abc123"},
+        )
+        with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
+            await hook(request)
+
+        assert "application/json, text/event-stream" in caplog.text
+        assert "abc123" in caplog.text
+
+    async def test_sensitive_header_masked_to_boundary_characters(self, caplog):
+        """Long secrets are masked to first/last 4 chars + length — enough to
+        confirm it's the *same* token as a manual curl call without ever
+        logging the token itself."""
+        hook = MCPClientManager._log_http_request("myServer")
+        token = "sk-abcdefghijklmnopqrstuvwxyz0123456789"
+        request = httpx.Request(
+            "POST", "https://example.test/mcp",
+            headers={"Authorization": f"Bearer {token}", "X-Api-Key": "short"},
+        )
+        with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
+            await hook(request)
+
+        assert token not in caplog.text
+        assert "short" not in caplog.text
+        assert f"(len={len('Bearer ' + token)})" in caplog.text
+        assert "*****" in caplog.text  # the short X-Api-Key masks fully
+
+    async def test_includes_curl_reproduction_with_masked_secret(self, caplog):
+        hook = MCPClientManager._log_http_request("myServer")
+        request = httpx.Request(
+            "GET", "https://example.test/mcp",
+            headers={"Authorization": "Bearer sk-abcdefghijklmnopqrstuvwxyz0123456789"},
+        )
+        with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
+            await hook(request)
+
+        assert "curl -X GET 'https://example.test/mcp'" in caplog.text
+        assert "-H 'authorization: Bear...6789" in caplog.text
+
+    async def test_curl_reproduction_includes_json_body(self, caplog):
+        hook = MCPClientManager._log_http_request("myServer")
+        request = httpx.Request(
+            "POST", "https://example.test/mcp",
+            json={"jsonrpc": "2.0", "method": "initialize", "id": 1},
+        )
+        with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
+            await hook(request)
+
+        assert '-d \'{"jsonrpc":"2.0","method":"initialize","id":1}\'' in caplog.text
+
     async def test_silent_when_debug_not_enabled(self, caplog):
         hook = MCPClientManager._log_http_request("myServer")
         request = httpx.Request("GET", "https://example.test/mcp")
