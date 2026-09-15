@@ -469,7 +469,19 @@ class MCPClientManager:
             ]
             logger.info("MCP server '%s': discovered %d tools", server_name, len(tools))
         except Exception as exc:
-            logger.warning("MCP server '%s': failed to list tools: %s", server_name, exc)
+            # The MCP SDK's Streamable HTTP transport collapses every non-2xx
+            # response into the same generic JSON-RPC error ("Server returned
+            # an error response"), discarding the actual status code/body —
+            # so this message alone can't distinguish a 401 from a 500. The
+            # real HTTP exchange is logged separately by _log_http_response
+            # (attached to the connection's http client) at the moment the
+            # bad response is received; point admins there instead of trying
+            # to recover status details from `exc`, which no longer has them.
+            logger.warning(
+                "MCP server '%s': failed to list tools (%s): %s — enable DEBUG "
+                "logging for '%s' to see the raw HTTP request/response",
+                server_name, type(exc).__name__, exc, __name__,
+            )
             self._tools_cache[server_name] = []
 
     # ------------------------------------------------------------------
@@ -534,6 +546,7 @@ class MCPClientManager:
                 from mcp.client.streamable_http import streamable_http_client
                 from mcp.shared._httpx_utils import create_mcp_http_client
 
+                server_name = server_config.get("name", "")
                 url = server_config.get("url", "")
                 headers = self._expand_headers(server_config)
                 # MCP Streamable HTTP requires both JSON and SSE content types.
@@ -541,6 +554,16 @@ class MCPClientManager:
                 # Use create_mcp_http_client so the client inherits MCP defaults:
                 # follow_redirects=True, 30s general timeout, 300s SSE read timeout.
                 http_client = await stack.enter_async_context(create_mcp_http_client(headers=headers))
+                # The MCP SDK swallows the real status/body of a failed HTTP
+                # exchange into a generic error (see the comment in
+                # _discover_server), so attach our own hooks here — this is
+                # the only place the actual request/response is visible.
+                http_client.event_hooks = {
+                    "request": [*http_client.event_hooks.get("request", []),
+                                self._log_http_request(server_name)],
+                    "response": [*http_client.event_hooks.get("response", []),
+                                 self._log_http_response(server_name)],
+                }
                 # MCP 1.x yielded (read, write, get_session_id); MCP 2.x
                 # standardizes every transport on the (read, write) pair.
                 # Only the streams are needed by ClientSession, so accepting
@@ -624,6 +647,62 @@ class MCPClientManager:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _log_http_request(server_name: str):
+        """Build an httpx request event hook that logs the outgoing request
+        at DEBUG: method, URL, and which header *names* were sent (never
+        values, since one of them is usually the credential). Lets an admin
+        confirm the request actually reached the right URL with the right
+        header set, before chasing the response status."""
+        async def hook(request) -> None:
+            if not logger.isEnabledFor(logging.DEBUG):
+                return
+            logger.debug(
+                "MCP server '%s': -> %s %s (headers: %s)",
+                server_name, request.method, request.url,
+                sorted(request.headers.keys()),
+            )
+        return hook
+
+    @classmethod
+    def _log_http_response(cls, server_name: str):
+        """Build an httpx response event hook that logs the real status code
+        and a body snippet for any non-2xx response, at WARNING — this is
+        the only point the actual HTTP failure (401, 403, 500, ...) is
+        observable; the MCP SDK discards it once it wraps the response into
+        a generic JSON-RPC error further up the stack."""
+        async def hook(response) -> None:
+            if response.is_success:
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        "MCP server '%s': <- %d %s", server_name,
+                        response.status_code, response.request.url,
+                    )
+                return
+            # Bounded read: a large or slow-drip error body must not stall
+            # discovery or be buffered in full just to log 500 chars of it.
+            # Stopping early leaves the stream only partially consumed, so
+            # the SDK's own later attempt to read the body for JSON-RPC
+            # error parsing raises httpx.StreamConsumed — a subclass of the
+            # httpx.StreamError it already treats as "fall back to a generic
+            # message", so this is a no-op for it, not a break.
+            try:
+                body = bytearray()
+                async for chunk in response.aiter_bytes(chunk_size=500):
+                    body += chunk
+                    if len(body) >= 500:
+                        break
+                encoding = response.encoding or "utf-8"
+                snippet = bytes(body[:500]).decode(encoding, errors="replace")
+            except Exception:
+                snippet = "<body unavailable>"
+            logger.warning(
+                "MCP server '%s': HTTP %d %s from %s %s — response body: %s",
+                server_name, response.status_code, response.reason_phrase,
+                response.request.method, response.request.url, snippet,
+            )
+        return hook
 
     @staticmethod
     def _expand_headers(server_config: dict[str, Any]) -> dict[str, str]:

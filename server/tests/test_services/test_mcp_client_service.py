@@ -16,12 +16,14 @@ so no subprocess is spawned.
 """
 
 import asyncio
+import logging
 import os
 import sys
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1232,3 +1234,174 @@ class TestConnectionPooling:
             await mgr._call_tool_on_server({"name": "srv"}, "t", {})
 
         assert not mgr.is_reachable("srv")
+
+
+# ---------------------------------------------------------------------------
+# HTTP diagnostic hooks (_log_http_request / _log_http_response)
+#
+# These surface the real request/response the MCP SDK's Streamable HTTP
+# transport otherwise discards once it collapses any non-2xx status into the
+# same generic "Server returned an error response" JSON-RPC error.
+# ---------------------------------------------------------------------------
+
+_LOGGER_NAME = "services.mcp_client_service"
+
+
+class _NeverEndingStream(httpx.AsyncByteStream):
+    """An AsyncByteStream that would run forever if fully drained — used to
+    prove the response hook's read is actually bounded, not just capped
+    after the fact."""
+
+    def __init__(self, chunk: bytes = b"y" * 300):
+        self._chunk = chunk
+        self.chunks_served = 0
+
+    async def __aiter__(self):
+        while True:
+            self.chunks_served += 1
+            yield self._chunk
+
+    async def aclose(self):
+        pass
+
+
+class TestHttpRequestDiagnosticHook:
+    async def test_logs_method_url_and_header_names_at_debug(self, caplog):
+        hook = MCPClientManager._log_http_request("myServer")
+        request = httpx.Request(
+            "POST", "https://example.test/mcp",
+            headers={"Authorization": "Bearer super-secret", "X-Foo": "bar"},
+        )
+        with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
+            await hook(request)
+
+        assert "myServer" in caplog.text
+        assert "POST" in caplog.text
+        assert "https://example.test/mcp" in caplog.text
+        assert "authorization" in caplog.text  # header name...
+        assert "super-secret" not in caplog.text  # ...but never its value
+
+    async def test_silent_when_debug_not_enabled(self, caplog):
+        hook = MCPClientManager._log_http_request("myServer")
+        request = httpx.Request("GET", "https://example.test/mcp")
+        with caplog.at_level(logging.INFO, logger=_LOGGER_NAME):
+            await hook(request)
+        assert caplog.text == ""
+
+
+class TestHttpResponseDiagnosticHook:
+    async def test_success_logs_nothing_at_warning(self, caplog):
+        hook = MCPClientManager._log_http_response("myServer")
+        request = httpx.Request("GET", "https://example.test/mcp")
+        response = httpx.Response(200, request=request)
+        with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
+            await hook(response)
+        assert caplog.text == ""
+
+    async def test_error_response_logs_status_and_body(self, caplog):
+        request = httpx.Request("POST", "https://example.test/mcp")
+        response = httpx.Response(
+            401,
+            content=b'{"error": "invalid api key"}',
+            headers={"content-type": "application/json"},
+            request=request,
+        )
+        hook = MCPClientManager._log_http_response("myServer")
+        with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
+            await hook(response)
+
+        assert "myServer" in caplog.text
+        assert "401" in caplog.text
+        assert "invalid api key" in caplog.text
+
+    async def test_body_snippet_capped_at_500_chars(self, caplog):
+        request = httpx.Request("GET", "https://example.test/mcp")
+        response = httpx.Response(500, content=b"e" * 10_000, request=request)
+        hook = MCPClientManager._log_http_response("myServer")
+        with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
+            await hook(response)
+
+        record = next(r for r in caplog.records if "HTTP 500" in r.message)
+        snippet = record.message.split("response body: ", 1)[1]
+        assert len(snippet) == 500
+
+    async def test_never_ending_body_does_not_fully_drain(self, caplog):
+        """The bound must stop pulling chunks once ~500 bytes are in hand,
+        not merely truncate the snippet after reading everything."""
+        stream = _NeverEndingStream()
+        request = httpx.Request("GET", "https://example.test/mcp")
+        response = httpx.Response(500, request=request, stream=stream)
+        hook = MCPClientManager._log_http_response("myServer")
+        with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
+            await hook(response)
+
+        # 2 chunks of 300 bytes cross the 500-byte threshold; far short of
+        # what "fully drained" would mean for a stream that never ends.
+        assert stream.chunks_served <= 2
+        record = next(r for r in caplog.records if "HTTP 500" in r.message)
+        snippet = record.message.split("response body: ", 1)[1]
+        assert len(snippet) == 500
+
+    async def test_read_failure_falls_back_to_placeholder(self, caplog):
+        """A body that errors on read (closed stream, decode failure, ...)
+        must still produce a usable warning, not raise out of the hook."""
+        request = httpx.Request("GET", "https://example.test/mcp")
+        response = httpx.Response(500, request=request)
+        response.aiter_bytes = MagicMock(side_effect=RuntimeError("stream closed"))
+        hook = MCPClientManager._log_http_response("myServer")
+        with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
+            await hook(response)
+
+        assert "<body unavailable>" in caplog.text
+        assert "500" in caplog.text
+
+
+class TestCreateConnectionWiresDiagnosticHooks:
+    """_create_connection is the only place that can attach these hooks —
+    verify the http transport branch actually does it, end to end through a
+    real httpx.AsyncClient (not just that the standalone hooks work)."""
+
+    async def test_http_transport_attaches_working_hooks_to_its_client(self, caplog):
+        mgr = _make_manager()
+        captured: dict = {}
+
+        def handler(request):
+            return httpx.Response(
+                401, content=b'{"error": "bad key"}',
+                headers={"content-type": "application/json"},
+            )
+
+        @asynccontextmanager
+        async def fake_create_mcp_http_client(headers=None, **kwargs):
+            client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+            captured["client"] = client
+            yield client
+
+        @asynccontextmanager
+        async def fake_streamable_http_client(url, http_client=None):
+            yield MagicMock(), MagicMock()
+
+        @asynccontextmanager
+        async def fake_client_session(read, write):
+            session = MagicMock()
+            session.initialize = AsyncMock()
+            yield session
+
+        with patch("mcp.client.streamable_http.streamable_http_client", fake_streamable_http_client), \
+             patch("mcp.shared._httpx_utils.create_mcp_http_client", fake_create_mcp_http_client), \
+             patch("mcp.client.session.ClientSession", fake_client_session):
+            async with mgr._open_session(
+                {"transport": "http", "url": "http://example.com/mcp", "name": "srv"}
+            ):
+                pass
+
+        client = captured["client"]
+        assert len(client.event_hooks["request"]) == 1
+        assert len(client.event_hooks["response"]) == 1
+
+        # The wiring is only useful if the hooks actually fire on real use.
+        with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
+            await client.get("http://example.com/mcp")
+        assert "srv" in caplog.text
+        assert "401" in caplog.text
+        assert "bad key" in caplog.text
