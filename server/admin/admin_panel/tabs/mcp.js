@@ -142,6 +142,11 @@ export function createMcpTab({
   // switching rows piles up listeners for detached controls indefinitely.
   var mcpListDirty = [];
   var mcpDetailDirty = [];
+  // Uncommitted add-row content (typed but not "+"-added) in the current
+  // detail pane's key/value editors — checked by mcpHasPendingEdits so Save
+  // isn't stuck disabled just because the user never clicked "+". Reset
+  // alongside mcpDetailDirty wherever that is.
+  var mcpDetailPendingRows = [];
 
   function mcpSyncDirty() {
     mcpListDirty.forEach(function (fn) { fn(); });
@@ -149,7 +154,8 @@ export function createMcpTab({
   }
 
   function mcpHasPendingEdits() {
-    return Object.keys(mcpPending).length > 0;
+    if (Object.keys(mcpPending).length > 0) return true;
+    return mcpDetailPendingRows.some(function (fn) { return fn(); });
   }
 
   function mcpSettingMeta(key) {
@@ -347,6 +353,7 @@ export function createMcpTab({
 
     mcpListDirty = [];
     mcpDetailDirty = [];
+    mcpDetailPendingRows = [];
     mcpCheckedAtNodes = [];
     mcpRowSync = {};
     mcpDetailSync = null;
@@ -413,6 +420,7 @@ export function createMcpTab({
       // detached — drop them so mcpSyncDirty() doesn't keep invoking
       // callbacks for DOM that no longer exists.
       mcpDetailDirty = [];
+      mcpDetailPendingRows = [];
       clear(mcpDetailContainer);
       mcpRenderDetail(mcpDetailContainer);
     } else {
@@ -857,9 +865,12 @@ export function createMcpTab({
             keyMaxLength: MCP_CONNECTION_ENV_KEY_MAX_LENGTH,
             valueMaxLength: MCP_CONNECTION_ENV_VALUE_MAX_LENGTH,
             maxEntries: MCP_CONNECTION_ENV_MAX_ENTRIES,
+            keyPattern: /^[A-Za-z_][A-Za-z0-9_]*$/,
+            onDirty: mcpSyncDirty,
           }
         );
         connLedger.appendChild(envRow);
+        mcpDetailPendingRows.push(envRow.hasPendingRow);
       } else {
         var urlRow = mcpConnectionRow(
           "URL",
@@ -890,9 +901,12 @@ export function createMcpTab({
             keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH,
             valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH,
             maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES,
+            keyPattern: /^[A-Za-z0-9_-]+$/,
+            onDirty: mcpSyncDirty,
           }
         );
         connLedger.appendChild(headersRow);
+        mcpDetailPendingRows.push(headersRow.hasPendingRow);
       }
 
       detail.appendChild(connLedger);
@@ -1041,6 +1055,22 @@ export function createMcpTab({
     detail.appendChild(ledger);
 
     detail.appendChild(mcpSaveRow(async function () {
+      // A key/value pair typed into the add-row but never committed with its
+      // "+" button never reaches onChange, so mcpPending — and therefore
+      // Save — never sees it. Commit it here too, matching the "Add MCP
+      // server" flow, so a forgotten "+" click doesn't strand the edit.
+      var mapEditor = server.transport === "stdio" ? envRow : headersRow;
+      if (mapEditor && !mapEditor.commitPending()) {
+        var pendingKey = mapEditor.pendingKey();
+        if (pendingKey) {
+          showError(
+            server.transport === "stdio"
+              ? "Environment variable names must start with a letter or underscore and contain only letters, numbers, and underscores."
+              : "Header names may contain only letters, numbers, hyphens, and underscores."
+          );
+          return;
+        }
+      }
       var body = { settings: {}, connection: {} };
       var CONNECTION_FIELDS = ["url", "command", "args", "env", "headers"];
       Object.keys(mcpPending).forEach(function (key) {
@@ -1424,10 +1454,12 @@ export function createMcpTab({
       var newValueCounter = mcpKvCounter(0, valueMaxLength);
       newKeyInput.addEventListener("input", function () {
         if (newKeyInput.value.length > keyMaxLength) newKeyInput.value = newKeyInput.value.slice(0, keyMaxLength);
+        if (opts.onDirty) opts.onDirty();
       });
       newValueInput.addEventListener("input", function () {
         if (newValueInput.value.length > valueMaxLength) newValueInput.value = newValueInput.value.slice(0, valueMaxLength);
         mcpKvCounterUpdate(newValueCounter, newValueInput.value.length, valueMaxLength);
+        if (opts.onDirty) opts.onDirty();
       });
       newKeyInput.disabled = atLimit;
       newValueInput.disabled = atLimit;
@@ -1463,6 +1495,13 @@ export function createMcpTab({
     row.pendingKey = function () {
       var input = rowsEl.querySelector(".mcp-kv-add-row .mcp-kv-key");
       return input ? input.value.trim() : "";
+    };
+    // Typed-but-not-"+"-added content: the add-row's key or value has text,
+    // even though onChange (and thus mcpPending) hasn't fired yet.
+    row.hasPendingRow = function () {
+      if (row.pendingKey()) return true;
+      var input = rowsEl.querySelector(".mcp-kv-add-row .mcp-kv-value");
+      return !!(input && input.value.trim());
     };
     sync();
     return row;
