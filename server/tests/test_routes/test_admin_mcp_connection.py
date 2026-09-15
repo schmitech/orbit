@@ -526,6 +526,7 @@ class TestListMcpServersConnectionField:
             "name": "http-server__lookup",
             "description": "Look up a record.",
             "parameters": [{"name": "id", "type": "string", "required": True, "description": "Record ID"}],
+            "annotations": None,
         }]
 
     @pytest.mark.asyncio

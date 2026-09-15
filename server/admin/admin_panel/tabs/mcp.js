@@ -263,6 +263,7 @@ export function createMcpTab({
       servers[server.name] = {
         reachable: !!server.status.reachable,
         tools: server.status.tools,
+        instructions: server.status.instructions || null,
       };
     });
     if (Object.keys(servers).length) mcpTools = { available: true, servers: servers };
@@ -1204,17 +1205,32 @@ export function createMcpTab({
       );
     }
     if (!discovery.reachable) return mcpUnreachableNotice(server);
+
+    var container = el("div", null);
+    if (discovery.instructions) {
+      // Server-authored guidance from MCP `initialize` — third-party
+      // content the panel only ever displays, never feeds into a model
+      // prompt or otherwise acts on (see MCPClientManager._server_instructions).
+      container.appendChild(el("div", { className: "mcp-server-instructions" },
+        el("p", { className: "mcp-server-instructions-label" }, "Server instructions"),
+        el("p", { className: "mcp-server-instructions-text" }, discovery.instructions)
+      ));
+    }
+
     if (!discovery.tools.length) {
-      return el("p", { className: "muted mcp-tools-empty" },
+      container.appendChild(el("p", { className: "muted mcp-tools-empty" },
         "Connected, but this server exposes no tools."
-      );
+      ));
+      return container;
     }
 
     var list = el("div", { className: "mcp-tools" });
     discovery.tools.forEach(function (tool) {
-      var entry = el("div", { className: "mcp-tool" },
-        el("p", { className: "mcp-tool-name" }, tool.name)
-      );
+      var nameRow = el("p", { className: "mcp-tool-name" }, tool.name);
+      if (tool.annotations && tool.annotations.title) {
+        nameRow.appendChild(el("span", { className: "mcp-tool-title-hint" }, " (" + tool.annotations.title + ")"));
+      }
+      var entry = el("div", { className: "mcp-tool" }, nameRow);
       if (tool.description) {
         entry.appendChild(el("p", { className: "mcp-tool-desc" }, tool.description));
       }
@@ -1229,9 +1245,30 @@ export function createMcpTab({
         });
         entry.appendChild(params);
       }
+      // Self-reported, unverified hints (MCP spec: "clients should never
+      // make tool use decisions based on ToolAnnotations received from
+      // untrusted servers") — shown for operator context only.
+      var hintLabels = {
+        read_only_hint: "read-only", destructive_hint: "destructive",
+        idempotent_hint: "idempotent", open_world_hint: "open-world",
+      };
+      var badges = tool.annotations
+        ? Object.keys(hintLabels).filter(function (k) { return tool.annotations[k] === true; })
+        : [];
+      if (badges.length) {
+        var badgeRow = el("p", {
+          className: "mcp-tool-annotations",
+          title: "Self-reported by the server, not verified by ORBIT",
+        });
+        badges.forEach(function (k) {
+          badgeRow.appendChild(el("span", { className: "mcp-tool-annotation-badge" }, hintLabels[k]));
+        });
+        entry.appendChild(badgeRow);
+      }
       list.appendChild(entry);
     });
-    return list;
+    container.appendChild(list);
+    return container;
   }
 
   // ----- Controls -----

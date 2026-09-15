@@ -157,6 +157,19 @@ class MCPClientManager:
 
         # cache: server_name -> list of OpenAI-format tool dicts
         self._tools_cache: dict[str, list[dict[str, Any]]] = {}
+        # server_name -> the free-text `instructions` the server returned at
+        # MCP `initialize` (server-authored guidance for the whole toolset,
+        # separate from any one tool's description). Admin-panel/diagnostic
+        # visibility only — third-party server content, so it is never fed
+        # into a model prompt or otherwise used for tool-use decisions.
+        self._server_instructions: dict[str, str] = {}
+        # server_name -> {namespaced_tool_name: {hint_name: value}}, the
+        # optional per-tool `annotations` (title/read-only/destructive/
+        # idempotent/open-world hints) a server may attach to a Tool. Same
+        # admin-panel-only, untrusted-hint treatment as _server_instructions
+        # above — the spec itself warns these are unverified and must not
+        # drive tool-use decisions, so they never reach _to_openai_tool.
+        self._tool_annotations: dict[str, dict[str, dict[str, Any]]] = {}
         self._cache_lock = asyncio.Lock()
         self._cache_populated = False
         # server_name -> pool of warm connections + its circuit breaker.
@@ -211,6 +224,20 @@ class MCPClientManager:
         marked as failed). Servers never discovered yet are reported reachable."""
         pool = self._pools.get(server_name)
         return pool is None or pool.breaker.state == "closed"
+
+    def server_instructions(self, server_name: str) -> Optional[str]:
+        """The server's self-described `instructions` from MCP `initialize`,
+        if any connection has negotiated one. Admin-panel display only — see
+        the field comment on `_server_instructions`."""
+        return self._server_instructions.get(server_name)
+
+    def tool_annotations(self, namespaced_name: str) -> Optional[dict[str, Any]]:
+        """The optional hint annotations (title/read-only/destructive/
+        idempotent/open-world) a server attached to one tool, if any.
+        Admin-panel display only — see the field comment on
+        `_tool_annotations`."""
+        server_name = namespaced_name.split("__", 1)[0]
+        return self._tool_annotations.get(server_name, {}).get(namespaced_name)
 
     def opportunistic_servers(
         self, allowed_servers: Optional[list[str]] = None
@@ -373,6 +400,8 @@ class MCPClientManager:
         """
         async with self._cache_lock:
             self._tools_cache.pop(name, None)
+            self._server_instructions.pop(name, None)
+            self._tool_annotations.pop(name, None)
             if entry is None or not entry.get("enabled", True):
                 self._server_configs.pop(name, None)
             else:
@@ -467,6 +496,13 @@ class MCPClientManager:
             self._tools_cache[server_name] = [
                 self._to_openai_tool(server_name, t) for t in tools
             ]
+            self._tool_annotations[server_name] = {
+                name: annotations
+                for name, annotations in (
+                    (f"{server_name}__{t.name}", self._extract_annotations(t)) for t in tools
+                )
+                if annotations
+            }
             logger.info("MCP server '%s': discovered %d tools", server_name, len(tools))
         except Exception as exc:
             # The MCP SDK's Streamable HTTP transport collapses every non-2xx
@@ -483,6 +519,7 @@ class MCPClientManager:
                 server_name, type(exc).__name__, exc, __name__,
             )
             self._tools_cache[server_name] = []
+            self._tool_annotations[server_name] = {}
 
     # ------------------------------------------------------------------
     # Low-level transport helpers
@@ -519,6 +556,7 @@ class MCPClientManager:
         stack is closed (i.e. does not tear down when this call returns)."""
         from mcp.client.session import ClientSession
 
+        server_name = server_config.get("name", "")
         transport = server_config.get("transport", "stdio")
         stack = AsyncExitStack()
         try:
@@ -540,13 +578,13 @@ class MCPClientManager:
                 )
                 read, write = await stack.enter_async_context(stdio_client(params))
                 session = await stack.enter_async_context(ClientSession(read, write))
-                await session.initialize()
+                init_result = await session.initialize()
+                self._record_server_instructions(server_name, init_result.instructions)
 
             elif transport == "http":
                 from mcp.client.streamable_http import streamable_http_client
                 from mcp.shared._httpx_utils import create_mcp_http_client
 
-                server_name = server_config.get("name", "")
                 url = server_config.get("url", "")
                 headers = self._expand_headers(server_config)
                 # MCP Streamable HTTP requires both JSON and SSE content types.
@@ -574,7 +612,8 @@ class MCPClientManager:
                 )
                 read, write = transport[:2]
                 session = await stack.enter_async_context(ClientSession(read, write))
-                await session.initialize()
+                init_result = await session.initialize()
+                self._record_server_instructions(server_name, init_result.instructions)
 
             else:
                 raise ValueError(
@@ -797,3 +836,42 @@ class MCPClientManager:
                 "parameters": input_schema,
             },
         }
+
+    def _record_server_instructions(self, server_name: str, instructions: Optional[str]) -> None:
+        """Cache the free-text `instructions` a server returned at
+        `initialize` (once any connection successfully negotiates one).
+        Admin-panel/diagnostic display only — see the field comment on
+        `_server_instructions` for why this never reaches a model prompt."""
+        if instructions:
+            self._server_instructions[server_name] = instructions
+
+    @staticmethod
+    def _extract_annotations(mcp_tool) -> Optional[dict[str, Any]]:
+        """Pull a tool's optional hint annotations (title, read-only,
+        destructive, idempotent, open-world) for admin-panel display.
+
+        Per the MCP spec these are *hints* a server can misreport — "clients
+        should never make tool use decisions based on ToolAnnotations
+        received from untrusted servers" — so, like _server_instructions,
+        this is display-only and deliberately kept out of _to_openai_tool.
+        """
+        annotations = getattr(mcp_tool, "annotations", None)
+        if annotations is None:
+            return None
+
+        def _get(snake_name: str, camel_name: str) -> Any:
+            value = getattr(annotations, snake_name, None)
+            # MCP 1.x's ToolAnnotations used camelCase; retain it so
+            # deployments can upgrade independently (same fallback pattern
+            # as input_schema/inputSchema in _to_openai_tool above).
+            return value if value is not None else getattr(annotations, camel_name, None)
+
+        fields = {
+            "title": getattr(annotations, "title", None),
+            "read_only_hint": _get("read_only_hint", "readOnlyHint"),
+            "destructive_hint": _get("destructive_hint", "destructiveHint"),
+            "idempotent_hint": _get("idempotent_hint", "idempotentHint"),
+            "open_world_hint": _get("open_world_hint", "openWorldHint"),
+        }
+        result = {k: v for k, v in fields.items() if v is not None}
+        return result or None

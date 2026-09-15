@@ -16,6 +16,7 @@ so no subprocess is spawned.
 """
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -924,6 +925,216 @@ class TestOpenSessionTransportSelection:
         except ValueError as exc:
             assert "stdio" in str(exc)
             assert "http" in str(exc)
+
+    async def test_http_transport_captures_server_instructions(self):
+        """`initialize()`'s `instructions` (server-authored guidance for the
+        whole toolset) must be captured for admin-panel display."""
+        mgr = _make_manager()
+
+        @asynccontextmanager
+        async def fake_streamable_http_client(url, http_client=None):
+            yield MagicMock(), MagicMock()
+
+        @asynccontextmanager
+        async def fake_create_mcp_http_client(headers=None, **kwargs):
+            yield MagicMock()
+
+        @asynccontextmanager
+        async def fake_client_session(read, write):
+            s = MagicMock()
+            s.initialize = AsyncMock(
+                return_value=SimpleNamespace(instructions="Call search before write_file.")
+            )
+            yield s
+
+        with patch("mcp.client.streamable_http.streamable_http_client", fake_streamable_http_client), \
+             patch("mcp.shared._httpx_utils.create_mcp_http_client", fake_create_mcp_http_client), \
+             patch("mcp.client.session.ClientSession", fake_client_session):
+            async with mgr._open_session(
+                {"transport": "http", "url": "http://example.com/mcp", "name": "srv"}
+            ):
+                pass
+
+        assert mgr.server_instructions("srv") == "Call search before write_file."
+
+    async def test_stdio_transport_captures_server_instructions(self):
+        mgr = _make_manager()
+
+        @asynccontextmanager
+        async def fake_stdio_client(params):
+            yield MagicMock(), MagicMock()
+
+        @asynccontextmanager
+        async def fake_client_session(read, write):
+            s = MagicMock()
+            s.initialize = AsyncMock(
+                return_value=SimpleNamespace(instructions="Only touch files under /data.")
+            )
+            yield s
+
+        with patch("mcp.client.stdio.stdio_client", fake_stdio_client), \
+             patch("mcp.client.session.ClientSession", fake_client_session):
+            async with mgr._open_session({"transport": "stdio", "command": "x", "name": "fs"}):
+                pass
+
+        assert mgr.server_instructions("fs") == "Only touch files under /data."
+
+    async def test_no_instructions_leaves_server_instructions_unset(self):
+        mgr = _make_manager()
+
+        @asynccontextmanager
+        async def fake_streamable_http_client(url, http_client=None):
+            yield MagicMock(), MagicMock()
+
+        @asynccontextmanager
+        async def fake_create_mcp_http_client(headers=None, **kwargs):
+            yield MagicMock()
+
+        @asynccontextmanager
+        async def fake_client_session(read, write):
+            s = MagicMock()
+            s.initialize = AsyncMock(return_value=SimpleNamespace(instructions=None))
+            yield s
+
+        with patch("mcp.client.streamable_http.streamable_http_client", fake_streamable_http_client), \
+             patch("mcp.shared._httpx_utils.create_mcp_http_client", fake_create_mcp_http_client), \
+             patch("mcp.client.session.ClientSession", fake_client_session):
+            async with mgr._open_session(
+                {"transport": "http", "url": "http://example.com/mcp", "name": "srv"}
+            ):
+                pass
+
+        assert mgr.server_instructions("srv") is None
+
+
+# ---------------------------------------------------------------------------
+# Server `instructions` (MCP initialize) and per-tool `annotations` hints
+#
+# Both are display-only diagnostics for the admin panel — the MCP spec warns
+# annotations are unverified server-reported hints, and instructions are
+# third-party server content — so neither may ever reach _to_openai_tool /
+# the schema actually sent to the model.
+# ---------------------------------------------------------------------------
+
+class _FakeAnnotatedTool:
+    def __init__(self, name, annotations=None):
+        self.name = name
+        self.description = "desc"
+        self.inputSchema = {"type": "object", "properties": {}}
+        self.annotations = annotations
+
+
+class TestToolAnnotations:
+    def test_extract_annotations_returns_none_without_annotations(self):
+        assert MCPClientManager._extract_annotations(_FakeAnnotatedTool("t")) is None
+
+    def test_extract_annotations_filters_out_unset_hints(self):
+        annotations = SimpleNamespace(
+            title="Read File", read_only_hint=True, destructive_hint=None,
+            idempotent_hint=None, open_world_hint=None,
+        )
+        result = MCPClientManager._extract_annotations(_FakeAnnotatedTool("t", annotations))
+        assert result == {"title": "Read File", "read_only_hint": True}
+
+    def test_extract_annotations_reads_mcp1_camelcase_hints(self):
+        """MCP 1.x's ToolAnnotations exposes readOnlyHint/destructiveHint/
+        idempotentHint/openWorldHint instead of the snake_case MCP 2 names —
+        without an object attribute for the snake_case name at all, so a
+        default of None on getattr can't mask a missed fallback."""
+        class _LegacyAnnotations:
+            def __init__(self):
+                self.title = "Read File"
+                self.readOnlyHint = True
+                self.destructiveHint = False
+                self.idempotentHint = True
+                self.openWorldHint = False
+
+        result = MCPClientManager._extract_annotations(_FakeAnnotatedTool("t", _LegacyAnnotations()))
+        assert result == {
+            "title": "Read File",
+            "read_only_hint": True,
+            "destructive_hint": False,
+            "idempotent_hint": True,
+            "open_world_hint": False,
+        }
+
+    def test_extract_annotations_all_unset_returns_none(self):
+        annotations = SimpleNamespace(
+            title=None, read_only_hint=None, destructive_hint=None,
+            idempotent_hint=None, open_world_hint=None,
+        )
+        assert MCPClientManager._extract_annotations(_FakeAnnotatedTool("t", annotations)) is None
+
+    async def test_discovery_populates_tool_annotations(self):
+        mgr = MCPClientManager({"servers": [{"name": "srv", "transport": "stdio", "command": "x"}]})
+        annotations = SimpleNamespace(
+            title=None, read_only_hint=True, destructive_hint=False,
+            idempotent_hint=None, open_world_hint=None,
+        )
+        tool = _FakeAnnotatedTool("read_file", annotations)
+
+        async def _list(_server_config):
+            return [tool]
+
+        mgr._list_tools_on_server = _stub_list_tools(mgr, _list)
+        await mgr.get_all_tools()
+
+        assert mgr.tool_annotations("srv__read_file") == {
+            "read_only_hint": True, "destructive_hint": False,
+        }
+        assert mgr.tool_annotations("srv__unknown_tool") is None
+
+    async def test_annotations_never_reach_openai_tool_schema(self):
+        """Regression guard for the scoping decision: annotations are
+        admin-panel-only and must never be part of what's sent to the model."""
+        mgr = MCPClientManager({"servers": [{"name": "srv", "transport": "stdio", "command": "x"}]})
+        annotations = SimpleNamespace(
+            title="Reader", read_only_hint=True, destructive_hint=None,
+            idempotent_hint=None, open_world_hint=None,
+        )
+        tool = _FakeAnnotatedTool("read_file", annotations)
+
+        async def _list(_server_config):
+            return [tool]
+
+        mgr._list_tools_on_server = _stub_list_tools(mgr, _list)
+        tools = await mgr.get_all_tools()
+
+        assert len(tools) == 1
+        assert set(tools[0]["function"].keys()) == {"name", "description", "parameters"}
+        assert "annotations" not in json.dumps(tools[0])
+
+    async def test_failed_discovery_clears_tool_annotations(self):
+        mgr = MCPClientManager({"servers": [{"name": "srv", "transport": "stdio", "command": "x"}]})
+        annotations = SimpleNamespace(
+            title=None, read_only_hint=True, destructive_hint=None,
+            idempotent_hint=None, open_world_hint=None,
+        )
+        tool = _FakeAnnotatedTool("read_file", annotations)
+        outcomes = [[tool], RuntimeError("down")]
+
+        async def _list(_server_config):
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        mgr._list_tools_on_server = _stub_list_tools(mgr, _list)
+        await mgr.get_all_tools()
+        assert mgr.tool_annotations("srv__read_file") is not None
+
+        await mgr.refresh_tool_cache()
+        assert mgr.tool_annotations("srv__read_file") is None
+
+    async def test_update_server_removal_clears_instructions_and_annotations(self):
+        mgr = MCPClientManager({"servers": [{"name": "srv", "transport": "stdio", "command": "x"}]})
+        mgr._server_instructions["srv"] = "Some guidance."
+        mgr._tool_annotations["srv"] = {"srv__t": {"read_only_hint": True}}
+
+        await mgr.update_server("srv", None)
+
+        assert mgr.server_instructions("srv") is None
+        assert mgr.tool_annotations("srv__t") is None
 
 
 # ---------------------------------------------------------------------------

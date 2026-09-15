@@ -344,18 +344,27 @@ def _mcp_endpoint_label(server: dict[str, Any]) -> str:
     return str(server.get("url", ""))
 
 
-def _serialize_mcp_tools(tools: list) -> list:
+def _serialize_mcp_tools(tools: list, annotations: Optional[dict[str, Any]] = None) -> list:
     """Convert the manager's OpenAI-format cached schemas to the compact
     admin-panel shape. Both the server-list and explicit discovery endpoints
     use this so a cached server can show its tools/playbooks without a second
-    round trip or a needless re-dial."""
+    round trip or a needless re-dial.
+
+    `annotations` (namespaced tool name -> hint dict, from
+    MCPClientManager.tool_annotations/_tool_annotations) is display-only, per
+    the MCP spec's own warning that these are unverified server-reported
+    hints — never used for tool-use decisions, and never part of the schema
+    sent to the model.
+    """
+    annotations = annotations or {}
     serialized = []
     for tool in tools:
         fn = tool.get("function", {})
+        name = fn.get("name", "")
         params = fn.get("parameters", {}) or {}
         required = params.get("required", []) or []
         serialized.append({
-            "name": fn.get("name", ""),
+            "name": name,
             "description": fn.get("description", ""),
             "parameters": [
                 {
@@ -366,6 +375,7 @@ def _serialize_mcp_tools(tools: list) -> list:
                 }
                 for pname, pspec in (params.get("properties") or {}).items()
             ],
+            "annotations": annotations.get(name),
         })
     return serialized
 
@@ -437,7 +447,12 @@ async def list_mcp_servers(request: Request):
                 # This is the manager's already-discovered cache: returning
                 # it is read-only and never dials a server. The panel uses it
                 # to resolve Playbooks immediately on first view.
-                "tools": _serialize_mcp_tools(manager._tools_cache[name]),
+                "tools": _serialize_mcp_tools(
+                    manager._tools_cache[name], manager._tool_annotations.get(name)
+                ),
+                # Server-authored guidance from MCP `initialize`, display-only
+                # (see MCPClientManager._server_instructions).
+                "instructions": manager.server_instructions(name),
             }
         servers.append({
             "name": name,
@@ -608,7 +623,10 @@ async def discover_mcp_tools(request: Request, server: Optional[str] = None):
     for name in names:
         servers[name] = {
             "reachable": manager.is_reachable(name),
-            "tools": _serialize_mcp_tools(manager._tools_cache.get(name, [])),
+            "tools": _serialize_mcp_tools(
+                manager._tools_cache.get(name, []), manager._tool_annotations.get(name)
+            ),
+            "instructions": manager.server_instructions(name),
         }
 
     return {"available": True, "servers": servers}
