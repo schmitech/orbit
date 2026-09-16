@@ -118,7 +118,7 @@ class IntentPluginManager:
         for plugin in self.get_enabled_plugins():
             try:
                 result_query = plugin.pre_process_query(result_query, context)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-plugin isolation, one bad plugin must not break the chain
                 logger.error(f"Error in plugin {plugin.get_name()} pre_process_query: {e}")
         
         return result_query
@@ -130,7 +130,7 @@ class IntentPluginManager:
         for plugin in self.get_enabled_plugins():
             try:
                 result_data = plugin.post_process_results(result_data, context)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-plugin isolation, one bad plugin must not break the chain
                 logger.error(f"Error in plugin {plugin.get_name()} post_process_results: {e}")
         
         return result_data
@@ -142,7 +142,7 @@ class IntentPluginManager:
         for plugin in self.get_enabled_plugins():
             try:
                 result_response = plugin.enhance_response(result_response, context)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-plugin isolation, one bad plugin must not break the chain
                 logger.error(f"Error in plugin {plugin.get_name()} enhance_response: {e}")
         
         return result_response

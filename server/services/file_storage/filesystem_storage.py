@@ -153,7 +153,7 @@ class FilesystemStorage(FileStorageBackend):
                     # Directory not empty or can't be removed - that's okay
                     logger.debug(f"Could not remove directory {current_dir}: {rmdir_err}")
                     pass
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort directory cleanup, must not fail the file deletion
             # Log but don't fail deletion if directory cleanup fails
             logger.debug(f"Could not clean up empty directories for {key}: {e}")
         

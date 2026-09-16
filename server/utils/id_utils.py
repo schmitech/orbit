@@ -109,5 +109,5 @@ def is_valid_id(id_value: Any, backend_type: str = 'mongodb') -> bool:
     try:
         ensure_id(id_value, backend_type)
         return True
-    except (ValueError, Exception):
+    except ValueError:
         return False

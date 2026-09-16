@@ -60,7 +60,7 @@ class MilvusDatasource(BaseDatasource):
         try:
             from pymilvus import utility
             return utility.has_connection("default")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus client boundary; health check must degrade to False rather than crash
             logger.error(f"Milvus health check failed: {e}")
             return False
     
@@ -70,7 +70,7 @@ class MilvusDatasource(BaseDatasource):
             try:
                 from pymilvus import connections
                 connections.disconnect("default")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pymilvus client boundary; best-effort disconnect during shutdown
                 logger.warning(f"Error disconnecting from Milvus: {e}")
             finally:
                 self._client = None

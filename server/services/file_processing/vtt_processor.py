@@ -111,7 +111,7 @@ class VTTProcessor(FileProcessor):
                 'mime_type': 'text/vtt',
             })
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort metadata extraction; must not fail the primary parse
             logger.warning(f"Error extracting VTT metadata: {e}")
 
         return metadata

@@ -181,7 +181,7 @@ class PptxRenderer(BaseRenderer):
 
                     if slide_numbers:
                         self._add_slide_number(chart_slide, slide_index, slide_width, slide_height, font_body)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - chart rendering has no fixed exception surface; must not fail the whole deck
                     logger.warning("Chart rendering failed for PPTX section: %s", exc)
 
         buf = io.BytesIO()

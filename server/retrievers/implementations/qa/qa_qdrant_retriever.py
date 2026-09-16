@@ -149,7 +149,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
             else:
                 logger.error(f"Unexpected Qdrant response (status {e.status_code}): {e!s}")
                 return []
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver boundary, no stable documented exception hierarchy
             error_msg = str(e)
             if DIMENSION_MISMATCH_PATTERN.search(error_msg):
                 query_dim = len(query_embedding)
@@ -188,7 +188,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
         if not self.qdrant_client:
             try:
                 await self.initialize_client(test_connection=True)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - qdrant-client driver boundary, must fail-safe (return False) not crash validation
                 logger.error(f"Failed to initialize Qdrant client during validation: {e!s}")
                 return False
 

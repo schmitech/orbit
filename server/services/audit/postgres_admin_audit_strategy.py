@@ -74,7 +74,7 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
                 return True
             logger.warning("Failed to store admin audit record - no ID returned")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call must fail safe, matching precedent from sibling audit strategies
             logger.error(f"Error storing admin audit record in Postgres: {e}")
             return False
 
@@ -105,7 +105,7 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
                 sort=[(sort_by, sort_order)],
             )
             return [self._unflatten(r) for r in results]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call must fail safe, matching precedent from sibling audit strategies
             logger.error(f"Error querying admin audit records from Postgres: {e}")
             return []
 
@@ -149,7 +149,7 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
         if self._database_service and self._owns_database_service:
             try:
                 self._database_service.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort cleanup on close, must not raise
                 logger.error(f"Error closing Postgres admin audit database service: {e}")
         self._initialized = False
 
@@ -162,6 +162,6 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
                 f"Cleared {deleted_count} admin audit records from Postgres table '{self._collection_name}'"
             )
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call must fail safe, matching precedent from sibling audit strategies
             logger.error(f"Error clearing Postgres admin audit records: {e}")
             return False

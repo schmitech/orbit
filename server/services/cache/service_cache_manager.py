@@ -177,7 +177,7 @@ class ServiceCacheManager:
                     service.close()
         except (AttributeError, TypeError) as e:
             logger.debug(f"{self.service_label.capitalize()} {cache_key} close method not available: {e!s}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable cached service boundary; best-effort cleanup
             logger.warning(f"Error closing {self.service_label} {cache_key}: {e!s}")
 
     def _log_create_error(self, provider_name: str, error: Exception) -> None:

@@ -145,7 +145,7 @@ class XLSXProcessor(FileProcessor):
 
             wb.close()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - openpyxl boundary; best-effort metadata extraction
             logger.warning(f"Error extracting XLSX metadata: {e}")
 
         return metadata

@@ -171,7 +171,7 @@ class SQLQueryExecutionMixin:
                 json.dump(results, f, indent=2, default=str)
             
             logger.debug(f"Query results saved to {file_path}")
-        except Exception as e:
+        except (OSError, TypeError) as e:
             logger.error(f"Failed to dump query results: {e}")
     
     async def execute_query_with_retry(self, query: str, params: Any = None, max_retries: int = 3) -> list[dict[str, Any]]:
@@ -190,7 +190,7 @@ class SQLQueryExecutionMixin:
         for attempt in range(max_retries):
             try:
                 return await self.execute_query(query, params)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - SQL driver boundary; retry loop must capture and retry any failure
                 last_error = e
                 if attempt < max_retries - 1:
                     logger.warning(f"Query attempt {attempt + 1} failed: {e}, retrying...")
@@ -259,7 +259,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
             logger.debug(f"Database connection test successful: {self._get_datasource_name()}")
 
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - SQL driver boundary; connection test must fail safe
             logger.error(f"Database connection test failed: {e}")
             return False
 

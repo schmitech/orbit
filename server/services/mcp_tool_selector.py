@@ -127,7 +127,7 @@ class MCPToolSelector:
                 len(selected), len(tools), adapter_name,
             )
             return selected
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort tool selection; must fall back to the full tool list rather than crash
             logger.warning("MCP tool selection failed, falling back to full tool list: %s", e)
             return tools
 
@@ -183,7 +183,7 @@ class MCPToolSelector:
         if client is not None and not getattr(client, "initialized", False):
             try:
                 await client.initialize()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable embedding-provider boundary; must degrade gracefully rather than crash tool selection
                 logger.warning("Embedding init failed for MCP tool selection: %s", e)
                 return None
         self._embedding_clients[provider] = client

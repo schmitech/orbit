@@ -37,7 +37,7 @@ class WatsonBaseService(ProviderAIService):
         try:
             self.initialized = True
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Watson SDK init boundary, must fail safe returning False
             logger.error(f"Failed to initialize Watson: {e!s}")
             return False
 

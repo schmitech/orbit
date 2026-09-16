@@ -240,7 +240,7 @@ def get_adapter_type(container, adapter_name: str) -> Optional[str]:
         adapter_config = adapter_manager.get_adapter_config(adapter_name)
         if adapter_config:
             return adapter_config.get('type')
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort adapter-type lookup, must not block generation on adapter_manager errors
         pass
     return None
 
@@ -280,7 +280,7 @@ async def get_generation_memory(container, adapter_name: str, session_id: Option
         dataset_key = dataset_service._generate_dataset_key(generation_memory_key(adapter_name, session_id))
         result = await dataset_service.get_dataset(dataset_key)
         return result[0] if result else None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - best-effort generation-memory cache read, must degrade to no memory
         logger.debug("Could not fetch generation memory for '%s': %s", adapter_name, e)
         return None
 
@@ -609,5 +609,5 @@ async def store_generation_memory(
             query_context=memory,
             raw_results=[],
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - best-effort generation-memory cache write, must not fail the primary generation
         logger.debug("Could not store generation memory for '%s': %s", adapter_name, e)

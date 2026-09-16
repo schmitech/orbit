@@ -85,7 +85,7 @@ class SQLTemplateRetriever(AbstractSQLRetriever):
             logger.warning("execute_query not implemented - returning empty results")
             return []
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - SQL execution boundary, exception surface depends on the concrete DB driver used by subclasses
             logger.error(f"Error executing query: {e!s}")
             logger.error(f"SQL: {sql}")
             logger.error(f"Params: {params}")
@@ -122,7 +122,7 @@ class SQLTemplateRetriever(AbstractSQLRetriever):
                 logger.info("Database connection closed")
                 self.connection = None
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - connection cleanup boundary, must not raise on close
             logger.error(f"Error closing connection: {e!s}")
 
     # Optional: Override for database-specific search optimizations

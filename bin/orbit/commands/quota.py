@@ -79,7 +79,7 @@ class QuotaGetCommand(BaseCommand):
                     console.print(f"\n[yellow]Current Throttle Delay: {throttle_delay}ms[/yellow]")
 
             return 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - CLI command boundary over an HTTP API client; must not crash the CLI
             self.formatter.error(f"Failed to get quota: {e!s}")
             return 1
 
@@ -140,7 +140,7 @@ class QuotaSetCommand(BaseCommand):
                 console.print(f"  Priority: {args.priority}")
 
             return 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - CLI command boundary over an HTTP API client; must not crash the CLI
             self.formatter.error(f"Failed to update quota: {e!s}")
             return 1
 
@@ -171,7 +171,7 @@ class QuotaResetCommand(BaseCommand):
             self.formatter.success(f"Quota usage ({args.period}) reset successfully")
 
             return 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - CLI command boundary over an HTTP API client; must not crash the CLI
             self.formatter.error(f"Failed to reset quota: {e!s}")
             return 1
 
@@ -254,6 +254,6 @@ class QuotaReportCommand(BaseCommand):
                 console.print(f"\nTotal keys: {result.get('total_keys', len(usage_data))}")
 
             return 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - CLI command boundary over an HTTP API client; must not crash the CLI
             self.formatter.error(f"Failed to generate report: {e!s}")
             return 1

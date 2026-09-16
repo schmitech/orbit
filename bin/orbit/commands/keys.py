@@ -93,7 +93,7 @@ class KeyCreateCommand(BaseCommand):
                 elif result.get('expires_at'):
                     console.print(f"[bold]Expires:[/bold] {datetime.fromtimestamp(result['expires_at']).strftime('%Y-%m-%d')}")
             return 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - CLI command boundary must report the error, not crash
             self.formatter.error(f"Failed to create API key: {e!s}")
             return 1
 
@@ -429,9 +429,9 @@ class KeyListAdaptersCommand(BaseCommand):
                         config = yaml.safe_load(f)
                         adapters = config.get('adapters', [])
                         break
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort adapter discovery across candidate config paths
                     pass
-        
+
         if getattr(args, 'output', None) == 'json':
             self.formatter.format_json(adapters)
         else:

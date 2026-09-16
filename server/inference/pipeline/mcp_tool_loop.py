@@ -90,7 +90,7 @@ async def await_or_cancel(coro, cancel_event: Optional[asyncio.Event]):
         task.cancel()
         try:
             await task
-        except (asyncio.CancelledError, Exception):
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001 - task result is discarded on cancellation
             pass
         return _CANCELLED
 
@@ -266,7 +266,7 @@ async def run_tool_calling_loop(
                 dispatch_result = await await_or_cancel(
                     dispatch(tool_name, arguments), cancel_event
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - arbitrary MCP tool call must not abort the loop, surfaced as tool content instead
                 dispatch_result = ToolDispatchResult(
                     content=f"Error calling tool '{tool_name}': {exc}",
                     source_type="mcp_tool_call",
@@ -350,6 +350,6 @@ async def run_tool_calling_loop(
             sources,
             messages,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - LLM synthesis boundary must degrade to a fallback message, not crash the loop
         logger.error("Final MCP tool loop synthesis failed: %s", exc)
         return "I was unable to complete the tool-calling loop.", sources, messages

@@ -85,7 +85,7 @@ class DOCXProcessor(FileProcessor):
                 'mime_type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             })
         
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort metadata extraction from python-docx internals
             logger.warning(f"Error extracting DOCX metadata: {e}")
         
         return metadata

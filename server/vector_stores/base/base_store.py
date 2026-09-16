@@ -136,7 +136,7 @@ class BaseStore(ABC):
         for attempt in range(self.config.retry_attempts):
             try:
                 return await operation(*args, **kwargs)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - generic retry wrapper for pluggable vector-store operations with unstable exception hierarchies
                 last_error = e
                 if attempt < self.config.retry_attempts - 1:
                     await asyncio.sleep(self.config.retry_delay * (attempt + 1))

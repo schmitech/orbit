@@ -6,6 +6,7 @@ between dashboard/metrics routes and admin panel routes.
 """
 
 import base64
+import binascii
 import html
 import logging
 from http.cookies import SimpleCookie
@@ -150,7 +151,7 @@ def get_sso_service(request: Request):
             from services.admin_sso_service import AdminSSOService
             built = AdminSSOService(providers)
             svc = built if built.enabled else None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - pluggable SSO service init boundary; must not crash app boot
         logger.error("Failed to initialize admin SSO service: %s", e)
         svc = None
 
@@ -428,7 +429,7 @@ async def authenticate_websocket_admin(websocket: WebSocket) -> bool:
                 valid, user_info = await auth_service.validate_token(token)
                 if valid and user_info and has_permission(user_info, "metrics.read"):
                     return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - auth boundary; falls through to basic-auth attempt below
             pass
 
     # Fall back to HTTP Basic credentials supplied with the websocket request
@@ -440,7 +441,7 @@ async def authenticate_websocket_admin(websocket: WebSocket) -> bool:
     try:
         decoded = base64.b64decode(auth_header.split(' ', 1)[1]).decode('utf-8')
         username, password = decoded.split(':', 1)
-    except Exception:
+    except (binascii.Error, UnicodeDecodeError, ValueError):
         await websocket.close(code=4401, reason="Invalid basic auth header")
         return False
 

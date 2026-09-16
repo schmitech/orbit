@@ -78,7 +78,7 @@ class MariaDBDatasource(BaseDatasource):
             cursor.fetchone()
             cursor.close()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - mariadb driver boundary; health check must degrade to False rather than crash
             logger.error(f"MariaDB health check failed: {e}")
             return False
     

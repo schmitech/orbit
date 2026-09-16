@@ -87,7 +87,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         if metrics_service and getattr(metrics_service, 'enabled', False):
             try:
                 metrics_service.http_inprogress.labels(method=request.method, endpoint=inprogress_endpoint).inc()
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort telemetry, must not affect request handling
                 pass
         try:
             response = await call_next(request)
@@ -117,9 +117,9 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                     # Decrement in-progress
                     try:
                         metrics_service.http_inprogress.labels(method=request.method, endpoint=inprogress_endpoint).dec()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - best-effort telemetry, must not affect request handling
                         pass
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort telemetry, must not affect request handling
                     logger.debug(f"Failed to record metrics: {e}")
         
         return response

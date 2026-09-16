@@ -77,7 +77,7 @@ class CassandraDatasource(BaseDatasource):
             result = self._client.execute("SELECT now() FROM system.local")
             result.one()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - cassandra-driver boundary, must fail-safe (return False) not crash the check
             logger.error(f"Cassandra health check failed: {e}")
             return False
     

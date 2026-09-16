@@ -135,7 +135,7 @@ class ConversationHistoryHandler:
         except SessionOwnershipError:
             # Never downgrade an authorization failure to "no history".
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chat-history DB backend boundary
             logger.error(f"Error retrieving conversation context: {e!s}")
             return []
 
@@ -206,7 +206,7 @@ class ConversationHistoryHandler:
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chat-history DB backend boundary
             logger.error(f"Error storing conversation turn: {e!s}")
             return None, None
 
@@ -273,6 +273,6 @@ class ConversationHistoryHandler:
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chat-history DB backend boundary
             logger.error(f"Error checking conversation limit: {e!s}")
             return None

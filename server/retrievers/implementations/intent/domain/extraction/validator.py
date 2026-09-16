@@ -107,7 +107,7 @@ class Validator:
                 custom_valid = rules['custom'](value)
                 if not custom_valid:
                     return False, f"{field_name} failed custom validation"
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - arbitrary pluggable custom-validation callback; must fail as a validation error rather than crash
                 logger.error("Custom validation error for %s: %s", field_name, e)
                 return False, f"{field_name} validation error"
 

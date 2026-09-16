@@ -125,7 +125,7 @@ class ZaiBaseService(ProviderAIService):
                 )
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - LLM provider client boundary, must fail safe
             logger.error(f"Failed to initialize Z.AI service: {e!s}")
             return False
 
@@ -145,7 +145,7 @@ class ZaiBaseService(ProviderAIService):
             )
             logger.debug("Z.AI connection verified successfully")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - LLM provider client boundary, must fail safe
             logger.error(f"Z.AI connection verification failed: {e!s}")
             return False
 

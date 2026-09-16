@@ -280,7 +280,7 @@ class CSVProcessor(FileProcessor):
                 'mime_type': 'text/csv',
             })
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort metadata extraction over arbitrary parsed CSV data
             logger.warning(f"Error extracting CSV metadata: {e}")
 
         return metadata

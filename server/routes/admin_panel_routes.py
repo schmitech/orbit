@@ -6,6 +6,7 @@ with integrated login, logout, and export endpoints.
 """
 
 import base64
+import binascii
 import json
 import logging
 import secrets
@@ -449,7 +450,7 @@ def create_admin_panel_router() -> APIRouter:
 
         try:
             flow = json.loads(base64.urlsafe_b64decode(raw.encode("ascii")).decode("utf-8"))
-        except Exception:
+        except (binascii.Error, ValueError, UnicodeDecodeError, json.JSONDecodeError):
             return _login_redirect("sso_failed")
 
         if flow.get("provider") != provider or not secrets.compare_digest(str(flow.get("state", "")), state):
@@ -808,21 +809,21 @@ def create_admin_panel_router() -> APIRouter:
                 elif hasattr(adapter_manager, 'parallel_executor') and adapter_manager.parallel_executor:
                     if hasattr(adapter_manager.parallel_executor, 'get_circuit_breaker_status'):
                         snapshot['adapters'] = adapter_manager.parallel_executor.get_circuit_breaker_status()
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort dashboard snapshot, adapter manager internals vary by implementation
                 pass
         # Thread pools
         tpm = getattr(request.app.state, 'thread_pool_manager', None)
         if tpm:
             try:
                 snapshot['thread_pools'] = tpm.get_pool_stats()
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort dashboard snapshot, must not fail the whole endpoint
                 pass
         # Pipeline
         pm = getattr(request.app.state, 'pipeline_monitor', None)
         if pm:
             try:
                 snapshot['pipeline'] = json.loads(pm.export_metrics(format='json'))
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort dashboard snapshot, must not fail the whole endpoint
                 pass
 
         return Response(

@@ -47,7 +47,7 @@ class PineconeDatasource(BaseDatasource):
             # Try to list indexes as a health check
             self._client.list_indexes()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pinecone-client boundary; health check must fail safe
             logger.error(f"Pinecone health check failed: {e}")
             return False
 

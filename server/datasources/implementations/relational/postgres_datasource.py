@@ -102,11 +102,11 @@ class PostgreSQLDatasource(BaseDatasource):
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
                 cursor.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 - psycopg connection validation has a broad, version-dependent error surface
                 # Connection is stale, close it and get a new one
                 try:
                     conn.close()
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort close of a stale connection
                     pass
                 conn = self._pool.getconn()
 
@@ -140,7 +140,7 @@ class PostgreSQLDatasource(BaseDatasource):
                 cursor.close()
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; health check must fail safe rather than crash the caller
             logger.error(f"PostgreSQL health check failed: {e}")
             return False
 

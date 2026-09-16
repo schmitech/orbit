@@ -87,7 +87,7 @@ class LLMInferenceStep(PipelineStep):
                 adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
                 if adapter_config and adapter_config.get('type') in NO_LLM_ADAPTER_TYPES:
                     return False
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort adapter-config probe; must not block the pipeline step
                 pass
         return True
     
@@ -307,7 +307,7 @@ class LLMInferenceStep(PipelineStep):
             cfg = mgr.get_adapter_config(adapter_name)
             if cfg:
                 return cfg.get('capabilities', {}).get('tool_skills')
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort adapter-config probe; falls back to unrestricted skills
             pass
         return None
 

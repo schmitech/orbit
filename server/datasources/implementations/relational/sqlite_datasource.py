@@ -45,7 +45,7 @@ class SQLiteDatasource(BaseDatasource):
             cursor.fetchone()
             cursor.close()
             return True
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"SQLite health check failed: {e}")
             return False
     

@@ -114,7 +114,7 @@ class ContextRetrievalStep(PipelineStep):
                             logger.warning(
                                 f"Adapter '{adapter_name}' has no capabilities configuration."
                             )
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - pluggable adapter config boundary; capabilities remain unavailable rather than crashing the pipeline
                         logger.warning(
                             f"Failed to register capabilities for adapter '{adapter_name}': {e}."
                         )
@@ -267,7 +267,7 @@ class ContextRetrievalStep(PipelineStep):
                     return context
                 else:
                     logger.warning(f"Thread {context.thread_id} dataset not found or expired, falling back to normal retrieval")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - cached thread-dataset boundary; falls back to normal retrieval instead of crashing
                 logger.error(f"Error loading thread dataset: {e}, falling back to normal retrieval")
 
         # Get adapter capabilities — may fall back to the original (pre-skill-swap)
@@ -359,7 +359,7 @@ class ContextRetrievalStep(PipelineStep):
                 truncation_info
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable retriever boundary; pipeline step must degrade to a set_error instead of crashing
             logger.error(f"Error during context retrieval: {e!s}")
             finalize_usage_components(self.container, context)
             context.set_error(f"Failed to retrieve context: {e!s}")

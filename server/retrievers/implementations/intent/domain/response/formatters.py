@@ -86,7 +86,7 @@ class ResponseFormatter:
         if formatter:
             try:
                 return formatter(value)
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError) as e:
                 logger.debug("Formatting error for %s: %s", display_format, e)
                 return str(value)
 
@@ -147,7 +147,7 @@ class ResponseFormatter:
             elif isinstance(value, date):
                 return value.strftime("%B %d, %Y")
 
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logger.debug("Date formatting error: %s", e)
 
         return str(value)
@@ -160,7 +160,7 @@ class ResponseFormatter:
                 return dt.strftime("%B %d, %Y at %I:%M %p")
             elif isinstance(value, datetime):
                 return value.strftime("%B %d, %Y at %I:%M %p")
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logger.debug("Datetime formatting error: %s", e)
 
         return str(value)

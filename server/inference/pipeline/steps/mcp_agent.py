@@ -42,7 +42,7 @@ def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
         mgr = container.get("adapter_manager")
         cfg = mgr.get_adapter_config(adapter_name)
         return cfg.get("type") if cfg else None
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort adapter-config probe; falls back to unknown type
         return None
 
 
@@ -55,7 +55,7 @@ def _get_mcp_servers_allowlist(container, adapter_name: str) -> Optional[list[st
         cfg = mgr.get_adapter_config(adapter_name)
         if cfg:
             return cfg.get("capabilities", {}).get("mcp_servers")
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort adapter-config probe; falls back to unrestricted servers
         pass
     return None
 
@@ -70,7 +70,7 @@ def _get_tool_skills_allowlist(container, adapter_name: str) -> Optional[list[st
         cfg = mgr.get_adapter_config(adapter_name)
         if cfg:
             return cfg.get("capabilities", {}).get("tool_skills")
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort adapter-config probe; falls back to unrestricted skills
         pass
     return None
 

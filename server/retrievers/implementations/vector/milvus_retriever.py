@@ -67,7 +67,7 @@ class MilvusRetriever(AbstractVectorRetriever):
             error_msg = "pymilvus package is required for Milvus retriever. Install with: pip install pymilvus"
             logger.error(error_msg)
             raise ImportError(error_msg)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus connection boundary, no stable exception hierarchy
             error_msg = f"Failed to connect to Milvus: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
@@ -78,7 +78,7 @@ class MilvusRetriever(AbstractVectorRetriever):
             from pymilvus import connections
             connections.disconnect("default")
             logger.debug("Milvus client closed")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort client shutdown, must not crash on disconnect
             logger.error(f"Error closing Milvus connection: {e!s}")
 
     async def set_collection(self, collection_name: str) -> None:
@@ -109,7 +109,7 @@ class MilvusRetriever(AbstractVectorRetriever):
             
             logger.debug(f"Switched to collection: {collection_name}")
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus collection-load boundary, no stable exception hierarchy
             error_msg = f"Failed to switch collection: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
@@ -173,7 +173,7 @@ class MilvusRetriever(AbstractVectorRetriever):
             
             return search_results
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus search boundary, no stable exception hierarchy
             logger.error(f"Error querying Milvus: {e!s}")
             return []
 

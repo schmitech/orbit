@@ -367,7 +367,7 @@ class JSONProcessor(FileProcessor):
             
             metadata['mime_type'] = 'application/json'
         
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort metadata extraction, must not fail the primary parse
             logger.warning(f"Error extracting JSON metadata: {e}")
-        
+
         return metadata

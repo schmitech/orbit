@@ -112,7 +112,7 @@ class SemanticChunker(TextChunker):
             try:
                 self.model = SentenceTransformer(model_name)
                 logger.info(f"Loaded semantic chunking model: {model_name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - sentence-transformers model loading has no documented, stable exception hierarchy
                 logger.warning(f"Could not load model {model_name}: {e}")
                 self.use_advanced = False
     
@@ -173,7 +173,7 @@ class SemanticChunker(TextChunker):
                     similarities.append(similarity)
             
             return similarities
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sentence-transformers/numpy embedding calls have no documented, stable exception hierarchy
             logger.warning(f"Error calculating similarities: {e}")
             return []
     
@@ -284,7 +284,7 @@ class SemanticChunker(TextChunker):
                     i += 1
             
             return merged_groups
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort merge heuristic; must not fail chunking, falls back to unmerged groups
             logger.warning(f"Error in skip-and-merge: {e}")
             return sentence_groups
     

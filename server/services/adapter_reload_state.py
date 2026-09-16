@@ -56,7 +56,7 @@ async def ensure_initialized(app_state: Any) -> None:
             existing = await db.find_one(_COLLECTION, {"_id": _doc_id(kind)})
             if existing is None:
                 await db.insert_one(_COLLECTION, {"_id": _doc_id(kind), "generation": 0})
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort row initialization; a stale/missing row self-heals on the next bump
             pass
 
 
@@ -83,7 +83,7 @@ async def bump_generation(app_state: Any, kind: str) -> Optional[int]:
             )
         else:
             ok = await db.insert_one(_COLLECTION, {"_id": _doc_id(kind), "generation": new_generation}) is not None
-    except Exception:
+    except Exception:  # noqa: BLE001 - database-backend boundary; failure is non-fatal, self-heals on next successful bump
         logger.warning("Failed to bump reload generation for '%s'", kind, exc_info=True)
         return None
 
@@ -110,7 +110,7 @@ async def get_generation(app_state: Any, kind: str) -> Optional[int]:
 
     try:
         doc = await db.find_one(_COLLECTION, {"_id": _doc_id(kind)})
-    except Exception:
+    except Exception:  # noqa: BLE001 - database-backend boundary; fail-open, caller retries next poll tick
         return None
 
     if doc is None:
@@ -177,7 +177,7 @@ async def _apply_reload(app_state: Any, kind: str) -> bool:
             logger.info("Propagated tool skill reload from another worker")
         else:
             return False
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - hot-reload propagation boundary; must not crash the poll loop
         logger.warning("Failed to propagate %s reload from another worker: %s", kind, e)
         return False
 

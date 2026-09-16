@@ -160,7 +160,7 @@ class UnifiedProviderAdapter(LLMProvider):
                 )
                 return test_service is not None
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - pluggable AI-service factory boundary; config validation must degrade to False rather than crash
             return False
 
 

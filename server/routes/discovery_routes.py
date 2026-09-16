@@ -177,7 +177,7 @@ async def list_adapter_models(
             )
             if is_valid and key_adapter_name:
                 resolved_name = key_adapter_name
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort api-key resolution, falls back to the default adapter name
             pass
 
     adapter_config = adapter_manager.get_adapter_config(resolved_name) if hasattr(adapter_manager, 'get_adapter_config') else None
@@ -511,7 +511,7 @@ async def delete_conversation_with_files(
                 else:
                     file_deletion_errors.append(file_id)
                     logger.warning("Failed to delete file %s", file_id)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-file deletion must not abort the bulk-delete loop
                 logger.error("Error deleting file %s: %s", file_id, e)
                 file_deletion_errors.append(file_id)
 
@@ -532,7 +532,7 @@ async def delete_conversation_with_files(
                 logger.warning("Failed to clear conversation history: %s", result.get('error'))
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chat-history backend boundary, must not fail the file-deletion result
             logger.error("Error clearing conversation history: %s", e)
 
     message_parts = []

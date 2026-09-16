@@ -158,7 +158,7 @@ def render_markdown_preview(
             url_schemes={"http", "https", "mailto"},
         )
         return {"html": clean_html}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must convert markdown-rendering failure to a 500
         logger.error(f"Error rendering markdown preview: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to render markdown preview")
 

@@ -59,7 +59,7 @@ class ThreadPoolManager:
                     thread_name_prefix=f"orbit-{pool_name}-"
                 )
                 logger.debug(f"ThreadPoolManager: Initialized {pool_name} pool with {worker_count} workers")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - must not crash startup; falls back to default pool size
                 logger.error(f"Failed to initialize {pool_name} thread pool: {e!s}")
                 # Fallback to default pool size
                 self._pools[pool_name] = ThreadPoolExecutor(
@@ -241,7 +241,7 @@ class ThreadPoolManager:
             try:
                 pool.shutdown(wait=wait, cancel_futures=True)
                 logger.info(f"Shut down {pool_name} thread pool")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort shutdown; must not block process exit
                 logger.error(f"Error shutting down {pool_name} thread pool: {e!s}")
         self._pools.clear()
     

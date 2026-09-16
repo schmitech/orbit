@@ -42,7 +42,7 @@ async def ensure_initialized(app_state: Any) -> None:
         existing = await db.find_one(_COLLECTION, {"_id": _DOC_ID})
         if existing is None:
             await db.insert_one(_COLLECTION, {"_id": _DOC_ID, "value": False})
-    except Exception:
+    except Exception:  # noqa: BLE001 - database_service backend boundary, best-effort per docstring
         pass
 
 
@@ -80,7 +80,7 @@ async def set_paused(app_state: Any, paused: bool) -> bool:
                     ok = confirmed is not None and bool(confirmed.get("value")) == paused
         else:
             ok = await db.insert_one(_COLLECTION, {"_id": _DOC_ID, "value": paused}) is not None
-    except Exception:
+    except Exception:  # noqa: BLE001 - database_service backend boundary, must fail closed (ok=False) not crash
         ok = False
 
     if not ok:

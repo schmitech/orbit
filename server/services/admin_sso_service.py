@@ -178,7 +178,7 @@ class AdminSSOService:
                                provider, resp.status_code, resp.text[:200])
                 return None
             return resp.json()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - OIDC token-endpoint HTTP boundary; must fail closed rather than crash
             logger.warning("Token exchange error for %s: %s", provider, e)
             return None
 
@@ -189,7 +189,7 @@ class AdminSSOService:
         entry = self._providers[provider]
         try:
             claims = await asyncio.to_thread(self._verify_id_token_sync, id_token, entry)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - JWT/JWKS validation boundary; must fail closed rather than crash
             logger.warning("id_token validation failed for %s: %s", provider, e)
             return None
 

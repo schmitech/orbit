@@ -147,7 +147,7 @@ class AdapterRegistry:
                         logger.info(f"Created datasource instance for {datasource}")
                     else:
                         logger.warning(f"Failed to create datasource instance for {datasource}, retriever will not have access to datasource")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - dynamic datasource creation must degrade gracefully; retriever proceeds without it
                     logger.warning(f"Error creating datasource for {datasource}: {e}. Retriever will proceed without datasource.")
                     datasource_instance = None
 
@@ -173,7 +173,7 @@ class AdapterRegistry:
             # Create instance
             return adapter_class(config=config, **kwargs)
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - dynamic adapter import/instantiation boundary, re-raised as ValueError
             logger.error(f"Error creating adapter: {e!s}")
             raise ValueError(f"Failed to create adapter: {e!s}")
             
@@ -209,7 +209,7 @@ class AdapterRegistry:
                     pass
                     
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - dynamic module import probing boundary
             logger.error(f"Error trying to import adapter: {e!s}")
             return False
             
@@ -283,7 +283,7 @@ class AdapterRegistry:
                 )
                 logger.debug(f"Registered adapter from config: {implementation}")
                     
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-adapter registration loop must not abort the rest of config loading
                 logger.error(f"Error registering adapter from definition {adapter_def}: {e}")
                 continue
 

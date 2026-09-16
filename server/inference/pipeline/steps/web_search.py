@@ -39,7 +39,7 @@ class WebSearchStep(PipelineStep):
                     self.container.get('adapter_manager')
                     .get_adapter_config(context.adapter_name) or {}
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort config lookup; falls back to an empty config rather than failing the step
                 pass
 
         # A runtime override (from allowed_search_providers) replaces the adapter's
@@ -72,7 +72,7 @@ class WebSearchStep(PipelineStep):
                 filter_list=filter_list,
                 **provider_kwargs,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable search-provider boundary with unstable third-party exception hierarchy
             msg = f"Web search failed ({provider_name}): {e}"
             logger.error(msg)
             context.set_error(msg)

@@ -71,7 +71,7 @@ class PineconeRetriever(AbstractVectorRetriever):
             error_msg = "pinecone package is required for Pinecone retriever. Install with: pip install pinecone>=3.0.0"
             logger.error(error_msg)
             raise ImportError(error_msg)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pinecone client boundary
             error_msg = f"Failed to initialize Pinecone client: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
@@ -113,7 +113,7 @@ class PineconeRetriever(AbstractVectorRetriever):
         except HTTPException:
             # Re-raise HTTPExceptions as-is
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pinecone client boundary
             error_msg = f"Failed to switch index: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
@@ -169,7 +169,7 @@ class PineconeRetriever(AbstractVectorRetriever):
             
             return search_results
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pinecone client boundary
             error_msg = str(e)
             if DIMENSION_MISMATCH_PATTERN.search(error_msg):
                 query_dim = len(query_embedding)
@@ -271,7 +271,7 @@ class PineconeRetriever(AbstractVectorRetriever):
 
             return context_items
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pinecone client boundary
             logger.error(f"Error retrieving context: {e!s}")
             return []
 

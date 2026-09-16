@@ -59,7 +59,7 @@ class TemplateRetriever(BaseRetriever):
             #    connection_string=self.connection_string
             # )
             pass
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - template stub for a future pluggable datasource client; exception surface is unknown until implemented
             logger.error(f"Failed to initialize datasource: {e!s}")
             raise HTTPException(status_code=500, detail=f"Connection error: {e!s}")
 
@@ -74,7 +74,7 @@ class TemplateRetriever(BaseRetriever):
             # if self.client:
             #     await self.client.close()
             pass
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - template stub for a future pluggable datasource client; exception surface is unknown until implemented
             logger.error(f"Error closing connection: {e!s}")
 
     async def set_collection(self, collection_name: str) -> None:
@@ -150,7 +150,7 @@ class TemplateRetriever(BaseRetriever):
             
             return results
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - template stub for a future pluggable datasource client; exception surface is unknown until implemented
             logger.error(f"Error retrieving context: {e!s}")
             logger.error(traceback.format_exc())
             return []

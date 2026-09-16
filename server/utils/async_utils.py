@@ -19,7 +19,7 @@ async def close_client(client: Any) -> Optional[str]:
                 await result
     except AttributeError:
         return None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - arbitrary client close() boundary, no fixed exception surface
         return str(e)
 
     return None

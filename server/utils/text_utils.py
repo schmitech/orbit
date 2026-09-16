@@ -82,7 +82,7 @@ def normalize_text_with_libraries(text: str) -> str:
         
         return text
         
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - third-party text-normalization library boundary, falls back to basic processing
         # If library processing fails, fall back to basic processing
         import logging
         logging.getLogger(__name__).warning(f"Text normalization failed, using fallback: {e}")
@@ -130,7 +130,7 @@ def clean_markdown_response(text: str) -> str:
         if len(clean_html) < len(html) * 0.8:
             return text
             
-    except Exception:
+    except Exception:  # noqa: BLE001 - third-party markdown/nh3 library boundary, falls back to unclean text
         # If markdown processing fails, return the text with basic cleanup
         pass
     

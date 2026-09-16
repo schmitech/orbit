@@ -60,7 +60,7 @@ class DocxRenderer(BaseRenderer):
                     png_bytes = render_chart_to_png(chart_data, width_px=500, height_px=280)
                     doc.add_picture(io.BytesIO(png_bytes), width=Inches(5.5))
                     doc.add_paragraph()
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - best-effort chart rendering; must not abort the whole document
                     logger.warning("Chart rendering failed for DOCX section: %s", exc)
 
         buf = io.BytesIO()

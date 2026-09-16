@@ -117,7 +117,7 @@ class FixedSizeChunker(TextChunker):
         # Encode text to tokens
         try:
             tokens = self.tokenizer.encode(text)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable tokenizer boundary; no fixed exception surface
             logger.warning(f"Token encoding failed, falling back to character-based: {e}")
             return self._chunk_by_characters(text, file_id, metadata)
         
@@ -139,7 +139,7 @@ class FixedSizeChunker(TextChunker):
             decode_failed = False
             try:
                 chunk_text = self.tokenizer.decode(token_slice)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable tokenizer boundary; no fixed exception surface
                 logger.warning(f"Token decoding failed: {e}")
                 decode_failed = True
                 # Fallback: use shared estimation convention (1 token ~= 3 characters)

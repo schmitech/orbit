@@ -126,7 +126,7 @@ class VLLMBaseService(ProviderAIService):
                 )
             self.initialized = True
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vllm provider boundary; initialization must degrade to False rather than crash app boot
             logger.error(f"Failed to initialize vLLM: {e!s}")
             return False
 
@@ -179,7 +179,7 @@ class VLLMBaseService(ProviderAIService):
                 # Try to list models to verify connection
                 await self.client.models.list()
                 return True
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - vllm API client boundary; must degrade to False rather than crash
                 logger.error(f"Failed to verify vLLM API connection: {e!s}")
                 return False
         else:
@@ -188,7 +188,7 @@ class VLLMBaseService(ProviderAIService):
                 try:
                     await self.initialize()
                     return self.initialized
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - vllm direct-mode boundary; must degrade to False rather than crash
                     logger.error(f"Failed to verify vLLM model: {e!s}")
                     return False
             return True

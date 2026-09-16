@@ -242,7 +242,7 @@ class AllowlistSeedCommand(BaseCommand):
                     reason='Seeded from existing external user',
                 )
                 added += 1
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-item CLI loop must isolate one user's failure and continue with the rest
                 failed += 1
                 self.formatter.error(f"Failed for {user['username']}: {e}")
 

@@ -124,7 +124,7 @@ class AdminIpAllowlistService:
             logger.error(f"Failed to load admin IP rules, using last known rules: {e!s}")
             with self._lock:
                 return self._rule_networks
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend boundary; fail closed on last known rules rather than crash
             logger.error(f"Unexpected error loading admin IP rules: {e!s}")
             with self._lock:
                 return self._rule_networks

@@ -68,7 +68,7 @@ class VectorTemplateRetriever(AbstractVectorRetriever):
             
             logger.info(f"Connected to VectorTemplate at {self.host}:{self.port}")
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - template stub for a future pluggable vector-db client; exception surface is unknown until implemented
             logger.error(f"Failed to initialize vector database client: {e!s}")
             raise HTTPException(status_code=500, detail=f"Vector DB connection error: {e!s}")
 
@@ -79,7 +79,7 @@ class VectorTemplateRetriever(AbstractVectorRetriever):
                 # await self.client.close()
                 pass
             logger.info("VectorTemplate client closed")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - template stub for a future pluggable vector-db client; exception surface is unknown until implemented
             logger.error(f"Error closing vector DB connection: {e!s}")
 
     async def set_collection(self, collection_name: str) -> None:
@@ -102,7 +102,7 @@ class VectorTemplateRetriever(AbstractVectorRetriever):
             self.collection = collection_name
             
             logger.debug(f"Switched to collection: {collection_name}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - template stub for a future pluggable vector-db client; exception surface is unknown until implemented
             error_msg = f"Failed to switch collection: {e!s}"
             logger.error(error_msg)
             custom_msg = self.config.get('messages', {}).get('collection_not_found', 
@@ -148,7 +148,7 @@ class VectorTemplateRetriever(AbstractVectorRetriever):
             
             return search_results
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - template stub for a future pluggable vector-db client; exception surface is unknown until implemented
             logger.error(f"Error querying vector database: {e!s}")
             return []
 

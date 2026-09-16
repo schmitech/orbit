@@ -148,7 +148,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
 
             return results, None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch HTTP client boundary; must return a template-error result instead of crashing
             error_msg = str(e)
             logger.error(f"Error executing Elasticsearch template: {error_msg}")
             logger.error(traceback.format_exc())
@@ -185,7 +185,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
                         rendered = rendered.replace(placeholder, str(value))
                 return json.loads(rendered)
 
-        except Exception as e:
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
             logger.error(f"Error processing Query DSL template: {e}")
             # Return an empty query as fallback
             return {"query": {"match_all": {}}}
@@ -445,7 +445,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
                 url=endpoint
             )
             return response.json()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch HTTP client boundary; must return empty mapping instead of crashing
             logger.error(f"Failed to get index mapping: {e}")
             return {}
 
@@ -468,7 +468,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
                 json=query_dsl
             )
             return response.json().get('count', 0)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch HTTP client boundary; must return 0 instead of crashing
             logger.error(f"Failed to execute count query: {e}")
             return 0
 

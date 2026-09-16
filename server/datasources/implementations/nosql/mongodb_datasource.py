@@ -98,7 +98,7 @@ class MongoDBDatasource(BaseDatasource):
         try:
             await self._client.admin.command('ping')
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymongo client boundary, health check must fail safe
             logger.error(f"MongoDB health check failed: {e}")
             return False
     

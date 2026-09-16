@@ -408,7 +408,7 @@ def _pick_random_example(templates_file: str, template_id: str) -> str:
     except FileNotFoundError:
         print(f"Error: Templates file not found: {templates_file}", file=sys.stderr)
         sys.exit(1)
-    except Exception as e:
+    except yaml.YAMLError as e:
         print(f"Error loading templates file: {e}", file=sys.stderr)
         sys.exit(1)
 

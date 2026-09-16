@@ -120,7 +120,7 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                 try:
                     stats = await adapter.template_store.get_statistics()
                     logger.info(f"  Child adapter '{name}': {stats.get('total_templates', 0)} templates")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - per-adapter diagnostic logging must not abort initialization
                     logger.warning(f"  Child adapter '{name}': Could not get stats - {e}")
             if self.cross_adapter_enabled:
                 logger.info(f"  Cross-adapter templates: {len(self._cross_adapter_templates)} templates loaded")
@@ -248,7 +248,7 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                     }
                 else:
                     stats["child_adapters"][name] = {"error": "No template store"}
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-adapter statistics probing must not abort the whole report
                 stats["child_adapters"][name] = {"error": str(e)}
 
         # Cross-adapter template statistics
@@ -390,7 +390,7 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
                 }
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - diagnostic test-routing endpoint must return an error payload, not crash
             logger.error(f"Error in test_routing: {e}")
             logger.debug(traceback.format_exc())
             return {

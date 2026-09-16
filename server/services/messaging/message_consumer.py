@@ -144,7 +144,7 @@ class MessageConsumerService:
             )
         except PermissionError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - api_key_service boundary; must convert any failure to PermissionError
             # Invalid keys surface as HTTPException(401/403) from the key service.
             raise PermissionError(f"API key resolution failed: {e}")
 

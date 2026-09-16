@@ -67,7 +67,7 @@ class MarkItDownProcessor(FileProcessor):
             self._converter = MarkItDown(enable_plugins=self._enable_plugins)
             self._initialized = True
             logger.debug("MarkItDown converter initialized successfully")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - MarkItDown library init boundary, must not crash; marks initialized to prevent retry storms
             logger.warning(f"Failed to initialize MarkItDown converter: {e}")
             self._initialized = True  # Mark as initialized to prevent retries
 
@@ -204,7 +204,7 @@ class MarkItDownProcessor(FileProcessor):
                 _, ext = os.path.splitext(filename)
                 metadata['format'] = ext.lstrip('.').upper() if ext else 'unknown'
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort metadata extraction from arbitrary MarkItDown output
             logger.warning(f"Error extracting MarkItDown metadata: {e}")
 
         return metadata

@@ -108,7 +108,7 @@ class SkillIntentRouter:
             survivors = await self._prefilter(
                 message, candidates, adapter_name, usage_sink=usage_sink
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - embedding provider boundary; must degrade to no-skill
             logger.warning("Skill-intent embedding pre-filter failed: %s", e)
             return None
         if not survivors:
@@ -117,7 +117,7 @@ class SkillIntentRouter:
         # Stage 2 — LLM confirm.
         try:
             return await self._confirm(message, context_messages, survivors, adapter_name)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - LLM provider boundary; must degrade to no-skill
             logger.warning("Skill-intent confirm step failed: %s", e)
             return None
 
@@ -270,7 +270,7 @@ class SkillIntentRouter:
         if client is not None and not getattr(client, "initialized", False):
             try:
                 await client.initialize()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable embedding client boundary
                 logger.warning("Embedding init failed for skill-intent routing: %s", e)
                 return None
         self._embedding_clients[provider] = client

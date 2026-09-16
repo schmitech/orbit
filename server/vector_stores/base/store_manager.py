@@ -54,7 +54,7 @@ class StoreManager:
                 with open(path, 'r') as f:
                     self._config = yaml.safe_load(f)
                 logger.debug(f"Loaded configuration from {config_path}")
-        except Exception as e:
+        except (OSError, yaml.YAMLError) as e:
             logger.error(f"Error loading configuration: {e}")
     
     def _register_store_classes(self):
@@ -355,7 +355,7 @@ class StoreManager:
         for name, store in self._stores.items():
             try:
                 results[name] = await store.health_check()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable vector-store client boundary; health check must fail safe
                 logger.error(f"Health check failed for {name}: {e}")
                 results[name] = False
         return results

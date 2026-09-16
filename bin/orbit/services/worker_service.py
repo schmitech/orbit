@@ -146,7 +146,7 @@ class WorkerService:
                     stderr=subprocess.STDOUT,
                     start_new_session=True,  # detach from the CLI's session
                 )
-        except Exception as e:
+        except OSError as e:
             self.formatter.error(f"Error starting worker: {e}")
             return False
 
@@ -185,7 +185,7 @@ class WorkerService:
                     os.kill(pid, signal.SIGKILL)
         except ProcessLookupError:
             pass  # already gone
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - CLI shutdown boundary; must not crash and instead report failure
             self.formatter.error(f"Error stopping worker: {e}")
             return False
 

@@ -167,7 +167,7 @@ class TransformersBaseService(ProviderAIService):
                 await loop.run_in_executor(self.executor, self._load_model)
             self.initialized = True
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - transformers/torch model-loading boundary; must degrade to False rather than crash app boot
             logger.error(f"Failed to initialize Transformers service: {e}")
             return False
 
@@ -198,7 +198,7 @@ class TransformersBaseService(ProviderAIService):
 
             self.initialized = False
             logger.info("Transformers service closed")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - torch/GPU resource cleanup boundary; best-effort during shutdown
             logger.error(f"Error closing Transformers service: {e}")
 
     def _handle_transformers_error(self, error: Exception, operation: str = "operation") -> None:

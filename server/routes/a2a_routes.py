@@ -78,7 +78,7 @@ def create_a2a_router() -> APIRouter:
         """A2A JSON-RPC 2.0 endpoint."""
         try:
             body = await request.json()
-        except Exception:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             return JSONResponse(content=_err(None, -32700, "Parse error"))
 
         if body.get("jsonrpc") != "2.0":
@@ -176,7 +176,7 @@ async def _resolve_adapter(request: Request) -> tuple[str, Optional[str]]:
         return adapter_name, api_key
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler boundary; must convert to a clean error response
         logger.error("A2A adapter resolution failed: %s", e)
         raise HTTPException(status_code=503, detail="API key service unavailable")
 
@@ -331,7 +331,7 @@ async def _tasks_send(
 
         return JSONResponse(content=_ok(rpc_id, task))
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler boundary; must convert to a JSON-RPC error response
         logger.error("A2A tasks/send failed: %s", e)
         task["status"] = {"state": "failed"}
         _tasks[task_id] = task
@@ -427,7 +427,7 @@ async def _tasks_send_subscribe(
 
             yield _sse(_ok(rpc_id, {"id": task_id, "status": {"state": "completed"}, "final": True}))
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - SSE stream boundary; must emit an error event instead of crashing the stream
             logger.error("A2A tasks/sendSubscribe failed: %s", e)
             task["status"] = {"state": "failed"}
             _tasks[task_id] = task

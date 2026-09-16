@@ -8,6 +8,7 @@ to allow switching between Elasticsearch, SQLite, and MongoDB for audit log stor
 
 import gzip
 import base64
+import binascii
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 from datetime import datetime
@@ -65,7 +66,7 @@ def is_compressed(text: str) -> bool:
         compressed = base64.b64decode(text.encode('ascii'))
         # Check for gzip magic number
         return len(compressed) >= 2 and compressed[0:2] == b'\x1f\x8b'
-    except Exception:
+    except (UnicodeEncodeError, binascii.Error, ValueError):
         return False
 
 

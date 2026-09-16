@@ -228,7 +228,7 @@ class CacheProvider(ABC):
                 deleted = await self.clear_by_pattern(pattern, description)
                 results[description] = deleted
                 total_cleared += deleted
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-pattern best-effort cleanup, must not abort the rest
                 logger.warning(f"Error clearing {description}: {e!s}")
                 results[description] = 0
 
@@ -244,7 +244,7 @@ class CacheProvider(ABC):
         try:
             json_data = json.dumps(data)
             return await self.set(key, json_data, ttl)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable cache-backend boundary, must fail safe
             logger.error(f"Error storing JSON data: {e!s}")
             return False
 
@@ -255,6 +255,6 @@ class CacheProvider(ABC):
             if data:
                 return json.loads(data)
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable cache-backend boundary, must fail safe
             logger.error(f"Error getting JSON data: {e!s}")
             return None

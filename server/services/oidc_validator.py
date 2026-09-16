@@ -154,7 +154,7 @@ class OIDCValidator:
             # provider. The token is fully verified below before we trust it.
             unverified = jwt.decode(token, options={"verify_signature": False})
             issuer = unverified.get("iss")
-        except Exception:
+        except Exception:  # noqa: BLE001 - JWT boundary; fails closed on any malformed/invalid token
             return False, None
 
         provider = self._match_provider(issuer)
@@ -163,7 +163,7 @@ class OIDCValidator:
 
         try:
             claims = await asyncio.to_thread(self._verify_sync, token, provider)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - JWT boundary; fails closed on any malformed/invalid token
             logger.warning("Rejected %s token: %s", provider, e)
             return False, None
 

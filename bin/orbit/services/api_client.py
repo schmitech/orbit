@@ -51,7 +51,7 @@ def handle_api_errors(operation_name: str = None, custom_errors: dict[int, str] 
                 elif status_code == 400:
                     try:
                         error_detail = e.response.json().get('detail', 'Bad request')
-                    except Exception:
+                    except (ValueError, AttributeError):
                         error_detail = 'Bad request'
                     raise OrbitError(f"Bad request: {error_detail}")
                 else:
@@ -60,7 +60,7 @@ def handle_api_errors(operation_name: str = None, custom_errors: dict[int, str] 
             except NetworkError:
                 # Re-raise network errors as-is
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - CLI boundary, converts any unexpected failure to a user-facing OrbitError
                 # Handle unexpected errors
                 operation = operation_name or "Operation"
                 raise OrbitError(f"{operation} failed: {e!s}")
@@ -143,7 +143,7 @@ class ApiClient:
                     time.sleep(2 ** attempt)
                 else:
                     raise NetworkError(f"Request timed out after {self.timeout} seconds")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - CLI boundary, converts any unexpected request failure to a NetworkError
                 raise NetworkError(f"Unexpected error: {e}")
     
     def get(self, endpoint: str, headers: Optional[dict[str, str]] = None,
@@ -190,6 +190,6 @@ class ApiClient:
                 return file.read()
         except FileNotFoundError:
             raise OrbitError(f"File not found: {file_path}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - CLI boundary, converts any unexpected file-read failure to an OrbitError
             raise OrbitError(f"Error reading file {file_path}: {e!s}")
 

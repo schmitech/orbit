@@ -122,7 +122,7 @@ class TensorRTBaseService(ProviderAIService):
                 )
             self.initialized = True
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - TensorRT-LLM engine load boundary, must fail safe returning False
             logger.error(f"Failed to initialize TensorRT-LLM: {e!s}")
             return False
 
@@ -171,7 +171,7 @@ class TensorRTBaseService(ProviderAIService):
                 # Try to list models to verify connection
                 await self.client.models.list()
                 return True
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - TensorRT-LLM API client boundary
                 logger.error(f"Failed to verify TensorRT-LLM API connection: {e!s}")
                 return False
         else:
@@ -180,7 +180,7 @@ class TensorRTBaseService(ProviderAIService):
                 try:
                     await self.initialize()
                     return self.initialized
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - TensorRT-LLM engine init boundary
                     logger.error(f"Failed to verify TensorRT-LLM model: {e!s}")
                     return False
             return True

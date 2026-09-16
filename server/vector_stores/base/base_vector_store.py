@@ -208,7 +208,7 @@ class BaseVectorStore(BaseStore):
             await self.delete_collection(collection)
             await self.create_collection(collection, dimension)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable vector-store backend boundary; must fail safe rather than crash the caller
             logger.error(f"Error clearing collection {collection}: {e}")
             return False
 
@@ -303,7 +303,7 @@ class BaseVectorStore(BaseStore):
                 success = await self.add_vectors(vectors, ids, metadata_list, collection)
                 for vector_id in ids:
                     results[vector_id] = success
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable vector-store backend boundary; isolate per-batch failure from the rest of the operation
                 logger.error(f"Error in batch add: {e}")
                 for vector_id in ids:
                     results[vector_id] = False

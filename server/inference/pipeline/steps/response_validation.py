@@ -53,7 +53,7 @@ class ResponseValidationStep(PipelineStep):
                     context.response = ""  # Clear the unsafe response
                     return context
                     
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable moderator boundary; must not block the pipeline
                 logger.error(f"Error during Moderator Service response check: {e!s}")
                 # Continue processing on error
         

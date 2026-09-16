@@ -93,7 +93,7 @@ class ElasticsearchDatasource(BaseDatasource):
 
             self._initialized = True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch-py client boundary; re-raised after logging/cleanup
             logger.error(f"Failed to initialize Elasticsearch datasource: {e}")
             self._client = None
             raise
@@ -104,7 +104,7 @@ class ElasticsearchDatasource(BaseDatasource):
             try:
                 await self._client.close()
                 logger.info("Elasticsearch datasource connection closed")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - elasticsearch-py client boundary; best-effort cleanup
                 logger.error(f"Error closing Elasticsearch client: {e}")
             finally:
                 self._client = None
@@ -149,6 +149,6 @@ class ElasticsearchDatasource(BaseDatasource):
                 logger.warning("Elasticsearch health check: ping failed")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch-py client boundary; health check must fail safe
             logger.error(f"Elasticsearch health check error: {e}")
             return False

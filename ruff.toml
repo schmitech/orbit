@@ -6,7 +6,10 @@ line-length = 120
 
 [lint.per-file-ignores]
 # Test files often import conftest or use late imports for fixtures
-"server/tests/**" = ["E402"]
+# BLE001: unit test fixtures/cleanup scripts routinely swallow arbitrary
+# exceptions in setup/teardown; narrowing them is low value relative to
+# production code. See docs/roadmap/ruff-blind-except-hardening.md.
+"server/tests/**" = ["E402", "BLE001"]
 # Bin entry points modify sys.path before importing the CLI
 "bin/orbit.py" = ["E402"]
 "bin/orbit/__main__.py" = ["E402"]

@@ -70,7 +70,7 @@ class ConfigService:
                     config = json.load(f)
             except json.JSONDecodeError as e:
                 raise ConfigurationError(f"Invalid configuration file: {e}")
-            except Exception as e:
+            except OSError as e:
                 raise ConfigurationError(f"Failed to load configuration: {e}")
         
         self._config_cache = config
@@ -85,7 +85,7 @@ class ConfigService:
             self.config_file.chmod(0o600)
             # Invalidate cache
             self._config_cache = None
-        except Exception as e:
+        except (OSError, TypeError) as e:
             raise ConfigurationError(f"Failed to save configuration: {e}")
     
     def get_default_config(self) -> dict[str, Any]:

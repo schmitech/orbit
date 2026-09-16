@@ -339,7 +339,7 @@ async def _handle_voice_websocket(
                 "type": "error",
                 "message": e.detail
             })
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort error notification over a possibly-closed websocket
             pass
         logger.error(f"HTTP exception in voice WebSocket: {e.detail}")
 
@@ -353,7 +353,7 @@ async def _handle_voice_websocket(
                 "type": "error",
                 "message": f"Server error: {e!s}"
             })
-        except Exception:
+        except Exception:  # noqa: BLE001 - websocket handler boundary; must not crash the connection, error already reported to client
             pass
 
     finally:
@@ -361,7 +361,7 @@ async def _handle_voice_websocket(
         if handler:
             try:
                 await handler.cleanup()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort handler cleanup on connection teardown
                 logger.error(f"Error during handler cleanup: {e!s}")
 
 

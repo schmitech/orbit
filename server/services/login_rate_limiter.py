@@ -159,7 +159,7 @@ class LoginRateLimiter:
                     retry_after,
                     bucket,
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - cache-backend boundary; falls back to in-memory limiter
                 logger.warning(
                     "Login rate-limit cache read failed; using in-memory fallback: %s",
                     exc,
@@ -212,7 +212,7 @@ class LoginRateLimiter:
                     retry_after,
                     bucket,
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - cache-backend boundary; falls back to in-memory limiter
                 logger.warning(
                     "Login rate-limit cache failed; using in-memory fallback: %s",
                     exc,

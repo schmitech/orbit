@@ -123,7 +123,7 @@ class ChromaRetriever(AbstractVectorRetriever):
                         self.collection_name = collection_name
                         logger.info(f"Successfully created collection: {collection_name} with cosine similarity")
                         return
-                    except Exception as create_error:
+                    except Exception as create_error:  # noqa: BLE001 - chromadb client boundary
                         error_msg = f"Failed to auto-create collection '{collection_name}': {create_error!s}"
                         logger.error(error_msg)
                         raise HTTPException(status_code=500, detail=error_msg)
@@ -148,7 +148,7 @@ class ChromaRetriever(AbstractVectorRetriever):
         except HTTPException:
             # Re-raise HTTP exceptions as-is
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client boundary
             # Handle unexpected errors
             error_msg = f"Failed to set collection '{collection_name}': {e!s}"
             logger.error(error_msg)
@@ -218,7 +218,7 @@ class ChromaRetriever(AbstractVectorRetriever):
             else:
                 logger.error(f"ChromaDB invalid argument error: {error_msg}")
             return []
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client boundary
             logger.error(f"Error querying ChromaDB: {e!s}")
             return []
 

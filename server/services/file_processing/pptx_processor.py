@@ -111,7 +111,7 @@ class PPTXProcessor(FileProcessor):
             if core_props.modified:
                 metadata['modified'] = core_props.modified.isoformat() if core_props.modified else None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - python-pptx client boundary; best-effort metadata extraction
             logger.warning(f"Error extracting PPTX metadata: {e}")
 
         return metadata

@@ -68,7 +68,7 @@ class SQLiteAdminAuditStrategy(AdminAuditStorageStrategy):
                 return True
             logger.warning("Failed to store admin audit record - no ID returned")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite audit-backend boundary; store must fail safe rather than crash the request
             logger.error(f"Error storing admin audit record in SQLite: {e}")
             return False
 
@@ -99,7 +99,7 @@ class SQLiteAdminAuditStrategy(AdminAuditStorageStrategy):
                 sort=[(sort_by, sort_order)],
             )
             return [self._unflatten(r) for r in results]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite audit-backend boundary; query must fail safe rather than crash the caller
             logger.error(f"Error querying admin audit records from SQLite: {e}")
             return []
 
@@ -143,7 +143,7 @@ class SQLiteAdminAuditStrategy(AdminAuditStorageStrategy):
         if self._database_service and self._owns_database_service:
             try:
                 self._database_service.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort database-service close during shutdown
                 logger.error(f"Error closing SQLite admin audit database service: {e}")
         self._initialized = False
 
@@ -156,6 +156,6 @@ class SQLiteAdminAuditStrategy(AdminAuditStorageStrategy):
                 f"Cleared {deleted_count} admin audit records from SQLite table '{self._collection_name}'"
             )
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite audit-backend boundary; clear must fail safe rather than crash the caller
             logger.error(f"Error clearing SQLite admin audit records: {e}")
             return False

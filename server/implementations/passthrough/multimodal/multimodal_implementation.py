@@ -88,7 +88,7 @@ class MultimodalImplementation(BaseRetriever):
                 await self._file_retriever.initialize()
 
                 logger.debug("FileVectorRetriever initialized for multimodal adapter")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable retriever init boundary; must degrade gracefully
                 logger.warning(f"Failed to initialize FileVectorRetriever: {e}. "
                                  f"Multimodal adapter will operate without file retrieval.")
                 self._file_retriever = None
@@ -100,7 +100,7 @@ class MultimodalImplementation(BaseRetriever):
         if self._file_retriever:
             try:
                 await self._file_retriever.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable retriever boundary; best-effort cleanup
                 logger.warning(f"Error closing file retriever: {e}")
         
         await super().close()
@@ -171,7 +171,7 @@ class MultimodalImplementation(BaseRetriever):
 
             return chunks
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable retriever boundary; must not break conversation
             logger.error(f"Error retrieving file chunks: {e}")
             # Return empty context on error (don't break conversation)
             return []

@@ -132,7 +132,7 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
             else:
                 logger.error(f"ChromaDB invalid argument error: {error_msg}")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client boundary; must fail safe rather than crash the caller
             logger.error(f"Error querying ChromaDB: {e!s}")
             logger.error(traceback.format_exc())
             return None
@@ -165,7 +165,7 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
         if not hasattr(self, 'collection') or self.collection is None:
             try:
                 await self.initialize_client()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - chromadb client boundary; must fail safe rather than crash the caller
                 logger.error(f"Failed to initialize ChromaDB client during validation: {e!s}")
                 return False
 

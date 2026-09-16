@@ -214,7 +214,7 @@ class EmbeddingServiceFactory:
                             pass
                         else:
                             instance.close()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pluggable embedding-provider close() boundary, best-effort cache cleanup
                     logging.getLogger(__name__).warning(f"Error closing embedding service: {e}")
             
             cls._instances.clear()

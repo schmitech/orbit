@@ -39,7 +39,7 @@ class TableRenderer:
         if callable(isoformat):
             try:
                 return isoformat()
-            except Exception:
+            except (TypeError, ValueError, AttributeError):
                 pass
 
         return str(value)
@@ -114,7 +114,7 @@ class TableRenderer:
                 for row in rows
             ]
             return toon_dumps(data)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - third-party toon_dumps has no documented exception surface
             logger.warning("TOON rendering failed (%s), falling back to pipe-separated", e)
             return TableRenderer._render_pipe_separated(columns, rows)
 

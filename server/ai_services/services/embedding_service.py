@@ -197,7 +197,7 @@ class EmbeddingService(ProviderAIService):
             return self.dimensions
         try:
             self.dimensions = len(await self.embed_query("test"))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable embedding provider boundary; fall back to default dimension
             logger.error(f"Failed to determine embedding dimensions: {e!s}")
             self.dimensions = fallback
         return self.dimensions
@@ -272,7 +272,7 @@ class EmbeddingService(ProviderAIService):
                 try:
                     embedding = await self.embed_query(text)
                     embeddings.append(embedding)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pluggable embedding provider boundary; per-item fallback
                     logger.error(f"Failed to embed document: {e!s}")
                     # Use zero vector as fallback
                     embeddings.append([0.0] * dimensions)

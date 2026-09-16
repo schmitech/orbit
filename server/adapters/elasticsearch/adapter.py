@@ -223,7 +223,7 @@ def register_elasticsearch_adapter():
 
         logger.debug("Elasticsearch adapter registration complete")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - module-load-time registration must not crash app startup
         logger.error(f"Failed to register Elasticsearch adapter: {e}")
 
 

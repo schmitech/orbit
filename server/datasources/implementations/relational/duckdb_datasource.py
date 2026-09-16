@@ -46,7 +46,7 @@ class DuckDBDatasource(BaseDatasource):
                 self._client.execute("INSTALL httpfs;")
                 self._client.execute("LOAD httpfs;")
                 logger.debug("DuckDB httpfs extension loaded for remote file support")
-            except Exception as extension_error:
+            except Exception as extension_error:  # noqa: BLE001 - optional extension load, must not block core connect
                 logger.warning(f"Failed to load DuckDB httpfs extension: {extension_error}")
             
             # Test the connection with a simple query
@@ -59,7 +59,7 @@ class DuckDBDatasource(BaseDatasource):
             self._initialized = True
             logger.debug("DuckDB connection established successfully")
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver connect boundary, re-raised after logging
             logger.error(f"Failed to connect to DuckDB database: {e!s}")
             raise
     
@@ -71,7 +71,7 @@ class DuckDBDatasource(BaseDatasource):
         try:
             self._client.execute("SELECT 1")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary, health check must fail safe
             logger.error(f"DuckDB health check failed: {e}")
             return False
     
@@ -80,7 +80,7 @@ class DuckDBDatasource(BaseDatasource):
         if self._client:
             try:
                 self._client.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort connection cleanup
                 logger.warning(f"Error closing DuckDB connection: {e}")
             self._client = None
             self._initialized = False

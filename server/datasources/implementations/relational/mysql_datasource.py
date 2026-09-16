@@ -94,7 +94,7 @@ class MySQLDatasource(BaseDatasource):
                     cursor = conn.cursor()
                     cursor.execute(f"SET SESSION wait_timeout = {self._statement_timeout // 1000}")
                     cursor.close()
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort per-connection timeout; mysql-connector driver boundary
                     pass
             return conn
         return self._client
@@ -133,7 +133,7 @@ class MySQLDatasource(BaseDatasource):
                 cursor.close()
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - mysql-connector driver boundary; health check must fail safe
             logger.error(f"MySQL health check failed: {e}")
             return False
 
@@ -142,7 +142,7 @@ class MySQLDatasource(BaseDatasource):
         if self._client:
             try:
                 self._client.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort cleanup; mysql-connector driver boundary
                 pass
             self._client = None
         # Note: mysql.connector pool doesn't have a closeall() method;

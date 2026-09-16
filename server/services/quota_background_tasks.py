@@ -64,7 +64,7 @@ class QuotaBackgroundTasks:
         try:
             await self.quota_service.sync_usage_to_database()
             logger.info("Final quota sync completed on shutdown")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort final sync on shutdown, must not block shutdown
             logger.error(f"Failed to perform final quota sync: {e}")
 
         logger.info("QuotaBackgroundTasks stopped")
@@ -87,7 +87,7 @@ class QuotaBackgroundTasks:
             except asyncio.CancelledError:
                 logger.debug("Quota sync loop cancelled")
                 break
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - background sync loop must keep running despite a single sync failure
                 logger.error(f"Error in quota sync loop: {e}")
                 # Continue running despite errors
                 await asyncio.sleep(5)  # Brief pause before retry

@@ -200,7 +200,7 @@ class StreamingHandler:
             )
             if audio_chunk:
                 self._audio_results[chunk_index] = audio_chunk
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable TTS provider boundary; background task must isolate its failure
             logger.warning(f"Background audio generation failed for chunk {chunk_index}: {e!s}")
             self._audio_results[chunk_index] = None  # Mark as failed
 

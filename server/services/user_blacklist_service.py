@@ -153,7 +153,7 @@ class UserBlacklistService:
             logger.error(f"Failed to load user {self.LABEL}, using last known rules: {e!s}")
             with self._lock:
                 return self._rules
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend boundary; fail closed on last known rules rather than crash
             logger.error(f"Unexpected error loading user {self.LABEL}: {e!s}")
             with self._lock:
                 return self._rules
@@ -278,7 +278,7 @@ class UserBlacklistService:
                 revoked += await self.database.delete_many(
                     self.sessions_collection_name, {"user_id": user["_id"]}
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - database-backend boundary; per-user cleanup must not abort the whole batch
                 logger.error(
                     f"Failed to revoke sessions for user {user.get('username')}: {e!s}"
                 )

@@ -124,7 +124,7 @@ class HttpAdapter(DocumentAdapter):
             # In strict mode this must fail adapter init, not be swallowed as a
             # generic load error.
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - config-file loading boundary (YAML/JSON parse + I/O), degrades to None
             logger.error(f"Error loading {config_type}: {e!s}")
             return None
 
@@ -441,7 +441,7 @@ def register_http_adapter():
 
         logger.debug("HTTP adapter registration complete")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - module-load-time registration must not crash app startup
         logger.error(f"Failed to register HTTP adapter: {e}")
 
 

@@ -88,7 +88,7 @@ class HTMLProcessor(FileProcessor):
                 'mime_type': 'text/html',
             })
         
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - BeautifulSoup parsing boundary; must degrade to base metadata rather than crash
             logger.warning(f"Error extracting HTML metadata: {e}")
         
         return metadata

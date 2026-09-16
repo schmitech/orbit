@@ -85,7 +85,7 @@ class IntentAdapter(HttpAdapter):
                 self.template_store = template_store
                 logger.debug("Template embedding store initialized")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - optional template-embedding vector store init must degrade gracefully
                 logger.warning(f"Failed to initialize template embeddings: {e}")
                 logger.debug("Intent adapter will work without vector store support")
         else:
@@ -116,7 +116,7 @@ def register_intent_adapter():
 
         logger.debug("Intent adapter registration complete")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - adapter registration at import time must not crash module load
         logger.error(f"Failed to register intent adapter: {e}")
 
 

@@ -48,7 +48,7 @@ def _is_private_host(url: str) -> bool:
             or addr.is_unspecified
             or addr.is_multicast
         )
-    except Exception:
+    except (socket.gaierror, ValueError, OSError):
         return True
 
 
@@ -86,7 +86,7 @@ class FetchStep(PipelineStep):
         if context.adapter_name and self.container.has('adapter_manager'):
             try:
                 adapter_config = self.container.get('adapter_manager').get_adapter_config(context.adapter_name) or {}
-            except Exception:
+            except Exception:  # noqa: BLE001 - pluggable adapter-manager boundary, defaults are fine on failure
                 pass
 
         timeout = adapter_config.get('fetch_timeout', DEFAULT_TIMEOUT)
@@ -197,7 +197,7 @@ async def _fetch_jina(client: httpx.AsyncClient, url: str) -> Optional[str]:
             text = response.text.strip()
             if len(text) >= _MIN_CONTENT_LEN:
                 return text
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - best-effort optional fetch path, falls back to direct fetch
         logger.debug("Jina Reader request failed: %s", e)
     return None
 

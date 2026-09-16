@@ -240,7 +240,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
             return True, remaining, limit_per_minute, reset_time
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - cache-backend boundary, must fall back to in-memory limiting not crash the request
             logger.warning(f"Cache-backed rate limit check failed, using in-memory fallback: {e}")
             # Fall back to in-memory rate limiter instead of fail-open
             allowed, remaining = self._fallback_limiter.is_allowed(
@@ -321,7 +321,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not cache_service.initialized:
             try:
                 await cache_service.initialize()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - cache-backend boundary, must not block the request pipeline on init failure
                 logger.warning(f"Failed to initialize cache service for rate limiting: {e}")
                 return await call_next(request)
 

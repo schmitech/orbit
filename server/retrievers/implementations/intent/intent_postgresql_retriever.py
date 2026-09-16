@@ -138,9 +138,9 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
             cursor.execute("SELECT 1")
             cursor.close()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - psycopg driver boundary; liveness check must fail safe
             return False
-    
+
     async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """Execute PostgreSQL query with intent-specific handling."""
         cursor = None

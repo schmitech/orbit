@@ -154,7 +154,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
                 logger.error(f"Unexpected Pinecone results format: {type(results)}")
                 return []
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pinecone-client boundary; must not crash retrieval
             error_msg = str(e)
             if DIMENSION_MISMATCH_PATTERN.search(error_msg):
                 query_dim = len(query_embedding)
@@ -210,7 +210,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
         if not self.pinecone_client:
             try:
                 await self.initialize_client()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pinecone-client boundary; validation must fail safe
                 logger.error(f"Failed to initialize Pinecone client during validation: {e!s}")
                 return False
 

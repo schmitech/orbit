@@ -34,7 +34,7 @@ def get_embedding_provider(provider_name: str, **kwargs) -> Any:
             }
         }
         return EmbeddingServiceFactory.create_embedding_service(config, provider_name)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - pluggable embedding-provider factory boundary; re-raised as a clear ValueError
         logger.error(f"Failed to create embedding service for provider {provider_name}: {e!s}")
         raise ValueError(f"Unsupported or misconfigured embedding provider: {provider_name}")
 
@@ -266,7 +266,7 @@ class BaseRetriever(ABC):
             # Subclasses should implement the actual retrieval logic
             return []
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - base retriever boundary; subclass retrieval must degrade to an empty result rather than crash
             logger.error(f"Error retrieving context: {e!s}")
             # Print more detailed error information
             logger.error(traceback.format_exc())

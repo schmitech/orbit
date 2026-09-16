@@ -31,7 +31,7 @@ class LLMFallback:
 
             return self._parse_llm_response(response, parameter)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - LLM provider call boundary, must fail safe returning None
             logger.error("LLM extraction failed: %s", e)
             return None
 
@@ -168,7 +168,7 @@ Response:"""
 
             return self._parse_batch_response(response, parameters)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - LLM provider call boundary, must fail safe returning empty dict
             logger.error("Batch LLM extraction failed: %s", e)
             return {}
 
@@ -228,7 +228,7 @@ Response:"""
 
             return typed_result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort parsing of arbitrary LLM-generated response text
             logger.error("Failed to parse batch LLM response: %s", e)
             return {}
 

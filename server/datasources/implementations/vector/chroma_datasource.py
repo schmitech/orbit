@@ -70,7 +70,7 @@ class ChromaDBDatasource(BaseDatasource):
             # Try to get version info
             version = self._client.get_version()
             return version is not None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client boundary; health check must fail safe rather than crash the caller
             logger.error(f"ChromaDB health check failed: {e}")
             return False
     

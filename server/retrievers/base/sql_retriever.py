@@ -431,7 +431,7 @@ class AbstractSQLRetriever(BaseRetriever):
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - SQL execution/retrieval boundary, must degrade to empty results not crash
             logger.error(f"Error retrieving context: {e!s}")
             logger.error(traceback.format_exc())
             return []

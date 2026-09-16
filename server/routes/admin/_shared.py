@@ -35,7 +35,7 @@ def _serialize_created_at(value) -> Optional[float]:
         try:
             from datetime import datetime as _dt
             return _dt.fromisoformat(value.replace('Z', '+00:00')).timestamp()
-        except Exception:
+        except (ValueError, TypeError):
             return None
     return value
 

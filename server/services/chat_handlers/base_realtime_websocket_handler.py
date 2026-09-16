@@ -148,7 +148,7 @@ class BaseRealtimeWebSocketHandler:
             else:
                 logger.error("WebSocket send failed: %s", e)
                 self.is_connected = False
-        except Exception as e:  # pragma: no cover
+        except Exception as e:  # noqa: BLE001 - pragma: no cover - websocket send boundary, must not crash the session
             logger.error("WebSocket send failed: %s", e)
             self.is_connected = False
 
@@ -241,7 +241,7 @@ class BaseRealtimeWebSocketHandler:
         try:
             if not getattr(self.audit_service, "chat_events_enabled", False):
                 return
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort usage flush, must never block session teardown
             return
 
         from inference.pipeline.steps._utils import summarize_embedding_usage

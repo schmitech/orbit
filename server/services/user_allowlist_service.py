@@ -213,7 +213,7 @@ class UserAllowlistService(UserBlacklistService):
             users = await self.database.find_many(
                 self.users_collection_name, {}, limit=10000
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend boundary; must degrade to empty list rather than crash
             logger.error(f"Failed to load users for allowlist evaluation: {e!s}")
             return []
         uncleared = []

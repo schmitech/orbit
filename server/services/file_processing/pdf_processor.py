@@ -49,7 +49,7 @@ class PDFProcessor(FileProcessor):
                     page_text = page.extract_text()
                     if page_text:
                         text_parts.append(f"Page {page_num + 1}\n\n{page_text}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pypdf per-page extraction boundary; must skip the page rather than abort the whole document
                     logger.warning(f"Error extracting text from page {page_num + 1}: {e}")
             
             return "\n\n".join(text_parts)
@@ -79,7 +79,7 @@ class PDFProcessor(FileProcessor):
                 for key, value in pdf_reader.metadata.items():
                     metadata[key.lower()] = value
         
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pypdf metadata boundary; must degrade to base metadata rather than crash
             logger.warning(f"Error extracting PDF metadata: {e}")
         
         return metadata

@@ -24,7 +24,7 @@ def create_store_manager(config: Optional[dict[str, Any]] = None) -> StoreManage
         try:
             config = load_config()
             logger.info("Loaded configuration for StoreManager")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - config-loading boundary at startup, falls back to defaults
             logger.warning(f"Failed to load configuration for StoreManager: {e}, using defaults")
             config = {}
     

@@ -151,7 +151,7 @@ class PromptInstructionBuilder:
                     if len(self._prompt_cache) > self._prompt_cache_max_size:
                         self._prompt_cache.popitem(last=False)
                     return prompt_text
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - prompt_service DB boundary, falls back to default prompt
                 logger.warning("Failed to retrieve system prompt: %s", str(e))
 
         return self.DEFAULT_SYSTEM_PROMPT

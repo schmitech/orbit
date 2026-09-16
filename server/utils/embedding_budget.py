@@ -88,7 +88,7 @@ def _resolve_encoding_name(model: Optional[str]) -> Optional[str]:
         return _TIKTOKEN_MODEL_ALIASES[model]
     try:
         return tiktoken.model.MODEL_TO_ENCODING.get(model)
-    except Exception:
+    except (TypeError, AttributeError):
         return None
 
 
@@ -99,7 +99,7 @@ def _get_encoding(encoding_name: str):
 
     try:
         encoding = tiktoken.get_encoding(encoding_name)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - tiktoken has no documented, stable exception hierarchy for missing/corrupt cache data
         logger.warning(
             f"tiktoken encoding '{encoding_name}' unavailable ({e}); falling back to estimated "
             f"token counts for this process. For exact offline counting, provision the pinned "
@@ -138,7 +138,7 @@ def count_tokens(text: str, model: Optional[str] = None) -> TokenCount:
         if encoding is not None:
             try:
                 return TokenCount(count=len(encoding.encode(text)), estimated=False)
-            except Exception:
+            except Exception:  # noqa: BLE001 - tiktoken has no documented, stable exception hierarchy for encode failures; fall back to the character-ratio estimate
                 pass
 
     return TokenCount(count=len(text) // 3, estimated=True)

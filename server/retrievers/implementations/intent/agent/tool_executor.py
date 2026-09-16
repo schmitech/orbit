@@ -428,7 +428,7 @@ class ToolExecutor:
                 execution_time_ms=execution_time,
             )
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - arbitrary pluggable tool execution boundary, must return an error result
             logger.error(f"Error executing tool '{tool_id}': {e}")
             return ToolResult.create_error(str(e), tool_id=tool_id)
 
@@ -581,7 +581,7 @@ class ToolExecutor:
         
         try:
             return ToolDefinition.from_template(template)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - arbitrary YAML-sourced template shape, must not break tool loading
             logger.error(f"Failed to parse tool definition: {e}")
             return None
 

@@ -103,7 +103,7 @@ class AthenaDatasource(BaseDatasource):
             cursor.fetchone()
             cursor.close()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pyathena driver boundary, must fail-safe (return False) not crash the check
             logger.error(f"Athena health check failed: {e}")
             return False
 
@@ -112,7 +112,7 @@ class AthenaDatasource(BaseDatasource):
         if self._client:
             try:
                 self._client.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pyathena driver boundary, best-effort cleanup during shutdown
                 logger.warning(f"Error closing Athena connection: {e}")
             self._client = None
             self._initialized = False

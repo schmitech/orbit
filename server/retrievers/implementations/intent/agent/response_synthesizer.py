@@ -106,7 +106,7 @@ class ResponseSynthesizer:
             
             return response.strip()
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - LLM provider boundary, falls back to simple formatting
             logger.error(f"Error synthesizing response: {e}")
             # Fallback to simple formatting
             return self._fallback_format(tool_result)

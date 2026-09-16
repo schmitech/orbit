@@ -401,7 +401,7 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
         # let the downstream handler read it.
         try:
             body_bytes = await _read_and_replay_body(request)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - middleware boundary; must not break request dispatch
             logger.debug(f"AdminAuditMiddleware: failed to read body: {e}")
             body_bytes = b""
 
@@ -413,7 +413,7 @@ class AdminAuditMiddleware(BaseHTTPMiddleware):
         # Emit audit event (never raise from here).
         try:
             await self._emit_event(request, response, path, method, body_json, audit_service)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - audit emission must never fail the response (comment above says so)
             logger.error(f"AdminAuditMiddleware: error emitting event: {e}")
 
         return response

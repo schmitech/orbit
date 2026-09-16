@@ -245,7 +245,7 @@ class FileAdapter(DocumentAdapter):
                     item['json_keys'] = list(data.keys())
                 elif isinstance(data, list):
                     item['json_array_length'] = len(data)
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
                 pass
 
         return item
@@ -265,7 +265,7 @@ class FileAdapter(DocumentAdapter):
                 if 'image_text' in metadata:
                     item['extracted_text'] = metadata['image_text']
                     item['content'] += f"\nExtracted text: {metadata['image_text']}"
-            except Exception as e:
+            except (KeyError, AttributeError, TypeError) as e:
                 logger.warning(f"Error formatting image content: {e}")
 
         return item
@@ -359,7 +359,7 @@ def register_file_adapter():
             }
         )
         logger.debug("Registered file adapter with datasource='none'")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - module-load-time registration must not crash app startup
         logger.error(f"Failed to register file adapter: {e}")
 
 

@@ -157,7 +157,7 @@ class AIDocumentProcessor(FileProcessor):
                 from io import BytesIO
                 from PIL import Image
                 source_count = getattr(Image.open(BytesIO(file_data)), 'n_frames', 1)
-            except Exception:
+            except Exception:  # noqa: BLE001 - PIL has no documented, stable exception hierarchy for malformed image data
                 return 1
         else:
             try:
@@ -167,7 +167,7 @@ class AIDocumentProcessor(FileProcessor):
                     source_count = len(pdf)
                 finally:
                     pdf.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pypdfium2 has no documented, stable exception hierarchy for malformed PDF data
                 logger.debug(f"Could not count PDF pages: {e}")
                 return 0
 

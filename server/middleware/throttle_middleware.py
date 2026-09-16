@@ -357,7 +357,7 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
 
             return response
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - deliberate fail-open middleware boundary
             logger.warning(f"Throttle middleware error, allowing request: {e}")
             # Fail-open: allow the request through on any error
             return await call_next(request)

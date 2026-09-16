@@ -144,5 +144,5 @@ class AdminIpAllowlistMiddleware(BaseHTTPMiddleware):
                 error_message="IP not in admin allowlist",
                 request_summary=None,
             ))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort audit logging; must not block the deny response
             logger.error(f"AdminIpAllowlistMiddleware: failed to log denial: {e}")

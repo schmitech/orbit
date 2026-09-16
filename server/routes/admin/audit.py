@@ -211,7 +211,7 @@ async def list_admin_audit_events(
                 sort_order=-1,
             )
             rows.extend(_normalize_chat(row) for row in chat_rows)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - route handler must convert an unexpected audit-backend failure to a 500
         logger.error(f"Failed to query audit events: {exc}")
         raise HTTPException(status_code=500, detail="Failed to query audit events")
 

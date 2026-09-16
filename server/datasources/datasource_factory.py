@@ -58,6 +58,6 @@ class DatasourceFactory:
             # Return the client
             return datasource.get_client()
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable datasource init boundary; must not crash app boot
             logger.error(f"Failed to initialize datasource {provider}: {e!s}")
-            return None 
+            return None

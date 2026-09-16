@@ -163,7 +163,7 @@ class RecursiveChunker(TextChunker):
                 for i in range(0, len(tokens), self.chunk_size)
             ]
             return [self.tokenizer.decode(split) for split in token_splits]
-        except Exception:
+        except Exception:  # noqa: BLE001 - pluggable tokenizer boundary; no fixed exception surface
             # Final fallback: character-based split
             return [text[i:i + self.chunk_size] for i in range(0, len(text), self.chunk_size)]
     

@@ -57,7 +57,7 @@ class FaissStore(BaseVectorStore):
             self.status = StoreStatus.CONNECTED
             logger.debug(f"FaissStore '{self.config.name}' connected and loaded from '{self.persist_directory}'.")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - faiss/disk-load boundary; connection must fail safe
             logger.error(f"Error connecting to FaissStore: {e}")
             self.status = StoreStatus.ERROR
             return False
@@ -299,7 +299,7 @@ class FaissStore(BaseVectorStore):
 
             logger.info(f"Deleted FAISS collection '{collection_name}'")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - filesystem cleanup boundary; best-effort deletion
             logger.error(f"Error deleting collection files: {e}")
             return False
 

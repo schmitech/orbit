@@ -258,7 +258,7 @@ class DocumentRerankingStep(PipelineStep):
                             + (f" (model: {reranker_model})" if reranker_model else "")
                         )
                         return reranker
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pluggable reranker override boundary, falls back to global reranker
                     logger.warning(
                         f"Failed to get adapter-specific reranker: {e!s}"
                     )

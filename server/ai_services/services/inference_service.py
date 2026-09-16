@@ -207,7 +207,7 @@ class InferenceService(ProviderAIService):
             # Verify connection
             return await self.verify_connection()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable LLM-provider boundary; validation must fail safe rather than crash the caller
             logger.error(f"Configuration validation failed: {e!s}")
             return False
 
@@ -371,7 +371,7 @@ class InferenceService(ProviderAIService):
         for attempt in range(max_retries):
             try:
                 return await self.generate(prompt, **kwargs)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable LLM-provider boundary with unstable third-party exception hierarchy; retried below
                 last_error = e
                 if attempt < max_retries - 1:
                     logger.warning(

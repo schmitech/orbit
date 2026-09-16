@@ -24,7 +24,7 @@ try:
             device_count=lambda: 0,
             current_device=lambda: None,
         )
-except Exception:
+except Exception:  # noqa: BLE001 - optional torch.xpu shim, must not break CPU-only installs
     torch = None  # type: ignore
 
 try:
@@ -86,7 +86,7 @@ class DoclingProcessor(FileProcessor):
             self._converter = DocumentConverter()
             self._initialized = True
             logger.debug("Docling DocumentConverter initialized successfully")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - docling library init boundary, must not crash the app
             logger.warning(f"Failed to initialize Docling converter: {e}")
             self._initialized = True  # Mark as initialized to prevent retries
     
@@ -239,7 +239,7 @@ class DoclingProcessor(FileProcessor):
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
         
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort metadata extraction, must not fail the primary parse
             logger.warning(f"Error extracting Docling metadata: {e}")
         
         return metadata

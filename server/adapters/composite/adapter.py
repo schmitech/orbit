@@ -107,7 +107,7 @@ def register_composite_adapter():
         )
         logger.debug("Registered composite adapter for datasource=none")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - runs at import time; must not crash app startup
         logger.error(f"Failed to register composite adapter: {e}")
 
 

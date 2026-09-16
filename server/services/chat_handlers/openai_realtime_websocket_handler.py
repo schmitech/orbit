@@ -534,14 +534,14 @@ class OpenAIRealtimeWebSocketHandler(BaseRealtimeWebSocketHandler):
         if self._openai_ws and not self._openai_ws.closed:
             try:
                 await self._openai_ws.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort websocket cleanup
                 logger.debug("Error closing OpenAI ws: %s", e)
         self._openai_ws = None
 
         if self._http_session and not self._http_session.closed:
             try:
                 await self._http_session.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort http session cleanup
                 logger.debug("Error closing aiohttp session: %s", e)
         self._http_session = None
 

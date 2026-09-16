@@ -146,7 +146,7 @@ class PDFRenderer(BaseRenderer):
                     img_buf = io.BytesIO(png_bytes)
                     story.append(RLImage(img_buf, width=500, height=280))
                     story.append(Spacer(1, 0.4 * cm))
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - best-effort chart rendering, must not fail the whole PDF build
                     logger.warning("Chart rendering failed for PDF section: %s", exc)
 
         doc.build(story)

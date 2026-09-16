@@ -221,7 +221,7 @@ class AbstractVectorRetriever(BaseRetriever):
                         await self.embeddings.initialize()
                     logger.info(f"Successfully reinitialized {provider_to_use} embedding service for vector retriever")
                     return True
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pluggable embedding-provider boundary, must fail safe returning False
                     logger.error(f"Failed to reinitialize embeddings: {e}")
                     return False
 
@@ -486,6 +486,6 @@ class AbstractVectorRetriever(BaseRetriever):
 
             return context_items
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vector-store/embedding-provider retrieval boundary, must fail safe returning empty results
             logger.error(f"Error retrieving context: {e!s}")
             return [] 

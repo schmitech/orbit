@@ -119,7 +119,7 @@ class OracleDatasource(BaseDatasource):
                 cursor.close()
                 return True
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Oracle driver boundary, health check must fail safe returning False
             logger.error(f"Oracle health check failed: {e}")
             return False
 
@@ -129,7 +129,7 @@ class OracleDatasource(BaseDatasource):
             if self._client:
                 try:
                     self._pool.release(self._client)
-                except Exception:
+                except Exception:  # noqa: BLE001 - Oracle driver connection-release boundary during cleanup, must not raise
                     pass
                 self._client = None
             self._pool.close()

@@ -77,7 +77,7 @@ class SupabaseDatasource(BaseDatasource):
             cursor.fetchone()
             cursor.close()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - postgres driver boundary; health check must fail safe
             logger.error(f"Supabase health check failed: {e}")
             return False
     

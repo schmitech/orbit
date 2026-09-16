@@ -381,7 +381,7 @@ class LoggerService:
             try:
                 await self._setup_elasticsearch_index()
                 logger.info("Successfully recreated Elasticsearch index")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - elasticsearch client boundary, best-effort index recovery
                 logger.error(f"Failed to recreate index: {e}")
         elif "version_conflict" in error_str.lower():
             logger.warning("Version conflict detected, document may have been updated concurrently")
@@ -396,5 +396,5 @@ class LoggerService:
             try:
                 await self.es_client.close()
                 logger.info("Elasticsearch client closed successfully")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort client shutdown, must not crash on close
                 logger.error(f"Error closing Elasticsearch client: {e}")

@@ -445,7 +445,7 @@ class ConfigurationSummaryLogger:
             }
 
             return report
-        except Exception as e:
+        except (AttributeError, TypeError, KeyError) as e:
             self.logger.error(f"Error generating configuration report: {e!s}")
             return {
                 'error': f"Failed to generate configuration report: {e!s}",

@@ -164,10 +164,30 @@ Running baseline (production code, `server/tests/` excluded): 1022 → 565
   change.
 
 Running baseline (production code, `server/tests/` excluded): 1022 → 278
-(744 resolved). Next up: re-run the statistics command to pick the
-next-largest file — remaining findings are mostly single-digit counts spread
-across `server/retrievers/implementations/`, `server/vector_stores/`,
-`server/routes/admin/`, and `server/services/`.
+(744 resolved).
+- 2026-09-16: Final cleanup round — the remaining 141 files (278 findings)
+  spanning nearly every `server/` subpackage and `bin/orbit/` were resolved.
+  ~30 catches were narrowed to a specific, verified exception surface (e.g.
+  `socket.gaierror`/`OSError` in `fetch.py`'s SSRF host-resolution guard,
+  `sqlite3.Error` in `sqlite_datasource.py`'s health check, `yaml.YAMLError`
+  in config/test-tool YAML loading, `binascii.Error` in base64 heuristics,
+  `OSError` in plain file I/O, and various dict/attribute/JSON narrowing).
+  The remaining ~250 are justified with `# noqa: BLE001` — the same
+  recurring categories established throughout this plan: pluggable
+  DB/vector-store/datasource/AI-provider client boundaries with unstable or
+  undocumented third-party exception hierarchies, FastAPI route handlers and
+  websocket connections that must degrade to a 5xx/clean close instead of
+  crashing, per-plugin/per-adapter isolation boundaries, and best-effort
+  cleanup/cache/telemetry/audit paths. No behavior change.
+- 2026-09-16: Added a `server/tests/**` per-file BLE001 ignore to
+  `ruff.toml` per the "Ruff configuration" section below, since that scope
+  was always excluded from this plan.
+
+Running baseline (production code, `server/tests/` excluded): 1022 → 0
+(1022 resolved — **plan complete**). `venv/bin/ruff check server bin --select
+BLE001` reports zero findings repo-wide (test files now covered by the
+`ruff.toml` ignore, source files carry either a narrowed exception type or a
+`# noqa: BLE001` with a rationale).
 
 ### Rule meaning
 

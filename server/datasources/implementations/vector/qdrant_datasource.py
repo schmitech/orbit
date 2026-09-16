@@ -52,7 +52,7 @@ class QdrantDatasource(BaseDatasource):
             # Try to get collections as a health check
             self._client.get_collections()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver boundary, health check must fail safe
             logger.error(f"Qdrant health check failed: {e}")
             return False
 
@@ -62,7 +62,7 @@ class QdrantDatasource(BaseDatasource):
             try:
                 # Close the Qdrant client connection
                 self._client.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort connection cleanup
                 logger.warning(f"Error closing Qdrant client: {e}")
             finally:
                 self._client = None
