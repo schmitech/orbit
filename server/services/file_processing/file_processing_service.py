@@ -467,7 +467,7 @@ class FileProcessingService:
                 live_config = getattr(config_manager, 'config', None)
                 if live_config:
                     return live_config
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort live-config lookup; falls back to the startup snapshot on any failure
             logger.debug(f"Could not access live config from adapter manager, using startup snapshot: {e}")
         return self.config
 
@@ -611,7 +611,7 @@ class FileProcessingService:
                                 logger.info(f"Using adapter-specific vision provider '{vision_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
                                 return vision_provider
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort adapter-specific vision provider lookup; falls back to the default provider
             logger.warning(f"Could not lookup adapter-specific vision provider for API key: {e}")
 
         # Fall back to default vision provider
@@ -660,7 +660,7 @@ class FileProcessingService:
                                 logger.info(f"Using adapter-specific STT provider '{stt_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
                                 return stt_provider
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort adapter-specific STT provider lookup; falls back to the default provider
             logger.warning(f"Could not lookup adapter-specific STT provider for API key: {e}")
 
         # Fall back to default STT provider
@@ -960,10 +960,10 @@ class FileProcessingService:
                     file_id,
                     {'error': error_message, 'failed_at': datetime.now(UTC).isoformat()}
                 )
-            except Exception as meta_error:
+            except Exception as meta_error:  # noqa: BLE001 - best-effort error-metadata write on an already-failed background task
                 logger.warning(f"Failed to store error metadata for {file_id}: {meta_error}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level background file-processing task; must not crash the worker, logs and records failure instead
             error_message = str(e)
             logger.error(f"Error processing file content for {file_id}: {error_message}")
 
@@ -980,7 +980,7 @@ class FileProcessingService:
                     file_id,
                     {'error': error_message, 'failed_at': datetime.now(UTC).isoformat()}
                 )
-            except Exception as meta_error:
+            except Exception as meta_error:  # noqa: BLE001 - best-effort error-metadata write on an already-failed background task
                 logger.warning(f"Failed to store error metadata for {file_id}: {meta_error}")
 
             # Don't raise - let background task complete gracefully
@@ -1060,7 +1060,7 @@ class FileProcessingService:
             except asyncio.TimeoutError as e:
                 logger.error(f"Audio transcription API timeout for {filename}: {e}")
                 raise Exception("Audio transcription API request timed out. The audio file may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - third-party transcription provider call; wrapped into a clear user-facing error
                 logger.error(f"Audio transcription API error for {filename}: {e}")
                 raise Exception(f"Audio transcription failed: {e!s}")
 
@@ -1381,7 +1381,7 @@ class FileProcessingService:
             except asyncio.TimeoutError as e:
                 logger.error(f"Vision API timeout for {filename}: {e}")
                 raise Exception("Vision API request timed out. The image may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - third-party vision provider call; wrapped into a clear user-facing error
                 logger.error(f"Vision API error for {filename}: {e}")
                 raise Exception(f"Vision processing failed: {e!s}")
 
@@ -1528,7 +1528,7 @@ class FileProcessingService:
 
                             return merged_config
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort adapter-specific config lookup; falls back to the default merged config
             fallback_reason = f"exception: {e}"
             logger.warning(f"Could not lookup adapter-specific config for API key: {e}")
 
@@ -1586,7 +1586,7 @@ class FileProcessingService:
                     # Fallback: try to get dimensions by embedding a test query
                     test_embedding = await retriever.embed_query("test")
                     embedding_dimensions = len(test_embedding)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable embedding provider call; falls back to a default dimension on any failure
                 logger.warning(f"Could not determine embedding dimensions: {e}. Using default 768")
                 embedding_dimensions = 768
 
@@ -1627,7 +1627,7 @@ class FileProcessingService:
                 logger.warning(f"Failed to index chunks for file {file_id}")
                 return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vector-store indexing call; must not fail the upload if indexing fails
             logger.error(f"Error indexing chunks into vector store: {e}")
             # Don't fail the upload if indexing fails
             return None
@@ -1669,7 +1669,7 @@ class FileProcessingService:
             storage_key = file_info['storage_key']
             await self.storage.delete_file(storage_key)
             logger.debug(f"Deleted file from storage: {storage_key}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - storage backend deletion call; deletion continues even if this step fails
             logger.error(f"Error deleting file from storage {storage_key}: {e}")
             # Continue even if storage deletion fails
 
@@ -1704,7 +1704,7 @@ class FileProcessingService:
             if not chunks_deleted:
                 logger.warning(f"Failed to delete chunks for file {file_id}")
             return bool(chunks_deleted)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable retriever's chunk deletion call; must not crash the caller
             logger.error(f"Error deleting chunks from vector store for file {file_id}: {e}")
             return False
 

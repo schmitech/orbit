@@ -851,7 +851,7 @@ class RouteConfigurator:
                     query=q
                 )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - route handler must not crash; autocomplete is non-critical, degrade to empty suggestions
                 logger.warning(f"Autocomplete error: {e}")
                 # Return empty suggestions rather than error - autocomplete is non-critical
                 return AutocompleteResponse(suggestions=[], query=q)
@@ -933,7 +933,7 @@ class RouteConfigurator:
                         metadata = vars(metadata)
                     else:
                         metadata = {}
-                except Exception:
+                except (json.JSONDecodeError, TypeError, AttributeError):
                     metadata = {}
             
             # Get retrieved docs from metadata (stored by pipeline)
@@ -943,7 +943,7 @@ class RouteConfigurator:
                     import json
                     metadata_json = json.loads(parent_message['metadata_json'])
                     metadata.update(metadata_json)
-                except Exception:
+                except (json.JSONDecodeError, TypeError, AttributeError):
                     pass
             
             retrieved_docs = metadata.get('retrieved_docs', [])
@@ -969,7 +969,7 @@ class RouteConfigurator:
                     owner_api_key_hash=hash_api_key(api_key)
                 )
                 return thread_info
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
                 logger.error(f"Failed to create thread: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to create thread: {e!s}")
         
@@ -1015,7 +1015,7 @@ class RouteConfigurator:
 
             try:
                 authorized = await chat_history_service.authorize_session(parent_session_id, api_key)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - route handler must not crash; deny access on unexpected ownership-check failure
                 logger.error(
                     "Ownership check failed for legacy thread %s via parent session %s: %s",
                     thread_id, parent_session_id, e
@@ -1118,7 +1118,7 @@ class RouteConfigurator:
                 return result
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
                 logger.error(f"Failed to submit feedback: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to submit feedback: {e!s}")
 
@@ -1134,7 +1134,7 @@ class RouteConfigurator:
             try:
                 feedbacks = await feedback_service.get_session_feedback(session_id)
                 return {"feedbacks": feedbacks}
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
                 logger.error(f"Failed to get session feedback: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to get feedback: {e!s}")
 
@@ -1164,7 +1164,7 @@ class RouteConfigurator:
             metrics_router = create_metrics_router()
             app.include_router(metrics_router)
             logger.debug("Metrics routes registered")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
             logger.warning(f"Failed to register metrics routes: {e}")
 
         # Include admin panel routes
@@ -1173,7 +1173,7 @@ class RouteConfigurator:
             admin_panel_router = create_admin_panel_router()
             app.include_router(admin_panel_router)
             logger.debug("Admin panel routes registered")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
             logger.warning(f"Failed to register admin panel routes: {e}")
 
         # Include file routes for file upload and management
@@ -1182,7 +1182,7 @@ class RouteConfigurator:
             file_router = create_file_router()
             app.include_router(file_router)
             logger.debug("File routes registered")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
             logger.warning(f"Failed to register file routes: {e}")
 
         # Include voice routes for real-time voice conversations
@@ -1190,7 +1190,7 @@ class RouteConfigurator:
             from routes.voice_routes import router as voice_router
             app.include_router(voice_router)
             logger.debug("Voice routes registered")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
             logger.warning(f"Failed to register voice routes: {e}")
 
         # Include A2A (Agent-to-Agent) protocol routes
@@ -1199,7 +1199,7 @@ class RouteConfigurator:
             a2a_router = create_a2a_router()
             app.include_router(a2a_router)
             logger.debug("A2A routes registered (/.well-known/agent.json, /a2a)")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
             logger.warning(f"Failed to register A2A routes: {e}")
     
     

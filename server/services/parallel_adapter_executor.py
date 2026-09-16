@@ -192,7 +192,7 @@ class MonitoringCircuitBreakerEventHandler(CircuitBreakerEventHandler):
             return
         try:
             await callback(**kwargs)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - monitoring callback must not break circuit-breaker state transitions
             logger.error(f"Circuit breaker {label} callback failed for {kwargs.get('adapter_name', '?')}: {e}")
 
     async def on_circuit_open(self, adapter_name: str, stats: dict[str, Any], reason: str = ""):
@@ -293,7 +293,7 @@ class SimpleCircuitBreaker:
             logger.debug(
                 f"Circuit breaker event skipped for {self.adapter_name}: no running event loop"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - monitoring event dispatch must not break circuit-breaker state transitions
             logger.warning(
                 f"Circuit breaker event dispatch failed for {self.adapter_name}: {e}"
             )
@@ -304,7 +304,7 @@ class SimpleCircuitBreaker:
             task.result()
         except asyncio.CancelledError:
             logger.debug(f"Circuit breaker event task cancelled for {self.adapter_name}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - background task-result consumption must not propagate into the event loop
             logger.warning(f"Circuit breaker event handler failed for {self.adapter_name}: {e}")
 
     def is_open(self) -> bool:
@@ -753,7 +753,7 @@ class ParallelAdapterExecutor:
                     module = __import__(module_name, fromlist=[class_name])
                     handler_class = getattr(module, class_name)
                     return handler_class(**event_handler_config.get('config', {}))
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - custom event handler class is user-configured and may raise anything on import/instantiation
                     logger.error(f"Failed to create custom event handler {custom_class}: {e}")
                     return DefaultCircuitBreakerEventHandler()
 
@@ -929,7 +929,7 @@ class ParallelAdapterExecutor:
             cb._release_half_open_slot()
             raise
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - adapter execution must be isolated so one adapter's failure doesn't break the fan-out
             execution_time = time.time() - start_time
             cb.record_failure(execution_time=execution_time)
             logger.error(f"{log_prefix} Error in adapter {adapter_name}: {e!s}")
@@ -1020,7 +1020,7 @@ class ParallelAdapterExecutor:
 
                     return results
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - first_success strategy must isolate per-future failures from the overall race
                 logger.error(f"Error in first_success strategy: {e}")
 
         return results
@@ -1042,7 +1042,7 @@ class ParallelAdapterExecutor:
                 try:
                     result = await task
                     results.append(result)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best_effort strategy must isolate per-task result failures from the others
                     logger.error(f"Error processing task result: {e}")
 
             # Cancel pending tasks
@@ -1051,7 +1051,7 @@ class ParallelAdapterExecutor:
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best_effort strategy must not let a single failure abort the whole call
             logger.error(f"Error in best_effort strategy: {e}")
             return []
 

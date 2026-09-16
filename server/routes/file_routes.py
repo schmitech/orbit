@@ -137,7 +137,7 @@ def create_file_router() -> APIRouter:
                         raise HTTPException(status_code=401, detail="Invalid API key")
                 except HTTPException:
                     raise
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
                     logger.error(f"Error validating API key: {e}")
                     raise HTTPException(status_code=401, detail="API key validation failed")
             
@@ -262,7 +262,7 @@ def create_file_router() -> APIRouter:
             raise HTTPException(status_code=e.status_code, detail=str(e))
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error uploading file: {e}")
             raise HTTPException(status_code=500, detail=f"File upload failed: {e!s}")
     
@@ -310,7 +310,7 @@ def create_file_router() -> APIRouter:
                     import json
                     metadata = json.loads(file_info['metadata'])
                     error_message = metadata.get('error')
-                except Exception:
+                except (json.JSONDecodeError, TypeError, AttributeError):
                     pass  # Ignore metadata parsing errors
 
             return FileInfoResponse(
@@ -327,7 +327,7 @@ def create_file_router() -> APIRouter:
         
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error getting file info: {e}")
             raise HTTPException(status_code=500, detail=f"Error retrieving file info: {e!s}")
     
@@ -353,7 +353,7 @@ def create_file_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="File not found")
         except PermissionError:
             raise HTTPException(status_code=403, detail="Access denied")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error retrieving file content {file_id}: {e}")
             raise HTTPException(status_code=500, detail="Error retrieving file")
 
@@ -404,7 +404,7 @@ def create_file_router() -> APIRouter:
         
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error listing files: {e}")
             raise HTTPException(status_code=500, detail=f"Error listing files: {e!s}")
     
@@ -447,7 +447,7 @@ def create_file_router() -> APIRouter:
                         deleted_count += 1
                     else:
                         errors.append(file['file_id'])
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - per-item best-effort bulk-delete loop; one failure must not abort the batch
                     logger.error(f"Error deleting file {file['file_id']}: {e}")
                     errors.append(file['file_id'])
 
@@ -463,7 +463,7 @@ def create_file_router() -> APIRouter:
         
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error deleting all files: {e}")
             raise HTTPException(status_code=500, detail=f"Error deleting all files: {e!s}")
     
@@ -516,7 +516,7 @@ def create_file_router() -> APIRouter:
         
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error deleting file: {e}")
             raise HTTPException(status_code=500, detail=f"Error deleting file: {e!s}")
     
@@ -586,7 +586,7 @@ def create_file_router() -> APIRouter:
 
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error starting file re-processing: {e}")
             raise HTTPException(status_code=500, detail=f"Error re-processing file: {e!s}")
 
@@ -647,7 +647,7 @@ def create_file_router() -> APIRouter:
 
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error starting bulk file re-processing: {e}")
             raise HTTPException(status_code=500, detail=f"Error re-processing files: {e!s}")
 
@@ -761,7 +761,7 @@ def create_file_router() -> APIRouter:
         
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error querying file: {e}")
             raise HTTPException(status_code=500, detail=f"Error querying file: {e!s}")
     

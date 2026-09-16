@@ -117,7 +117,7 @@ class QdrantStore(BaseVectorStore):
             logger.error("Qdrant client not available. Install with: pip install qdrant-client")
             self.status = StoreStatus.ERROR
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Error connecting to Qdrant: {e}")
             self.status = StoreStatus.ERROR
             return False
@@ -131,7 +131,7 @@ class QdrantStore(BaseVectorStore):
                 self.status = StoreStatus.DISCONNECTED
                 logger.info(f"Qdrant store {self.config.name} disconnected")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
                 logger.error(f"Error disconnecting from Qdrant: {e}")
                 self.status = StoreStatus.ERROR
 
@@ -150,7 +150,7 @@ class QdrantStore(BaseVectorStore):
             # The client connection was already verified in connect()
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Qdrant health check failed: {e}")
             return False
 
@@ -213,7 +213,7 @@ class QdrantStore(BaseVectorStore):
             logger.debug(f"Added {len(vectors)} vectors to Qdrant collection {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             error_msg = str(e)
             if DIMENSION_MISMATCH_PATTERN.search(error_msg):
                 vec_dim = len(vectors[0]) if vectors else "unknown"
@@ -328,7 +328,7 @@ class QdrantStore(BaseVectorStore):
                 search_methods = [m for m in all_methods if 'search' in m.lower() or 'query' in m.lower() or 'recommend' in m.lower()]
                 logger.error(f"Search-related methods: {search_methods}")
             return []
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Error searching vectors in Qdrant: {e}")
             logger.error(f"Exception type: {type(e).__name__}")
             import traceback
@@ -388,7 +388,7 @@ class QdrantStore(BaseVectorStore):
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Error getting vector from Qdrant: {e}")
             return None
 
@@ -449,7 +449,7 @@ class QdrantStore(BaseVectorStore):
             logger.debug(f"Updated vector {vector_id} in Qdrant collection {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Error updating vector in Qdrant: {e}")
             return False
 
@@ -483,7 +483,7 @@ class QdrantStore(BaseVectorStore):
             logger.debug(f"Deleted vector {vector_id} from Qdrant collection {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Error deleting vector from Qdrant: {e}")
             return False
 
@@ -513,7 +513,7 @@ class QdrantStore(BaseVectorStore):
             self._cache_timestamp = time.time()
 
             return collection_names
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Error listing Qdrant collections: {e}")
             return []
 
@@ -533,7 +533,7 @@ class QdrantStore(BaseVectorStore):
             # Try to get the specific collection directly instead of listing all
             self._client.get_collection(collection_name)
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             # Collection doesn't exist or error occurred
             return False
 
@@ -606,7 +606,7 @@ class QdrantStore(BaseVectorStore):
             logger.info(f"Created Qdrant collection {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Error creating Qdrant collection: {e}")
             return False
 
@@ -636,7 +636,7 @@ class QdrantStore(BaseVectorStore):
                 logger.warning(f"Qdrant collection {collection_name} does not exist")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Error deleting Qdrant collection: {e}")
             return False
 
@@ -667,7 +667,7 @@ class QdrantStore(BaseVectorStore):
             logger.info(f"Cleared Qdrant collection {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Error clearing Qdrant collection: {e}")
             return False
 
@@ -703,7 +703,7 @@ class QdrantStore(BaseVectorStore):
                 }
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.error(f"Error getting Qdrant collection info: {e}")
             return {'error': str(e), 'name': collection_name}
 
@@ -843,12 +843,12 @@ class QdrantStore(BaseVectorStore):
                         field_schema=field_type
                     )
                     logger.debug(f"Created payload index for '{field_name}' on collection {collection_name}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
                     # Index might already exist or field not present - that's OK
                     if "already exists" not in str(e).lower():
                         logger.debug(f"Could not create index for '{field_name}': {e}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             logger.warning(f"Error creating payload indexes: {e}")
 
     async def ensure_payload_index(self,
@@ -891,7 +891,7 @@ class QdrantStore(BaseVectorStore):
             logger.debug(f"Created payload index for '{field_name}' on collection {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
             if "already exists" in str(e).lower():
                 return True
             logger.warning(f"Error creating payload index for '{field_name}': {e}")

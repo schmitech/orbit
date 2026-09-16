@@ -40,7 +40,7 @@ class WeaviateStore(BaseVectorStore):
             self.status = StoreStatus.CONNECTED
             logger.debug(f"Weaviate store '{self.config.name}' connected successfully.")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - weaviate client boundary; unstable third-party exception hierarchy
             self.status = StoreStatus.ERROR
             logger.error(f"Error connecting to Weaviate: {e}")
             return False
@@ -84,7 +84,7 @@ class WeaviateStore(BaseVectorStore):
             collection.data.insert_many(data_objects)
             logger.debug(f"Added {len(vectors)} vectors to Weaviate collection '{collection_name}'")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - weaviate client boundary; unstable third-party exception hierarchy
             logger.error(f"Error adding vectors to Weaviate: {e}")
             return False
 
@@ -110,7 +110,7 @@ class WeaviateStore(BaseVectorStore):
                     weaviate_filter = filter_conditions[0]
                     for condition in filter_conditions[1:]:
                         weaviate_filter = weaviate_filter & condition
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - weaviate client boundary; unstable third-party exception hierarchy
                 logger.warning(f"Error building Weaviate filter: {e}. Proceeding without filter.")
                 weaviate_filter = None
 
@@ -122,7 +122,7 @@ class WeaviateStore(BaseVectorStore):
                 return_metadata=wvc.query.MetadataQuery(distance=True),
                 filters=weaviate_filter
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - weaviate client boundary; unstable third-party exception hierarchy
             logger.error(f"Error in Weaviate search: {e}")
             # Fallback to search without filter if filter fails
             query_results = collection.query.near_vector(
@@ -154,7 +154,7 @@ class WeaviateStore(BaseVectorStore):
         try:
             item = collection.query.fetch_object_by_id(uuid.UUID(vector_id), include_vector=True)
             return {"id": str(item.uuid), "vector": item.vector, "metadata": item.properties}
-        except Exception:
+        except Exception:  # noqa: BLE001 - weaviate client boundary; unstable third-party exception hierarchy
             return None
 
     async def update_vector(self, vector_id: str, vector: Optional[list[float]] = None, metadata: Optional[dict[str, Any]] = None, collection_name: Optional[str] = None) -> bool:
@@ -169,7 +169,7 @@ class WeaviateStore(BaseVectorStore):
             elif metadata:
                 collection.data.update(uuid.UUID(vector_id), properties=metadata)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - weaviate client boundary; unstable third-party exception hierarchy
             logger.error(f"Error updating vector in Weaviate: {e}")
             return False
 
@@ -179,7 +179,7 @@ class WeaviateStore(BaseVectorStore):
         try:
             collection.data.delete_by_id(uuid.UUID(vector_id))
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - weaviate client boundary; unstable third-party exception hierarchy
             logger.error(f"Error deleting vector from Weaviate: {e}")
             return False
 
@@ -189,7 +189,7 @@ class WeaviateStore(BaseVectorStore):
         try:
             self._client.collections.create(name=collection_name)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - weaviate client boundary; unstable third-party exception hierarchy
             logger.error(f"Error creating Weaviate collection: {e}")
             return False
 
@@ -197,7 +197,7 @@ class WeaviateStore(BaseVectorStore):
         try:
             self._client.collections.delete(collection_name)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - weaviate client boundary; unstable third-party exception hierarchy
             logger.error(f"Error deleting Weaviate collection: {e}")
             return False
 

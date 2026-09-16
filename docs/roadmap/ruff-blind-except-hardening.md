@@ -106,10 +106,44 @@ paced across sessions rather than in one pass.
   psycopg driver and schema-DDL calls have a broad, version-dependent error
   surface; the broad handlers preserve the service's existing result fallbacks,
   expected concurrent-DDL-race handling, and best-effort cleanup.
+- 2026-09-16: `server/routes/auth_routes.py` (30 → 0). Narrowed 4 catches
+  (datetime `isoformat()`/`str()` conversion of user timestamp fields) to
+  `(AttributeError, ValueError, TypeError)`; justified the remaining 26 —
+  every one is a top-level FastAPI route-handler boundary that must convert
+  an unexpected failure into a 500 response instead of crashing the request,
+  matching the precedent set by `auth_service.py`.
+- 2026-09-16: 28 files across `server/retrievers/`, `server/vector_stores/`,
+  `server/services/`, `server/routes/`, and `bin/orbit/` (355 findings
+  resolved). Narrowed a handful of catches with a known, specific exception
+  surface (JSON/dict parsing in `routes_configurator.py`/`file_routes.py`,
+  base64 decode and file I/O in `bin/orbit/services/auth_service.py`); the
+  rest are justified with `# noqa: BLE001` — pluggable vector-store/DB client
+  boundaries (qdrant, chroma, pinecone, pgvector, duckdb, milvus, marqo,
+  weaviate, memcached, sqlite), diagnostic tooling that probes arbitrary
+  retriever/extractor internals, FastAPI route handlers that must degrade to
+  a 5xx, and best-effort cleanup/cache/telemetry/audit paths. No behavior
+  change. Files: `server/utils/template_diagnostics.py`,
+  `server/retrievers/base/intent_sql_base.py`,
+  `server/retrievers/base/intent_http_base.py`,
+  `server/retrievers/base/intent_composite_base.py`,
+  `server/retrievers/implementations/intent/intent_agent_retriever.py`,
+  `server/vector_stores/implementations/{qdrant,chroma,pinecone,pgvector,duckdb,marqo,weaviate,milvus}_store.py`,
+  `server/vector_stores/services/template_embedding_store.py`,
+  `server/services/sqlite_service.py`,
+  `server/services/file_metadata/metadata_store.py`,
+  `server/services/file_processing/file_processing_service.py`,
+  `server/services/cache_backends/{sqlite,memcached}_provider.py`,
+  `server/services/autocomplete_service.py`,
+  `server/services/audit/elasticsearch_audit_strategy.py`,
+  `server/services/parallel_adapter_executor.py`,
+  `server/routes/{metrics,routes_configurator,file,health}_routes.py`,
+  `bin/orbit/services/{server,auth}_service.py`.
 
-Running baseline (production code, `server/tests/` excluded): 1022 → 947
-(75 resolved). Next up in `server/services/`: re-run the statistics command
-to pick the next-largest file.
+Running baseline (production code, `server/tests/` excluded): 1022 → 565
+(457 resolved). Next up: re-run the statistics command to pick the
+next-largest file (mostly `server/services/audit/`, `server/routes/admin/`,
+and remaining `server/retrievers/implementations/` files, roughly a dozen
+findings apiece).
 
 ### Rule meaning
 

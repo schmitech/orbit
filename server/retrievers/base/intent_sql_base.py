@@ -205,7 +205,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             else:
                 logger.debug("Embedding service already initialized, skipping initialization")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - embedding-provider init boundary, falls back to Ollama
             logger.warning(f"Failed to initialize {embedding_provider}: {e}")
             logger.info("Falling back to Ollama embedding provider")
 
@@ -219,7 +219,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     logger.debug("Successfully initialized Ollama fallback embedding provider")
                 else:
                     logger.debug("Ollama embedding service already initialized, skipping initialization")
-            except Exception as fallback_error:
+            except Exception as fallback_error:  # noqa: BLE001 - embedding-provider init boundary, last-resort failure
                 logger.error(f"Failed to initialize fallback embedding provider: {fallback_error}")
                 raise Exception("Unable to initialize any embedding provider")
 
@@ -277,7 +277,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 logger.info(f"Successfully reinitialized {provider_to_use} embedding client for intent retriever")
                 return True
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - embedding-client reinit against arbitrary provider, must return False not crash
                 logger.error(f"Failed to reinitialize embedding client: {e}")
                 return False
 
@@ -395,7 +395,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                         await vector_store.create_collection(collection_name, dimension=expected_dim)
                         logger.info(f"Recreated collection {collection_name} with dimension {expected_dim}")
                         
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - vector-store collection maintenance boundary
                 logger.warning(f"Could not check/clear collection dimensions: {e}")
             
             # Set the embedding client if the store supports it
@@ -453,7 +453,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 if existing_dim and existing_dim != expected_dim:
                     dimension_changed = True
                     logger.info(f"Dimension changed from {existing_dim} to {expected_dim}, forcing reload")
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort dimension check against vector store
                 pass
             
             if not force_reload and not reload_on_start and not dimension_changed:
@@ -464,7 +464,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     if existing_count > 0:
                         logger.debug(f"Found {existing_count} existing templates, skipping reload")
                         return
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort existing-template count check
                     pass
 
             # Load templates into the template store
@@ -514,7 +514,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                             f"[EmbeddingTrace] embed_documents result: "
                             f"count={len(embeddings)}, dims={len(embeddings[0]) if embeddings[0] else 0}"
                         )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - batch embedding generation against arbitrary embedding client
                     logger.error(f"Failed to batch generate embeddings: {e}")
                     logger.info("Falling back to individual embedding generation...")
                     for text in embedding_texts:
@@ -530,7 +530,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                                 usage_sink, "[intent template indexing]"
                             )
                             embeddings.append(embedding)
-                        except Exception as e2:
+                        except Exception as e2:  # noqa: BLE001 - per-item embedding fallback, must not abort the batch
                             logger.error(f"Failed to generate embedding: {e2}")
                             embeddings.append(None)
 
@@ -559,10 +559,10 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     try:
                         post_stats = await self.template_store.get_statistics()
                         logger.debug(f"Vector store now contains {post_stats.get('total_templates', 0)} templates")
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - best-effort post-load stats logging
                         logger.debug(f"Could not get post-load stats: {e}")
                         
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - template-store write boundary
                     logger.error(f"Failed to add templates to store: {e}")
                     logger.error(traceback.format_exc())
             
@@ -573,7 +573,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             else:
                 logger.info(f"Template loading complete: {loaded_count} templates loaded")
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level template-loading boundary, must not crash startup
             logger.error(f"Error loading templates: {e}")
             logger.error(traceback.format_exc())
 
@@ -873,7 +873,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 "confidence": 0.0
             }]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level intent-retrieval boundary, must not crash the request
             logger.error(f"Error in intent-based retrieval: {e}")
             logger.error(traceback.format_exc())
             return [{
@@ -1179,7 +1179,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 cached_templates = stats.get('cached_templates', 0)
                 collection_name = stats.get('collection_name', 'unknown')
                 logger.debug(f"Template store stats - total: {total_templates}, cached: {cached_templates}, collection: {collection_name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort template-store stats logging
                 logger.debug(f"Could not get template store stats: {e}")
 
             # Ensure embedding client is valid (may have been closed by cache cleanup)
@@ -1218,7 +1218,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     logger.error(f"Dimension mismatch: query embedding has {len(query_embedding)} dims, collection has {collection_dim} dims")
                     logger.error("This will prevent similarity search from working. Collection needs to be recreated with matching dimensions.")
                     return []
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort dimension-compatibility check against vector store
                 logger.debug(f"Could not verify dimension compatibility: {e}")
             
             # Debug logging for template collection isolation
@@ -1297,7 +1297,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             logger.debug(f"Found {len(templates)} matching templates for query")
             return templates
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level template-search boundary, must not crash the request
             logger.error(f"Error finding templates: {e}")
             logger.error(traceback.format_exc())
             return []
@@ -1347,7 +1347,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     )
                     existing_ids.add(tmpl_id)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort nl_example rescue scan
             logger.debug(f"nl_example rescue scan failed: {e}")
 
         return templates
@@ -1407,7 +1407,7 @@ JSON:"""
             
             return parameters
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - parameter-extraction boundary against arbitrary pluggable extractor
             logger.error(f"Error extracting parameters: {e}")
             return {}
     
@@ -1536,7 +1536,7 @@ JSON:"""
 
             return results, None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - SQL execution boundary against arbitrary datasource
             error_msg = str(e)
             logger.error(f"Error executing template: {error_msg}")
             return [], error_msg
@@ -1573,7 +1573,7 @@ JSON:"""
 
             return processed_sql.strip()
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - SQL template processing boundary, falls back to raw template
             logger.warning(f"Error processing SQL template: {e}")
             return sql_template
     
@@ -1669,7 +1669,7 @@ JSON:"""
                         await self.template_store.close()
                     else:
                         self.template_store.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - template-store close boundary during cleanup
                 errors.append(f"template_store: {e}")
                 logger.warning(f"Error closing template store in {self.__class__.__name__}: {e}")
         

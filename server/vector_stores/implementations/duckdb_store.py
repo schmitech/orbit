@@ -69,7 +69,7 @@ class DuckDBStore(BaseStore):
             logger.debug(f"DuckDB store '{self.config.name}' connected successfully.")
             return True
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             self.status = StoreStatus.ERROR
             logger.error(f"Error connecting to DuckDB: {e}")
             return False
@@ -79,7 +79,7 @@ class DuckDBStore(BaseStore):
         if self._client:
             try:
                 self._client.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
                 logger.warning(f"Error closing DuckDB connection: {e}")
             
             self._client = None
@@ -99,7 +99,7 @@ class DuckDBStore(BaseStore):
         try:
             self._client.execute("SELECT 1")
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             return False
     
     async def query(self, sql: str) -> list[dict[str, Any]]:
@@ -160,7 +160,7 @@ class DuckDBStore(BaseStore):
             await self.execute(sql)
             logger.info(f"Created table {table_name}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             logger.error(f"Error creating table {table_name}: {e}")
             return False
     
@@ -179,7 +179,7 @@ class DuckDBStore(BaseStore):
             await self.execute(sql)
             logger.info(f"Dropped table {table_name}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             logger.error(f"Error dropping table {table_name}: {e}")
             return False
     
@@ -193,7 +193,7 @@ class DuckDBStore(BaseStore):
         try:
             result = await self.query("SHOW TABLES")
             return [row.get('name', row.get(list(row.keys())[0])) for row in result]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             logger.error(f"Error listing tables: {e}")
             return []
     
@@ -220,7 +220,7 @@ class DuckDBStore(BaseStore):
             await self.execute(sql)
             logger.info(f"Imported data from {file_path} to {table_name}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             logger.error(f"Error importing CSV: {e}")
             return False
     
@@ -246,7 +246,7 @@ class DuckDBStore(BaseStore):
             await self.execute(sql)
             logger.info(f"Imported data from {file_path} to {table_name}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             logger.error(f"Error importing Parquet: {e}")
             return False
     
@@ -271,7 +271,7 @@ class DuckDBStore(BaseStore):
             await self.execute(sql)
             logger.info(f"Exported table {table_name} to {file_path}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             logger.error(f"Error exporting to CSV: {e}")
             return False
     
@@ -296,7 +296,7 @@ class DuckDBStore(BaseStore):
             await self.execute(sql)
             logger.info(f"Exported table {table_name} to {file_path}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             logger.error(f"Error exporting to Parquet: {e}")
             return False
     
@@ -326,7 +326,7 @@ class DuckDBStore(BaseStore):
             
             logger.info(f"Inserted {len(data)} rows into {table_name}")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             logger.error(f"Error inserting data: {e}")
             return False
     
@@ -374,6 +374,6 @@ class DuckDBStore(BaseStore):
                 'schema': schema_result,
                 'row_count': row_count
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - duckdb driver boundary; broad, version-dependent error surface
             logger.error(f"Error getting table info: {e}")
             return {}

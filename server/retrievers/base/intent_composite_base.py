@@ -244,7 +244,7 @@ class CompositeIntentRetriever(BaseRetriever):
             else:
                 logger.debug("Embedding service already initialized")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable embedding provider initialization; falls back to Ollama on any failure
             logger.warning(f"Failed to initialize {embedding_provider}: {e}")
             logger.info("Falling back to Ollama embedding provider")
 
@@ -308,7 +308,7 @@ class CompositeIntentRetriever(BaseRetriever):
                 logger.info(f"Successfully reinitialized {provider_to_use} embedding client for composite retriever")
                 return True
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable embedding provider reinitialization; must not crash, returns False on failure
                 logger.error(f"Failed to reinitialize embedding client: {e}")
                 return False
 
@@ -360,7 +360,7 @@ class CompositeIntentRetriever(BaseRetriever):
                 self._child_adapters[adapter_name] = adapter
                 logger.debug(f"Resolved child adapter: {adapter_name}")
                 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - child adapter resolution loop; a single bad adapter must not stop resolving the rest
                 logger.error(f"Failed to resolve child adapter '{adapter_name}': {e}")
                 continue
         
@@ -481,7 +481,7 @@ class CompositeIntentRetriever(BaseRetriever):
                 f"with {len(vector_entries)} example embeddings"
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - cross-adapter template embedding call; degrades cross_adapter_enabled instead of crashing startup
             logger.error(f"Failed to initialize cross-adapter templates: {e}")
             logger.error(traceback.format_exc())
             self.cross_adapter_enabled = False
@@ -575,7 +575,7 @@ class CompositeIntentRetriever(BaseRetriever):
             logger.debug(f"Loaded {len(templates)} cross-adapter templates from {full_path}")
             return templates
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort cross-adapter template file load; returns None on any failure
             logger.error(f"Error loading cross-adapter templates from {path}: {e}")
             return None
 
@@ -635,7 +635,7 @@ class CompositeIntentRetriever(BaseRetriever):
 
             logger.debug(f"Found {len(matches)} cross-adapter template matches")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - cross-adapter template vector search; best-effort, falls through with partial matches
             logger.error(f"Error searching cross-adapter templates: {e}")
 
         return matches
@@ -692,7 +692,7 @@ class CompositeIntentRetriever(BaseRetriever):
                 return (adapter_name, label, results, None)
             except asyncio.TimeoutError:
                 return (adapter_name, label, None, f"Timeout after {timeout}s")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - fan-out to a child adapter's get_relevant_context; isolates one adapter's failure from the others
                 return (adapter_name, label, None, str(e))
 
         tasks = [query_adapter(target) for target in target_adapters]
@@ -870,7 +870,7 @@ class CompositeIntentRetriever(BaseRetriever):
 
             logger.info(f"Initialized {self.reranking_provider} reranker for composite retriever")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable reranker initialization; disables reranking instead of crashing
             logger.warning(f"Failed to initialize reranker ({self.reranking_provider}): {e}")
             logger.warning("Reranking will be disabled for this session")
             self.reranking_enabled = False
@@ -945,7 +945,7 @@ class CompositeIntentRetriever(BaseRetriever):
         except ImportError as e:
             logger.warning(f"String similarity module not available: {e}")
             return 0.0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable string similarity module with no fixed exception surface
             logger.error(f"Error calculating string similarity: {e}")
             return 0.0
 
@@ -1047,7 +1047,7 @@ class CompositeIntentRetriever(BaseRetriever):
             logger.debug(f"Reranked {len(candidates)} candidates, top score: {max(score_map.values()) if score_map else 0:.3f}")
             return score_map
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - reranking call; falls back to an empty score map on any failure
             logger.error(f"Error during reranking: {e}")
             logger.debug(traceback.format_exc())
             return {}
@@ -1241,7 +1241,7 @@ class CompositeIntentRetriever(BaseRetriever):
 
             logger.debug(f"Found {len(matches)} template matches from adapter '{adapter_name}'")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - template store search for one adapter; best-effort, falls through with partial matches
             logger.error(f"Error searching template store for adapter '{adapter_name}': {e}")
 
         return matches
@@ -1542,7 +1542,7 @@ class CompositeIntentRetriever(BaseRetriever):
 
             return results
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level composite retrieval; must not crash the caller, returns an error result instead
             logger.error(f"Error in composite intent retrieval: {e}")
             logger.error(traceback.format_exc())
             return [{
@@ -1577,7 +1577,7 @@ class CompositeIntentRetriever(BaseRetriever):
                             close_method()
             except AttributeError:
                 pass
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable embedding client close() with an unstable exception surface; already shutting down
                 errors.append(f"embedding: {e}")
                 logger.warning(f"Error closing embedding client: {e}")
         
@@ -1590,7 +1590,7 @@ class CompositeIntentRetriever(BaseRetriever):
                         await close_method()
                     else:
                         close_method()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable template store close() with an unstable exception surface; already shutting down
                 errors.append(f"cross_adapter_store: {e}")
                 logger.warning(f"Error closing cross-adapter template store: {e}")
 

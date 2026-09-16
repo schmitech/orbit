@@ -351,7 +351,7 @@ class AutocompleteService:
                     examples = json.loads(cached_json)
                     logger.debug(f"Cache hit for autocomplete: {adapter_name}")
                     return examples
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort cache/adapter call; must not fail the primary operation
                 logger.warning(f"Cache read error for {adapter_name}: {e}")
 
         # Fallback to memory cache
@@ -384,7 +384,7 @@ class AutocompleteService:
                     ttl=self.cache_ttl
                 )
                 logger.debug(f"Cached {len(examples)} examples for {adapter_name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort cache/adapter call; must not fail the primary operation
                 logger.warning(f"Cache write error for {adapter_name}: {e}")
 
         # Always update memory cache as fallback
@@ -467,7 +467,7 @@ class AutocompleteService:
 
             return suggestions
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort cache/adapter call; must not fail the primary operation
             logger.warning(f"[Autocomplete] Error getting suggestions: {e}")
             return []
 
@@ -515,7 +515,7 @@ class AutocompleteService:
                 distributed_lock_acquired = await self.cache_service.set_if_not_exists(
                     lock_key, "1", ttl=10
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort cache/adapter call; must not fail the primary operation
                 logger.warning(f"Cache lock acquisition error for {adapter_name}: {e}")
                 distributed_lock_acquired = True
 
@@ -583,13 +583,13 @@ class AutocompleteService:
                 f"for {adapter_name}"
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort cache/adapter call; must not fail the primary operation
             logger.warning(f"[Autocomplete] Error fetching nl_examples for {adapter_name}: {e}")
         finally:
             if distributed_lock_acquired and lock_key:
                 try:
                     await self.cache_service.delete(lock_key)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort cache/adapter call; must not fail the primary operation
                     logger.warning(f"Cache lock release error for {adapter_name}: {e}")
 
         return examples
@@ -682,7 +682,7 @@ class AutocompleteService:
                     child_examples = self._extract_examples_from_adapter(child_adapter)
                     all_examples.extend(child_examples)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort cache/adapter call; must not fail the primary operation
                 logger.warning(f"Error getting examples from child adapter {child_name}: {e}")
 
         # Include nl_examples from cross-adapter templates if present
@@ -755,7 +755,7 @@ class AutocompleteService:
             )
             return examples
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort cache/adapter call; must not fail the primary operation
             logger.warning(f"[Autocomplete] Error fetching skill routing_examples for {adapter_name}: {e}")
             return []
 
@@ -942,7 +942,7 @@ class AutocompleteService:
                 try:
                     cache_key = self._get_cache_key(adapter_name)
                     await self.cache_service.delete(cache_key)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort cache/adapter call; must not fail the primary operation
                     logger.warning(f"Failed to invalidate cache for {adapter_name}: {e}")
 
             logger.debug(f"Invalidated autocomplete cache for {adapter_name}")
@@ -958,7 +958,7 @@ class AutocompleteService:
                     )
                     if deleted:
                         logger.debug(f"Cleared autocomplete cache keys from cache service ({deleted})")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort cache/adapter call; must not fail the primary operation
                     logger.warning(f"Failed to clear autocomplete cache: {e}")
 
             logger.debug("Invalidated all autocomplete caches")

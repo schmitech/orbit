@@ -191,7 +191,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
                 await self.function_client.initialize()
                 actual_model = getattr(self.function_client, 'model', self.function_model)
                 logger.info(f"Function model initialized: {actual_model}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable LLM provider client init; unstable third-party exception surface, must not fail startup
                 logger.warning(
                     f"Failed to initialize function model {self.function_model}: {e}. "
                     f"Falling back to inference model."
@@ -251,7 +251,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
                 tool_names = [t.function_schema.name for t in self._function_tools]
                 logger.info(f"Available function tools: {tool_names}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable tool-loading path; must not crash retriever init
             logger.error(f"Error loading function tools: {e}")
             import traceback
             logger.error(traceback.format_exc())
@@ -415,7 +415,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
                 query=query
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable LLM provider client boundary
             logger.error(f"Error in native function calling: {e}")
             logger.error(traceback.format_exc())
             return None
@@ -625,7 +625,7 @@ Output format: <start_function_call>call:function_name{{param:<escape>value<esca
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable LLM provider client boundary
             error_msg = str(e) if str(e) else type(e).__name__
             logger.error(f"Error calling function model: {error_msg}")
             if self.verbose:
@@ -673,7 +673,7 @@ Output format: <start_function_call>call:function_name{{param:<escape>value<esca
 
                 logger.warning("Could not parse FunctionGemma response as function call")
                 return None
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable LLM provider client boundary
                 error_msg = str(e) if str(e) else type(e).__name__
                 logger.error(f"Error in FunctionGemma function calling: {error_msg}")
                 if self.verbose:
@@ -719,7 +719,7 @@ Response:"""
         try:
             response = await self.function_client.generate(prompt)
             return self._parse_json_response(response)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable LLM provider client boundary
             error_msg = str(e) if str(e) else type(e).__name__
             logger.error(f"Error in prompt-based function calling: {error_msg}")
             if self.verbose:
@@ -893,7 +893,7 @@ JSON response:"""
                 logger.warning("No inference client available for parameter extraction")
                 return {}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable LLM provider client boundary
             logger.error(f"Error extracting function parameters: {e}")
             return {}
 
@@ -1133,7 +1133,7 @@ JSON response:"""
             # Return the result data
             return result.data, None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - tool executor boundary; arbitrary tool implementations
             logger.error(f"Error executing function template {template_id}: {e}")
             logger.error(traceback.format_exc())
             return [], str(e)
@@ -1196,7 +1196,7 @@ JSON response:"""
 
             return results, None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - HTTP tool execution boundary
             template_id = template.get('id', 'unknown')
             error_msg = str(e)
             logger.error(f"[Template {template_id}] Error executing HTTP template: {error_msg}")
@@ -1449,7 +1449,7 @@ JSON response:"""
             try:
                 if hasattr(self.function_client, 'close'):
                     await self.function_client.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort cleanup; must not block close()
                 logger.warning(f"Error closing function client: {e}")
 
         # Close parent resources
@@ -1460,5 +1460,5 @@ JSON response:"""
 try:
     RetrieverFactory.register_retriever("intent_agent", IntentAgentRetriever)
     logger.debug("Registered IntentAgentRetriever with factory")
-except Exception as e:
+except Exception as e:  # noqa: BLE001 - best-effort cleanup; must not block close()
     logger.debug(f"Could not register IntentAgentRetriever: {e}")

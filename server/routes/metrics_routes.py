@@ -63,7 +63,7 @@ def create_metrics_router() -> APIRouter:
             ms = getattr(websocket.app.state, 'metrics_service', None)
             if ms and getattr(ms, 'websocket_connections', None):
                 ms.websocket_connections.inc()
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort websocket connection metric increment
             pass
 
         disconnect_task: "asyncio.Task | None" = None
@@ -86,7 +86,7 @@ def create_metrics_router() -> APIRouter:
                         'active_threads': int(active_threads),
                         'queued_tasks': int(queued),
                     }
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort thread-pool executor stat probing on arbitrary attrs
                     return {'max_workers': 0, 'active_threads': 0, 'queued_tasks': 0}
 
             # Observe disconnects authoritatively. This handler only sends, so
@@ -106,7 +106,7 @@ def create_metrics_router() -> APIRouter:
                             break
                 except WebSocketDisconnect:
                     pass
-                except Exception:
+                except Exception:  # noqa: BLE001 - background disconnect watcher must not crash the loop
                     pass
                 finally:
                     disconnected.set()
@@ -141,7 +141,7 @@ def create_metrics_router() -> APIRouter:
                                     data['adapters'] = adapters
                         else:
                             data['adapters'] = {}
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - best-effort adapter health status probing across manager variants
                         logger.debug(f"Error getting adapter status: {e}")
                         data['adapters'] = {}
                 else:
@@ -159,9 +159,9 @@ def create_metrics_router() -> APIRouter:
                         if metrics_service and hasattr(metrics_service, 'update_thread_pool_metrics'):
                             try:
                                 metrics_service.update_thread_pool_metrics(pools)
-                            except Exception:
+                            except Exception:  # noqa: BLE001 - best-effort thread pool metrics update
                                 pass
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - best-effort thread pool stats collection
                         logger.debug(f"Error getting thread pool stats: {e}")
                 # Add service-specific executors if present
                 try:
@@ -172,7 +172,7 @@ def create_metrics_router() -> APIRouter:
                         base_mgr = getattr(adapter_manager, 'base_adapter_manager', None)
                         if base_mgr and hasattr(base_mgr, '_thread_pool') and base_mgr._thread_pool:
                             pools['adapter_init'] = _stats_from_executor(base_mgr._thread_pool)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort service executor stats collection
                     logger.debug(f"Error collecting service executor stats: {e}")
                 if pools:
                     data['thread_pools'] = pools
@@ -184,7 +184,7 @@ def create_metrics_router() -> APIRouter:
                     pool_stats = datasource_registry.get_pool_stats()
                     if pool_stats and pool_stats.get('total_cached_datasources', 0) > 0:
                         data['datasource_pool'] = pool_stats
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort datasource pool stats collection
                     logger.warning(f"Error getting datasource pool stats: {e}")
 
                 # Get cache service health statistics (covers whichever backend is
@@ -193,7 +193,7 @@ def create_metrics_router() -> APIRouter:
                     cache_service = getattr(websocket.app.state, 'cache_service', None)
                     if cache_service:
                         data['cache_health'] = cache_service.get_health_stats()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort cache health stats collection
                     logger.debug(f"Error getting cache service health stats: {e}")
 
                 # Pipeline step metrics
@@ -219,7 +219,7 @@ def create_metrics_router() -> APIRouter:
                                 'success_rate': round(pm.get('pipeline_success_rate', 0.0), 4),
                                 'avg_time_ms': round(pm.get('avg_response_time', 0.0) * 1000, 1),
                             }
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort pipeline metrics collection
                     logger.debug(f"Error getting pipeline metrics: {e}")
 
                 # Active connections info
@@ -229,7 +229,7 @@ def create_metrics_router() -> APIRouter:
                 try:
                     if metrics_service and getattr(metrics_service, 'active_sessions', None):
                         data['connections']['active_sessions'] = int(metrics_service.active_sessions._value.get())
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort active session count read
                     data['connections']['active_sessions'] = 0
 
                 data['server_mode'] = {
@@ -258,7 +258,7 @@ def create_metrics_router() -> APIRouter:
 
         except WebSocketDisconnect:
             logger.debug("WebSocket client disconnected")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - websocket handler boundary must not crash the connection loop
             logger.error(f"WebSocket error: {e}")
         finally:
             # Runs on every exit path, including a clean break when the peer goes away.
@@ -270,7 +270,7 @@ def create_metrics_router() -> APIRouter:
                 ms = getattr(websocket.app.state, 'metrics_service', None)
                 if ms and getattr(ms, 'websocket_connections', None):
                     ms.websocket_connections.dec()
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort websocket connection metric decrement
                 pass
 
     @router.get("/metrics")

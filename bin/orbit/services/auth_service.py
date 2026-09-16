@@ -6,6 +6,7 @@ using keyring or file-based storage.
 """
 
 import base64
+import binascii
 import logging
 from typing import Optional
 
@@ -88,11 +89,11 @@ class AuthService:
                     try:
                         DEFAULT_ENV_FILE.unlink()
                         logger.debug("Removed legacy plain text token file")
-                    except Exception as e:
+                    except OSError as e:
                         logger.warning(f"Failed to remove legacy token file: {e}")
-                
+
                 return
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - keyring backend exception surface is not fixed across platforms/backends
                 logger.warning(f"Failed to save token to keychain: {e}")
                 logger.info("Falling back to file storage")
         
@@ -172,7 +173,7 @@ class AuthService:
                     self.server_url = server_url
                 logger.debug("Loaded authentication token from system keychain")
                 return token
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - keyring backend exception surface is not fixed across platforms/backends
             logger.warning(f"Failed to load token from keychain: {e}")
             logger.info("Falling back to file storage")
         return None
@@ -209,7 +210,7 @@ class AuthService:
                         self.server_url = base64.b64decode(encoded_url.encode()).decode()
                     logger.debug("Loaded authentication token from secure file storage")
                     return token
-                except Exception as e:
+                except (binascii.Error, ValueError, UnicodeDecodeError) as e:
                     logger.warning(f"Failed to decode token: {e}")
             
             # Fallback to old plain text format for backward compatibility
@@ -236,8 +237,8 @@ class AuthService:
                     self._legacy_warning_shown = True
                 
                 return plain_token
-                
-        except Exception as e:
+
+        except OSError as e:
             logger.error(f"Failed to load token from file: {e}")
         
         return None
@@ -259,7 +260,7 @@ class AuthService:
                 
                 logger.info("Automatically migrated from legacy plain text storage to secure keychain")
                 return
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - keyring backend exception surface is not fixed across platforms/backends
                 logger.debug(f"Failed to migrate to keyring: {e}")
         
         # If we can't use keyring, migrate to base64 encoded file storage
@@ -277,7 +278,7 @@ class AuthService:
                 DEFAULT_ENV_FILE.chmod(0o600)
                 logger.info("Automatically migrated from legacy plain text storage to base64 encoded storage")
                 return
-            except Exception as e:
+            except OSError as e:
                 logger.debug(f"Failed to migrate to base64 storage: {e}")
     
     def clear_token(self) -> None:
@@ -290,7 +291,7 @@ class AuthService:
                 keyring.delete_password(KEYRING_SERVICE, KEYRING_TOKEN_KEY)
                 keyring.delete_password(KEYRING_SERVICE, KEYRING_SERVER_KEY)
                 logger.debug("Cleared authentication token from system keychain")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - keyring backend exception surface is not fixed across platforms/backends
                 logger.warning(f"Failed to clear token from keychain: {e}")
         
         # Also clear file-based storage (both plain text and encoded)
@@ -298,7 +299,7 @@ class AuthService:
             try:
                 DEFAULT_ENV_FILE.unlink()
                 logger.debug("Cleared authentication token from file storage")
-            except Exception as e:
+            except OSError as e:
                 logger.warning(f"Failed to clear token file: {e}")
         
         self._token = None

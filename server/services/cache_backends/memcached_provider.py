@@ -126,7 +126,7 @@ class MemcachedCacheProvider(CacheProvider):
             self.initialized = True
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Failed to initialize Memcached: {e!s}")
             self.enabled = False
             self.client = None
@@ -140,7 +140,7 @@ class MemcachedCacheProvider(CacheProvider):
             result = _decode(await self.client.get(_encode(key)))
             self._circuit_breaker.record_success()
             return result
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Error getting key {key} from Memcached: {e!s}")
             self._handle_error("get", e)
             return None
@@ -153,7 +153,7 @@ class MemcachedCacheProvider(CacheProvider):
             result = await self.client.set(_encode(key), _encode(value), exptime=ttl_to_use)
             self._circuit_breaker.record_success()
             return bool(result)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Error setting key {key} in Memcached: {e!s}")
             self._handle_error("set", e)
             return False
@@ -168,7 +168,7 @@ class MemcachedCacheProvider(CacheProvider):
                     deleted += 1
             self._circuit_breaker.record_success()
             return deleted
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Error deleting keys {keys} from Memcached: {e!s}")
             self._handle_error("delete", e)
             return 0
@@ -180,7 +180,7 @@ class MemcachedCacheProvider(CacheProvider):
             result = await self.client.get(_encode(key))
             self._circuit_breaker.record_success()
             return result is not None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Error checking if key {key} exists in Memcached: {e!s}")
             self._handle_error("exists", e)
             return False
@@ -192,7 +192,7 @@ class MemcachedCacheProvider(CacheProvider):
         try:
             exists = await self.exists(key)
             return -1 if exists else -2
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             self._handle_error("ttl", e)
             return -2
 
@@ -203,7 +203,7 @@ class MemcachedCacheProvider(CacheProvider):
             result = await self.client.touch(_encode(key), seconds)
             self._circuit_breaker.record_success()
             return bool(result)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Error setting expiration for key {key} in Memcached: {e!s}")
             self._handle_error("expire", e)
             return False
@@ -215,7 +215,7 @@ class MemcachedCacheProvider(CacheProvider):
             results = await self.client.multi_get(*[_encode(k) for k in keys])
             self._circuit_breaker.record_success()
             return [_decode(r) for r in results]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Error in mget for {len(keys)} keys: {e!s}")
             self._handle_error("mget", e)
             return [None] * len(keys)
@@ -228,7 +228,7 @@ class MemcachedCacheProvider(CacheProvider):
                 await self.client.set(_encode(key), _encode(value), exptime=self.default_ttl)
             self._circuit_breaker.record_success()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Error in mset for {len(mapping)} keys: {e!s}")
             self._handle_error("mset", e)
             return False
@@ -240,7 +240,7 @@ class MemcachedCacheProvider(CacheProvider):
             result = await self.client.add(_encode(key), _encode(value), exptime=ttl)
             self._circuit_breaker.record_success()
             return bool(result)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Error in set_if_not_exists for key {key} in Memcached: {e!s}")
             self._handle_error("set_if_not_exists", e)
             return False
@@ -274,7 +274,7 @@ class MemcachedCacheProvider(CacheProvider):
                 count = None
             self._circuit_breaker.record_success()
             return count if count is not None else amount
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Error in increment_with_ttl for key {key} in Memcached: {e!s}")
             self._handle_error("increment_with_ttl", e)
             return 0
@@ -291,7 +291,7 @@ class MemcachedCacheProvider(CacheProvider):
             await self.client.flush_all()
             self._circuit_breaker.record_success()
             return -1  # unknown count; entire cache was flushed
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.error(f"Error flushing Memcached: {e!s}")
             self._handle_error("clear_by_pattern", e)
             return 0
@@ -306,7 +306,7 @@ class MemcachedCacheProvider(CacheProvider):
             self._circuit_breaker.record_success()
             logger.info("Flushed entire Memcached cache on startup")
             return {"flushed_all": -1}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - aiomcache client boundary; must not crash, feeds circuit breaker
             logger.warning(f"Failed to flush Memcached on startup: {e!s}")
             return {"flushed_all": 0}
 

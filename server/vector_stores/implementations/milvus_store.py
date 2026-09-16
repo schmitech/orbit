@@ -27,7 +27,7 @@ class MilvusStore(BaseVectorStore):
             self.status = StoreStatus.CONNECTED
             logger.debug(f"Milvus store '{self.config.name}' connected successfully.")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus client boundary has no stable, fully-documented exception hierarchy
             self.status = StoreStatus.ERROR
             logger.error(f"Error connecting to Milvus: {e}")
             return False
@@ -44,7 +44,7 @@ class MilvusStore(BaseVectorStore):
         try:
             self._client.list_collections()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - pymilvus client boundary has no stable, fully-documented exception hierarchy
             return False
 
     async def add_vectors(self, vectors: list[list[float]], ids: list[str], metadata: Optional[list[dict[str, Any]]] = None, collection_name: Optional[str] = None) -> bool:
@@ -60,7 +60,7 @@ class MilvusStore(BaseVectorStore):
         try:
             self._client.insert(collection_name=collection_name, data=data)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus client boundary has no stable, fully-documented exception hierarchy
             logger.error(f"Error adding vectors to Milvus: {e}")
             return False
 
@@ -89,7 +89,7 @@ class MilvusStore(BaseVectorStore):
                     "metadata": payload
                 })
             return results
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus client boundary has no stable, fully-documented exception hierarchy
             logger.error(f"Error searching vectors in Milvus: {e}")
             return []
 
@@ -111,7 +111,7 @@ class MilvusStore(BaseVectorStore):
                 index_params=index_params
             )
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus client boundary has no stable, fully-documented exception hierarchy
             logger.error(f"Error creating Milvus collection: {e}")
             return False
 
@@ -119,7 +119,7 @@ class MilvusStore(BaseVectorStore):
         try:
             self._client.drop_collection(collection_name)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus client boundary has no stable, fully-documented exception hierarchy
             logger.error(f"Error deleting Milvus collection: {e}")
             return False
 
@@ -133,7 +133,7 @@ class MilvusStore(BaseVectorStore):
         try:
             stats = self._client.get_collection_stats(collection_name)
             return {"name": collection_name, "count": stats['row_count']}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus client boundary has no stable, fully-documented exception hierarchy
             logger.error(f"Error getting collection info from Milvus: {e}")
             return {}
 
@@ -150,6 +150,6 @@ class MilvusStore(BaseVectorStore):
         try:
             self._client.delete(collection_name=collection_name, ids=[vector_id])
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymilvus client boundary has no stable, fully-documented exception hierarchy
             logger.error(f"Error deleting vector from Milvus: {e}")
             return False

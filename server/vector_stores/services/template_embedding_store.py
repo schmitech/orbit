@@ -170,7 +170,7 @@ class TemplateEmbeddingStore:
             
             return success
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable vector-store backend call has no fixed exception surface across store types
             logger.error(f"Error adding template {template_id}: {e}")
             return False
     
@@ -233,7 +233,7 @@ class TemplateEmbeddingStore:
             
             return {template_id: success for template_id in ids}
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable vector-store backend call has no fixed exception surface across store types
             logger.error(f"Error in batch add templates: {e}")
             return {t[0]: False for t in templates}
     
@@ -288,7 +288,7 @@ class TemplateEmbeddingStore:
             
             return formatted_results
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable vector-store backend call has no fixed exception surface across store types
             logger.error(f"Error searching similar templates: {e}")
             return []
     
@@ -339,7 +339,7 @@ class TemplateEmbeddingStore:
             
             return None
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable vector-store backend call has no fixed exception surface across store types
             logger.error(f"Error getting template {template_id}: {e}")
             return None
     
@@ -395,7 +395,7 @@ class TemplateEmbeddingStore:
             
             return success
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable vector-store backend call has no fixed exception surface across store types
             logger.error(f"Error updating template {template_id}: {e}")
             return False
     
@@ -428,7 +428,7 @@ class TemplateEmbeddingStore:
             
             return success
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable vector-store backend call has no fixed exception surface across store types
             logger.error(f"Error deleting template {template_id}: {e}")
             return False
     
@@ -453,7 +453,7 @@ class TemplateEmbeddingStore:
             
             return success
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable vector-store backend call has no fixed exception surface across store types
             logger.error(f"Error clearing templates: {e}")
             return False
     
@@ -477,7 +477,7 @@ class TemplateEmbeddingStore:
                 collection_info = await self._vector_store.get_collection_info(self.collection_name)
                 stats['total_templates'] = collection_info.get('count', 0)
                 stats['collection_metadata'] = collection_info.get('metadata', {})
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable vector-store backend call has no fixed exception surface across store types
                 logger.error(f"Error getting collection info: {e}")
                 stats['total_templates'] = 0
         

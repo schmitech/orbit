@@ -521,7 +521,7 @@ class SQLiteService(DatabaseService):
             if hasattr(self, 'connection') and self.connection:
                 try:
                     self.connection.close()
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort connection close during failed initialization; already failing, must not mask the original error
                     pass
             logger.error(f"Failed to initialize SQLite Service: {e!s}")
             raise
@@ -594,7 +594,7 @@ class SQLiteService(DatabaseService):
                     cursor = self.connection.cursor()
                     cursor.execute(alter_sql)
                     self.connection.commit()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
                 logger.error(f"Failed to add column '{column_name}' to table '{table_name}': {e}")
 
     async def _create_indexes(self) -> None:
@@ -1032,7 +1032,7 @@ class SQLiteService(DatabaseService):
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error finding document in {collection_name}: {e!s}")
             return None
 
@@ -1129,7 +1129,7 @@ class SQLiteService(DatabaseService):
 
             return [self._convert_row_to_document(collection_name, row) for row in results]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error finding documents in {collection_name}: {e!s}")
             return []
 
@@ -1183,7 +1183,7 @@ class SQLiteService(DatabaseService):
                 raise DatabaseDuplicateKeyError(str(e)) from e
             logger.error(f"Integrity error inserting document into {collection_name}: {e!s}")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error inserting document into {collection_name}: {e!s}")
             return None
 
@@ -1257,7 +1257,7 @@ class SQLiteService(DatabaseService):
 
             return cursor.rowcount > 0
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error updating document in {collection_name}: {e!s}")
             return False
 
@@ -1297,7 +1297,7 @@ class SQLiteService(DatabaseService):
                 self.executor, self._execute_sql, sql, params
             )
             return cursor.rowcount > 0
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error recording failed login attempt: {e!s}")
             return False
 
@@ -1341,7 +1341,7 @@ class SQLiteService(DatabaseService):
 
             return cursor.rowcount > 0
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error deleting document from {collection_name}: {e!s}")
             return False
 
@@ -1382,7 +1382,7 @@ class SQLiteService(DatabaseService):
 
             return cursor.rowcount
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error deleting documents from {collection_name}: {e!s}")
             return 0
 
@@ -1407,7 +1407,7 @@ class SQLiteService(DatabaseService):
             )
             return row["cnt"] if row else 0
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error counting records in {collection_name}: {e!s}")
             return 0
 
@@ -1486,7 +1486,7 @@ class SQLiteService(DatabaseService):
                 results.append(doc)
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error finding session summaries in {collection_name}: {e!s}")
             return []
 
@@ -1566,7 +1566,7 @@ class SQLiteService(DatabaseService):
 
             return {"deleted_count": deleted_count, "tokens_removed": tokens_removed}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error deleting messages beyond token budget in {collection_name}: {e!s}")
             return {"deleted_count": 0, "tokens_removed": 0}
 
@@ -1601,7 +1601,7 @@ class SQLiteService(DatabaseService):
             logger.info(f"Cleared {deleted_count} records from table '{collection_name}'")
             return deleted_count
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
             logger.error(f"Error clearing table {collection_name}: {e!s}")
             return 0
 
@@ -1765,7 +1765,7 @@ class SQLiteService(DatabaseService):
                 try:
                     if hasattr(instance, 'close'):
                         instance.close()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort cleanup during cache clearing; must not block clearing other instances
                     logger.warning(f"Error closing SQLite instance: {e}")
 
             cls._instances.clear()

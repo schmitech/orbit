@@ -172,7 +172,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                 json.dump(results, f, indent=2, default=str)
 
             logger.debug(f"HTTP query results saved to {file_path}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort debug dump of query results
             logger.error(f"Failed to dump HTTP query results: {e}")
 
     async def initialize(self) -> None:
@@ -204,7 +204,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
             if hasattr(self, 'http_client') and self.http_client:
                 try:
                     await self.http_client.aclose()
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort HTTP client close during cleanup
                     pass
                 self.http_client = None
             logger.error(f"Failed to initialize {self.__class__.__name__}: {e}")
@@ -308,7 +308,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
             else:
                 logger.debug("Embedding service already initialized, skipping initialization")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - embedding-provider init boundary, falls back to Ollama
             logger.warning(f"Failed to initialize {embedding_provider}: {e}")
             logger.info("Falling back to Ollama embedding provider")
 
@@ -320,7 +320,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                 if not self.embedding_client.initialized:
                     await self.embedding_client.initialize()
                     logger.debug("Successfully initialized Ollama fallback embedding provider")
-            except Exception as fallback_error:
+            except Exception as fallback_error:  # noqa: BLE001 - embedding-provider init boundary, last-resort failure
                 logger.error(f"Failed to initialize fallback embedding provider: {fallback_error}")
                 raise Exception("Unable to initialize any embedding provider")
 
@@ -378,7 +378,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                 logger.info(f"Successfully reinitialized {provider_to_use} embedding client for HTTP intent retriever")
                 return True
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - embedding-client reinit against arbitrary provider, must return False not crash
                 logger.error(f"Failed to reinitialize embedding client: {e}")
                 return False
 
@@ -482,7 +482,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                         await vector_store.create_collection(collection_name, dimension=expected_dim)
                         logger.info(f"Recreated collection {collection_name} with dimension {expected_dim}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - vector-store collection maintenance boundary
                 logger.warning(f"Could not check/clear collection dimensions: {e}")
 
             # Set the embedding client
@@ -527,7 +527,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                 if existing_dim and existing_dim != expected_dim:
                     dimension_changed = True
                     logger.info(f"Dimension changed from {existing_dim} to {expected_dim}, forcing reload")
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort dimension check against vector store
                 pass
 
             if not force_reload and not reload_on_start and not dimension_changed:
@@ -537,7 +537,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                     if existing_count > 0:
                         logger.debug(f"Found {existing_count} existing templates, skipping reload")
                         return
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort existing-template count check
                     pass
 
             # Build per-example vector entries: (vector_id, template, embedding_text)
@@ -585,7 +585,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                             f"[EmbeddingTrace] embed_documents result: "
                             f"count={len(embeddings)}, dims={len(embeddings[0]) if embeddings[0] else 0}"
                         )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - batch embedding generation against arbitrary embedding client
                     logger.error(f"Failed to batch generate embeddings: {e}")
                     logger.info("Falling back to individual embedding generation...")
                     for text in embedding_texts:
@@ -601,7 +601,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                                 usage_sink, "[intent template indexing]"
                             )
                             embeddings.append(embedding)
-                        except Exception as e2:
+                        except Exception as e2:  # noqa: BLE001 - per-item embedding fallback, must not abort the batch
                             logger.error(f"Failed to generate embedding: {e2}")
                             embeddings.append(None)
 
@@ -631,14 +631,14 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                     try:
                         post_stats = await self.template_store.get_statistics()
                         logger.debug(f"Vector store now contains {post_stats.get('total_templates', 0)} templates")
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - best-effort post-load stats logging
                         logger.debug(f"Could not get post-load stats: {e}")
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - template-store write boundary
                     logger.error(f"Failed to add templates to store: {e}")
                     logger.error(traceback.format_exc())
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level template-loading boundary, must not crash startup
             logger.error(f"Error loading templates: {e}")
             logger.error(traceback.format_exc())
 
@@ -964,7 +964,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                 "confidence": 0.0
             }]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level intent-retrieval boundary, must not crash the request
             logger.error(f"Error in intent-based retrieval: {e}")
             logger.error(traceback.format_exc())
             return [{
@@ -986,7 +986,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                 stats = await self.template_store.get_statistics()
                 total_templates = stats.get('total_templates', 0)
                 logger.debug(f"Template store contains {total_templates} templates")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort template-store stats logging
                 logger.debug(f"Could not get template store stats: {e}")
 
             # Ensure embedding client is valid (may have been closed by cache cleanup)
@@ -1079,7 +1079,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
             logger.debug(f"Found {len(templates)} matching templates for query")
             return templates
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level template-search boundary, must not crash the request
             logger.error(f"Error finding templates: {e}")
             logger.error(traceback.format_exc())
             return []
@@ -1129,7 +1129,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                     )
                     existing_ids.add(tmpl_id)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort nl_example rescue scan
             logger.debug(f"nl_example rescue scan failed: {e}")
 
         return templates
@@ -1189,7 +1189,7 @@ JSON:"""
 
             return parameters
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - parameter-extraction boundary against arbitrary pluggable extractor
             logger.error(f"Error extracting parameters: {e}")
             return {}
 
@@ -1275,7 +1275,7 @@ JSON:"""
                         await self.template_store.close()
                     else:
                         self.template_store.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - template-store close boundary during cleanup
                 errors.append(f"template_store: {e}")
                 logger.warning(f"Error closing template store in {self.__class__.__name__}: {e}")
 

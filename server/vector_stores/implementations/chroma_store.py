@@ -90,7 +90,7 @@ class ChromaStore(BaseVectorStore):
             logger.error("ChromaDB not available. Install with: pip install chromadb")
             self.status = StoreStatus.ERROR
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.error(f"Error connecting to ChromaDB: {e}")
             self.status = StoreStatus.ERROR
             return False
@@ -107,7 +107,7 @@ class ChromaStore(BaseVectorStore):
                 self.status = StoreStatus.DISCONNECTED
                 logger.info(f"ChromaDB store {self.config.name} disconnected")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
                 logger.error(f"Error disconnecting from ChromaDB: {e}")
                 self.status = StoreStatus.ERROR
 
@@ -126,7 +126,7 @@ class ChromaStore(BaseVectorStore):
             self._client.list_collections()
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.error(f"ChromaDB health check failed: {e}")
             return False
 
@@ -185,7 +185,7 @@ class ChromaStore(BaseVectorStore):
             logger.debug(f"Added {len(vectors)} vectors to collection {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.error(f"Error adding vectors to ChromaDB: {e}")
             return False
 
@@ -275,7 +275,7 @@ class ChromaStore(BaseVectorStore):
 
             return formatted_results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             # Check if this is a stale collection error and invalidate cache
             error_str = str(e).lower()
             if "does not exist" in error_str or "not found" in error_str:
@@ -333,7 +333,7 @@ class ChromaStore(BaseVectorStore):
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.error(f"Error getting vector from ChromaDB: {e}")
             return None
 
@@ -379,7 +379,7 @@ class ChromaStore(BaseVectorStore):
             logger.debug(f"Updated vector {vector_id} in collection {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.error(f"Error updating vector in ChromaDB: {e}")
             return False
 
@@ -411,7 +411,7 @@ class ChromaStore(BaseVectorStore):
             logger.debug(f"Deleted vector {vector_id} from collection {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.error(f"Error deleting vector from ChromaDB: {e}")
             return False
 
@@ -449,7 +449,7 @@ class ChromaStore(BaseVectorStore):
             logger.debug(f"Created/retrieved ChromaDB collection: {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.error(f"Error creating ChromaDB collection: {e}")
             return False
 
@@ -475,7 +475,7 @@ class ChromaStore(BaseVectorStore):
             logger.debug(f"Deleted ChromaDB collection: {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.error(f"Error deleting ChromaDB collection: {e}")
             return False
 
@@ -491,7 +491,7 @@ class ChromaStore(BaseVectorStore):
         try:
             collections = self._client.list_collections()
             return [col.name for col in collections]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.error(f"Error listing ChromaDB collections: {e}")
             return []
 
@@ -534,7 +534,7 @@ class ChromaStore(BaseVectorStore):
                 'metadata': collection.metadata or {}
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.error(f"Error getting ChromaDB collection info: {e}")
             return {'error': str(e)}
 
@@ -549,7 +549,7 @@ class ChromaStore(BaseVectorStore):
             try:
                 cached_collection.count()  # This will fail if collection no longer exists
                 return cached_collection
-            except Exception:
+            except Exception:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
                 # Collection no longer exists, remove stale entry from cache
                 del self._collections[collection_name]
                 logger.debug(f"Removed stale collection {collection_name} from cache")
@@ -559,7 +559,7 @@ class ChromaStore(BaseVectorStore):
             self._collections[collection_name] = collection
             logger.debug(f"Retrieved existing ChromaDB collection: {collection_name}")
             return collection
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
             logger.debug(f"Collection {collection_name} not found: {e}")
             return None
 
@@ -592,6 +592,6 @@ class ChromaStore(BaseVectorStore):
                 logger.debug(f"Got or created ChromaDB collection: {collection_name}")
                 return collection
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - chromadb client driver call, unstable third-party exception surface
                 logger.error(f"Error in get_or_create_collection for {collection_name}: {e}")
                 return None

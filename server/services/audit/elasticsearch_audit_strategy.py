@@ -123,7 +123,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         except asyncio.TimeoutError:
             logger.error("Elasticsearch connection timeout")
             self._es_client = None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; unstable third-party exception hierarchy
             logger.error(f"Failed to connect to Elasticsearch: {e}")
             self._es_client = None
 
@@ -232,7 +232,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                 index=self._index_name,
                 properties=self._usage_mapping_properties(),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort mapping backfill; must not block startup
             logger.warning(
                 f"Failed to ensure usage-field mapping on {self._index_name} "
                 f"(non-fatal, existing dynamic mapping may mistype cost_usd): {e}"
@@ -246,7 +246,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                 index=self._index_name,
                 properties={"api_key": {"properties": {"id": {"type": "keyword"}}}},
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort mapping backfill; must not block startup
             logger.warning(
                 f"Failed to ensure api_key.id mapping on {self._index_name} "
                 f"(non-fatal, the api_key group_by/filter falls back to the masked key): {e}"
@@ -330,7 +330,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             logger.error(f"Elasticsearch API error: {e.info if hasattr(e, 'info') else e}")
             await self._handle_error(e)
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; unstable third-party exception hierarchy
             logger.error(f"Failed to store audit record in Elasticsearch: {e}")
             return False
 
@@ -343,7 +343,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             try:
                 await self._setup_index()
                 logger.info("Successfully recreated audit index")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort index recreation; already inside a warning-level recovery path
                 logger.error(f"Failed to recreate audit index: {e}")
         elif "circuit_breaking_exception" in error_str.lower():
             logger.error("Elasticsearch circuit breaker triggered - system under memory pressure")
@@ -404,7 +404,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                 if doc.get('response_compressed') and doc.get('response'):
                     try:
                         doc['response'] = decompress_text(doc['response'])
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - best-effort decompression; falls back to compressed value on failure
                         logger.warning(f"Failed to decompress response: {e}")
                         # Keep compressed response if decompression fails
 
@@ -412,7 +412,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; unstable third-party exception hierarchy
             logger.error(f"Failed to query audit records from Elasticsearch: {e}")
             return []
 
@@ -440,7 +440,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             logger.info(f"Cleared {deleted_count} audit records from Elasticsearch index '{self._index_name}'")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; unstable third-party exception hierarchy
             logger.error(f"Error clearing audit records from Elasticsearch: {e}")
             return False
 
@@ -486,7 +486,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                     "aggs": {"resolved_id": {"terms": {"field": "api_key.id", "size": 1}}},
                 }},
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort aggregation; degrades to masked-only mapping on failure
             logger.warning(f"Failed to build api_key masked-value-to-id map, falling back to masked-only: {e}")
             return {}
 
@@ -655,7 +655,7 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             try:
                 await self._es_client.close()
                 logger.info("Elasticsearch audit client closed")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; unstable third-party exception hierarchy
                 logger.error(f"Error closing Elasticsearch client: {e}")
 
         self._initialized = False

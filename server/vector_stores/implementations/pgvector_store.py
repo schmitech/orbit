@@ -31,7 +31,7 @@ class PgvectorStore(BaseVectorStore):
             self.status = StoreStatus.CONNECTED
             logger.debug(f"Pgvector store '{self.config.name}' connected successfully.")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             self.status = StoreStatus.ERROR
             logger.error(f"Error connecting to Pgvector: {e}")
             return False
@@ -51,7 +51,7 @@ class PgvectorStore(BaseVectorStore):
         try:
             self._cursor.execute("SELECT 1")
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             return False
 
     async def add_vectors(self, vectors: list[list[float]], ids: list[str], metadata: Optional[list[dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[list[str]] = None) -> bool:
@@ -84,7 +84,7 @@ class PgvectorStore(BaseVectorStore):
             self._conn.commit()
             logger.debug(f"Added {len(vectors)} vectors to PGVector collection '{collection_name}'")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             self._conn.rollback()
             logger.error(f"Error adding vectors to Pgvector: {e}")
             return False
@@ -137,7 +137,7 @@ class PgvectorStore(BaseVectorStore):
                 })
 
             return formatted_results
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             logger.error(f"Error searching vectors in Pgvector: {e}")
             return []
 
@@ -158,7 +158,7 @@ class PgvectorStore(BaseVectorStore):
             self._conn.commit()
             logger.debug(f"Created PGVector collection '{collection_name}' with text column and index")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             self._conn.rollback()
             logger.error(f"Error creating Pgvector collection: {e}")
             return False
@@ -168,7 +168,7 @@ class PgvectorStore(BaseVectorStore):
             self._cursor.execute(f"DROP TABLE IF EXISTS {collection_name}")
             self._conn.commit()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             self._conn.rollback()
             logger.error(f"Error deleting Pgvector collection: {e}")
             return False
@@ -177,7 +177,7 @@ class PgvectorStore(BaseVectorStore):
         try:
             self._cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
             return [row[0] for row in self._cursor.fetchall()]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             logger.error(f"Error listing Pgvector collections: {e}")
             return []
 
@@ -185,7 +185,7 @@ class PgvectorStore(BaseVectorStore):
         try:
             self._cursor.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = %s)", (collection_name,))
             return self._cursor.fetchone()[0]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             logger.error(f"Error checking if Pgvector collection exists: {e}")
             return False
 
@@ -194,7 +194,7 @@ class PgvectorStore(BaseVectorStore):
             self._cursor.execute(f"SELECT COUNT(*) FROM {collection_name}")
             count = self._cursor.fetchone()[0]
             return {"name": collection_name, "count": count}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             logger.error(f"Error getting Pgvector collection info: {e}")
             return {}
 
@@ -206,7 +206,7 @@ class PgvectorStore(BaseVectorStore):
             if res:
                 return {"id": vector_id, "vector": res[0], "metadata": res[1]}
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             logger.error(f"Error getting vector from Pgvector: {e}")
             return None
 
@@ -221,7 +221,7 @@ class PgvectorStore(BaseVectorStore):
                 self._cursor.execute(f"UPDATE {collection_name} SET metadata = %s WHERE id = %s", (json.dumps(metadata), vector_id))
             self._conn.commit()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             self._conn.rollback()
             logger.error(f"Error updating vector in Pgvector: {e}")
             return False
@@ -232,7 +232,7 @@ class PgvectorStore(BaseVectorStore):
             self._cursor.execute(f"DELETE FROM {collection_name} WHERE id = %s", (vector_id,))
             self._conn.commit()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - psycopg driver boundary; broad, version-dependent error surface
             self._conn.rollback()
             logger.error(f"Error deleting vector from Pgvector: {e}")
             return False

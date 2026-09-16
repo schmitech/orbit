@@ -73,7 +73,7 @@ def create_health_router() -> APIRouter:
             
             return health_status
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error getting adapter health: {e}")
             return JSONResponse(
                 status_code=500,
@@ -106,7 +106,7 @@ def create_health_router() -> APIRouter:
             else:
                 raise HTTPException(status_code=501, detail="Circuit breaker reset not implemented")
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error resetting circuit breaker: {e}")
             raise HTTPException(status_code=500, detail=str(e))
     
@@ -117,7 +117,7 @@ def create_health_router() -> APIRouter:
             from embeddings.base import EmbeddingServiceFactory
             stats = EmbeddingServiceFactory.get_cache_stats()
             return stats
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error getting embedding service stats: {e}")
             return JSONResponse(
                 status_code=500,
@@ -131,7 +131,7 @@ def create_health_router() -> APIRouter:
             from services.mongodb_service import MongoDBService
             stats = MongoDBService.get_cache_stats()
             return stats
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error getting MongoDB service stats: {e}")
             return JSONResponse(
                 status_code=500,
@@ -193,7 +193,7 @@ def create_health_router() -> APIRouter:
                 "total_adapters": total_adapters
             }
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error in readiness check: {e}")
             return JSONResponse(
                 status_code=503,
@@ -230,7 +230,7 @@ def create_health_router() -> APIRouter:
             
             return status
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error getting system status: {e}")
             return JSONResponse(
                 status_code=500,
@@ -307,7 +307,7 @@ def create_health_router() -> APIRouter:
         except HTTPException:
             # Re-raise HTTP exceptions as-is
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error getting adapter history for {adapter_name}: {e}")
             raise HTTPException(
                 status_code=500,
@@ -380,7 +380,7 @@ def create_health_router() -> APIRouter:
         except HTTPException:
             # Re-raise HTTP exceptions as-is
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error getting full adapter history for {adapter_name}: {e}")
             raise HTTPException(
                 status_code=500,
@@ -418,7 +418,7 @@ def create_health_router() -> APIRouter:
                 "pools": stats
             }
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error getting thread pool stats: {e}")
             raise HTTPException(status_code=500, detail=str(e))
     
@@ -441,7 +441,7 @@ def create_health_router() -> APIRouter:
                 "check_logs": "See server logs for detailed thread pool status"
             }
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
             logger.error(f"Error logging thread pool status: {e}")
             raise HTTPException(status_code=500, detail=str(e))
     

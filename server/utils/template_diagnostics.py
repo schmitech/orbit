@@ -105,11 +105,11 @@ async def _collect_vector_store_info(retriever) -> Optional[dict[str, Any]]:
                 if test_emb:
                     info["query_embedding_dimension"] = len(test_emb)
                     info["dimension_match"] = len(test_emb) == info["embedding_dimension"]
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort embed probe against an arbitrary embedding client
                 pass
 
         return info
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic collector must not crash on arbitrary retriever internals
         logger.debug(f"Could not collect vector store info: {e}")
         return {"error": str(e)}
 
@@ -135,7 +135,7 @@ def _collect_template_inventory(retriever) -> Optional[dict[str, Any]]:
                 "has_semantic_tags": bool(tmpl.get('semantic_tags')),
             })
         return {"total_templates": len(templates_summary), "templates": templates_summary}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic collector must not crash on arbitrary retriever internals
         logger.debug(f"Could not collect template inventory: {e}")
         return {"error": str(e)}
 
@@ -180,7 +180,7 @@ def _collect_domain_info(retriever) -> Optional[dict[str, Any]]:
             "searchable_fields": searchable,
             "filterable_fields": filterable,
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic collector must not crash on arbitrary domain-config internals
         logger.debug(f"Could not collect domain info: {e}")
         return {"error": str(e)}
 
@@ -207,7 +207,7 @@ def _collect_semantic_analysis(query: str, template: dict[str, Any], retriever=N
                 from retrievers.implementations.intent.domain import DomainConfig
                 dc = dc_dict if isinstance(dc_dict, DomainConfig) else DomainConfig(dc_dict or {})
                 entity_variants += dc.get_entity_synonyms(primary_entity)
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort synonym lookup against arbitrary domain config
                 pass
     for variant in entity_variants:
         if variant and variant.lower() in query.lower():
@@ -266,7 +266,7 @@ def _collect_extraction_trace(retriever, query: str, template: dict[str, Any]) -
         if value_extractor:
             try:
                 first_pass_matches = value_extractor.extract_all_values(query) or {}
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - diagnostic trace over an arbitrary pluggable value extractor
                 trace["first_pass_error"] = str(e)
         trace["first_pass_matches"] = {k: _coerce_value(v) for k, v in first_pass_matches.items()}
 
@@ -326,7 +326,7 @@ def _collect_extraction_trace(retriever, query: str, template: dict[str, Any]) -
                     value = value_extractor.extract_value(query, entity, field, param_type)
                     if value is not None:
                         pt["resolution"] = "context_extraction"
-                except Exception:
+                except Exception:  # noqa: BLE001 - diagnostic trace over an arbitrary pluggable value extractor
                     pass
 
             # Step 3: Template parameter extraction (non-entity params)
@@ -335,7 +335,7 @@ def _collect_extraction_trace(retriever, query: str, template: dict[str, Any]) -
                     value = value_extractor.extract_template_parameter(query, param)
                     if value is not None:
                         pt["resolution"] = "template_parameter"
-                except Exception:
+                except Exception:  # noqa: BLE001 - diagnostic trace over an arbitrary pluggable value extractor
                     pass
 
             # Step 4: Validation / coercion
@@ -348,7 +348,7 @@ def _collect_extraction_trace(retriever, query: str, template: dict[str, Any]) -
                             pt["resolution"] = "validation_failed"
                             pt["validation_error"] = str(error_msg)
                             value = None
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - diagnostic trace over an arbitrary pluggable validator
                         pt["validation_error"] = str(e)
                 else:
                     # Type coercion for non-entity params
@@ -381,7 +381,7 @@ def _collect_extraction_trace(retriever, query: str, template: dict[str, Any]) -
             trace["llm_fallback_params"] = missing_required
 
         return trace
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic collector must not crash on arbitrary extractor internals
         logger.debug(f"Could not collect extraction trace: {e}")
         return {"error": str(e)}
 
@@ -425,7 +425,7 @@ async def _try_all_templates(
                 validation_errors = []
 
             entry["parameters"] = _coerce_value(parameters)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - records outcome of an arbitrary pluggable extractor for diagnostics
             entry["outcome"] = "extraction_error"
             entry["detail"] = str(e)
             tried.append(entry)
@@ -447,7 +447,7 @@ async def _try_all_templates(
                     entry["row_count"] = len(results) if results else 0
                     tried.append(entry)
                     break  # Stop at first success
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - records outcome of an arbitrary datasource execution for diagnostics
                 entry["outcome"] = "execution_exception"
                 entry["detail"] = str(e)
                 tried.append(entry)
@@ -550,7 +550,7 @@ async def _diagnose_intent(
                 for t in templates[:max_templates]
             ],
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic step over an arbitrary pluggable retriever must not crash the run
         logger.error(f"Template search failed: {e}\n{traceback.format_exc()}")
         result["template_search"] = {"error": str(e), "candidates_found": 0, "candidates": []}
         result["timing"]["total_ms"] = round((time.monotonic() - total_start) * 1000, 1)
@@ -588,7 +588,7 @@ async def _diagnose_intent(
             }
         else:
             result["reranking"] = {"applied": False}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic step over an arbitrary pluggable reranker must not crash the run
         logger.error(f"Reranking failed: {e}\n{traceback.format_exc()}")
         result["reranking"] = {"applied": False, "error": str(e)}
 
@@ -607,7 +607,7 @@ async def _diagnose_intent(
     try:
         templates_tried = await _try_all_templates(retriever, eligible, query, execute)
         result["templates_tried"] = templates_tried
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic step over an arbitrary pluggable retriever must not crash the run
         logger.error(f"Templates tried loop failed: {e}\n{traceback.format_exc()}")
         result["templates_tried"] = [{"error": str(e)}]
         templates_tried = []
@@ -657,7 +657,7 @@ async def _diagnose_intent(
             extraction_result["trace"] = trace
 
         result["parameter_extraction"] = extraction_result
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic step over an arbitrary pluggable extractor must not crash the run
         logger.error(f"Parameter extraction failed: {e}\n{traceback.format_exc()}")
         result["parameter_extraction"] = {"error": str(e), "extracted": {}, "method": "failed"}
 
@@ -665,7 +665,7 @@ async def _diagnose_intent(
     try:
         rendered = _render_query(retriever, template, parameters, query_type)
         result["rendered_query"] = rendered
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic step over an arbitrary template shape must not crash the run
         logger.error(f"Query rendering failed: {e}\n{traceback.format_exc()}")
         result["rendered_query"] = {"type": query_type, "error": str(e)}
 
@@ -692,7 +692,7 @@ async def _diagnose_intent(
                     "results": _safe_serialize(results),
                     "error": error,
                 }
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - diagnostic re-execution against an arbitrary datasource must not crash the run
                 result["execution"] = {"success": False, "row_count": 0, "results": [], "error": str(e)}
     elif execute and not success_entry:
         # All templates failed — show the last error
@@ -748,7 +748,7 @@ async def _diagnose_composite(
                 for m in all_matches[:max_templates]
             ],
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic step over an arbitrary pluggable retriever must not crash the run
         logger.error(f"Composite template search failed: {e}\n{traceback.format_exc()}")
         result["template_search"] = {"error": str(e), "candidates_found": 0, "candidates": []}
         result["timing"]["total_ms"] = round((time.monotonic() - total_start) * 1000, 1)
@@ -781,7 +781,7 @@ async def _diagnose_composite(
                     for m in all_matches[:max_templates]
                 ],
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - diagnostic step over an arbitrary pluggable scorer must not crash the run
             logger.error(f"Multi-stage scoring failed: {e}\n{traceback.format_exc()}")
             result["reranking"] = {"applied": False, "error": str(e)}
     else:

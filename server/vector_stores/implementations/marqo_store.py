@@ -31,7 +31,7 @@ class MarqoStore(BaseVectorStore):
             self.status = StoreStatus.CONNECTED
             logger.debug(f"Marqo store '{self.config.name}' connected successfully.")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - marqo client boundary; unstable third-party exception hierarchy
             self.status = StoreStatus.ERROR
             logger.error(f"Error connecting to Marqo: {e}")
             return False
@@ -47,7 +47,7 @@ class MarqoStore(BaseVectorStore):
             return False
         try:
             return self._client.health()
-        except Exception:
+        except Exception:  # noqa: BLE001 - marqo client boundary; unstable third-party exception hierarchy
             return False
 
     async def add_vectors(self, vectors: list[list[float]], ids: list[str], metadata: Optional[list[dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[list[str]] = None) -> bool:
@@ -86,7 +86,7 @@ class MarqoStore(BaseVectorStore):
             self._client.index(collection_name).add_documents(marqo_documents, tensor_fields=tensor_fields)
             logger.debug(f"Added {len(marqo_documents)} documents to Marqo collection '{collection_name}'")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - marqo client boundary; unstable third-party exception hierarchy
             logger.error(f"Error adding documents to Marqo: {e}")
             return False
 
@@ -108,7 +108,7 @@ class MarqoStore(BaseVectorStore):
         try:
             self._client.create_index(collection_name, model=self.model)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - marqo client boundary; unstable third-party exception hierarchy
             logger.info(f"Marqo index {collection_name} may already exist or error: {e}")
             return True
 
@@ -117,7 +117,7 @@ class MarqoStore(BaseVectorStore):
         try:
             doc = self._client.index(collection_name).get_document(vector_id)
             return {"id": vector_id, "metadata": doc}
-        except Exception:
+        except Exception:  # noqa: BLE001 - marqo client boundary; unstable third-party exception hierarchy
             return None
 
     async def update_vector(self, vector_id: str, vector: Optional[list[float]] = None, metadata: Optional[dict[str, Any]] = None, collection_name: Optional[str] = None) -> bool:
@@ -131,7 +131,7 @@ class MarqoStore(BaseVectorStore):
         try:
             self._client.index(collection_name).add_documents([doc], tensor_fields=tensor_fields)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - marqo client boundary; unstable third-party exception hierarchy
             logger.error(f"Error updating document in Marqo: {e}")
             return False
 
@@ -140,7 +140,7 @@ class MarqoStore(BaseVectorStore):
         try:
             self._client.index(collection_name).delete_documents([vector_id])
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - marqo client boundary; unstable third-party exception hierarchy
             logger.error(f"Error deleting document from Marqo: {e}")
             return False
 
@@ -148,7 +148,7 @@ class MarqoStore(BaseVectorStore):
         try:
             self._client.delete_index(collection_name)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - marqo client boundary; unstable third-party exception hierarchy
             logger.error(f"Error deleting Marqo index: {e}")
             return False
 
@@ -159,13 +159,13 @@ class MarqoStore(BaseVectorStore):
         try:
             self._client.index(collection_name).get_stats()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - marqo client boundary; unstable third-party exception hierarchy
             return False
 
     async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
         try:
             stats = self._client.index(collection_name).get_stats()
             return {"name": collection_name, "count": stats['numberOfDocuments']}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - marqo client boundary; unstable third-party exception hierarchy
             logger.error(f"Error getting collection info from Marqo: {e}")
             return {}

@@ -78,7 +78,7 @@ class PineconeStore(BaseVectorStore):
             logger.error("Pinecone not available. Install with: pip install pinecone-client")
             self.status = StoreStatus.ERROR
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             logger.error(f"Error connecting to Pinecone: {e}")
             self.status = StoreStatus.ERROR
             return False
@@ -93,7 +93,7 @@ class PineconeStore(BaseVectorStore):
                 self.status = StoreStatus.DISCONNECTED
                 logger.info(f"Pinecone store {self.config.name} disconnected")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
                 logger.error(f"Error disconnecting from Pinecone: {e}")
                 self.status = StoreStatus.ERROR
 
@@ -112,7 +112,7 @@ class PineconeStore(BaseVectorStore):
             self._client.list_indexes()
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             logger.error(f"Pinecone health check failed: {e}")
             return False
 
@@ -189,7 +189,7 @@ class PineconeStore(BaseVectorStore):
             logger.debug(f"Added {len(vectors)} vectors to Pinecone index {index_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             error_msg = str(e)
             if DIMENSION_MISMATCH_PATTERN.search(error_msg):
                 vec_dim = len(vectors[0]) if vectors else "unknown"
@@ -257,7 +257,7 @@ class PineconeStore(BaseVectorStore):
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             error_msg = str(e)
             if DIMENSION_MISMATCH_PATTERN.search(error_msg):
                 query_dim = len(query_vector)
@@ -306,7 +306,7 @@ class PineconeStore(BaseVectorStore):
 
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             logger.error(f"Error getting vector from Pinecone: {e}")
             return None
 
@@ -351,7 +351,7 @@ class PineconeStore(BaseVectorStore):
             logger.debug(f"Updated vector {vector_id} in Pinecone index {index_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             logger.error(f"Error updating vector in Pinecone: {e}")
             return False
 
@@ -383,7 +383,7 @@ class PineconeStore(BaseVectorStore):
             logger.debug(f"Deleted vector {vector_id} from Pinecone index {index_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             logger.error(f"Error deleting vector from Pinecone: {e}")
             return False
 
@@ -413,7 +413,7 @@ class PineconeStore(BaseVectorStore):
             self._cache_timestamp = time.time()
 
             return index_names
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             logger.error(f"Error listing Pinecone indexes: {e}")
             return []
 
@@ -433,7 +433,7 @@ class PineconeStore(BaseVectorStore):
             # Try to describe the specific index instead of listing all
             self._client.describe_index(collection_name)
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             # Index doesn't exist or error occurred
             return False
 
@@ -485,7 +485,7 @@ class PineconeStore(BaseVectorStore):
             logger.info(f"Created Pinecone index {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             logger.error(f"Error creating Pinecone index: {e}")
             return False
 
@@ -515,7 +515,7 @@ class PineconeStore(BaseVectorStore):
                 logger.warning(f"Pinecone index {collection_name} does not exist")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             logger.error(f"Error deleting Pinecone index: {e}")
             return False
 
@@ -542,7 +542,7 @@ class PineconeStore(BaseVectorStore):
             logger.info(f"Cleared Pinecone index {collection_name}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             logger.error(f"Error clearing Pinecone index: {e}")
             return False
 
@@ -584,7 +584,7 @@ class PineconeStore(BaseVectorStore):
                 }
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Pinecone SDK call with an unstable, version-dependent exception hierarchy; must not crash the vector-store boundary
             logger.error(f"Error getting Pinecone index info: {e}")
             return {'error': str(e), 'name': collection_name}
 

@@ -293,7 +293,7 @@ async def login(
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Login error details: {type(e).__name__}: {e!s}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
@@ -388,16 +388,16 @@ async def get_current_user_info(
         if user.get("created_at"):
             try:
                 created_at = user["created_at"].isoformat() if hasattr(user["created_at"], 'isoformat') else str(user["created_at"])
-            except Exception:
+            except (AttributeError, ValueError, TypeError):
                 created_at = None
-        
+
         last_login = None
         if user.get("last_login"):
             try:
                 last_login = user["last_login"].isoformat() if hasattr(user["last_login"], 'isoformat') else str(user["last_login"])
-            except Exception:
+            except (AttributeError, ValueError, TypeError):
                 last_login = None
-        
+
         return UserResponse(
             id=user["id"],
             username=user["username"],
@@ -411,7 +411,7 @@ async def get_current_user_info(
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error getting current user info: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -465,14 +465,14 @@ async def list_users(
             if user.get("created_at"):
                 try:
                     created_at = user["created_at"].isoformat() if hasattr(user["created_at"], 'isoformat') else str(user["created_at"])
-                except Exception:
+                except (AttributeError, ValueError, TypeError):
                     created_at = None
-            
+
             last_login = None
             if user.get("last_login"):
                 try:
                     last_login = user["last_login"].isoformat() if hasattr(user["last_login"], 'isoformat') else str(user["last_login"])
-                except Exception:
+                except (AttributeError, ValueError, TypeError):
                     last_login = None
             
             result.append(UserResponse(
@@ -489,7 +489,7 @@ async def list_users(
         
         return result
         
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error listing users: {type(e).__name__}: {e!s}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
@@ -537,7 +537,7 @@ async def get_user_by_username(
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error getting user by username: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -600,7 +600,7 @@ async def register_user(
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Registration error: {e!s}")
         # If it's a duplicate key error or already exists, return 400
         if 'duplicate key error' in str(e).lower() or 'already exists' in str(e).lower():
@@ -643,7 +643,7 @@ async def logout(
         
         return {"message": "Logout successful"}
         
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Logout error: {e!s}")
         raise HTTPException(
             status_code=500,
@@ -698,7 +698,7 @@ async def delete_user(
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"User deletion error: {e!s}")
         raise HTTPException(
             status_code=500,
@@ -779,7 +779,7 @@ async def change_password(
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Password change error: {e!s}")
         raise HTTPException(
             status_code=500,
@@ -839,7 +839,7 @@ async def reset_user_password(
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Password reset error: {e!s}")
         raise HTTPException(
             status_code=500,
@@ -894,7 +894,7 @@ async def deactivate_user(
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"User deactivation error: {e!s}")
         raise HTTPException(
             status_code=500,
@@ -942,7 +942,7 @@ async def activate_user(
     except HTTPException:
         # Re-raise HTTPExceptions as-is
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"User activation error: {e!s}")
         raise HTTPException(
             status_code=500,
@@ -1043,7 +1043,7 @@ async def list_blacklist_rules(auth_service=Depends(get_auth_service)):
     try:
         rules = await blacklist.list_rules()
         return [_serialize_rule(rule) for rule in rules]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error listing blacklist rules: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1079,7 +1079,7 @@ async def create_blacklist_rule(
         return _serialize_rule(rule)
     except BlacklistRuleError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error creating blacklist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1118,7 +1118,7 @@ async def update_blacklist_rule(
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error updating blacklist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1140,7 +1140,7 @@ async def delete_blacklist_rule(rule_id: str, auth_service=Depends(get_auth_serv
         return {"status": "deleted", "id": rule_id}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error deleting blacklist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1223,7 +1223,7 @@ async def list_allowlist_rules(auth_service=Depends(get_auth_service)):
     allowlist = _require_allowlist(auth_service)
     try:
         return [_serialize_rule(rule) for rule in await allowlist.list_rules()]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error listing allowlist rules: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1265,7 +1265,7 @@ async def create_allowlist_rule(
         return _serialize_rule(rule)
     except BlacklistRuleError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error creating allowlist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1318,7 +1318,7 @@ async def update_allowlist_rule(
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error updating allowlist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1350,7 +1350,7 @@ async def delete_allowlist_rule(
         return {"status": "deleted", "id": rule_id, **revocation}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error deleting allowlist rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1391,7 +1391,7 @@ async def list_my_sessions(
     try:
         sessions = await auth_service.list_sessions(current_user["id"])
         return [_serialize_session(session) for session in sessions]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error listing sessions: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1416,7 +1416,7 @@ async def revoke_my_session(
         return {"status": "revoked", "id": session_id}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error revoking session: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1431,7 +1431,7 @@ async def list_user_sessions(user_id: str, auth_service=Depends(get_auth_service
     try:
         sessions = await auth_service.list_sessions(user_id)
         return [_serialize_session(session) for session in sessions]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error listing sessions for user {user_id}: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1461,7 +1461,7 @@ async def revoke_user_session(
         return {"status": "revoked", "id": session_id}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error revoking session {session_id} for user {user_id}: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1511,7 +1511,7 @@ async def list_admin_ip_rules(auth_service=Depends(get_auth_service)):
     try:
         rules = await service.list_rules()
         return [_serialize_admin_ip_rule(rule) for rule in rules]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error listing admin IP rules: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1543,7 +1543,7 @@ async def create_admin_ip_rule(
         return _serialize_admin_ip_rule(rule)
     except AdminIpRuleError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error creating admin IP rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1607,7 +1607,7 @@ async def delete_admin_ip_rule(
         return {"status": "deleted", "id": rule_id}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 5xx
         logger.error(f"Error deleting admin IP rule: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=500, detail="Internal server error")
 

@@ -57,7 +57,7 @@ class FileMetadataStore:
             try:
                 from config.config_manager import load_config
                 config = load_config()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - config loading is pluggable and its exception surface is not fixed; raises a clear ValueError instead
                 logger.error(f"Failed to load config: {e}")
                 raise ValueError("Config must be provided for FileMetadataStore initialization")
 
@@ -132,7 +132,7 @@ class FileMetadataStore:
                 return True
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error recording file upload: {e}")
             return False
 
@@ -194,7 +194,7 @@ class FileMetadataStore:
             # Return True even if file didn't exist (idempotent update)
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error updating processing status: {e}")
             return False
 
@@ -243,7 +243,7 @@ class FileMetadataStore:
                 return True
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error recording chunk: {e}")
             return False
 
@@ -270,7 +270,7 @@ class FileMetadataStore:
                 return file_info
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error getting file info: {e}")
             return None
 
@@ -296,7 +296,7 @@ class FileMetadataStore:
 
             return [self._convert_to_legacy_format(row) for row in results]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error listing files: {e}")
             return []
 
@@ -318,7 +318,7 @@ class FileMetadataStore:
                 except (json.JSONDecodeError, KeyError):
                     pass
             return result
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error finding generated files for session {session_id}: {e}")
             return []
 
@@ -350,7 +350,7 @@ class FileMetadataStore:
             # Return True even if file didn't exist (idempotent delete)
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error deleting file: {e}")
             return False
 
@@ -376,7 +376,7 @@ class FileMetadataStore:
 
             return [self._convert_chunk_to_legacy_format(row) for row in results]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error getting file chunks: {e}")
             return []
 
@@ -407,7 +407,7 @@ class FileMetadataStore:
                 return chunk_info
             return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error getting chunk info: {e}")
             return None
 
@@ -428,7 +428,7 @@ class FileMetadataStore:
             logger.debug(f"Deleted {deleted_count} chunks for file {file_id}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error deleting file chunks: {e}")
             return False
 
@@ -467,7 +467,7 @@ class FileMetadataStore:
                 {'$set': {'metadata_json': json.dumps(merged_metadata)}}
             )
             return result
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error updating file metadata: {e}")
             return False
 
@@ -497,7 +497,7 @@ class FileMetadataStore:
                 await loop.run_in_executor(None, _vacuum)
                 logger.info("Vacuumed database")
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error vacuuming database: {e}")
             return False
 
@@ -522,7 +522,7 @@ class FileMetadataStore:
             stats['chunk_count'] = len(chunks)
 
             return stats
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error getting database stats: {e}")
             return {}
 

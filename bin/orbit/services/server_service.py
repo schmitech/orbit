@@ -192,7 +192,7 @@ class ServerService:
             response = self.api_client.get("/admin/info", headers=headers)
             response.raise_for_status()
             return response.json()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort admin-info probe over HTTP, falls back to other info sources
             logger.debug(f"Failed to get server info via API: {e}")
             return None
     
@@ -238,7 +238,7 @@ class ServerService:
             try:
                 shutil.rmtree(self.log_file.parent)
                 self.formatter.info("Logs folder deleted")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort log-folder cleanup during CLI teardown
                 logger.warning(f"Failed to delete logs: {e}")
         
         # Build the command to start the server
@@ -383,7 +383,7 @@ class ServerService:
                         self.formatter.info(f"Check logs at: {self.log_file}")
                         return False
                         
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level CLI server-start boundary, must report failure not crash
             self.formatter.error(f"Error starting server: {e}")
             return False
     
@@ -447,7 +447,7 @@ class ServerService:
                         self.auth_service.ensure_authenticated()
                         headers = {"Authorization": f"Bearer {self.auth_service.token}"}
                         self.api_client.post("/admin/shutdown", headers=headers, retry=False)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - force-mode shutdown probe, errors intentionally ignored
                         pass  # Ignore errors in force mode
                     
                     progress.update(task, completed=True)
@@ -559,7 +559,7 @@ class ServerService:
                         self.formatter.error("Failed to stop server: No process ID available and server is not responding to HTTP shutdown.")
                     return False
                     
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - HTTP shutdown boundary, falls back to signal-based shutdown
                     # Fallback to signal-based shutdown if HTTP fails
                     if pid:
                         logger.debug(f"HTTP shutdown failed, using signal-based shutdown: {e}")
@@ -613,7 +613,7 @@ class ServerService:
                                     progress.update(task, completed=True)
                                     self.formatter.success("Server stopped successfully")
                                     return True
-                            except Exception:
+                            except Exception:  # noqa: BLE001 - best-effort liveness poll during shutdown wait loop
                                 pass
                     
                     progress.update(task, completed=True)
@@ -626,7 +626,7 @@ class ServerService:
                 progress.update(task, completed=True)
                 self.formatter.info("Server process not found")
                 return True
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - top-level CLI server-stop boundary, must report failure not crash
                 progress.update(task, completed=True)
                 self.formatter.error(f"Error stopping server: {e}")
                 return False
@@ -665,7 +665,7 @@ class ServerService:
         except AuthenticationError as e:
             self.formatter.error(f"Authentication required: {e}")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level CLI HTTP-request boundary, must report failure not crash
             self.formatter.error(f"Error requesting server {action}: {e}")
             return False
 
@@ -725,7 +725,7 @@ class ServerService:
                 if https_port:
                     return int(https_port)
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort config read, falls back to default port
             logger.debug(f"Failed to read port from config: {e}")
         
         return None
@@ -759,7 +759,7 @@ class ServerService:
                 else:
                     # Fallback if URL format is unexpected
                     new_url = f"http://localhost:{port}"
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort URL parsing, falls back to default URL
                 logger.debug(f"Error parsing URL, using default: {e}")
                 new_url = f"http://localhost:{port}"
             
@@ -837,7 +837,7 @@ class ServerService:
                 logger.debug(f"Probe {endpoint} returned {response.status_code}")
                 return None
             return response.json()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort HTTP probe against the managed server process
             logger.debug(f"Probe {endpoint} failed: {e}")
             return None
 
@@ -910,7 +910,7 @@ class ServerService:
                     "message": f"Server is not running (PID {pid} not found)"
                 })
                 return result
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - top-level CLI status-check boundary, must report failure not crash
                 result.update({
                     "status": "unknown",
                     "health": "unknown",
@@ -1065,7 +1065,7 @@ class ServerService:
         """
         try:
             return round(process.cpu_percent(interval=max(interval, 0.05)), 2)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort CPU sampling via psutil
             logger.debug(f"Error getting CPU percentage: {e}")
             return 0.0
 
@@ -1120,7 +1120,7 @@ class ServerService:
                                     return proc.info['pid']
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, AttributeError):
                         continue
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort process iteration via psutil
                 logger.debug(f"Error iterating processes: {e}")
             
             # Method 2: Try using netstat/lsof as fallback (Unix-like systems)
@@ -1165,7 +1165,7 @@ class ServerService:
             except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
                 logger.debug(f"netstat method failed: {e}")
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort process discovery, falls through remaining detection methods
             logger.debug(f"Failed to find process by port: {e}")
         
         return None
