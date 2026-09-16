@@ -101,7 +101,9 @@ ollama pull gemma4:e2b
 ollama pull nomic-embed-text
 
 ./bin/orbit.sh start
+./bin/orbit.sh status
 ```
+![ORBIT server status](https://github.com/user-attachments/assets/d8dcbad8-1186-4c1b-bf0d-a875dcffbeba)
 
 The default setup enables Ollama in `config/inference.yaml`, selects it as the
 global provider in `config/config.yaml`, and uses the `gemma4-e2b-cpu` Ollama
@@ -135,7 +137,7 @@ Follow the tutorial to [verify the installation](docs/tutorial/before-you-start.
 
 <br />
 <div id="admin-panel-demo" align="center">
-  <video src="https://github.com/user-attachments/assets/e1f91fbb-f398-40f0-beb0-45129d4b0e34" controls muted playsinline width="85%"></video>
+  <video src="https://github.com/user-attachments/assets/e1f91fbb-f398-40f0-beb0-45129d4b0e34" controls muted playsinline width="90%"></video>
   <br />
   <em>The built-in admin panel is ORBIT's control plane—manage adapters, API keys, prompts, and system operations without touching server code.</em>
 </div>
