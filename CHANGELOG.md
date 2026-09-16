@@ -1,10 +1,5 @@
 # Changelog
 
-## [UNRELEASED]
-
-### Technical Improvements
-- **Ruff Blind-Except Hardening — Complete**: Resolved all remaining production-code `BLE001` (blind-except) findings per `docs/roadmap/complete/ruff-blind-except-hardening.md`, finishing a plan that started at 1,517 findings. `venv/bin/ruff check server bin --select BLE001` now reports zero findings repo-wide. Catches with a known, verifiable exception surface were narrowed to specific types (JSON/dict parsing, datetime/base64 formatting, file I/O, SQL/ObjectId parsing, optional-dependency import fallbacks); the remainder carry a `# noqa: BLE001` with a one-line rationale — pluggable DB/vector-store/datasource/AI-provider client boundaries with unstable third-party exception hierarchies, FastAPI route handlers and websocket connections that must degrade gracefully instead of crashing, per-plugin/per-adapter isolation boundaries, and best-effort cleanup/cache/telemetry/audit paths. `server/tests/` is now covered by a scoped `ruff.toml` per-file ignore rather than individual annotations. No behavior change.
-
 ## [2.17.10] - 2026-09-15
 
 ### Bug Fixes
@@ -13,7 +8,7 @@
 ### Technical Improvements
 - **MCP Instructions and Tool Annotations in Admin Panel**: Captured and exposed server instructions and tool hints from MCP discovery in the admin API and Tools section, clearly marked as unverified server-reported data. They remain diagnostic-only and are never sent to the model or used for tool decisions.
 - **MCP HTTP Discovery Diagnostics**: Added DEBUG request logging with secret-masked headers and curl reproductions, plus WARNING logs containing status, reason, and bounded response bodies for failed HTTP discovery. Discovery behavior is unchanged.
-- **Ruff Blind-Except Hardening**: Resolved 75 additional production-code `BLE001` findings with targeted exception handling or documented ignores; test files are now out of scope for the hardening plan. No behavior change.
+- **Ruff Blind-Except Hardening — Complete**: Resolved all remaining production-code `BLE001` (blind-except) findings per `docs/roadmap/complete/ruff-blind-except-hardening.md`, finishing a plan that started at 1,517 findings. `venv/bin/ruff check server bin --select BLE001` now reports zero findings repo-wide. Catches with a known, verifiable exception surface were narrowed to specific types (JSON/dict parsing, datetime/base64 formatting, file I/O, SQL/ObjectId parsing, optional-dependency import fallbacks); the remainder carry a `# noqa: BLE001` with a one-line rationale — pluggable DB/vector-store/datasource/AI-provider client boundaries with unstable third-party exception hierarchies, FastAPI route handlers and websocket connections that must degrade gracefully instead of crashing, per-plugin/per-adapter isolation boundaries, and best-effort cleanup/cache/telemetry/audit paths. `server/tests/` is now covered by a scoped `ruff.toml` per-file ignore rather than individual annotations. No behavior change.
 - **Chat History Service Cleanup and Follow-Ups**: Consolidated token estimation, retry configuration, task/error helpers, provider metadata, and database projections across MongoDB, SQLite, and PostgreSQL. Session listing and token-budget cleanup now use bounded DB-side aggregation with deterministic ordering, matching indexes, and concurrency-safe deletion; related cross-backend query bugs were fixed and covered by regression tests.
 
 ## [2.17.9] - 2026-09-13
