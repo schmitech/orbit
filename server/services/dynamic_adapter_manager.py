@@ -575,7 +575,7 @@ class DynamicAdapterManager:
         try:
             await self.get_adapter(adapter_name)
             logger.debug(f"Preloaded adapter: {adapter_name}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - preload is best-effort; caller only needs the log, not a crash
             logger.error(f"Failed to preload adapter {adapter_name}: {e!s}")
 
     async def preload_all_adapters(self, timeout_per_adapter: float = 30.0) -> dict[str, Any]:
@@ -630,7 +630,7 @@ class DynamicAdapterManager:
                 }
             except ValueError as e:
                 return self._build_preload_error_result(adapter_name, e)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-adapter isolation so one bad adapter doesn't fail the parallel preload batch
                 return {
                     "adapter_name": adapter_name,
                     "success": False,
@@ -718,7 +718,7 @@ class DynamicAdapterManager:
             from datasources.registry import get_registry as get_datasource_registry
             datasource_registry = get_datasource_registry()
             datasource_stats = datasource_registry.get_pool_stats()
-        except Exception:
+        except Exception:  # noqa: BLE001 - health check must degrade to empty stats, not crash reporting
             datasource_stats = {}
 
         return {
@@ -838,7 +838,7 @@ class DynamicAdapterManager:
                         summary['templates_loaded'] += result.get('templates_loaded', 0)
                         summary['adapters_updated'].append(name)
                         logger.info(f"Reloaded templates for adapter '{name}': {result.get('templates_loaded', 0)} templates")
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - per-adapter isolation so one bad adapter doesn't abort the reload loop
                         error_msg = f"{name}: {e!s}"
                         summary['errors'].append(error_msg)
                         logger.error(f"Error reloading templates for adapter '{name}': {e}")
@@ -875,7 +875,7 @@ class DynamicAdapterManager:
             from datasources.registry import get_registry as get_datasource_registry
             datasource_registry = get_datasource_registry()
             await datasource_registry.shutdown_pool(self.logger)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - shutdown must not crash on a misbehaving datasource pool
             logger.error(f"Error shutting down datasource pool: {e}")
 
         # Shutdown thread pool
@@ -930,7 +930,7 @@ class AdapterProxy:
                 api_key=api_key,
                 **kwargs
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - adapter proxy must not crash the caller on an unexpected adapter error
             logger.error(f"Error getting context from adapter {adapter_name}: {e!s}")
             return []
 

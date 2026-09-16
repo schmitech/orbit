@@ -66,7 +66,7 @@ class ApiService:
             response = self.api_client.post("/auth/logout", headers=headers)
             response.raise_for_status()
             result = response.json()
-        except Exception:
+        except Exception:  # noqa: BLE001 - logout HTTP boundary; CLI must fall back to local logout regardless of server response
             result = {"message": "Logged out locally"}
         finally:
             self.auth_service.token = None
@@ -349,7 +349,7 @@ class ApiService:
             detail = e.response.text
             try:
                 detail = e.response.json().get("detail", detail)
-            except Exception:
+            except (ValueError, AttributeError):
                 pass
             raise OrbitError(f"{e.response.status_code} {detail}")
 
@@ -477,7 +477,7 @@ class ApiService:
             try:
                 self.get_api_key_status(api_key)
                 return {"status": "success", "message": "API key is valid and active"}
-            except Exception:
+            except Exception:  # noqa: BLE001 - API-key verification via a follow-up call; treat any failure as invalid/deactivated
                 return {"status": "error", "error": "API key is invalid or deactivated"}
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401:
@@ -487,7 +487,7 @@ class ApiService:
             raise OrbitError(f"API key test failed: {e.response.status_code} {e.response.text}")
         except NetworkError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - CLI HTTP client boundary; wrap unexpected failure as OrbitError instead of crashing
             raise OrbitError(f"API key test failed: {e!s}")
     
     # System Prompt methods
@@ -626,7 +626,7 @@ class ApiService:
                     "keyring_available": keyring_available
                 }
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - CLI HTTP client boundary; report auth-status errors instead of crashing
             return {
                 "authenticated": False,
                 "message": f"Error checking status: {e!s}",

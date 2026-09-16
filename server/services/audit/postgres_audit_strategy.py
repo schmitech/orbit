@@ -100,7 +100,7 @@ class PostgresAuditStrategy(AuditStorageStrategy):
                 logger.warning("Failed to store audit record - no ID returned")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; audit write must fail safe
             logger.error(f"Error storing audit record in Postgres: {e}")
             return False
 
@@ -146,7 +146,7 @@ class PostgresAuditStrategy(AuditStorageStrategy):
 
             return [self._unflatten_record(record) for record in results]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; audit query must fail safe
             logger.error(f"Error querying audit records from Postgres: {e}")
             return []
 
@@ -321,7 +321,7 @@ class PostgresAuditStrategy(AuditStorageStrategy):
         if self._database_service and self._owns_database_service:
             try:
                 self._database_service.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - database-backend call; cleanup must not crash shutdown
                 logger.error(f"Error closing Postgres audit database service: {e}")
 
         self._initialized = False
@@ -343,7 +343,7 @@ class PostgresAuditStrategy(AuditStorageStrategy):
         if is_compressed and response:
             try:
                 response = decompress_text(response)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort decompression; falls back to raw stored value
                 logger.warning(f"Failed to decompress response: {e}")
 
         result = {
@@ -409,6 +409,6 @@ class PostgresAuditStrategy(AuditStorageStrategy):
             logger.info(f"Cleared {deleted_count} audit records from Postgres table '{self._collection_name}'")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; audit clear must fail safe
             logger.error(f"Error clearing Postgres audit records: {e}")
             return False

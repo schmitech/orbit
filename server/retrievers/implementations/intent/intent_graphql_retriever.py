@@ -124,7 +124,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
             error_msg = f"HTTP {e.response.status_code}: {e.response.text}"
             logger.error(f"[Template {template_id}] GraphQL request failed: {error_msg}")
             return [], error_msg
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - httpx client boundary with an unstable exception hierarchy
             template_id = template.get('id', 'unknown')
             error_msg = str(e)
             logger.error(f"[Template {template_id}] Error executing GraphQL template: {error_msg}")
@@ -243,7 +243,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
                                  f"retrying ({retries}/{self.max_retries})...")
                     import asyncio
                     await asyncio.sleep(self.retry_delay * retries)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - httpx retry loop must retry on any transient failure
                 last_error = e
                 retries += 1
                 if retries <= self.max_retries:
@@ -317,7 +317,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse GraphQL response as JSON: {e}")
             return [], f"Invalid JSON response: {e}"
-        except Exception as e:
+        except (TypeError, KeyError, AttributeError, IndexError) as e:
             logger.error(f"Error parsing GraphQL response: {e}")
             logger.error(traceback.format_exc())
             return [], f"Response parsing error: {e}"
@@ -359,7 +359,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
                 return [current]
             return []
 
-        except Exception as e:
+        except (TypeError, KeyError, IndexError, AttributeError) as e:
             logger.error(f"Error extracting items from path '{path}': {e}")
             return []
 
@@ -425,7 +425,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
 
             return current
 
-        except Exception:
+        except (TypeError, KeyError, IndexError, AttributeError):
             return None
 
     def _format_http_results(self, results: Any, template: dict,
@@ -610,7 +610,7 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
                 logger.warning("Introspection query returned no schema")
                 return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - httpx client boundary with an unstable exception hierarchy
             logger.warning(f"Schema introspection failed: {e}")
             return None
 

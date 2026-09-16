@@ -140,10 +140,34 @@ paced across sessions rather than in one pass.
   `bin/orbit/services/{server,auth}_service.py`.
 
 Running baseline (production code, `server/tests/` excluded): 1022 → 565
-(457 resolved). Next up: re-run the statistics command to pick the
-next-largest file (mostly `server/services/audit/`, `server/routes/admin/`,
-and remaining `server/retrievers/implementations/` files, roughly a dozen
-findings apiece).
+(457 resolved).
+- 2026-09-16: 51 files across `server/retrievers/`, `server/vector_stores/`,
+  `server/services/` (including `audit/`, `reload/`, `loader/`, `cache/`,
+  `chat_handlers/`), `server/routes/admin/`, `server/inference/`,
+  `server/config/`, `server/datasources/`, `server/utils/`, and
+  `bin/orbit/services/` (285 findings resolved). Narrowed catches with a
+  known exception surface: `sqlglot.errors.SqlglotError` in
+  `query_guard.py`'s SQL parsing, `json.JSONDecodeError`/`TypeError` in
+  several JSON-parsing sites (`intent_http_json_retriever.py`,
+  `mcp_client_service.py`, `thread_service.py`), `bson.errors.InvalidId` in
+  `intent_mongodb_retriever.py`'s ObjectId conversion, `ImportError`/
+  `AttributeError` in optional-dependency import fallbacks
+  (`metrics_service.py`, `admin/adapters.py`'s dynamic adapter import), and
+  file I/O / dict-access narrowing in `moderator_service.py` and
+  `config_manager.py`'s preset resolvers. The rest are justified with
+  `# noqa: BLE001` — pluggable retriever/vector-store/datasource/audit-backend
+  client boundaries with unstable third-party exception hierarchies, FastAPI
+  route handlers and websocket connections that must degrade gracefully
+  instead of crashing, generative-media pipeline steps that must isolate a
+  provider failure, hot-reload/cache-eviction paths that must not break the
+  reload cycle, and best-effort cleanup/telemetry/audit paths. No behavior
+  change.
+
+Running baseline (production code, `server/tests/` excluded): 1022 → 278
+(744 resolved). Next up: re-run the statistics command to pick the
+next-largest file — remaining findings are mostly single-digit counts spread
+across `server/retrievers/implementations/`, `server/vector_stores/`,
+`server/routes/admin/`, and `server/services/`.
 
 ### Rule meaning
 

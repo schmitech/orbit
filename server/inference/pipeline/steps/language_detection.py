@@ -42,7 +42,7 @@ except ImportError:
 # Seed the language detector for deterministic results when available
 try:
     DetectorFactory.seed = 0
-except Exception:
+except AttributeError:
     pass
 
 try:
@@ -557,7 +557,7 @@ class LanguageDetectionStep(PipelineStep):
                     f"for message: {(context.message or '')[:50]}..."
                 )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pipeline step must not crash the request; falls back to configured language
             logger.error(f"Error during language detection: {e!s}")
             context.detected_language = self.fallback_language
             if not hasattr(context, 'language_detection_meta'):
@@ -588,7 +588,7 @@ class LanguageDetectionStep(PipelineStep):
                     data = await cache_service.get_json(key)
                     if data and data.get('language'):
                         return data.get('language')
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort cache read; falls through to context metadata
             logger.debug(f"Could not retrieve session language from cache: {e}")
 
         # Fallback to context metadata
@@ -615,7 +615,7 @@ class LanguageDetectionStep(PipelineStep):
                     }
                     # Set with TTL of 1 hour to match session duration
                     await cache_service.store_json(key, data, ttl=3600)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort cache write must not fail the detection step
             logger.debug(f"Could not save session language to cache: {e}")
 
     def _session_language_key(self, session_id: str) -> str:
@@ -666,7 +666,7 @@ class LanguageDetectionStep(PipelineStep):
             total = sum(lang_counts.values())
             return {lang: count / total for lang, count in lang_counts.items()}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort heuristic over arbitrary chat-history message shapes
             logger.debug(f"Could not get chat history language prior: {e}")
             return None
 
@@ -961,7 +961,7 @@ class LanguageDetectionStep(PipelineStep):
         except asyncio.TimeoutError:
             logger.warning(f"Backend {backend_name} timed out after {timeout}s")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable detection backend with no fixed exception surface
             logger.warning(f"Backend {backend_name} failed: {e}")
             return None
 

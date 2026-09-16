@@ -84,7 +84,7 @@ class RedisRetriever(AbstractVectorRetriever):
             error_msg = "redis package is required for Redis retriever. Install with: pip install redis"
             logger.error(error_msg)
             raise ImportError(error_msg)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - redis-py client boundary with an unstable exception hierarchy
             error_msg = f"Failed to connect to Redis: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
@@ -95,7 +95,7 @@ class RedisRetriever(AbstractVectorRetriever):
             if self.redis_client:
                 self.redis_client.close()
             logger.debug("Redis client closed")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - shutdown must not crash on a misbehaving driver close
             logger.error(f"Error closing Redis connection: {e!s}")
 
     async def set_collection(self, collection_name: str) -> None:
@@ -118,14 +118,14 @@ class RedisRetriever(AbstractVectorRetriever):
                 
                 logger.debug(f"Switched to index: {collection_name}")
                     
-            except Exception:
+            except Exception:  # noqa: BLE001 - redis-py client boundary; any failure means the index isn't usable
                 error_msg = f"Index '{collection_name}' does not exist in Redis"
                 logger.error(error_msg)
-                custom_msg = self.config.get('messages', {}).get('collection_not_found', 
+                custom_msg = self.config.get('messages', {}).get('collection_not_found',
                             "Collection not found. Please ensure the collection exists before querying.")
                 raise HTTPException(status_code=404, detail=custom_msg)
-                
-        except Exception as e:
+
+        except Exception as e:  # noqa: BLE001 - route-adjacent boundary; must degrade to a 500, not crash
             error_msg = f"Failed to switch index: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
@@ -178,7 +178,7 @@ class RedisRetriever(AbstractVectorRetriever):
                             value = getattr(doc, field_name)
                             if not callable(value):
                                 metadata[field_name] = value
-                        except Exception:
+                        except (AttributeError, TypeError):
                             pass
                 
                 # Get score (Redis returns distance, lower is better for L2 and COSINE)
@@ -192,7 +192,7 @@ class RedisRetriever(AbstractVectorRetriever):
             
             return search_results
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - redis-py client boundary with an unstable exception hierarchy
             logger.error(f"Error querying Redis: {e!s}")
             return []
 

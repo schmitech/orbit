@@ -70,7 +70,7 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
         except asyncio.TimeoutError:
             logger.error("Elasticsearch connection timeout (admin audit)")
             self._es_client = None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; connection failure must fail safe
             logger.error(f"Failed to connect to Elasticsearch for admin audit: {e}")
             self._es_client = None
 
@@ -154,7 +154,7 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
         except ApiError as e:
             logger.error(f"Elasticsearch API error (admin audit): {e.info if hasattr(e, 'info') else e}")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary beyond ApiError; audit write must fail safe
             logger.error(f"Failed to store admin audit record in Elasticsearch: {e}")
             return False
 
@@ -196,7 +196,7 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
                 results.append(doc)
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; audit query must fail safe
             logger.error(f"Failed to query admin audit records from Elasticsearch: {e}")
             return []
 
@@ -214,7 +214,7 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
                 f"Cleared {deleted_count} admin audit records from Elasticsearch index '{self._index_name}'"
             )
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; audit clear must fail safe
             logger.error(f"Error clearing admin audit records from Elasticsearch: {e}")
             return False
 
@@ -223,7 +223,7 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
             try:
                 await self._es_client.close()
                 logger.info("Elasticsearch admin audit client closed")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; cleanup must not crash shutdown
                 logger.error(f"Error closing Elasticsearch admin audit client: {e}")
         self._initialized = False
         self._es_client = None

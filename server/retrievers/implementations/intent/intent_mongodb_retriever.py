@@ -11,6 +11,7 @@ import traceback
 import json
 from typing import Any, Optional
 from motor.motor_asyncio import AsyncIOMotorClient
+import bson.errors
 from bson import ObjectId
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
@@ -144,7 +145,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
 
             return results, None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymongo/motor client boundary, must surface a scoped error not crash
             error_msg = str(e)
             logger.error(f"Error executing MongoDB template: {error_msg}")
             logger.error(traceback.format_exc())
@@ -241,7 +242,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             # Convert Extended JSON types (e.g., {"$oid": "..."}) to BSON types
             return self._convert_extended_json(parsed)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - template rendering over arbitrary config-driven values, must fall back
             logger.error(f"Error processing MongoDB query template: {e}")
             if rendered:
                 logger.error(f"Rendered template that failed to parse:\n{rendered}")
@@ -268,7 +269,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             if len(obj) == 1 and "$oid" in obj:
                 try:
                     return ObjectId(obj["$oid"])
-                except Exception as e:
+                except (TypeError, ValueError, bson.errors.InvalidId) as e:
                     logger.warning(f"Invalid ObjectId value: {obj['$oid']}, error: {e}")
                     return obj
 
@@ -364,7 +365,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymongo/motor client boundary, must surface a scoped error not crash
             logger.error(f"Error executing MongoDB find query: {e}")
             logger.error(f"Filter: {filter_query}")
             logger.error(f"Projection: {projection}")
@@ -389,7 +390,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             count = await collection.count_documents(filter_query)
             return [{'count': count}]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymongo/motor client boundary, must fail safe with zero count
             logger.error(f"Error executing MongoDB count query: {e}")
             return [{'count': 0}]
 
@@ -428,7 +429,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymongo/motor client boundary, must fail safe with empty results
             logger.error(f"Error executing MongoDB aggregation query: {e}")
             logger.error(traceback.format_exc())
             return []
@@ -580,7 +581,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
                 'avgObjSize': stats.get('avgObjSize', 0),
                 'sample_document': sample_doc
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymongo/motor client boundary, must fail safe with empty info
             logger.error(f"Failed to get collection info: {e}")
             return {}
 
@@ -610,7 +611,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymongo/motor client boundary, must fail safe with empty results
             logger.error(f"Failed to execute aggregation: {e}")
             return []
 

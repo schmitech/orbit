@@ -170,7 +170,7 @@ class OllamaSessionManager:
             if self.session and not self.session.closed:
                 await self.session.close()
                 logger.debug("Closed aiohttp session")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort session cleanup; must not block resource release
             logger.error(f"Error closing session: {e!s}")
         finally:
             self.session = None
@@ -299,7 +299,7 @@ class OllamaModelWarmer:
 
                     return False
                 return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort probe of running-models endpoint; unstable HTTP client error surface
             logger.debug(f"Could not check running models: {e!s}")
             return False
 
@@ -398,7 +398,7 @@ class OllamaModelWarmer:
                     else:
                         raise Exception(f"Warmup failed with status {response.status}")
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - Ollama HTTP client boundary with retry handling; unstable exception surface across attempts
                 wait_time = min(
                     self.retry_handler.config.initial_wait_ms * (self.retry_handler.config.exponential_base ** attempt),
                     self.retry_handler.config.max_wait_ms
@@ -481,7 +481,7 @@ class OllamaConnectionVerifier:
                 logger.info(f"Successfully verified connection to Ollama with model {self.model}")
                 return True
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Ollama HTTP client connection-verification boundary must fail safe, not crash caller
             logger.error(f"Error verifying connection to Ollama: {e!s}")
             return False
 
@@ -581,7 +581,7 @@ class OllamaBaseService:
                     return True
 
                 return False
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - model warmup/initialization boundary must fail safe and fall back rather than crash
                 logger.error(f"Failed to initialize {self.__class__.__name__}: {e!s}")
                 await self.close()
                 return False
@@ -593,7 +593,7 @@ class OllamaBaseService:
         try:
             await self.session_manager.close()
             logger.debug(f"Closed {self.__class__.__name__}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort resource cleanup; must not block service shutdown
             logger.error(f"Error closing {self.__class__.__name__}: {e!s}")
         finally:
             self.initialized = False

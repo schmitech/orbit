@@ -132,14 +132,14 @@ class FileVectorRetriever(AbstractVectorRetriever):
                         store_type=vector_store_name  # Use the configured store type (e.g., 'qdrant', 'chroma')
                     )
                     logger.debug(f"Created vector store: {vector_store_name}")
-                except Exception as create_error:
+                except Exception as create_error:  # noqa: BLE001 - pluggable vector-store creation must degrade to limited mode
                     logger.warning(f"Could not create vector store '{vector_store_name}': {create_error}. "
                                  f"File adapter will operate in limited mode without vector search. "
                                  f"Ensure '{vector_store_name}' is enabled and configured in config/stores.yaml")
                     self._default_store = None
             else:
                 logger.debug(f"Initialized vector store: {vector_store_name}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vector-store init must degrade to limited mode, not crash
             logger.warning(f"Error initializing vector store {vector_store_name}: {e}. "
                          f"File adapter will operate in limited mode. Check vector store configuration in config/stores.yaml.")
             self._default_store = None
@@ -279,7 +279,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
 
             logger.debug(f"Filtering collections for provider: {provider_signature}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort collection filtering must not crash search
             logger.warning(f"Could not determine embedding provider info: {e}. Collections may not be filtered correctly.")
             provider_signature = None
 
@@ -432,7 +432,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
             
             return enriched_results
         
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vector-store client boundary, must fail safe with empty results
             logger.error(f"Error searching collection {collection_name}: {e}")
             return []
     
@@ -672,7 +672,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
             
             return success
         
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vector-store client boundary, must fail safe
             logger.error(f"Error indexing file chunks: {e}")
             return False
     
@@ -728,7 +728,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
                         if not success:
                             deletion_errors.append(chunk_id)
                             logger.warning(f"Failed to delete chunk {chunk_id} from vector store")
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - per-chunk cleanup must not abort the deletion loop
                         deletion_errors.append(chunk_id)
                         logger.error(f"Error deleting chunk {chunk_id} from vector store: {e}")
 
@@ -752,7 +752,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
                         logger.debug(f"Collection {collection_name} still has {points_count} points, keeping collection")
                     else:
                         logger.debug(f"Could not determine point count for collection {collection_name}, skipping collection deletion")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort collection cleanup must not abort the deletion flow
                     logger.warning(f"Error checking/deleting empty collection {collection_name}: {e}")
             else:
                 logger.warning(f"No vector store available, skipping vector store deletion for file {file_id}")
@@ -767,7 +767,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
             
             return metadata_delete_success
         
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vector-store/metadata-store client boundary, must fail safe
             logger.error(f"Error deleting file chunks for {file_id}: {e}")
             return False
     

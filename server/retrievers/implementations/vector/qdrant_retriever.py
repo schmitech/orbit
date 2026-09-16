@@ -209,7 +209,7 @@ class QdrantRetriever(AbstractVectorRetriever):
                     try:
                         await self.set_collection(self.collection_name)
                         logger.debug(f"QdrantRetriever initialized with collection: {self.collection_name}")
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - qdrant-client boundary; init continues without a preset collection
                         logger.error(f"Failed to set collection during initialization: {e!s}")
             else:
                 logger.debug("Qdrant client initialized (connection will be tested on first use)")
@@ -218,7 +218,7 @@ class QdrantRetriever(AbstractVectorRetriever):
             error_msg = "qdrant-client package is required for Qdrant retriever. Install with: pip install qdrant-client"
             logger.error(error_msg)
             raise ImportError(error_msg)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client boundary with an unstable exception hierarchy
             error_msg = f"Failed to initialize Qdrant client: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
@@ -230,7 +230,7 @@ class QdrantRetriever(AbstractVectorRetriever):
             # We also don't want to close the shared client.
             self.qdrant_client = None
             logger.debug("Qdrant client reference released")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - shutdown must not crash on a misbehaving driver reference release
             logger.error(f"Error closing Qdrant client: {e!s}")
     
     async def _ensure_connection(self) -> None:
@@ -249,7 +249,7 @@ class QdrantRetriever(AbstractVectorRetriever):
             # Quick test - just get collections count
             collections = self.qdrant_client.get_collections()
             logger.debug(f"Connection verified - found {len(collections.collections)} collections")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client boundary; any failure means the connection needs reinit
             logger.warning(f"Connection test failed: {e!s}, reinitializing...")
             QdrantClientManager.set_connected_status(self.url, self.host, self.port, self.api_key, False)
             await self.initialize_client(test_connection=True)
@@ -277,7 +277,7 @@ class QdrantRetriever(AbstractVectorRetriever):
                 logger.debug(f"Collection has {collection_info.points_count} vectors")
                 logger.debug(f"Collection config: {collection_info.config}")
                     
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - qdrant-client boundary; message-sniffed to distinguish not-found from other failures
                 if "Not found" in str(e) or "doesn't exist" in str(e):
                     error_msg = f"Collection '{collection_name}' does not exist in Qdrant"
                     logger.error(error_msg)
@@ -289,7 +289,7 @@ class QdrantRetriever(AbstractVectorRetriever):
                 
         except HTTPException:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qdrant-client boundary with an unstable exception hierarchy
             error_msg = f"Failed to switch collection: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
@@ -368,8 +368,8 @@ class QdrantRetriever(AbstractVectorRetriever):
                 logger.debug(f"Top result score: {formatted_results[0]['score']:.4f}")
             
             return formatted_results
-            
-        except Exception as e:
+
+        except Exception as e:  # noqa: BLE001 - qdrant-client boundary with an unstable exception hierarchy
             error_msg = str(e)
             if DIMENSION_MISMATCH_PATTERN.search(error_msg):
                 query_dim = len(query_embedding)

@@ -41,7 +41,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
 
             # Re-initialize QA parameters with actual config
             self._initialize_qa_parameters()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - adapter/config initialization must degrade to defaults, not crash startup
             logger.warning(f"Failed to initialize adapter config: {e!s}")
             # Continue with default values
 
@@ -76,7 +76,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
                 self.return_results = merged_config['return_results']
 
             return merged_config
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - config merge must degrade to empty dict, not crash startup
             logger.warning(f"Error merging configs: {e!s}")
             return {}
 
@@ -105,13 +105,13 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
                     config=self.config
                 )
                 logger.debug(f"Successfully created QA domain adapter for {self.get_datasource_name()}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - domain adapter creation from a pluggable registry falls back to a generic adapter
                 logger.error(f"Failed to create domain adapter: {e!s}")
                 # Try fallback to generic QA adapter
                 try:
                     self.domain_adapter = self._create_fallback_adapter()
                     logger.debug("Using generic QA adapter as fallback")
-                except Exception as fallback_e:
+                except Exception as fallback_e:  # noqa: BLE001 - fallback domain adapter creation must not crash; retriever proceeds with domain_adapter=None
                     logger.error(f"Failed to create fallback domain adapter: {fallback_e!s}")
                     self.domain_adapter = None
 
@@ -336,7 +336,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
 
             return context_items
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vector-store retrieval must degrade to empty results, not crash the request
             logger.error(f"Error retrieving context: {e!s}")
             return []
 

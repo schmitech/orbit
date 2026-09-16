@@ -6,6 +6,7 @@ Implementation of AuditStorageStrategy for MongoDB backend.
 Uses the existing MongoDBService/DatabaseService interface for storage operations.
 """
 
+import binascii
 import logging
 from datetime import datetime
 from typing import Any, Optional
@@ -137,7 +138,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             self._indexes_created = True
             logger.debug(f"Created indexes on {self._collection_name} collection")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/mongodb driver boundary; index creation must not fail initialization
             logger.warning(f"Error creating indexes on {self._collection_name}: {e}")
             # Don't fail initialization if index creation fails
             # MongoDB will still work, just potentially slower
@@ -170,7 +171,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
                 logger.warning("Failed to store audit record - no ID returned")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/mongodb driver boundary; must fail safe, not crash the caller
             logger.error(f"Error storing audit record in MongoDB: {e}")
             return False
 
@@ -214,13 +215,13 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
                     if record.get('response'):
                         try:
                             record['response'] = decompress_text(record['response'])
-                        except Exception as e:
+                        except (binascii.Error, OSError, UnicodeDecodeError) as e:
                             logger.warning(f"Failed to decompress response: {e}")
                             # Keep compressed response if decompression fails
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/mongodb driver boundary; must fail safe, not crash the caller
             logger.error(f"Error querying audit records from MongoDB: {e}")
             return []
 
@@ -412,7 +413,7 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
         if self._database_service and self._owns_database_service:
             try:
                 self._database_service.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - shutdown must not crash on a misbehaving driver close
                 logger.error(f"Error closing MongoDB audit database service: {e}")
 
         self._initialized = False
@@ -435,6 +436,6 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             logger.info(f"Cleared {deleted_count} audit records from MongoDB collection '{self._collection_name}'")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - motor/mongodb driver boundary; must fail safe, not crash the caller
             logger.error(f"Error clearing MongoDB audit records: {e}")
             return False

@@ -153,7 +153,7 @@ async def list_api_keys(
                     prompt = await prompt_service.get_prompt_by_id(prompt_id)
                     if prompt:
                         prompt_names[prompt_id] = prompt.get("name")
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - best-effort prompt-name resolution; must not fail the list response
                     logger.warning(f"Failed to resolve prompt name for API key list prompt {prompt_id}: {exc}")
 
         # Convert documents to JSON-serializable format
@@ -189,7 +189,7 @@ async def list_api_keys(
             "expiration_warning_days": expiration_warning_days,
         }
         
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 500
         logger.error(f"Error listing API keys: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to list API keys")
 
@@ -240,14 +240,14 @@ async def get_api_key_detail(
                     prompt = await prompt_service.get_prompt_by_id(prompt_id)
                     if prompt:
                         key_dict["system_prompt_name"] = prompt.get("name")
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - best-effort prompt-name resolution; must not fail the detail response
                     logger.warning(f"Failed to resolve prompt name for API key detail prompt {prompt_id}: {exc}")
 
         return key_dict
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 500
         logger.error(f"Error retrieving API key detail for {api_key_id}: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to retrieve API key detail")
 
@@ -634,6 +634,6 @@ async def get_quota_usage_report(
             "usage": report
         }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 500
         logger.error(f"Error generating quota usage report: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to generate usage report")

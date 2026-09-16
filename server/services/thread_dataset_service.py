@@ -130,14 +130,14 @@ class ThreadDatasetService:
                         "Cache is disabled - please enable caching (internal_services.cache.enabled) to use "
                         "cache-backed conversation threading. Will fall back to database storage."
                     )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable cache backend initialization must fall back to database storage, not crash startup
                 logger.warning(f"Failed to initialize cache service: {e}. Will fall back to database storage if the cache doesn't become available.")
 
         # Always initialize database service as fallback (even when using the cache service)
         # This ensures we can fall back if the cache becomes unavailable
         try:
             self.database_service = create_database_service(config)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable database backend initialization must fail safe, not crash startup
             logger.error(f"Failed to initialize database service: {e}")
             self.database_service = None
 
@@ -271,7 +271,7 @@ class ThreadDatasetService:
                     try:
                         inserted_id = await self.database_service.insert_one(collection_name, document)
                         insert_failed = inserted_id is None
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - pluggable database backend call within a fallback insert path
                         insert_failed = True
                         insert_error = e
                     if insert_failed and not await self.database_service.update_one(
@@ -367,7 +367,7 @@ class ThreadDatasetService:
             
             return (query_context, raw_results)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable cache/database backend retrieval; cached JSON is best-effort and must fail safe
             logger.error(f"Failed to retrieve dataset {dataset_key}: {e}")
             return None
 
@@ -418,7 +418,7 @@ class ThreadDatasetService:
 
                 return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable database backend call must fail safe, not crash caller
             logger.error(f"Failed to delete dataset {dataset_key}: {e}")
             return False
 
@@ -462,7 +462,7 @@ class ThreadDatasetService:
             
             return deleted_count
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - background cleanup loop over pluggable database backend; must not crash the cleanup task
             logger.error(f"Failed to cleanup expired datasets: {e}")
             return 0
 

@@ -540,14 +540,14 @@ async def _reload_mcp_clients(request: Request, server_name: Optional[str] = Non
         await manager.update_server(server_name, entry)
         try:
             await manager.refresh_tool_cache([server_name])
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - best-effort tool discovery must not fail the reload request
             logger.warning("MCP tool discovery failed after reload: %s", exc)
     else:
         manager = await mcp_client_service.reload_mcp_client_manager(app_config)
         if manager is not None:
             try:
                 await manager.refresh_tool_cache()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - best-effort tool discovery must not fail the reload request
                 logger.warning("MCP tool discovery failed after reload: %s", exc)
 
     servers: dict[str, Any] = {}
@@ -615,7 +615,7 @@ async def discover_mcp_tools(request: Request, server: Optional[str] = None):
 
     try:
         await manager.refresh_tool_cache([server] if server is not None else None)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - best-effort tool discovery must not fail the request
         logger.warning("MCP tool discovery failed: %s", exc)
 
     servers: dict[str, Any] = {}
@@ -904,7 +904,7 @@ async def create_mcp_server(request: Request, body: dict = Body(...)):
     reload_summary, reload_error = None, None
     try:
         reload_summary = await _reload_mcp_clients(request, server_name=entry["name"])
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - config is already written; reload is best-effort and must not fail the request
         reload_error = str(exc)
         logger.error("MCP config saved but reload failed: %s", exc)
     message = (
@@ -938,7 +938,7 @@ async def delete_mcp_server(server_name: str, request: Request):
     reload_summary, reload_error = None, None
     try:
         reload_summary = await _reload_mcp_clients(request, server_name=server_name)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - config is already written; reload is best-effort and must not fail the request
         reload_error = str(exc)
         logger.error("MCP config deleted but reload failed: %s", exc)
 
@@ -1021,7 +1021,7 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
     reload_summary, reload_error = None, None
     try:
         reload_summary = await _reload_mcp_clients(request, server_name=server_name)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - config is already written; reload is best-effort and must not fail the request
         reload_error = str(exc)
         logger.error("MCP config saved but reload failed: %s", exc)
 
@@ -1076,7 +1076,7 @@ async def update_mcp_defaults(request: Request, body: dict = Body(...)):
     reload_summary, reload_error = None, None
     try:
         reload_summary = await _reload_mcp_clients(request)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - config is already written; reload is best-effort and must not fail the request
         reload_error = str(exc)
         logger.error("MCP config saved but reload failed: %s", exc)
 

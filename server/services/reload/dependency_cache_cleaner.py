@@ -242,7 +242,7 @@ class DependencyCacheCleaner:
                             del EmbeddingServiceFactory._instances[key]
                             cleared.append(f"embedding_factory:{key}")
                 logger.debug(f"Cleared EmbeddingServiceFactory cache for provider '{old_embedding_provider}': {keys_to_remove}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort cache clearing must not fail the reload
             logger.warning(f"Error clearing EmbeddingServiceFactory cache: {e}")
 
         return cleared
@@ -460,11 +460,11 @@ class DependencyCacheCleaner:
                         if hasattr(cached_store, 'disconnect'):
                             try:
                                 await cached_store.disconnect()
-                            except Exception as e:
+                            except Exception as e:  # noqa: BLE001 - pluggable vector-store client boundary; must not block cache clearing
                                 logger.debug(f"Error disconnecting store {store}: {e}")
                         cleared.append(f"store:{store}")
                         logger.info(f"Cleared store cache for '{store}' (adapter: {adapter_name})")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort cache clearing must not fail the reload
                 logger.warning(f"Error clearing store cache for {store}: {e}")
 
         return cleared
@@ -504,7 +504,7 @@ class DependencyCacheCleaner:
 
         except ImportError:
             logger.debug("Datasource registry not available for cache clearing")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable datasource client boundary; must not block cache clearing
             logger.warning(f"Error clearing datasource cache for {datasource_name}: {e}")
 
         return cleared

@@ -77,7 +77,7 @@ class ModeratorService:
                     config
                 )
                 logger.info(f"Safety service using moderator: {self.moderator_name}")
-            except (ValueError, Exception) as e:
+            except Exception as e:  # noqa: BLE001 - pluggable moderator factory boundary; falls back to alternative moderator
                 # If moderator initialization fails (e.g., missing API key), try to fall back
                 logger.warning(f"Failed to initialize {self.moderator_name} moderator: {e!s}")
                 self._fallback_to_alternative_moderator(config, safety_config)
@@ -140,7 +140,7 @@ class ModeratorService:
                     )
                     logger.info(f"Successfully fell back to {alt_moderator} moderator")
                     return
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pluggable moderator factory boundary; tries next fallback
                     logger.warning(f"Failed to initialize {alt_moderator} moderator: {e!s}")
                     continue
 
@@ -207,7 +207,7 @@ class ModeratorService:
                 return prompt
             else:
                 logger.warning(f"Safety prompt file not found at: {prompt_path}")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.warning(f"Failed to load safety prompt from {prompt_path}: {e!s}")
         
         # Fallback to default safety prompt
@@ -335,7 +335,7 @@ Query: """
                         logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE by {self.moderator_name} moderator")
                         logger.info(f"⚠️ Flagged categories: {flagged_categories}")
                         logger.debug(f"All category scores: {result.categories}")
-                    except Exception as category_error:
+                    except (AttributeError, TypeError, KeyError) as category_error:
                         logger.error(f"Error processing moderation categories: {category_error!s}")
                         logger.info("🛑 MODERATION BLOCKED: Query was flagged as UNSAFE (categories unavailable)")
 
@@ -425,7 +425,7 @@ Query: """
                                 refusal_message = f"I cannot assist with requests involving {category_desc}."
                         else:
                             refusal_message = "I cannot assist with that type of request."
-                    except Exception:
+                    except (AttributeError, TypeError, KeyError):
                         refusal_message = "I cannot assist with that type of request."
                     return False, refusal_message
                 

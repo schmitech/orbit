@@ -258,7 +258,7 @@ class PipelineChatService:
             if detected:
                 logger.debug(f"Auto-detected skill '{detected}' for adapter '{adapter_name}'")
                 return detected, True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort skill detection; falls back to no auto-detected skill
             logger.warning(f"Skill intent detection failed: {e}")
         return skill, False
 
@@ -304,7 +304,7 @@ class PipelineChatService:
                 file_id=file_id, status="completed"
             )
             context.image_url = f"/api/files/{file_id}/content"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort metadata persistence; must not fail the chat response
             logger.warning(f"Failed to persist generated image: {e}")
 
     async def _persist_generated_video(self, context: ProcessingContext) -> None:
@@ -338,7 +338,7 @@ class PipelineChatService:
                 file_id=file_id, status="completed"
             )
             context.video_url = f"/api/files/{file_id}/content"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort metadata persistence; must not fail the chat response
             logger.warning(f"Failed to persist generated video: {e}")
 
     async def _persist_generated_document(self, context: ProcessingContext) -> None:
@@ -373,7 +373,7 @@ class PipelineChatService:
                 file_id=file_id, status="completed"
             )
             context.document_url = f"/api/files/{file_id}/content"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort metadata persistence; must not fail the chat response
             logger.warning(f"Failed to persist generated document: {e}")
 
     async def _persist_generated_audio(self, context: ProcessingContext) -> None:
@@ -407,7 +407,7 @@ class PipelineChatService:
                 file_id=file_id, status="completed"
             )
             context.generated_audio_url = f"/api/files/{file_id}/content"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort metadata persistence; must not fail the chat response
             logger.warning(f"Failed to persist generated audio: {e}")
 
     # -------------------------------------------------------------------------

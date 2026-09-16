@@ -323,7 +323,7 @@ class AudioHandler:
                 f"Reserved: {reserved:.2f} MB, "
                 f"Peak: {max_allocated:.2f} MB"
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort GPU memory monitoring; must not crash the caller
             pass  # Silently fail if GPU monitoring fails
 
     async def _get_audio_service(self, provider: str):
@@ -377,7 +377,7 @@ class AudioHandler:
             try:
                 await audio_service.initialize()
                 self._log_gpu_memory(f"after initializing {provider}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable audio provider boundary with unstable exception surface
                 if self._is_gpu_error(e):
                     logger.error(f"GPU error during {provider} initialization: {e!s}")
                     # Try to clear GPU cache and retry once
@@ -386,7 +386,7 @@ class AudioHandler:
                         try:
                             await audio_service.initialize()
                             self._log_gpu_memory(f"after retry initializing {provider}")
-                        except Exception as retry_error:
+                        except Exception as retry_error:  # noqa: BLE001 - pluggable audio provider boundary with unstable exception surface
                             logger.error(f"Failed to initialize {provider} after GPU cleanup: {retry_error!s}")
                             return None
                 else:
@@ -592,7 +592,7 @@ class AudioHandler:
                 if hasattr(service, 'close'):
                     await service.close()
                     logger.debug(f"Closed audio service: {provider}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort resource cleanup; must not block shutdown
                 logger.warning(f"Error closing audio service {provider}: {e!s}")
 
         # Clear the cache
@@ -603,7 +603,7 @@ class AudioHandler:
             try:
                 torch.cuda.empty_cache()
                 self._log_gpu_memory("after cleanup")
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort GPU cache cleanup; must not block shutdown
                 pass
 
         logger.debug("Audio handler cleanup completed")

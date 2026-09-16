@@ -474,7 +474,7 @@ class MCPClientManager:
             )
             registry = get_tool_skill_registry(self._runtime_config)
             warn_catalog_overflow(self._runtime_config, registry, self)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - diagnostic only; must not affect discovery outcome
             # Discovery succeeded; a diagnostic must not change that outcome.
             logger.debug("Could not evaluate tool-skill catalog overflow: %s", exc)
 
@@ -504,7 +504,7 @@ class MCPClientManager:
                 if annotations
             }
             logger.info("MCP server '%s': discovered %d tools", server_name, len(tools))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - MCP SDK collapses transport errors into one generic type
             # The MCP SDK's Streamable HTTP transport collapses every non-2xx
             # response into the same generic JSON-RPC error ("Server returned
             # an error response"), discarding the actual status code/body —
@@ -780,7 +780,7 @@ class MCPClientManager:
                         break
                 encoding = response.encoding or "utf-8"
                 snippet = bytes(body[:500]).decode(encoding, errors="replace")
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort diagnostic body read over an httpx stream
                 snippet = "<body unavailable>"
             logger.warning(
                 "MCP server '%s': HTTP %d %s from %s %s — response body: %s",
@@ -811,7 +811,7 @@ class MCPClientManager:
                 # EmbeddedResource or BlobResource — try JSON
                 try:
                     parts.append(json.dumps(item.data))
-                except Exception:
+                except TypeError:
                     parts.append(str(item.data))
         return "\n".join(parts) if parts else ""
 

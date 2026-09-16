@@ -137,7 +137,7 @@ class AdapterReloader:
             except ValueError as e:
                 error_msg = str(e)
                 logger.error(f"Failed to preload adapter '{adapter_name}' after reload: {error_msg}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable adapter preload is non-fatal; falls back to lazy load
                 logger.warning(f"Failed to preload adapter '{adapter_name}' after reload: {e!s}. "
                              f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
 
@@ -285,7 +285,7 @@ class AdapterReloader:
         except ValueError as e:
             error_msg = str(e)
             logger.error(f"Failed to preload {action_desc} adapter '{adapter_name}': {error_msg}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable adapter preload is non-fatal; falls back to lazy load
             logger.warning(f"Failed to preload {action_desc} adapter '{adapter_name}': {e!s}. "
                           f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
 
@@ -308,7 +308,7 @@ class AdapterReloader:
         try:
             await autocomplete_service.invalidate_cache()
             logger.debug(f"Invalidated autocomplete cache (all adapters) after '{adapter_name}' reload")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort cache invalidation must not fail the reload
             logger.warning(f"Failed to invalidate autocomplete cache after '{adapter_name}' reload: {e}")
 
     def _register_capabilities(self, adapter_name: str, adapter_config: dict[str, Any]) -> None:
@@ -325,5 +325,5 @@ class AdapterReloader:
                 )
             else:
                 capability_registry.unregister(adapter_name)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort capability registration must not fail the reload
             logger.warning(f"Failed to register capabilities for adapter '{adapter_name}': {e}")

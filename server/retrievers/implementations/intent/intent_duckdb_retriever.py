@@ -110,14 +110,14 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
                     connection.execute("INSTALL httpfs;")
                     connection.execute("LOAD httpfs;")
                     logger.debug("DuckDB httpfs extension loaded for remote file support")
-                except Exception as extension_error:
+                except Exception as extension_error:  # noqa: BLE001 - duckdb extension install is best-effort; remote-file support degrades gracefully
                     logger.warning(f"Failed to load DuckDB httpfs extension: {extension_error}")
             else:
                 # In read-only mode, try to load without installing (if already installed)
                 try:
                     connection.execute("LOAD httpfs;")
                     logger.debug("DuckDB httpfs extension loaded (read-only mode)")
-                except Exception:
+                except Exception:  # noqa: BLE001 - duckdb extension load is best-effort in read-only mode
                     logger.error("DuckDB httpfs extension not available (read-only mode)")
 
             # Test connection
@@ -165,7 +165,7 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
             # Try a simple query to verify connection is working
             self.connection.execute("SELECT 1").fetchone()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - duckdb driver boundary connection health check must not crash, only report status
             return False
 
     async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
@@ -235,7 +235,7 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
                     # Alternative: get column names from result.description if available
                     elif hasattr(result, 'description') and result.description:
                         column_names = [desc[0] for desc in result.description]
-                except Exception:
+                except Exception:  # noqa: BLE001 - best-effort column-name introspection across duckdb result object variants
                     pass
                 
                 # Convert to list of dictionaries
@@ -260,7 +260,7 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
             try:
                 self.connection.close()
                 logger.debug("Closed DuckDB connection")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - duckdb driver boundary close must not crash cleanup
                 logger.warning(f"Error closing DuckDB connection: {e}")
             finally:
                 # Clear the connection reference

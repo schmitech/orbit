@@ -247,7 +247,7 @@ class QuotaService:
                         quota_config['throttle_enabled'] = api_key_doc['quota_throttle_enabled']
                     if api_key_doc.get('quota_throttle_priority') is not None:
                         quota_config['throttle_priority'] = api_key_doc['quota_throttle_priority']
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - database backend call must fail safe with default quota config, not crash caller
                 logger.warning(f"Failed to get quota config from database: {e}")
 
         # Cache the result
@@ -300,7 +300,7 @@ class QuotaService:
                 monthly_ttl_remaining if monthly_ttl_remaining > 0 else monthly_ttl,
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - cache backend call must fail safe with default quota counters, not crash caller
             logger.warning(f"Failed to increment quota usage: {e}")
             return (0, 0, 86400, 2592000)
 
@@ -367,7 +367,7 @@ class QuotaService:
                 exceeded,
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - cache backend call must fail safe with default quota counters, not crash caller
             logger.warning(f"Failed to check quota usage: {e}")
             return (0, 0, 86400, 2592000, None)
 
@@ -409,7 +409,7 @@ class QuotaService:
                 'last_request_at': float(last_request_str) if last_request_str else None
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - cache backend call must fail safe with default usage, not crash caller
             logger.warning(f"Failed to get quota usage: {e}")
             return empty_usage
 
@@ -467,7 +467,7 @@ class QuotaService:
 
             return result.modified_count > 0 if hasattr(result, 'modified_count') else True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database backend call must fail safe, not crash caller
             logger.error(f"Failed to update quota config: {e}")
             return False
 
@@ -506,7 +506,7 @@ class QuotaService:
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - cache/database backend call must fail safe, not crash caller
             logger.error(f"Failed to reset usage: {e}")
             return False
 

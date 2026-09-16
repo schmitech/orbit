@@ -130,7 +130,7 @@ def _mask_url(url: str) -> str:
             return f"{base_url}?{'&'.join(masked_params)}"
 
         return url
-    except Exception:
+    except Exception:  # noqa: BLE001 - defensive URL-masking fallback for diagnostics; must never raise while sanitizing a log message
         return url.split('//')[0] + '//[HOST_REDACTED]' if '//' in url else '[URL_REDACTED]'
 
 
@@ -171,7 +171,7 @@ def _process_imports(config: dict[str, Any], config_dir: str) -> dict[str, Any]:
                 
         except FileNotFoundError:
             logger.warning(f"Import file not found: {os.path.abspath(import_path)}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - imported config file content is arbitrary/untrusted YAML; must not abort config loading
             logger.warning(f"Error loading import file {os.path.abspath(import_path)}: {e!s}")
     
     # Recursively process nested dictionaries
@@ -342,7 +342,7 @@ def _get_secrets_backend(config: dict[str, Any]):
     try:
         from services.secrets import create_secrets_backend
         _secrets_backend = create_secrets_backend(config)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - pluggable secrets backend initialization must fall back to environment variables, not crash startup
         logger.warning(f"Failed to initialize secrets backend, falling back to environment variables only: {e}")
         _secrets_backend = None
 
@@ -376,7 +376,7 @@ def _process_env_vars(config: dict[str, Any], secrets_backend: Any = None) -> di
             if secrets_backend is not None:
                 try:
                     secret_value = secrets_backend.get_secret(env_var_name)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pluggable secrets backend lookup must fall back to environment variable resolution
                     logger.warning(f"Secrets backend lookup failed for '{env_var_name}', falling back to environment: {e}")
                     secret_value = None
                 if secret_value:
@@ -516,7 +516,7 @@ def was_resolved_from_preset(provider_key: str) -> Optional[str]:
 def _resolve_ollama_presets(config: dict[str, Any]) -> dict[str, Any]:
     try:
         return _resolve_inference_preset(config, 'ollama', 'ollama_presets')
-    except Exception as e:
+    except (AttributeError, TypeError, KeyError) as e:
         logger.warning(f"Error resolving Ollama presets: {e!s}")
         return config
 
@@ -524,7 +524,7 @@ def _resolve_ollama_presets(config: dict[str, Any]) -> dict[str, Any]:
 def _resolve_llama_cpp_presets(config: dict[str, Any]) -> dict[str, Any]:
     try:
         return _resolve_inference_preset(config, 'llama_cpp', 'llama_cpp_presets')
-    except Exception as e:
+    except (AttributeError, TypeError, KeyError) as e:
         logger.warning(f"Error resolving llama.cpp presets: {e!s}")
         return config
 
@@ -532,6 +532,6 @@ def _resolve_llama_cpp_presets(config: dict[str, Any]) -> dict[str, Any]:
 def _resolve_azure_presets(config: dict[str, Any]) -> dict[str, Any]:
     try:
         return _resolve_inference_preset(config, 'azure', 'azure_presets')
-    except Exception as e:
+    except (AttributeError, TypeError, KeyError) as e:
         logger.warning(f"Error resolving Azure presets: {e!s}")
         return config

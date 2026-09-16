@@ -18,6 +18,7 @@ from typing import Optional
 
 import sqlglot
 from sqlglot import exp
+from sqlglot.errors import SqlglotError
 from sqlglot.tokens import TokenType
 
 logger = logging.getLogger(__name__)
@@ -194,7 +195,7 @@ def enforce_row_cap(sql: str, cap: int, dialect: Optional[str] = None) -> str:
     """
     try:
         parsed = sqlglot.parse_one(sql, read=dialect)
-    except Exception as e:
+    except SqlglotError as e:
         logger.warning(f"Could not parse SQL to enforce row cap, returning unmodified: {e}")
         return sql
 
@@ -348,7 +349,7 @@ def _inject_row_cap(sql: str, cap: int, dialect: Optional[str]) -> str:
 
     try:
         tokens = sqlglot.tokenize(sql, read=dialect)
-    except Exception:
+    except SqlglotError:
         return sql
 
     select_positions = _depth_zero_token_indices(tokens, TokenType.SELECT)
@@ -455,7 +456,7 @@ def _find_outer_row_count_span(sql: str, dialect: Optional[str], limit_value: in
     """
     try:
         tokens = sqlglot.tokenize(sql, read=dialect)
-    except Exception:
+    except SqlglotError:
         return None
 
     indices = _find_outer_row_count_token_indices(tokens)
@@ -484,7 +485,7 @@ def _find_limit_all_span(sql: str, dialect: Optional[str]):
     """
     try:
         tokens = sqlglot.tokenize(sql, read=dialect)
-    except Exception:
+    except SqlglotError:
         return None
 
     limit_positions = _depth_zero_token_indices(tokens, TokenType.LIMIT)
@@ -516,7 +517,7 @@ def find_outer_limit_bind_name(sql: str, dialect: Optional[str] = None) -> Optio
     """
     try:
         parsed = sqlglot.parse_one(sql, read=dialect)
-    except Exception:
+    except SqlglotError:
         return None
 
     if not isinstance(parsed, (exp.Select, exp.Union)):
@@ -558,7 +559,7 @@ def find_outer_limit_positional_index(sql: str, dialect: Optional[str] = None) -
     """
     try:
         parsed = sqlglot.parse_one(sql, read=dialect)
-    except Exception:
+    except SqlglotError:
         return None
 
     existing_limit = parsed.args.get("limit")
@@ -572,7 +573,7 @@ def find_outer_limit_positional_index(sql: str, dialect: Optional[str] = None) -
 
     try:
         tokens = sqlglot.tokenize(sql, read=dialect)
-    except Exception:
+    except SqlglotError:
         return None
 
     indices = _find_outer_row_count_token_indices(tokens)

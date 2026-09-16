@@ -68,7 +68,7 @@ class MongoDBAdminAuditStrategy(AdminAuditStorageStrategy):
             )
             self._indexes_created = True
             logger.debug(f"Created indexes on {self._collection_name} collection")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; index creation is best-effort setup
             logger.warning(f"Error creating indexes on {self._collection_name}: {e}")
 
     async def store(self, record: AdminAuditRecord) -> bool:
@@ -83,7 +83,7 @@ class MongoDBAdminAuditStrategy(AdminAuditStorageStrategy):
                 return True
             logger.warning("Failed to store admin audit record - no ID returned")
             return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; audit write must fail safe
             logger.error(f"Error storing admin audit record in MongoDB: {e}")
             return False
 
@@ -106,7 +106,7 @@ class MongoDBAdminAuditStrategy(AdminAuditStorageStrategy):
                 skip=offset,
                 sort=[(sort_by, sort_order)],
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; audit query must fail safe
             logger.error(f"Error querying admin audit records from MongoDB: {e}")
             return []
 
@@ -114,7 +114,7 @@ class MongoDBAdminAuditStrategy(AdminAuditStorageStrategy):
         if self._database_service and self._owns_database_service:
             try:
                 self._database_service.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - database-backend call; cleanup must not crash shutdown
                 logger.error(f"Error closing MongoDB admin audit database service: {e}")
         self._initialized = False
 
@@ -127,6 +127,6 @@ class MongoDBAdminAuditStrategy(AdminAuditStorageStrategy):
                 f"Cleared {deleted_count} admin audit records from MongoDB collection '{self._collection_name}'"
             )
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; audit clear must fail safe
             logger.error(f"Error clearing MongoDB admin audit records: {e}")
             return False

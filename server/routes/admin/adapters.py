@@ -61,7 +61,7 @@ def _supports_template_reload(adapter_instance, adapter_config: dict) -> bool:
         module = importlib.import_module(module_path)
         adapter_class = getattr(module, class_name)
         return hasattr(adapter_class, 'reload_templates')
-    except Exception:
+    except (ImportError, AttributeError, ValueError):
         return False
 
 
@@ -89,7 +89,7 @@ def _supports_test_query(adapter_instance, adapter_config: dict) -> bool:
         module = importlib.import_module(module_path)
         adapter_class = getattr(module, class_name)
         return issubclass(adapter_class, intent_bases)
-    except Exception:
+    except (ImportError, AttributeError, ValueError, TypeError):
         return False
 
 
@@ -120,7 +120,7 @@ async def get_adapter_capabilities(
             })
 
         return {"adapters": capabilities}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler must degrade to a 500, not crash
         logger.error(f"Failed to get adapter capabilities: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to get adapter capabilities")
 
@@ -181,7 +181,7 @@ async def list_adapter_configs(
                         "allowed_audio_models": adapter.get("allowed_audio_models") or [],
                         "allowed_search_providers": adapter.get("allowed_search_providers") or [],
                     })
-        except Exception:
+        except (yaml.YAMLError, AttributeError, TypeError):
             pass  # File might have invalid YAML — show it anyway with empty adapters
         files.append(entry)
 
@@ -1058,7 +1058,7 @@ async def delete_adapter(
             new_config = reload_adapters_config(config_path)
             reload_summary = await adapter_manager.reload_adapter_configs(new_config)
             apply_mcp_auth_policy(request.app.state, new_config)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - runtime reload must not crash the delete flow; surfaced to the caller as reload_error
             logger.error(f"Adapter '{adapter_name}' was deleted but runtime reload failed: {e}", exc_info=True)
             reload_error = str(e)
     else:
@@ -1069,7 +1069,7 @@ async def delete_adapter(
     try:
         from adapters.capabilities import get_capability_registry
         get_capability_registry().unregister(adapter_name)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - best-effort cleanup; must not fail the delete flow
         logger.warning(f"Could not unregister capabilities for '{adapter_name}': {exc}")
 
     await _propagate_adapter_generation(request, "deletion")
@@ -1375,7 +1375,7 @@ async def test_adapter_query(
 
     try:
         adapter = await adapter_manager.get_adapter(adapter_name)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - route handler; any adapter-load failure reported as 404
         raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found: {e}")
 
     if adapter is None:

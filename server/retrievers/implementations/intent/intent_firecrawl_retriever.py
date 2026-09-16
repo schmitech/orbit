@@ -176,7 +176,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                     await self.chunk_manager.initialize()
 
                     logger.info(f"Chunk manager initialized successfully with {self.store_name} store")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pluggable chunk manager/embedding backend; must degrade to chunking disabled
                     logger.warning(f"Failed to initialize chunk manager: {e}")
                     logger.warning("Chunking will be disabled for this session")
                     logger.error(traceback.format_exc())
@@ -308,7 +308,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                 "confidence": 0.0
             }]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - top-level retriever entry point must not crash the caller
             logger.error(f"Error in get_relevant_context: {e}")
             logger.error(traceback.format_exc())
             return [{
@@ -383,7 +383,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             error_msg = f"Firecrawl API error {e.response.status_code}: {e.response.text}"
             logger.error(f"Firecrawl request failed: {error_msg}")
             return [], error_msg
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - httpx client boundary with an unstable exception hierarchy
             error_msg = str(e)
             logger.error(f"Error executing Firecrawl template: {error_msg}")
             logger.error(traceback.format_exc())
@@ -462,7 +462,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                     logger.warning(f"Request failed with {e.response.status_code}, retrying ({retries}/{self.max_retries})...")
                     import asyncio
                     await asyncio.sleep(self.retry_delay * retries)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - httpx retry loop must retry on any transient failure
                 last_error = e
                 retries += 1
                 if retries <= self.max_retries:
@@ -522,7 +522,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
             return [result]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - third-party API response shape is not guaranteed; must degrade to an error result
             logger.error(f"Error parsing Firecrawl response: {e}")
             logger.error(traceback.format_exc())
             return [{'error': str(e), 'raw_response': response.text[:500]}]
@@ -575,7 +575,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                     results, template, parameters, query, source_url,
                     usage_sink=usage_sink,
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable chunker must fall back to unchunked content, not crash
                 logger.warning(f"Chunking failed, falling back to full content: {e}")
                 content = self._format_firecrawl_results(results, template)
         else:

@@ -124,7 +124,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             error_msg = f"HTTP {e.response.status_code}: {e.response.text}"
             logger.error(f"[Template {template_id}] REST API request failed for endpoint '{endpoint}': {error_msg}")
             return [], error_msg
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - HTTP client boundary, must surface a template-scoped error not crash
             template_id = template.get('id', 'unknown')
             error_msg = str(e)
             logger.error(f"[Template {template_id}] Error executing REST template: {error_msg}")
@@ -186,7 +186,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             logger.debug(f"Final processed endpoint: '{endpoint}'")
             return endpoint
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - template substitution over arbitrary config-driven values, must fall back
             logger.error(f"Error processing endpoint template: {e}")
             logger.error(traceback.format_exc())
             return endpoint_template
@@ -340,7 +340,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
                         body_str = body_str.replace(f"{{{{{param_name}}}}}", replacement)
 
                 return json.loads(body_str)
-            except Exception as e:
+            except (json.JSONDecodeError, TypeError) as e:
                 logger.error(f"Error processing body template: {e}")
                 return None
         elif isinstance(body_template, dict):
@@ -433,7 +433,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
                     logger.warning(f"Request failed with {e.response.status_code}, retrying ({retries}/{self.max_retries})...")
                     import asyncio
                     await asyncio.sleep(self.retry_delay * retries)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - HTTP client boundary; caught to drive the retry loop
                 last_error = e
                 retries += 1
                 if retries <= self.max_retries:
@@ -465,7 +465,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             if 'application/json' in content_type or not content_type:
                 try:
                     data = response.json()
-                except Exception:
+                except json.JSONDecodeError:
                     # If JSON parsing fails, return text
                     return [{'response': response.text}]
             else:
@@ -493,7 +493,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
 
             return results
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - response shape is arbitrary third-party API output, must fail safe
             logger.error(f"Error parsing response: {e}")
             logger.error(traceback.format_exc())
             return [{'error': str(e), 'raw_response': response.text[:500]}]
@@ -527,7 +527,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
                 return [current]
             return []
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - traverses arbitrary response shapes, must fail safe
             logger.error(f"Error extracting items from path {path}: {e}")
             return []
 
@@ -588,7 +588,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
 
             return current
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - traverses arbitrary response shapes, must fail safe
             return None
 
     def _format_http_results(self, results: Any, template: dict,

@@ -21,11 +21,11 @@ from prometheus_client import (
 try:
     # Optional default collectors for richer metrics
     from prometheus_client import ProcessCollector, PlatformCollector, GCCollector
-except Exception:  # pragma: no cover - optional depending on prometheus_client version
+except (ImportError, AttributeError):  # pragma: no cover - optional depending on prometheus_client version
     ProcessCollector = PlatformCollector = GCCollector = None
 try:
     from prometheus_client import multiprocess
-except Exception:  # pragma: no cover
+except (ImportError, AttributeError):  # pragma: no cover
     multiprocess = None
 import logging
 
@@ -94,7 +94,7 @@ class MetricsService:
                     PlatformCollector(registry=self.registry)
                 if GCCollector:
                     GCCollector(registry=self.registry)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - prometheus_client collector registration is version-dependent and optional
             logger.debug(f"Prometheus default collectors setup skipped: {e}")
         
         # Request metrics
@@ -396,7 +396,7 @@ class MetricsService:
 
                 await asyncio.sleep(self.collection_interval)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - background collection loop must not crash on a transient failure
                 logger.error(f"Error collecting system metrics: {e}")
                 await asyncio.sleep(self.collection_interval)
     

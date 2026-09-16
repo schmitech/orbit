@@ -72,7 +72,7 @@ class QASSQLRetriever(SQLiteRetriever):
         if self.collection and self.connection:
             try:
                 await self.set_collection(self.collection)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort field reconciliation must not block set_collection callers
                 logger.warning(f"Could not reconcile search fields for table '{self.collection}': {e}")
 
         # Check for QA-specific search_tokens table optimization
@@ -85,7 +85,7 @@ class QASSQLRetriever(SQLiteRetriever):
             else:
                 self.has_token_table = False
                 logger.debug("'search_tokens' table not found - using QA string similarity only")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - SQL driver boundary probing for optional table; must degrade to has_token_table=False
             logger.warning(f"Error checking for search_tokens table: {e!s}")
             self.has_token_table = False
 
@@ -254,7 +254,7 @@ class QASSQLRetriever(SQLiteRetriever):
             
             return results
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - SQL driver boundary search must degrade to empty results, not crash the request
             logger.error(f"Error in QA token-based search: {e!s}")
             return []
 
@@ -421,7 +421,7 @@ class QASSQLRetriever(SQLiteRetriever):
             
             return results
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - SQL driver boundary retrieval must degrade to empty results, not crash the request
             logger.error(f"Error retrieving QA context: {e!s}")
             logger.error(traceback.format_exc())
             return []
@@ -470,7 +470,7 @@ class QASSQLRetriever(SQLiteRetriever):
                 self.connection.commit()
                 
                 logger.debug(f"Created QA default table '{self.collection}' with sample data")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - SQL driver boundary for optional default-table bootstrap; failure is non-fatal
             logger.warning(f"Could not create QA default table: {e!s}")
 
 

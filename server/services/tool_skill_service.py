@@ -569,7 +569,7 @@ async def refresh_tool_skill_registry_db(config: dict, tool_skill_service: "Tool
     try:
         from services.mcp_client_service import get_current_mcp_client_manager
         warn_catalog_overflow(config, registry, get_current_mcp_client_manager())
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - diagnostics must never make a successful registry refresh fail
         # Diagnostics must never make a successful registry refresh fail.
         logger.debug("Could not evaluate tool-skill catalog overflow: %s", exc)
     return registry
@@ -659,7 +659,7 @@ class ToolSkillService:
         doc = self._encode_doc({**fields, "created_at": now, "updated_at": now})
         try:
             skill_id = await self.database.insert_one(self.collection_name, doc)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - pluggable database backend call; unstable driver exception surface
             logger.error("Error creating tool skill '%s': %s", fields["name"], exc)
             raise HTTPException(status_code=500, detail=f"Error creating tool skill: {exc}")
         return skill_id
@@ -668,7 +668,7 @@ class ToolSkillService:
         try:
             doc = await self.database.find_one(self.collection_name, {"_id": skill_id})
             return self._decode_doc(doc)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - pluggable database backend call must fail safe, not crash caller
             logger.error("Error retrieving tool skill %s: %s", skill_id, exc)
             return None
 
@@ -690,7 +690,7 @@ class ToolSkillService:
             docs = await self.database.find_many(
                 self.collection_name, filter_query, sort=sort, limit=limit, skip=offset,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - pluggable database backend call
             logger.error("Error listing tool skills: %s", exc)
             raise HTTPException(status_code=500, detail=f"Error listing tool skills: {exc}")
 
@@ -738,14 +738,14 @@ class ToolSkillService:
             return await self.database.update_one(
                 self.collection_name, {"_id": skill_id}, {"$set": update_doc},
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - pluggable database backend call must fail safe, not crash caller
             logger.error("Error updating tool skill %s: %s", skill_id, exc)
             return False
 
     async def delete_skill(self, skill_id: Union[str, Any]) -> bool:
         try:
             return await self.database.delete_one(self.collection_name, {"_id": skill_id})
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - pluggable database backend call must fail safe, not crash caller
             logger.error("Error deleting tool skill %s: %s", skill_id, exc)
             return False
 

@@ -205,7 +205,7 @@ class ThreadService:
             query_context_str = thread_doc.get('query_context', '{}')
             try:
                 query_context = json.loads(query_context_str)
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
                 query_context = {}
 
             return {
@@ -223,7 +223,7 @@ class ThreadService:
                 'owner_api_key_hash': thread_doc.get('owner_api_key_hash')
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; fail safe with a default return
             logger.error(f"Failed to get thread {thread_id}: {e}")
             return None
 
@@ -256,7 +256,7 @@ class ThreadService:
             # Get dataset from dataset service
             return await self.dataset_service.get_dataset(dataset_key)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; fail safe with a default return
             logger.error(f"Failed to get thread dataset for {thread_id}: {e}")
             return None
 
@@ -309,7 +309,7 @@ class ThreadService:
             else:
                 return {'status': 'error', 'message': 'Thread not found'}
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; fail safe with a default return
             logger.error(f"Failed to delete thread {thread_id}: {e}")
             return {'status': 'error', 'message': str(e)}
 
@@ -350,7 +350,7 @@ class ThreadService:
             
             return deleted_count
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; fail safe with a default return
             logger.error(f"Failed to cleanup expired threads: {e}")
             return 0
 

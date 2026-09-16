@@ -29,7 +29,7 @@ def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
         adapter_config = adapter_manager.get_adapter_config(adapter_name)
         if adapter_config:
             return adapter_config.get('type')
-    except Exception:
+    except Exception:  # noqa: BLE001 - adapter-type lookup is best-effort
         pass
     return None
 
@@ -126,7 +126,7 @@ class AudioGenerationStep(PipelineStep):
                                     rewrite_provider_name, rewrite_model,
                                 )
                                 return provider
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 - prompt-rewrite provider resolution is best-effort, falls back to default
                             logger.debug(
                                 "Could not resolve rewrite_provider '%s': %s",
                                 rewrite_provider_name, e,
@@ -150,7 +150,7 @@ class AudioGenerationStep(PipelineStep):
                                 inference_provider, adapter_name,
                             )
                             return provider
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - prompt-rewrite provider resolution is best-effort, falls back to default
                         logger.debug("Could not resolve provider for '%s': %s", adapter_name, e)
 
         return self.container.get_or_none('llm_provider')
@@ -220,7 +220,7 @@ class AudioGenerationStep(PipelineStep):
                 logger.debug("Rewrote audio text: %r -> %r", context.message[:80], rewritten[:80])
                 return rewritten
             logger.warning("Text rewrite returned empty response — speaking the raw message")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - prompt rewrite is best-effort; falls back to raw message
             logger.warning(f"Failed to rewrite audio text: {e}")
 
         return context.message
@@ -264,7 +264,7 @@ class AudioGenerationStep(PipelineStep):
                     provider = adapter_config.get('tts_provider')
                     if provider:
                         return provider
-            except Exception:
+            except Exception:  # noqa: BLE001 - tts-provider override lookup is best-effort, falls back to config default
                 pass
 
         return config.get('tts', {}).get('provider')

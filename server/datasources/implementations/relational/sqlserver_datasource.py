@@ -97,10 +97,10 @@ class SQLServerDatasource(BaseDatasource):
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
                 cursor.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 - pymssql driver boundary: pooled connection validation must fall through to reconnect
                 try:
                     conn.close()
-                except Exception:
+                except Exception:  # noqa: BLE001 - pymssql driver boundary: best-effort close of a stale pooled connection
                     pass
                 import pymssql
                 conn = pymssql.connect(**self._conn_params)
@@ -139,7 +139,7 @@ class SQLServerDatasource(BaseDatasource):
                 return True
             finally:
                 self.return_connection(conn)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pymssql driver boundary health check must not crash, only report status
             logger.error(f"SQL Server health check failed: {e}")
             return False
 
@@ -148,7 +148,7 @@ class SQLServerDatasource(BaseDatasource):
         if self._client:
             try:
                 self._client.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 - pymssql driver boundary: best-effort close during shutdown
                 pass
             self._client = None
 
@@ -157,7 +157,7 @@ class SQLServerDatasource(BaseDatasource):
                 try:
                     conn = self._pool_queue.get_nowait()
                     conn.close()
-                except Exception:
+                except Exception:  # noqa: BLE001 - pymssql driver boundary: best-effort close of pooled connections during shutdown
                     pass
             self._pool_queue = None
 

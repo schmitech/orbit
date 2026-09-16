@@ -149,7 +149,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
                 logger.warning("Failed to store audit record - no ID returned")
                 return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; audit write must fail safe
             logger.error(f"Error storing audit record in SQLite: {e}")
             return False
 
@@ -198,7 +198,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             # Convert results back to nested format for consistency
             return [self._unflatten_record(record) for record in results]
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; audit query must fail safe
             logger.error(f"Error querying audit records from SQLite: {e}")
             return []
 
@@ -367,7 +367,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         if self._database_service and self._owns_database_service:
             try:
                 self._database_service.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - database-backend call; cleanup must not crash shutdown
                 logger.error(f"Error closing SQLite audit database service: {e}")
 
         self._initialized = False
@@ -390,7 +390,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         if is_compressed and response:
             try:
                 response = decompress_text(response)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort decompression; falls back to raw stored value
                 logger.warning(f"Failed to decompress response: {e}")
                 # Return compressed response as-is if decompression fails
 
@@ -460,6 +460,6 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             logger.info(f"Cleared {deleted_count} audit records from SQLite table '{self._collection_name}'")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - database-backend call; audit clear must fail safe
             logger.error(f"Error clearing SQLite audit records: {e}")
             return False

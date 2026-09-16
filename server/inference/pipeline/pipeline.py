@@ -91,7 +91,7 @@ class InferencePipeline:
                         logger.warning(f"Pipeline stopped at step {step.get_name()}: {'blocked' if context.is_blocked else 'error'}")
                         break
                         
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pipeline step boundary wraps arbitrary pluggable step implementations; must not crash the request
                     step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(step.get_name(), step_time, False)
                     
@@ -106,7 +106,7 @@ class InferencePipeline:
             logger.debug(f"Pipeline processing completed in {total_time:.3f}s")
             return context
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pipeline step boundary wraps arbitrary pluggable step implementations; must not crash the request
             total_time = time.perf_counter() - start_time
             self.monitor.record_pipeline_metrics(total_time, False)
             
@@ -173,7 +173,7 @@ class InferencePipeline:
                         self.monitor.record_pipeline_metrics(total_time, False)
                         return
                         
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pipeline step boundary wraps arbitrary pluggable step implementations; must not crash the request
                     step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(step.get_name(), step_time, False)
                     
@@ -241,7 +241,7 @@ class InferencePipeline:
                     self.monitor.record_step_metrics(mcp_step.get_name(), step_time, True)
                     total_time = time.perf_counter() - start_time
                     self.monitor.record_pipeline_metrics(total_time, True)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pipeline step boundary wraps arbitrary pluggable step implementations; must not crash the request
                     step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(mcp_step.get_name(), step_time, False)
                     logger.error(f"Error in MCP agent step: {e!s}")
@@ -321,7 +321,7 @@ class InferencePipeline:
                     step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(llm_step.get_name(), step_time, True)
                     
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pipeline step boundary wraps arbitrary pluggable step implementations; must not crash the request
                     step_time = time.perf_counter() - step_start_time
                     self.monitor.record_step_metrics(llm_step.get_name(), step_time, False)
                     
@@ -333,7 +333,7 @@ class InferencePipeline:
                 if llm_step.should_execute(context):
                     try:
                         context = await llm_step.process(context)
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - pipeline step boundary wraps arbitrary pluggable step implementations; must not crash the request
                         logger.error(f"Error in non-streaming LLM step: {e!s}")
                         error_json = json.dumps({"error": str(e), "done": True})
                         yield error_json
@@ -350,7 +350,7 @@ class InferencePipeline:
             
             logger.debug(f"Streaming pipeline processing completed in {total_time:.3f}s")
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pipeline step boundary wraps arbitrary pluggable step implementations; must not crash the request
             total_time = time.perf_counter() - start_time
             self.monitor.record_pipeline_metrics(total_time, False)
             

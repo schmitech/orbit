@@ -85,7 +85,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             error_msg = "elasticsearch package is required for Elasticsearch retriever. Install with: pip install elasticsearch"
             logger.error(error_msg)
             raise ImportError(error_msg)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; connection failure surfaced as HTTPException
             error_msg = f"Failed to connect to Elasticsearch: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
@@ -96,7 +96,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             if self.es_client:
                 self.es_client.close()
             logger.debug("Elasticsearch client closed")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; cleanup must not crash shutdown
             logger.error(f"Error closing Elasticsearch connection: {e!s}")
 
     async def set_collection(self, collection_name: str) -> None:
@@ -123,7 +123,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             
             logger.debug(f"Switched to index: {collection_name}")
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; index switch failure surfaced as HTTPException
             error_msg = f"Failed to switch index: {e!s}"
             logger.error(error_msg)
             raise HTTPException(status_code=500, detail=error_msg)
@@ -188,7 +188,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             
             return search_results
             
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; query failure returns empty results
             logger.error(f"Error querying Elasticsearch: {e!s}")
             return []
 
@@ -281,7 +281,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
 
             return context_items
                 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - elasticsearch client boundary; retrieval failure returns empty results
             logger.error(f"Error retrieving context: {e!s}")
             return []
 

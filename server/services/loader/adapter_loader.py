@@ -131,7 +131,7 @@ class AdapterLoader:
                     if model_override:
                         log_msg += f" with model override '{model_override}'"
                     logger.debug(log_msg)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - pluggable provider preload is non-fatal; falls back to lazy load
                     # Preload failures are non-fatal (the adapter loads lazily on next access),
                     # so warn without a full traceback rather than logging as an error.
                     logger.warning(f"Could not preload inference provider '{inference_provider}' for adapter '{adapter_name}': {e!s}")
@@ -377,7 +377,7 @@ class AdapterLoader:
 
             await cache_manager.create_service(provider, adapter_name)
             logger.debug(f"Preloaded {log_label} provider '{provider}' for adapter '{adapter_name}'")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable provider preload is non-fatal; falls back to lazy load
             logger.warning(f"Failed to preload {warning_label} for adapter {adapter_name}: {e!s}")
 
     def _clear_embedding_factory_cache(self, provider: str) -> None:
@@ -408,7 +408,7 @@ class AdapterLoader:
             method = getattr(self.adapter_manager, manager_method)
             await method(provider, adapter_name)
             logger.debug(f"Preloaded {log_label} provider '{provider}' for adapter '{adapter_name}'")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable manager-service preload is non-fatal; falls back to lazy load
             logger.warning(f"Failed to preload {warning_label} for adapter {adapter_name}: {e!s}")
 
     def _create_adapter_sync(
@@ -565,7 +565,7 @@ class AdapterLoader:
                     logger.info(f"Got datasource instance '{datasource_name}' for retriever in adapter '{adapter_name}' (pooled)")
                 else:
                     logger.warning(f"Failed to get datasource '{datasource_name}' for adapter '{adapter_name}'")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable datasource client boundary; must not crash retriever creation
                 logger.warning(f"Error getting datasource '{datasource_name}' for adapter '{adapter_name}': {e}")
                 datasource_instance = None
 

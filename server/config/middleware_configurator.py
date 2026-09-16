@@ -151,7 +151,7 @@ class MiddlewareConfigurator:
             _logger.debug("Admin IP allowlist middleware configured successfully")
         except ImportError as e:
             _logger.warning(f"AdminIpAllowlistMiddleware not available - admin IP allowlisting disabled: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - middleware registration at startup must degrade gracefully, not crash app boot
             _logger.warning(f"Failed to configure admin IP allowlist middleware: {e}")
 
     @staticmethod
@@ -177,7 +177,7 @@ class MiddlewareConfigurator:
             _logger.debug("Admin audit middleware configured successfully")
         except ImportError as e:
             _logger.warning(f"AdminAuditMiddleware not available - admin audit disabled: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - middleware registration at startup must degrade gracefully, not crash app boot
             _logger.warning(f"Failed to configure admin audit middleware: {e}")
 
     @staticmethod
@@ -316,7 +316,7 @@ class MiddlewareConfigurator:
             _logger.debug("Metrics middleware configured successfully")
         except ImportError:
             _logger.warning("MetricsMiddleware not available - metrics collection disabled")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - middleware registration at startup must degrade gracefully, not crash app boot
             _logger.warning(f"Failed to configure metrics middleware: {e}")
 
     @staticmethod
@@ -347,7 +347,7 @@ class MiddlewareConfigurator:
             _logger.debug("Rate limiting middleware configured successfully")
         except ImportError as e:
             _logger.warning(f"RateLimitMiddleware not available - rate limiting disabled: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - middleware registration at startup must degrade gracefully, not crash app boot
             _logger.warning(f"Failed to configure rate limit middleware: {e}")
 
     @staticmethod
@@ -378,7 +378,7 @@ class MiddlewareConfigurator:
             _logger.debug("Throttle middleware configured successfully")
         except ImportError as e:
             _logger.warning(f"ThrottleMiddleware not available - throttling disabled: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - middleware registration at startup must degrade gracefully, not crash app boot
             _logger.warning(f"Failed to configure throttle middleware: {e}")
 
     @staticmethod
@@ -413,7 +413,7 @@ class MiddlewareConfigurator:
             _logger.debug(f"GZip compression middleware configured (min_size={minimum_size}, excluded: {excluded_paths})")
         except ImportError as e:
             _logger.warning(f"SelectiveGZipMiddleware not available - compression disabled: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - middleware registration at startup must degrade gracefully, not crash app boot
             _logger.warning(f"Failed to configure compression middleware: {e}")
 
     @staticmethod
@@ -437,5 +437,5 @@ class MiddlewareConfigurator:
             _logger.debug(f"ETag caching middleware configured (excluded: {excluded_paths})")
         except ImportError as e:
             _logger.warning(f"ETagMiddleware not available - ETag caching disabled: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - middleware registration at startup must degrade gracefully, not crash app boot
             _logger.warning(f"Failed to configure ETag middleware: {e}")

@@ -145,7 +145,7 @@ class ChunkManager:
                         dimension=dimension
                     )
                     logger.info(f"Created collection '{self.collection_name}' for chunks (dimension: {dimension})")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vector-store client boundary; collection may already exist
             # Collection might already exist - that's fine
             logger.debug(f"Collection initialization: {e}")
 
@@ -290,7 +290,7 @@ class ChunkManager:
                         metadata=stored_pieces_metadata,
                         collection_name=self.collection_name,
                     )
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - vector-store client boundary, must fail safe per-chunk
                     logger.error(f"Vector store write failed for chunk {orig_idx} of {source_url}: {exc}")
                     write_ok = False
 
@@ -308,7 +308,7 @@ class ChunkManager:
                             if existing is None:
                                 write_ok = False
                                 break
-                    except Exception as exc:
+                    except Exception as exc:  # noqa: BLE001 - vector-store client boundary, must fail safe per-chunk
                         write_ok = False
                         logger.debug(f"Could not confirm existing vector(s) for chunk {orig_idx}: {exc}")
 
@@ -362,7 +362,7 @@ class ChunkManager:
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - embedding/vector-store client boundary, must fail safe
             logger.error(f"Error storing chunks: {e}")
             import traceback
             logger.error(traceback.format_exc())
@@ -468,7 +468,7 @@ class ChunkManager:
 
             return chunks
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vector-store client boundary, must fail safe
             logger.error(f"Error retrieving chunks: {e}")
             import traceback
             logger.error(traceback.format_exc())
@@ -530,7 +530,7 @@ class ChunkManager:
             logger.info(f"Invalidated cache for {source_url}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - vector-store client boundary, must fail safe
             logger.error(f"Error invalidating cache: {e}")
             return False
 
@@ -636,5 +636,5 @@ class ChunkManager:
             if expired_hashes:
                 logger.info(f"Cleaned up {len(expired_hashes)} expired URL caches")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort cache cleanup must not crash the caller
             logger.error(f"Error cleaning up expired chunks: {e}")

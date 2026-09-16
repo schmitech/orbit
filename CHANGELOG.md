@@ -3,7 +3,7 @@
 ## [UNRELEASED]
 
 ### Technical Improvements
-- **Ruff Blind-Except Hardening**: Resolved 385 additional production-code `BLE001` findings per `docs/roadmap/ruff-blind-except-hardening.md` (950 → 565), spanning `server/routes/`, `server/retrievers/`, `server/vector_stores/`, `server/services/`, and `bin/orbit/`. A handful of catches were narrowed to the specific exceptions their operation can raise (datetime formatting, JSON/dict parsing, base64 decode, file I/O); the rest carry a `# noqa: BLE001` with a one-line rationale — pluggable vector-store/DB client boundaries, FastAPI route handlers that must degrade to a 5xx instead of crashing, and best-effort cleanup/cache/telemetry/audit paths. No behavior change.
+- **Ruff Blind-Except Hardening**: Resolved 670 additional production-code `BLE001` findings per `docs/roadmap/ruff-blind-except-hardening.md` (950 → 278), spanning `server/routes/`, `server/retrievers/`, `server/vector_stores/`, `server/services/`, `server/inference/`, `server/config/`, `server/datasources/`, `server/utils/`, and `bin/orbit/`. Catches with a known exception surface were narrowed (datetime formatting, JSON/dict parsing, base64 decode, file I/O, SQL/ObjectId parsing, optional-dependency import fallbacks); the rest carry a `# noqa: BLE001` with a one-line rationale — pluggable vector-store/DB/audit-backend client boundaries, FastAPI route handlers and websocket connections that must degrade gracefully, generative-media pipeline steps that must isolate provider failures, hot-reload/cache-eviction paths, and best-effort cleanup/telemetry paths. No behavior change.
 
 ## [2.17.10] - 2026-09-15
 

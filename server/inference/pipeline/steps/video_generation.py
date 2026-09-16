@@ -27,7 +27,7 @@ def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
         adapter_config = adapter_manager.get_adapter_config(adapter_name)
         if adapter_config:
             return adapter_config.get('type')
-    except Exception:
+    except Exception:  # noqa: BLE001 - adapter-type lookup is best-effort
         pass
     return None
 
@@ -132,7 +132,7 @@ class VideoGenerationStep(PipelineStep):
                                     rewrite_provider_name,
                                 )
                                 return provider
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 - prompt-rewrite provider resolution is best-effort, falls back to default
                             logger.debug(
                                 "Could not resolve rewrite_provider '%s': %s",
                                 rewrite_provider_name, e,
@@ -156,7 +156,7 @@ class VideoGenerationStep(PipelineStep):
                                 inference_provider, adapter_name,
                             )
                             return provider
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - prompt-rewrite provider resolution is best-effort, falls back to default
                         logger.debug("Could not resolve provider for '%s': %s", adapter_name, e)
 
         return self.container.get_or_none('llm_provider')
@@ -229,7 +229,7 @@ class VideoGenerationStep(PipelineStep):
                 "Prompt rewrite returned too-short response (%d chars) — using raw message",
                 len(rewritten) if rewritten else 0,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - prompt rewrite is best-effort; falls back to raw message
             logger.warning(f"Failed to rewrite skill prompt: {e}")
 
         return context.message
@@ -268,7 +268,7 @@ class VideoGenerationStep(PipelineStep):
                     provider = adapter_config.get('video_provider')
                     if provider:
                         return provider
-            except Exception:
+            except Exception:  # noqa: BLE001 - video-provider override lookup is best-effort, falls back to config default
                 pass
 
         return config.get('video', {}).get('provider')

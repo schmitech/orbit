@@ -89,7 +89,7 @@ class AdapterCacheManager:
                     await adapter.close()
                 else:
                     adapter.close()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable adapter close() has no fixed exception surface; must not block eviction
             logger.warning(f"Error closing adapter {adapter_name}: {e!s}")
 
         # Release datasource reference if applicable
@@ -103,7 +103,7 @@ class AdapterCacheManager:
                     config=adapter._datasource_config_for_release,
                     logger_instance=logger
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable datasource client boundary; must not block eviction
             logger.warning(f"Error releasing datasource for adapter {adapter_name}: {e!s}")
 
         # Unregister capabilities
@@ -111,7 +111,7 @@ class AdapterCacheManager:
             from adapters.capabilities import get_capability_registry
             capability_registry = get_capability_registry()
             capability_registry.unregister(adapter_name)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort capability cleanup must not block eviction
             logger.warning(f"Error unregistering capabilities for adapter {adapter_name}: {e!s}")
 
         logger.info(f"Removed adapter from cache: {adapter_name}")
@@ -149,7 +149,7 @@ class AdapterCacheManager:
             from adapters.capabilities import get_capability_registry
             capability_registry = get_capability_registry()
             capability_registry.clear()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort capability cleanup must not block cache clearing
             logger.warning(f"Error clearing capability registry: {e!s}")
 
         logger.info("Cleared all adapters from cache")

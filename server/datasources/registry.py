@@ -73,13 +73,13 @@ class DatasourceRegistry:
                                     logger.debug(f"Discovered datasource implementation: {datasource_name_value} -> {attr.__name__}")
                                 else:
                                     logger.warning(f"Class {attr.__name__} has empty datasource_name")
-                            except Exception as e:
+                            except Exception as e:  # noqa: BLE001 - plugin-discovery boundary; arbitrary third-party datasource class may fail to instantiate
                                 logger.warning(f"Class {attr.__name__} couldn't be instantiated to get datasource_name: {e}")
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - plugin-discovery boundary; module import for dynamic datasource discovery must not abort startup
                     logger.warning(f"Failed to import module {modname}: {e}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - plugin-discovery boundary; must not crash datasource registry initialization
             logger.error(f"Failed to discover datasource implementations: {e}")
 
         self._discovered = True
@@ -149,7 +149,7 @@ class DatasourceRegistry:
 
         try:
             return implementation(config, logger)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable datasource class constructor; unstable third-party exception surface
             log.error(f"Failed to create datasource {datasource_name}: {e}")
             return None
 
@@ -352,7 +352,7 @@ class DatasourceRegistry:
 
                 return datasource
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable datasource class constructor; unstable third-party exception surface
                 if logger_instance:
                     logger_instance.error(f"Failed to create datasource {datasource_name}: {e}")
                 return None
@@ -415,7 +415,7 @@ class DatasourceRegistry:
 
                     if logger_instance:
                         logger_instance.info(f"Closed datasource '{datasource_name}' (key: {cache_key}, refs: 0)")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - best-effort datasource cleanup; must not block shutdown
                     if logger_instance:
                         logger_instance.error(f"Error closing datasource {cache_key}: {e}")
             else:
@@ -492,7 +492,7 @@ class DatasourceRegistry:
 
                 if logger_instance:
                     logger_instance.info(f"Closed datasource: {cache_key}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort datasource cleanup during shutdown
                 if logger_instance:
                     logger_instance.error(f"Error closing datasource {cache_key} during shutdown: {e}")
 

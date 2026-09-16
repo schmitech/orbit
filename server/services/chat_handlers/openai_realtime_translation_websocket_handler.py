@@ -114,7 +114,7 @@ class OpenAIRealtimeTranslationWebSocketHandler:
             else:
                 logger.error("WebSocket send failed: %s", e)
                 self.is_connected = False
-        except Exception as e:  # pragma: no cover
+        except Exception as e:  # pragma: no cover  # noqa: BLE001 - websocket boundary must not crash the connection
             logger.error("WebSocket send failed: %s", e)
             self.is_connected = False
 
@@ -309,18 +309,18 @@ class OpenAIRealtimeTranslationWebSocketHandler:
             # Best-effort graceful close so OpenAI flushes any remaining translation.
             try:
                 await self._openai_ws.send_str(json.dumps({"type": "session.close"}))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort graceful close must not block cleanup
                 logger.debug("Error sending session.close: %s", e)
             try:
                 await self._openai_ws.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort cleanup must not raise
                 logger.debug("Error closing OpenAI ws: %s", e)
         self._openai_ws = None
 
         if self._http_session and not self._http_session.closed:
             try:
                 await self._http_session.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort cleanup must not raise
                 logger.debug("Error closing aiohttp session: %s", e)
         self._http_session = None
 

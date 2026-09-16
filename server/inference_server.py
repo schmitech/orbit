@@ -292,7 +292,7 @@ class InferenceServer:
                             pass
                     await self._shutdown_services(app)
                     logger.info("Services shut down successfully")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - shutdown must not crash the lifespan
                     logger.error("Error during shutdown: %s", e)
 
         return lifespan
@@ -390,7 +390,7 @@ class InferenceServer:
             if manager is not None:
                 await manager.refresh_tool_cache()
                 logger.info("MCP client warm-up complete")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - best-effort warm-up must not delay/crash startup
             logger.warning("MCP client warm-up failed: %s", exc)
 
     async def _shutdown_services(self, app: FastAPI) -> None:
@@ -406,7 +406,7 @@ class InferenceServer:
         if message_consumer is not None:
             try:
                 await asyncio.wait_for(message_consumer.stop(), timeout=10.0)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - shutdown path must not crash on consumer errors
                 logger.error("Error stopping message consumer: %s", e)
 
         # Drain any MCP client pools — the startup warm-up (and any chat
@@ -419,7 +419,7 @@ class InferenceServer:
         if mcp_manager is not None:
             try:
                 await mcp_manager.aclose()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - shutdown path must not crash on client pool errors
                 logger.error("Error closing MCP client pools: %s", e)
 
         # Create a list to collect shutdown tasks
@@ -433,7 +433,7 @@ class InferenceServer:
                         shutdown_tasks.append(service.close())
                     else:
                         service.close()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - per-service shutdown must not block others
                     logger.error("Error preparing shutdown for %s: %s", service_name, e)
 
         # Add services to shutdown tasks if they exist and have close methods
@@ -496,7 +496,7 @@ class InferenceServer:
                 )
             except asyncio.TimeoutError:
                 logger.error("Timeout shutting down fault tolerance services, continuing shutdown")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - shutdown path must not crash on fault-tolerance errors
                 logger.error("Error shutting down fault tolerance services: %s", e)
 
         # Close all tracked aiohttp sessions
@@ -515,7 +515,7 @@ class InferenceServer:
                 logger.info("Services shut down successfully")
             except asyncio.TimeoutError:
                 logger.error("Timeout while shutting down services")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - shutdown path must not crash on gather errors
                 logger.error("Error during shutdown of services: %s", e)
         else:
             logger.info("No services to shut down")
@@ -533,7 +533,7 @@ class InferenceServer:
                 logger.warning("Thread pool shutdown timed out, force-cancelling remaining tasks")
                 self.thread_pool_manager.shutdown(wait=False)
                 logger.info("Thread pool manager force shut down")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - shutdown path must not crash on thread-pool errors
                 logger.error("Error shutting down thread pool manager: %s", e)
 
     def _validate_ssl_config(self, https_config: dict) -> None:

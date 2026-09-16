@@ -49,7 +49,7 @@ def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
         adapter_config = adapter_manager.get_adapter_config(adapter_name)
         if adapter_config:
             return adapter_config.get('type')
-    except Exception:
+    except Exception:  # noqa: BLE001 - adapter-type lookup is best-effort
         pass
     return None
 
@@ -144,7 +144,7 @@ class DocumentGenerationStep(PipelineStep):
                     fmt = adapter_config.get('document_format')
                     if fmt:
                         return fmt.lower()
-            except Exception:
+            except Exception:  # noqa: BLE001 - prompt-rewrite provider resolution is best-effort, falls back to default
                 pass
         config = self.container.get_or_none('config') or {}
         return config.get('document', {}).get('default_format', 'pdf')
@@ -207,7 +207,7 @@ class DocumentGenerationStep(PipelineStep):
                                     explicit_model_override=rewrite_model,
                                 ),
                             )
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 - prompt-rewrite provider resolution is best-effort, falls back to default
                             logger.debug(
                                 "Could not resolve rewrite_provider '%s': %s",
                                 rewrite_provider_name, e,
@@ -229,7 +229,7 @@ class DocumentGenerationStep(PipelineStep):
                                 inference_provider, adapter_name
                             ),
                         )
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001 - prompt rewrite is best-effort; falls back to raw message
                         logger.debug(
                             "Could not resolve provider for '%s': %s", adapter_name, e
                         )
@@ -406,7 +406,7 @@ class DocumentGenerationStep(PipelineStep):
                 # call happens.
                 self._record_spec_usage(context, attempts)
                 return spec
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - multi-provider generation loop must isolate a failing provider and try the next
                 logger.warning(
                     "Document spec generation via '%s' failed: %s — trying next provider",
                     label, e,

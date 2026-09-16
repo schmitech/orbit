@@ -147,7 +147,7 @@ class ClockService:
             _get_cached_timezone(self.default_timezone)
             self._default_tz_valid = True
             logger.debug(f"Default timezone '{self.default_timezone}' validated successfully.")
-        except (ZoneInfoNotFoundError, Exception) as e:
+        except (ZoneInfoNotFoundError, Exception) as e:  # noqa: BLE001 - ZoneInfoNotFoundError aliases Exception when no timezone library is installed
             logger.warning(
                 f"Default timezone '{self.default_timezone}' is invalid: {e}. "
                 f"Falling back to UTC."
@@ -156,7 +156,7 @@ class ClockService:
             try:
                 _get_cached_timezone('UTC')
                 self._default_tz_valid = True
-            except Exception:
+            except Exception:  # noqa: BLE001 - ZoneInfoNotFoundError aliases Exception when no timezone library is installed
                 logger.error("Failed to validate UTC timezone. Clock service may not work.")
                 self._default_tz_valid = False
 
@@ -200,7 +200,7 @@ class ClockService:
                     f"Returning UTC time."
                 )
                 return datetime.now(dt_timezone.utc).strftime(target_format)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable timezone backend (zoneinfo/pytz) has no fixed exception surface
             logger.error(f"Error getting current time: {e}")
             return None
 
@@ -246,7 +246,7 @@ class ClockService:
         if self.enabled and self._default_tz_valid:
             try:
                 sample_output = self.get_current_time_str()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort health-check sample; must not fail the health report
                 sample_output = f"Error: {e}"
 
         timezone_library = "none"

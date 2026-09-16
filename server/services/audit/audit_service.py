@@ -188,7 +188,7 @@ class AuditService:
             else:
                 logger.warning(f"Audit strategy {self._strategy.backend_name} failed to initialize")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable audit backend init must not fail app startup
             logger.error(f"Failed to initialize audit service: {e}")
             # Don't fail the application if audit service fails
             self._initialized = True
@@ -215,7 +215,7 @@ class AuditService:
                     logger.warning(
                         f"Admin audit strategy {self._admin_strategy.backend_name} failed to initialize"
                     )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - pluggable audit backend init must not fail app startup
                 logger.error(f"Failed to initialize admin audit storage: {e}")
                 self._admin_strategy = None
 
@@ -323,7 +323,7 @@ class AuditService:
             )
             if key_doc and key_doc.get("_id") is not None:
                 return str(key_doc["_id"])
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort lookup must not fail the audit record
             logger.warning(f"Failed to resolve API key id for audit record: {e}")
         return None
 
@@ -419,7 +419,7 @@ class AuditService:
             if not success:
                 logger.warning("Failed to store audit record")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort audit logging must not fail the request
             logger.error(f"Error logging conversation to audit: {e}")
             # Don't fail the request if audit logging fails
 
@@ -455,7 +455,7 @@ class AuditService:
                 sort_by=sort_by,
                 sort_order=sort_order
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable audit backend boundary, must fail safe with empty results
             logger.error(f"Error querying audit logs: {e}")
             return []
 
@@ -511,7 +511,7 @@ class AuditService:
             success = await self._admin_strategy.store(record)
             if not success:
                 logger.warning("Failed to store admin audit record")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort audit logging must not fail the request
             logger.error(f"Error logging admin audit event: {e}")
 
     async def query_admin_events(
@@ -533,7 +533,7 @@ class AuditService:
                 sort_by=sort_by,
                 sort_order=sort_order,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pluggable audit backend boundary, must fail safe with empty results
             logger.error(f"Error querying admin audit events: {e}")
             return []
 
