@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Technical Improvements
+- **MCP Client Service Cleanup**: Deduplicated the connection-init path in `_create_connection` (stdio/http branches shared one `session.initialize()` call instead of two copies) and consolidated the `input_schema`/`inputSchema` and tool-annotation snake_case/camelCase compatibility shims into one `_compat_attr()` helper. No behavior change. Remaining findings from the same review (secret-masking reuse, breaker-state encapsulation, tool-list caching, curl-repro trimming) are tracked as phased follow-ups in `docs/roadmap/mcp-client-service-cleanup.md`.
+
 ## [2.17.10] - 2026-09-15
 
 ### Bug Fixes

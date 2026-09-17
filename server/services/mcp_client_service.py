@@ -51,6 +51,14 @@ _SAFE_ENV_KEYS = {"PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "TEMP", "TMP",
                   "LANG", "LC_ALL", "LC_CTYPE", "SHELL", "TERM"}
 
 
+def _compat_attr(obj: Any, snake_name: str, camel_name: str, default: Any = None) -> Any:
+    """Read `snake_name` (MCP 2.x) off `obj`, falling back to `camel_name`
+    (MCP 1.x) — the SDK renamed several fields to snake_case, and this lets
+    deployments on either version work without a hard dependency bump."""
+    value = getattr(obj, snake_name, None)
+    return value if value is not None else getattr(obj, camel_name, default)
+
+
 def get_mcp_client_manager(config: dict[str, Any]) -> Optional["MCPClientManager"]:
     """Return the singleton MCPClientManager, or None if MCP is not enabled."""
     global _instance
@@ -577,9 +585,6 @@ class MCPClientManager:
                     env=env,
                 )
                 read, write = await stack.enter_async_context(stdio_client(params))
-                session = await stack.enter_async_context(ClientSession(read, write))
-                init_result = await session.initialize()
-                self._record_server_instructions(server_name, init_result.instructions)
 
             elif transport == "http":
                 from mcp.client.streamable_http import streamable_http_client
@@ -611,14 +616,15 @@ class MCPClientManager:
                     streamable_http_client(url, http_client=http_client)
                 )
                 read, write = transport[:2]
-                session = await stack.enter_async_context(ClientSession(read, write))
-                init_result = await session.initialize()
-                self._record_server_instructions(server_name, init_result.instructions)
 
             else:
                 raise ValueError(
                     f"Unsupported MCP transport '{transport}'. Use 'stdio' or 'http'."
                 )
+
+            session = await stack.enter_async_context(ClientSession(read, write))
+            init_result = await session.initialize()
+            self._record_server_instructions(server_name, init_result.instructions)
         except BaseException:
             await stack.aclose()
             raise
@@ -821,9 +827,7 @@ class MCPClientManager:
         namespaced = f"{server_name}__{mcp_tool.name}"
         # MCP 2 Python models renamed fields to snake_case. Retain MCP 1's
         # camelCase field so deployments can upgrade independently.
-        input_schema = getattr(mcp_tool, "input_schema", None)
-        if input_schema is None:
-            input_schema = getattr(mcp_tool, "inputSchema", None)
+        input_schema = _compat_attr(mcp_tool, "input_schema", "inputSchema")
         input_schema = input_schema or {
             "type": "object",
             "properties": {},
@@ -859,19 +863,12 @@ class MCPClientManager:
         if annotations is None:
             return None
 
-        def _get(snake_name: str, camel_name: str) -> Any:
-            value = getattr(annotations, snake_name, None)
-            # MCP 1.x's ToolAnnotations used camelCase; retain it so
-            # deployments can upgrade independently (same fallback pattern
-            # as input_schema/inputSchema in _to_openai_tool above).
-            return value if value is not None else getattr(annotations, camel_name, None)
-
         fields = {
             "title": getattr(annotations, "title", None),
-            "read_only_hint": _get("read_only_hint", "readOnlyHint"),
-            "destructive_hint": _get("destructive_hint", "destructiveHint"),
-            "idempotent_hint": _get("idempotent_hint", "idempotentHint"),
-            "open_world_hint": _get("open_world_hint", "openWorldHint"),
+            "read_only_hint": _compat_attr(annotations, "read_only_hint", "readOnlyHint"),
+            "destructive_hint": _compat_attr(annotations, "destructive_hint", "destructiveHint"),
+            "idempotent_hint": _compat_attr(annotations, "idempotent_hint", "idempotentHint"),
+            "open_world_hint": _compat_attr(annotations, "open_world_hint", "openWorldHint"),
         }
         result = {k: v for k, v in fields.items() if v is not None}
         return result or None
