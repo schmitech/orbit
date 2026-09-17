@@ -13,10 +13,7 @@ consolidating the `input_schema`/`inputSchema` and annotation snake/camel
 shims into one `_compat_attr` helper) already shipped directly and are not
 tracked here.
 
-Phases 2 and 3 are independent of everything else and of each other. Phase 1
-is complete (see below); Phase 4, if pursued, should call the Phase-1
-`mask_api_key(..., show_both=True)` helper for header redaction rather than
-reintroducing a separate masking implementation.
+All four phases are now complete (see below).
 
 ---
 
@@ -251,7 +248,24 @@ larger-toolset deployment shows this on a hot path.
       `update_server` (stale schema/tool-list must never be served after a
       server's tools change).
 
-## Phase 4 — Trim the HTTP debug-logging machinery (optional, low priority)
+## Phase 4 — Trim the HTTP debug-logging machinery (optional, low priority) (✅ Complete)
+
+**Shipped:** decided (via user judgment call, not a traceable prior-incident
+check) that the curl-repro feature wasn't worth its complexity. Deleted
+`_build_curl_repro` entirely and trimmed `_log_http_request` to log only
+method/URL/masked headers at DEBUG — no shell-command reconstruction. Kept
+`_log_http_request` and `_log_http_response` as two separate hooks (httpx's
+`event_hooks` wires "request" and "response" as separate lists that fire at
+different times, so a single combined `_log_http_exchange` wouldn't fit that
+API without extra state-passing machinery of its own) rather than merging
+into one `_log_http_exchange` as originally sketched — this keeps the change
+to deleting real complexity without adding new complexity elsewhere. Kept
+`_header_display_value`/`mask_api_key(show_both=True)` (Phase 1) for header
+redaction, and the bounded-read body-snippet logic in `_log_http_response`
+(unrelated to curl-repro, still needed for the WARNING log). Removed the two
+curl-reproduction-specific tests from `test_mcp_client_service.py`; all
+other diagnostic-hook tests unchanged. 109/109 `test_mcp_client_service`
+tests pass.
 
 **Finding (simplification):** `_mask_secret`, `_header_display_value`,
 `_build_curl_repro`, `_log_http_request`, `_log_http_response` (~100 lines)
@@ -269,17 +283,15 @@ simplification.
 
 **Tasks (only if the team decides the curl-repro feature isn't worth
 keeping):**
-- [ ] Confirm with whoever added the curl-repro feature (or check its
+- [x] ~~Confirm with whoever added the curl-repro feature (or check its
       originating PR/issue) whether it has been used in practice for a
-      real MCP HTTP debugging incident.
-- [ ] If not valuable: replace `_build_curl_repro` + `_log_http_request` +
-      `_log_http_response` with a single `_log_http_exchange(server_name,
-      request, response)` that logs method/URL/status/truncated body
-      without reconstructing a shell command. Keep `_mask_secret`/
-      `_header_display_value` (or their Phase 1 replacement) for header
-      redaction only.
-- [ ] If valuable: close this phase as "keep as-is" and remove it from
-      this roadmap doc.
+      real MCP HTTP debugging incident.~~ Decided by user judgment call
+      instead — no record of it being used for a real incident was found.
+- [x] Replace `_build_curl_repro` + the curl line in `_log_http_request`
+      with a plain method/URL/masked-header debug log — see the deviation
+      from the originally-sketched single-`_log_http_exchange` shape noted
+      above. `_header_display_value`/`mask_api_key(show_both=True)` (Phase 1
+      replacement) is kept for header redaction only.
 
 ## Assumptions
 

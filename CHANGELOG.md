@@ -7,6 +7,7 @@
 - **MCP Client Service Cleanup (Phase 1)**: Added a `show_both` mode to `text_utils.mask_api_key()` reproducing the former `MCPClientManager._mask_secret`'s `first...last (len=N)` format, and switched HTTP header masking in `mcp_client_service.py` to call it instead of maintaining a duplicate implementation. Empty header values still mask to `""` rather than `"None"`, matching prior behavior exactly. No behavior change.
 - **MCP Client Service Cleanup (Phase 2)**: Added `ServerConnectionPool.is_reachable()` and `should_retry_discovery()` as the single source of truth for circuit-breaker reachability/retry checks, replacing three call sites in `mcp_client_service.py` that previously re-derived the same breaker-state logic with inconsistent nuance. No behavior change.
 - **MCP Client Service Cleanup (Phase 3)**: `get_all_tools()` and `_validate_arguments()` now read from a lazily-rebuilt flattened tool list and per-tool schema index instead of rebuilding/linear-scanning `_tools_cache` on every call, with `_cache_lock` held during the read so a concurrent `refresh_tool_cache()`/`update_server()` can never hand back a result mixing pre- and post-refresh servers. No behavior change.
+- **MCP Client Service Cleanup (Phase 4)**: Removed the unused curl-reproduction debug machinery (`_build_curl_repro`) from `mcp_client_service.py`'s HTTP request logging; DEBUG-level logs now show method/URL/masked headers only. Response-side error logging (status + truncated body) is unchanged.
 
 ## [2.17.10] - 2026-09-15
 

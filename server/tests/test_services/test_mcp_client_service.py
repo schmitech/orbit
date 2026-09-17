@@ -1711,29 +1711,6 @@ class TestHttpRequestDiagnosticHook:
         assert f"(len={len('Bearer ' + token)})" in caplog.text
         assert "*****" in caplog.text  # the short X-Api-Key masks fully
 
-    async def test_includes_curl_reproduction_with_masked_secret(self, caplog):
-        hook = MCPClientManager._log_http_request("myServer")
-        request = httpx.Request(
-            "GET", "https://example.test/mcp",
-            headers={"Authorization": "Bearer sk-abcdefghijklmnopqrstuvwxyz0123456789"},
-        )
-        with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
-            await hook(request)
-
-        assert "curl -X GET 'https://example.test/mcp'" in caplog.text
-        assert "-H 'authorization: Bear...6789" in caplog.text
-
-    async def test_curl_reproduction_includes_json_body(self, caplog):
-        hook = MCPClientManager._log_http_request("myServer")
-        request = httpx.Request(
-            "POST", "https://example.test/mcp",
-            json={"jsonrpc": "2.0", "method": "initialize", "id": 1},
-        )
-        with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
-            await hook(request)
-
-        assert '-d \'{"jsonrpc":"2.0","method":"initialize","id":1}\'' in caplog.text
-
     async def test_silent_when_debug_not_enabled(self, caplog):
         hook = MCPClientManager._log_http_request("myServer")
         request = httpx.Request("GET", "https://example.test/mcp")

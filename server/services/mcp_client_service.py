@@ -768,32 +768,12 @@ class MCPClientManager:
         return value
 
     @classmethod
-    def _build_curl_repro(cls, request, headers_display: dict[str, str]) -> str:
-        """A copy-pasteable (modulo the masked secret) `curl` command for the
-        exact request ORBIT just sent — the fastest way to tell "ORBIT sends
-        a different request than my manual curl" from "the server rejects
-        this request regardless of who sends it"."""
-        parts = [f"curl -X {request.method} '{request.url}'"]
-        for name, value in headers_display.items():
-            escaped = value.replace("'", "'\\''")
-            parts.append(f"-H '{name}: {escaped}'")
-        body = request.content or b""
-        if body:
-            body_text = body.decode("utf-8", errors="replace")
-            if len(body_text) > 500:
-                body_text = body_text[:500] + "...<truncated>"
-            escaped_body = body_text.replace("'", "'\\''")
-            parts.append(f"-d '{escaped_body}'")
-        return " ".join(parts)
-
-    @classmethod
     def _log_http_request(cls, server_name: str):
         """Build an httpx request event hook that logs the outgoing request
-        at DEBUG — method, URL, every header (secrets masked to their
-        boundary characters, never in full), and a ready-to-paste `curl`
-        reproduction — so a "works with curl, fails from ORBIT" report can
-        be diagnosed by diffing the two requests directly, rather than
-        guessing at what ORBIT actually sent."""
+        at DEBUG — method, URL, and every header (secrets masked to their
+        boundary characters, never in full) — so a "works with curl, fails
+        from ORBIT" report can be diagnosed against what ORBIT actually
+        sent."""
         async def hook(request) -> None:
             if not logger.isEnabledFor(logging.DEBUG):
                 return
@@ -802,9 +782,8 @@ class MCPClientManager:
                 for name, value in request.headers.items()
             }
             logger.debug(
-                "MCP server '%s': -> %s %s\n  headers: %s\n  curl repro: %s",
+                "MCP server '%s': -> %s %s\n  headers: %s",
                 server_name, request.method, request.url, headers_display,
-                cls._build_curl_repro(request, headers_display),
             )
         return hook
 
