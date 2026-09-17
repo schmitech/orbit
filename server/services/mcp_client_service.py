@@ -179,6 +179,28 @@ class MCPClientManager:
         # above — the spec itself warns these are unverified and must not
         # drive tool-use decisions, so they never reach _to_openai_tool.
         self._tool_annotations: dict[str, dict[str, dict[str, Any]]] = {}
+        # namespaced_tool_name -> its OpenAI-format tool dict, for O(1)
+        # _validate_arguments lookup instead of a per-server linear scan.
+        # Lazily rebuilt from _tools_cache — see _ensure_derived_caches.
+        self._tool_schema_index: dict[str, dict[str, Any]] = {}
+        # Flattened, unfiltered view of _tools_cache's values. Lazily rebuilt
+        # as one new list (never mutated in place) so a concurrent
+        # get_all_tools() snapshot never observes a partially-rebuilt list.
+        # get_all_tools reads this instead of rebuilding the flatten on every
+        # call, then applies its allowed_servers/opportunistic_only filter
+        # (cheap) uncached.
+        self._flattened_tools_cache: Optional[list[dict[str, Any]]] = None
+        # True whenever _tools_cache may have changed since the derived
+        # caches above were last built. Set on every _tools_cache mutation;
+        # cleared by _ensure_derived_caches.
+        self._derived_caches_dirty = True
+        # id() of _tools_cache as of the last derived-cache rebuild.
+        # _ensure_derived_caches also rebuilds when this no longer matches
+        # the live _tools_cache, so a wholesale reassignment of _tools_cache
+        # (a new dict object, e.g. by a test or by refresh_tool_cache())
+        # is caught even if it didn't go through an instrumented mutation
+        # site that sets _derived_caches_dirty.
+        self._tools_cache_identity: Optional[int] = None
         self._cache_lock = asyncio.Lock()
         self._cache_populated = False
         # server_name -> pool of warm connections + its circuit breaker.
@@ -292,13 +314,30 @@ class MCPClientManager:
     ) -> list[dict[str, Any]]:
         """Return all cached tools as OpenAI-format tool dicts."""
         await self._ensure_cache_populated()
+        # Rebuild (if stale) and read the flattened-cache reference in one
+        # locked step — a refresh publishes a whole new list rather than
+        # mutating this one in place, so the reference can be iterated
+        # afterward without the lock without ever mixing pre-/post-refresh
+        # tools.
+        async with self._cache_lock:
+            self._ensure_derived_caches()
+            flattened = self._flattened_tools_cache or []
+        if not allowed_servers and not opportunistic_only:
+            # A copy, not the cached reference — callers have historically
+            # gotten a freshly-built list here and some mutate it in place
+            # (e.g. pop()/append() while assembling a request); handing back
+            # the cache itself would let that mutation corrupt every
+            # subsequent get_all_tools() result until the next refresh.
+            return list(flattened)
         tools = []
-        for server_name, server_tools in self._tools_cache.items():
+        for tool in flattened:
+            fn_name = tool.get("function", {}).get("name", "")
+            server_name = fn_name.split("__", 1)[0] if "__" in fn_name else ""
             if allowed_servers and server_name not in allowed_servers:
                 continue
             if opportunistic_only and not self.setting(server_name, "allow_opportunistic"):
                 continue
-            tools.extend(server_tools)
+            tools.append(tool)
         return tools
 
     async def call_tool(
@@ -362,12 +401,8 @@ class MCPClientManager:
         Returns an error string describing what is missing, or None if valid.
         The error is phrased to be actionable for the model on its next attempt.
         """
-        server_name = namespaced_name.split("__", 1)[0]
-        cached = self._tools_cache.get(server_name, [])
-        tool_schema = next(
-            (t for t in cached if t.get("function", {}).get("name") == namespaced_name),
-            None,
-        )
+        self._ensure_derived_caches()
+        tool_schema = self._tool_schema_index.get(namespaced_name)
         if not tool_schema:
             return None  # Schema not cached yet — let the server validate
 
@@ -411,6 +446,7 @@ class MCPClientManager:
             self._tools_cache.pop(name, None)
             self._server_instructions.pop(name, None)
             self._tool_annotations.pop(name, None)
+            self._derived_caches_dirty = True
             if entry is None or not entry.get("enabled", True):
                 self._server_configs.pop(name, None)
             else:
@@ -429,6 +465,7 @@ class MCPClientManager:
         if server_names is None:
             async with self._cache_lock:
                 self._tools_cache = {}
+                self._derived_caches_dirty = True
                 for pool in self._pools.values():
                     pool.reset_breaker()
                 self._cache_populated = False
@@ -442,6 +479,7 @@ class MCPClientManager:
             for name in names:
                 self._tools_cache.pop(name, None)
                 self._pool_for(name).reset_breaker()
+            self._derived_caches_dirty = True
             await asyncio.gather(*(self._discover_server(n) for n in names))
             self._cache_populated = True
         self._warn_tool_skill_catalog_overflow()
@@ -469,6 +507,7 @@ class MCPClientManager:
             # rather than one per unreachable server.
             await asyncio.gather(*(self._discover_server(n) for n in server_names))
             self._cache_populated = True
+            self._derived_caches_dirty = True
             self._warn_tool_skill_catalog_overflow()
 
     def _warn_tool_skill_catalog_overflow(self) -> None:
@@ -488,6 +527,25 @@ class MCPClientManager:
 
     def _any_server_marked_failed(self) -> bool:
         return any(not p.is_reachable() for p in self._pools.values())
+
+    def _ensure_derived_caches(self) -> None:
+        """Rebuild the flattened tool list and per-tool schema index from
+        _tools_cache if either might be stale. Both are published as brand
+        new objects in one atomic assignment each — never mutated in place —
+        so a concurrent reader never observes a partially-rebuilt cache.
+        Callers touching _tools_cache should hold _cache_lock; this method
+        itself does not (it's also called from the unlocked, sync
+        _validate_arguments)."""
+        if not self._derived_caches_dirty and id(self._tools_cache) == self._tools_cache_identity:
+            return
+        self._flattened_tools_cache = [
+            tool for tools in self._tools_cache.values() for tool in tools
+        ]
+        self._tool_schema_index = {
+            tool["function"]["name"]: tool for tool in self._flattened_tools_cache
+        }
+        self._derived_caches_dirty = False
+        self._tools_cache_identity = id(self._tools_cache)
 
     async def _discover_server(self, server_name: str) -> None:
         """List tools on one server, recording it as failed on any error.

@@ -168,6 +168,32 @@ class TestGetAllTools:
         tools = await mgr.get_all_tools(allowed_servers=None)
         assert len(tools) == 2
 
+    async def test_unfiltered_result_is_a_snapshot_not_the_live_cache(self):
+        """Mutating the returned list must not corrupt the cache used by
+        subsequent, unrelated get_all_tools() calls."""
+        mgr = _manager_with_cache()
+        tools = await mgr.get_all_tools()
+        assert len(tools) == 2
+
+        tools.pop()
+        tools.append({"function": {"name": "injected__bogus"}})
+
+        fresh = await mgr.get_all_tools()
+        names = {t["function"]["name"] for t in fresh}
+        assert names == {"filesystem__read_file", "github__list_issues"}
+
+    async def test_wholesale_tools_cache_reassignment_invalidates_cache(self):
+        """Replacing _tools_cache directly (not through an instrumented
+        mutation site) must still be picked up on the next read."""
+        mgr = _manager_with_cache()
+        await mgr.get_all_tools()  # populate the derived caches once
+
+        mgr._tools_cache = {
+            "other": [{"function": {"name": "other__tool"}}],
+        }
+        tools = await mgr.get_all_tools()
+        assert [t["function"]["name"] for t in tools] == ["other__tool"]
+
     async def test_failed_discovery_is_retried_after_retry_interval(self):
         tool = _FakeMCPTool(
             "recovered_tool", "Available after recovery", {"type": "object", "properties": {}}
@@ -685,6 +711,85 @@ class TestRefreshToolCache:
         await mgr.refresh_tool_cache(["does-not-exist"])
         mgr._list_tools_on_server.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_refresh_invalidates_flattened_cache_and_schema_index(self):
+        """A stale schema/tool-list must never be served after a server's
+        tools change — covers get_all_tools' flattened cache and
+        _validate_arguments' schema index together."""
+        mgr = MCPClientManager({
+            "servers": [{"name": "a", "transport": "stdio", "command": "x"}],
+        })
+        old_tool = _FakeMCPTool(
+            "old_tool", "old", {"type": "object", "properties": {"p": {"type": "string"}}, "required": ["p"]}
+        )
+
+        async def _list_old(_cfg):
+            return [old_tool]
+
+        mgr._list_tools_on_server = _stub_list_tools(mgr, _list_old)
+        await mgr.get_all_tools()
+        assert [t["function"]["name"] for t in await mgr.get_all_tools()] == ["a__old_tool"]
+        assert mgr._validate_arguments("a__old_tool", {}) is not None
+
+        new_tool = _FakeMCPTool("new_tool", "new", {"type": "object", "properties": {}})
+
+        async def _list_new(_cfg):
+            return [new_tool]
+
+        mgr._list_tools_on_server = _stub_list_tools(mgr, _list_new)
+        await mgr.refresh_tool_cache(["a"])
+
+        tools = await mgr.get_all_tools()
+        assert [t["function"]["name"] for t in tools] == ["a__new_tool"]
+        # Old schema must be gone, not just shadowed.
+        assert mgr._validate_arguments("a__old_tool", {}) is None
+        assert mgr._validate_arguments("a__new_tool", {}) is None
+
+    @pytest.mark.asyncio
+    async def test_get_all_tools_concurrent_with_refresh_never_mixes_results(self):
+        """get_all_tools() running concurrently with refresh_tool_cache()
+        must observe either the fully-old or fully-new tool set, never a
+        mix of pre-/post-refresh servers."""
+        mgr = MCPClientManager({
+            "servers": [
+                {"name": "a", "transport": "stdio", "command": "x"},
+                {"name": "b", "transport": "stdio", "command": "y"},
+            ],
+        })
+        async def _list_old(cfg):
+            return [_FakeMCPTool(f"{cfg['name']}_old", "old", {"type": "object", "properties": {}})]
+
+        mgr._list_tools_on_server = _stub_list_tools(mgr, _list_old)
+        await mgr.get_all_tools()
+
+        release_b = asyncio.Event()
+
+        async def _slow_list(server_config):
+            if server_config["name"] == "b":
+                await release_b.wait()
+            return [_FakeMCPTool(f"{server_config['name']}_new", "new", {"type": "object", "properties": {}})]
+
+        mgr._list_tools_on_server = _stub_list_tools(mgr, _slow_list)
+
+        refresh_task = asyncio.create_task(mgr.refresh_tool_cache())
+        await asyncio.sleep(0)  # let refresh acquire the lock and start 'a'
+
+        results: list[list[str]] = []
+
+        async def _read():
+            tools = await mgr.get_all_tools()
+            results.append(sorted(t["function"]["name"] for t in tools))
+
+        read_task = asyncio.create_task(_read())
+        await asyncio.sleep(0)
+        release_b.set()
+        await asyncio.gather(refresh_task, read_task)
+
+        assert results[0] in (
+            ["a__a_old", "b__b_old"],
+            ["a__a_new", "b__b_new"],
+        )
+
 
 class TestUpdateServer:
     @pytest.mark.asyncio
@@ -720,6 +825,21 @@ class TestUpdateServer:
         })
         await mgr.update_server("a", {"name": "a", "transport": "stdio", "command": "x", "enabled": False})
         assert "a" not in mgr._server_configs
+
+    @pytest.mark.asyncio
+    async def test_update_server_removal_invalidates_flattened_cache(self):
+        """get_all_tools() must not keep serving a removed server's tools
+        from a stale flattened cache after update_server(None)."""
+        mgr = MCPClientManager({
+            "servers": [{"name": "a", "transport": "stdio", "command": "x"}],
+        })
+        mgr._tools_cache["a"] = [{"function": {"name": "a__tool"}}]
+        mgr._cache_populated = True
+        assert [t["function"]["name"] for t in await mgr.get_all_tools()] == ["a__tool"]
+
+        await mgr.update_server("a", None)
+
+        assert await mgr.get_all_tools() == []
 
     @pytest.mark.asyncio
     async def test_update_server_leaves_other_servers_untouched(self):
